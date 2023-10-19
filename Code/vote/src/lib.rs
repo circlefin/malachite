@@ -29,9 +29,9 @@ impl ValuesWeights {
         *entry
     }
 
-    pub fn weight_for(&self, value: &Value) -> Weight {
-        self.value_weights.get(value).copied().unwrap_or(0)
-    }
+    // pub fn weight_for(&self, value: &Value) -> Weight {
+    //     self.value_weights.get(value).copied().unwrap_or(0)
+    // }
 
     pub fn highest_weighted_value(&self) -> Option<(&Value, Weight)> {
         self.value_weights
