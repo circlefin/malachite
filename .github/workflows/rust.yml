@@ -49,10 +49,10 @@ jobs:
         with:
           components: clippy
       - name: Run clippy
-        uses: auguwu/clippy-action@1.3.0
+        uses: actions-rs/clippy@master
         with:
           token: ${{secrets.GITHUB_TOKEN}}
-          args: --manifest-path Code/Cargo.toml
+          args: --all-features --all-targets --manifest-path Code/Cargo.toml
  
   fmt:
     name: Formatting
