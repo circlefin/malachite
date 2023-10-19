@@ -33,8 +33,7 @@ jobs:
         run: cargo llvm-cov report
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
-        working_dir: Code
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: lcov.info
+          files: Code/lcov.info
           fail_ci_if_error: true
