@@ -63,7 +63,7 @@ pub fn handle(state: State, round: Round, event: Event) -> Transition {
         }
         (Step::Propose, Event::ProposalInvalid) if this_round => prevote_nil(state), // L22/L25, L28/L31
         (Step::Propose, Event::TimeoutPropose) if this_round => prevote_nil(state),  // L57
-        
+
         // From Prevote. Event must be for current round.
         (Step::Prevote, Event::PolkaAny) if this_round => schedule_timeout_prevote(state), // L34
         (Step::Prevote, Event::PolkaNil) if this_round => precommit_nil(state),            // L44
