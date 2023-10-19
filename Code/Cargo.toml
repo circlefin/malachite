@@ -3,5 +3,7 @@ resolver = "2"
 
 members = [
   "common",
-  "round"
+  "consensus",
+  "round",
+  "vote",
 ]
