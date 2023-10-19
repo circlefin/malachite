@@ -117,7 +117,7 @@ pub fn prevote(state: State, vr: Round, proposed: Value) -> Transition {
     let value = match &state.locked {
         Some(locked) if locked.round <= vr => Some(proposed), // unlock and prevote
         Some(locked) if locked.value == proposed => Some(proposed), // already locked on value
-        Some(_) => None,        // we're locked on a higher round with a different value, prevote nil
+        Some(_) => None, // we're locked on a higher round with a different value, prevote nil
         None => Some(proposed), // not locked, prevote the value
     };
 
@@ -145,7 +145,11 @@ pub fn prevote_nil(state: State) -> Transition {
 ///       How do we enforce this?
 pub fn precommit(state: State, value: Value) -> Transition {
     let message = Message::precommit(state.round, Some(value.clone()));
-    let next = state.set_locked(value.clone()).set_valid(value.clone()).next_step();
+    let next = state
+        .set_locked(value.clone())
+        .set_valid(value.clone())
+        .next_step();
+
     Transition::to(next).with_message(message)
 }
 
