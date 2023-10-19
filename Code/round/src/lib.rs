@@ -1,4 +1,4 @@
-pub use common::*;
+pub use malachite_common::*;
 
 pub mod events;
 pub mod message;
