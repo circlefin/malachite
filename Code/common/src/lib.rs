@@ -3,6 +3,10 @@
 pub struct Height(u64);
 
 impl Height {
+    pub fn new(height: u64) -> Self {
+        Self(height)
+    }
+
     pub fn as_u64(&self) -> u64 {
         self.0
     }
@@ -57,6 +61,10 @@ impl PartialOrd for Round {
 pub struct Value(u64);
 
 impl Value {
+    pub fn new(value: u64) -> Self {
+        Self(value)
+    }
+
     pub fn as_u64(&self) -> u64 {
         self.0
     }
