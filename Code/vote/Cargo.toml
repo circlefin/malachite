@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 malachite-common = { version = "0.1.0", path = "../common" }
+malachite-round = { version = "0.1.0", path = "../round" }
