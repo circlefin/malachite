@@ -63,3 +63,48 @@ impl VoteKeeper {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use malachite_common::Value;
+
+    use super::*;
+
+    #[test]
+    fn apply_nil() {
+        let mut keeper = VoteKeeper::new(Height::new(1), 3);
+
+        let vote = Vote::new_prevote(Round::new(0), None);
+
+        let event = keeper.apply(vote.clone(), 1);
+        assert_eq!(event, None);
+
+        let event = keeper.apply(vote.clone(), 1);
+        assert_eq!(event, None);
+
+        let event = keeper.apply(vote, 1);
+        assert_eq!(event, Some(Event::PolkaNil));
+    }
+
+    #[test]
+    fn apply_single_value() {
+        let mut keeper = VoteKeeper::new(Height::new(1), 4);
+
+        let v = Value::new(1);
+        let val = Some(v.clone());
+        let vote = Vote::new_prevote(Round::new(0), val);
+
+        let event = keeper.apply(vote.clone(), 1);
+        assert_eq!(event, None);
+
+        let event = keeper.apply(vote.clone(), 1);
+        assert_eq!(event, None);
+
+        let vote_nil = Vote::new_prevote(Round::new(0), None);
+        let event = keeper.apply(vote_nil, 1);
+        assert_eq!(event, Some(Event::PolkaAny));
+
+        let event = keeper.apply(vote, 1);
+        assert_eq!(event, Some(Event::PolkaValue(v)));
+    }
+}
