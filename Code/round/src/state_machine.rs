@@ -46,7 +46,7 @@ fn is_valid_pol_round(state: &State, round: Round) -> bool {
 /// Valid transitions result in at least a change to the state and/or an output message.
 ///
 /// Commented numbers refer to line numbers in the spec paper.
-pub fn handle(state: State, round: Round, event: Event) -> Transition {
+pub fn apply_event(state: State, round: Round, event: Event) -> Transition {
     let this_round = state.round == round;
 
     match (state.step, event) {

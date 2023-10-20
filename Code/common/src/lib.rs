@@ -1,3 +1,7 @@
+mod validator_set;
+
+pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
+
 /// A blockchain height
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Height(u64);
@@ -98,6 +102,7 @@ pub struct Vote {
     pub typ: VoteType,
     pub round: Round,
     pub value: Option<Value>,
+    // pub address: Address,
 }
 
 impl Vote {
@@ -106,6 +111,7 @@ impl Vote {
             typ: VoteType::Prevote,
             round,
             value,
+            // address,
         }
     }
 
@@ -114,6 +120,7 @@ impl Vote {
             typ: VoteType::Precommit,
             round,
             value,
+            // address,
         }
     }
 }
