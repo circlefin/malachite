@@ -82,12 +82,14 @@ impl ValidatorSet {
             v.voting_power = val.voting_power;
         }
 
+        dbg!(self.total_voting_power());
         Self::sort_validators(&mut self.validators);
+        dbg!(self.total_voting_power());
     }
 
     /// Remove a validator from the set
-    pub fn remove(&mut self, val: Validator) {
-        self.validators.retain(|v| v.address() != val.address());
+    pub fn remove(&mut self, address: &Address) {
+        self.validators.retain(|v| &v.address() != address);
 
         Self::sort_validators(&mut self.validators); // TODO: Not needed
     }
@@ -106,5 +108,42 @@ impl ValidatorSet {
         vals.sort_unstable_by_key(|v| (Reverse(v.voting_power), v.address()));
 
         vals.dedup();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_update_remove() {
+        let v1 = Validator::new(PublicKey(vec![1]), 1);
+        let v2 = Validator::new(PublicKey(vec![2]), 2);
+        let v3 = Validator::new(PublicKey(vec![3]), 3);
+
+        let mut vs = ValidatorSet::new(vec![v1, v2, v3]);
+        assert_eq!(vs.total_voting_power(), 6);
+
+        let v4 = Validator::new(PublicKey(vec![4]), 4);
+        vs.add(v4);
+        assert_eq!(vs.total_voting_power(), 10);
+
+        let mut v5 = Validator::new(PublicKey(vec![5]), 5);
+        vs.update(v5.clone()); // no effect
+        assert_eq!(vs.total_voting_power(), 10);
+
+        vs.add(v5.clone());
+        assert_eq!(vs.total_voting_power(), 15);
+
+        v5.voting_power = 100;
+        vs.update(v5.clone());
+        assert_eq!(vs.total_voting_power(), 110);
+
+        vs.remove(&v5.address());
+        assert_eq!(vs.total_voting_power(), 10);
+
+        let v6 = Validator::new(PublicKey(vec![6]), 6);
+        vs.remove(&v6.address()); // no effect
+        assert_eq!(vs.total_voting_power(), 10);
     }
 }
