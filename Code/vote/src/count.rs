@@ -18,16 +18,14 @@ impl ValuesWeights {
         }
     }
 
+    /// Add weight to the value and return the new weight.
     pub fn add_weight(&mut self, value: Arc<Value>, weight: Weight) -> Weight {
         let entry = self.value_weights.entry(value).or_insert(0);
         *entry += weight;
         *entry
     }
 
-    // pub fn weight_for(&self, value: &Value) -> Weight {
-    //     self.value_weights.get(value).copied().unwrap_or(0)
-    // }
-
+    /// Return the value with the highest weight and said weight, if any.
     pub fn highest_weighted_value(&self) -> Option<(&Value, Weight)> {
         self.value_weights
             .iter()
