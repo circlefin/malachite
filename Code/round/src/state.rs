@@ -39,7 +39,7 @@ impl State {
     pub fn new(height: Height) -> Self {
         Self {
             height,
-            round: Round::new(0),
+            round: Round::INITIAL,
             step: Step::NewRound,
             locked: None,
             valid: None,

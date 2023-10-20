@@ -7,3 +7,13 @@ pub struct Proposal {
     pub value: Value,
     pub pol_round: Round,
 }
+
+impl Proposal {
+    pub fn new(round: Round, value: Value, pol_round: Round) -> Self {
+        Self {
+            round,
+            value,
+            pol_round,
+        }
+    }
+}
