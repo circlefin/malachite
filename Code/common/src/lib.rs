@@ -102,25 +102,25 @@ pub struct Vote {
     pub typ: VoteType,
     pub round: Round,
     pub value: Option<Value>,
-    // pub address: Address,
+    pub address: Address,
 }
 
 impl Vote {
-    pub fn new_prevote(round: Round, value: Option<Value>) -> Self {
+    pub fn new_prevote(round: Round, value: Option<Value>, address: Address) -> Self {
         Self {
             typ: VoteType::Prevote,
             round,
             value,
-            // address,
+            address,
         }
     }
 
-    pub fn new_precommit(round: Round, value: Option<Value>) -> Self {
+    pub fn new_precommit(round: Round, value: Option<Value>, address: Address) -> Self {
         Self {
             typ: VoteType::Precommit,
             round,
             value,
-            // address,
+            address,
         }
     }
 }
