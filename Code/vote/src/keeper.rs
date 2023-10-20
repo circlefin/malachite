@@ -17,13 +17,10 @@ pub struct VoteKeeper {
 }
 
 impl VoteKeeper {
-    pub fn new(height: Height, total_weight: Weight) -> Self {
+    pub fn new(height: Height, round: Round, total_weight: Weight) -> Self {
         let mut rounds = BTreeMap::new();
 
-        rounds.insert(
-            Round::INITIAL,
-            RoundVotes::new(height, Round::INITIAL, total_weight),
-        );
+        rounds.insert(round, RoundVotes::new(height, round, total_weight));
 
         VoteKeeper {
             height,
@@ -71,7 +68,7 @@ mod tests {
 
     #[test]
     fn prevote_apply_nil() {
-        let mut keeper = VoteKeeper::new(Height::new(1), 3);
+        let mut keeper = VoteKeeper::new(Height::new(1), Round::INITIAL, 3);
 
         let vote = Vote::new_prevote(Round::new(0), None, Address::new(1));
 
@@ -87,7 +84,7 @@ mod tests {
 
     #[test]
     fn precommit_apply_nil() {
-        let mut keeper = VoteKeeper::new(Height::new(1), 3);
+        let mut keeper = VoteKeeper::new(Height::new(1), Round::INITIAL, 3);
 
         let vote = Vote::new_precommit(Round::new(0), None, Address::new(1));
 
@@ -103,7 +100,7 @@ mod tests {
 
     #[test]
     fn prevote_apply_single_value() {
-        let mut keeper = VoteKeeper::new(Height::new(1), 4);
+        let mut keeper = VoteKeeper::new(Height::new(1), Round::INITIAL, 4);
 
         let v = Value::new(1);
         let val = Some(v.clone());
@@ -125,7 +122,7 @@ mod tests {
 
     #[test]
     fn precommit_apply_single_value() {
-        let mut keeper = VoteKeeper::new(Height::new(1), 4);
+        let mut keeper = VoteKeeper::new(Height::new(1), Round::INITIAL, 4);
 
         let v = Value::new(1);
         let val = Some(v.clone());
