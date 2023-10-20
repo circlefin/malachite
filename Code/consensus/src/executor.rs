@@ -41,8 +41,11 @@ impl Executor {
         };
 
         match msg {
-            RoundMessage::NewRound(_) => {
-                // check if we are the proposer
+            RoundMessage::NewRound(round) => {
+                // TODO: check if we are the proposer
+
+                self.round_states
+                    .insert(round, RoundState::new(self.height).new_round(round));
             }
             RoundMessage::Proposal(_) => {
                 // sign the proposal
