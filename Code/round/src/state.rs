@@ -1,3 +1,5 @@
+use crate::events::Event;
+use crate::state_machine::Transition;
 use crate::{Height, Round, Value};
 
 /// A value and its associated round
@@ -82,5 +84,9 @@ impl State {
             valid: Some(RoundValue::new(value, self.round)),
             ..self
         }
+    }
+
+    pub fn apply_event(self, round: Round, event: Event) -> Transition {
+        crate::state_machine::apply_event(self, round, event)
     }
 }

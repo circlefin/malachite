@@ -32,9 +32,8 @@ impl VoteKeeper {
         }
     }
 
-    /// Apply a vote. If it triggers an event, apply the event to the state machine,
-    /// returning the new state and any resulting message.
-    pub fn apply(&mut self, vote: Vote, weight: Weight) -> Option<Event> {
+    /// Apply a vote with a given weight, potentially triggering an event.
+    pub fn apply_vote(&mut self, vote: Vote, weight: Weight) -> Option<Event> {
         let round = self
             .rounds
             .entry(vote.round)
@@ -76,13 +75,13 @@ mod tests {
 
         let vote = Vote::new_prevote(Round::new(0), None);
 
-        let event = keeper.apply(vote.clone(), 1);
+        let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
 
-        let event = keeper.apply(vote.clone(), 1);
+        let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
 
-        let event = keeper.apply(vote, 1);
+        let event = keeper.apply_vote(vote, 1);
         assert_eq!(event, Some(Event::PolkaNil));
     }
 
@@ -92,13 +91,13 @@ mod tests {
 
         let vote = Vote::new_precommit(Round::new(0), None);
 
-        let event = keeper.apply(vote.clone(), 1);
+        let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
 
-        let event = keeper.apply(vote.clone(), 1);
+        let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
 
-        let event = keeper.apply(vote, 1);
+        let event = keeper.apply_vote(vote, 1);
         assert_eq!(event, None);
     }
 
@@ -110,17 +109,17 @@ mod tests {
         let val = Some(v.clone());
         let vote = Vote::new_prevote(Round::new(0), val);
 
-        let event = keeper.apply(vote.clone(), 1);
+        let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
 
-        let event = keeper.apply(vote.clone(), 1);
+        let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
 
         let vote_nil = Vote::new_prevote(Round::new(0), None);
-        let event = keeper.apply(vote_nil, 1);
+        let event = keeper.apply_vote(vote_nil, 1);
         assert_eq!(event, Some(Event::PolkaAny));
 
-        let event = keeper.apply(vote, 1);
+        let event = keeper.apply_vote(vote, 1);
         assert_eq!(event, Some(Event::PolkaValue(v)));
     }
 
@@ -132,17 +131,17 @@ mod tests {
         let val = Some(v.clone());
         let vote = Vote::new_precommit(Round::new(0), val);
 
-        let event = keeper.apply(vote.clone(), 1);
+        let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
 
-        let event = keeper.apply(vote.clone(), 1);
+        let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
 
         let vote_nil = Vote::new_precommit(Round::new(0), None);
-        let event = keeper.apply(vote_nil, 1);
+        let event = keeper.apply_vote(vote_nil, 1);
         assert_eq!(event, Some(Event::PrecommitAny));
 
-        let event = keeper.apply(vote, 1);
+        let event = keeper.apply_vote(vote, 1);
         assert_eq!(event, Some(Event::PrecommitValue(v)));
     }
 }

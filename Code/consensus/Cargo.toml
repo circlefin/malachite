@@ -2,5 +2,9 @@
 name    = "malachite-consensus"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [dependencies]
+malachite-common = { version = "0.1.0", path = "../common" }
+malachite-round = { version = "0.1.0", path = "../round" }
+malachite-vote = { version = "0.1.0", path = "../vote" }
