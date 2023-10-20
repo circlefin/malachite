@@ -71,17 +71,21 @@ impl Executor {
 
     fn apply_proposal(&mut self, proposal: Proposal) -> Option<RoundMessage> {
         // TODO: Check for invalid proposal
-        let event = RoundEvent::Proposal(proposal.value, Round::new(0));
-        self.apply_event(proposal.round, event)
+        let round = proposal.round;
+        let event = RoundEvent::Proposal(proposal);
+
+        self.apply_event(round, event)
     }
 
     fn apply_vote(&mut self, vote: Vote) -> Option<RoundMessage> {
-        // TODO: Get weight
-        let weight = 1;
+        let Some(validator) = self.validator_set.get_by_address(&vote.address) else {
+            // TODO: Is this the correct behavior? How to log such "errors"?
+            return None;
+        };
 
         let round = vote.round;
 
-        let event = match self.vote_keeper.apply_vote(vote, weight) {
+        let event = match self.vote_keeper.apply_vote(vote, validator.voting_power) {
             Some(event) => event,
             None => return None,
         };

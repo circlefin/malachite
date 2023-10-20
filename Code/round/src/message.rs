@@ -1,3 +1,5 @@
+use malachite_common::Address;
+
 use crate::{state::RoundValue, Proposal, Round, Timeout, TimeoutStep, Value, Vote};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -18,12 +20,12 @@ impl Message {
         })
     }
 
-    pub fn prevote(round: Round, value: Option<Value>) -> Message {
-        Message::Vote(Vote::new_prevote(round, value))
+    pub fn prevote(round: Round, value: Option<Value>, address: Address) -> Message {
+        Message::Vote(Vote::new_prevote(round, value, address))
     }
 
-    pub fn precommit(round: Round, value: Option<Value>) -> Message {
-        Message::Vote(Vote::new_precommit(round, value))
+    pub fn precommit(round: Round, value: Option<Value>, address: Address) -> Message {
+        Message::Vote(Vote::new_precommit(round, value, address))
     }
 
     pub fn timeout(round: Round, step: TimeoutStep) -> Message {

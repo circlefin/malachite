@@ -1,7 +1,13 @@
+use malachite_common::Address;
+
 use crate::events::Event;
 use crate::message::Message;
 use crate::state::{State, Step};
 use crate::{Round, TimeoutStep, Value};
+
+// FIXME: Where to get the address/public key from?
+// IDEA:  Add a Context parameter to `apply_state`
+const ADDRESS: Address = Address::new(42);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Transition {
@@ -55,10 +61,10 @@ pub fn apply_event(state: State, round: Round, event: Event) -> Transition {
         (Step::NewRound, Event::NewRound) if this_round => schedule_timeout_propose(state), // L11/L20
 
         // From Propose. Event must be for current round.
-        (Step::Propose, Event::Proposal(value, valid_round)) // L22/L28
-            if this_round && is_valid_pol_round(&state, valid_round) =>
+        (Step::Propose, Event::Proposal(proposal)) // L22/L28
+            if this_round && is_valid_pol_round(&state, proposal.pol_round) =>
         {
-            prevote(state, valid_round, value)
+            prevote(state, proposal.pol_round, proposal.value)
         }
         (Step::Propose, Event::ProposalInvalid) if this_round => prevote_nil(state), // L22/L25, L28/L31
         (Step::Propose, Event::TimeoutPropose) if this_round => prevote_nil(state),  // L57
@@ -120,7 +126,7 @@ pub fn prevote(state: State, vr: Round, proposed: Value) -> Transition {
         None => Some(proposed), // not locked, prevote the value
     };
 
-    let message = Message::prevote(state.round, value);
+    let message = Message::prevote(state.round, value, ADDRESS);
     Transition::to(state.next_step()).with_message(message)
 }
 
@@ -128,7 +134,7 @@ pub fn prevote(state: State, vr: Round, proposed: Value) -> Transition {
 ///
 /// Ref: L22/L25, L28/L31, L57
 pub fn prevote_nil(state: State) -> Transition {
-    let message = Message::prevote(state.round, None);
+    let message = Message::prevote(state.round, None, ADDRESS);
     Transition::to(state.next_step()).with_message(message)
 }
 
@@ -143,7 +149,7 @@ pub fn prevote_nil(state: State) -> Transition {
 /// NOTE: Only one of this and set_valid_value should be called once in a round
 ///       How do we enforce this?
 pub fn precommit(state: State, value: Value) -> Transition {
-    let message = Message::precommit(state.round, Some(value.clone()));
+    let message = Message::precommit(state.round, Some(value.clone()), ADDRESS);
     let next = state
         .set_locked(value.clone())
         .set_valid(value.clone())
@@ -156,7 +162,7 @@ pub fn precommit(state: State, value: Value) -> Transition {
 ///
 /// Ref: L44, L61
 pub fn precommit_nil(state: State) -> Transition {
-    let message = Message::precommit(state.round, None);
+    let message = Message::precommit(state.round, None, ADDRESS);
     Transition::to(state.next_step()).with_message(message)
 }
 

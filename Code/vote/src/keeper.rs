@@ -65,7 +65,7 @@ impl VoteKeeper {
 
 #[cfg(test)]
 mod tests {
-    use malachite_common::Value;
+    use malachite_common::{Address, Value};
 
     use super::*;
 
@@ -73,7 +73,7 @@ mod tests {
     fn prevote_apply_nil() {
         let mut keeper = VoteKeeper::new(Height::new(1), 3);
 
-        let vote = Vote::new_prevote(Round::new(0), None);
+        let vote = Vote::new_prevote(Round::new(0), None, Address::new(1));
 
         let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
@@ -89,7 +89,7 @@ mod tests {
     fn precommit_apply_nil() {
         let mut keeper = VoteKeeper::new(Height::new(1), 3);
 
-        let vote = Vote::new_precommit(Round::new(0), None);
+        let vote = Vote::new_precommit(Round::new(0), None, Address::new(1));
 
         let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
@@ -107,7 +107,7 @@ mod tests {
 
         let v = Value::new(1);
         let val = Some(v.clone());
-        let vote = Vote::new_prevote(Round::new(0), val);
+        let vote = Vote::new_prevote(Round::new(0), val, Address::new(1));
 
         let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
@@ -115,7 +115,7 @@ mod tests {
         let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
 
-        let vote_nil = Vote::new_prevote(Round::new(0), None);
+        let vote_nil = Vote::new_prevote(Round::new(0), None, Address::new(2));
         let event = keeper.apply_vote(vote_nil, 1);
         assert_eq!(event, Some(Event::PolkaAny));
 
@@ -129,7 +129,7 @@ mod tests {
 
         let v = Value::new(1);
         let val = Some(v.clone());
-        let vote = Vote::new_precommit(Round::new(0), val);
+        let vote = Vote::new_precommit(Round::new(0), val, Address::new(1));
 
         let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
@@ -137,7 +137,7 @@ mod tests {
         let event = keeper.apply_vote(vote.clone(), 1);
         assert_eq!(event, None);
 
-        let vote_nil = Vote::new_precommit(Round::new(0), None);
+        let vote_nil = Vote::new_precommit(Round::new(0), None, Address::new(2));
         let event = keeper.apply_vote(vote_nil, 1);
         assert_eq!(event, Some(Event::PrecommitAny));
 

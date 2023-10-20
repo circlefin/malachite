@@ -1,10 +1,12 @@
-use crate::{Round, Value};
+use malachite_common::Proposal;
+
+use crate::Value;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
     NewRound,                // Start a new round, not as proposer.
     NewRoundProposer(Value), // Start a new round and propose the Value.
-    Proposal(Value, Round),  // Receive a proposal with possible polka round.
+    Proposal(Proposal),      // Receive a proposal with possible polka round.
     ProposalInvalid,         // Receive an invalid proposal.
     PolkaAny,                // Receive +2/3 prevotes for anything.
     PolkaNil,                // Receive +2/3 prevotes for nil.
