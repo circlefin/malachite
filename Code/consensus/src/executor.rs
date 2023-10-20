@@ -11,7 +11,7 @@ pub struct Executor {
     height: Height,
     validator_set: ValidatorSet,
 
-    vote_keeper: VoteKeeper,
+    votes: VoteKeeper,
     round_states: BTreeMap<Round, RoundState>,
 }
 
@@ -24,12 +24,12 @@ pub enum Message {
 
 impl Executor {
     pub fn new(height: Height, validator_set: ValidatorSet) -> Self {
-        let vote_keeper = VoteKeeper::new(height, validator_set.total_voting_power());
+        let votes = VoteKeeper::new(height, Round::INITIAL, validator_set.total_voting_power());
 
         Self {
             height,
             validator_set,
-            vote_keeper,
+            votes,
             round_states: BTreeMap::new(),
         }
     }
@@ -46,11 +46,9 @@ impl Executor {
             }
             RoundMessage::Proposal(_) => {
                 // sign the proposal
-                // call execute
             }
             RoundMessage::Vote(_) => {
                 // sign the vote
-                // call execute
             }
             RoundMessage::Timeout(_) => {
                 // schedule the timeout
@@ -85,7 +83,7 @@ impl Executor {
 
         let round = vote.round;
 
-        let event = match self.vote_keeper.apply_vote(vote, validator.voting_power) {
+        let event = match self.votes.apply_vote(vote, validator.voting_power) {
             Some(event) => event,
             None => return None,
         };
