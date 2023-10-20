@@ -83,7 +83,7 @@ impl Value {
 pub struct Proposal {
     pub round: Round,
     pub value: Value,
-    pub polka_round: Round,
+    pub pol_round: Round,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

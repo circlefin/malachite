@@ -10,11 +10,11 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn proposal(round: Round, value: Value, polka_round: Round) -> Message {
+    pub fn proposal(round: Round, value: Value, pol_round: Round) -> Message {
         Message::Proposal(Proposal {
             round,
             value,
-            polka_round,
+            pol_round,
         })
     }
 

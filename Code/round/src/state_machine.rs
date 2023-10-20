@@ -33,9 +33,8 @@ impl Transition {
     }
 }
 
-/// Check that a proposal polka round is valid, ie. it is defined and less than
-/// the current round.
-fn is_valid_polka_round(state: &State, round: Round) -> bool {
+/// Check that a proposal has a Proof-Of-Lock
+fn is_valid_pol_round(state: &State, round: Round) -> bool {
     round.is_defined() && round < state.round
 }
 
@@ -57,7 +56,7 @@ pub fn handle(state: State, round: Round, event: Event) -> Transition {
 
         // From Propose. Event must be for current round.
         (Step::Propose, Event::Proposal(value, valid_round)) // L22/L28
-            if this_round && is_valid_polka_round(&state, valid_round) =>
+            if this_round && is_valid_pol_round(&state, valid_round) =>
         {
             prevote(state, valid_round, value)
         }
@@ -96,12 +95,12 @@ pub fn handle(state: State, round: Round, event: Event) -> Transition {
 ///
 /// Ref: L11/L14
 pub fn propose(state: State, value: Value) -> Transition {
-    let (value, polka_round) = match &state.valid {
+    let (value, pol_round) = match &state.valid {
         Some(round_value) => (round_value.value.clone(), round_value.round),
         None => (value, Round::None),
     };
 
-    let proposal = Message::proposal(state.round, value, polka_round);
+    let proposal = Message::proposal(state.round, value, pol_round);
     Transition::to(state.next_step()).with_message(proposal)
 }
 
