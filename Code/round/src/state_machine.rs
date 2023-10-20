@@ -40,8 +40,8 @@ impl Transition {
 }
 
 /// Check that a proposal has a Proof-Of-Lock
-fn is_valid_pol_round(state: &State, round: Round) -> bool {
-    round.is_defined() && round < state.round
+fn is_valid_pol_round(state: &State, pol_round: Round) -> bool {
+    pol_round.is_defined() && pol_round < state.round
 }
 
 /// Apply an event to the current state at the current round.
@@ -229,4 +229,58 @@ pub fn round_skip(state: State, round: Round) -> Transition {
 pub fn commit(state: State, round: Round, value: Value) -> Transition {
     let message = Message::decision(round, value);
     Transition::to(state.commit_step()).with_message(message)
+}
+
+#[cfg(test)]
+mod tests {
+    use malachite_common::{Height, Proposal, Timeout};
+
+    use super::*;
+
+    #[test]
+    fn test_propose() {
+        let value = Value::new(42);
+        let mut state = State::new(Height::new(1));
+
+        let transition = apply_event(state.clone(), Round::new(0), Event::NewRoundProposer(value));
+
+        state.step = Step::Propose;
+        assert_eq!(transition.state, state);
+
+        assert_eq!(
+            transition.message.unwrap(),
+            Message::proposal(Round::new(0), Value::new(42), Round::None)
+        );
+    }
+
+    #[test]
+    fn test_prevote() {
+        let value = Value::new(42);
+        let state = State::new(Height::new(1)).new_round(Round::new(1));
+
+        let transition = apply_event(state, Round::new(1), Event::NewRound);
+
+        assert_eq!(transition.state.step, Step::Propose);
+        assert_eq!(
+            transition.message.unwrap(),
+            Message::Timeout(Timeout {
+                round: Round::new(1),
+                step: TimeoutStep::Propose
+            })
+        );
+
+        let state = transition.state;
+
+        let transition = apply_event(
+            state,
+            Round::new(1),
+            Event::Proposal(Proposal::new(Round::new(1), value.clone(), Round::new(0))),
+        );
+
+        assert_eq!(transition.state.step, Step::Prevote);
+        assert_eq!(
+            transition.message.unwrap(),
+            Message::prevote(Round::new(1), Some(value), ADDRESS)
+        );
+    }
 }
