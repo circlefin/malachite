@@ -279,7 +279,7 @@ mod tests {
 
         assert_eq!(
             transition.message.unwrap(),
-            Message::proposal(Height::new(10),Round::new(0), Value::new(42), Round::None)
+            Message::proposal(Height::new(10), Round::new(0), Value::new(42), Round::None)
         );
     }
 

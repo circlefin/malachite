@@ -1,5 +1,7 @@
 //! Tally votes of the same type (eg. prevote or precommit)
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
+
 extern crate alloc;
 
 pub mod count;
