@@ -23,7 +23,9 @@ pub enum Round {
 }
 
 impl Round {
-    pub fn new(round: i64) -> Self {
+    pub const INITIAL: Round = Round::new(0);
+
+    pub const fn new(round: i64) -> Self {
         if round < 0 {
             Self::None
         } else {
@@ -52,7 +54,13 @@ impl Round {
 
 impl PartialOrd for Round {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.as_i64().partial_cmp(&other.as_i64())
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Round {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_i64().cmp(&other.as_i64())
     }
 }
 
@@ -75,7 +83,7 @@ impl Value {
 pub struct Proposal {
     pub round: Round,
     pub value: Value,
-    pub polka_round: Round,
+    pub pol_round: Round,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
