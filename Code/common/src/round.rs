@@ -27,7 +27,18 @@ impl Round {
     }
 
     pub fn is_defined(&self) -> bool {
-        matches!(self, Round::Some(_))
+        matches!(self, Round::Some(r) if *r >= 0)
+    }
+
+    pub fn is_nil(&self) -> bool {
+        matches!(self, Round::None)
+    }
+
+    pub fn is_valid(&self) -> bool {
+        match self {
+            Round::None => true,
+            Round::Some(r) => *r >= 0,
+        }
     }
 
     pub fn increment(&self) -> Round {

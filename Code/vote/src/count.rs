@@ -1,14 +1,14 @@
 use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
 
-use malachite_common::{Value, Vote};
+use malachite_common::{ValueId, Vote};
 
 pub type Weight = u64;
 
 /// A value and the weight of votes for it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValuesWeights {
-    value_weights: BTreeMap<Arc<Value>, Weight>,
+    value_weights: BTreeMap<Arc<ValueId>, Weight>,
 }
 
 impl ValuesWeights {
@@ -19,14 +19,14 @@ impl ValuesWeights {
     }
 
     /// Add weight to the value and return the new weight.
-    pub fn add_weight(&mut self, value: Arc<Value>, weight: Weight) -> Weight {
+    pub fn add_weight(&mut self, value: Arc<ValueId>, weight: Weight) -> Weight {
         let entry = self.value_weights.entry(value).or_insert(0);
         *entry += weight;
         *entry
     }
 
     /// Return the value with the highest weight and said weight, if any.
-    pub fn highest_weighted_value(&self) -> Option<(&Value, Weight)> {
+    pub fn highest_weighted_value(&self) -> Option<(&ValueId, Weight)> {
         self.value_weights
             .iter()
             .max_by_key(|(_, weight)| *weight)
@@ -90,6 +90,14 @@ impl VoteCount {
         // No quorum
         Threshold::Init
     }
+    pub fn check_threshold(&self, threshold: Threshold) -> bool {
+        match threshold {
+            Threshold::Init => false,
+            Threshold::Any => self.values_weights.highest_weighted_value().is_some(),
+            Threshold::Nil => self.nil > 0,
+            Threshold::Value(value) => self.values_weights.value_weights.contains_key(&value),
+        }
+    }
 }
 
 //-------------------------------------------------------------------------
@@ -106,7 +114,7 @@ pub enum Threshold {
     /// Quorum for nil
     Nil,
     /// Quorum for a value
-    Value(Arc<Value>),
+    Value(Arc<ValueId>),
 }
 
 /// Returns whether or note `value > (2/3)*total`.
@@ -144,7 +152,7 @@ mod tests {
 
     #[test]
     fn add_votes_single_value() {
-        let v = Value::new(1);
+        let v = ValueId::new(1);
         let val = Some(v.clone());
         let total = 4;
         let weight = 1;
@@ -172,8 +180,8 @@ mod tests {
 
     #[test]
     fn add_votes_multi_values() {
-        let v1 = Value::new(1);
-        let v2 = Value::new(2);
+        let v1 = ValueId::new(1);
+        let v2 = ValueId::new(2);
         let val1 = Some(v1.clone());
         let val2 = Some(v2.clone());
         let total = 15;

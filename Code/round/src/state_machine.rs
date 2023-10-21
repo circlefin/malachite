@@ -3,7 +3,7 @@ use malachite_common::Address;
 use crate::events::Event;
 use crate::message::Message;
 use crate::state::{State, Step};
-use crate::{Round, TimeoutStep, Value};
+use crate::{Round, TimeoutStep, Value, ValueId};
 
 // FIXME: Where to get the address/public key from?
 // IDEA:  Add a Context parameter to `apply_state`
@@ -39,7 +39,7 @@ impl Transition {
     }
 }
 
-/// Check that a proposal has a Proof-Of-Lock
+/// Check that a proposal has a valid Proof-Of-Lock round
 fn is_valid_pol_round(state: &State, pol_round: Round) -> bool {
     pol_round.is_defined() && pol_round < state.round
 }
@@ -61,10 +61,30 @@ pub fn apply_event(state: State, round: Round, event: Event) -> Transition {
         (Step::NewRound, Event::NewRound) if this_round => schedule_timeout_propose(state), // L11/L20
 
         // From Propose. Event must be for current round.
-        (Step::Propose, Event::Proposal(proposal)) // L22/L28
+        (Step::Propose, Event::Proposal(proposal)) if this_round && proposal.pol_round.is_nil() => {
+            // L22
+            if proposal.value.valid()
+                && (state.locked.is_none()
+                    || state.locked.as_ref().unwrap().value == proposal.value)
+            {
+                prevote(state, proposal.round, proposal.value.id())
+            } else {
+                prevote_nil(state)
+            }
+        }
+
+        (Step::Propose, Event::Proposal(proposal))
             if this_round && is_valid_pol_round(&state, proposal.pol_round) =>
         {
-            prevote(state, proposal.pol_round, proposal.value)
+            // L28
+            let locked = state.locked.as_ref().unwrap();
+            if proposal.value.valid()
+                && (locked.round <= proposal.pol_round || locked.value == proposal.value)
+            {
+                prevote(state, proposal.round, proposal.value.id())
+            } else {
+                prevote_nil(state)
+            }
         }
         (Step::Propose, Event::ProposalInvalid) if this_round => prevote_nil(state), // L22/L25, L28/L31
         (Step::Propose, Event::TimeoutPropose) if this_round => prevote_nil(state),  // L57
@@ -72,20 +92,22 @@ pub fn apply_event(state: State, round: Round, event: Event) -> Transition {
         // From Prevote. Event must be for current round.
         (Step::Prevote, Event::PolkaAny) if this_round => schedule_timeout_prevote(state), // L34
         (Step::Prevote, Event::PolkaNil) if this_round => precommit_nil(state),            // L44
-        (Step::Prevote, Event::PolkaValue(value)) if this_round => precommit(state, value), // L36/L37 - NOTE: only once?
+        (Step::Prevote, Event::PolkaValue(value_id)) if this_round => precommit(state, value_id), // L36/L37 - NOTE: only once?
         (Step::Prevote, Event::TimeoutPrevote) if this_round => precommit_nil(state), // L61
 
         // From Precommit. Event must be for current round.
-        (Step::Precommit, Event::PolkaValue(value)) if this_round => set_valid_value(state, value), // L36/L42 - NOTE: only once?
+        (Step::Precommit, Event::PolkaValue(value_id)) if this_round => {
+            set_valid_value(state, value_id)
+        } // L36/L42 - NOTE: only once?
 
         // From Commit. No more state transitions.
         (Step::Commit, _) => Transition::invalid(state),
 
         // From all (except Commit). Various round guards.
         (_, Event::PrecommitAny) if this_round => schedule_timeout_precommit(state), // L47
-        (_, Event::TimeoutPrecommit) if this_round => round_skip(state, round.increment()),  // L65
-        (_, Event::RoundSkip) if state.round < round => round_skip(state, round), // L55
-        (_, Event::PrecommitValue(value)) => commit(state, round, value),             // L49
+        (_, Event::TimeoutPrecommit) if this_round => round_skip(state, round.increment()), // L65
+        (_, Event::RoundSkip) if state.round < round => round_skip(state, round),    // L55
+        (_, Event::PrecommitValue(value_id)) => commit(state, round, value_id),      // L49
 
         // Invalid transition.
         _ => Transition::invalid(state),
@@ -106,7 +128,7 @@ pub fn propose(state: State, value: Value) -> Transition {
         None => (value, Round::None),
     };
 
-    let proposal = Message::proposal(state.round, value, pol_round);
+    let proposal = Message::proposal(state.height, state.round, value, pol_round);
     Transition::to(state.next_step()).with_message(proposal)
 }
 
@@ -118,10 +140,10 @@ pub fn propose(state: State, value: Value) -> Transition {
 /// unless we are locked on something else at a higher round.
 ///
 /// Ref: L22/L28
-pub fn prevote(state: State, vr: Round, proposed: Value) -> Transition {
+pub fn prevote(state: State, vr: Round, proposed: ValueId) -> Transition {
     let value = match &state.locked {
         Some(locked) if locked.round <= vr => Some(proposed), // unlock and prevote
-        Some(locked) if locked.value == proposed => Some(proposed), // already locked on value
+        Some(locked) if locked.value.id() == proposed => Some(proposed), // already locked on value
         Some(_) => None, // we're locked on a higher round with a different value, prevote nil
         None => Some(proposed), // not locked, prevote the value
     };
@@ -148,8 +170,10 @@ pub fn prevote_nil(state: State) -> Transition {
 ///
 /// NOTE: Only one of this and set_valid_value should be called once in a round
 ///       How do we enforce this?
-pub fn precommit(state: State, value: Value) -> Transition {
-    let message = Message::precommit(state.round, Some(value.clone()), ADDRESS);
+pub fn precommit(state: State, value_id: ValueId) -> Transition {
+    let message = Message::precommit(state.round, Some(value_id), ADDRESS);
+    // TODO
+    let value = state.locked.as_ref().unwrap().value.clone();
     let next = state
         .set_locked(value.clone())
         .set_valid(value.clone())
@@ -207,8 +231,13 @@ pub fn schedule_timeout_precommit(state: State) -> Transition {
 /// Ref: L36/L42
 ///
 /// NOTE: only one of this and precommit should be called once in a round
-pub fn set_valid_value(state: State, value: Value) -> Transition {
-    Transition::to(state.set_valid(value))
+pub fn set_valid_value(state: State, _value_id: ValueId) -> Transition {
+    // TODO: check that we're locked on this value
+    Transition::to(
+        state
+            .clone()
+            .set_valid(state.locked.as_ref().unwrap().value.clone()),
+    )
 }
 
 //---------------------------------------------------------------------
@@ -226,8 +255,9 @@ pub fn round_skip(state: State, round: Round) -> Transition {
 /// We received +2/3 precommits for a value - commit and decide that value!
 ///
 /// Ref: L49
-pub fn commit(state: State, round: Round, value: Value) -> Transition {
-    let message = Message::decision(round, value);
+pub fn commit(state: State, round: Round, _value_id: ValueId) -> Transition {
+    // TODO: check that we're locked on this value
+    let message = Message::decision(round, state.locked.clone().unwrap().value);
     Transition::to(state.commit_step()).with_message(message)
 }
 
@@ -240,7 +270,7 @@ mod tests {
     #[test]
     fn test_propose() {
         let value = Value::new(42);
-        let mut state = State::new(Height::new(1));
+        let mut state = State::new(Height::new(10));
 
         let transition = apply_event(state.clone(), Round::new(0), Event::NewRoundProposer(value));
 
@@ -249,7 +279,7 @@ mod tests {
 
         assert_eq!(
             transition.message.unwrap(),
-            Message::proposal(Round::new(0), Value::new(42), Round::None)
+            Message::proposal(Height::new(10),Round::new(0), Value::new(42), Round::None)
         );
     }
 
@@ -274,13 +304,18 @@ mod tests {
         let transition = apply_event(
             state,
             Round::new(1),
-            Event::Proposal(Proposal::new(Round::new(1), value.clone(), Round::new(0))),
+            Event::Proposal(Proposal::new(
+                Height::new(1),
+                Round::new(1),
+                value.clone(),
+                Round::None,
+            )),
         );
 
         assert_eq!(transition.state.step, Step::Prevote);
         assert_eq!(
             transition.message.unwrap(),
-            Message::prevote(Round::new(1), Some(value), ADDRESS)
+            Message::prevote(Round::new(1), Some(value.id()), ADDRESS)
         );
     }
 }

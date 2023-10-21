@@ -1,16 +1,20 @@
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
-use malachite_common::{Height, Proposal, Round, Timeout, TimeoutStep, ValidatorSet, Vote};
+use malachite_common::{
+    Height, Proposal, Round, Timeout, TimeoutStep, ValidatorSet, Vote, VoteType,
+};
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
 use malachite_round::state::State as RoundState;
+use malachite_vote::count::Threshold;
 use malachite_vote::keeper::VoteKeeper;
 
 #[derive(Clone, Debug)]
 pub struct Executor {
     height: Height,
     validator_set: ValidatorSet,
-
+    round: Round,
     votes: VoteKeeper,
     round_states: BTreeMap<Round, RoundState>,
 }
@@ -29,6 +33,7 @@ impl Executor {
         Self {
             height,
             validator_set,
+            round: Round::INITIAL,
             votes,
             round_states: BTreeMap::new(),
         }
@@ -73,9 +78,42 @@ impl Executor {
     fn apply_proposal(&mut self, proposal: Proposal) -> Option<RoundMessage> {
         // TODO: Check for invalid proposal
         let round = proposal.round;
-        let event = RoundEvent::Proposal(proposal);
+        let event = RoundEvent::Proposal(proposal.clone());
+        let round_state = self.round_states.get(&self.round).unwrap();
 
-        self.apply_event(round, event)
+        if round_state.proposal.is_some() {
+            return None;
+        }
+
+        if round_state.height != proposal.height || proposal.round != self.round {
+            return None;
+        }
+
+        if !proposal.pol_round.is_valid()
+            || proposal.pol_round.is_defined() && proposal.pol_round >= round_state.round
+        {
+            return None;
+        }
+
+        // TODO verify proposal signature (make some of these checks part of message validation)
+
+        match proposal.pol_round {
+            Round::None => {
+                // Is it possible to get +2/3 prevotes before the proposal?
+                // Do we wait for our own prevote to check the threshold?
+                self.apply_event(round, event)
+            }
+            Round::Some(_)
+                if self.votes.check_threshold(
+                    &proposal.pol_round,
+                    VoteType::Prevote,
+                    Threshold::Value(Arc::from(proposal.value.id())),
+                ) =>
+            {
+                self.apply_event(round, event)
+            }
+            _ => None,
+        }
     }
 
     fn apply_vote(&mut self, vote: Vote) -> Option<RoundMessage> {
