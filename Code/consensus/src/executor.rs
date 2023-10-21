@@ -79,7 +79,11 @@ impl Executor {
         // TODO: Check for invalid proposal
         let round = proposal.round;
         let event = RoundEvent::Proposal(proposal.clone());
-        let round_state = self.round_states.get(&self.round).unwrap();
+
+        let Some(round_state) = self.round_states.get(&self.round) else {
+            // TODO: Add logging
+            return None;
+        };
 
         if round_state.proposal.is_some() {
             return None;

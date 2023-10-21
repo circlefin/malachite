@@ -64,8 +64,10 @@ pub fn apply_event(state: State, round: Round, event: Event) -> Transition {
         (Step::Propose, Event::Proposal(proposal)) if this_round && proposal.pol_round.is_nil() => {
             // L22
             if proposal.value.valid()
-                && (state.locked.is_none()
-                    || state.locked.as_ref().unwrap().value == proposal.value)
+                && state
+                    .locked
+                    .as_ref()
+                    .map_or(true, |locked| locked.value == proposal.value)
             {
                 prevote(state, proposal.round, proposal.value.id())
             } else {
@@ -77,7 +79,11 @@ pub fn apply_event(state: State, round: Round, event: Event) -> Transition {
             if this_round && is_valid_pol_round(&state, proposal.pol_round) =>
         {
             // L28
-            let locked = state.locked.as_ref().unwrap();
+            let Some(locked) = state.locked.as_ref() else {
+                // TODO: Add logging
+                return Transition::invalid(state);
+            };
+
             if proposal.value.valid()
                 && (locked.round <= proposal.pol_round || locked.value == proposal.value)
             {
@@ -172,12 +178,13 @@ pub fn prevote_nil(state: State) -> Transition {
 ///       How do we enforce this?
 pub fn precommit(state: State, value_id: ValueId) -> Transition {
     let message = Message::precommit(state.round, Some(value_id), ADDRESS);
-    // TODO
-    let value = state.locked.as_ref().unwrap().value.clone();
-    let next = state
-        .set_locked(value.clone())
-        .set_valid(value.clone())
-        .next_step();
+
+    let Some(value) = state.locked.as_ref().map(|locked| locked.value.clone()) else {
+        // TODO: Add logging
+        return Transition::invalid(state);
+    };
+
+    let next = state.set_locked(value.clone()).set_valid(value).next_step();
 
     Transition::to(next).with_message(message)
 }
@@ -231,13 +238,20 @@ pub fn schedule_timeout_precommit(state: State) -> Transition {
 /// Ref: L36/L42
 ///
 /// NOTE: only one of this and precommit should be called once in a round
-pub fn set_valid_value(state: State, _value_id: ValueId) -> Transition {
-    // TODO: check that we're locked on this value
-    Transition::to(
-        state
-            .clone()
-            .set_valid(state.locked.as_ref().unwrap().value.clone()),
-    )
+pub fn set_valid_value(state: State, value_id: ValueId) -> Transition {
+    // check that we're locked on this value
+
+    let Some(locked) = state.locked.as_ref() else {
+        // TODO: Add logging
+        return Transition::invalid(state);
+    };
+
+    if locked.value.id() != value_id {
+        // TODO: Add logging
+        return Transition::invalid(state);
+    }
+
+    Transition::to(state.clone().set_valid(locked.value.clone()))
 }
 
 //---------------------------------------------------------------------
@@ -255,9 +269,19 @@ pub fn round_skip(state: State, round: Round) -> Transition {
 /// We received +2/3 precommits for a value - commit and decide that value!
 ///
 /// Ref: L49
-pub fn commit(state: State, round: Round, _value_id: ValueId) -> Transition {
-    // TODO: check that we're locked on this value
-    let message = Message::decision(round, state.locked.clone().unwrap().value);
+pub fn commit(state: State, round: Round, value_id: ValueId) -> Transition {
+    // Check that we're locked on this value
+    let Some(locked) = state.locked.as_ref() else {
+        // TODO: Add logging
+        return Transition::invalid(state);
+    };
+
+    if locked.value.id() != value_id {
+        // TODO: Add logging
+        return Transition::invalid(state);
+    }
+
+    let message = Message::decision(round, locked.value.clone());
     Transition::to(state.commit_step()).with_message(message)
 }
 
