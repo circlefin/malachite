@@ -66,12 +66,12 @@ impl VoteKeeper {
 
             (VoteType::Prevote, Threshold::Any) => Some(Event::PolkaAny),
             (VoteType::Prevote, Threshold::Nil) => Some(Event::PolkaNil),
-            (VoteType::Prevote, Threshold::Value(v)) => Some(Event::PolkaValue(v.as_ref().clone())),
+            (VoteType::Prevote, Threshold::Value(v)) => Some(Event::PolkaValue(*v.as_ref())),
 
             (VoteType::Precommit, Threshold::Any) => Some(Event::PrecommitAny),
             (VoteType::Precommit, Threshold::Nil) => None,
             (VoteType::Precommit, Threshold::Value(v)) => {
-                Some(Event::PrecommitValue(v.as_ref().clone()))
+                Some(Event::PrecommitValue(*v.as_ref()))
             }
         }
     }

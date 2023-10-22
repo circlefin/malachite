@@ -52,7 +52,7 @@ fn is_valid_pol_round(state: &State, pol_round: Round) -> bool {
 /// Valid transitions result in at least a change to the state and/or an output message.
 ///
 /// Commented numbers refer to line numbers in the spec paper.
-pub fn apply_event(state: State, round: Round, event: Event) -> Transition {
+pub fn apply_event(mut state: State, round: Round, event: Event) -> Transition {
     let this_round = state.round == round;
 
     match (state.step, event) {
@@ -69,6 +69,7 @@ pub fn apply_event(state: State, round: Round, event: Event) -> Transition {
                     .as_ref()
                     .map_or(true, |locked| locked.value == proposal.value)
             {
+                state.proposal = Some(proposal.clone());
                 prevote(state, proposal.round, proposal.value.id())
             } else {
                 prevote_nil(state)
@@ -179,7 +180,7 @@ pub fn prevote_nil(state: State) -> Transition {
 pub fn precommit(state: State, value_id: ValueId) -> Transition {
     let message = Message::precommit(state.round, Some(value_id), ADDRESS);
 
-    let Some(value) = state.locked.as_ref().map(|locked| locked.value.clone()) else {
+    let Some(value) = state.proposal.as_ref().map(|proposal| proposal.value.clone()) else {
         // TODO: Add logging
         return Transition::invalid(state);
     };

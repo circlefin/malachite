@@ -4,6 +4,10 @@
 pub struct PublicKey(Vec<u8>);
 
 impl PublicKey {
+    pub const fn new(value: Vec<u8>) -> Self {
+        Self(value)
+    }
+
     pub fn hash(&self) -> u64 {
         // TODO
         self.0.iter().fold(0, |acc, x| acc ^ *x as u64)
@@ -99,6 +103,10 @@ impl ValidatorSet {
         self.validators.iter().find(|v| &v.address() == address)
     }
 
+    pub fn get_by_public_key(&self, public_key: &PublicKey) -> Option<&Validator> {
+        self.validators.iter().find(|v| &v.public_key == public_key)
+    }
+
     /// In place sort and deduplication of a list of validators
     fn sort_validators(vals: &mut Vec<Validator>) {
         use core::cmp::Reverse;
@@ -108,6 +116,14 @@ impl ValidatorSet {
         vals.sort_unstable_by_key(|v| (Reverse(v.voting_power), v.address()));
 
         vals.dedup();
+    }
+
+    pub fn get_proposer(&mut self) -> Validator {
+        // TODO: Proper implementation
+        assert!(!self.validators.is_empty());
+        let proposer = self.validators[0].clone();
+        self.validators.rotate_left(1);
+        proposer
     }
 }
 
