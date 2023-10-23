@@ -70,9 +70,7 @@ impl VoteKeeper {
 
             (VoteType::Precommit, Threshold::Any) => Some(Event::PrecommitAny),
             (VoteType::Precommit, Threshold::Nil) => None,
-            (VoteType::Precommit, Threshold::Value(v)) => {
-                Some(Event::PrecommitValue(*v.as_ref()))
-            }
+            (VoteType::Precommit, Threshold::Value(v)) => Some(Event::PrecommitValue(*v.as_ref())),
         }
     }
 }
@@ -120,7 +118,7 @@ mod tests {
         let mut keeper = VoteKeeper::new(Height::new(1), Round::INITIAL, 4);
 
         let v = ValueId::new(1);
-        let val = Some(v.clone());
+        let val = Some(v);
         let vote = Vote::new_prevote(Round::new(0), val, Address::new(1));
 
         let event = keeper.apply_vote(vote.clone(), 1);
@@ -142,7 +140,7 @@ mod tests {
         let mut keeper = VoteKeeper::new(Height::new(1), Round::INITIAL, 4);
 
         let v = ValueId::new(1);
-        let val = Some(v.clone());
+        let val = Some(v);
         let vote = Vote::new_precommit(Round::new(0), val, Address::new(1));
 
         let event = keeper.apply_vote(vote.clone(), 1);

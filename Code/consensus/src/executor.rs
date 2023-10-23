@@ -194,7 +194,7 @@ impl Executor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use malachite_common::{Validator, Value, Proposal};
+    use malachite_common::{Proposal, Validator, Value};
     use malachite_round::state::{RoundValue, State, Step};
 
     #[test]
@@ -211,12 +211,7 @@ mod tests {
 
         let mut executor = Executor::new(Height::new(1), vs, key.clone());
 
-        let proposal = Proposal::new(
-            Height::new(1),
-            Round::new(0),
-            value.clone(),
-            Round::new(-1),
-        );
+        let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
         struct TestStep {
             input_message: Option<Message>,
             expected_output_message: Option<Message>,
@@ -318,7 +313,8 @@ mod tests {
                 previous_message.clone()
             } else {
                 step.input_message
-            }.unwrap();
+            }
+            .unwrap();
             let message = executor.execute(execute_message);
             assert_eq!(message, step.expected_output_message);
             let new_state = executor.round_states.get(&Round::new(0)).unwrap();

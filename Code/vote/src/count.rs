@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn add_votes_single_value() {
         let v = ValueId::new(1);
-        let val = Some(v.clone());
+        let val = Some(v);
         let total = 4;
         let weight = 1;
 
@@ -182,8 +182,8 @@ mod tests {
     fn add_votes_multi_values() {
         let v1 = ValueId::new(1);
         let v2 = ValueId::new(2);
-        let val1 = Some(v1.clone());
-        let val2 = Some(v2.clone());
+        let val1 = Some(v1);
+        let val2 = Some(v2);
         let total = 15;
 
         let mut round_votes = RoundVotes::new(Height::new(1), Round::new(0), total);

@@ -180,7 +180,11 @@ pub fn prevote_nil(state: State) -> Transition {
 pub fn precommit(state: State, value_id: ValueId) -> Transition {
     let message = Message::precommit(state.round, Some(value_id), ADDRESS);
 
-    let Some(value) = state.proposal.as_ref().map(|proposal| proposal.value.clone()) else {
+    let Some(value) = state
+        .proposal
+        .as_ref()
+        .map(|proposal| proposal.value.clone())
+    else {
         // TODO: Add logging
         return Transition::invalid(state);
     };
