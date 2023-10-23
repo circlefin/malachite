@@ -15,22 +15,28 @@ extern crate alloc;
 pub mod count;
 pub mod keeper;
 
-use malachite_common::{Height, Round, Vote, VoteType};
+use malachite_common::{Consensus, Round, ValueId, Vote, VoteType};
 
 use crate::count::{Threshold, VoteCount, Weight};
 
 /// Tracks all the votes for a single round
 #[derive(Clone, Debug)]
-pub struct RoundVotes {
-    pub height: Height,
+pub struct RoundVotes<C>
+where
+    C: Consensus,
+{
+    pub height: C::Height,
     pub round: Round,
 
-    pub prevotes: VoteCount,
-    pub precommits: VoteCount,
+    pub prevotes: VoteCount<C>,
+    pub precommits: VoteCount<C>,
 }
 
-impl RoundVotes {
-    pub fn new(height: Height, round: Round, total: Weight) -> RoundVotes {
+impl<C> RoundVotes<C>
+where
+    C: Consensus,
+{
+    pub fn new(height: C::Height, round: Round, total: Weight) -> Self {
         RoundVotes {
             height,
             round,
@@ -39,8 +45,8 @@ impl RoundVotes {
         }
     }
 
-    pub fn add_vote(&mut self, vote: Vote, weight: Weight) -> Threshold {
-        match vote.typ {
+    pub fn add_vote(&mut self, vote: C::Vote, weight: Weight) -> Threshold<ValueId<C>> {
+        match vote.vote_type() {
             VoteType::Prevote => self.prevotes.add_vote(vote, weight),
             VoteType::Precommit => self.precommits.add_vote(vote, weight),
         }

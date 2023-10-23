@@ -1,165 +1,252 @@
-// TODO: Abstract over all of this
+use core::fmt::Debug;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PublicKey(Vec<u8>);
+use crate::Consensus;
 
-impl PublicKey {
-    pub const fn new(value: Vec<u8>) -> Self {
-        Self(value)
-    }
-
-    pub fn hash(&self) -> u64 {
-        // TODO
-        self.0.iter().fold(0, |acc, x| acc ^ *x as u64)
-    }
-}
-
+// TODO: Do we need to abstract over this as well?
 pub type VotingPower = u64;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Address(u64);
-
-impl Address {
-    pub const fn new(value: u64) -> Self {
-        Self(value)
-    }
+pub trait PublicKey
+where
+    Self: Clone + Debug + PartialEq + Eq,
+{
+    fn hash(&self) -> u64; // FIXME: Make the hash type generic
 }
 
-/// A validator is a public key and voting power
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Validator {
-    pub public_key: PublicKey,
-    pub voting_power: VotingPower,
+// TODO: Keep this trait or just add the bounds to Consensus::Address?
+pub trait Address
+where
+    Self: Clone + Debug + PartialEq + Eq,
+{
 }
 
-impl Validator {
-    pub fn new(public_key: PublicKey, voting_power: VotingPower) -> Self {
-        Self {
-            public_key,
-            voting_power,
+pub trait Validator<C>
+where
+    Self: Clone + Debug + PartialEq + Eq,
+    C: Consensus,
+{
+    fn address(&self) -> &C::Address;
+    fn public_key(&self) -> &C::PublicKey;
+    fn voting_power(&self) -> VotingPower;
+}
+
+pub trait ValidatorSet<C>
+where
+    C: Consensus,
+{
+    fn total_voting_power(&self) -> VotingPower;
+    fn get_proposer(&self) -> C::Validator;
+    fn get_by_public_key(&self, public_key: &C::PublicKey) -> Option<&C::Validator>;
+    fn get_by_address(&self, address: &C::Address) -> Option<&C::Validator>;
+}
+
+pub mod test {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use crate::test::TestConsensus;
+
+    use super::VotingPower;
+
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    pub struct PublicKey(Vec<u8>);
+
+    impl PublicKey {
+        pub const fn new(value: Vec<u8>) -> Self {
+            Self(value)
+        }
+
+        pub fn hash(&self) -> u64 {
+            self.0.iter().fold(0, |acc, x| acc ^ *x as u64)
         }
     }
 
-    pub fn hash(&self) -> Vec<u8> {
-        self.public_key.0.clone() // TODO
+    impl super::PublicKey for PublicKey {
+        fn hash(&self) -> u64 {
+            self.hash()
+        }
     }
 
-    pub fn address(&self) -> Address {
-        Address(self.public_key.hash()) // TODO
-    }
-}
+    #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    pub struct Address(u64);
 
-/// A validator set contains a list of validators sorted by address.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ValidatorSet {
-    validators: Vec<Validator>,
-}
-
-impl ValidatorSet {
-    pub fn new(validators: impl IntoIterator<Item = Validator>) -> Self {
-        let mut validators: Vec<_> = validators.into_iter().collect();
-        ValidatorSet::sort_validators(&mut validators);
-
-        Self { validators }
+    impl Address {
+        pub const fn new(value: u64) -> Self {
+            Self(value)
+        }
     }
 
-    /// The total voting power of the validator set
-    pub fn total_voting_power(&self) -> VotingPower {
-        // TODO: Cache this?
-        self.validators.iter().map(|v| v.voting_power).sum()
+    impl super::Address for Address {}
+
+    /// A validator is a public key and voting power
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Validator {
+        pub address: Address,
+        pub public_key: PublicKey,
+        pub voting_power: VotingPower,
     }
 
-    /// Add a validator to the set
-    pub fn add(&mut self, validator: Validator) {
-        self.validators.push(validator);
-
-        ValidatorSet::sort_validators(&mut self.validators);
-    }
-
-    /// Update the voting power of the given validator
-    pub fn update(&mut self, val: Validator) {
-        if let Some(v) = self
-            .validators
-            .iter_mut()
-            .find(|v| v.address() == val.address())
-        {
-            v.voting_power = val.voting_power;
+    impl Validator {
+        pub fn new(public_key: PublicKey, voting_power: VotingPower) -> Self {
+            Self {
+                address: Address(public_key.hash()),
+                public_key,
+                voting_power,
+            }
         }
 
-        dbg!(self.total_voting_power());
-        Self::sort_validators(&mut self.validators);
-        dbg!(self.total_voting_power());
+        pub fn hash(&self) -> u64 {
+            self.public_key.hash() // TODO
+        }
     }
 
-    /// Remove a validator from the set
-    pub fn remove(&mut self, address: &Address) {
-        self.validators.retain(|v| &v.address() != address);
+    impl super::Validator<TestConsensus> for Validator {
+        fn address(&self) -> &Address {
+            &self.address
+        }
 
-        Self::sort_validators(&mut self.validators); // TODO: Not needed
+        fn public_key(&self) -> &PublicKey {
+            &self.public_key
+        }
+
+        fn voting_power(&self) -> VotingPower {
+            self.voting_power
+        }
     }
 
-    /// Get a validator by its address
-    pub fn get_by_address(&self, address: &Address) -> Option<&Validator> {
-        self.validators.iter().find(|v| &v.address() == address)
+    /// A validator set contains a list of validators sorted by address.
+    pub struct ValidatorSet {
+        validators: Vec<Validator>,
+        proposer: AtomicUsize,
     }
 
-    pub fn get_by_public_key(&self, public_key: &PublicKey) -> Option<&Validator> {
-        self.validators.iter().find(|v| &v.public_key == public_key)
+    impl ValidatorSet {
+        pub fn new(validators: impl IntoIterator<Item = Validator>) -> Self {
+            let mut validators: Vec<_> = validators.into_iter().collect();
+            ValidatorSet::sort_validators(&mut validators);
+
+            assert!(!validators.is_empty());
+
+            Self {
+                validators,
+                proposer: AtomicUsize::new(0),
+            }
+        }
+
+        /// The total voting power of the validator set
+        pub fn total_voting_power(&self) -> VotingPower {
+            // TODO: Cache this?
+            self.validators.iter().map(|v| v.voting_power).sum()
+        }
+
+        /// Add a validator to the set
+        pub fn add(&mut self, validator: Validator) {
+            self.validators.push(validator);
+
+            ValidatorSet::sort_validators(&mut self.validators);
+        }
+
+        /// Update the voting power of the given validator
+        pub fn update(&mut self, val: Validator) {
+            if let Some(v) = self
+                .validators
+                .iter_mut()
+                .find(|v| v.address == val.address)
+            {
+                v.voting_power = val.voting_power;
+            }
+
+            dbg!(self.total_voting_power());
+            Self::sort_validators(&mut self.validators);
+            dbg!(self.total_voting_power());
+        }
+
+        /// Remove a validator from the set
+        pub fn remove(&mut self, address: &Address) {
+            self.validators.retain(|v| &v.address != address);
+
+            Self::sort_validators(&mut self.validators); // TODO: Not needed
+        }
+
+        /// Get a validator by its address
+        pub fn get_by_address(&self, address: &Address) -> Option<&Validator> {
+            self.validators.iter().find(|v| &v.address == address)
+        }
+
+        pub fn get_by_public_key(&self, public_key: &PublicKey) -> Option<&Validator> {
+            self.validators.iter().find(|v| &v.public_key == public_key)
+        }
+
+        /// In place sort and deduplication of a list of validators
+        fn sort_validators(vals: &mut Vec<Validator>) {
+            use core::cmp::Reverse;
+
+            // Sort the validators according to the current Tendermint requirements
+            // (v. 0.34 -> first by validator power, descending, then by address, ascending)
+            vals.sort_unstable_by_key(|v| (Reverse(v.voting_power), v.address));
+
+            vals.dedup();
+        }
+
+        pub fn get_proposer(&self) -> Validator {
+            // TODO: Proper implementation
+            assert!(!self.validators.is_empty());
+            let proposer = self.validators[self.proposer.load(Ordering::Relaxed)].clone();
+            self.proposer.fetch_add(1, Ordering::Relaxed);
+            proposer
+        }
     }
 
-    /// In place sort and deduplication of a list of validators
-    fn sort_validators(vals: &mut Vec<Validator>) {
-        use core::cmp::Reverse;
+    impl super::ValidatorSet<TestConsensus> for ValidatorSet {
+        fn total_voting_power(&self) -> VotingPower {
+            self.total_voting_power()
+        }
 
-        // Sort the validators according to the current Tendermint requirements
-        // (v. 0.34 -> first by validator power, descending, then by address, ascending)
-        vals.sort_unstable_by_key(|v| (Reverse(v.voting_power), v.address()));
+        fn get_by_public_key(&self, public_key: &PublicKey) -> Option<&Validator> {
+            self.get_by_public_key(public_key)
+        }
 
-        vals.dedup();
+        fn get_proposer(&self) -> Validator {
+            self.get_proposer()
+        }
+
+        fn get_by_address(&self, address: &Address) -> Option<&Validator> {
+            self.get_by_address(address)
+        }
     }
 
-    pub fn get_proposer(&mut self) -> Validator {
-        // TODO: Proper implementation
-        assert!(!self.validators.is_empty());
-        let proposer = self.validators[0].clone();
-        self.validators.rotate_left(1);
-        proposer
-    }
-}
+    #[cfg(test)]
+    mod tests {
+        use super::*;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+        #[test]
+        fn add_update_remove() {
+            let v1 = Validator::new(PublicKey(vec![1]), 1);
+            let v2 = Validator::new(PublicKey(vec![2]), 2);
+            let v3 = Validator::new(PublicKey(vec![3]), 3);
 
-    #[test]
-    fn add_update_remove() {
-        let v1 = Validator::new(PublicKey(vec![1]), 1);
-        let v2 = Validator::new(PublicKey(vec![2]), 2);
-        let v3 = Validator::new(PublicKey(vec![3]), 3);
+            let mut vs = ValidatorSet::new(vec![v1, v2, v3]);
+            assert_eq!(vs.total_voting_power(), 6);
 
-        let mut vs = ValidatorSet::new(vec![v1, v2, v3]);
-        assert_eq!(vs.total_voting_power(), 6);
+            let v4 = Validator::new(PublicKey(vec![4]), 4);
+            vs.add(v4);
+            assert_eq!(vs.total_voting_power(), 10);
 
-        let v4 = Validator::new(PublicKey(vec![4]), 4);
-        vs.add(v4);
-        assert_eq!(vs.total_voting_power(), 10);
+            let mut v5 = Validator::new(PublicKey(vec![5]), 5);
+            vs.update(v5.clone()); // no effect
+            assert_eq!(vs.total_voting_power(), 10);
 
-        let mut v5 = Validator::new(PublicKey(vec![5]), 5);
-        vs.update(v5.clone()); // no effect
-        assert_eq!(vs.total_voting_power(), 10);
+            vs.add(v5.clone());
+            assert_eq!(vs.total_voting_power(), 15);
 
-        vs.add(v5.clone());
-        assert_eq!(vs.total_voting_power(), 15);
+            v5.voting_power = 100;
+            vs.update(v5.clone());
+            assert_eq!(vs.total_voting_power(), 110);
 
-        v5.voting_power = 100;
-        vs.update(v5.clone());
-        assert_eq!(vs.total_voting_power(), 110);
+            vs.remove(&v5.address);
+            assert_eq!(vs.total_voting_power(), 10);
 
-        vs.remove(&v5.address());
-        assert_eq!(vs.total_voting_power(), 10);
-
-        let v6 = Validator::new(PublicKey(vec![6]), 6);
-        vs.remove(&v6.address()); // no effect
-        assert_eq!(vs.total_voting_power(), 10);
+            let v6 = Validator::new(PublicKey(vec![6]), 6);
+            vs.remove(&v6.address); // no effect
+            assert_eq!(vs.total_voting_power(), 10);
+        }
     }
 }

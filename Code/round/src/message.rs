@@ -1,39 +1,52 @@
-use malachite_common::{Address, Height};
+use malachite_common::{Consensus, Round, Timeout, TimeoutStep, ValueId};
 
-use crate::{state::RoundValue, Proposal, Round, Timeout, TimeoutStep, Value, ValueId, Vote};
+use crate::state::RoundValue;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Message {
-    NewRound(Round),      // Move to the new round.
-    Proposal(Proposal),   // Broadcast the proposal.
-    Vote(Vote),           // Broadcast the vote.
-    Timeout(Timeout),     // Schedule the timeout.
-    Decision(RoundValue), // Decide the value.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Message<C: Consensus> {
+    NewRound(Round),                // Move to the new round.
+    Proposal(C::Proposal),          // Broadcast the proposal.
+    Vote(C::Vote),                  // Broadcast the vote.
+    Timeout(Timeout),               // Schedule the timeout.
+    Decision(RoundValue<C::Value>), // Decide the value.
 }
 
-impl Message {
-    pub fn proposal(height: Height, round: Round, value: Value, pol_round: Round) -> Message {
-        Message::Proposal(Proposal {
-            height,
-            round,
-            value,
-            pol_round,
-        })
+impl<C> Clone for Message<C>
+where
+    C: Consensus,
+{
+    fn clone(&self) -> Self {
+        match self {
+            Message::NewRound(round) => Message::NewRound(*round),
+            Message::Proposal(proposal) => Message::Proposal(proposal.clone()),
+            Message::Vote(vote) => Message::Vote(vote.clone()),
+            Message::Timeout(timeout) => Message::Timeout(*timeout),
+            Message::Decision(round_value) => Message::Decision(round_value.clone()),
+        }
+    }
+}
+
+impl<C> Message<C>
+where
+    C: Consensus,
+{
+    pub fn proposal(height: C::Height, round: Round, value: C::Value, pol_round: Round) -> Self {
+        Message::Proposal(C::new_proposal(height, round, value, pol_round))
     }
 
-    pub fn prevote(round: Round, value_id: Option<ValueId>, address: Address) -> Message {
-        Message::Vote(Vote::new_prevote(round, value_id, address))
+    pub fn prevote(round: Round, value_id: Option<ValueId<C>>, address: C::Address) -> Self {
+        Message::Vote(C::new_prevote(round, value_id, address))
     }
 
-    pub fn precommit(round: Round, value_id: Option<ValueId>, address: Address) -> Message {
-        Message::Vote(Vote::new_precommit(round, value_id, address))
+    pub fn precommit(round: Round, value_id: Option<ValueId<C>>, address: C::Address) -> Self {
+        Message::Vote(C::new_precommit(round, value_id, address))
     }
 
-    pub fn timeout(round: Round, step: TimeoutStep) -> Message {
+    pub fn timeout(round: Round, step: TimeoutStep) -> Self {
         Message::Timeout(Timeout { round, step })
     }
 
-    pub fn decision(round: Round, value: Value) -> Message {
+    pub fn decision(round: Round, value: C::Value) -> Self {
         Message::Decision(RoundValue { round, value })
     }
 }
