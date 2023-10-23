@@ -7,7 +7,7 @@ pub enum TimeoutStep {
     Precommit,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Timeout {
     pub round: Round,
     pub step: TimeoutStep,

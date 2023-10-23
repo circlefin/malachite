@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
 use malachite_common::{
-    Height, Proposal, PublicKey, Round, Timeout, TimeoutStep, ValidatorSet, Value, Vote, VoteType,
+    Consensus, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Value, Vote,
+    VoteType,
 };
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
@@ -11,26 +11,39 @@ use malachite_vote::count::Threshold;
 use malachite_vote::keeper::VoteKeeper;
 
 #[derive(Clone, Debug)]
-pub struct Executor {
-    height: Height,
-    key: PublicKey,
-    validator_set: ValidatorSet,
+pub struct Executor<C>
+where
+    C: Consensus,
+{
+    height: C::Height,
+    key: C::PublicKey,
+    validator_set: C::ValidatorSet,
     round: Round,
-    votes: VoteKeeper,
-    round_states: BTreeMap<Round, RoundState>,
+    votes: VoteKeeper<C>,
+    round_states: BTreeMap<Round, RoundState<C>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Message {
+pub enum Message<C>
+where
+    C: Consensus,
+{
     NewRound(Round),
-    Proposal(Proposal),
-    Vote(Vote),
+    Proposal(C::Proposal),
+    Vote(C::Vote),
     Timeout(Timeout),
 }
 
-impl Executor {
-    pub fn new(height: Height, validator_set: ValidatorSet, key: PublicKey) -> Self {
-        let votes = VoteKeeper::new(height, Round::INITIAL, validator_set.total_voting_power());
+impl<C> Executor<C>
+where
+    C: Consensus,
+{
+    pub fn new(height: C::Height, validator_set: C::ValidatorSet, key: C::PublicKey) -> Self {
+        let votes = VoteKeeper::new(
+            height.clone(),
+            Round::INITIAL,
+            validator_set.total_voting_power(),
+        );
 
         Self {
             height,
@@ -42,11 +55,12 @@ impl Executor {
         }
     }
 
-    pub fn get_value(&self) -> Value {
+    pub fn get_value(&self) -> C::Value {
         // TODO - add external interface to get the value
-        Value::new(9999)
+        C::DUMMY_VALUE
     }
-    pub fn execute(&mut self, msg: Message) -> Option<Message> {
+
+    pub fn execute(&mut self, msg: Message<C>) -> Option<Message<C>> {
         let round_msg = match self.apply(msg) {
             Some(msg) => msg,
             None => return None,
@@ -57,7 +71,7 @@ impl Executor {
                 // TODO: check if we are the proposer
 
                 self.round_states
-                    .insert(round, RoundState::new(self.height).new_round(round));
+                    .insert(round, RoundState::new(self.height.clone()).new_round(round));
                 None
             }
             RoundMessage::Proposal(p) => {
@@ -66,8 +80,16 @@ impl Executor {
             }
             RoundMessage::Vote(mut v) => {
                 // sign the vote
-                // TODO - round message votes should not include address
-                v.address = self.validator_set.get_by_public_key(&self.key)?.address();
+
+                // FIXME: round message votes should not include address
+                let address = self
+                    .validator_set
+                    .get_by_public_key(&self.key)?
+                    .address()
+                    .clone();
+
+                v.set_address(address);
+
                 Some(Message::Vote(v))
             }
             RoundMessage::Timeout(_) => {
@@ -81,7 +103,7 @@ impl Executor {
         }
     }
 
-    fn apply(&mut self, msg: Message) -> Option<RoundMessage> {
+    fn apply(&mut self, msg: Message<C>) -> Option<RoundMessage<C>> {
         match msg {
             Message::NewRound(round) => self.apply_new_round(round),
             Message::Proposal(proposal) => self.apply_proposal(proposal),
@@ -90,9 +112,9 @@ impl Executor {
         }
     }
 
-    fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage> {
+    fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<C>> {
         let proposer = self.validator_set.get_proposer();
-        let event = if proposer.public_key == self.key {
+        let event = if proposer.public_key() == &self.key {
             let value = self.get_value();
             RoundEvent::NewRoundProposer(value)
         } else {
@@ -101,9 +123,8 @@ impl Executor {
         self.apply_event(round, event)
     }
 
-    fn apply_proposal(&mut self, proposal: Proposal) -> Option<RoundMessage> {
+    fn apply_proposal(&mut self, proposal: C::Proposal) -> Option<RoundMessage<C>> {
         // TODO: Check for invalid proposal
-        let round = proposal.round;
         let event = RoundEvent::Proposal(proposal.clone());
 
         let Some(round_state) = self.round_states.get(&self.round) else {
@@ -115,46 +136,45 @@ impl Executor {
             return None;
         }
 
-        if round_state.height != proposal.height || proposal.round != self.round {
+        if round_state.height != proposal.height() || proposal.round() != self.round {
             return None;
         }
 
-        if !proposal.pol_round.is_valid()
-            || proposal.pol_round.is_defined() && proposal.pol_round >= round_state.round
+        if !proposal.pol_round().is_valid()
+            || proposal.pol_round().is_defined() && proposal.pol_round() >= round_state.round
         {
             return None;
         }
 
         // TODO verify proposal signature (make some of these checks part of message validation)
-
-        match proposal.pol_round {
+        match proposal.pol_round() {
             Round::None => {
                 // Is it possible to get +2/3 prevotes before the proposal?
                 // Do we wait for our own prevote to check the threshold?
-                self.apply_event(round, event)
+                self.apply_event(proposal.round(), event)
             }
             Round::Some(_)
                 if self.votes.check_threshold(
-                    &proposal.pol_round,
+                    &proposal.pol_round(),
                     VoteType::Prevote,
-                    Threshold::Value(Arc::from(proposal.value.id())),
+                    Threshold::Value(proposal.value().id()),
                 ) =>
             {
-                self.apply_event(round, event)
+                self.apply_event(proposal.round(), event)
             }
             _ => None,
         }
     }
 
-    fn apply_vote(&mut self, vote: Vote) -> Option<RoundMessage> {
-        let Some(validator) = self.validator_set.get_by_address(&vote.address) else {
+    fn apply_vote(&mut self, vote: C::Vote) -> Option<RoundMessage<C>> {
+        let Some(validator) = self.validator_set.get_by_address(vote.address()) else {
             // TODO: Is this the correct behavior? How to log such "errors"?
             return None;
         };
 
-        let round = vote.round;
+        let round = vote.round();
 
-        let event = match self.votes.apply_vote(vote, validator.voting_power) {
+        let event = match self.votes.apply_vote(vote, validator.voting_power()) {
             Some(event) => event,
             None => return None,
         };
@@ -162,7 +182,7 @@ impl Executor {
         self.apply_event(round, event)
     }
 
-    fn apply_timeout(&mut self, timeout: Timeout) -> Option<RoundMessage> {
+    fn apply_timeout(&mut self, timeout: Timeout) -> Option<RoundMessage<C>> {
         let event = match timeout.step {
             TimeoutStep::Propose => RoundEvent::TimeoutPropose,
             TimeoutStep::Prevote => RoundEvent::TimeoutPrevote,
@@ -173,12 +193,12 @@ impl Executor {
     }
 
     /// Apply the event, update the state.
-    fn apply_event(&mut self, round: Round, event: RoundEvent) -> Option<RoundMessage> {
+    fn apply_event(&mut self, round: Round, event: RoundEvent<C>) -> Option<RoundMessage<C>> {
         // Get the round state, or create a new one
         let round_state = self
             .round_states
             .remove(&round)
-            .unwrap_or_else(|| RoundState::new(self.height));
+            .unwrap_or_else(|| RoundState::new(self.height.clone()));
 
         // Apply the event to the round state machine
         let transition = round_state.apply_event(round, event);
@@ -193,9 +213,12 @@ impl Executor {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use malachite_common::{Proposal, Validator, Value};
+    use malachite_common::test::{
+        Height, Proposal, PublicKey, TestConsensus, Validator, ValidatorSet, Value, Vote,
+    };
     use malachite_round::state::{RoundValue, State, Step};
+
+    use super::*;
 
     #[test]
     fn test_executor_steps() {
@@ -204,7 +227,7 @@ mod tests {
         let v1 = Validator::new(PublicKey::new(vec![1]), 1);
         let v2 = Validator::new(PublicKey::new(vec![2]), 1);
         let v3 = Validator::new(PublicKey::new(vec![3]), 1);
-        let my_address = v1.clone().address();
+        let my_address = v1.address;
         let key = v1.clone().public_key; // we are proposer
 
         let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
@@ -213,9 +236,9 @@ mod tests {
 
         let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
         struct TestStep {
-            input_message: Option<Message>,
-            expected_output_message: Option<Message>,
-            new_state: State,
+            input_message: Option<Message<TestConsensus>>,
+            expected_output_message: Option<Message<TestConsensus>>,
+            new_state: State<TestConsensus>,
         }
         let steps: Vec<TestStep> = vec![
             // Start round 0, we are proposer, propose value
@@ -266,7 +289,7 @@ mod tests {
                 input_message: Some(Message::Vote(Vote::new_prevote(
                     Round::new(0),
                     Some(value_id),
-                    v2.clone().address(),
+                    v2.address,
                 ))),
                 expected_output_message: None,
                 new_state: State {
@@ -283,7 +306,7 @@ mod tests {
                 input_message: Some(Message::Vote(Vote::new_prevote(
                     Round::new(0),
                     Some(value_id),
-                    v3.clone().address(),
+                    v3.address,
                 ))),
                 expected_output_message: Some(Message::Vote(Vote::new_precommit(
                     Round::new(0),
