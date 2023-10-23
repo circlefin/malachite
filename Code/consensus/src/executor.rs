@@ -278,7 +278,7 @@ mod tests {
                     valid: None,
                 },
             },
-            // v3 prevotes for our proposal
+            // v3 prevotes for our proposal, we get +2/3 prevotes, precommit for it (v1)
             TestStep {
                 input_message: Some(Message::Vote(Vote::new_prevote(
                     Round::new(0),
@@ -294,6 +294,71 @@ mod tests {
                     height: Height::new(1),
                     round: Round::new(0),
                     step: Step::Precommit,
+                    proposal: Some(proposal.clone()),
+                    locked: Some(RoundValue {
+                        value: value.clone(),
+                        round: Round::new(0),
+                    }),
+                    valid: Some(RoundValue {
+                        value: value.clone(),
+                        round: Round::new(0),
+                    }),
+                },
+            },
+            // v1 receives its own precommit
+            TestStep {
+                input_message: None,
+                expected_output_message: None,
+                new_state: State {
+                    height: Height::new(1),
+                    round: Round::new(0),
+                    step: Step::Precommit,
+                    proposal: Some(proposal.clone()),
+                    locked: Some(RoundValue {
+                        value: value.clone(),
+                        round: Round::new(0),
+                    }),
+                    valid: Some(RoundValue {
+                        value: value.clone(),
+                        round: Round::new(0),
+                    }),
+                },
+            },
+            // v2 precommits for our proposal
+            TestStep {
+                input_message: Some(Message::Vote(Vote::new_precommit(
+                    Round::new(0),
+                    Some(value_id),
+                    v2.clone().address(),
+                ))),
+                expected_output_message: None,
+                new_state: State {
+                    height: Height::new(1),
+                    round: Round::new(0),
+                    step: Step::Precommit,
+                    proposal: Some(proposal.clone()),
+                    locked: Some(RoundValue {
+                        value: value.clone(),
+                        round: Round::new(0),
+                    }),
+                    valid: Some(RoundValue {
+                        value: value.clone(),
+                        round: Round::new(0),
+                    }),
+                },
+            },
+            // v3 precommits for our proposal, we get +2/3 precommits, decide it (v1)
+            TestStep {
+                input_message: Some(Message::Vote(Vote::new_precommit(
+                    Round::new(0),
+                    Some(value_id),
+                    v2.clone().address(),
+                ))),
+                expected_output_message: None,
+                new_state: State {
+                    height: Height::new(1),
+                    round: Round::new(0),
+                    step: Step::Commit,
                     proposal: Some(proposal.clone()),
                     locked: Some(RoundValue {
                         value: value.clone(),
