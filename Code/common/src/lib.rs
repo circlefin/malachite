@@ -26,15 +26,6 @@ pub use height::Height;
 pub use proposal::Proposal;
 pub use round::Round;
 pub use timeout::{Timeout, TimeoutStep};
-pub use validator_set::{Address, PublicKey, Validator, ValidatorSet};
+pub use validator_set::{Address, PublicKey, Validator, ValidatorSet, VotingPower};
 pub use value::Value;
 pub use vote::{Vote, VoteType};
-
-pub mod test {
-    pub use crate::consensus::test::*;
-    pub use crate::height::test::*;
-    pub use crate::proposal::test::*;
-    pub use crate::validator_set::test::*;
-    pub use crate::value::test::*;
-    pub use crate::vote::test::*;
-}
