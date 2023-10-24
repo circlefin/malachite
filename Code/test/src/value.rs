@@ -32,7 +32,7 @@ impl Value {
 impl malachite_common::Value for Value {
     type Id = ValueId;
 
-    fn valid(&self) -> bool {
+    fn is_valid(&self) -> bool {
         self.valid()
     }
 

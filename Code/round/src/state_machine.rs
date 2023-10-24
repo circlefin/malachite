@@ -73,7 +73,7 @@ where
             if this_round && proposal.pol_round().is_nil() =>
         {
             // L22
-            if proposal.value().valid()
+            if proposal.value().is_valid()
                 && state
                     .locked
                     .as_ref()
@@ -95,7 +95,7 @@ where
                 return Transition::invalid(state);
             };
 
-            if proposal.value().valid()
+            if proposal.value().is_valid()
                 && (locked.round <= proposal.pol_round() || &locked.value == proposal.value())
             {
                 prevote(state, proposal.round(), proposal.value().id())

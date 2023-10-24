@@ -1,4 +1,4 @@
-//! Common data types and abstractions
+//! Common data types and abstractions for the consensus engine.
 
 #![forbid(unsafe_code)]
 #![deny(unused_crate_dependencies, trivial_casts, trivial_numeric_casts)]
@@ -19,6 +19,7 @@ mod validator_set;
 mod value;
 mod vote;
 
+/// Type alias to make it easier to refer the `ValueId` type of a given `Consensus` engine.
 pub type ValueId<C> = <<C as Consensus>::Value as Value>::Id;
 
 pub use consensus::Consensus;
