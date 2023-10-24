@@ -72,12 +72,15 @@ where
 
                 self.round_states
                     .insert(round, RoundState::new(self.height.clone()).new_round(round));
+
                 None
             }
+
             RoundMessage::Proposal(p) => {
                 // sign the proposal
                 Some(Message::Proposal(p))
             }
+
             RoundMessage::Vote(mut v) => {
                 // sign the vote
 
@@ -92,10 +95,12 @@ where
 
                 Some(Message::Vote(v))
             }
+
             RoundMessage::Timeout(_) => {
                 // schedule the timeout
                 None
             }
+
             RoundMessage::Decision(_) => {
                 // update the state
                 None
@@ -114,12 +119,14 @@ where
 
     fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<C>> {
         let proposer = self.validator_set.get_proposer();
+
         let event = if proposer.public_key() == &self.key {
             let value = self.get_value();
             RoundEvent::NewRoundProposer(value)
         } else {
             RoundEvent::NewRound
         };
+
         self.apply_event(round, event)
     }
 
@@ -127,26 +134,30 @@ where
         // TODO: Check for invalid proposal
         let event = RoundEvent::Proposal(proposal.clone());
 
+        // Check that there is an ongoing round
         let Some(round_state) = self.round_states.get(&self.round) else {
             // TODO: Add logging
             return None;
         };
 
+        // Only process the proposal if there is no other proposal
         if round_state.proposal.is_some() {
             return None;
         }
 
+        // Check that the proposal is for the current height and round
         if round_state.height != proposal.height() || proposal.round() != self.round {
             return None;
         }
 
+        // TODO: Document
         if !proposal.pol_round().is_valid()
             || proposal.pol_round().is_defined() && proposal.pol_round() >= round_state.round
         {
             return None;
         }
 
-        // TODO verify proposal signature (make some of these checks part of message validation)
+        // TODO: Verify proposal signature (make some of these checks part of message validation)
         match proposal.pol_round() {
             Round::Nil => {
                 // Is it possible to get +2/3 prevotes before the proposal?
