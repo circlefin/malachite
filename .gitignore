@@ -15,3 +15,7 @@ Cargo.lock
 
 # Code coverage artifacts
 lcov.info
+
+
+# IDEA related fluff
+.idea
