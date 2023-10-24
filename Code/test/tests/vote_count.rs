@@ -2,7 +2,7 @@ use malachite_common::Round;
 use malachite_vote::count::Threshold;
 use malachite_vote::RoundVotes;
 
-use crate::{Address, Height, TestConsensus, ValueId, Vote};
+use malachite_test::{Address, Height, TestConsensus, ValueId, Vote};
 
 #[test]
 fn add_votes_nil() {

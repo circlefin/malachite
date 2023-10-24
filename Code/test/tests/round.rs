@@ -1,4 +1,4 @@
-use crate::{Height, Proposal, TestConsensus, Value};
+use malachite_test::{Height, Proposal, TestConsensus, Value};
 
 use malachite_common::{Consensus, Round, Timeout, TimeoutStep};
 use malachite_round::events::Event;

@@ -2,7 +2,7 @@ use malachite_common::{Consensus, Round};
 use malachite_consensus::executor::{Executor, Message};
 use malachite_round::state::{RoundValue, State, Step};
 
-use crate::{Height, Proposal, PublicKey, TestConsensus, Validator, ValidatorSet, Vote};
+use malachite_test::{Height, Proposal, PublicKey, TestConsensus, Validator, ValidatorSet, Vote};
 
 #[test]
 fn test_executor_steps() {

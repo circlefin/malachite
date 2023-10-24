@@ -2,7 +2,7 @@ use malachite_common::Round;
 use malachite_round::events::Event;
 use malachite_vote::keeper::VoteKeeper;
 
-use crate::{Address, Height, TestConsensus, ValueId, Vote};
+use malachite_test::{Address, Height, TestConsensus, ValueId, Vote};
 
 #[test]
 fn prevote_apply_nil() {
