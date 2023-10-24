@@ -11,6 +11,7 @@ coverage:
       default:
         target: auto
         threshold: 5%
+        removed_code_behavior: adjust_base
         paths:
           - "Code"
     patch:
