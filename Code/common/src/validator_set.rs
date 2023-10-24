@@ -12,7 +12,6 @@ pub trait PublicKey
 where
     Self: Clone + Debug + PartialEq + Eq,
 {
-    fn hash(&self) -> u64; // FIXME: Make the hash type generic
 }
 
 /// Defines the requirements for an address.

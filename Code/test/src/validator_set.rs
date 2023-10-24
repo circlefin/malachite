@@ -17,11 +17,7 @@ impl PublicKey {
     }
 }
 
-impl malachite_common::PublicKey for PublicKey {
-    fn hash(&self) -> u64 {
-        self.hash()
-    }
-}
+impl malachite_common::PublicKey for PublicKey {}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Address(u64);
