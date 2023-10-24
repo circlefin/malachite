@@ -42,6 +42,23 @@ impl VoteKeeper {
         Self::to_event(vote_type, threshold)
     }
 
+    pub fn check_threshold(
+        &self,
+        round: &Round,
+        vote_type: VoteType,
+        threshold: Threshold,
+    ) -> bool {
+        let round = match self.rounds.get(round) {
+            Some(round) => round,
+            None => return false,
+        };
+
+        match vote_type {
+            VoteType::Prevote => round.prevotes.check_threshold(threshold),
+            VoteType::Precommit => round.precommits.check_threshold(threshold),
+        }
+    }
+
     /// Map a vote type and a threshold to a state machine event.
     fn to_event(typ: VoteType, threshold: Threshold) -> Option<Event> {
         match (typ, threshold) {
@@ -49,20 +66,18 @@ impl VoteKeeper {
 
             (VoteType::Prevote, Threshold::Any) => Some(Event::PolkaAny),
             (VoteType::Prevote, Threshold::Nil) => Some(Event::PolkaNil),
-            (VoteType::Prevote, Threshold::Value(v)) => Some(Event::PolkaValue(v.as_ref().clone())),
+            (VoteType::Prevote, Threshold::Value(v)) => Some(Event::PolkaValue(*v.as_ref())),
 
             (VoteType::Precommit, Threshold::Any) => Some(Event::PrecommitAny),
             (VoteType::Precommit, Threshold::Nil) => None,
-            (VoteType::Precommit, Threshold::Value(v)) => {
-                Some(Event::PrecommitValue(v.as_ref().clone()))
-            }
+            (VoteType::Precommit, Threshold::Value(v)) => Some(Event::PrecommitValue(*v.as_ref())),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use malachite_common::{Address, Value};
+    use malachite_common::{Address, ValueId};
 
     use super::*;
 
@@ -102,8 +117,8 @@ mod tests {
     fn prevote_apply_single_value() {
         let mut keeper = VoteKeeper::new(Height::new(1), Round::INITIAL, 4);
 
-        let v = Value::new(1);
-        let val = Some(v.clone());
+        let v = ValueId::new(1);
+        let val = Some(v);
         let vote = Vote::new_prevote(Round::new(0), val, Address::new(1));
 
         let event = keeper.apply_vote(vote.clone(), 1);
@@ -124,8 +139,8 @@ mod tests {
     fn precommit_apply_single_value() {
         let mut keeper = VoteKeeper::new(Height::new(1), Round::INITIAL, 4);
 
-        let v = Value::new(1);
-        let val = Some(v.clone());
+        let v = ValueId::new(1);
+        let val = Some(v);
         let vote = Vote::new_precommit(Round::new(0), val, Address::new(1));
 
         let event = keeper.apply_vote(vote.clone(), 1);

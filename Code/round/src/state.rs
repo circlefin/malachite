@@ -1,6 +1,7 @@
 use crate::events::Event;
 use crate::state_machine::Transition;
 use crate::{Height, Round, Value};
+use malachite_common::Proposal;
 
 /// A value and its associated round
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,6 +32,7 @@ pub struct State {
     pub height: Height,
     pub round: Round,
     pub step: Step,
+    pub proposal: Option<Proposal>,
     pub locked: Option<RoundValue>,
     pub valid: Option<RoundValue>,
 }
@@ -41,6 +43,7 @@ impl State {
             height,
             round: Round::INITIAL,
             step: Step::NewRound,
+            proposal: None,
             locked: None,
             valid: None,
         }

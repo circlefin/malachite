@@ -1,4 +1,4 @@
-use crate::{Address, Round, Value};
+use crate::{Address, Round, ValueId};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum VoteType {
@@ -11,12 +11,12 @@ pub enum VoteType {
 pub struct Vote {
     pub typ: VoteType,
     pub round: Round,
-    pub value: Option<Value>,
+    pub value: Option<ValueId>,
     pub address: Address,
 }
 
 impl Vote {
-    pub fn new_prevote(round: Round, value: Option<Value>, address: Address) -> Self {
+    pub fn new_prevote(round: Round, value: Option<ValueId>, address: Address) -> Self {
         Self {
             typ: VoteType::Prevote,
             round,
@@ -25,7 +25,7 @@ impl Vote {
         }
     }
 
-    pub fn new_precommit(round: Round, value: Option<Value>, address: Address) -> Self {
+    pub fn new_precommit(round: Round, value: Option<ValueId>, address: Address) -> Self {
         Self {
             typ: VoteType::Precommit,
             round,
