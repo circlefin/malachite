@@ -148,7 +148,7 @@ where
 
         // TODO verify proposal signature (make some of these checks part of message validation)
         match proposal.pol_round() {
-            Round::None => {
+            Round::Nil => {
                 // Is it possible to get +2/3 prevotes before the proposal?
                 // Do we wait for our own prevote to check the threshold?
                 self.apply_event(proposal.round(), event)

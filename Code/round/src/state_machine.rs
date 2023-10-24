@@ -145,7 +145,7 @@ where
 {
     let (value, pol_round) = match &state.valid {
         Some(round_value) => (round_value.value.clone(), round_value.round),
-        None => (value, Round::None),
+        None => (value, Round::Nil),
     };
 
     let proposal = Message::proposal(state.height.clone(), state.round, value, pol_round);

@@ -18,7 +18,7 @@ fn test_propose() {
 
     assert_eq!(
         transition.message.unwrap(),
-        Message::proposal(Height::new(10), Round::new(0), Value::new(42), Round::None)
+        Message::proposal(Height::new(10), Round::new(0), Value::new(42), Round::Nil)
     );
 }
 
@@ -47,7 +47,7 @@ fn test_prevote() {
             Height::new(1),
             Round::new(1),
             value.clone(),
-            Round::None,
+            Round::Nil,
         )),
     );
 
