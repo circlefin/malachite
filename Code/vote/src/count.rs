@@ -1,14 +1,14 @@
 use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
 
-use malachite_common::{Value, Vote};
+use malachite_common::{ValueId, Vote};
 
 pub type Weight = u64;
 
 /// A value and the weight of votes for it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValuesWeights {
-    value_weights: BTreeMap<Arc<Value>, Weight>,
+    value_weights: BTreeMap<Arc<ValueId>, Weight>,
 }
 
 impl ValuesWeights {
@@ -18,17 +18,15 @@ impl ValuesWeights {
         }
     }
 
-    pub fn add_weight(&mut self, value: Arc<Value>, weight: Weight) -> Weight {
+    /// Add weight to the value and return the new weight.
+    pub fn add_weight(&mut self, value: Arc<ValueId>, weight: Weight) -> Weight {
         let entry = self.value_weights.entry(value).or_insert(0);
         *entry += weight;
         *entry
     }
 
-    // pub fn weight_for(&self, value: &Value) -> Weight {
-    //     self.value_weights.get(value).copied().unwrap_or(0)
-    // }
-
-    pub fn highest_weighted_value(&self) -> Option<(&Value, Weight)> {
+    /// Return the value with the highest weight and said weight, if any.
+    pub fn highest_weighted_value(&self) -> Option<(&ValueId, Weight)> {
         self.value_weights
             .iter()
             .max_by_key(|(_, weight)| *weight)
@@ -92,6 +90,14 @@ impl VoteCount {
         // No quorum
         Threshold::Init
     }
+    pub fn check_threshold(&self, threshold: Threshold) -> bool {
+        match threshold {
+            Threshold::Init => false,
+            Threshold::Any => self.values_weights.highest_weighted_value().is_some(),
+            Threshold::Nil => self.nil > 0,
+            Threshold::Value(value) => self.values_weights.value_weights.contains_key(&value),
+        }
+    }
 }
 
 //-------------------------------------------------------------------------
@@ -108,7 +114,7 @@ pub enum Threshold {
     /// Quorum for nil
     Nil,
     /// Quorum for a value
-    Value(Arc<Value>),
+    Value(Arc<ValueId>),
 }
 
 /// Returns whether or note `value > (2/3)*total`.
@@ -118,7 +124,7 @@ pub fn is_quorum(value: Weight, total: Weight) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use malachite_common::{Height, Round};
+    use malachite_common::{Address, Height, Round};
 
     use crate::RoundVotes;
 
@@ -131,7 +137,7 @@ mod tests {
         let mut round_votes = RoundVotes::new(Height::new(1), Round::new(0), total);
 
         // add a vote for nil. nothing changes.
-        let vote = Vote::new_prevote(Round::new(0), None);
+        let vote = Vote::new_prevote(Round::new(0), None, Address::new(1));
         let thresh = round_votes.add_vote(vote.clone(), 1);
         assert_eq!(thresh, Threshold::Init);
 
@@ -146,15 +152,15 @@ mod tests {
 
     #[test]
     fn add_votes_single_value() {
-        let v = Value::new(1);
-        let val = Some(v.clone());
+        let v = ValueId::new(1);
+        let val = Some(v);
         let total = 4;
         let weight = 1;
 
         let mut round_votes = RoundVotes::new(Height::new(1), Round::new(0), total);
 
         // add a vote. nothing changes.
-        let vote = Vote::new_prevote(Round::new(0), val);
+        let vote = Vote::new_prevote(Round::new(0), val, Address::new(1));
         let thresh = round_votes.add_vote(vote.clone(), weight);
         assert_eq!(thresh, Threshold::Init);
 
@@ -163,7 +169,7 @@ mod tests {
         assert_eq!(thresh, Threshold::Init);
 
         // add a vote for nil, get Thresh::Any
-        let vote_nil = Vote::new_prevote(Round::new(0), None);
+        let vote_nil = Vote::new_prevote(Round::new(0), None, Address::new(2));
         let thresh = round_votes.add_vote(vote_nil, weight);
         assert_eq!(thresh, Threshold::Any);
 
@@ -174,26 +180,26 @@ mod tests {
 
     #[test]
     fn add_votes_multi_values() {
-        let v1 = Value::new(1);
-        let v2 = Value::new(2);
-        let val1 = Some(v1.clone());
-        let val2 = Some(v2.clone());
+        let v1 = ValueId::new(1);
+        let v2 = ValueId::new(2);
+        let val1 = Some(v1);
+        let val2 = Some(v2);
         let total = 15;
 
         let mut round_votes = RoundVotes::new(Height::new(1), Round::new(0), total);
 
         // add a vote for v1. nothing changes.
-        let vote1 = Vote::new_precommit(Round::new(0), val1);
+        let vote1 = Vote::new_precommit(Round::new(0), val1, Address::new(1));
         let thresh = round_votes.add_vote(vote1.clone(), 1);
         assert_eq!(thresh, Threshold::Init);
 
         // add a vote for v2. nothing changes.
-        let vote2 = Vote::new_precommit(Round::new(0), val2);
+        let vote2 = Vote::new_precommit(Round::new(0), val2, Address::new(2));
         let thresh = round_votes.add_vote(vote2.clone(), 1);
         assert_eq!(thresh, Threshold::Init);
 
         // add a vote for nil. nothing changes.
-        let vote_nil = Vote::new_precommit(Round::new(0), None);
+        let vote_nil = Vote::new_precommit(Round::new(0), None, Address::new(3));
         let thresh = round_votes.add_vote(vote_nil.clone(), 1);
         assert_eq!(thresh, Threshold::Init);
 

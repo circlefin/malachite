@@ -1,4 +1,6 @@
-use crate::{state::RoundValue, Proposal, Round, Timeout, TimeoutStep, Value, Vote};
+use malachite_common::{Address, Height};
+
+use crate::{state::RoundValue, Proposal, Round, Timeout, TimeoutStep, Value, ValueId, Vote};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Message {
@@ -10,20 +12,21 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn proposal(round: Round, value: Value, pol_round: Round) -> Message {
+    pub fn proposal(height: Height, round: Round, value: Value, pol_round: Round) -> Message {
         Message::Proposal(Proposal {
+            height,
             round,
             value,
             pol_round,
         })
     }
 
-    pub fn prevote(round: Round, value: Option<Value>) -> Message {
-        Message::Vote(Vote::new_prevote(round, value))
+    pub fn prevote(round: Round, value_id: Option<ValueId>, address: Address) -> Message {
+        Message::Vote(Vote::new_prevote(round, value_id, address))
     }
 
-    pub fn precommit(round: Round, value: Option<Value>) -> Message {
-        Message::Vote(Vote::new_precommit(round, value))
+    pub fn precommit(round: Round, value_id: Option<ValueId>, address: Address) -> Message {
+        Message::Vote(Vote::new_precommit(round, value_id, address))
     }
 
     pub fn timeout(round: Round, step: TimeoutStep) -> Message {
