@@ -99,12 +99,12 @@ pub fn apply_event(mut state: State, round: Round, event: Event) -> Transition {
         // From Prevote. Event must be for current round.
         (Step::Prevote, Event::PolkaAny) if this_round => schedule_timeout_prevote(state), // L34
         (Step::Prevote, Event::PolkaNil) if this_round => precommit_nil(state),            // L44
-        (Step::Prevote, Event::PolkaValue(value_id)) if this_round => precommit(state, value_id), // L36/L37 - NOTE: only once?
+        (Step::Prevote, Event::ProposalAndPolkaCurrent(value)) if this_round => precommit(state, value), // L36/L37 - NOTE: only once?
         (Step::Prevote, Event::TimeoutPrevote) if this_round => precommit_nil(state), // L61
 
         // From Precommit. Event must be for current round.
-        (Step::Precommit, Event::PolkaValue(value_id)) if this_round => {
-            set_valid_value(state, value_id)
+        (Step::Precommit, Event::ProposalAndPolkaCurrent(value)) if this_round => {
+            set_valid_value(state, value)
         } // L36/L42 - NOTE: only once?
 
         // From Commit. No more state transitions.
@@ -114,7 +114,7 @@ pub fn apply_event(mut state: State, round: Round, event: Event) -> Transition {
         (_, Event::PrecommitAny) if this_round => schedule_timeout_precommit(state), // L47
         (_, Event::TimeoutPrecommit) if this_round => round_skip(state, round.increment()), // L65
         (_, Event::RoundSkip) if state.round < round => round_skip(state, round),    // L55
-        (_, Event::PrecommitValue(value_id)) => commit(state, round, value_id),      // L49
+        (_, Event::ProposalAndPrecommitValue(value)) => commit(state, round, value),  // L49
 
         // Invalid transition.
         _ => Transition::invalid(state),
@@ -177,8 +177,8 @@ pub fn prevote_nil(state: State) -> Transition {
 ///
 /// NOTE: Only one of this and set_valid_value should be called once in a round
 ///       How do we enforce this?
-pub fn precommit(state: State, value_id: ValueId) -> Transition {
-    let message = Message::precommit(state.round, Some(value_id), ADDRESS);
+pub fn precommit(state: State, value: Value) -> Transition {
+    let message = Message::precommit(state.round, Some(value.id()), ADDRESS);
 
     let Some(value) = state
         .proposal
@@ -243,7 +243,7 @@ pub fn schedule_timeout_precommit(state: State) -> Transition {
 /// Ref: L36/L42
 ///
 /// NOTE: only one of this and precommit should be called once in a round
-pub fn set_valid_value(state: State, value_id: ValueId) -> Transition {
+pub fn set_valid_value(state: State, value_id: Value) -> Transition {
     // check that we're locked on this value
 
     let Some(locked) = state.locked.as_ref() else {
@@ -251,7 +251,7 @@ pub fn set_valid_value(state: State, value_id: ValueId) -> Transition {
         return Transition::invalid(state);
     };
 
-    if locked.value.id() != value_id {
+    if locked.value.id() != value_id.id() {
         // TODO: Add logging
         return Transition::invalid(state);
     }
@@ -274,14 +274,14 @@ pub fn round_skip(state: State, round: Round) -> Transition {
 /// We received +2/3 precommits for a value - commit and decide that value!
 ///
 /// Ref: L49
-pub fn commit(state: State, round: Round, value_id: ValueId) -> Transition {
+pub fn commit(state: State, round: Round, value: Value) -> Transition {
     // Check that we're locked on this value
     let Some(locked) = state.locked.as_ref() else {
         // TODO: Add logging
         return Transition::invalid(state);
     };
 
-    if locked.value.id() != value_id {
+    if locked.value != value {
         // TODO: Add logging
         return Transition::invalid(state);
     }
