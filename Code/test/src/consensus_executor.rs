@@ -182,17 +182,18 @@ fn test_executor_steps() {
     ];
 
     let mut previous_message = None;
+
     for step in steps {
-        let execute_message = if step.input_message.is_none() {
-            previous_message.clone()
-        } else {
-            step.input_message
-        }
-        .unwrap();
+        let execute_message = step
+            .input_message
+            .unwrap_or_else(|| previous_message.unwrap());
+
         let message = executor.execute(execute_message);
         assert_eq!(message, step.expected_output_message);
+
         let new_state = executor.round_state(Round::new(0)).unwrap();
         assert_eq!(new_state, &step.new_state);
+
         previous_message = message;
     }
 }
