@@ -62,15 +62,15 @@ impl VoteKeeper {
     /// Map a vote type and a threshold to a state machine event.
     fn to_event(typ: VoteType, threshold: Threshold) -> Option<Event> {
         match (typ, threshold) {
-            (_, Threshold::Init) => None,
+            (_, Threshold::Unreached) => None,
 
-            (VoteType::Prevote, Threshold::Any) => Some(Event::PolkaAny),
-            (VoteType::Prevote, Threshold::Nil) => Some(Event::PolkaNil),
             (VoteType::Prevote, Threshold::Value(v)) => Some(Event::PolkaValue(*v.as_ref())),
+            (VoteType::Prevote, Threshold::Nil) => Some(Event::PolkaNil),
+            (VoteType::Prevote, Threshold::Any) => Some(Event::PolkaAny),
 
-            (VoteType::Precommit, Threshold::Any) => Some(Event::PrecommitAny),
-            (VoteType::Precommit, Threshold::Nil) => None,
             (VoteType::Precommit, Threshold::Value(v)) => Some(Event::PrecommitValue(*v.as_ref())),
+            (VoteType::Precommit, Threshold::Nil) => None,
+            (VoteType::Precommit, Threshold::Any) => Some(Event::PrecommitAny),
         }
     }
 }

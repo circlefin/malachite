@@ -88,11 +88,11 @@ impl VoteCount {
         }
 
         // No quorum
-        Threshold::Init
+        Threshold::Unreached
     }
     pub fn check_threshold(&self, threshold: Threshold) -> bool {
         match threshold {
-            Threshold::Init => false,
+            Threshold::Unreached => false,
             Threshold::Any => self.values_weights.highest_weighted_value().is_some(),
             Threshold::Nil => self.nil > 0,
             Threshold::Value(value) => self.values_weights.value_weights.contains_key(&value),
@@ -104,20 +104,21 @@ impl VoteCount {
 // Round votes
 //-------------------------------------------------------------------------
 
-// Thresh represents the different quorum thresholds.
+// Threshold represents the different quorum thresholds.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Threshold {
-    /// No quorum
-    Init, // no quorum
-    /// Qorum of votes but not for the same value
-    Any,
-    /// Quorum for nil
-    Nil,
-    /// Quorum for a value
+    /// No quorum was reached
+    Unreached,
+    /// Quorum reached for a specific value
     Value(Arc<ValueId>),
+    /// Quorum reached for a nil value
+    /// This happens eg if the proposer missed their time to send proposal
+    Nil,
+    /// Qorum of votes reached but for multiple different values, including nil
+    Any,
 }
 
-/// Returns whether or note `value > (2/3)*total`.
+/// Returns whether or not `value > (2/3)*total`.
 pub fn is_quorum(value: Weight, total: Weight) -> bool {
     3 * value > 2 * total
 }
@@ -139,11 +140,11 @@ mod tests {
         // add a vote for nil. nothing changes.
         let vote = Vote::new_prevote(Round::new(0), None, Address::new(1));
         let thresh = round_votes.add_vote(vote.clone(), 1);
-        assert_eq!(thresh, Threshold::Init);
+        assert_eq!(thresh, Threshold::Unreached);
 
         // add it again, nothing changes.
         let thresh = round_votes.add_vote(vote.clone(), 1);
-        assert_eq!(thresh, Threshold::Init);
+        assert_eq!(thresh, Threshold::Unreached);
 
         // add it again, get Nil
         let thresh = round_votes.add_vote(vote.clone(), 1);
@@ -162,11 +163,11 @@ mod tests {
         // add a vote. nothing changes.
         let vote = Vote::new_prevote(Round::new(0), val, Address::new(1));
         let thresh = round_votes.add_vote(vote.clone(), weight);
-        assert_eq!(thresh, Threshold::Init);
+        assert_eq!(thresh, Threshold::Unreached);
 
         // add it again, nothing changes.
         let thresh = round_votes.add_vote(vote.clone(), weight);
-        assert_eq!(thresh, Threshold::Init);
+        assert_eq!(thresh, Threshold::Unreached);
 
         // add a vote for nil, get Thresh::Any
         let vote_nil = Vote::new_prevote(Round::new(0), None, Address::new(2));
@@ -191,25 +192,25 @@ mod tests {
         // add a vote for v1. nothing changes.
         let vote1 = Vote::new_precommit(Round::new(0), val1, Address::new(1));
         let thresh = round_votes.add_vote(vote1.clone(), 1);
-        assert_eq!(thresh, Threshold::Init);
+        assert_eq!(thresh, Threshold::Unreached);
 
         // add a vote for v2. nothing changes.
         let vote2 = Vote::new_precommit(Round::new(0), val2, Address::new(2));
         let thresh = round_votes.add_vote(vote2.clone(), 1);
-        assert_eq!(thresh, Threshold::Init);
+        assert_eq!(thresh, Threshold::Unreached);
 
         // add a vote for nil. nothing changes.
         let vote_nil = Vote::new_precommit(Round::new(0), None, Address::new(3));
         let thresh = round_votes.add_vote(vote_nil.clone(), 1);
-        assert_eq!(thresh, Threshold::Init);
+        assert_eq!(thresh, Threshold::Unreached);
 
         // add a vote for v1. nothing changes
         let thresh = round_votes.add_vote(vote1.clone(), 1);
-        assert_eq!(thresh, Threshold::Init);
+        assert_eq!(thresh, Threshold::Unreached);
 
         // add a vote for v2. nothing changes
         let thresh = round_votes.add_vote(vote2.clone(), 1);
-        assert_eq!(thresh, Threshold::Init);
+        assert_eq!(thresh, Threshold::Unreached);
 
         // add a big vote for v2. get Value(v2)
         let thresh = round_votes.add_vote(vote2.clone(), 10);
