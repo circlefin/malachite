@@ -64,7 +64,7 @@ pub mod test {
 
         const DUMMY_ADDRESS: Address = Address::new(42);
 
-        const DUMMY_VALUE: Self::Value = Value::new(0xdeadbeef);
+        const DUMMY_VALUE: Self::Value = Value::new(9999);
 
         fn new_proposal(height: Height, round: Round, value: Value, pol_round: Round) -> Proposal {
             Proposal::new(height, round, value, pol_round)

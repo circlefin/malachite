@@ -214,7 +214,7 @@ where
 #[cfg(test)]
 mod tests {
     use malachite_common::test::{
-        Height, Proposal, PublicKey, TestConsensus, Validator, ValidatorSet, Value, Vote,
+        Height, Proposal, PublicKey, TestConsensus, Validator, ValidatorSet, Vote,
     };
     use malachite_round::state::{RoundValue, State, Step};
 
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_executor_steps() {
-        let value = Value::new(9999); // TODO: get value from external source
+        let value = TestConsensus::DUMMY_VALUE; // TODO: get value from external source
         let value_id = value.id();
         let v1 = Validator::new(PublicKey::new(vec![1]), 1);
         let v2 = Validator::new(PublicKey::new(vec![2]), 1);
@@ -352,7 +352,7 @@ mod tests {
                 input_message: Some(Message::Vote(Vote::new_precommit(
                     Round::new(0),
                     Some(value_id),
-                    v2.clone().address(),
+                    v2.address,
                 ))),
                 expected_output_message: None,
                 new_state: State {
@@ -375,7 +375,7 @@ mod tests {
                 input_message: Some(Message::Vote(Vote::new_precommit(
                     Round::new(0),
                     Some(value_id),
-                    v2.clone().address(),
+                    v2.address,
                 ))),
                 expected_output_message: None,
                 new_state: State {
