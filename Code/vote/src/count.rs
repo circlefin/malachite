@@ -25,12 +25,12 @@ impl ValuesWeights {
         *entry
     }
 
-    /// Return the value with the highest weight and said weight, if any.
-    pub fn highest_weighted_value(&self) -> Option<(&ValueId, Weight)> {
+    /// Return the cumulative weight associated with all the values.
+    /// Returns None if there are no weights associated with any value.
+    pub fn cumulative_weights(&self) -> Option<Weight> {
         self.value_weights
             .iter()
-            .max_by_key(|(_, weight)| *weight)
-            .map(|(value, weight)| (value.as_ref(), *weight))
+            .fold(None, |mac, (_, w)| mac.map(|acc| acc + w))
     }
 }
 
@@ -63,6 +63,8 @@ impl VoteCount {
 
     /// Add vote to internal counters and return the highest threshold.
     pub fn add_vote(&mut self, vote: Vote, weight: Weight) -> Threshold {
+        // Note: The ordering among these if clauses is important
+        // We first check if there is a quorum for a specific value
         if let Some(value) = vote.value {
             let value = Arc::new(value);
             let new_weight = self.values_weights.add_weight(value.clone(), weight);
@@ -80,23 +82,32 @@ impl VoteCount {
             }
         }
 
-        // Check if we have a quorum for any value, using the highest weighted value, if any.
-        if let Some((_max_value, max_weight)) = self.values_weights.highest_weighted_value() {
-            if is_quorum(max_weight + self.nil, self.total) {
-                return Threshold::Any;
-            }
+        // Check if we have a quorum for all values and for nil votes,
+        if self.is_quorum_any() {
+            return Threshold::Any;
         }
 
-        // No quorum
+        // No quorum was reached
         Threshold::Unreached
     }
+
     pub fn check_threshold(&self, threshold: Threshold) -> bool {
         match threshold {
             Threshold::Unreached => false,
-            Threshold::Any => self.values_weights.highest_weighted_value().is_some(),
+            Threshold::Any => self.is_quorum_any(),
             Threshold::Nil => self.nil > 0,
             Threshold::Value(value) => self.values_weights.value_weights.contains_key(&value),
         }
+    }
+
+    // Checks if the cumulative weight associated to all votes and nil is enough for a quorum
+    fn is_quorum_any(&self) -> bool {
+        if let Some(cm_weight) = self.values_weights.cumulative_weights() {
+            if is_quorum(cm_weight + self.nil, self.total) {
+                 return true;
+            }
+        }
+        false
     }
 }
 
