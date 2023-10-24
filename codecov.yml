@@ -7,6 +7,18 @@ coverage:
   range: "50...100"
 
   status:
-    project: true
-    patch: true
+    project:
+      default:
+        target: auto
+        threshold: 5%
+        removed_code_behavior: adjust_base
+        paths:
+          - "Code"
+    patch:
+      default:
+        target: auto
+        threshold: 5%
+        paths:
+          - "Code"
+
     changes: true
