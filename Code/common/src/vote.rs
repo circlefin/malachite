@@ -5,13 +5,17 @@ use crate::{Consensus, Round, Value};
 /// A type of vote.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum VoteType {
+    /// Votes for values which validators observe are valid for a given round.
     Prevote,
+
+    /// Votes to commit to a particular value for a given round.
     Precommit,
 }
 
 /// Defines the requirements for a vote.
 ///
-/// A vote is a signed message that is sent by a validator to the network.
+/// Votes are signed messages from validators for a particular value which
+/// include information about the validator signing it.
 pub trait Vote<C: Consensus>
 where
     Self: Clone + Debug + PartialEq + Eq,
