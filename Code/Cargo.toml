@@ -4,9 +4,10 @@ resolver = "2"
 members = [
   "common",
   "driver",
+  "itf",
   "round",
-  "vote",
   "test",
+  "vote",
 ]
 
 [workspace.package]
