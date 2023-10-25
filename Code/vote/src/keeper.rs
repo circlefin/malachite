@@ -47,7 +47,8 @@ where
         Self::to_event(vote_type, threshold)
     }
 
-    pub fn check_threshold(
+    /// Check if a threshold is met, ie. if we have a quorum for that threshold.
+    pub fn is_threshold_met(
         &self,
         round: &Round,
         vote_type: VoteType,
@@ -59,8 +60,8 @@ where
         };
 
         match vote_type {
-            VoteType::Prevote => round.prevotes.check_threshold(threshold),
-            VoteType::Precommit => round.precommits.check_threshold(threshold),
+            VoteType::Prevote => round.prevotes.is_threshold_met(threshold),
+            VoteType::Precommit => round.precommits.is_threshold_met(threshold),
         }
     }
 

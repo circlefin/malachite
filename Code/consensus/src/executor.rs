@@ -165,7 +165,7 @@ where
                 self.apply_event(proposal.round(), event)
             }
             Round::Some(_)
-                if self.votes.check_threshold(
+                if self.votes.is_threshold_met(
                     &proposal.pol_round(),
                     VoteType::Prevote,
                     Threshold::Value(proposal.value().id()),

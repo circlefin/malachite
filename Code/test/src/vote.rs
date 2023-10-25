@@ -40,6 +40,10 @@ impl malachite_common::Vote<TestConsensus> for Vote {
         self.value.as_ref()
     }
 
+    fn take_value(self) -> Option<ValueId> {
+        self.value
+    }
+
     fn vote_type(&self) -> VoteType {
         self.typ
     }
