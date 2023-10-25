@@ -1,7 +1,5 @@
 use alloc::collections::BTreeMap;
 
-use malachite_common::{Consensus, ValueId, Vote};
-
 // TODO: Introduce newtype
 // QUESTION: Over what type? i64?
 pub type Weight = u64;
@@ -52,21 +50,15 @@ impl<ValueId> Default for ValuesWeights<ValueId> {
 /// VoteCount tallys votes of the same type.
 /// Votes are for nil or for some value.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct VoteCount<C>
-where
-    C: Consensus,
-{
+pub struct VoteCount<Value> {
     /// Weight of votes for the values, including nil
-    pub values_weights: ValuesWeights<ValueId<C>>,
+    pub values_weights: ValuesWeights<Value>,
 
     /// Total weight
     pub total: Weight,
 }
 
-impl<C> VoteCount<C>
-where
-    C: Consensus,
-{
+impl<Value> VoteCount<Value> {
     pub fn new(total: Weight) -> Self {
         VoteCount {
             total,
@@ -74,12 +66,15 @@ where
         }
     }
 
-    /// Add vote to internal counters and return the highest threshold.
-    pub fn add_vote(&mut self, vote: C::Vote, weight: Weight) -> Threshold<ValueId<C>> {
-        let new_weight = self.values_weights.add(vote.value().cloned(), weight);
+    /// Add vote for a vlaue to internal counters and return the highest threshold.
+    pub fn add_vote(&mut self, value: Option<Value>, weight: Weight) -> Threshold<Value>
+    where
+        Value: Clone + Ord,
+    {
+        let new_weight = self.values_weights.add(value.clone(), weight);
 
-        match vote.value() {
-            Some(value) if is_quorum(new_weight, self.total) => Threshold::Value(value.clone()),
+        match value {
+            Some(value) if is_quorum(new_weight, self.total) => Threshold::Value(value),
 
             None if is_quorum(new_weight, self.total) => Threshold::Nil,
 
@@ -96,7 +91,10 @@ where
     }
 
     /// Return whether or not the threshold is met, ie. if we have a quorum for that threshold.
-    pub fn is_threshold_met(&self, threshold: Threshold<ValueId<C>>) -> bool {
+    pub fn is_threshold_met(&self, threshold: Threshold<Value>) -> bool
+    where
+        Value: Clone + Ord,
+    {
         match threshold {
             Threshold::Value(value) => {
                 let weight = self.values_weights.get(&Some(value));
@@ -173,5 +171,85 @@ mod tests {
         assert_eq!(vw.get(&Some(2)), 1);
 
         // FIXME: Test for and deal with overflows
+    }
+
+    #[test]
+    #[allow(clippy::bool_assert_comparison)]
+    fn vote_count_nil() {
+        let mut vc = VoteCount::new(4);
+
+        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Any), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
+
+        assert_eq!(vc.add_vote(None, 1), Threshold::Init);
+        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Any), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
+
+        assert_eq!(vc.add_vote(None, 1), Threshold::Init);
+        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Any), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
+
+        assert_eq!(vc.add_vote(None, 1), Threshold::Nil);
+        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Any), true);
+        assert_eq!(vc.is_threshold_met(Threshold::Nil), true);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
+
+        assert_eq!(vc.add_vote(Some(1), 1), Threshold::Any);
+        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Any), true);
+        assert_eq!(vc.is_threshold_met(Threshold::Nil), true);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
+    }
+
+    #[test]
+    #[allow(clippy::bool_assert_comparison)]
+    fn vote_count_value() {
+        let mut vc = VoteCount::new(4);
+
+        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Any), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
+
+        assert_eq!(vc.add_vote(Some(1), 1), Threshold::Init);
+        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Any), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
+
+        assert_eq!(vc.add_vote(Some(1), 1), Threshold::Init);
+        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Any), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
+
+        assert_eq!(vc.add_vote(Some(1), 1), Threshold::Value(1));
+        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Any), true);
+        assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(1)), true);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
+
+        assert_eq!(vc.add_vote(Some(2), 1), Threshold::Any);
+        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Any), true);
+        assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(1)), true);
+        assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
     }
 }
