@@ -97,7 +97,9 @@ where
         // No quorum
         Threshold::Init
     }
-    pub fn check_threshold(&self, threshold: Threshold<ValueId<C>>) -> bool {
+
+    /// Return whether or not the threshold is met, ie. if we have a quorum for that threshold.
+    pub fn is_threshold_met(&self, threshold: Threshold<ValueId<C>>) -> bool {
         match threshold {
             Threshold::Init => false,
             Threshold::Any => self.values_weights.highest_weighted_value().is_some(),
