@@ -28,8 +28,8 @@ where
     pub height: C::Height,
     pub round: Round,
 
-    pub prevotes: VoteCount<C>,
-    pub precommits: VoteCount<C>,
+    pub prevotes: VoteCount<ValueId<C>>,
+    pub precommits: VoteCount<ValueId<C>>,
 }
 
 impl<C> RoundVotes<C>
@@ -47,8 +47,8 @@ where
 
     pub fn add_vote(&mut self, vote: C::Vote, weight: Weight) -> Threshold<ValueId<C>> {
         match vote.vote_type() {
-            VoteType::Prevote => self.prevotes.add_vote(vote, weight),
-            VoteType::Precommit => self.precommits.add_vote(vote, weight),
+            VoteType::Prevote => self.prevotes.add_vote(vote.take_value(), weight),
+            VoteType::Precommit => self.precommits.add_vote(vote.take_value(), weight),
         }
     }
 }

@@ -21,4 +21,6 @@ coverage:
         paths:
           - "Code"
 
-    changes: true
+    changes:
+      default:
+        informational: true

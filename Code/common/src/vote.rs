@@ -23,8 +23,11 @@ where
     /// The round for which the vote is for.
     fn round(&self) -> Round;
 
-    /// The value being voted for.
+    /// Get a reference to the value being voted for.
     fn value(&self) -> Option<&<C::Value as Value>::Id>;
+
+    /// Take ownership of the value being voted for.
+    fn take_value(self) -> Option<<C::Value as Value>::Id>;
 
     /// The type of vote.
     fn vote_type(&self) -> VoteType;
