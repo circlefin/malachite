@@ -2,20 +2,20 @@
 
 module consensus {
 
-  // a process name is just a string in our specification
+  // a process address is just a string
   type Address_t = str
   // a value is also a string
   type Value_t = str
-  // a state is also a string
+  // a round step is also a string
   type Step_t = str
   // a round is an integer
   type Round_t = int
   // a height is an integer
   type Height_t = int
-  // a state is also a string
+  // timeours are identified by strings
   type Timeout_t = str
 
-// the type of propose messages
+  // the type of propose messages
   type ProposeMsg_t = {
     src: Address_t,
     height: Height_t,
@@ -35,7 +35,7 @@ module consensus {
 
 type ConsensusState = {
     p: Address_t,
-    height : int,
+    height : Height_t,
     round: Round_t,
     step: Step_t, // "newRound", propose, prevote, precommit, decided
     lockedRound: Round_t,
@@ -47,7 +47,7 @@ type ConsensusState = {
 
 type Event = {
     name : str,
-    height : int,
+    height : Height_t,
     round: Round_t,
     value: Value_t,
     vr: Round_t
@@ -64,21 +64,21 @@ type Result = {
 }
 
 val consensusEvents = Set(
-    "NewHeight",
-    "NewRound",                // Start a new round, not as proposer.
-    "NewRoundProposer(Value)", // Start a new round and propose the Value.
-    "Proposal",      // Receive a proposal with possible polka round.
-    "ProposalAndPolkaPreviousAndValid", //28 when valid
-    "ProposalInvalid", // 26 and 32 when invalid in step propose
-    "PolkaNil",                // Receive +2/3 prevotes for nil.
-    "PolkaAny",                // Receive +2/3 prevotes for anything and they are not the same
-    "ProposalAndPolkaAndValid", // 36 when valid and step >= prevote
-    "PrecommitAny",           // Receive +2/3 precommits for anything.
-    "ProposalAndCommitAndValid", // decide
-    "RoundSkip",               // Receive +1/3 votes from a higher round.
-    "TimeoutPropose",          // Timeout waiting for proposal.
-    "TimeoutPrevote",          // Timeout waiting for prevotes.
-    "TimeoutPrecommit"       // Timeout waiting for precommits
+    "NewHeight",			// Setups the state-machine for a single-height execution
+    "NewRound",              		// Start a new round, not as proposer.
+    "NewRoundProposer(Value)", 		// Start a new round as proposer with the proposed Value.
+    "Proposal",      			// Receive a proposal without associated valid round.
+    "ProposalAndPolkaPreviousAndValid", // Receive a valid proposal with an associated valid round, attested by a a Polka(vr).
+    "ProposalInvalid", 			// Receive an invalid proposal: L26 and L32 when valid(v) == false
+    "PolkaNil",                		// Receive +2/3 prevotes for nil.
+    "PolkaAny",                		// Receive +2/3 prevotes from different validators, not for the same value or nil.
+    "ProposalAndPolkaAndValid", 	// Proposal and 2/3+ prevotes for the proposal: L36 when valid and step >= prevote
+    "PrecommitAny",           		// Receive +2/3 precommits from different validators, not for the same value or nil.
+    "ProposalAndCommitAndValid", 	// Proposal and 2/3+ commits for the proposal => decision
+    "RoundSkip",               		// Receive +1/3 messages from different validators for a higher round.
+    "TimeoutPropose",          		// Timeout waiting for proposal.
+    "TimeoutPrevote",          		// Timeout waiting for prevotes for a value.
+    "TimeoutPrecommit"       		// Timeout waiting for precommits for a value.
 )
 
 /*    
@@ -102,8 +102,10 @@ val defaultResult : Result = {
                 skipRound: noSkipRound}
 
 
+// Implies StartRound(0)
 pure def NewHeight (state: ConsensusState, ev: Event) : (ConsensusState, Result) = {
-    val newstate = { ...state, round: ev.round, 
+    val newstate = { ...state, 
+			    round: 0, 
                             step: "newRound", 
                             height : ev.height,
                             lockedRound: -1, 
@@ -116,6 +118,7 @@ pure def NewHeight (state: ConsensusState, ev: Event) : (ConsensusState, Result)
 
 // line 11.14
 pure def NewRoundProposer (state: ConsensusState, ev: Event) : (ConsensusState, Result) = {
+    // TODO: ev.round must match state.round
     val newstate = { ...state, round: ev.round, step: "propose"}
     val proposal =  if (state.validValue != "nil") state.validValue
                     else ev.value
@@ -130,8 +133,9 @@ pure def NewRoundProposer (state: ConsensusState, ev: Event) : (ConsensusState, 
 
 // line 11.20
 pure def NewRound (state: ConsensusState, ev: Event) : (ConsensusState, Result) = {
+    // TODO: ev.round must match state.round
     val newstate = { ...state, round: ev.round, step: "propose" }
-    val result = { ...defaultResult, name: "timeout", timeout: "timeoutPropose"} // do we need the roundnumber here?
+    val result = { ...defaultResult, name: "timeout", timeout: "timeoutPropose"} // do we need the roundnumber here? YES
         (newstate, result)
 }
 
@@ -144,7 +148,7 @@ pure def Proposal (state: ConsensusState, ev: Event) : (ConsensusState, Result) 
                                              voteMessage: { src: state.p,
                                                             height: state.height,            
                                                             round: state.round,
-                                                            step: "prevote",  // "prevote" or "precommit"
+                                                            step: "prevote",
                                                             id: ev.value}}
             (newstate, result)
         else
@@ -152,7 +156,7 @@ pure def Proposal (state: ConsensusState, ev: Event) : (ConsensusState, Result) 
                                              voteMessage: { src: state.p,
                                                             height: state.height,            
                                                             round: state.round,
-                                                            step: "prevote",  // "prevote" or "precommit"
+                                                            step: "prevote",
                                                             id: "nil"}}
             (newstate, result)
     }
@@ -169,7 +173,7 @@ pure def ProposalAndPolkaPreviousAndValid (state: ConsensusState, ev: Event) : (
                                              voteMessage: { src: state.p,
                                                             height: state.height,
                                                             round: state.round,
-                                                            step: "prevote",  // "prevote" or "precommit"
+                                                            step: "prevote",
                                                             id: ev.value}}
             (newstate, result)
         else
@@ -177,7 +181,7 @@ pure def ProposalAndPolkaPreviousAndValid (state: ConsensusState, ev: Event) : (
                                              voteMessage: { src: state.p,
                                                             height: state.height,
                                                             round: state.round,
-                                                            step: "prevote",  // "prevote" or "precommit"
+                                                            step: "prevote",
                                                             id: "nil"}}
             (newstate, result)                                             
     }
@@ -185,6 +189,7 @@ pure def ProposalAndPolkaPreviousAndValid (state: ConsensusState, ev: Event) : (
         (state, defaultResult)
 }
 
+// Lines 22 or 28 with valid(v) == false
 pure def ProposalInvalid (state: ConsensusState, ev: Event) : (ConsensusState, Result) = {
     if (state.step == "propose") {
         val newstate = state.with("step", "prevote")
@@ -192,7 +197,7 @@ pure def ProposalInvalid (state: ConsensusState, ev: Event) : (ConsensusState, R
                                          voteMessage: { src: state.p,
                                                             height: state.height,
                                                             round: state.round,
-                                                            step: "prevote",  // "prevote" or "precommit"
+                                                            step: "prevote",
                                                             id: "nil"}}
         (newstate, result)
     }
@@ -204,7 +209,7 @@ pure def ProposalInvalid (state: ConsensusState, ev: Event) : (ConsensusState, R
 // line 34
 pure def PolkaAny (state: ConsensusState, ev: Event) : (ConsensusState, Result) = {
     if (state.step == "prevote") {
-        val result = { ...defaultResult, name: "timeout", timeout: "timeoutPrevote" } // do we need the roundnumber here?
+        val result = { ...defaultResult, name: "timeout", timeout: "timeoutPrevote" } // do we need the roundnumber here? YES
         (state, result)
     }
     else
@@ -227,15 +232,14 @@ pure def ProposalAndPolkaAndValid (state: ConsensusState, ev: Event) : (Consensu
         (newstate, result)
         }
     else {
+	// TODO: if state > prevote, we should update the valid round!
         (state, defaultResult)
     }
 }
 
 // line 44
 pure def PolkaNil (state: ConsensusState, ev: Event) : (ConsensusState, Result) = {
-    if (state.step != "prevote")
-        (state, defaultResult)
-    else
+    if (state.step == "prevote")
         val newstate = { ...state, step: "precommit"}
         val result = { ...defaultResult, name: "votemessage",
                                          voteMessage: { src: state.p,
@@ -244,12 +248,14 @@ pure def PolkaNil (state: ConsensusState, ev: Event) : (ConsensusState, Result) 
                                                         step: "precommit",  
                                                         id: "nil"}}
         (newstate, result)
+    else
+        (state, defaultResult)
 }
 
 // line 47
 pure def PrecommitAny (state: ConsensusState, ev: Event) : (ConsensusState, Result) = {
     if (state.step == "precommit") {
-        val result = { ...defaultResult, name: "timeout", timeout: "timeoutPrecommit" } // do we need the roundnumber here?
+        val result = { ...defaultResult, name: "timeout", timeout: "timeoutPrecommit" } // do we need the roundnumber here? YES
         (state, result)
     }
     else
@@ -283,7 +289,7 @@ pure def TimeoutPropose (state: ConsensusState, ev: Event) : (ConsensusState, Re
                                          voteMessage: { src: state.p,
                                                             height: state.height,
                                                             round: state.round,
-                                                            step: "prevote",  // "prevote" or "precommit"
+                                                            step: "prevote",
                                                             id: "nil"}}
         (newstate, result)
     else
@@ -297,7 +303,7 @@ pure def TimeoutPrevote (state: ConsensusState, ev: Event) : (ConsensusState, Re
                                          voteMessage: { src: state.p,
                                                             height: state.height,
                                                             round: state.round,
-                                                            step: "precommit",  // "prevote" or "precommit"
+                                                            step: "precommit",
                                                             id: "nil"}}
         (newstate, result)
     else
@@ -351,6 +357,8 @@ pure def consensus (state: ConsensusState, ev: Event) : (ConsensusState, Result)
  * ************************************************************************* */
 
 var system : Address_t -> ConsensusState
+
+// Auxiliary fields for better debugging
 var _Result : Result
 var _Event : Event
 
@@ -432,6 +440,7 @@ run DecideNonProposerTest = {
     })    
     .then(FireEvent("NewRoundProposer", "Josef", 2, 0, "nextBlock", -1))
     .then(all{
+	// TODO: should we prevent timeout in this case? See issue #21
         assert(_Result.timeout != "timeoutPropose" and _Result.proposal.proposal == "nextBlock"),
         unchangedAll
     })
@@ -445,7 +454,7 @@ run DecideNonProposerTest = {
         assert(_Result.timeout == "timeoutPrevote"),
         unchangedAll
     })
-    .then(FireEvent("TimeoutPrevote", "Josef", 2, 0, "nextBlock", -1))
+    .then(FireEvent("TimeoutPrevote", "Josef", 2, 0, "nextBlock", -1)) // FIXME: why a value for the timeout?
     .then(all{
         assert(_Result.voteMessage.step == "precommit" and _Result.voteMessage.id == "nil" and
                system.get("Josef").step == "precommit"),
