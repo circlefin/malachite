@@ -1,5 +1,6 @@
 use malachite_common::{Consensus, Round, Timeout};
-use malachite_consensus::executor::{Executor, Message};
+use malachite_consensus::executor::Executor;
+use malachite_consensus::message::Message;
 use malachite_round::state::{RoundValue, State, Step};
 
 use malachite_test::{Height, Proposal, PublicKey, TestConsensus, Validator, ValidatorSet, Vote};
@@ -46,11 +47,9 @@ fn executor_steps_proposer() {
         TestStep {
             desc: "Receive our own proposal, prevote for it (v1)",
             input_message: None,
-            expected_output_message: Some(Message::Vote(Vote::new_prevote(
-                Round::new(0),
-                Some(value_id),
-                my_address,
-            ))),
+            expected_output_message: Some(Message::Vote(
+                Vote::new_prevote(Round::new(0), Some(value_id)).signed(my_address),
+            )),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
@@ -77,11 +76,9 @@ fn executor_steps_proposer() {
         // v2 prevotes for our proposal
         TestStep {
             desc: "v2 prevotes for our proposal",
-            input_message: Some(Message::Vote(Vote::new_prevote(
-                Round::new(0),
-                Some(value_id),
-                v2.address,
-            ))),
+            input_message: Some(Message::Vote(
+                Vote::new_prevote(Round::new(0), Some(value_id)).signed(v2.address),
+            )),
             expected_output_message: None,
             new_state: State {
                 height: Height::new(1),
@@ -95,16 +92,12 @@ fn executor_steps_proposer() {
         // v3 prevotes for our proposal, we get +2/3 prevotes, precommit for it (v1)
         TestStep {
             desc: "v3 prevotes for our proposal, we get +2/3 prevotes, precommit for it (v1)",
-            input_message: Some(Message::Vote(Vote::new_prevote(
-                Round::new(0),
-                Some(value_id),
-                v3.address,
-            ))),
-            expected_output_message: Some(Message::Vote(Vote::new_precommit(
-                Round::new(0),
-                Some(value_id),
-                my_address,
-            ))),
+            input_message: Some(Message::Vote(
+                Vote::new_prevote(Round::new(0), Some(value_id)).signed(v3.address),
+            )),
+            expected_output_message: Some(Message::Vote(
+                Vote::new_precommit(Round::new(0), Some(value_id)).signed(my_address),
+            )),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
@@ -143,11 +136,9 @@ fn executor_steps_proposer() {
         // v2 precommits for our proposal
         TestStep {
             desc: "v2 precommits for our proposal",
-            input_message: Some(Message::Vote(Vote::new_precommit(
-                Round::new(0),
-                Some(value_id),
-                v2.address,
-            ))),
+            input_message: Some(Message::Vote(
+                Vote::new_precommit(Round::new(0), Some(value_id)).signed(v2.address),
+            )),
             expected_output_message: None,
             new_state: State {
                 height: Height::new(1),
@@ -167,11 +158,9 @@ fn executor_steps_proposer() {
         // v3 precommits for our proposal, we get +2/3 precommits, decide it (v1)
         TestStep {
             desc: "v3 precommits for our proposal, we get +2/3 precommits, decide it (v1)",
-            input_message: Some(Message::Vote(Vote::new_precommit(
-                Round::new(0),
-                Some(value_id),
-                v2.address,
-            ))),
+            input_message: Some(Message::Vote(
+                Vote::new_precommit(Round::new(0), Some(value_id)).signed(v2.address),
+            )),
             expected_output_message: None,
             new_state: State {
                 height: Height::new(1),
@@ -244,11 +233,9 @@ fn executor_steps_not_proposer() {
         TestStep {
             desc: "Receive a proposal, prevote for it (v1)",
             input_message: Some(Message::Proposal(proposal.clone())),
-            expected_output_message: Some(Message::Vote(Vote::new_prevote(
-                Round::new(0),
-                Some(value_id),
-                my_address,
-            ))),
+            expected_output_message: Some(Message::Vote(
+                Vote::new_prevote(Round::new(0), Some(value_id)).signed(my_address),
+            )),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
@@ -275,11 +262,9 @@ fn executor_steps_not_proposer() {
         // v2 prevotes for its own proposal
         TestStep {
             desc: "v2 prevotes for its own proposal",
-            input_message: Some(Message::Vote(Vote::new_prevote(
-                Round::new(0),
-                Some(value_id),
-                v2.address,
-            ))),
+            input_message: Some(Message::Vote(
+                Vote::new_prevote(Round::new(0), Some(value_id)).signed(v2.address),
+            )),
             expected_output_message: None,
             new_state: State {
                 height: Height::new(1),
@@ -293,16 +278,12 @@ fn executor_steps_not_proposer() {
         // v3 prevotes for v2's proposal, it gets +2/3 prevotes, precommit for it (v1)
         TestStep {
             desc: "v3 prevotes for v2's proposal, it gets +2/3 prevotes, precommit for it (v1)",
-            input_message: Some(Message::Vote(Vote::new_prevote(
-                Round::new(0),
-                Some(value_id),
-                v3.address,
-            ))),
-            expected_output_message: Some(Message::Vote(Vote::new_precommit(
-                Round::new(0),
-                Some(value_id),
-                my_address,
-            ))),
+            input_message: Some(Message::Vote(
+                Vote::new_prevote(Round::new(0), Some(value_id)).signed(v3.address),
+            )),
+            expected_output_message: Some(Message::Vote(
+                Vote::new_precommit(Round::new(0), Some(value_id)).signed(my_address),
+            )),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
@@ -341,11 +322,9 @@ fn executor_steps_not_proposer() {
         // v2 precommits its proposal
         TestStep {
             desc: "v2 precommits its proposal",
-            input_message: Some(Message::Vote(Vote::new_precommit(
-                Round::new(0),
-                Some(value_id),
-                v2.address,
-            ))),
+            input_message: Some(Message::Vote(
+                Vote::new_precommit(Round::new(0), Some(value_id)).signed(v2.address),
+            )),
             expected_output_message: None,
             new_state: State {
                 height: Height::new(1),
@@ -365,11 +344,9 @@ fn executor_steps_not_proposer() {
         // v3 precommits for v2's proposal, it gets +2/3 precommits, decide it (v1)
         TestStep {
             desc: "v3 precommits for v2's proposal, it gets +2/3 precommits, decide it (v1)",
-            input_message: Some(Message::Vote(Vote::new_precommit(
-                Round::new(0),
-                Some(value_id),
-                v2.address,
-            ))),
+            input_message: Some(Message::Vote(
+                Vote::new_precommit(Round::new(0), Some(value_id)).signed(v2.address),
+            )),
             expected_output_message: None,
             new_state: State {
                 height: Height::new(1),
@@ -440,11 +417,9 @@ fn executor_steps_not_proposer_timeout() {
         TestStep {
             desc: "Receive a propose timeout, prevote for nil (v1)",
             input_message: Some(Message::Timeout(Timeout::propose(Round::new(0)))),
-            expected_output_message: Some(Message::Vote(Vote::new_prevote(
-                Round::new(0),
-                None,
-                my_address,
-            ))),
+            expected_output_message: Some(Message::Vote(
+                Vote::new_prevote(Round::new(0), None).signed(my_address),
+            )),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
@@ -471,11 +446,9 @@ fn executor_steps_not_proposer_timeout() {
         // v2 prevotes for its own proposal
         TestStep {
             desc: "v2 prevotes for its own proposal",
-            input_message: Some(Message::Vote(Vote::new_prevote(
-                Round::new(0),
-                Some(value_id),
-                v2.address,
-            ))),
+            input_message: Some(Message::Vote(
+                Vote::new_prevote(Round::new(0), Some(value_id)).signed(v2.address),
+            )),
             expected_output_message: None,
             new_state: State {
                 height: Height::new(1),
@@ -489,16 +462,12 @@ fn executor_steps_not_proposer_timeout() {
         // v3 prevotes for nil, it gets +2/3 prevotes, precommit for it (v1)
         TestStep {
             desc: "v3 prevotes for nil, it gets +2/3 prevotes, precommit for it (v1)",
-            input_message: Some(Message::Vote(Vote::new_prevote(
-                Round::new(0),
-                None,
-                v3.address,
-            ))),
-            expected_output_message: Some(Message::Vote(Vote::new_precommit(
-                Round::new(0),
-                None,
-                my_address,
-            ))),
+            input_message: Some(Message::Vote(
+                Vote::new_prevote(Round::new(0), None).signed(v3.address),
+            )),
+            expected_output_message: Some(Message::Vote(
+                Vote::new_precommit(Round::new(0), None).signed(my_address),
+            )),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
@@ -525,11 +494,9 @@ fn executor_steps_not_proposer_timeout() {
         // v2 precommits its proposal
         TestStep {
             desc: "v2 precommits its proposal",
-            input_message: Some(Message::Vote(Vote::new_precommit(
-                Round::new(0),
-                Some(value_id),
-                v2.address,
-            ))),
+            input_message: Some(Message::Vote(
+                Vote::new_precommit(Round::new(0), Some(value_id)).signed(v2.address),
+            )),
             expected_output_message: None,
             new_state: State {
                 height: Height::new(1),
@@ -543,11 +510,9 @@ fn executor_steps_not_proposer_timeout() {
         // v3 precommits for nil
         TestStep {
             desc: "v3 precommits for nil",
-            input_message: Some(Message::Vote(Vote::new_precommit(
-                Round::new(0),
-                None,
-                v3.address,
-            ))),
+            input_message: Some(Message::Vote(
+                Vote::new_precommit(Round::new(0), None).signed(v3.address),
+            )),
             expected_output_message: None,
             new_state: State {
                 height: Height::new(1),

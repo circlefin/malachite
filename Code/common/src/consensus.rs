@@ -17,9 +17,6 @@ where
     type Value: Value;
     type Vote: Vote<Self>;
 
-    // FIXME: Remove this and thread it through where necessary
-    const DUMMY_ADDRESS: Self::Address;
-
     // FIXME: Remove altogether
     const DUMMY_VALUE: Self::Value;
 
@@ -33,17 +30,9 @@ where
 
     /// Build a new prevote vote by the validator with the given address,
     /// for the value identified by the given value id, at the given round.
-    fn new_prevote(
-        round: Round,
-        value_id: Option<ValueId<Self>>,
-        address: Self::Address,
-    ) -> Self::Vote;
+    fn new_prevote(round: Round, value_id: Option<ValueId<Self>>) -> Self::Vote;
 
     /// Build a new precommit vote by the validator with the given address,
     /// for the value identified by the given value id, at the given round.
-    fn new_precommit(
-        round: Round,
-        value_id: Option<ValueId<Self>>,
-        address: Self::Address,
-    ) -> Self::Vote;
+    fn new_precommit(round: Round, value_id: Option<ValueId<Self>>) -> Self::Vote;
 }

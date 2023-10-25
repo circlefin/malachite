@@ -1,2 +1,1 @@
 - How do we deal with errors?
-- How do we parametrize over values, id(v), etc.

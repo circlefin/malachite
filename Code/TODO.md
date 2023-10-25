@@ -8,6 +8,4 @@ if complete proposal from a past round => to current one
 if we have some threshold (f+1) of votes for a future round => skip to that round
 
 context (get proposer, get value)
-signing contextt
-
-abstract over values and validator sets
+signing context

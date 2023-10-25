@@ -2,7 +2,7 @@ use malachite_common::Round;
 use malachite_vote::count::Threshold;
 use malachite_vote::RoundVotes;
 
-use malachite_test::{Address, Height, TestConsensus, ValueId, Vote};
+use malachite_test::{Height, TestConsensus, ValueId, Vote};
 
 #[test]
 fn add_votes_nil() {
@@ -12,7 +12,7 @@ fn add_votes_nil() {
         RoundVotes::new(Height::new(1), Round::new(0), total);
 
     // add a vote for nil. nothing changes.
-    let vote = Vote::new_prevote(Round::new(0), None, Address::new(1));
+    let vote = Vote::new_prevote(Round::new(0), None);
     let thresh = round_votes.add_vote(vote.clone(), 1);
     assert_eq!(thresh, Threshold::Init);
 
@@ -36,7 +36,7 @@ fn add_votes_single_value() {
         RoundVotes::new(Height::new(1), Round::new(0), total);
 
     // add a vote. nothing changes.
-    let vote = Vote::new_prevote(Round::new(0), val, Address::new(1));
+    let vote = Vote::new_prevote(Round::new(0), val);
     let thresh = round_votes.add_vote(vote.clone(), weight);
     assert_eq!(thresh, Threshold::Init);
 
@@ -45,7 +45,7 @@ fn add_votes_single_value() {
     assert_eq!(thresh, Threshold::Init);
 
     // add a vote for nil, get Thresh::Any
-    let vote_nil = Vote::new_prevote(Round::new(0), None, Address::new(2));
+    let vote_nil = Vote::new_prevote(Round::new(0), None);
     let thresh = round_votes.add_vote(vote_nil, weight);
     assert_eq!(thresh, Threshold::Any);
 
@@ -66,17 +66,17 @@ fn add_votes_multi_values() {
         RoundVotes::new(Height::new(1), Round::new(0), total);
 
     // add a vote for v1. nothing changes.
-    let vote1 = Vote::new_precommit(Round::new(0), val1, Address::new(1));
+    let vote1 = Vote::new_precommit(Round::new(0), val1);
     let thresh = round_votes.add_vote(vote1.clone(), 1);
     assert_eq!(thresh, Threshold::Init);
 
     // add a vote for v2. nothing changes.
-    let vote2 = Vote::new_precommit(Round::new(0), val2, Address::new(2));
+    let vote2 = Vote::new_precommit(Round::new(0), val2);
     let thresh = round_votes.add_vote(vote2.clone(), 1);
     assert_eq!(thresh, Threshold::Init);
 
     // add a vote for nil. nothing changes.
-    let vote_nil = Vote::new_precommit(Round::new(0), None, Address::new(3));
+    let vote_nil = Vote::new_precommit(Round::new(0), None);
     let thresh = round_votes.add_vote(vote_nil.clone(), 1);
     assert_eq!(thresh, Threshold::Init);
 

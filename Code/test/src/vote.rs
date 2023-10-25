@@ -1,4 +1,5 @@
 use malachite_common::{Round, VoteType};
+use malachite_consensus::signed_vote::SignedVote;
 
 use crate::{Address, TestConsensus, ValueId};
 
@@ -8,24 +9,28 @@ pub struct Vote {
     pub typ: VoteType,
     pub round: Round,
     pub value: Option<ValueId>,
-    pub address: Address,
 }
 
 impl Vote {
-    pub fn new_prevote(round: Round, value: Option<ValueId>, address: Address) -> Self {
+    pub fn new_prevote(round: Round, value: Option<ValueId>) -> Self {
         Self {
             typ: VoteType::Prevote,
             round,
             value,
-            address,
         }
     }
 
-    pub fn new_precommit(round: Round, value: Option<ValueId>, address: Address) -> Self {
+    pub fn new_precommit(round: Round, value: Option<ValueId>) -> Self {
         Self {
             typ: VoteType::Precommit,
             round,
             value,
+        }
+    }
+
+    pub fn signed(self, address: Address) -> SignedVote<TestConsensus> {
+        SignedVote {
+            vote: self,
             address,
         }
     }
@@ -42,13 +47,5 @@ impl malachite_common::Vote<TestConsensus> for Vote {
 
     fn vote_type(&self) -> VoteType {
         self.typ
-    }
-
-    fn address(&self) -> &Address {
-        &self.address
-    }
-
-    fn set_address(&mut self, address: Address) {
-        self.address = address;
     }
 }

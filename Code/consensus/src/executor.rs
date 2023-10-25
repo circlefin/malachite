@@ -10,6 +10,9 @@ use malachite_round::state::State as RoundState;
 use malachite_vote::count::Threshold;
 use malachite_vote::keeper::VoteKeeper;
 
+use crate::message::Message;
+use crate::signed_vote::SignedVote;
+
 #[derive(Clone, Debug)]
 pub struct Executor<C>
 where
@@ -21,17 +24,6 @@ where
     round: Round,
     votes: VoteKeeper<C>,
     round_states: BTreeMap<Round, RoundState<C>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Message<C>
-where
-    C: Consensus,
-{
-    NewRound(Round),
-    Proposal(C::Proposal),
-    Vote(C::Vote),
-    Timeout(Timeout),
 }
 
 impl<C> Executor<C>
@@ -81,19 +73,17 @@ where
                 Some(Message::Proposal(p))
             }
 
-            RoundMessage::Vote(mut v) => {
-                // sign the vote
-
-                // FIXME: round message votes should not include address
+            RoundMessage::Vote(vote) => {
                 let address = self
                     .validator_set
                     .get_by_public_key(&self.key)?
                     .address()
                     .clone();
 
-                v.set_address(address);
+                // TODO: sign the vote
+                let signed_vote = SignedVote::new(vote, address);
 
-                Some(Message::Vote(v))
+                Some(Message::Vote(signed_vote))
             }
 
             RoundMessage::Timeout(_) => {
@@ -112,7 +102,7 @@ where
         match msg {
             Message::NewRound(round) => self.apply_new_round(round),
             Message::Proposal(proposal) => self.apply_proposal(proposal),
-            Message::Vote(vote) => self.apply_vote(vote),
+            Message::Vote(signed_vote) => self.apply_vote(signed_vote),
             Message::Timeout(timeout) => self.apply_timeout(timeout),
         }
     }
@@ -177,15 +167,18 @@ where
         }
     }
 
-    fn apply_vote(&mut self, vote: C::Vote) -> Option<RoundMessage<C>> {
-        let Some(validator) = self.validator_set.get_by_address(vote.address()) else {
+    fn apply_vote(&mut self, signed_vote: SignedVote<C>) -> Option<RoundMessage<C>> {
+        let Some(validator) = self.validator_set.get_by_address(&signed_vote.address) else {
             // TODO: Is this the correct behavior? How to log such "errors"?
             return None;
         };
 
-        let round = vote.round();
+        let round = signed_vote.vote.round();
 
-        let event = match self.votes.apply_vote(vote, validator.voting_power()) {
+        let event = match self
+            .votes
+            .apply_vote(signed_vote.vote, validator.voting_power())
+        {
             Some(event) => event,
             None => return None,
         };
