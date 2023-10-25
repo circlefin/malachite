@@ -1,30 +1,17 @@
-/// The value to decide on
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Value(u64);
+use core::fmt::Debug;
 
-impl Value {
-    pub fn new(value: u64) -> Self {
-        Self(value)
-    }
+/// Defines the requirements for the type of value to decide on.
+pub trait Value
+where
+    Self: Clone + Debug + PartialEq + Eq + PartialOrd + Ord,
+{
+    /// The type of the ID of the value.
+    /// Typically a representation of the value with a lower memory footprint.
+    type Id: Clone + Debug + PartialEq + Eq + PartialOrd + Ord;
 
-    pub fn as_u64(&self) -> u64 {
-        self.0
-    }
+    /// The ID of the value.
+    fn id(&self) -> Self::Id;
 
-    pub fn valid(&self) -> bool {
-        self.0 > 0
-    }
-
-    pub fn id(&self) -> ValueId {
-        ValueId(self.0)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Copy)]
-pub struct ValueId(u64);
-
-impl ValueId {
-    pub fn new(id: u64) -> Self {
-        Self(id)
-    }
+    /// Whether the value is valid.
+    fn is_valid(&self) -> bool;
 }

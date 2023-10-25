@@ -1,15 +1,14 @@
-// TODO: Abstract over Height
+use core::fmt::Debug;
 
-/// A blockchain height
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Height(u64);
-
-impl Height {
-    pub fn new(height: u64) -> Self {
-        Self(height)
-    }
-
-    pub fn as_u64(&self) -> u64 {
-        self.0
-    }
+// TODO: Keep the trait or just add the bounds to Consensus::Height?
+/// Defines the requirements for a height type.
+///
+/// A height denotes the number of blocks (values) created since the chain began.
+///
+/// A height of 0 represents a chain which has not yet produced a block.
+pub trait Height
+where
+    // TODO: Require Copy as well?
+    Self: Clone + Debug + PartialEq + Eq + PartialOrd + Ord,
+{
 }

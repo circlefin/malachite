@@ -1,21 +1,21 @@
-use crate::{Height, Round, Value};
+use core::fmt::Debug;
 
-/// A proposal for a value in a round
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Proposal {
-    pub height: Height,
-    pub round: Round,
-    pub value: Value,
-    pub pol_round: Round,
-}
+use crate::{Consensus, Round};
 
-impl Proposal {
-    pub fn new(height: Height, round: Round, value: Value, pol_round: Round) -> Self {
-        Self {
-            height,
-            round,
-            value,
-            pol_round,
-        }
-    }
+/// Defines the requirements for a proposal type.
+pub trait Proposal<C: Consensus>
+where
+    Self: Clone + Debug + PartialEq + Eq,
+{
+    /// The height for which the proposal is for.
+    fn height(&self) -> C::Height;
+
+    /// The round for which the proposal is for.
+    fn round(&self) -> Round;
+
+    /// The value that is proposed.
+    fn value(&self) -> &C::Value;
+
+    /// The POL round for which the proposal is for.
+    fn pol_round(&self) -> Round;
 }
