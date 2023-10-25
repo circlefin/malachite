@@ -2,7 +2,7 @@ name: Coverage
 
 on:
   push:
-    branches: master
+    branches: main
     paths:
       - Code/**
   pull_request:
@@ -12,6 +12,11 @@ on:
 jobs:
   coverage:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Code
+      strategy:
+        fail-fast: false
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -26,10 +31,8 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        working-directory: Code
         run: cargo llvm-cov nextest --all-features --workspace --lcov --output-path lcov.info
       - name: Generate text report
-        working-directory: Code
         run: cargo llvm-cov report
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
