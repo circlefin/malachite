@@ -7,7 +7,7 @@ pub type Weight = u64;
 /// A value and the weight of votes for it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValuesWeights<ValueId> {
-    value_weights: BTreeMap<ValueId, Weight>,
+    value_weights: BTreeMap<Option<ValueId>, Weight>,
 }
 
 impl<ValueId> ValuesWeights<ValueId> {
@@ -18,7 +18,7 @@ impl<ValueId> ValuesWeights<ValueId> {
     }
 
     /// Add weight to the value and return the new weight.
-    pub fn add_weight(&mut self, value: ValueId, weight: Weight) -> Weight
+    pub fn add(&mut self, value: Option<ValueId>, weight: Weight) -> Weight
     where
         ValueId: Ord,
     {
@@ -27,12 +27,17 @@ impl<ValueId> ValuesWeights<ValueId> {
         *entry
     }
 
-    /// Return the value with the highest weight and said weight, if any.
-    pub fn highest_weighted_value(&self) -> Option<(&ValueId, Weight)> {
-        self.value_weights
-            .iter()
-            .max_by_key(|(_, weight)| *weight)
-            .map(|(value, weight)| (value, *weight))
+    /// Return the sum of the weights of all values.
+    pub fn sum(&self) -> Weight {
+        self.value_weights.values().sum()
+    }
+
+    /// Return the weight of the value, or 0 if it is not present.
+    fn get(&self, value: &Option<ValueId>) -> Weight
+    where
+        ValueId: Ord,
+    {
+        self.value_weights.get(value).cloned().unwrap_or(0)
     }
 }
 
@@ -49,10 +54,9 @@ pub struct VoteCount<C>
 where
     C: Consensus,
 {
-    // Weight of votes for nil
-    pub nil: Weight,
-    /// Weight of votes for the values
+    /// Weight of votes for the values, including nil
     pub values_weights: ValuesWeights<ValueId<C>>,
+
     /// Total weight
     pub total: Weight,
 }
@@ -63,7 +67,6 @@ where
 {
     pub fn new(total: Weight) -> Self {
         VoteCount {
-            nil: 0,
             total,
             values_weights: ValuesWeights::new(),
         }
@@ -71,40 +74,44 @@ where
 
     /// Add vote to internal counters and return the highest threshold.
     pub fn add_vote(&mut self, vote: C::Vote, weight: Weight) -> Threshold<ValueId<C>> {
-        if let Some(value) = vote.value() {
-            let new_weight = self.values_weights.add_weight(value.clone(), weight);
+        let new_weight = self.values_weights.add(vote.value().cloned(), weight);
 
-            // Check if we have a quorum for this value.
-            if is_quorum(new_weight, self.total) {
-                return Threshold::Value(value.clone());
-            }
-        } else {
-            self.nil += weight;
+        match vote.value() {
+            Some(value) if is_quorum(new_weight, self.total) => Threshold::Value(value.clone()),
 
-            // Check if we have a quorum for nil.
-            if is_quorum(self.nil, self.total) {
-                return Threshold::Nil;
-            }
-        }
+            None if is_quorum(new_weight, self.total) => Threshold::Nil,
 
-        // Check if we have a quorum for any value, using the highest weighted value, if any.
-        if let Some((_max_value, max_weight)) = self.values_weights.highest_weighted_value() {
-            if is_quorum(max_weight + self.nil, self.total) {
-                return Threshold::Any;
+            _ => {
+                let sum_weight = self.values_weights.sum();
+
+                if is_quorum(sum_weight, self.total) {
+                    Threshold::Any
+                } else {
+                    Threshold::Init
+                }
             }
         }
-
-        // No quorum
-        Threshold::Init
     }
 
     /// Return whether or not the threshold is met, ie. if we have a quorum for that threshold.
     pub fn is_threshold_met(&self, threshold: Threshold<ValueId<C>>) -> bool {
         match threshold {
+            Threshold::Value(value) => {
+                let weight = self.values_weights.get(&Some(value));
+                is_quorum(weight, self.total)
+            }
+
+            Threshold::Nil => {
+                let weight = self.values_weights.get(&None);
+                is_quorum(weight, self.total)
+            }
+
+            Threshold::Any => {
+                let sum_weight = self.values_weights.sum();
+                is_quorum(sum_weight, self.total)
+            }
+
             Threshold::Init => false,
-            Threshold::Any => self.values_weights.highest_weighted_value().is_some(),
-            Threshold::Nil => self.nil > 0,
-            Threshold::Value(value) => self.values_weights.value_weights.contains_key(&value),
         }
     }
 }
