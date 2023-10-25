@@ -5,6 +5,9 @@ module voteBookkeeper {
     import basicSpells.* from "./basicSpells"
     import extraSpells.* from "./extraSpells"
 
+    // An address is an string
+    type Address = str
+
     // A round is an integer
     type Round = int
 
@@ -23,13 +26,15 @@ module voteBookkeeper {
     type Vote = {
         typ: str,
         round: Round,
-        value: Value
+        value: Value,
+        address: Address
     }
 
     type VoteCount = {
         total: Weight,
         // includes nil
         valuesWeights: ValueWeights,
+        valuesAddresses: Value -> Set[Address]
     }
 
     type RoundVotes = {
@@ -44,8 +49,8 @@ module voteBookkeeper {
         value: Value
     }
 
-
     type ExecutorEvent = {
+        round: Round,
         name: str,
         value: Value
     }
@@ -59,7 +64,7 @@ module voteBookkeeper {
     // Internal functions
 
     pure def newVoteCount(total: Weight): VoteCount = {
-        {total: total, valuesWeights: Map()}
+        {total: total, valuesWeights: Map(), valuesAddresses: Map(),}
     }
 
     pure def isQuorum(weight: int, total: int): bool = {
@@ -69,7 +74,9 @@ module voteBookkeeper {
     pure def addVote(voteCount: VoteCount, vote: Vote, weight: Weight): {voteCount: VoteCount, threshold: Threshold} = {
         val value = vote.value
         val total = voteCount.total
-        val newWeight = voteCount.valuesWeights.getOrElse(value, 0) + weight
+        val isDuplicate = vote.address.in(voteCount.valuesAddresses.getOrElse(value, Set()))
+        val newWeight = if (isDuplicate) voteCount.valuesWeights.getOrElse(value, 0)
+                        else voteCount.valuesWeights.getOrElse(value, 0) + weight
         val updatedVoteCount = voteCount.with("valuesWeights", voteCount.valuesWeights.mapSafeSet(value, newWeight))
         val sumWeight = updatedVoteCount.valuesWeights.keys().fold(0, (sum, v) => sum + updatedVoteCount.valuesWeights.get(v))
         val threshold = if (value != "nil" and isQuorum(newWeight, total)) {name: "Value", value: value}
@@ -88,14 +95,14 @@ module voteBookkeeper {
         else false
     }
 
-    pure def toEvent(voteType: str, threshold: Threshold): ExecutorEvent = {
-        if (threshold.name == "Unreached") {name: "None", value: "null"}
-        else if (voteType == "Prevote" and threshold.name == "Value") {name: "PolkaValue", value: threshold.value}
-        else if (voteType == "Prevote" and threshold.name == "Nil") {name: "PolkaNil", value: "null"}
-        else if (voteType == "Prevote" and threshold.name == "Any") {name: "PolkaAny", value: "null"}
-        else if (voteType == "Precommit" and threshold.name == "Value") {name: "PrecommitValue", value: threshold.value}
-        else if (voteType == "Precommit" and threshold.name == "Any") {name: "PrecommitAny", value: "null"}
-        else {name: "None", value: "null"}
+    pure def toEvent(round: Round, voteType: str, threshold: Threshold): ExecutorEvent = {
+        if (threshold.name == "Unreached") {round: round, name: "None", value: "null"}
+        else if (voteType == "Prevote" and threshold.name == "Value") {round: round, name: "PolkaValue", value: threshold.value}
+        else if (voteType == "Prevote" and threshold.name == "Nil") {round: round, name: "PolkaNil", value: "null"}
+        else if (voteType == "Prevote" and threshold.name == "Any") {round: round, name: "PolkaAny", value: "null"}
+        else if (voteType == "Precommit" and threshold.name == "Value") {round: round, name: "PrecommitValue", value: threshold.value}
+        else if (voteType == "Precommit" and threshold.name == "Any") {round: round, name: "PrecommitAny", value: "null"}
+        else {round: round, name: "None", value: "null"}
     }
 
     // Executor interface
@@ -109,7 +116,7 @@ module voteBookkeeper {
         val updatedRoundVotes = if (vote.typ == "Prevote") roundVotes.with("prevotes", resultAddVote.voteCount)
                                 else roundVotes.with("precommits", resultAddVote.voteCount)
         val updatedBookkeeper = keeper.with("rounds", keeper.rounds.mapSafeSet(vote.round, updatedRoundVotes))
-        {bookkeper: updatedBookkeeper, event: toEvent(vote.typ, resultAddVote.threshold)}
+        {bookkeper: updatedBookkeeper, event: toEvent(vote.round, vote.typ, resultAddVote.threshold)}
     }
 
     pure def checkThreshold(keeper: Bookkeeper, round: Round, voteType: str, threshold: Threshold): bool = {
