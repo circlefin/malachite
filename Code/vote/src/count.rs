@@ -2,6 +2,8 @@ use alloc::collections::BTreeMap;
 
 use malachite_common::{Consensus, ValueId, Vote};
 
+// TODO: Introduce newtype
+// QUESTION: Over what type? i64?
 pub type Weight = u64;
 
 /// A value and the weight of votes for it.
@@ -23,21 +25,21 @@ impl<ValueId> ValuesWeights<ValueId> {
         ValueId: Ord,
     {
         let entry = self.value_weights.entry(value).or_insert(0);
-        *entry += weight;
+        *entry += weight; // FIXME: Deal with overflows
         *entry
     }
 
-    /// Return the sum of the weights of all values.
-    pub fn sum(&self) -> Weight {
-        self.value_weights.values().sum()
-    }
-
     /// Return the weight of the value, or 0 if it is not present.
-    fn get(&self, value: &Option<ValueId>) -> Weight
+    pub fn get(&self, value: &Option<ValueId>) -> Weight
     where
         ValueId: Ord,
     {
         self.value_weights.get(value).cloned().unwrap_or(0)
+    }
+
+    /// Return the sum of the weights of all values.
+    pub fn sum(&self) -> Weight {
+        self.value_weights.values().sum() // FIXME: Deal with overflows
     }
 }
 
@@ -134,9 +136,42 @@ pub enum Threshold<ValueId> {
 }
 
 /// Returns whether or note `value > (2/3)*total`.
-pub fn is_quorum(value: Weight, total: Weight) -> bool {
+fn is_quorum(value: Weight, total: Weight) -> bool {
     3 * value > 2 * total
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+
+    #[test]
+    fn values_weights() {
+        let mut vw = ValuesWeights::new();
+
+        assert_eq!(vw.get(&None), 0);
+        assert_eq!(vw.get(&Some(1)), 0);
+
+        assert_eq!(vw.add(None, 1), 1);
+        assert_eq!(vw.get(&None), 1);
+        assert_eq!(vw.get(&Some(1)), 0);
+
+        assert_eq!(vw.add(Some(1), 1), 1);
+        assert_eq!(vw.get(&None), 1);
+        assert_eq!(vw.get(&Some(1)), 1);
+
+        assert_eq!(vw.add(None, 1), 2);
+        assert_eq!(vw.get(&None), 2);
+        assert_eq!(vw.get(&Some(1)), 1);
+
+        assert_eq!(vw.add(Some(1), 1), 2);
+        assert_eq!(vw.get(&None), 2);
+        assert_eq!(vw.get(&Some(1)), 2);
+
+        assert_eq!(vw.add(Some(2), 1), 1);
+        assert_eq!(vw.get(&None), 2);
+        assert_eq!(vw.get(&Some(1)), 2);
+        assert_eq!(vw.get(&Some(2)), 1);
+
+        // FIXME: Test for and deal with overflows
+    }
+}
