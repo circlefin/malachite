@@ -104,7 +104,7 @@ impl VoteCount {
     fn is_quorum_any(&self) -> bool {
         if let Some(cm_weight) = self.values_weights.cumulative_weights() {
             if is_quorum(cm_weight + self.nil, self.total) {
-                 return true;
+                return true;
             }
         }
         false
