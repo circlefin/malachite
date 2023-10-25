@@ -15,8 +15,6 @@ jobs:
     defaults:
       run:
         working-directory: Code
-      strategy:
-        fail-fast: false
     env:
       CARGO_TERM_COLOR: always
     steps:
