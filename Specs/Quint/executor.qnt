@@ -87,34 +87,74 @@ pure def computeOutput(res: Result) : ExecutorOutput = {
     timeout: "None"  
 }
 
+pure def callConsensus (es: ExecutorState,  bkr: BKResult, ev: Event) : (ExecutorState, Set[ExecutorOutput]) = {
+    val res = consensus(es.cs, ev)
+    ({ ...es, bk: bkr.bookkeeper, cs: res._1}, Set(computeOutput(res._2)))
+}
+
 pure def Precommit (es: ExecutorState, input: ExecutorInput, bkr: BKResult) : (ExecutorState, Set[ExecutorOutput]) = {
     if (bkr.event.name == "PrecommitValue")
             if (es.proposals.exists(x => bkr.event.round == x.round and bkr.event.value == x.proposal)) {
-                val res = consensus(es.cs, {name : "ProposalAndCommitAndValid",
+                callConsensus(es, bkr, {name : "ProposalAndCommitAndValid",
                                     height : input.vote.height,
                                     round: input.vote.round,
                                     value: input.vote.id,
                                     vr: -1})
-                ({ ...es, bk: bkr.bookkeeper, cs: res._1}, Set(computeOutput(res._2)))
             }
             else {
                 if (bkr.event.round == es.cs.round) {
-                    val res = consensus(es.cs, {name : "PrecommitAny",
+                    callConsensus(es, bkr,  {name : "PrecommitAny",
                                     height : input.vote.height,
                                     round: input.vote.round,
                                     value: input.vote.id,
-                                    vr: -1})
-                    ({ ...es, bk: bkr.bookkeeper, cs: res._1}, Set(computeOutput(res._2)))    
+                                    vr: -1})   
                 }
-                else
-                  // if it is for a future round I can trigger skipround
-                    (es, Set(input))        
+                else if (bkr.event.round > es.cs.round) {
+                    // if it is for a future round I can trigger skipround
+                    // TODO: should we really do this. It is dead code as the f+1 event already happened
+                    callConsensus(es, bkr,  {name : "RoundSkip",
+                                    height : input.vote.height,
+                                    round: input.vote.round,
+                                    value: input.vote.id,
+                                    vr: -1})     
+                }  
+                else {
+                    // messages from past round -> ignore
+                    (es, Set(input))
+                }    
             }
-    else if (bkr.event.name == "PrecommitAny") {
-        (es, Set(input))  
+    else if (bkr.event.name == "PrecommitAny" and bkr.event.round == es.cs.round) {
+        callConsensus(es, bkr,  {name : "PrecommitAny",
+                                    height : input.vote.height,
+                                    round: input.vote.round,
+                                    value: input.vote.id,
+                                    vr: -1})      
     }
     else
+        // none of the supported precommit events. Do nothing
         (es, Set(input))  
+}
+// TODO: make sure only valid proposals are in es.proposals
+
+pure def Prevote (es: ExecutorState, input: ExecutorInput, bkr: BKResult) : (ExecutorState, Set[ExecutorOutput]) = {
+    if (bkr.event.round < es.cs.round and bkr.event.name == "PolkaValue" and
+        es.proposals.exists(p => p.round == es.cs.round and
+            bkr.event.round == p.validRound and p.proposal == bkr.event.value)) 
+             callConsensus(es, bkr,  {name : "ProposalAndPolkaPreviousAndValid",
+                                    height : es.cs.height,
+                                    round: es.cs.round,
+                                    value: bkr.event.value,
+                                    vr: bkr.event.round})   
+                                    // TODO: the value should come from the proposal   
+    else
+
+(es, Set(input))
+
+    //ProposalAndPolkaPreviousAndValid
+    //PolkaNil
+    //PolkaAny
+    //ProposalAndPolkaAndValid
+
 }
 
 pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Set[ExecutorOutput]) = {
@@ -125,11 +165,13 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Se
     }
     else if (input.name == "vote" and input.vote.step == "precommit") {
         val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
+        // only a commit event can come here. 
         Precommit(es, input, res) 
     }
     else if (input.name == "vote" and input.vote.step == "prevote") {
-        // TODO
-        (es, Set(input))
+        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
+        // only a commit event can come here. 
+        Prevote(es, input, res) 
     }
     else if (input.name == "timeout") {
         // TODO
