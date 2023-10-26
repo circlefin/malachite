@@ -106,8 +106,9 @@ module voteBookkeeper {
     }
 
     // Executor interface
+    type BKResult =  {bookkeeper: Bookkeeper, event: ExecutorEvent}
 
-    pure def applyVote(keeper: Bookkeeper, vote: Vote, weight: int): {bookkeper: Bookkeeper, event: ExecutorEvent} = {
+    pure def applyVote(keeper: Bookkeeper, vote: Vote, weight: int) : BKResult = {
         val height = keeper.height
         val total = keeper.totalWeight
         val roundVotes = keeper.rounds.getOrElse(vote.round, {height: height, round: vote.round, prevotes: newVoteCount(total), precommits: newVoteCount(total)})
@@ -116,7 +117,7 @@ module voteBookkeeper {
         val updatedRoundVotes = if (vote.typ == "Prevote") roundVotes.with("prevotes", resultAddVote.voteCount)
                                 else roundVotes.with("precommits", resultAddVote.voteCount)
         val updatedBookkeeper = keeper.with("rounds", keeper.rounds.mapSafeSet(vote.round, updatedRoundVotes))
-        {bookkeper: updatedBookkeeper, event: toEvent(vote.round, vote.typ, resultAddVote.threshold)}
+        {bookkeeper: updatedBookkeeper, event: toEvent(vote.round, vote.typ, resultAddVote.threshold)}
     }
 
     pure def checkThreshold(keeper: Bookkeeper, round: Round, voteType: str, threshold: Threshold): bool = {
