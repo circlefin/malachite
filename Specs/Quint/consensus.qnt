@@ -1,5 +1,19 @@
 // -*- mode: Bluespec; -*-
 
+/*
+TODO: check 
+- whether we have "step" checks in place everywhere
+- "the first time": checks here or in executor
+- check against arXiv
+- tests
+- types (e.g., heights in the messages)
+- "decision tree" in executor
+- Should we think again about the components and the boundaries (especially between
+  voteBookkeeper and executor)
+- Do we need tests for executor and bookkeeping
+*/
+
+
 module consensus {
 
   // a process address is just a string
