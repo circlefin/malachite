@@ -45,6 +45,8 @@ val defaultEvent = {
 }    
 
 /*
+TODO:  encode the following decision tree
+
 proposal
     invalid -> consensus event
     valid:  BK get list of events 
@@ -85,7 +87,7 @@ pure def computeOutput(res: Result) : ExecutorOutput = {
     timeout: "None"  
 }
 
-pure def Precommit (es: ExecutorState, input: ExecutorInput, bkr: BKResult) : (ExecutorState, ExecutorOutput) = {
+pure def Precommit (es: ExecutorState, input: ExecutorInput, bkr: BKResult) : (ExecutorState, Set[ExecutorOutput]) = {
     if (bkr.event.name == "PrecommitValue")
             if (es.proposals.exists(x => bkr.event.round == x.round and bkr.event.value == x.proposal)) {
                 val res = consensus(es.cs, {name : "ProposalAndCommitAndValid",
@@ -93,7 +95,7 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, bkr: BKResult) : (E
                                     round: input.vote.round,
                                     value: input.vote.id,
                                     vr: -1})
-                ({ ...es, bk: bkr.bookkeeper, cs: res._1}, computeOutput(res._2))
+                ({ ...es, bk: bkr.bookkeeper, cs: res._1}, Set(computeOutput(res._2)))
             }
             else {
                 if (bkr.event.round == es.cs.round) {
@@ -102,24 +104,24 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, bkr: BKResult) : (E
                                     round: input.vote.round,
                                     value: input.vote.id,
                                     vr: -1})
-                    ({ ...es, bk: bkr.bookkeeper, cs: res._1}, computeOutput(res._2))    
+                    ({ ...es, bk: bkr.bookkeeper, cs: res._1}, Set(computeOutput(res._2)))    
                 }
                 else
                   // if it is for a future round I can trigger skipround
-                    (es, input)        
+                    (es, Set(input))        
             }
     else if (bkr.event.name == "PrecommitAny") {
-        (es, input)  
+        (es, Set(input))  
     }
     else
-        (es, input)  
+        (es, Set(input))  
 }
 
-pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ExecutorOutput) = {
+pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Set[ExecutorOutput]) = {
     // TODO: shall we check whether the sender actually is in the validator set
     if (input.name == "proposal" and input.proposal.src == Proposer(es.cs.height, es.cs.round)) {
         // code after iterator is done
-        ({ ...es, proposals: es.proposals.union(Set(input.proposal))}, input)
+        ({ ...es, proposals: es.proposals.union(Set(input.proposal))}, Set(input))
     }
     else if (input.name == "vote" and input.vote.step == "precommit") {
         val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
@@ -127,14 +129,14 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Ex
     }
     else if (input.name == "vote" and input.vote.step == "prevote") {
         // TODO
-        (es, input)
+        (es, Set(input))
     }
     else if (input.name == "timeout") {
         // TODO
-        (es, input)    
+        (es, Set(input))    
     }
     else
-        (es, input)
+        (es, Set(input))
 }
 
 // Old
