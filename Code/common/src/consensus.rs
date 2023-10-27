@@ -1,3 +1,4 @@
+use crate::public_key::PrivateKey;
 use crate::{
     Address, Height, Proposal, PublicKey, Round, Validator, ValidatorSet, Value, ValueId, Vote,
 };
@@ -11,7 +12,8 @@ where
     type Address: Address;
     type Height: Height;
     type Proposal: Proposal<Self>;
-    type PublicKey: PublicKey;
+    type PrivateKey: PrivateKey<PublicKey = Self::PublicKey>;
+    type PublicKey: PublicKey<Signature = <Self::PrivateKey as PrivateKey>::Signature>;
     type Validator: Validator<Self>;
     type ValidatorSet: ValidatorSet<Self>;
     type Value: Value;
@@ -19,6 +21,11 @@ where
 
     // FIXME: Remove altogether
     const DUMMY_VALUE: Self::Value;
+
+    fn sign_vote(
+        vote: &Self::Vote,
+        private_key: &Self::PrivateKey,
+    ) -> <Self::PrivateKey as PrivateKey>::Signature;
 
     /// Build a new proposal for the given value at the given height, round and POL round.
     fn new_proposal(

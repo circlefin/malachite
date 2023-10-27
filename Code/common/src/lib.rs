@@ -1,5 +1,6 @@
 //! Common data types and abstractions for the consensus engine.
 
+#![no_std]
 #![forbid(unsafe_code)]
 #![deny(unused_crate_dependencies, trivial_casts, trivial_numeric_casts)]
 #![warn(
@@ -13,6 +14,7 @@
 mod consensus;
 mod height;
 mod proposal;
+mod public_key;
 mod round;
 mod timeout;
 mod validator_set;
@@ -25,8 +27,9 @@ pub type ValueId<C> = <<C as Consensus>::Value as Value>::Id;
 pub use consensus::Consensus;
 pub use height::Height;
 pub use proposal::Proposal;
+pub use public_key::{PrivateKey, PublicKey};
 pub use round::Round;
 pub use timeout::{Timeout, TimeoutStep};
-pub use validator_set::{Address, PublicKey, Validator, ValidatorSet, VotingPower};
+pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::Value;
 pub use vote::{Vote, VoteType};

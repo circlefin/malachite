@@ -1,3 +1,5 @@
+use core::cmp;
+
 /// A round number.
 ///
 /// Can be either:
@@ -69,13 +71,13 @@ impl Round {
 }
 
 impl PartialOrd for Round {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Round {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.as_i64().cmp(&other.as_i64())
     }
 }

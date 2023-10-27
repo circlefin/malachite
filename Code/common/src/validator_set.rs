@@ -7,13 +7,6 @@ use crate::Consensus;
 /// TODO: Do we need to abstract over this as well?
 pub type VotingPower = u64;
 
-/// Defines the requirements for a public key type.
-pub trait PublicKey
-where
-    Self: Clone + Debug + PartialEq + Eq,
-{
-}
-
 /// Defines the requirements for an address.
 ///
 /// TODO: Keep this trait or just add the bounds to Consensus::Address?

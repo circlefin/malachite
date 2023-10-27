@@ -3,6 +3,7 @@ use malachite_common::Round;
 
 use crate::height::*;
 use crate::proposal::*;
+use crate::public_key::{Ed25519PrivateKey, Ed25519PublicKey, Ed25519Signature};
 use crate::validator_set::*;
 use crate::value::*;
 use crate::vote::*;
@@ -14,13 +15,19 @@ impl Consensus for TestConsensus {
     type Address = Address;
     type Height = Height;
     type Proposal = Proposal;
-    type PublicKey = PublicKey;
+    type PublicKey = Ed25519PublicKey;
+    type PrivateKey = Ed25519PrivateKey;
     type ValidatorSet = ValidatorSet;
     type Validator = Validator;
     type Value = Value;
     type Vote = Vote;
 
     const DUMMY_VALUE: Self::Value = Value::new(9999);
+
+    fn sign_vote(vote: &Self::Vote, private_key: &Self::PrivateKey) -> Ed25519Signature {
+        use signature::Signer;
+        private_key.sign(&vote.to_bytes())
+    }
 
     fn new_proposal(height: Height, round: Round, value: Value, pol_round: Round) -> Proposal {
         Proposal::new(height, round, value, pol_round)

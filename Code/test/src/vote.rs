@@ -1,7 +1,8 @@
 use malachite_common::{Round, VoteType};
 use malachite_consensus::signed_vote::SignedVote;
+use signature::Signer;
 
-use crate::{Address, TestConsensus, ValueId};
+use crate::{Address, Ed25519PrivateKey, TestConsensus, ValueId};
 
 /// A vote for a value in a round
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,10 +29,32 @@ impl Vote {
         }
     }
 
-    pub fn signed(self, address: Address) -> SignedVote<TestConsensus> {
+    // TODO: Use the canonical vote
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let vtpe = match self.typ {
+            VoteType::Prevote => 0,
+            VoteType::Precommit => 1,
+        };
+
+        let mut bytes = vec![vtpe];
+        bytes.extend_from_slice(&self.round.as_i64().to_be_bytes());
+        bytes.extend_from_slice(
+            &self
+                .value
+                .map(|v| v.as_u64().to_be_bytes())
+                .unwrap_or_default(),
+        );
+        bytes
+    }
+
+    pub fn signed(self, private_key: &Ed25519PrivateKey) -> SignedVote<TestConsensus> {
+        let address = Address::from_public_key(&private_key.public_key());
+        let signature = private_key.sign(&self.to_bytes());
+
         SignedVote {
             vote: self,
             address,
+            signature,
         }
     }
 }

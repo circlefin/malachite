@@ -5,3 +5,4 @@ edition = "2021"
 publish = false
 
 [dependencies]
+signature = "2.1.0"

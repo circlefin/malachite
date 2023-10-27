@@ -2,29 +2,23 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use malachite_common::VotingPower;
 
-use crate::TestConsensus;
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PublicKey(Vec<u8>);
-
-impl PublicKey {
-    pub const fn new(value: Vec<u8>) -> Self {
-        Self(value)
-    }
-
-    pub fn hash(&self) -> u64 {
-        self.0.iter().fold(0, |acc, x| acc ^ *x as u64)
-    }
-}
-
-impl malachite_common::PublicKey for PublicKey {}
+use crate::{Ed25519PublicKey, TestConsensus};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Address(u64);
+pub struct Address([u8; Self::LENGTH]);
 
 impl Address {
-    pub const fn new(value: u64) -> Self {
+    const LENGTH: usize = 20;
+
+    pub const fn new(value: [u8; Self::LENGTH]) -> Self {
         Self(value)
+    }
+
+    pub fn from_public_key(public_key: &Ed25519PublicKey) -> Self {
+        let hash = public_key.hash();
+        let mut address = [0; Self::LENGTH];
+        address.copy_from_slice(&hash[..Self::LENGTH]);
+        Self(address)
     }
 }
 
@@ -34,21 +28,17 @@ impl malachite_common::Address for Address {}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Validator {
     pub address: Address,
-    pub public_key: PublicKey,
+    pub public_key: Ed25519PublicKey,
     pub voting_power: VotingPower,
 }
 
 impl Validator {
-    pub fn new(public_key: PublicKey, voting_power: VotingPower) -> Self {
+    pub fn new(public_key: Ed25519PublicKey, voting_power: VotingPower) -> Self {
         Self {
-            address: Address(public_key.hash()),
+            address: Address::from_public_key(&public_key),
             public_key,
             voting_power,
         }
-    }
-
-    pub fn hash(&self) -> u64 {
-        self.public_key.hash() // TODO
     }
 }
 
@@ -57,7 +47,7 @@ impl malachite_common::Validator<TestConsensus> for Validator {
         &self.address
     }
 
-    fn public_key(&self) -> &PublicKey {
+    fn public_key(&self) -> &Ed25519PublicKey {
         &self.public_key
     }
 
@@ -108,9 +98,7 @@ impl ValidatorSet {
             v.voting_power = val.voting_power;
         }
 
-        dbg!(self.total_voting_power());
         Self::sort_validators(&mut self.validators);
-        dbg!(self.total_voting_power());
     }
 
     /// Remove a validator from the set
@@ -125,17 +113,22 @@ impl ValidatorSet {
         self.validators.iter().find(|v| &v.address == address)
     }
 
-    pub fn get_by_public_key(&self, public_key: &PublicKey) -> Option<&Validator> {
+    pub fn get_by_public_key(&self, public_key: &Ed25519PublicKey) -> Option<&Validator> {
         self.validators.iter().find(|v| &v.public_key == public_key)
     }
 
     /// In place sort and deduplication of a list of validators
     fn sort_validators(vals: &mut Vec<Validator>) {
-        use core::cmp::Reverse;
-
         // Sort the validators according to the current Tendermint requirements
+        //
+        // use core::cmp::Reverse;
+        //
         // (v. 0.34 -> first by validator power, descending, then by address, ascending)
-        vals.sort_unstable_by_key(|v| (Reverse(v.voting_power), v.address));
+        // vals.sort_unstable_by(|v1, v2| {
+        //     let a = (Reverse(v1.voting_power), &v1.address);
+        //     let b = (Reverse(v2.voting_power), &v2.address);
+        //     a.cmp(&b)
+        // });
 
         vals.dedup();
     }
@@ -154,7 +147,7 @@ impl malachite_common::ValidatorSet<TestConsensus> for ValidatorSet {
         self.total_voting_power()
     }
 
-    fn get_by_public_key(&self, public_key: &PublicKey) -> Option<&Validator> {
+    fn get_by_public_key(&self, public_key: &Ed25519PublicKey) -> Option<&Validator> {
         self.get_by_public_key(public_key)
     }
 
@@ -169,22 +162,36 @@ impl malachite_common::ValidatorSet<TestConsensus> for ValidatorSet {
 
 #[cfg(test)]
 mod tests {
+    use rand::rngs::StdRng;
+    use rand::SeedableRng;
+
     use super::*;
+
+    use crate::Ed25519PrivateKey;
 
     #[test]
     fn add_update_remove() {
-        let v1 = Validator::new(PublicKey(vec![1]), 1);
-        let v2 = Validator::new(PublicKey(vec![2]), 2);
-        let v3 = Validator::new(PublicKey(vec![3]), 3);
+        let mut rng = StdRng::seed_from_u64(0x42);
+
+        let sk1 = Ed25519PrivateKey::generate(&mut rng);
+        let sk2 = Ed25519PrivateKey::generate(&mut rng);
+        let sk3 = Ed25519PrivateKey::generate(&mut rng);
+        let sk4 = Ed25519PrivateKey::generate(&mut rng);
+        let sk5 = Ed25519PrivateKey::generate(&mut rng);
+        let sk6 = Ed25519PrivateKey::generate(&mut rng);
+
+        let v1 = Validator::new(sk1.public_key(), 1);
+        let v2 = Validator::new(sk2.public_key(), 2);
+        let v3 = Validator::new(sk3.public_key(), 3);
 
         let mut vs = ValidatorSet::new(vec![v1, v2, v3]);
         assert_eq!(vs.total_voting_power(), 6);
 
-        let v4 = Validator::new(PublicKey(vec![4]), 4);
+        let v4 = Validator::new(sk4.public_key(), 4);
         vs.add(v4);
         assert_eq!(vs.total_voting_power(), 10);
 
-        let mut v5 = Validator::new(PublicKey(vec![5]), 5);
+        let mut v5 = Validator::new(sk5.public_key(), 5);
         vs.update(v5.clone()); // no effect
         assert_eq!(vs.total_voting_power(), 10);
 
@@ -198,7 +205,7 @@ mod tests {
         vs.remove(&v5.address);
         assert_eq!(vs.total_voting_power(), 10);
 
-        let v6 = Validator::new(PublicKey(vec![6]), 6);
+        let v6 = Validator::new(sk6.public_key(), 6);
         vs.remove(&v6.address); // no effect
         assert_eq!(vs.total_voting_power(), 10);
     }

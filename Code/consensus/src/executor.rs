@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use malachite_common::{
-    Consensus, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Value, Vote,
-    VoteType,
+    Consensus, PrivateKey, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
+    Vote, VoteType,
 };
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
@@ -19,7 +19,7 @@ where
     C: Consensus,
 {
     height: C::Height,
-    key: C::PublicKey,
+    key: C::PrivateKey,
     validator_set: C::ValidatorSet,
     round: Round,
     votes: VoteKeeper<C>,
@@ -30,7 +30,7 @@ impl<C> Executor<C>
 where
     C: Consensus,
 {
-    pub fn new(height: C::Height, validator_set: C::ValidatorSet, key: C::PublicKey) -> Self {
+    pub fn new(height: C::Height, validator_set: C::ValidatorSet, key: C::PrivateKey) -> Self {
         let votes = VoteKeeper::new(
             height.clone(),
             Round::INITIAL,
@@ -76,12 +76,12 @@ where
             RoundMessage::Vote(vote) => {
                 let address = self
                     .validator_set
-                    .get_by_public_key(&self.key)?
+                    .get_by_public_key(&self.key.public_key())?
                     .address()
                     .clone();
 
-                // TODO: sign the vote
-                let signed_vote = SignedVote::new(vote, address);
+                let signature = C::sign_vote(&vote, &self.key);
+                let signed_vote = SignedVote::new(vote, address, signature);
 
                 Some(Message::Vote(signed_vote))
             }
@@ -110,7 +110,7 @@ where
     fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<C>> {
         let proposer = self.validator_set.get_proposer();
 
-        let event = if proposer.public_key() == &self.key {
+        let event = if proposer.public_key() == &self.key.public_key() {
             let value = self.get_value();
             RoundEvent::NewRoundProposer(value)
         } else {
@@ -172,6 +172,8 @@ where
             // TODO: Is this the correct behavior? How to log such "errors"?
             return None;
         };
+
+        // TODO: Verify the vote's signature
 
         let round = signed_vote.vote.round();
 

@@ -1,4 +1,4 @@
-use malachite_common::Consensus;
+use malachite_common::{Consensus, PublicKey};
 
 // TODO: Do we need to abstract over `SignedVote` as well?
 
@@ -9,15 +9,22 @@ where
 {
     pub vote: C::Vote,
     pub address: C::Address,
-    // TODO
-    // pub signature: C::Signature,
+    pub signature: <C::PublicKey as PublicKey>::Signature,
 }
 
 impl<C> SignedVote<C>
 where
     C: Consensus,
 {
-    pub fn new(vote: C::Vote, address: C::Address) -> Self {
-        Self { vote, address }
+    pub fn new(
+        vote: C::Vote,
+        address: C::Address,
+        signature: <C::PublicKey as PublicKey>::Signature,
+    ) -> Self {
+        Self {
+            vote,
+            address,
+            signature,
+        }
     }
 }
