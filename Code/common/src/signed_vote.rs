@@ -1,4 +1,4 @@
-use crate::{Consensus, PublicKey};
+use crate::{Consensus, Signature};
 
 // TODO: Do we need to abstract over `SignedVote` as well?
 
@@ -9,18 +9,14 @@ where
 {
     pub vote: C::Vote,
     pub address: C::Address,
-    pub signature: <C::PublicKey as PublicKey>::Signature,
+    pub signature: Signature<C>,
 }
 
 impl<C> SignedVote<C>
 where
     C: Consensus,
 {
-    pub fn new(
-        vote: C::Vote,
-        address: C::Address,
-        signature: <C::PublicKey as PublicKey>::Signature,
-    ) -> Self {
+    pub fn new(vote: C::Vote, address: C::Address, signature: Signature<C>) -> Self {
         Self {
             vote,
             address,

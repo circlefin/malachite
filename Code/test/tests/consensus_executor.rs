@@ -3,9 +3,7 @@ use malachite_consensus::executor::Executor;
 use malachite_consensus::message::Message;
 use malachite_round::state::{RoundValue, State, Step};
 
-use malachite_test::{
-    Ed25519PrivateKey, Height, Proposal, TestConsensus, Validator, ValidatorSet, Vote,
-};
+use malachite_test::{Height, PrivateKey, Proposal, TestConsensus, Validator, ValidatorSet, Vote};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
@@ -23,9 +21,9 @@ fn executor_steps_proposer() {
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
-    let sk1 = Ed25519PrivateKey::generate(&mut rng);
-    let sk2 = Ed25519PrivateKey::generate(&mut rng);
-    let sk3 = Ed25519PrivateKey::generate(&mut rng);
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
 
     let v1 = Validator::new(sk1.public_key(), 1);
     let v2 = Validator::new(sk2.public_key(), 2);
@@ -208,9 +206,9 @@ fn executor_steps_not_proposer() {
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
-    let sk1 = Ed25519PrivateKey::generate(&mut rng);
-    let sk2 = Ed25519PrivateKey::generate(&mut rng);
-    let sk3 = Ed25519PrivateKey::generate(&mut rng);
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
 
     let v1 = Validator::new(sk1.public_key(), 1);
     let v2 = Validator::new(sk2.public_key(), 2);
@@ -391,9 +389,9 @@ fn executor_steps_not_proposer_timeout() {
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
-    let sk1 = Ed25519PrivateKey::generate(&mut rng);
-    let sk2 = Ed25519PrivateKey::generate(&mut rng);
-    let sk3 = Ed25519PrivateKey::generate(&mut rng);
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
 
     let v1 = Validator::new(sk1.public_key(), 1);
     let v2 = Validator::new(sk2.public_key(), 1);

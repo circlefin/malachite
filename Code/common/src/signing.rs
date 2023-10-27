@@ -1,22 +1,20 @@
 use core::fmt::Debug;
 
-use signature::{Signer, Verifier};
+use secrecy::{CloneableSecret, DebugSecret, Zeroize};
+use signature::{Keypair, Signer, Verifier};
 
-/// Defines the requirements for a private key type.
-pub trait PrivateKey
+pub trait SigningScheme
 where
-    Self: Clone + Debug + Signer<Self::Signature>,
+    Self: Clone + Debug + Eq,
 {
-    type Signature: Clone + Debug + PartialEq + Eq;
-    type PublicKey: PublicKey<Signature = Self::Signature>;
+    type Signature: Clone + Debug + Eq;
 
-    fn public_key(&self) -> Self::PublicKey;
-}
+    type PublicKey: Clone + Debug + Eq + Verifier<Self::Signature>;
 
-/// Defines the requirements for a public key type.
-pub trait PublicKey
-where
-    Self: Clone + Debug + PartialEq + Eq + Verifier<Self::Signature>,
-{
-    type Signature: Clone + Debug + PartialEq + Eq;
+    type PrivateKey: Clone
+        + Signer<Self::Signature>
+        + Keypair<VerifyingKey = Self::PublicKey>
+        + Zeroize
+        + DebugSecret
+        + CloneableSecret;
 }

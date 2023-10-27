@@ -1,7 +1,7 @@
 use malachite_common::{Round, SignedVote, VoteType};
 use signature::Signer;
 
-use crate::{Address, Ed25519PrivateKey, TestConsensus, ValueId};
+use crate::{Address, PrivateKey, TestConsensus, ValueId};
 
 /// A vote for a value in a round
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,7 +46,7 @@ impl Vote {
         bytes
     }
 
-    pub fn signed(self, private_key: &Ed25519PrivateKey) -> SignedVote<TestConsensus> {
+    pub fn signed(self, private_key: &PrivateKey) -> SignedVote<TestConsensus> {
         let address = Address::from_public_key(&private_key.public_key());
         let signature = private_key.sign(&self.to_bytes());
 

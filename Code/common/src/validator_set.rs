@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 
-use crate::Consensus;
+use crate::{Consensus, PublicKey};
 
 /// Voting power held by a validator.
 ///
@@ -26,7 +26,7 @@ where
     fn address(&self) -> &C::Address;
 
     /// The public key of the validator, used to verify signatures.
-    fn public_key(&self) -> &C::PublicKey;
+    fn public_key(&self) -> &PublicKey<C>;
 
     /// The voting power held by the validaror.
     fn voting_power(&self) -> VotingPower;
@@ -46,7 +46,7 @@ where
     fn get_proposer(&self) -> C::Validator;
 
     /// Get the validator with the given public key.
-    fn get_by_public_key(&self, public_key: &C::PublicKey) -> Option<&C::Validator>;
+    fn get_by_public_key(&self, public_key: &PublicKey<C>) -> Option<&C::Validator>;
 
     /// Get the validator with the given address.
     fn get_by_address(&self, address: &C::Address) -> Option<&C::Validator>;

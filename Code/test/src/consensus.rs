@@ -4,7 +4,7 @@ use malachite_common::SignedVote;
 
 use crate::height::*;
 use crate::proposal::*;
-use crate::public_key::{Ed25519PrivateKey, Ed25519PublicKey, Ed25519Signature};
+use crate::signing::{Ed25519, PrivateKey, PublicKey, Signature};
 use crate::validator_set::*;
 use crate::value::*;
 use crate::vote::*;
@@ -16,21 +16,20 @@ impl Consensus for TestConsensus {
     type Address = Address;
     type Height = Height;
     type Proposal = Proposal;
-    type PublicKey = Ed25519PublicKey;
-    type PrivateKey = Ed25519PrivateKey;
     type ValidatorSet = ValidatorSet;
     type Validator = Validator;
     type Value = Value;
     type Vote = Vote;
+    type SigningScheme = Ed25519;
 
     const DUMMY_VALUE: Self::Value = Value::new(9999);
 
-    fn sign_vote(vote: &Self::Vote, private_key: &Self::PrivateKey) -> Ed25519Signature {
+    fn sign_vote(vote: &Self::Vote, private_key: &PrivateKey) -> Signature {
         use signature::Signer;
         private_key.sign(&vote.to_bytes())
     }
 
-    fn verify_signed_vote(signed_vote: &SignedVote<Self>, public_key: &Ed25519PublicKey) -> bool {
+    fn verify_signed_vote(signed_vote: &SignedVote<Self>, public_key: &PublicKey) -> bool {
         use signature::Verifier;
         public_key
             .verify(&signed_vote.vote.to_bytes(), &signed_vote.signature)

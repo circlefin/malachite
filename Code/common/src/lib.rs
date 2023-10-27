@@ -22,16 +22,21 @@ mod validator_set;
 mod value;
 mod vote;
 
+// Re-export `signature` crate for convenience
+pub use ::signature;
+
 /// Type alias to make it easier to refer the `ValueId` type of a given `Consensus` engine.
 pub type ValueId<C> = <<C as Consensus>::Value as Value>::Id;
-pub type Signature<C> = <<C as Consensus>::PrivateKey as PrivateKey>::Signature;
+pub type PublicKey<C> = <<C as Consensus>::SigningScheme as SigningScheme>::PublicKey;
+pub type PrivateKey<C> = <<C as Consensus>::SigningScheme as SigningScheme>::PrivateKey;
+pub type Signature<C> = <<C as Consensus>::SigningScheme as SigningScheme>::Signature;
 
 pub use consensus::Consensus;
 pub use height::Height;
 pub use proposal::Proposal;
 pub use round::Round;
 pub use signed_vote::SignedVote;
-pub use signing::{PrivateKey, PublicKey};
+pub use signing::SigningScheme;
 pub use timeout::{Timeout, TimeoutStep};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::Value;

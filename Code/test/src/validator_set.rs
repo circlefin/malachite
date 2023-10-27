@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use malachite_common::VotingPower;
 
-use crate::{Ed25519PublicKey, TestConsensus};
+use crate::{signing::PublicKey, TestConsensus};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Address([u8; Self::LENGTH]);
@@ -14,7 +14,7 @@ impl Address {
         Self(value)
     }
 
-    pub fn from_public_key(public_key: &Ed25519PublicKey) -> Self {
+    pub fn from_public_key(public_key: &PublicKey) -> Self {
         let hash = public_key.hash();
         let mut address = [0; Self::LENGTH];
         address.copy_from_slice(&hash[..Self::LENGTH]);
@@ -28,12 +28,12 @@ impl malachite_common::Address for Address {}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Validator {
     pub address: Address,
-    pub public_key: Ed25519PublicKey,
+    pub public_key: PublicKey,
     pub voting_power: VotingPower,
 }
 
 impl Validator {
-    pub fn new(public_key: Ed25519PublicKey, voting_power: VotingPower) -> Self {
+    pub fn new(public_key: PublicKey, voting_power: VotingPower) -> Self {
         Self {
             address: Address::from_public_key(&public_key),
             public_key,
@@ -47,7 +47,7 @@ impl malachite_common::Validator<TestConsensus> for Validator {
         &self.address
     }
 
-    fn public_key(&self) -> &Ed25519PublicKey {
+    fn public_key(&self) -> &PublicKey {
         &self.public_key
     }
 
@@ -113,7 +113,7 @@ impl ValidatorSet {
         self.validators.iter().find(|v| &v.address == address)
     }
 
-    pub fn get_by_public_key(&self, public_key: &Ed25519PublicKey) -> Option<&Validator> {
+    pub fn get_by_public_key(&self, public_key: &PublicKey) -> Option<&Validator> {
         self.validators.iter().find(|v| &v.public_key == public_key)
     }
 
@@ -147,7 +147,7 @@ impl malachite_common::ValidatorSet<TestConsensus> for ValidatorSet {
         self.total_voting_power()
     }
 
-    fn get_by_public_key(&self, public_key: &Ed25519PublicKey) -> Option<&Validator> {
+    fn get_by_public_key(&self, public_key: &PublicKey) -> Option<&Validator> {
         self.get_by_public_key(public_key)
     }
 
@@ -167,18 +167,18 @@ mod tests {
 
     use super::*;
 
-    use crate::Ed25519PrivateKey;
+    use crate::PrivateKey;
 
     #[test]
     fn add_update_remove() {
         let mut rng = StdRng::seed_from_u64(0x42);
 
-        let sk1 = Ed25519PrivateKey::generate(&mut rng);
-        let sk2 = Ed25519PrivateKey::generate(&mut rng);
-        let sk3 = Ed25519PrivateKey::generate(&mut rng);
-        let sk4 = Ed25519PrivateKey::generate(&mut rng);
-        let sk5 = Ed25519PrivateKey::generate(&mut rng);
-        let sk6 = Ed25519PrivateKey::generate(&mut rng);
+        let sk1 = PrivateKey::generate(&mut rng);
+        let sk2 = PrivateKey::generate(&mut rng);
+        let sk3 = PrivateKey::generate(&mut rng);
+        let sk4 = PrivateKey::generate(&mut rng);
+        let sk5 = PrivateKey::generate(&mut rng);
+        let sk6 = PrivateKey::generate(&mut rng);
 
         let v1 = Validator::new(sk1.public_key(), 1);
         let v2 = Validator::new(sk2.public_key(), 2);

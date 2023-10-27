@@ -4,7 +4,7 @@
 mod consensus;
 mod height;
 mod proposal;
-mod public_key;
+mod signing;
 mod validator_set;
 mod value;
 mod vote;
@@ -12,7 +12,7 @@ mod vote;
 pub use crate::consensus::*;
 pub use crate::height::*;
 pub use crate::proposal::*;
-pub use crate::public_key::*;
+pub use crate::signing::*;
 pub use crate::validator_set::*;
 pub use crate::value::*;
 pub use crate::vote::*;
