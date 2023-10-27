@@ -62,7 +62,7 @@ where
 }
 ```
 Note:
-- we should figure out where to put the `get_value(), broadcast_message(), start_timer()` 
+- we should figure out where to put `broadcast_message(), start_timer()` 
 
 
 ### Consensus Executor
@@ -99,7 +99,8 @@ where
 
 ```
 Notes:
-- Round 0 is always started by an external module. Subsequent rounds are managed by the executor.
+- Round 0 is always started by an external module. Subsequent rounds may be managed by the executor or it could be the responsibility of the external module to start a new round.
+  - Could also push the retrieval of the value to the external module, e.g. have `NewRoundProposer(round, proposal)`
 - The proposal must be complete, i.e. it must contain a complete value. If this value is sent by the proposer in chunks, it is the responsibility of the chain concrete implementation collect the proposal for the value ID and the chunks to create a complete proposal.
 - The proposal should also implement `valid(v)`.
 - `Vote` can be a prevote or precommit vote. 
