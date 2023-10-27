@@ -31,8 +31,4 @@ where
 
     /// The type of vote.
     fn vote_type(&self) -> VoteType;
-
-    // FIXME: round message votes should not include address
-    fn address(&self) -> &C::Address;
-    fn set_address(&mut self, address: C::Address);
 }

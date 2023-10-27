@@ -1,6 +1,6 @@
 use malachite_test::{Height, Proposal, TestConsensus, Value};
 
-use malachite_common::{Consensus, Round, Timeout, TimeoutStep};
+use malachite_common::{Round, Timeout, TimeoutStep};
 use malachite_round::events::Event;
 use malachite_round::message::Message;
 use malachite_round::state::{State, Step};
@@ -54,10 +54,6 @@ fn test_prevote() {
     assert_eq!(transition.state.step, Step::Prevote);
     assert_eq!(
         transition.message.unwrap(),
-        Message::prevote(
-            Round::new(1),
-            Some(value.id()),
-            TestConsensus::DUMMY_ADDRESS
-        )
+        Message::prevote(Round::new(1), Some(value.id()),)
     );
 }

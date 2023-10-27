@@ -171,7 +171,7 @@ where
         None => Some(proposed), // not locked, prevote the value
     };
 
-    let message = Message::prevote(state.round, value, C::DUMMY_ADDRESS);
+    let message = Message::prevote(state.round, value);
     Transition::to(state.next_step()).with_message(message)
 }
 
@@ -182,7 +182,7 @@ pub fn prevote_nil<C>(state: State<C>) -> Transition<C>
 where
     C: Consensus,
 {
-    let message = Message::prevote(state.round, None, C::DUMMY_ADDRESS);
+    let message = Message::prevote(state.round, None);
     Transition::to(state.next_step()).with_message(message)
 }
 
@@ -200,7 +200,7 @@ pub fn precommit<C>(state: State<C>, value_id: ValueId<C>) -> Transition<C>
 where
     C: Consensus,
 {
-    let message = Message::precommit(state.round, Some(value_id), C::DUMMY_ADDRESS);
+    let message = Message::precommit(state.round, Some(value_id));
 
     let Some(value) = state
         .proposal
@@ -223,7 +223,7 @@ pub fn precommit_nil<C>(state: State<C>) -> Transition<C>
 where
     C: Consensus,
 {
-    let message = Message::precommit(state.round, None, C::DUMMY_ADDRESS);
+    let message = Message::precommit(state.round, None);
     Transition::to(state.next_step()).with_message(message)
 }
 

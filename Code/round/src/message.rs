@@ -37,12 +37,12 @@ where
         Message::Proposal(C::new_proposal(height, round, value, pol_round))
     }
 
-    pub fn prevote(round: Round, value_id: Option<ValueId<C>>, address: C::Address) -> Self {
-        Message::Vote(C::new_prevote(round, value_id, address))
+    pub fn prevote(round: Round, value_id: Option<ValueId<C>>) -> Self {
+        Message::Vote(C::new_prevote(round, value_id))
     }
 
-    pub fn precommit(round: Round, value_id: Option<ValueId<C>>, address: C::Address) -> Self {
-        Message::Vote(C::new_precommit(round, value_id, address))
+    pub fn precommit(round: Round, value_id: Option<ValueId<C>>) -> Self {
+        Message::Vote(C::new_precommit(round, value_id))
     }
 
     pub fn timeout(round: Round, step: TimeoutStep) -> Self {

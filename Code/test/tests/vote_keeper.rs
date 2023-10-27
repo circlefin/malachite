@@ -2,13 +2,13 @@ use malachite_common::Round;
 use malachite_round::events::Event;
 use malachite_vote::keeper::VoteKeeper;
 
-use malachite_test::{Address, Height, TestConsensus, ValueId, Vote};
+use malachite_test::{Height, TestConsensus, ValueId, Vote};
 
 #[test]
 fn prevote_apply_nil() {
     let mut keeper: VoteKeeper<TestConsensus> = VoteKeeper::new(Height::new(1), Round::INITIAL, 3);
 
-    let vote = Vote::new_prevote(Round::new(0), None, Address::new(1));
+    let vote = Vote::new_prevote(Round::new(0), None);
 
     let event = keeper.apply_vote(vote.clone(), 1);
     assert_eq!(event, None);
@@ -24,7 +24,7 @@ fn prevote_apply_nil() {
 fn precommit_apply_nil() {
     let mut keeper: VoteKeeper<TestConsensus> = VoteKeeper::new(Height::new(1), Round::INITIAL, 3);
 
-    let vote = Vote::new_precommit(Round::new(0), None, Address::new(1));
+    let vote = Vote::new_precommit(Round::new(0), None);
 
     let event = keeper.apply_vote(vote.clone(), 1);
     assert_eq!(event, None);
@@ -42,7 +42,7 @@ fn prevote_apply_single_value() {
 
     let v = ValueId::new(1);
     let val = Some(v);
-    let vote = Vote::new_prevote(Round::new(0), val, Address::new(1));
+    let vote = Vote::new_prevote(Round::new(0), val);
 
     let event = keeper.apply_vote(vote.clone(), 1);
     assert_eq!(event, None);
@@ -50,7 +50,7 @@ fn prevote_apply_single_value() {
     let event = keeper.apply_vote(vote.clone(), 1);
     assert_eq!(event, None);
 
-    let vote_nil = Vote::new_prevote(Round::new(0), None, Address::new(2));
+    let vote_nil = Vote::new_prevote(Round::new(0), None);
     let event = keeper.apply_vote(vote_nil, 1);
     assert_eq!(event, Some(Event::PolkaAny));
 
@@ -64,7 +64,7 @@ fn precommit_apply_single_value() {
 
     let v = ValueId::new(1);
     let val = Some(v);
-    let vote = Vote::new_precommit(Round::new(0), val, Address::new(1));
+    let vote = Vote::new_precommit(Round::new(0), val);
 
     let event = keeper.apply_vote(vote.clone(), 1);
     assert_eq!(event, None);
@@ -72,7 +72,7 @@ fn precommit_apply_single_value() {
     let event = keeper.apply_vote(vote.clone(), 1);
     assert_eq!(event, None);
 
-    let vote_nil = Vote::new_precommit(Round::new(0), None, Address::new(2));
+    let vote_nil = Vote::new_precommit(Round::new(0), None);
     let event = keeper.apply_vote(vote_nil, 1);
     assert_eq!(event, Some(Event::PrecommitAny));
 

@@ -1,8 +1,11 @@
 use std::collections::BTreeMap;
 
+use secrecy::{ExposeSecret, Secret};
+
+use malachite_common::signature::Keypair;
 use malachite_common::{
-    Consensus, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Value, Vote,
-    VoteType,
+    Consensus, PrivateKey, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator,
+    ValidatorSet, Value, Vote, VoteType,
 };
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
@@ -10,28 +13,19 @@ use malachite_round::state::State as RoundState;
 use malachite_vote::count::Threshold;
 use malachite_vote::keeper::VoteKeeper;
 
+use crate::message::Message;
+
 #[derive(Clone, Debug)]
 pub struct Executor<C>
 where
     C: Consensus,
 {
     height: C::Height,
-    key: C::PublicKey,
+    key: Secret<PrivateKey<C>>,
     validator_set: C::ValidatorSet,
     round: Round,
     votes: VoteKeeper<C>,
     round_states: BTreeMap<Round, RoundState<C>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Message<C>
-where
-    C: Consensus,
-{
-    NewRound(Round),
-    Proposal(C::Proposal),
-    Vote(C::Vote),
-    Timeout(Timeout),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,7 +34,7 @@ where
     C: Consensus,
 {
     Propose(C::Proposal),
-    Vote(C::Vote),
+    Vote(SignedVote<C>),
     Decide(Round, C::Value),
     SetTimeout(Timeout),
 }
@@ -49,7 +43,7 @@ impl<C> Executor<C>
 where
     C: Consensus,
 {
-    pub fn new(height: C::Height, validator_set: C::ValidatorSet, key: C::PublicKey) -> Self {
+    pub fn new(height: C::Height, validator_set: C::ValidatorSet, key: PrivateKey<C>) -> Self {
         let votes = VoteKeeper::new(
             height.clone(),
             Round::INITIAL,
@@ -58,7 +52,7 @@ where
 
         Self {
             height,
-            key,
+            key: Secret::new(key),
             validator_set,
             round: Round::INITIAL,
             votes,
@@ -92,19 +86,17 @@ where
                 Some(Output::Propose(proposal))
             }
 
-            RoundMessage::Vote(mut v) => {
-                // sign the vote
-
-                // FIXME: round message votes should not include address
+            RoundMessage::Vote(vote) => {
                 let address = self
                     .validator_set
-                    .get_by_public_key(&self.key)?
+                    .get_by_public_key(&self.key.expose_secret().verifying_key())?
                     .address()
                     .clone();
 
-                v.set_address(address);
+                let signature = C::sign_vote(&vote, self.key.expose_secret());
+                let signed_vote = SignedVote::new(vote, address, signature);
 
-                Some(Output::Vote(v))
+                Some(Output::Vote(signed_vote))
             }
 
             RoundMessage::Timeout(timeout) => Some(Output::SetTimeout(timeout)),
@@ -120,7 +112,7 @@ where
         match msg {
             Message::NewRound(round) => self.apply_new_round(round),
             Message::Proposal(proposal) => self.apply_proposal(proposal),
-            Message::Vote(vote) => self.apply_vote(vote),
+            Message::Vote(signed_vote) => self.apply_vote(signed_vote),
             Message::Timeout(timeout) => self.apply_timeout(timeout),
         }
     }
@@ -128,7 +120,7 @@ where
     fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<C>> {
         let proposer = self.validator_set.get_proposer();
 
-        let event = if proposer.public_key() == &self.key {
+        let event = if proposer.public_key() == &self.key.expose_secret().verifying_key() {
             let value = self.get_value();
             RoundEvent::NewRoundProposer(value)
         } else {
@@ -185,18 +177,20 @@ where
         }
     }
 
-    fn apply_vote(&mut self, vote: C::Vote) -> Option<RoundMessage<C>> {
-        let Some(validator) = self.validator_set.get_by_address(vote.address()) else {
-            // TODO: Is this the correct behavior? How to log such "errors"?
+    fn apply_vote(&mut self, signed_vote: SignedVote<C>) -> Option<RoundMessage<C>> {
+        // TODO: How to handle missing validator?
+        let validator = self.validator_set.get_by_address(&signed_vote.address)?;
+
+        if !C::verify_signed_vote(&signed_vote, validator.public_key()) {
+            // TODO: How to handle invalid votes?
             return None;
-        };
+        }
 
-        let round = vote.round();
+        let round = signed_vote.vote.round();
 
-        let event = match self.votes.apply_vote(vote, validator.voting_power()) {
-            Some(event) => event,
-            None => return None,
-        };
+        let event = self
+            .votes
+            .apply_vote(signed_vote.vote, validator.voting_power())?;
 
         self.apply_event(round, event)
     }

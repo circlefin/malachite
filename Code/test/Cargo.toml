@@ -5,7 +5,13 @@ edition = "2021"
 publish = false
 
 [dependencies]
-malachite-common = { version = "0.1.0", path = "../common" }
+malachite-common    = { version = "0.1.0", path = "../common" }
 malachite-consensus = { version = "0.1.0", path = "../consensus" }
-malachite-round = { version = "0.1.0", path = "../round" }
-malachite-vote = { version = "0.1.0", path = "../vote" }
+malachite-round     = { version = "0.1.0", path = "../round" }
+malachite-vote      = { version = "0.1.0", path = "../vote" }
+
+ed25519-consensus = "2.1.0"
+signature         = "2.1.0"
+rand              = { version = "0.8.5", features = ["std_rng"] }
+sha2              = "0.10.8"
+secrecy           = "0.8.0"
