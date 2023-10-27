@@ -3,7 +3,10 @@ use malachite_common::{Consensus, Round, Timeout, TimeoutStep, ValueId};
 use crate::state::RoundValue;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum Message<C: Consensus> {
+pub enum Message<C>
+where
+    C: Consensus,
+{
     NewRound(Round),                // Move to the new round.
     Proposal(C::Proposal),          // Broadcast the proposal.
     Vote(C::Vote),                  // Broadcast the vote.

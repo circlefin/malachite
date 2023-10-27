@@ -28,6 +28,17 @@ where
     round_states: BTreeMap<Round, RoundState<C>>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Output<C>
+where
+    C: Consensus,
+{
+    Propose(C::Proposal),
+    Vote(SignedVote<C>),
+    Decide(Round, C::Value),
+    SetTimeout(Timeout),
+}
+
 impl<C> Executor<C>
 where
     C: Consensus,
@@ -54,7 +65,7 @@ where
         C::DUMMY_VALUE
     }
 
-    pub fn execute(&mut self, msg: Message<C>) -> Option<Message<C>> {
+    pub fn execute(&mut self, msg: Message<C>) -> Option<Output<C>> {
         let round_msg = match self.apply(msg) {
             Some(msg) => msg,
             None => return None,
@@ -70,9 +81,9 @@ where
                 None
             }
 
-            RoundMessage::Proposal(p) => {
+            RoundMessage::Proposal(proposal) => {
                 // sign the proposal
-                Some(Message::Proposal(p))
+                Some(Output::Propose(proposal))
             }
 
             RoundMessage::Vote(vote) => {
@@ -85,17 +96,14 @@ where
                 let signature = C::sign_vote(&vote, self.key.expose_secret());
                 let signed_vote = SignedVote::new(vote, address, signature);
 
-                Some(Message::Vote(signed_vote))
+                Some(Output::Vote(signed_vote))
             }
 
-            RoundMessage::Timeout(_) => {
-                // schedule the timeout
-                None
-            }
+            RoundMessage::Timeout(timeout) => Some(Output::SetTimeout(timeout)),
 
-            RoundMessage::Decision(_) => {
-                // update the state
-                None
+            RoundMessage::Decision(value) => {
+                // TODO: update the state
+                Some(Output::Decide(value.round, value.value))
             }
         }
     }
