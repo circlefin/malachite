@@ -22,8 +22,10 @@ where
     // FIXME: Remove altogether
     const DUMMY_VALUE: Self::Value;
 
+    /// Sign the given vote using the given private key.
     fn sign_vote(vote: &Self::Vote, private_key: &Self::PrivateKey) -> Signature<Self>;
 
+    /// Verify the given vote's signature using the given public key.
     fn verify_signed_vote(signed_vote: &SignedVote<Self>, public_key: &Self::PublicKey) -> bool;
 
     /// Build a new proposal for the given value at the given height, round and POL round.
