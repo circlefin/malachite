@@ -1,6 +1,4 @@
-use malachite_common::{Consensus, Round, Timeout};
-
-use crate::signed_vote::SignedVote;
+use malachite_common::{Consensus, Round, SignedVote, Timeout};
 
 /// Messages that can be received and broadcast by the consensus executor.
 #[derive(Clone, Debug, PartialEq, Eq)]

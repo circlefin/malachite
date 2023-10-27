@@ -1,4 +1,4 @@
-use malachite_common::{Consensus, PublicKey};
+use crate::{Consensus, PublicKey};
 
 // TODO: Do we need to abstract over `SignedVote` as well?
 

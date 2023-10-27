@@ -12,4 +12,3 @@
 
 pub mod executor;
 pub mod message;
-pub mod signed_vote;

@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use malachite_common::{
-    Consensus, PrivateKey, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
-    Vote, VoteType,
+    Consensus, PrivateKey, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator,
+    ValidatorSet, Value, Vote, VoteType,
 };
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
@@ -11,7 +11,6 @@ use malachite_vote::count::Threshold;
 use malachite_vote::keeper::VoteKeeper;
 
 use crate::message::Message;
-use crate::signed_vote::SignedVote;
 
 #[derive(Clone, Debug)]
 pub struct Executor<C>
@@ -168,22 +167,19 @@ where
     }
 
     fn apply_vote(&mut self, signed_vote: SignedVote<C>) -> Option<RoundMessage<C>> {
-        let Some(validator) = self.validator_set.get_by_address(&signed_vote.address) else {
-            // TODO: Is this the correct behavior? How to log such "errors"?
-            return None;
-        };
+        // TODO: How to handle missing validator?
+        let validator = self.validator_set.get_by_address(&signed_vote.address)?;
 
-        // TODO: Verify the vote's signature
+        if !C::verify_signed_vote(&signed_vote, validator.public_key()) {
+            // TODO: How to handle invalid votes?
+            return None;
+        }
 
         let round = signed_vote.vote.round();
 
-        let event = match self
+        let event = self
             .votes
-            .apply_vote(signed_vote.vote, validator.voting_power())
-        {
-            Some(event) => event,
-            None => return None,
-        };
+            .apply_vote(signed_vote.vote, validator.voting_power())?;
 
         self.apply_event(round, event)
     }

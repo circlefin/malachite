@@ -16,6 +16,7 @@ mod height;
 mod proposal;
 mod public_key;
 mod round;
+mod signed_vote;
 mod timeout;
 mod validator_set;
 mod value;
@@ -23,12 +24,14 @@ mod vote;
 
 /// Type alias to make it easier to refer the `ValueId` type of a given `Consensus` engine.
 pub type ValueId<C> = <<C as Consensus>::Value as Value>::Id;
+pub type Signature<C> = <<C as Consensus>::PrivateKey as PrivateKey>::Signature;
 
 pub use consensus::Consensus;
 pub use height::Height;
 pub use proposal::Proposal;
 pub use public_key::{PrivateKey, PublicKey};
 pub use round::Round;
+pub use signed_vote::SignedVote;
 pub use timeout::{Timeout, TimeoutStep};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::Value;

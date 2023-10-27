@@ -1,5 +1,4 @@
-use malachite_common::{Round, VoteType};
-use malachite_consensus::signed_vote::SignedVote;
+use malachite_common::{Round, SignedVote, VoteType};
 use signature::Signer;
 
 use crate::{Address, Ed25519PrivateKey, TestConsensus, ValueId};

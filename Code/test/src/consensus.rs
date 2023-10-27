@@ -1,5 +1,6 @@
 use malachite_common::Consensus;
 use malachite_common::Round;
+use malachite_common::SignedVote;
 
 use crate::height::*;
 use crate::proposal::*;
@@ -27,6 +28,13 @@ impl Consensus for TestConsensus {
     fn sign_vote(vote: &Self::Vote, private_key: &Self::PrivateKey) -> Ed25519Signature {
         use signature::Signer;
         private_key.sign(&vote.to_bytes())
+    }
+
+    fn verify_signed_vote(signed_vote: &SignedVote<Self>, public_key: &Ed25519PublicKey) -> bool {
+        use signature::Verifier;
+        public_key
+            .verify(&signed_vote.vote.to_bytes(), &signed_vote.signature)
+            .is_ok()
     }
 
     fn new_proposal(height: Height, round: Round, value: Value, pol_round: Round) -> Proposal {
