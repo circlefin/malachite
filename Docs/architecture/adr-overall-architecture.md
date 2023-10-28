@@ -1,26 +1,39 @@
-# ADR 001: High Level Architecture and Design for the BFT Tendermint Consensus Algorithm in Rust
+# ADR 001: High Level Architecture and Design for Tendermint Consensus Implementation in Rust
 
 ## Changelog
 * 2023-10-27: First draft.
 
 ## Context
 
-This ADR provides architecture and design recommendations for the implementation of the tendermint consensus protocol in Rust. It is based on the latest [BFT consensus paper](https://arxiv.org/pdf/1807.04938.pdf), the english and quint specifications located in the Specs directory(todo - provide links).
+This ADR provides architecture and design recommendations for the implementation of the Tendermint consensus protocol in Rust. The implementation follows the article ["The latest gossip on BFT consensus"](#References) and the English and Quint specifications located in the Specs directory.
+
+- TODO: Provide links for above.
+- TODO: Will there be an English spec?
+
+### Terminology
+
+We use terminology in line with [prior art on Tendermint and BFT consensus](https://docs.cometbft.com/v0.34/introduction/). To recall briefly:
+- The consensus implementation reaches a decision on a _value_, which is the primary output. This is done repeatedly, such that the system proceeds in _heights_, and each height produces a new _value_.
+- To reach decision on a value in a given height, multiple _rounds_ may be necessary. The algorithm starts from _round 0_.
+- The implementation relies on exchanges of _proposals_ and _votes_. Each _round_ is associated with a specific _proposer_ which has the role of proposing a value to be decided upon.
 
 ## Decision
+### Overview of the Tendermint Consensus Implementation 
 
-The system is composed of the following components:
+The consensus implementation comprises three components:
 - Consensus Executor
 - Vote Keeper
 - Round State Machine
 
-![Consensus SM Architecture Diagram](assets/sm_arch.jpeg).
+![Consensus SM Architecture Diagram](assets/sm_arch.jpeg)
 
-These are described in the following sections.
+The components of the consensus implementation as well as the associated abstractions are described below, after a discussion on terminology.
 
-### Data Type Abstractions
-_Tentative_
-The following data types are used in the consensus algorithm and are abstracted out to allow for different implementations:
+### Data Types & Abstractions
+#### Consensus
+
+The Tendermint consensus implementation will satisfy the `Consensus` interface, detailed below.
+The data types used by the consensus algorithm are abstracted to allow for different implementations.
 
 ```rust
 pub trait Consensus
@@ -65,9 +78,11 @@ Note:
 - TBD: we should figure out where to put `broadcast_message(), start_timer()`
 
 
-### Consensus Executor
-#### Data Structures
+#### Consensus Executor
+##### Data Structures
+
 The Consensus Executor is concerned with running the consensus algorithm for a single height. It is therefore initialized with the height once and the instance is destroyed once a value for that height has been decided. Other parameters are required during initialization and operation as described below.
+
 ```rust
 pub struct Executor<C>
 where
@@ -85,7 +100,8 @@ where
 Note:
 - TBD: Multiple rounds are currently maintained, and it is still under discussion if this is necessary.
 
-#### Input Events (External APIs)
+##### Input Events (External APIs)
+
 The Consensus Executor receives events from the peer-to-peer layer and other external modules it interacts with. 
 ```rust
 pub enum Events<C>
@@ -100,14 +116,14 @@ where
 
 ```
 Notes:
-- TBD: Round 0 is always started by an external module. Subsequent rounds may be managed by the executor or it could be the responsibility of the external module to start a new round.
+- TBD: Round `0` is always started by an external module. Subsequent rounds may be managed by the executor, or it could be the responsibility of the external module to start a new round.
   - Could also push the retrieval of the value to the external module, e.g. have `StartRoundProposer(round, proposal)`
   - Is the change to `StartRound` ok? It matches the paper and (the old name) `NewRound` is also used in some places as output message.
 - TBD: The proposal must be complete, i.e. it must contain a complete value. If this value is sent by the proposer in chunks, it is the responsibility of the chain concrete implementation to collect the proposal for the value ID together with the chunks to create a complete proposal.
 - TBD: The proposal should also implement `valid(v)`. Alternatively, the caller could do the verification and use the following inputs:
   - `Proposal(C::Proposal)` - a valid proposal has been received
   - `ProposalInvalid` - an invalid proposal has been received
-- `Vote` can be a prevote or precommit vote.
+- `Vote` can be a `Prevote` or `Precommit` vote.
 - The executor interacts with the host system to start timers and expects to receive timeout events for the timers that it started and have fired. The timeouts can be:
 ```
     Propose,
@@ -115,12 +131,14 @@ Notes:
     Precommit,
 ```
 
-#### Operation
-Votes are sent by the executor to the Vote keeper module it expects that any thresholds seen for the first time are returned in the results.
+TODO: Consolidate the terminology around Events and Messages.
 
-Based on its state and the results received from the Vote keeper, the executor sends events to the Consensus State Machine which, once it processes the executor events, returns consensus related messages back to the executor. The executor then processes these messages and sends them to the peer-to-peer layer, the host system or other external modules.
+##### Operation
+The Executor sends votes to the Vote Keeper module. The Executor expects that whenever the Keeper observes any threshold of votes for the first time it returns that to the Executor.
 
-#### Output Messages (External Dependencies)
+Based on its state and the results received from the Vote Keeper, the Executor sends events to the Round State Machine which, once it processes the Executor events, returns consensus-related messages back to the Executor. The Executor then processes these messages and sends them to the peer-to-peer layer, the host system, or other external modules.
+
+##### Output Messages (External Dependencies)
 ```rust
 pub enum Output<C>
 where
@@ -133,9 +151,9 @@ where
 }
 ```
 
-### Vote Keeper
-#### Data Structures
-The Vote Keeper is concerned with keeping track of the votes received and the thresholds seen for each round.
+#### Vote Keeper
+##### Data Structures
+The Vote Keeper is concerned with keeping track of the votes received and the thresholds of votes observed for each round.
 
 ```rust
 pub struct VoteKeeper<C>
@@ -151,21 +169,25 @@ where
 }
 ```
 Note: The above is a first draft and is likely to change:
-- the quorum and minimum correct validator thresholds are passed in as parameters during initialization. These are used for the different threshold calculations.
-- validator_set used to detect equivocation; also to ensure that prevote and precommit messages from the same validator are not counted twice for the same round, e.g. in the case of the `honest_threshold` case (`f+1` in L55 in the BFT paper) for prevotes and precommits.
+- The quorum and minimum correct validator thresholds are passed in as parameters during initialization. These are used for the different threshold calculations.
+- The `validator_set` is used to detect equivocation; also to ensure that prevote and precommit messages from the same validator are not counted twice for the same round, e.g. in the case of the `honest_threshold` case (`f+1` in L55 in the BFT paper) for prevotes and precommits.
 - TBD: may require future changes if the keeper also handles proposal messages.
 
-#### Input Events (Internal APIs)
+##### Input Events (Internal APIs)
 The Vote Keeper receives votes from the Consensus Executor via:
 
 ```rust
 pub fn apply_vote(&mut self, vote: C::Vote, weight: Weight) -> Option<Message<C>>
 ```
 
-#### Operation
+##### Operation
 The Vote Keeper keeps track of the votes received for each round and the total weight of the votes. It returns any thresholds seen **for the first time**.
 
-#### Output Messages for the Executor
+##### Output Messages
+
+The Executor receives these output messages from the Vote Keeper.
+
+TODO: Events vs. Messages fix.
 
 ```rust
 pub enum Event<C: Consensus> {
@@ -178,9 +200,9 @@ pub enum Event<C: Consensus> {
 }
 ```
 
-### Round State Machine
-#### Data Structures
-The Consensus State Machine is concerned with the internal state of the consensus algorithm for a given round. It is initialized with the height and round. When moving to a new round the executor creates a new round state machine and may or may not destroy the other round FSMs.
+#### Round State Machine
+##### Data Structures
+The Consensus State Machine is concerned with the internal state of the consensus algorithm for a given round. It is initialized with the height and round. When moving to a new round, the executor creates a new round state machine and may or may not destroy the other round SMs.
 
 ```rust
 pub struct State<C: Consensus> {
@@ -193,7 +215,7 @@ pub struct State<C: Consensus> {
 }
 ```
 
-#### Input Events (Internal APIs)
+##### Input Events (Internal APIs)
 The Round state machine receives events from the Consensus Executor via:
 ```rust
 pub fn apply_event<C>(mut state: State<C>, round: Round, event: Event<C>) -> Transition<C>
@@ -202,17 +224,17 @@ where
 {}
 ```
 
-The events passed to the Round state machine are very close to the preconditions for the transition functions in the BFT paper.
+The events passed to the Round state machine are very close to the preconditions for the transition functions in the BFT paper, i.e., the `upon` clauses.
 In addition:
-- the `StartRound` events specify if the SM runs in the proposer mode or not. In the former case a valid value is also passed to the SM from the executor.
-- there are two `Poposal` events, for valid and invalid values. Therefore, the `valid(v)` check is not performed in the round SM but externally by the executor (TBD who exactly does that)
+- The `StartRound` events specify if the SM runs in the proposer mode or not. In the former case, the executor also passes a valid value to the round SM.
+- There are two `Poposal` events, for valid and invalid values respectively. Therefore, the `valid(v)` check is not performed in the round SM but externally by the executor (TODO TBD who exactly does that)
 
 ```rust
 pub enum Event<C: Consensus> {
     StartRound,                   // Start a new round, not as proposer.L20
     StartRoundProposer(C::Value), // Start a new round and propose the Value.L14
     Proposal(C::Proposal),      // Received a proposal. L22 + L23 (valid)
-    ProposalAndPolkaPrevious(C::Value), // Recieved a proposal and a polka value from a previous round. L28 + L29 (valid)
+    ProposalAndPolkaPrevious(C::Value), // Received a proposal and a polka value from a previous round. L28 + L29 (valid)
     ProposalInvalid,         // Received an invalid proposal. L26 + L32 (invalid)
     PolkaValue(ValueId<C>),  // Received quorum prevotes for valueId. L44
     PolkaAny,                // Received quorum prevotes for anything. L34
@@ -228,11 +250,11 @@ pub enum Event<C: Consensus> {
 }
 ```
 
-#### Operation
-The Round state machine keeps track of the internal state of consensus for a given round. It should be very close to the algorithm description in the original BFT consensus paper.
+##### Operation
+The Round State Machine keeps track of the internal state of consensus for a given round. It resembles very closely the algorithm description in the [original "The Latest gossip on BFT consensus" paper](#References).
 
-#### Output Messages
-The Round state machine returns the following messages to the executor:
+##### Output Messages
+The Round state machine returns the following messages to the Executor:
 
 ```rust
 pub enum Message<C>
@@ -249,22 +271,28 @@ where
 
 ## Status
 
-> A decision may be "proposed" if it hasn't been agreed upon yet, or "accepted" once it is agreed upon. If a later ADR changes or reverses a decision, it may be marked as "deprecated" or "superseded" with a reference to its replacement.
-
-{Deprecated|Proposed|Accepted}
+Accepted
 
 ## Consequences
 
-> This section describes the consequences, after applying the decision. All consequences should be summarized here, not just the "positive" ones.
-
 ### Positive
+
+- The abstraction offered by `enum Event` encapsulates all the complexity of `upon` clauses, it simplifies reasoning about the pure state machine logic within the Round State Machine.
+- The semantics of counting votes and reasoning about thresholds is grouped into the Vote Keeper module and clearly separates that concern from the state machine logic.
+- Functionality is offloaded to the host system wherever possible: The concerns of scheduling, managing, and firing timeouts.
+- All sources of non-determinism have been excluded outside the boundaries of the consensus implementation, e.g. `valid` method, timeouts, I/O triggers, thus simplifying testing and reasoning about this system. 
+- TODO: Events vs. Messages positive consequences.
 
 ### Negative
 
+- The `enum Event` has numerous variants and comprises many nuances, thus may be difficult to understand.
+
 ### Neutral
+
+- The concept of `Vote` is borrowed from earlier implementations of Tendermint consensus algorithm and this may be at times ambiguous.
+- The concept of `Height` is borrowed from ["The latest gossip.."](#references) article and it may be inaccurate in some contexts. For example, a height is a straightforward concept in the context of implementing a blockchain system, but it may be inappropriate in the implementation of general-purpose sequencing systems, total-order logs, or atomic broadcast.  
 
 ## References
 
-> Are there any relevant PR comments, issues that led up to this, or articles referrenced for why we made the given design choice? If so link them here!
-
-* {reference link}
+* [CometBFT v0.34 docs](https://docs.cometbft.com/v0.34/introduction/)
+* ["The latest gossip on BFT consensus"](https://arxiv.org/pdf/1807.04938.pdf), by _Buchman, Kwon, Milosevic_. 2018. 
