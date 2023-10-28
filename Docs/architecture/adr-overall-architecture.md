@@ -85,7 +85,7 @@ where
 Note:
 - TBD: Multiple rounds are currently maintained, and it is still under discussion if this is necessary.
 
-#### Input Events (APIs)
+#### Input Events (External APIs)
 The Consensus Executor receives events from the peer-to-peer layer and other external modules it interacts with. 
 ```rust
 pub enum Events<C>
@@ -102,6 +102,7 @@ where
 Notes:
 - TBD: Round 0 is always started by an external module. Subsequent rounds may be managed by the executor or it could be the responsibility of the external module to start a new round.
   - Could also push the retrieval of the value to the external module, e.g. have `NewRoundProposer(round, proposal)`
+  - Should we change to `StartRound`? It matches the paper and also `NewRound` is also used in some places as output message.
 - TBD: The proposal must be complete, i.e. it must contain a complete value. If this value is sent by the proposer in chunks, it is the responsibility of the chain concrete implementation to collect the proposal for the value ID together with the chunks to create a complete proposal.
 - TBD: The proposal should also implement `valid(v)`. Alternatively, the caller could do the verification and use the following inputs:
   - `Proposal(C::Proposal)` - a valid proposal has been received
