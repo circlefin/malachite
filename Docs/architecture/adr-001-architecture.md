@@ -18,6 +18,18 @@ We use terminology in line with [prior art on Tendermint and BFT consensus](http
 - The implementation relies on exchanges of _proposals_ and _votes_. Each _round_ is associated with a specific _proposer_ which has the role of proposing a value to be decided upon.
 
 ## Decision
+
+### Repository Overview
+
+The repository is split in three areas, each covering one of the important areas of this project:
+1. Code: Comprises the Rust implementation of the Tendermint consensus algorithm, split across multiple Rust crates.
+2. Docs: Comprises Architectural Decision Records (ADRs) such as the present file and other documentation.
+3. Specs: English and Quint specifications.
+
+TODO: We should consider renaming Code into something else.
+TODO: Consider using lower-case naming of the top-level folders, e.g., `specs` instead of `Specs`.
+TODO: Do we need to describe the code layout and Rust crates, or is the description of the implementation below enough?
+
 ### Overview of the Tendermint Consensus Implementation 
 
 The consensus implementation comprises three components:
