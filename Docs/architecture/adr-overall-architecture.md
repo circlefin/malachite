@@ -62,7 +62,7 @@ where
 }
 ```
 Note:
-- we should figure out where to put `broadcast_message(), start_timer()` 
+- TBD: we should figure out where to put `broadcast_message(), start_timer()`
 
 
 ### Consensus Executor
@@ -82,7 +82,8 @@ where
 }
 
 ```
-Note: Multiple rounds are maintained, and it is still under discussion if this is necessary.
+Note:
+- TBD: Multiple rounds are currently maintained, and it is still under discussion if this is necessary.
 
 #### Input Events (APIs)
 The Consensus Executor receives events from the peer-to-peer layer and other external modules it interacts with. 
@@ -99,11 +100,13 @@ where
 
 ```
 Notes:
-- Round 0 is always started by an external module. Subsequent rounds may be managed by the executor or it could be the responsibility of the external module to start a new round.
+- TBD: Round 0 is always started by an external module. Subsequent rounds may be managed by the executor or it could be the responsibility of the external module to start a new round.
   - Could also push the retrieval of the value to the external module, e.g. have `NewRoundProposer(round, proposal)`
-- The proposal must be complete, i.e. it must contain a complete value. If this value is sent by the proposer in chunks, it is the responsibility of the chain concrete implementation collect the proposal for the value ID and the chunks to create a complete proposal.
-- The proposal should also implement `valid(v)`.
-- `Vote` can be a prevote or precommit vote. 
+- TBD: The proposal must be complete, i.e. it must contain a complete value. If this value is sent by the proposer in chunks, it is the responsibility of the chain concrete implementation to collect the proposal for the value ID together with the chunks to create a complete proposal.
+- TBD: The proposal should also implement `valid(v)`. Alternatively, the caller could do the verification and use the following inputs:
+  - `Proposal(C::Proposal)` - a valid proposal has been received
+  - `ProposalInvalid` - an invalid proposal has been received
+- `Vote` can be a prevote or precommit vote.
 - The executor interacts with the host system to start timers and expects to receive timeout events for the timers that it started and have fired. The timeouts can be:
 ```
     Propose,
@@ -112,9 +115,9 @@ Notes:
 ```
 
 #### Operation
-Votes are sent to the Vote keeper module that returns any thresholds seen for the first time. 
+Votes are sent by the executor to the Vote keeper module it expects that any thresholds seen for the first time are returned in the results.
 
-Based on its state and the messages received from the Vote keeper, the executor sends events to the Consensus State Machine which, once it processes the executor events, returns consensus related messages back to the executor. The executor then processes these messages and sends them to the peer-to-peer layer or the host system.
+Based on its state and the results received from the Vote keeper, the executor sends events to the Consensus State Machine which, once it processes the executor events, returns consensus related messages back to the executor. The executor then processes these messages and sends them to the peer-to-peer layer, the host system or other external modules.
 
 #### Output Messages (External Dependencies)
 ```rust
@@ -122,16 +125,16 @@ pub enum Output<C>
 where
     C: Consensus,
 {
-    Propose(C::Proposal), // Broadcast a proposal to peers
-    Vote(SignedVote<C>), // Broadcast a vote to peers
-    Decide(Round, C::Value), // Signal to the host system that a decision has been reached
+    Propose(C::Proposal), // Request to broadcast a proposal to peers
+    Vote(SignedVote<C>), // Request to broadcast a vote to peers
+    Decide(Round, C::Value), // Signal that a decision has been reached
     SetTimeout(Timeout), // Request the host system to start a timer
 }
 ```
 
 ### Vote Keeper
 #### Data Structures
-The Vote Keeper is concerned with keeping track of the votes received and the thresholds seen for each round. It is initialized with the validator set and the height. It is destroyed once a decision has been reached for the height.
+The Vote Keeper is concerned with keeping track of the votes received and the thresholds seen for each round.
 
 ```rust
 pub struct VoteKeeper<C>
@@ -139,14 +142,17 @@ where
     C: Consensus,
 {
     height: C::Height,
+    validator_set: C::ValidatorSet,
+    quorum_threshold: ThresholdParameter,
+    honest_threshold: ThresholdParameter,
     total_weight: Weight,
     rounds: BTreeMap<Round, RoundVotes<C>>,
 }
 ```
 Note: The above is a first draft and is likely to change:
-- the quorum and minimum correct validator thresholds must be passed in as parameters during initialization. These are used for the different threshold calculations.
-- validator_set is not included but it is needed so the vote keeper detects equivocation; also to ensure that prevote and precommit messages from the same validator are not counted twice for the same round, e.g. in the case of `f+1` threshold for prevotes and precommits.
-- may require future changes if the keeper also handles proposal messages (TBD)
+- the quorum and minimum correct validator thresholds are passed in as parameters during initialization. These are used for the different threshold calculations.
+- validator_set used to detect equivocation; also to ensure that prevote and precommit messages from the same validator are not counted twice for the same round, e.g. in the case of the `honest_threshold` case (`f+1` in L55 in the BFT paper) for prevotes and precommits.
+- TBD: may require future changes if the keeper also handles proposal messages.
 
 #### Input Events (Internal APIs)
 The Vote Keeper receives votes from the Consensus Executor via:
@@ -164,13 +170,12 @@ The Vote Keeper keeps track of the votes received for each round and the total w
 pub enum Event<C: Consensus> {
     PolkaAny, // Receive +2/3 prevotes for anything. L34
     PolkaNil, // Receive +2/3 prevotes for nil. L44
-    PolkaValue(ValueId<C>), // Receive +2/3 prevotes for Value. L44
-    PrecommitAny, // Receive +2/3 precommits for anything. L47
-    PrecommitValue(ValueId<C>), // Receive +2/3 precommits for Value. L51
-    ThresholdCorrectProcessInHigherRound, // Receive +1/3 messages from a higher round. See L55
+    PolkaValue(ValueId<C>), // Receive quorum prevotes for Value. L44
+    PrecommitAny, // Receive quorum precommits for anything. L47
+    PrecommitValue(ValueId<C>), // Receive quorum precommits for Value. L51
+    ThresholdCorrectProcessInHigherRound, // Receives messages from minimum of honest validators and for a higher round (as defined by honest_threshold). See L55
 }
 ```
-TODO - fix line numbers (more are needed)
 
 ### Round State Machine
 #### Data Structures
@@ -196,10 +201,10 @@ where
 {}
 ```
 
-The events passed to the Round state machine are very close to the preconditions for the transition functions in the BFT paper. 
+The events passed to the Round state machine are very close to the preconditions for the transition functions in the BFT paper.
 In addition:
 - the `NewRound` events specify if the SM runs in the proposer mode or not. In the former case a value is also passed to the SM from the executor.
-- there are two `Poposal` events, for valid and invalid values. Therefore the `valid(v)` check is not performed in the SM but externally by the executor (tbd who exactly does that)
+- there are two `Poposal` events, for valid and invalid values. Therefore, the `valid(v)` check is not performed in the round SM but externally by the executor (TBD who exactly does that)
 
 ```rust
 pub enum Event<C: Consensus> {
@@ -223,7 +228,7 @@ pub enum Event<C: Consensus> {
 ```
 
 #### Operation
-The Round state machine keeps track of the internal state of the consensus algorithm for a given round. It should be very close to the algorithm description in the original BFT consensus paper. 
+The Round state machine keeps track of the internal state of the consensus algorithm for a given round. It should be very close to the algorithm description in the original BFT consensus paper.
 
 #### Output Messages
 The Round state machine returns the following messages to the executor:
