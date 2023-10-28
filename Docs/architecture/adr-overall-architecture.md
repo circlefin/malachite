@@ -204,7 +204,7 @@ where
 
 The events passed to the Round state machine are very close to the preconditions for the transition functions in the BFT paper.
 In addition:
-- the `NewRound` events specify if the SM runs in the proposer mode or not. In the former case a value is also passed to the SM from the executor.
+- the `StartRound` events specify if the SM runs in the proposer mode or not. In the former case a valid value is also passed to the SM from the executor.
 - there are two `Poposal` events, for valid and invalid values. Therefore, the `valid(v)` check is not performed in the round SM but externally by the executor (TBD who exactly does that)
 
 ```rust
