@@ -10,7 +10,9 @@ type ExecutorState = {
     bk : Bookkeeper,
     cs : ConsensusState,
     proposals: Set[ProposeMsg_t],
-    valset: Address_t -> int
+    valset: Address_t -> int,
+    timeoutPrevote: Set[(Height_t, Round_t)],
+    timeoutPrecommit: Set[(Height_t, Round_t)]
 }
 
 type ExecutorInput = {
@@ -123,12 +125,15 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, bkr: BKResult) : (E
                     (es, Set(input))
                 }    
             }
-    else if (bkr.event.name == "PrecommitAny" and bkr.event.round == es.cs.round) {
-        callConsensus(es, bkr,  {name : "PrecommitAny",
+    else if (bkr.event.name == "PrecommitAny" and bkr.event.round == es.cs.round and
+            not(es.timeoutPrecommit.exists(x => x._2 == bkr.event.round))) {
+                val res = callConsensus(es, bkr,  {name : "PrecommitAny",
                                     height : input.vote.height,
                                     round: input.vote.round,
                                     value: input.vote.id,
-                                    vr: -1})      
+                                    vr: -1})    
+                // call consensus and remember that we did it                  
+                ({ ...res._1, timeoutPrecommit: res._1.timeoutPrecommit.union(Set((es.cs.height, es.cs.round)))}, res._2) 
     }
     else
         // none of the supported precommit events. Do nothing
@@ -137,24 +142,50 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, bkr: BKResult) : (E
 // TODO: make sure only valid proposals are in es.proposals
 
 pure def Prevote (es: ExecutorState, input: ExecutorInput, bkr: BKResult) : (ExecutorState, Set[ExecutorOutput]) = {
-    if (bkr.event.round < es.cs.round and bkr.event.name == "PolkaValue" and
-        es.proposals.exists(p => p.round == es.cs.round and
-            bkr.event.round == p.validRound and p.proposal == bkr.event.value)) 
-             callConsensus(es, bkr,  {name : "ProposalAndPolkaPreviousAndValid",
+    // TODO: events do not have heights now.
+    if (bkr.event.name == "PolkaValue")
+        if (bkr.event.round < es.cs.round and
+            es.proposals.exists(p => p.round == es.cs.round and
+                bkr.event.round == p.validRound and p.proposal == bkr.event.value)) 
+                callConsensus(es, bkr,  {name : "ProposalAndPolkaPreviousAndValid",
                                     height : es.cs.height,
                                     round: es.cs.round,
                                     value: bkr.event.value,
                                     vr: bkr.event.round})   
                                     // TODO: the value should come from the proposal   
+        else if (bkr.event.round == es.cs.round and
+            es.proposals.exists(p => p.round == es.cs.round and
+                p.proposal == bkr.event.value)) 
+                callConsensus(es, bkr,  {name : "ProposalAndPolkaAndValid",
+                                    height : es.cs.height,
+                                    round: es.cs.round,
+                                    value: bkr.event.value,
+                                    vr: bkr.event.round})   
+        else
+            // we don't have a matching proposal so we do nothing
+            // TODO: we might check whether it is for a future round and jump
+            (es, Set(input))
+    else if (bkr.event.name == "PolkaAny")
+        if (bkr.event.round == es.cs.round and 
+            not(es.timeoutPrevote.exists(x => x._2 == bkr.event.round)))
+                // call consensus and remember that we did it
+                val res = callConsensus(es, bkr,  {name : "PolkaAny",
+                                    height : es.cs.height,
+                                    round: es.cs.round,
+                                    value: bkr.event.value,
+                                    vr: bkr.event.round})  
+                ({ ...res._1, timeoutPrevote: res._1.timeoutPrevote.union(Set((es.cs.height, es.cs.round)))}, res._2) 
+        else
+            // TODO: we might check whether it is for a future round and jump
+            (es, Set(input))
+    else if (bkr.event.name == "PolkaNil" and bkr.event.round == es.cs.round)
+        callConsensus(es, bkr,  {name : "PolkaNil",
+                                    height : es.cs.height,
+                                    round: es.cs.round,
+                                    value: bkr.event.value,
+                                    vr: bkr.event.round})  
     else
-
-(es, Set(input))
-
-    //ProposalAndPolkaPreviousAndValid
-    //PolkaNil
-    //PolkaAny
-    //ProposalAndPolkaAndValid
-
+        (es, Set(input))
 }
 
 pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Set[ExecutorOutput]) = {
@@ -174,8 +205,11 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Se
         Prevote(es, input, res) 
     }
     else if (input.name == "timeout") {
-        // TODO
-        (es, Set(input))    
+        // TODO: We assume that the timeout event is always for the current round. If this is not
+        // the case, we need to encode it in the input to which round the timeout belongs
+        val res = consensus(es.cs, {name : input.timeout, height : es.cs.height,
+                                    round: es.cs.round, value: "", vr: 0})
+        ({ ...es, cs: res._1}, Set(computeOutput(res._2)))
     }
     else
         (es, Set(input))
