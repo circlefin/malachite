@@ -92,7 +92,7 @@ pub enum Events<C>
 where
     C: Consensus,
 {
-    NewRound(Round), // Start a new round, currently must be 0
+    StartRound(Round), // Start a new round, currently must be 0
     Proposal(C::Proposal), // A proposal has been received, must be complete
     Vote(SignedVote<C>), // A vote has been received
     Timeout(Timeout), // A timeout has occurred
@@ -101,8 +101,8 @@ where
 ```
 Notes:
 - TBD: Round 0 is always started by an external module. Subsequent rounds may be managed by the executor or it could be the responsibility of the external module to start a new round.
-  - Could also push the retrieval of the value to the external module, e.g. have `NewRoundProposer(round, proposal)`
-  - Should we change to `StartRound`? It matches the paper and also `NewRound` is also used in some places as output message.
+  - Could also push the retrieval of the value to the external module, e.g. have `StartRoundProposer(round, proposal)`
+  - Is the change to `StartRound` ok? It matches the paper and (the old name) `NewRound` is also used in some places as output message.
 - TBD: The proposal must be complete, i.e. it must contain a complete value. If this value is sent by the proposer in chunks, it is the responsibility of the chain concrete implementation to collect the proposal for the value ID together with the chunks to create a complete proposal.
 - TBD: The proposal should also implement `valid(v)`. Alternatively, the caller could do the verification and use the following inputs:
   - `Proposal(C::Proposal)` - a valid proposal has been received
@@ -169,12 +169,12 @@ The Vote Keeper keeps track of the votes received for each round and the total w
 
 ```rust
 pub enum Event<C: Consensus> {
-    PolkaAny, // Receive +2/3 prevotes for anything. L34
-    PolkaNil, // Receive +2/3 prevotes for nil. L44
-    PolkaValue(ValueId<C>), // Receive quorum prevotes for Value. L44
-    PrecommitAny, // Receive quorum precommits for anything. L47
-    PrecommitValue(ValueId<C>), // Receive quorum precommits for Value. L51
-    ThresholdCorrectProcessInHigherRound, // Receives messages from minimum of honest validators and for a higher round (as defined by honest_threshold). See L55
+    PolkaAny, // Received quorum prevotes for anything. L34
+    PolkaNil, // Received quorum prevotes for nil. L44
+    PolkaValue(ValueId<C>), // Received quorum prevotes for Value. L44
+    PrecommitAny, // Received quorum precommits for anything. L47
+    PrecommitValue(ValueId<C>), // Received quorum precommits for Value. L51
+    ThresholdCorrectProcessInHigherRound, // Received messages from minimum of honest validators and for a higher round (as defined by honest_threshold). See L55
 }
 ```
 
@@ -209,19 +209,19 @@ In addition:
 
 ```rust
 pub enum Event<C: Consensus> {
-    NewRound,                   // Start a new round, not as proposer.L20
-    NewRoundProposer(C::Value), // Start a new round and propose the Value.L14
-    Proposal(C::Proposal),      // Receive a proposal. L22 + L23 (valid)
+    StartRound,                   // Start a new round, not as proposer.L20
+    StartRoundProposer(C::Value), // Start a new round and propose the Value.L14
+    Proposal(C::Proposal),      // Received a proposal. L22 + L23 (valid)
     ProposalAndPolkaPrevious(C::Value), // Recieved a proposal and a polka value from a previous round. L28 + L29 (valid)
-    ProposalInvalid,         // Receive an invalid proposal. L26 + L32 (invalid)
-    PolkaValue(ValueId<C>),  // Receive +2/3 prevotes for valueId. L44
-    PolkaAny,                // Receive +2/3 prevotes for anything. L34
-    PolkaNil,                // Receive +2/3 prevotes for nil. L44
-    ProposalAndPolkaCurrent(C::Value),     // Receive +2/3 prevotes for Value in current round. L36
-    PrecommitAny,            // Receive +2/3 precommits for anything. L47
-    ProposalAndPrecommitValue(C::Value), // Receive +2/3 precommits for Value. L49
-    PrecommitValue(ValueId<C>), // Receive +2/3 precommits for ValueId. L51
-    ThresholdCorrectProcessInHigherRound, // Receive +1/3 messages from a higher round. aka RoundSkip, L55
+    ProposalInvalid,         // Received an invalid proposal. L26 + L32 (invalid)
+    PolkaValue(ValueId<C>),  // Received quorum prevotes for valueId. L44
+    PolkaAny,                // Received quorum prevotes for anything. L34
+    PolkaNil,                // Received quorum prevotes for nil. L44
+    ProposalAndPolkaCurrent(C::Value),     // Received quorum prevotes for Value in current round. L36
+    PrecommitAny,            // Received quorum precommits for anything. L47
+    ProposalAndPrecommitValue(C::Value), // Received quorum precommits for Value. L49
+    PrecommitValue(ValueId<C>), // Received quorum precommits for ValueId. L51
+    ThresholdCorrectProcessInHigherRound, // Received messages from a number of honest processes in a higher round. aka RoundSkip, L55
     TimeoutPropose,          // Timeout waiting for proposal. L57
     TimeoutPrevote,          // Timeout waiting for prevotes. L61
     TimeoutPrecommit,        // Timeout waiting for precommits. L65
@@ -229,7 +229,7 @@ pub enum Event<C: Consensus> {
 ```
 
 #### Operation
-The Round state machine keeps track of the internal state of the consensus algorithm for a given round. It should be very close to the algorithm description in the original BFT consensus paper.
+The Round state machine keeps track of the internal state of consensus for a given round. It should be very close to the algorithm description in the original BFT consensus paper.
 
 #### Output Messages
 The Round state machine returns the following messages to the executor:
@@ -239,11 +239,11 @@ pub enum Message<C>
 where
     C: Consensus,
 {
-    NewRound(Round),                // Move to the new round.
-    Proposal(C::Proposal),          // Broadcast the proposal.
-    Vote(C::Vote),                  // Broadcast the vote.
-    Timeout(Timeout),               // Schedule the timeout.
-    Decision(RoundValue<C::Value>), // Decide the value.
+    NewRound(Round),                // Move to a new round, could be next or skipped round.
+    Proposal(C::Proposal),          // Broadcast a proposal.
+    Vote(C::Vote),                  // Broadcast a vote.
+    Timeout(Timeout),               // Schedule a timeout.
+    Decision(RoundValue<C::Value>), // Decided on a value.
 }
 ```
 
