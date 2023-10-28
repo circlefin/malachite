@@ -1,4 +1,4 @@
-# ADR 001: High Level Architecture and Design for Tendermint Consensus Implementation in Rust
+# ADR 001: High Level Architecture for Tendermint Consensus Implementation in Rust
 
 ## Changelog
 * 2023-10-27: First draft.
