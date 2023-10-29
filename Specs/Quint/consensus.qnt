@@ -77,10 +77,18 @@ type Result = {
     skipRound: Round_t
 }
 
+val consensusResults = Set (
+    "proposal",
+    "vote",
+    "timeout",
+    "decided",
+    "skipRound"
+)
+
 val consensusEvents = Set(
     "NewHeight",
     "NewRound",                // Start a new round, not as proposer.
-    "NewRoundProposer(Value)", // Start a new round and propose the Value.
+    "NewRoundProposer", // Start a new round and propose the Value.
     "Proposal",      // Receive a proposal with possible polka round.
     "ProposalAndPolkaPreviousAndValid", //28 when valid
     "ProposalInvalid", // 26 and 32 when invalid in step propose
@@ -92,7 +100,10 @@ val consensusEvents = Set(
     "RoundSkip",               // Receive +1/3 votes from a higher round.
     "TimeoutPropose",          // Timeout waiting for proposal.
     "TimeoutPrevote",          // Timeout waiting for prevotes.
-    "TimeoutPrecommit"       // Timeout waiting for precommits
+    "TimeoutPrecommit",       // Timeout waiting for precommits
+// found after Montebello
+    "ProposalAndPolkaAndInValid"
+
 )
 
 /*    
