@@ -130,6 +130,7 @@ val defaultResult : Result = {
 pure def NewHeight (state: ConsensusState, ev: Event) : (ConsensusState, Result) = {
     val newstate = { ...state, 
 			    round: 0, 
+
                             step: "newRound", 
                             height : ev.height,
                             lockedRound: -1, 
