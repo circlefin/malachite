@@ -15,12 +15,34 @@ type ExecutorState = {
     timeoutPrecommit: Set[(Height_t, Round_t)]
 }
 
+type NodeState = {
+    es: ExecutorState,
+    incomingVotes: Set[VoteMsg_t],
+    incomingProposals: Set[ProposeMsg_t],
+}
+
 type ExecutorInput = {
     name: str,
     proposal: ProposeMsg_t,
     vote: VoteMsg_t,
     timeout: str
 }
+val defaultInput = {name: "",
+    proposal: {
+    src: "",
+    height: 0,
+    round: 0,
+    proposal: "",
+    validRound: 0
+    },
+    vote: {
+    src: "",
+    height: 0,
+    round: 0,
+    step: "",  // "prevote" or "precommit"
+    id: "",
+    },
+    timeout: ""}
 
 type ExecutorOutput = {
     name: str,
@@ -70,7 +92,19 @@ prevote
 
 pure def Proposer(height: Height_t, round: Round_t) : Address_t = "Josef"
 
+
 pure def computeOutput(res: Result) : ExecutorOutput = {
+    // if (res.name == "proposal") {
+
+    // }
+    // else {
+ /*    Result    
+    name : str,    
+    proposal: ProposeMsg_t,
+    voteMessage: VoteMsg_t,
+    timeout: Timeout_t,
+    decided: Value_t,
+    skipRound: Round_t */
     name: "TODO",
     proposal: {
     src: "Josef",
@@ -89,9 +123,32 @@ pure def computeOutput(res: Result) : ExecutorOutput = {
     timeout: "None"  
 }
 
+val emptyProposal : ProposeMsg_t= {
+    src: "none",
+    height: 0,
+    round: 0,
+    proposal: "none",
+    validRound: 0
+}
+
+val emptyVote = {
+    src: "none",
+    height: 0,
+    round: 0,
+    step: "None",  // "prevote" or "precommit"
+    id: "None",
+  }
+
+// TODO: callConsensus should return not a set but a simple output
 pure def callConsensus (es: ExecutorState,  bkr: BKResult, ev: Event) : (ExecutorState, Set[ExecutorOutput]) = {
     val res = consensus(es.cs, ev)
-    ({ ...es, bk: bkr.bookkeeper, cs: res._1}, Set(computeOutput(res._2)))
+    if (res._2.name == "proposal") {
+        val output = {name: "proposal", proposal: res._2.proposal, vote: emptyVote, timeout: "none"}
+        ({ ...es, bk: bkr.bookkeeper, cs: res._1}, Set(output))
+    }
+    else
+    //TODO other cases
+        ({ ...es, bk: bkr.bookkeeper, cs: res._1}, Set(computeOutput(res._2)))
 }
 
 pure def Precommit (es: ExecutorState, input: ExecutorInput, bkr: BKResult) : (ExecutorState, Set[ExecutorOutput]) = {
@@ -143,6 +200,7 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, bkr: BKResult) : (E
 
 pure def Prevote (es: ExecutorState, input: ExecutorInput, bkr: BKResult) : (ExecutorState, Set[ExecutorOutput]) = {
     // TODO: events do not have heights now.
+    // TODO: Polka implications missing.
     if (bkr.event.name == "PolkaValue")
         if (bkr.event.round < es.cs.round and
             es.proposals.exists(p => p.round == es.cs.round and
@@ -232,12 +290,32 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Se
 val validators = Set("v1", "v2", "v3", "v4")
 val valset = validators.mapBy(x => 1)
 
-var system : Address_t -> ConsensusState
-var _Result : Result
-var _Event : Event
+var system : Address_t -> NodeState
 
+//var _Result : Result
+//var _Event : Event
 
+action actTimeoutPrevote (validator: Address_t) : bool = all {
+    // check that the timeout is started
+    system.get(validator).es.timeoutPrevote.exists(x => 
+                x._1 == system.get(validator).es.cs.height and
+                x._2 == system.get(validator).es.cs.round),
+    val res = executor(system.get(validator).es, { ... defaultInput, name: "timeout", timeout: "TimeoutPrevote"})
+    //TODO: deliver proposals
+    //val newsys = system.keys().mapBy(x => 
+    //    { ...system.get(x), incomingProposals : system.get(x).incomingProposals.union(Set(emptyProposal)) } )
+    val v = { ...system.get(validator), es: res._1}
+    // TODO: stop the timeout?
+    system' = system.set(validator, v), 
+}
 
+action step = {
+    nondet v = oneOf(validators)
+    any {
+        actTimeoutPrevote(v),
+    }
+
+}
 
 
 }
