@@ -77,6 +77,14 @@ type Result = {
     skipRound: Round_t
 }
 
+val consensusResults = Set (
+    "proposal",
+    "vote",
+    "timeout",
+    "decided",
+    "skipRound"
+)
+
 val consensusEvents = Set(
     "NewHeight",			// Setups the state-machine for a single-height execution
     "NewRound",              		// Start a new round, not as proposer.
@@ -92,7 +100,9 @@ val consensusEvents = Set(
     "RoundSkip",               		// Receive +1/3 messages from different validators for a higher round.
     "TimeoutPropose",          		// Timeout waiting for proposal.
     "TimeoutPrevote",          		// Timeout waiting for prevotes for a value.
-    "TimeoutPrecommit"       		// Timeout waiting for precommits for a value.
+    "TimeoutPrecommit",       		// Timeout waiting for precommits for a value.
+// found after Montebello
+    "ProposalAndPolkaAndInValid"
 )
 
 /*    
