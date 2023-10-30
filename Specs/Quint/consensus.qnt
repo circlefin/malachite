@@ -7,7 +7,7 @@ TODO: check
 - check against arXiv
 - tests
 - types (e.g., heights in the messages)
-- "decision tree" in executor
+- discuss "decision tree" in executor
 - Should we think again about the components and the boundaries (especially between
   voteBookkeeper and executor)
 - Do we need tests for executor and bookkeeping
@@ -157,7 +157,7 @@ pure def NewRoundProposer (state: ConsensusState, ev: Event) : (ConsensusState, 
 // line 11.20
 pure def NewRound (state: ConsensusState, ev: Event) : (ConsensusState, Result) = {
     val newstate = { ...state, round: ev.round, step: "propose" }
-    val result = { ...defaultResult, name: "timeout", timeout: "timeoutPropose"} // do we need the roundnumber here?
+    val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPropose"} // do we need the roundnumber here?
         (newstate, result)
 }
 
@@ -230,7 +230,7 @@ pure def ProposalInvalid (state: ConsensusState, ev: Event) : (ConsensusState, R
 // line 34
 pure def PolkaAny (state: ConsensusState, ev: Event) : (ConsensusState, Result) = {
     if (state.step == "Prevote") {
-        val result = { ...defaultResult, name: "timeout", timeout: "timeoutPrevote" } // do we need the roundnumber here?
+        val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPrevote" } // do we need the roundnumber here?
         (state, result)
     }
     else
@@ -275,7 +275,7 @@ pure def PolkaNil (state: ConsensusState, ev: Event) : (ConsensusState, Result) 
 // line 47
 pure def PrecommitAny (state: ConsensusState, ev: Event) : (ConsensusState, Result) = {
     if (state.step == "Precommit") {
-        val result = { ...defaultResult, name: "timeout", timeout: "timeoutPrecommit" } // do we need the roundnumber here?
+        val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPrecommit" } // do we need the roundnumber here?
         (state, result)
     }
     else

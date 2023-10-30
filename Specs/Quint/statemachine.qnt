@@ -20,6 +20,7 @@ pure def initConsensusState (v: Address_t) : ConsensusState = {
     validValue: "nil"
 }
 
+
 pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
     // sum-up all voting powers
     val tvp = vs.keys().fold(0, (sum, key) => sum + vs.get(key))
@@ -32,6 +33,7 @@ pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
     pendingEvents: Set(),
     started: false,
     applyvotesResult: toEvent(0, "", {name: "", value: ""}), // debug
+    chain : List(),
     }
 }
 

@@ -14,6 +14,7 @@ type ExecutorState = {
     pendingEvents: Set[(Event, Height_t, Round_t)],
     started: bool,
     applyvotesResult: ExecutorEvent, //debug TODO!!!
+    chain : List[Value_t],
 }
 
 type NodeState = {
@@ -82,7 +83,8 @@ pure def Proposer(height: Height_t, round: Round_t) : Address_t = {
     else if  (prop == 2) "v3"
     else "v4"
 }
-pure def getValue(cs: ConsensusState, round:int) : Value_t = "empty"
+
+pure def getValue(cs: ConsensusState, round:int) : Value_t = "a block"
 pure def valid(v) = true
 
 // efficient hashing function
@@ -292,12 +294,17 @@ pure def decided (es: ExecutorState, res: Result) : (ExecutorState, Result) = {
     // here we call consensus to set a new height, that is, to initialize the state machine
     // and then we call skip to start round 0
     // TODO: one can put res.decided into the blockstore
+
+/*  // The following should be used to get to the next height. For now this
+    // function does nothing      
     val s1 = callConsensus(es, es.bk, {name : "NewHeight",
                                     height : es.cs.height + 1,
                                     round: -1,
                                     value: "",
                                     vr: es.cs.validRound})  
-    skip (s1._1, 0)
+    skip (s1._1, 0) 
+*/
+    ({ ...es, chain: es.chain.append(res.decided) } , res)
 }
 
 // take input out of pending events and then call consensus with that event
@@ -311,7 +318,7 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Re
     // TODO: shall we check whether the sender actually is in the validator set
     if (input.name == "proposal") {
         val cons_res = ProposalMsg(es, input)
-        if (cons_res._2.name == "decide")
+        if (cons_res._2.name == "decided")
             decided (cons_res._1, cons_res._2)
         else
             cons_res
@@ -321,7 +328,7 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Re
         val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
         // only a commit event can come here. 
         val cons_res = Precommit(newES, input, res.event) 
-        if (cons_res._2.name == "decide")
+        if (cons_res._2.name == "decided")
             decided (cons_res._1, cons_res._2)
         else
             cons_res
@@ -332,14 +339,14 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Re
         // only a commit event can come here. 
         Prevote(newES, input, res.event) 
     }
-    // else if (input.name == "timeout") {
-    //     val res = Timeout(es, input)
-    //     // result should be vote or skip
-    //     if (res._2.name == "skipRound")
-    //         skip (res._1, res._2.skipRound)
-    //     else
-    //         res
-    // }
+    else if (input.name == "timeout") {
+        val res = Timeout(es, input)
+        // result should be vote or skip
+        if (res._2.name == "skipRound")
+            skip (res._1, res._2.skipRound)
+        else
+            res
+    }
     else if (input.name == "start") {
         //
         val new = { ...es, started: true}
