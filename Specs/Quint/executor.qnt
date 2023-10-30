@@ -359,7 +359,8 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Re
         (es, defaultResult)
 }
 
-
+// This is a simple function that figures out in what external events (messages,
+// timeouts, etc.) the node should act.
 pure def nextAction (state: NodeState) : (NodeState, ExecutorInput) = {
     if (not(state.es.started))
         (state, { ...defaultInput, name: "start" })
@@ -389,6 +390,42 @@ pure def nextAction (state: NodeState) : (NodeState, ExecutorInput) = {
         (newstate, { ...defaultInput, name: "timeout", timeout: timeout._1})
 
     else if (state.es.pendingEvents != Set())
+        // this might be cheating as we look into the "es"
+        (state, { ...defaultInput, name: "pending" })
+
+    else
+        (state, defaultInput)
+}
+
+pure def nextActionCommand (state: NodeState, command: str) : (NodeState, ExecutorInput) = {
+    if (command == "start" and not(state.es.started))
+        (state, { ...defaultInput, name: "start" })
+
+    else if (command == "proposal" and state.incomingProposals != Set())
+        // pick proposal, remove it from incoming
+        // val prop = state.incomingProposals.chooseSome()
+        val prop = state.incomingProposals.fold (emptyProposal, (sum, y) => y)
+        val newstate = { ...state, incomingProposals: state.incomingProposals.exclude(Set(prop))}
+        (newstate, { ...defaultInput, name: "proposal", proposal: prop})
+
+    else if (command == "vote" and state.incomingVotes != Set())
+        // pick vote, remove it from incoming
+        // val vote = state.incomingVotes.chooseSome()
+        val vote = state.incomingVotes.fold(emptyVote, (sum, y) => y)
+        val newstate = { ...state, incomingVotes: state.incomingVotes.exclude(Set(vote))}
+        (newstate, { ...defaultInput, name: "votemessage", vote: vote})
+
+    else if (command == "timeout" and state.timeout.exists(x => x._2 == state.es.cs.height and 
+        x._3 == state.es.cs.round))
+        // pick timeout, remove it from incoming
+        val timeouts = state.timeout.filter(x => x._2 == state.es.cs.height and 
+            x._3 == state.es.cs.round)
+        // val timeout = timeouts.chooseSome()
+        val timeout = timeouts.fold(("", 0, 0), (sum, y) => y)
+        val newstate = { ...state, timeout: state.timeout.exclude(Set(timeout))}
+        (newstate, { ...defaultInput, name: "timeout", timeout: timeout._1})
+
+    else if (command == "pending" and state.es.pendingEvents != Set())
         // this might be cheating as we look into the "es"
         (state, { ...defaultInput, name: "pending" })
 
