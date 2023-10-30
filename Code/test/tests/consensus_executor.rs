@@ -1,6 +1,5 @@
 use malachite_common::{Consensus, Round, Timeout};
-use malachite_consensus::executor::{Executor, Output};
-use malachite_consensus::message::Message;
+use malachite_consensus::executor::{Event, Executor, Message};
 use malachite_round::state::{RoundValue, State, Step};
 
 use malachite_test::{Height, PrivateKey, Proposal, TestConsensus, Validator, ValidatorSet, Vote};
@@ -9,17 +8,17 @@ use rand::SeedableRng;
 
 struct TestStep {
     desc: &'static str,
-    input_message: Option<Message<TestConsensus>>,
-    expected_output: Option<Output<TestConsensus>>,
+    input_event: Option<Event<TestConsensus>>,
+    expected_output: Option<Message<TestConsensus>>,
     new_state: State<TestConsensus>,
 }
 
-fn to_input_msg(output: Output<TestConsensus>) -> Option<Message<TestConsensus>> {
+fn to_input_msg(output: Message<TestConsensus>) -> Option<Event<TestConsensus>> {
     match output {
-        Output::Propose(p) => Some(Message::Proposal(p)),
-        Output::Vote(v) => Some(Message::Vote(v)),
-        Output::Decide(_, _) => None,
-        Output::SetTimeout(_) => None,
+        Message::Propose(p) => Some(Event::Proposal(p)),
+        Message::Vote(v) => Some(Event::Vote(v)),
+        Message::Decide(_, _) => None,
+        Message::SetTimeout(_) => None,
     }
 }
 
@@ -49,8 +48,8 @@ fn executor_steps_proposer() {
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are proposer, propose value",
-            input_message: Some(Message::NewRound(Round::new(0))),
-            expected_output: Some(Output::Propose(proposal.clone())),
+            input_event: Some(Event::NewRound(Round::new(0))),
+            expected_output: Some(Message::Propose(proposal.clone())),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
@@ -62,8 +61,8 @@ fn executor_steps_proposer() {
         },
         TestStep {
             desc: "Receive our own proposal, prevote for it (v1)",
-            input_message: None,
-            expected_output: Some(Output::Vote(
+            input_event: None,
+            expected_output: Some(Message::Vote(
                 Vote::new_prevote(Round::new(0), Some(value_id)).signed(&my_sk),
             )),
             new_state: State {
@@ -77,7 +76,7 @@ fn executor_steps_proposer() {
         },
         TestStep {
             desc: "Receive our own prevote v1",
-            input_message: None,
+            input_event: None,
             expected_output: None,
             new_state: State {
                 height: Height::new(1),
@@ -90,7 +89,7 @@ fn executor_steps_proposer() {
         },
         TestStep {
             desc: "v2 prevotes for our proposal",
-            input_message: Some(Message::Vote(
+            input_event: Some(Event::Vote(
                 Vote::new_prevote(Round::new(0), Some(value_id)).signed(&sk2),
             )),
             expected_output: None,
@@ -105,10 +104,10 @@ fn executor_steps_proposer() {
         },
         TestStep {
             desc: "v3 prevotes for our proposal, we get +2/3 prevotes, precommit for it (v1)",
-            input_message: Some(Message::Vote(
+            input_event: Some(Event::Vote(
                 Vote::new_prevote(Round::new(0), Some(value_id)).signed(&sk3),
             )),
-            expected_output: Some(Output::Vote(
+            expected_output: Some(Message::Vote(
                 Vote::new_precommit(Round::new(0), Some(value_id)).signed(&my_sk),
             )),
             new_state: State {
@@ -128,7 +127,7 @@ fn executor_steps_proposer() {
         },
         TestStep {
             desc: "v1 receives its own precommit",
-            input_message: None,
+            input_event: None,
             expected_output: None,
             new_state: State {
                 height: Height::new(1),
@@ -147,7 +146,7 @@ fn executor_steps_proposer() {
         },
         TestStep {
             desc: "v2 precommits for our proposal",
-            input_message: Some(Message::Vote(
+            input_event: Some(Event::Vote(
                 Vote::new_precommit(Round::new(0), Some(value_id)).signed(&sk2),
             )),
             expected_output: None,
@@ -168,10 +167,10 @@ fn executor_steps_proposer() {
         },
         TestStep {
             desc: "v3 precommits for our proposal, we get +2/3 precommits, decide it (v1)",
-            input_message: Some(Message::Vote(
+            input_event: Some(Event::Vote(
                 Vote::new_precommit(Round::new(0), Some(value_id)).signed(&sk2),
             )),
-            expected_output: Some(Output::Decide(Round::new(0), value.clone())),
+            expected_output: Some(Message::Decide(Round::new(0), value.clone())),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
@@ -195,7 +194,7 @@ fn executor_steps_proposer() {
         println!("Step: {}", step.desc);
 
         let execute_message = step
-            .input_message
+            .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
         let output = executor.execute(execute_message);
@@ -234,8 +233,8 @@ fn executor_steps_not_proposer() {
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input_message: Some(Message::NewRound(Round::new(0))),
-            expected_output: Some(Output::SetTimeout(Timeout::propose(Round::new(0)))),
+            input_event: Some(Event::NewRound(Round::new(0))),
+            expected_output: Some(Message::SetTimeout(Timeout::propose(Round::new(0)))),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
@@ -247,8 +246,8 @@ fn executor_steps_not_proposer() {
         },
         TestStep {
             desc: "Receive a proposal, prevote for it (v2)",
-            input_message: Some(Message::Proposal(proposal.clone())),
-            expected_output: Some(Output::Vote(
+            input_event: Some(Event::Proposal(proposal.clone())),
+            expected_output: Some(Message::Vote(
                 Vote::new_prevote(Round::new(0), Some(value_id)).signed(my_sk),
             )),
             new_state: State {
@@ -262,7 +261,7 @@ fn executor_steps_not_proposer() {
         },
         TestStep {
             desc: "Receive our own prevote",
-            input_message: None,
+            input_event: None,
             expected_output: None,
             new_state: State {
                 height: Height::new(1),
@@ -275,7 +274,7 @@ fn executor_steps_not_proposer() {
         },
         TestStep {
             desc: "v2 prevotes for its own proposal",
-            input_message: Some(Message::Vote(
+            input_event: Some(Event::Vote(
                 Vote::new_prevote(Round::new(0), Some(value_id)).signed(&sk2),
             )),
             expected_output: None,
@@ -290,10 +289,10 @@ fn executor_steps_not_proposer() {
         },
         TestStep {
             desc: "v3 prevotes for v2's proposal, it gets +2/3 prevotes, precommit for it (v2)",
-            input_message: Some(Message::Vote(
+            input_event: Some(Event::Vote(
                 Vote::new_prevote(Round::new(0), Some(value_id)).signed(&sk3),
             )),
-            expected_output: Some(Output::Vote(
+            expected_output: Some(Message::Vote(
                 Vote::new_precommit(Round::new(0), Some(value_id)).signed(my_sk),
             )),
             new_state: State {
@@ -313,7 +312,7 @@ fn executor_steps_not_proposer() {
         },
         TestStep {
             desc: "we receive our own precommit",
-            input_message: None,
+            input_event: None,
             expected_output: None,
             new_state: State {
                 height: Height::new(1),
@@ -332,7 +331,7 @@ fn executor_steps_not_proposer() {
         },
         TestStep {
             desc: "v1 precommits its proposal",
-            input_message: Some(Message::Vote(
+            input_event: Some(Event::Vote(
                 Vote::new_precommit(Round::new(0), Some(value_id)).signed(&sk1),
             )),
             expected_output: None,
@@ -353,10 +352,10 @@ fn executor_steps_not_proposer() {
         },
         TestStep {
             desc: "v3 precommits for v1's proposal, it gets +2/3 precommits, decide it",
-            input_message: Some(Message::Vote(
+            input_event: Some(Event::Vote(
                 Vote::new_precommit(Round::new(0), Some(value_id)).signed(&sk3),
             )),
-            expected_output: Some(Output::Decide(Round::new(0), value.clone())),
+            expected_output: Some(Message::Decide(Round::new(0), value.clone())),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
@@ -380,7 +379,7 @@ fn executor_steps_not_proposer() {
         println!("Step: {}", step.desc);
 
         let execute_message = step
-            .input_message
+            .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
         let output = executor.execute(execute_message);
@@ -418,8 +417,8 @@ fn executor_steps_not_proposer_timeout() {
         // Start round 0, we are not the proposer
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input_message: Some(Message::NewRound(Round::new(0))),
-            expected_output: Some(Output::SetTimeout(Timeout::propose(Round::new(0)))),
+            input_event: Some(Event::NewRound(Round::new(0))),
+            expected_output: Some(Message::SetTimeout(Timeout::propose(Round::new(0)))),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
@@ -432,8 +431,8 @@ fn executor_steps_not_proposer_timeout() {
         // Receive a propose timeout, prevote for nil (v1)
         TestStep {
             desc: "Receive a propose timeout, prevote for nil (v1)",
-            input_message: Some(Message::Timeout(Timeout::propose(Round::new(0)))),
-            expected_output: Some(Output::Vote(
+            input_event: Some(Event::Timeout(Timeout::propose(Round::new(0)))),
+            expected_output: Some(Message::Vote(
                 Vote::new_prevote(Round::new(0), None).signed(&my_sk),
             )),
             new_state: State {
@@ -448,7 +447,7 @@ fn executor_steps_not_proposer_timeout() {
         // Receive our own prevote v1
         TestStep {
             desc: "Receive our own prevote v1",
-            input_message: None,
+            input_event: None,
             expected_output: None,
             new_state: State {
                 height: Height::new(1),
@@ -462,7 +461,7 @@ fn executor_steps_not_proposer_timeout() {
         // v2 prevotes for its own proposal
         TestStep {
             desc: "v2 prevotes for its own proposal",
-            input_message: Some(Message::Vote(
+            input_event: Some(Event::Vote(
                 Vote::new_prevote(Round::new(0), Some(value_id)).signed(&sk1),
             )),
             expected_output: None,
@@ -478,10 +477,10 @@ fn executor_steps_not_proposer_timeout() {
         // v3 prevotes for nil, it gets +2/3 prevotes, precommit for it (v1)
         TestStep {
             desc: "v3 prevotes for nil, it gets +2/3 prevotes, precommit for it (v1)",
-            input_message: Some(Message::Vote(
+            input_event: Some(Event::Vote(
                 Vote::new_prevote(Round::new(0), None).signed(&sk3),
             )),
-            expected_output: Some(Output::Vote(
+            expected_output: Some(Message::Vote(
                 Vote::new_precommit(Round::new(0), None).signed(&my_sk),
             )),
             new_state: State {
@@ -496,7 +495,7 @@ fn executor_steps_not_proposer_timeout() {
         // v1 receives its own precommit
         TestStep {
             desc: "v1 receives its own precommit",
-            input_message: None,
+            input_event: None,
             expected_output: None,
             new_state: State {
                 height: Height::new(1),
@@ -510,7 +509,7 @@ fn executor_steps_not_proposer_timeout() {
         // v2 precommits its proposal
         TestStep {
             desc: "v2 precommits its proposal",
-            input_message: Some(Message::Vote(
+            input_event: Some(Event::Vote(
                 Vote::new_precommit(Round::new(0), Some(value_id)).signed(&sk1),
             )),
             expected_output: None,
@@ -526,7 +525,7 @@ fn executor_steps_not_proposer_timeout() {
         // v3 precommits for nil
         TestStep {
             desc: "v3 precommits for nil",
-            input_message: Some(Message::Vote(
+            input_event: Some(Event::Vote(
                 Vote::new_precommit(Round::new(0), None).signed(&sk3),
             )),
             expected_output: None,
@@ -542,7 +541,7 @@ fn executor_steps_not_proposer_timeout() {
         // we receive a precommit timeout, start a new round
         TestStep {
             desc: "we receive a precommit timeout, start a new round",
-            input_message: Some(Message::Timeout(Timeout::precommit(Round::new(0)))),
+            input_event: Some(Event::Timeout(Timeout::precommit(Round::new(0)))),
             expected_output: None,
             new_state: State {
                 height: Height::new(1),
@@ -561,7 +560,7 @@ fn executor_steps_not_proposer_timeout() {
         println!("Step: {}", step.desc);
 
         let execute_message = step
-            .input_message
+            .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
         let output = executor.execute(execute_message);
