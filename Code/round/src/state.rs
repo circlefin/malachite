@@ -1,7 +1,7 @@
 use crate::events::Event;
 use crate::state_machine::Transition;
 
-use malachite_common::{Consensus, Round};
+use malachite_common::{Context, Round};
 
 /// A value and its associated round
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,18 +28,21 @@ pub enum Step {
 
 /// The state of the consensus state machine
 #[derive(Debug, PartialEq, Eq)]
-pub struct State<C: Consensus> {
-    pub height: C::Height,
+pub struct State<Ctx>
+where
+    Ctx: Context,
+{
+    pub height: Ctx::Height,
     pub round: Round,
     pub step: Step,
-    pub proposal: Option<C::Proposal>,
-    pub locked: Option<RoundValue<C::Value>>,
-    pub valid: Option<RoundValue<C::Value>>,
+    pub proposal: Option<Ctx::Proposal>,
+    pub locked: Option<RoundValue<Ctx::Value>>,
+    pub valid: Option<RoundValue<Ctx::Value>>,
 }
 
-impl<C> Clone for State<C>
+impl<Ctx> Clone for State<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
     fn clone(&self) -> Self {
         Self {
@@ -53,11 +56,11 @@ where
     }
 }
 
-impl<C> State<C>
+impl<Ctx> State<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
-    pub fn new(height: C::Height) -> Self {
+    pub fn new(height: Ctx::Height) -> Self {
         Self {
             height,
             round: Round::INITIAL,
@@ -94,21 +97,21 @@ where
         }
     }
 
-    pub fn set_locked(self, value: C::Value) -> Self {
+    pub fn set_locked(self, value: Ctx::Value) -> Self {
         Self {
             locked: Some(RoundValue::new(value, self.round)),
             ..self
         }
     }
 
-    pub fn set_valid(self, value: C::Value) -> Self {
+    pub fn set_valid(self, value: Ctx::Value) -> Self {
         Self {
             valid: Some(RoundValue::new(value, self.round)),
             ..self
         }
     }
 
-    pub fn apply_event(self, round: Round, event: Event<C>) -> Transition<C> {
+    pub fn apply_event(self, round: Round, event: Event<Ctx>) -> Transition<Ctx> {
         crate::state_machine::apply_event(self, round, event)
     }
 }

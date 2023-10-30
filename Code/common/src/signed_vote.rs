@@ -1,22 +1,22 @@
-use crate::{Consensus, Signature};
+use crate::{Context, Signature};
 
 // TODO: Do we need to abstract over `SignedVote` as well?
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SignedVote<C>
+pub struct SignedVote<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
-    pub vote: C::Vote,
-    pub address: C::Address,
-    pub signature: Signature<C>,
+    pub vote: Ctx::Vote,
+    pub address: Ctx::Address,
+    pub signature: Signature<Ctx>,
 }
 
-impl<C> SignedVote<C>
+impl<Ctx> SignedVote<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
-    pub fn new(vote: C::Vote, address: C::Address, signature: Signature<C>) -> Self {
+    pub fn new(vote: Ctx::Vote, address: Ctx::Address, signature: Signature<Ctx>) -> Self {
         Self {
             vote,
             address,
