@@ -79,7 +79,7 @@ type Result = {
 
 val consensusResults = Set (
     "proposal",
-    "vote",
+    "votemessage",
     "timeout",
     "decided",
     "skipRound"
