@@ -1,14 +1,23 @@
 use alloc::collections::BTreeMap;
 
 use malachite_common::{Consensus, Round, ValueId, Vote, VoteType};
-use malachite_round::events::Event;
 
 use crate::{
     count::{Threshold, Weight},
     RoundVotes,
 };
 
-/// Keeps track of votes and emits events when thresholds are reached.
+/// Messages emitted by the vote keeper
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Message<Value> {
+    PolkaAny,
+    PolkaNil,
+    PolkaValue(Value),
+    PrecommitAny,
+    PrecommitValue(Value),
+}
+
+/// Keeps track of votes and emits messages when thresholds are reached.
 #[derive(Clone, Debug)]
 pub struct VoteKeeper<C>
 where
@@ -36,7 +45,7 @@ where
     }
 
     /// Apply a vote with a given weight, potentially triggering an event.
-    pub fn apply_vote(&mut self, vote: C::Vote, weight: Weight) -> Option<Event<C>> {
+    pub fn apply_vote(&mut self, vote: C::Vote, weight: Weight) -> Option<Message<ValueId<C>>> {
         let round = self.rounds.entry(vote.round()).or_insert_with(|| {
             RoundVotes::new(self.height.clone(), vote.round(), self.total_weight)
         });
@@ -44,7 +53,7 @@ where
         let vote_type = vote.vote_type();
         let threshold = round.add_vote(vote, weight);
 
-        Self::to_event(vote_type, threshold)
+        Self::to_message(vote_type, threshold)
     }
 
     /// Check if a threshold is met, ie. if we have a quorum for that threshold.
@@ -66,17 +75,17 @@ where
     }
 
     /// Map a vote type and a threshold to a state machine event.
-    fn to_event(typ: VoteType, threshold: Threshold<ValueId<C>>) -> Option<Event<C>> {
+    fn to_message(typ: VoteType, threshold: Threshold<ValueId<C>>) -> Option<Message<ValueId<C>>> {
         match (typ, threshold) {
             (_, Threshold::Init) => None,
 
-            (VoteType::Prevote, Threshold::Any) => Some(Event::PolkaAny),
-            (VoteType::Prevote, Threshold::Nil) => Some(Event::PolkaNil),
-            (VoteType::Prevote, Threshold::Value(v)) => Some(Event::PolkaValue(v)),
+            (VoteType::Prevote, Threshold::Any) => Some(Message::PolkaAny),
+            (VoteType::Prevote, Threshold::Nil) => Some(Message::PolkaNil),
+            (VoteType::Prevote, Threshold::Value(v)) => Some(Message::PolkaValue(v)),
 
-            (VoteType::Precommit, Threshold::Any) => Some(Event::PrecommitAny),
+            (VoteType::Precommit, Threshold::Any) => Some(Message::PrecommitAny),
             (VoteType::Precommit, Threshold::Nil) => None,
-            (VoteType::Precommit, Threshold::Value(v)) => Some(Event::PrecommitValue(v)),
+            (VoteType::Precommit, Threshold::Value(v)) => Some(Message::PrecommitValue(v)),
         }
     }
 }

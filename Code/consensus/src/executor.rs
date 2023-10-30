@@ -11,9 +11,20 @@ use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
 use malachite_round::state::State as RoundState;
 use malachite_vote::count::Threshold;
+use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 
-use crate::message::Message;
+/// Messages that can be received and broadcast by the consensus executor.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Event<C>
+where
+    C: Consensus,
+{
+    NewRound(Round),
+    Proposal(C::Proposal),
+    Vote(SignedVote<C>),
+    Timeout(Timeout),
+}
 
 #[derive(Clone, Debug)]
 pub struct Executor<C>
@@ -29,7 +40,7 @@ where
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Output<C>
+pub enum Message<C>
 where
     C: Consensus,
 {
@@ -65,7 +76,7 @@ where
         C::DUMMY_VALUE
     }
 
-    pub fn execute(&mut self, msg: Message<C>) -> Option<Output<C>> {
+    pub fn execute(&mut self, msg: Event<C>) -> Option<Message<C>> {
         let round_msg = match self.apply(msg) {
             Some(msg) => msg,
             None => return None,
@@ -83,7 +94,7 @@ where
 
             RoundMessage::Proposal(proposal) => {
                 // sign the proposal
-                Some(Output::Propose(proposal))
+                Some(Message::Propose(proposal))
             }
 
             RoundMessage::Vote(vote) => {
@@ -96,24 +107,24 @@ where
                 let signature = C::sign_vote(&vote, self.key.expose_secret());
                 let signed_vote = SignedVote::new(vote, address, signature);
 
-                Some(Output::Vote(signed_vote))
+                Some(Message::Vote(signed_vote))
             }
 
-            RoundMessage::Timeout(timeout) => Some(Output::SetTimeout(timeout)),
+            RoundMessage::Timeout(timeout) => Some(Message::SetTimeout(timeout)),
 
             RoundMessage::Decision(value) => {
                 // TODO: update the state
-                Some(Output::Decide(value.round, value.value))
+                Some(Message::Decide(value.round, value.value))
             }
         }
     }
 
-    fn apply(&mut self, msg: Message<C>) -> Option<RoundMessage<C>> {
+    fn apply(&mut self, msg: Event<C>) -> Option<RoundMessage<C>> {
         match msg {
-            Message::NewRound(round) => self.apply_new_round(round),
-            Message::Proposal(proposal) => self.apply_proposal(proposal),
-            Message::Vote(signed_vote) => self.apply_vote(signed_vote),
-            Message::Timeout(timeout) => self.apply_timeout(timeout),
+            Event::NewRound(round) => self.apply_new_round(round),
+            Event::Proposal(proposal) => self.apply_proposal(proposal),
+            Event::Vote(signed_vote) => self.apply_vote(signed_vote),
+            Event::Timeout(timeout) => self.apply_timeout(timeout),
         }
     }
 
@@ -188,11 +199,19 @@ where
 
         let round = signed_vote.vote.round();
 
-        let event = self
+        let vote_msg = self
             .votes
             .apply_vote(signed_vote.vote, validator.voting_power())?;
 
-        self.apply_event(round, event)
+        let round_event = match vote_msg {
+            VoteMessage::PolkaAny => RoundEvent::PolkaAny,
+            VoteMessage::PolkaNil => RoundEvent::PolkaNil,
+            VoteMessage::PolkaValue(v) => RoundEvent::PolkaValue(v),
+            VoteMessage::PrecommitAny => RoundEvent::PrecommitAny,
+            VoteMessage::PrecommitValue(v) => RoundEvent::PrecommitValue(v),
+        };
+
+        self.apply_event(round, round_event)
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Option<RoundMessage<C>> {

@@ -1,6 +1,5 @@
 use malachite_common::Round;
-use malachite_round::events::Event;
-use malachite_vote::keeper::VoteKeeper;
+use malachite_vote::keeper::{Message, VoteKeeper};
 
 use malachite_test::{Height, TestConsensus, ValueId, Vote};
 
@@ -10,14 +9,14 @@ fn prevote_apply_nil() {
 
     let vote = Vote::new_prevote(Round::new(0), None);
 
-    let event = keeper.apply_vote(vote.clone(), 1);
-    assert_eq!(event, None);
+    let msg = keeper.apply_vote(vote.clone(), 1);
+    assert_eq!(msg, None);
 
-    let event = keeper.apply_vote(vote.clone(), 1);
-    assert_eq!(event, None);
+    let msg = keeper.apply_vote(vote.clone(), 1);
+    assert_eq!(msg, None);
 
-    let event = keeper.apply_vote(vote, 1);
-    assert_eq!(event, Some(Event::PolkaNil));
+    let msg = keeper.apply_vote(vote, 1);
+    assert_eq!(msg, Some(Message::PolkaNil));
 }
 
 #[test]
@@ -26,14 +25,14 @@ fn precommit_apply_nil() {
 
     let vote = Vote::new_precommit(Round::new(0), None);
 
-    let event = keeper.apply_vote(vote.clone(), 1);
-    assert_eq!(event, None);
+    let msg = keeper.apply_vote(vote.clone(), 1);
+    assert_eq!(msg, None);
 
-    let event = keeper.apply_vote(vote.clone(), 1);
-    assert_eq!(event, None);
+    let msg = keeper.apply_vote(vote.clone(), 1);
+    assert_eq!(msg, None);
 
-    let event = keeper.apply_vote(vote, 1);
-    assert_eq!(event, None);
+    let msg = keeper.apply_vote(vote, 1);
+    assert_eq!(msg, None);
 }
 
 #[test]
@@ -44,18 +43,18 @@ fn prevote_apply_single_value() {
     let val = Some(v);
     let vote = Vote::new_prevote(Round::new(0), val);
 
-    let event = keeper.apply_vote(vote.clone(), 1);
-    assert_eq!(event, None);
+    let msg = keeper.apply_vote(vote.clone(), 1);
+    assert_eq!(msg, None);
 
-    let event = keeper.apply_vote(vote.clone(), 1);
-    assert_eq!(event, None);
+    let msg = keeper.apply_vote(vote.clone(), 1);
+    assert_eq!(msg, None);
 
     let vote_nil = Vote::new_prevote(Round::new(0), None);
-    let event = keeper.apply_vote(vote_nil, 1);
-    assert_eq!(event, Some(Event::PolkaAny));
+    let msg = keeper.apply_vote(vote_nil, 1);
+    assert_eq!(msg, Some(Message::PolkaAny));
 
-    let event = keeper.apply_vote(vote, 1);
-    assert_eq!(event, Some(Event::PolkaValue(v)));
+    let msg = keeper.apply_vote(vote, 1);
+    assert_eq!(msg, Some(Message::PolkaValue(v)));
 }
 
 #[test]
@@ -66,16 +65,16 @@ fn precommit_apply_single_value() {
     let val = Some(v);
     let vote = Vote::new_precommit(Round::new(0), val);
 
-    let event = keeper.apply_vote(vote.clone(), 1);
-    assert_eq!(event, None);
+    let msg = keeper.apply_vote(vote.clone(), 1);
+    assert_eq!(msg, None);
 
-    let event = keeper.apply_vote(vote.clone(), 1);
-    assert_eq!(event, None);
+    let msg = keeper.apply_vote(vote.clone(), 1);
+    assert_eq!(msg, None);
 
     let vote_nil = Vote::new_precommit(Round::new(0), None);
-    let event = keeper.apply_vote(vote_nil, 1);
-    assert_eq!(event, Some(Event::PrecommitAny));
+    let msg = keeper.apply_vote(vote_nil, 1);
+    assert_eq!(msg, Some(Message::PrecommitAny));
 
-    let event = keeper.apply_vote(vote, 1);
-    assert_eq!(event, Some(Event::PrecommitValue(v)));
+    let msg = keeper.apply_vote(vote, 1);
+    assert_eq!(msg, Some(Message::PrecommitValue(v)));
 }
