@@ -65,7 +65,7 @@ run DecideNonProposerTest = {
     init
     .then(FireEvent("NewRound", "Josef", 1, 0, "", -1))
     .then(all{
-        assert(_Result.timeout == "timeoutPropose"),
+        assert(_Result.timeout == "TimeoutPropose"),
         unchangedAll
     })
     .then(FireEvent("Proposal", "Josef", 1, 0, "block", -1))
@@ -90,7 +90,7 @@ run DecideNonProposerTest = {
     })    
     .then(FireEvent("NewRoundProposer", "Josef", 2, 0, "nextBlock", -1))
     .then(all{
-        assert(_Result.timeout != "timeoutPropose" and _Result.proposal.proposal == "nextBlock"),
+        assert(_Result.timeout != "TimeoutPropose" and _Result.proposal.proposal == "nextBlock"),
         unchangedAll
     })
     .then(FireEvent("Proposal", "Josef", 2, 0, "nextBlock", -1)) // it is assumed that the proposer receives its own message
@@ -100,7 +100,7 @@ run DecideNonProposerTest = {
     })
     .then(FireEvent("PolkaAny", "Josef", 2, 0, "nextBlock", -1))
     .then(all{
-        assert(_Result.timeout == "timeoutPrevote"),
+        assert(_Result.timeout == "TimeoutPrevote"),
         unchangedAll
     })
     .then(FireEvent("TimeoutPrevote", "Josef", 2, 0, "nextBlock", -1))
@@ -111,7 +111,7 @@ run DecideNonProposerTest = {
     })
     .then(FireEvent("PrecommitAny", "Josef", 2, 0, "nextBlock", -1))
     .then(all{
-        assert(_Result.timeout == "timeoutPrecommit"),
+        assert(_Result.timeout == "TimeoutPrecommit"),
         unchangedAll
     })
     .then(FireEvent("TimeoutPrecommit", "Josef", 2, 0, "nextBlock", -1))
@@ -121,7 +121,7 @@ run DecideNonProposerTest = {
     })
     .then(FireEvent("NewRound", "Josef", 2, 1, "", -1))
     .then(all{
-        assert(_Result.timeout == "timeoutPropose"),
+        assert(_Result.timeout == "TimeoutPropose"),
         unchangedAll
     })
     .then(FireEvent("TimeoutPropose", "Josef", 2, 1, "nextBlock", -1))
@@ -138,7 +138,7 @@ run DecideNonProposerTest = {
     })
     .then(FireEvent("PrecommitAny", "Josef", 2, 1, "nextBlock", -1))
     .then(all{
-        assert(_Result.timeout == "timeoutPrecommit"),
+        assert(_Result.timeout == "TimeoutPrecommit"),
         unchangedAll
     })
     .then(FireEvent("TimeoutPrecommit", "Josef", 2, 1, "nextBlock", -1))
@@ -148,7 +148,7 @@ run DecideNonProposerTest = {
     })
     .then(FireEvent("NewRound", "Josef", 2, 2, "", -1))
     .then(all{
-        assert(_Result.timeout == "timeoutPropose"),
+        assert(_Result.timeout == "TimeoutPropose"),
         unchangedAll
     })
     .then(FireEvent("ProposalInvalid", "Josef", 2, 2, "", -1))
