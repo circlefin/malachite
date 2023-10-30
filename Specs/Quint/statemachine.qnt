@@ -92,9 +92,9 @@ action valStep(v: Address_t) : bool = {
             system' = startTimeout(sys, v, res._2.timeout)
         else if (res._2.name == "skipRound")
             //skipRound should never leave the executor
-            system' = system
+            system' = sys
         else 
-            system' = system,
+            system' = sys,
         _hist' = (v, input._2, res._2)
 //         _histSimple' = (v, input._2.name, res._2.name)
     }
