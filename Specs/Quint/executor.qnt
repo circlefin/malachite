@@ -347,23 +347,28 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Re
 }
 
 
-pure def nextAction (state: NodeState) : ExecutorInput = {
+pure def nextAction (state: NodeState) : (NodeState, ExecutorInput) = {
     if (not(state.es.started))
-        { ...defaultInput, name: "start" }
+        (state, { ...defaultInput, name: "start" })
     else if (state.incomingProposals != Set())
-        { ...defaultInput, name: "proposal", proposal: state.incomingProposals.chooseSome()}
+        val prop = state.incomingProposals.chooseSome()
+        val newstate = { ...state, incomingProposals: state.incomingProposals.exclude(Set(prop))}
+        (newstate, { ...defaultInput, name: "proposal", proposal: prop})
     else if (state.incomingVotes != Set())
-        { ...defaultInput, name: "vote", vote: state.incomingVotes.chooseSome()}
+        val vote = state.incomingVotes.chooseSome()
+        val newstate = { ...state, incomingVotes: state.incomingVotes.exclude(Set(vote))}
+        (newstate, { ...defaultInput, name: "vote", vote: vote})
     else if (state.timeout.exists(x => x._2 == state.es.cs.height and 
         x._3 == state.es.cs.round))
-        val temp = state.timeout.filter(x => x._2 == state.es.cs.height and 
+        val timeout = state.timeout.filter(x => x._2 == state.es.cs.height and 
             x._3 == state.es.cs.round).chooseSome()
-        { ...defaultInput, name: "timeout", timeout: temp._1}
+        val newstate = { ...state, timeout: state.timeout.exclude(Set(timeout))}
+        (newstate, { ...defaultInput, name: "timeout", timeout: timeout._1})
     else if (state.es.pendingEvents != Set())
         // this might be cheating as we look into the "es"
-        { ...defaultInput, name: "pending" }
+        (state, { ...defaultInput, name: "pending" })
     else
-        defaultInput
+        (state, defaultInput)
 }
 
 }

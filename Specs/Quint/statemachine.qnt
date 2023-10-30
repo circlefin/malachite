@@ -45,11 +45,11 @@ val validators = Set("v1", "v2", "v3", "v4")
 val valset = validators.mapBy(x => 1)
 
 var system : Address_t -> NodeState
-var _hist: str
+var _hist: (str, ExecutorInput, Result)
 
 action init = all {
     system' = validators.mapBy(v => initNode(v, valset)),
-    _hist' = "INIT"
+    _hist' = ("INIT", defaultInput, defaultResult)
 }
 
 // Put the proposal into the inbuffers of all validators
@@ -89,7 +89,7 @@ action bigbang (validator: Address_t) : bool =
         system' = system
     else 
         system' = system,
-    _hist' = res._2.name
+    _hist' = (validator, { ...defaultInput, name: "start"}, res._2)
     }
 
 action actTimeoutPrevote (validator: Address_t) : bool = all {
@@ -109,7 +109,8 @@ action actTimeoutPrevote (validator: Address_t) : bool = all {
 action step = {
     nondet v = oneOf(validators)
     val input = system.get(v).nextAction()
-    val res = executor(system.get(v).es, input)
+    val sys1 = system.put(v, input._1)
+    val res = executor(sys1.get(v).es, input._2)
     all {
     // update validator's executor state
         val sys = system.put(v, { ...system.get(v), es: res._1})
@@ -124,7 +125,7 @@ action step = {
             system' = system
         else 
             system' = system,
-        _hist' = res._2.name
+        _hist' = (v, input._2, res._2)
     }
 
 }
