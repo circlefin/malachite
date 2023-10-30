@@ -45,13 +45,13 @@ val validators = Set("v1", "v2", "v3", "v4")
 val valset = validators.mapBy(x => 1)
 
 var system : Address_t -> NodeState
-// var _hist: (str, ExecutorInput, Result)
-var _histSimple: (str, str, str)
+var _hist: (str, ExecutorInput, Result)
+//var _histSimple: (str, str, str)
 
 action init = all {
     system' = validators.mapBy(v => initNode(v, valset)),
-//    _hist' = ("INIT", defaultInput, defaultResult)
-    _histSimple' = ("INIT", "", "")
+    _hist' = ("INIT", defaultInput, defaultResult)
+//    _histSimple' = ("INIT", "", "")
 }
 
 // Put the proposal into the inbuffers of all validators
@@ -95,8 +95,8 @@ action valStep(v: Address_t) : bool = {
             system' = system
         else 
             system' = system,
-//        _hist' = (v, input._2, res._2)
-         _histSimple' = (v, input._2.name, res._2.name)
+        _hist' = (v, input._2, res._2)
+//         _histSimple' = (v, input._2.name, res._2.name)
     }
 }
     
