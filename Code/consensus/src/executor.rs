@@ -11,6 +11,7 @@ use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
 use malachite_round::state::State as RoundState;
 use malachite_vote::count::Threshold;
+use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 
 /// Messages that can be received and broadcast by the consensus executor.
@@ -198,11 +199,19 @@ where
 
         let round = signed_vote.vote.round();
 
-        let event = self
+        let vote_msg = self
             .votes
             .apply_vote(signed_vote.vote, validator.voting_power())?;
 
-        self.apply_event(round, event)
+        let round_event = match vote_msg {
+            VoteMessage::PolkaAny => RoundEvent::PolkaAny,
+            VoteMessage::PolkaNil => RoundEvent::PolkaNil,
+            VoteMessage::PolkaValue(v) => RoundEvent::PolkaValue(v),
+            VoteMessage::PrecommitAny => RoundEvent::PrecommitAny,
+            VoteMessage::PrecommitValue(v) => RoundEvent::PrecommitValue(v),
+        };
+
+        self.apply_event(round, round_event)
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Option<RoundMessage<C>> {
