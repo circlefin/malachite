@@ -76,6 +76,9 @@ pure def startTimeout (sys: Address_t -> NodeState, v: Address_t, toName: str) :
     ))})
 }
 
+// this is a simple semantics that puts messages that are sent immediately in the
+// inbuffer of the receivers. By the way nextAction() is implemented timeouts
+// hardly ever are fired
 action valStep(v: Address_t) : bool = {
     // pick action
     val input = system.get(v).nextAction() // TODO: nextAction could go within executor boundary
@@ -102,30 +105,39 @@ action valStep(v: Address_t) : bool = {
 //         _histSimple' = (v, input._2.name, res._2.name)
     }
 }
-    
+
+action valStepCommand(v: Address_t, command: str) : bool = {
+    // pick action
+    val input = system.get(v).nextActionCommand(command) 
+    // remove action from v
+    val sys1 = system.put(v, input._1)
+    // call executor
+    val res = executor(sys1.get(v).es, input._2)
+    all {
+        // update v's state after the step
+        val sys = sys1.put(v, { ...sys1.get(v), es: res._1})
+        // do networking
+        if (res._2.name == "proposal")
+            system' = deliverProposal(sys, res._2.proposal) // TODO: this is immediate
+        else if (res._2.name == "votemessage") 
+            system' = deliverVote(sys, res._2.voteMessage) // TODO: this is immediate
+        else if (res._2.name == "timeout")
+            system' = startTimeout(sys, v, res._2.timeout)
+        else if (res._2.name == "skipRound")
+            //skipRound should never leave the executor
+            system' = sys
+        else 
+            system' = sys,
+        _hist' = (v, input._2, res._2)
+//         _histSimple' = (v, input._2.name, res._2.name)
+    }
+}
+
 action step = {
     nondet v = oneOf(validators)
     valStep(v)
 }
 
 
-// action bigbang (validator: Address_t) : bool = 
-//     val res = executor(system.get(validator).es, { ...defaultInput, name: "start"})
-//     all {
-//     // update validator's executor state
-//     val sys = system.put(validator, { ...system.get(validator), es: res._1})
-//     if (res._2.name == "proposal")
-//         system' = deliverProposal(sys, res._2.proposal)
-//     else if (res._2.name == "vote") 
-//         system' = deliverVote(sys, res._2.voteMessage)
-//     else if (res._2.name == "timeout")
-//         system' = startTimeout(sys, validator, res._2.timeout)
-//     else if (res._2.name == "skipRound")
-//         //skipRound should never leave the executor
-//         system' = system
-//     else 
-//         system' = system,
-//     _hist' = (validator, { ...defaultInput, name: "start"}, res._2)
-//     }
 
 }
