@@ -13,6 +13,7 @@ type ExecutorState = {
     executedEvents: Set[(Event, Height_t, Round_t)],
     pendingEvents: Set[(Event, Height_t, Round_t)],
     started: bool,
+    applyvotesResult: ExecutorEvent, //debug TODO!!!
 }
 
 type NodeState = {
@@ -51,13 +52,13 @@ proposal
             generate all Consensus events C
             feed all events to Consensus
 
-precommit
+Precommit
     BK applyVote
     (see whether we can make (A) 2f+1 Any for current or 
                              (B) 2f+1 plus proposal for current)
     -> feed all events to Consensus
 
-prevote
+Prevote
     BK applyVote 
     For current round PolkaVal -> PolkaAny and PolkaNil -> PolkaAny: list of Events
     check proposal: list of Consensus evens (considering line 28)
@@ -97,7 +98,7 @@ pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (Executo
         ({ ...es, bk: bk, cs: res._1, executedEvents: es.executedEvents.union(Set((ev, res._1.height, res._1.round)))}, res._2)
 }
 
-// We do this if the executor receives a precommit
+// We do this if the executor receives a Precommit
 pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent) : (ExecutorState, Result) = {
     if (eev.name == "PrecommitValue")
             if (es.proposals.exists(x => eev.round == x.round and eev.value == x.proposal)) {
@@ -137,13 +138,13 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent)
                                     vr: -1})    
     }
     else
-        // none of the supported precommit events. Do nothing
+        // none of the supported Precommit events. Do nothing
         (es, defaultResult)  
 }
 
 // TODO: make sure only valid proposals are in es.proposals
 
-// We do this if the executor receives a prevote
+// We do this if the executor receives a Prevote
 pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) : (ExecutorState, Result) = {
     // TODO: events do not have heights now.
     // TODO: Polka implications missing.
@@ -244,7 +245,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
                                     vr: input.proposal.round})  
                 else  
                     (newES, defaultResult)
-        else if (newES.cs.step == "prevote" or newES.cs.step == "precommit") 
+        else if (newES.cs.step == "Prevote" or newES.cs.step == "Precommit") 
             if (checkThreshold(newES.bk, newES.cs.round, "Precommit", {name: "PrecommitValue", value: input.proposal.proposal}))
                 callConsensus(newES, newES.bk,  {name : "ProposalAndCommitAndValid",
                                     height : newES.cs.height,
@@ -315,9 +316,9 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Re
         else
             cons_res
     }
-    else if (input.name == "votemessage" and input.vote.step == "precommit") {
+    else if (input.name == "votemessage" and input.vote.step == "Precommit") {
         val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
-        val newES = { ...es, bk: res.bookkeeper}
+        val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
         // only a commit event can come here. 
         val cons_res = Precommit(newES, input, res.event) 
         if (cons_res._2.name == "decide")
@@ -325,20 +326,20 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Re
         else
             cons_res
     }
-    else if (input.name == "votemessage" and input.vote.step == "prevote") {
+    else if (input.name == "votemessage" and input.vote.step == "Prevote") {
         val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
-        val newES = { ...es, bk: res.bookkeeper}
+        val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
         // only a commit event can come here. 
         Prevote(newES, input, res.event) 
     }
-    else if (input.name == "timeout") {
-        val res = Timeout(es, input)
-        // result should be vote or skip
-        if (res._2.name == "skipRound")
-            skip (res._1, res._2.skipRound)
-        else
-            res
-    }
+    // else if (input.name == "timeout") {
+    //     val res = Timeout(es, input)
+    //     // result should be vote or skip
+    //     if (res._2.name == "skipRound")
+    //         skip (res._1, res._2.skipRound)
+    //     else
+    //         res
+    // }
     else if (input.name == "start") {
         //
         val new = { ...es, started: true}

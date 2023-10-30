@@ -70,12 +70,12 @@ run DecideNonProposerTest = {
     })
     .then(FireEvent("Proposal", "Josef", 1, 0, "block", -1))
     .then(all{
-        assert(_Result.voteMessage.step == "prevote" and _Result.voteMessage.id == "block"),
+        assert(_Result.voteMessage.step == "Prevote" and _Result.voteMessage.id == "block"),
         unchangedAll
     })
     .then(FireEvent("ProposalAndPolkaAndValid", "Josef", 1, 0, "block", -1))
     .then(all{
-        assert(_Result.voteMessage.step == "precommit" and _Result.voteMessage.id == "block"),
+        assert(_Result.voteMessage.step == "Precommit" and _Result.voteMessage.id == "block"),
         unchangedAll
     })
     .then(FireEvent("ProposalAndCommitAndValid", "Josef", 1, 0, "block", -1))  
@@ -95,7 +95,7 @@ run DecideNonProposerTest = {
     })
     .then(FireEvent("Proposal", "Josef", 2, 0, "nextBlock", -1)) // it is assumed that the proposer receives its own message
     .then(all{
-        assert(_Result.voteMessage.step == "prevote" and system.get("Josef").step == "prevote"),
+        assert(_Result.voteMessage.step == "Prevote" and system.get("Josef").step == "Prevote"),
         unchangedAll
     })
     .then(FireEvent("PolkaAny", "Josef", 2, 0, "nextBlock", -1))
@@ -105,8 +105,8 @@ run DecideNonProposerTest = {
     })
     .then(FireEvent("TimeoutPrevote", "Josef", 2, 0, "nextBlock", -1))
     .then(all{
-        assert(_Result.voteMessage.step == "precommit" and _Result.voteMessage.id == "nil" and
-               system.get("Josef").step == "precommit"),
+        assert(_Result.voteMessage.step == "Precommit" and _Result.voteMessage.id == "nil" and
+               system.get("Josef").step == "Precommit"),
         unchangedAll
     })
     .then(FireEvent("PrecommitAny", "Josef", 2, 0, "nextBlock", -1))
@@ -126,14 +126,14 @@ run DecideNonProposerTest = {
     })
     .then(FireEvent("TimeoutPropose", "Josef", 2, 1, "nextBlock", -1))
     .then(all{
-        assert(_Result.voteMessage.step == "prevote" and _Result.voteMessage.id == "nil" and
-               system.get("Josef").step == "prevote"),
+        assert(_Result.voteMessage.step == "Prevote" and _Result.voteMessage.id == "nil" and
+               system.get("Josef").step == "Prevote"),
         unchangedAll
     })
     .then(FireEvent("PolkaNil", "Josef", 2, 1, "nextBlock", -1))
     .then(all{
-        assert(_Result.voteMessage.step == "precommit" and _Result.voteMessage.id == "nil" and
-               system.get("Josef").step == "precommit"),
+        assert(_Result.voteMessage.step == "Precommit" and _Result.voteMessage.id == "nil" and
+               system.get("Josef").step == "Precommit"),
         unchangedAll
     })
     .then(FireEvent("PrecommitAny", "Josef", 2, 1, "nextBlock", -1))
@@ -153,8 +153,8 @@ run DecideNonProposerTest = {
     })
     .then(FireEvent("ProposalInvalid", "Josef", 2, 2, "", -1))
     .then(all{
-        assert(_Result.voteMessage.step == "prevote" and _Result.voteMessage.id == "nil" and
-               system.get("Josef").step == "prevote"),
+        assert(_Result.voteMessage.step == "Prevote" and _Result.voteMessage.id == "nil" and
+               system.get("Josef").step == "Prevote"),
         unchangedAll
     })
 }

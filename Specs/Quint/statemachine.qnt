@@ -31,6 +31,7 @@ pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
     executedEvents: Set(),
     pendingEvents: Set(),
     started: false,
+    applyvotesResult: toEvent(0, "", {name: "", value: ""}), // debug
     }
 }
 
