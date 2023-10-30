@@ -71,7 +71,7 @@ val emptyVote =
     { src: "none", height: 0, round: 0, step: "None", id: "None" }
 
 //
-// Interface to app and/or mempool (Proposer, getProposal, valid)
+// Interface to app and/or mempool (Proposer, getValue, valid)
 // 
 // Rotating coordinator. We can do something more clever
 pure def Proposer(height: Height_t, round: Round_t) : Address_t = {
@@ -81,7 +81,7 @@ pure def Proposer(height: Height_t, round: Round_t) : Address_t = {
     else if  (prop == 2) "v3"
     else "v4"
 }
-pure def getProposal(cs: ConsensusState, round:int) : Value_t = "empty"
+pure def getValue(cs: ConsensusState, round:int) : Value_t = "empty"
 pure def valid(v) = true
 
 // efficient hashing function
@@ -264,8 +264,8 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
 
 // We do this when we need to jump to a new round
 pure def skip (es: ExecutorState, r: int) : (ExecutorState, Result) = {
-    val prop =  if (es.cs.validValue != "nil") getProposal(es.cs, r)
-                else es.cs.validValue
+    val prop =  if (es.cs.validValue != "nil") es.cs.validValue
+                else getValue(es.cs, r)
     if (Proposer(es.cs.height, es.cs.round + 1) == es.cs.p)
         callConsensus(es, es.bk,  {name : "NewRoundProposer",
                                     height : es.cs.height,
@@ -351,17 +351,24 @@ pure def nextAction (state: NodeState) : (NodeState, ExecutorInput) = {
     if (not(state.es.started))
         (state, { ...defaultInput, name: "start" })
     else if (state.incomingProposals != Set())
-        val prop = state.incomingProposals.chooseSome()
+        // pick proposal, remove it from incoming
+        // val prop = state.incomingProposals.chooseSome()
+        val prop = state.incomingProposals.fold (emptyProposal, (sum, y) => y)
         val newstate = { ...state, incomingProposals: state.incomingProposals.exclude(Set(prop))}
         (newstate, { ...defaultInput, name: "proposal", proposal: prop})
     else if (state.incomingVotes != Set())
-        val vote = state.incomingVotes.chooseSome()
+        // pick vote, remove it from incoming
+        // val vote = state.incomingVotes.chooseSome()
+        val vote = state.incomingVotes.fold(emptyVote,  (sum, y) => y)
         val newstate = { ...state, incomingVotes: state.incomingVotes.exclude(Set(vote))}
         (newstate, { ...defaultInput, name: "vote", vote: vote})
     else if (state.timeout.exists(x => x._2 == state.es.cs.height and 
         x._3 == state.es.cs.round))
-        val timeout = state.timeout.filter(x => x._2 == state.es.cs.height and 
-            x._3 == state.es.cs.round).chooseSome()
+        // pick timeout, remove it from incoming
+        val timeouts = state.timeout.filter(x => x._2 == state.es.cs.height and 
+            x._3 == state.es.cs.round)
+        // val timeout = timeouts.chooseSome()
+        val timeout = timeouts.fold(("", 0, 0),   (sum, y) => y)
         val newstate = { ...state, timeout: state.timeout.exclude(Set(timeout))}
         (newstate, { ...defaultInput, name: "timeout", timeout: timeout._1})
     else if (state.es.pendingEvents != Set())
