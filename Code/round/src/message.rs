@@ -1,22 +1,22 @@
-use malachite_common::{Consensus, Round, Timeout, TimeoutStep, ValueId};
+use malachite_common::{Context, Round, Timeout, TimeoutStep, ValueId};
 
 use crate::state::RoundValue;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum Message<C>
+pub enum Message<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
-    NewRound(Round),                // Move to the new round.
-    Proposal(C::Proposal),          // Broadcast the proposal.
-    Vote(C::Vote),                  // Broadcast the vote.
-    Timeout(Timeout),               // Schedule the timeout.
-    Decision(RoundValue<C::Value>), // Decide the value.
+    NewRound(Round),                  // Move to the new round.
+    Proposal(Ctx::Proposal),          // Broadcast the proposal.
+    Vote(Ctx::Vote),                  // Broadcast the vote.
+    Timeout(Timeout),                 // Schedule the timeout.
+    Decision(RoundValue<Ctx::Value>), // Decide the value.
 }
 
-impl<C> Clone for Message<C>
+impl<Ctx> Clone for Message<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
     fn clone(&self) -> Self {
         match self {
@@ -29,27 +29,32 @@ where
     }
 }
 
-impl<C> Message<C>
+impl<Ctx> Message<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
-    pub fn proposal(height: C::Height, round: Round, value: C::Value, pol_round: Round) -> Self {
-        Message::Proposal(C::new_proposal(height, round, value, pol_round))
+    pub fn proposal(
+        height: Ctx::Height,
+        round: Round,
+        value: Ctx::Value,
+        pol_round: Round,
+    ) -> Self {
+        Message::Proposal(Ctx::new_proposal(height, round, value, pol_round))
     }
 
-    pub fn prevote(round: Round, value_id: Option<ValueId<C>>) -> Self {
-        Message::Vote(C::new_prevote(round, value_id))
+    pub fn prevote(round: Round, value_id: Option<ValueId<Ctx>>) -> Self {
+        Message::Vote(Ctx::new_prevote(round, value_id))
     }
 
-    pub fn precommit(round: Round, value_id: Option<ValueId<C>>) -> Self {
-        Message::Vote(C::new_precommit(round, value_id))
+    pub fn precommit(round: Round, value_id: Option<ValueId<Ctx>>) -> Self {
+        Message::Vote(Ctx::new_precommit(round, value_id))
     }
 
     pub fn timeout(round: Round, step: TimeoutStep) -> Self {
         Message::Timeout(Timeout { round, step })
     }
 
-    pub fn decision(round: Round, value: C::Value) -> Self {
+    pub fn decision(round: Round, value: Ctx::Value) -> Self {
         Message::Decision(RoundValue { round, value })
     }
 }

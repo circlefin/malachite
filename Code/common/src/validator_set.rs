@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 
-use crate::{Consensus, PublicKey};
+use crate::{Context, PublicKey};
 
 /// Voting power held by a validator.
 ///
@@ -17,16 +17,16 @@ where
 }
 
 /// Defines the requirements for a validator.
-pub trait Validator<C>
+pub trait Validator<Ctx>
 where
     Self: Clone + Debug + PartialEq + Eq,
-    C: Consensus,
+    Ctx: Context,
 {
     /// The address of the validator, typically derived from its public key.
-    fn address(&self) -> &C::Address;
+    fn address(&self) -> &Ctx::Address;
 
     /// The public key of the validator, used to verify signatures.
-    fn public_key(&self) -> &PublicKey<C>;
+    fn public_key(&self) -> &PublicKey<Ctx>;
 
     /// The voting power held by the validaror.
     fn voting_power(&self) -> VotingPower;
@@ -35,19 +35,19 @@ where
 /// Defines the requirements for a validator set.
 ///
 /// A validator set is a collection of validators.
-pub trait ValidatorSet<C>
+pub trait ValidatorSet<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
     /// The total voting power of the validator set.
     fn total_voting_power(&self) -> VotingPower;
 
     /// The proposer in the validator set.
-    fn get_proposer(&self) -> C::Validator;
+    fn get_proposer(&self) -> Ctx::Validator;
 
     /// Get the validator with the given public key.
-    fn get_by_public_key(&self, public_key: &PublicKey<C>) -> Option<&C::Validator>;
+    fn get_by_public_key(&self, public_key: &PublicKey<Ctx>) -> Option<&Ctx::Validator>;
 
     /// Get the validator with the given address.
-    fn get_by_address(&self, address: &C::Address) -> Option<&C::Validator>;
+    fn get_by_address(&self, address: &Ctx::Address) -> Option<&Ctx::Validator>;
 }

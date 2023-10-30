@@ -5,7 +5,7 @@ use crate::{
 
 /// This trait allows to abstract over the various datatypes
 /// that are used in the consensus engine.
-pub trait Consensus
+pub trait Context
 where
     Self: Sized,
 {

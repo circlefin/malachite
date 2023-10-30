@@ -1,4 +1,4 @@
-use malachite_common::Consensus;
+use malachite_common::Context;
 use malachite_common::Round;
 use malachite_common::SignedVote;
 
@@ -12,7 +12,7 @@ use crate::vote::*;
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct TestConsensus;
 
-impl Consensus for TestConsensus {
+impl Context for TestConsensus {
     type Address = Address;
     type Height = Height;
     type Proposal = Proposal;

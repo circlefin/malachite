@@ -4,7 +4,7 @@ use secrecy::{ExposeSecret, Secret};
 
 use malachite_common::signature::Keypair;
 use malachite_common::{
-    Consensus, PrivateKey, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator,
+    Context, PrivateKey, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator,
     ValidatorSet, Value, Vote, VoteType,
 };
 use malachite_round::events::Event as RoundEvent;
@@ -16,45 +16,49 @@ use malachite_vote::keeper::VoteKeeper;
 
 /// Messages that can be received and broadcast by the consensus executor.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Event<C>
+pub enum Event<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
     NewRound(Round),
-    Proposal(C::Proposal),
-    Vote(SignedVote<C>),
+    Proposal(Ctx::Proposal),
+    Vote(SignedVote<Ctx>),
     Timeout(Timeout),
 }
 
 #[derive(Clone, Debug)]
-pub struct Executor<C>
+pub struct Executor<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
-    height: C::Height,
-    key: Secret<PrivateKey<C>>,
-    validator_set: C::ValidatorSet,
+    height: Ctx::Height,
+    key: Secret<PrivateKey<Ctx>>,
+    validator_set: Ctx::ValidatorSet,
     round: Round,
-    votes: VoteKeeper<C>,
-    round_states: BTreeMap<Round, RoundState<C>>,
+    votes: VoteKeeper<Ctx>,
+    round_states: BTreeMap<Round, RoundState<Ctx>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Message<C>
+pub enum Message<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
-    Propose(C::Proposal),
-    Vote(SignedVote<C>),
-    Decide(Round, C::Value),
+    Propose(Ctx::Proposal),
+    Vote(SignedVote<Ctx>),
+    Decide(Round, Ctx::Value),
     SetTimeout(Timeout),
 }
 
-impl<C> Executor<C>
+impl<Ctx> Executor<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
-    pub fn new(height: C::Height, validator_set: C::ValidatorSet, key: PrivateKey<C>) -> Self {
+    pub fn new(
+        height: Ctx::Height,
+        validator_set: Ctx::ValidatorSet,
+        key: PrivateKey<Ctx>,
+    ) -> Self {
         let votes = VoteKeeper::new(
             height.clone(),
             Round::INITIAL,
@@ -71,12 +75,12 @@ where
         }
     }
 
-    pub fn get_value(&self) -> C::Value {
+    pub fn get_value(&self) -> Ctx::Value {
         // TODO - add external interface to get the value
-        C::DUMMY_VALUE
+        Ctx::DUMMY_VALUE
     }
 
-    pub fn execute(&mut self, msg: Event<C>) -> Option<Message<C>> {
+    pub fn execute(&mut self, msg: Event<Ctx>) -> Option<Message<Ctx>> {
         let round_msg = match self.apply(msg) {
             Some(msg) => msg,
             None => return None,
@@ -104,7 +108,7 @@ where
                     .address()
                     .clone();
 
-                let signature = C::sign_vote(&vote, self.key.expose_secret());
+                let signature = Ctx::sign_vote(&vote, self.key.expose_secret());
                 let signed_vote = SignedVote::new(vote, address, signature);
 
                 Some(Message::Vote(signed_vote))
@@ -119,7 +123,7 @@ where
         }
     }
 
-    fn apply(&mut self, msg: Event<C>) -> Option<RoundMessage<C>> {
+    fn apply(&mut self, msg: Event<Ctx>) -> Option<RoundMessage<Ctx>> {
         match msg {
             Event::NewRound(round) => self.apply_new_round(round),
             Event::Proposal(proposal) => self.apply_proposal(proposal),
@@ -128,7 +132,7 @@ where
         }
     }
 
-    fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<C>> {
+    fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<Ctx>> {
         let proposer = self.validator_set.get_proposer();
 
         let event = if proposer.public_key() == &self.key.expose_secret().verifying_key() {
@@ -141,7 +145,7 @@ where
         self.apply_event(round, event)
     }
 
-    fn apply_proposal(&mut self, proposal: C::Proposal) -> Option<RoundMessage<C>> {
+    fn apply_proposal(&mut self, proposal: Ctx::Proposal) -> Option<RoundMessage<Ctx>> {
         // TODO: Check for invalid proposal
         let event = RoundEvent::Proposal(proposal.clone());
 
@@ -188,11 +192,11 @@ where
         }
     }
 
-    fn apply_vote(&mut self, signed_vote: SignedVote<C>) -> Option<RoundMessage<C>> {
+    fn apply_vote(&mut self, signed_vote: SignedVote<Ctx>) -> Option<RoundMessage<Ctx>> {
         // TODO: How to handle missing validator?
         let validator = self.validator_set.get_by_address(&signed_vote.address)?;
 
-        if !C::verify_signed_vote(&signed_vote, validator.public_key()) {
+        if !Ctx::verify_signed_vote(&signed_vote, validator.public_key()) {
             // TODO: How to handle invalid votes?
             return None;
         }
@@ -214,7 +218,7 @@ where
         self.apply_event(round, round_event)
     }
 
-    fn apply_timeout(&mut self, timeout: Timeout) -> Option<RoundMessage<C>> {
+    fn apply_timeout(&mut self, timeout: Timeout) -> Option<RoundMessage<Ctx>> {
         let event = match timeout.step {
             TimeoutStep::Propose => RoundEvent::TimeoutPropose,
             TimeoutStep::Prevote => RoundEvent::TimeoutPrevote,
@@ -225,7 +229,7 @@ where
     }
 
     /// Apply the event, update the state.
-    fn apply_event(&mut self, round: Round, event: RoundEvent<C>) -> Option<RoundMessage<C>> {
+    fn apply_event(&mut self, round: Round, event: RoundEvent<Ctx>) -> Option<RoundMessage<Ctx>> {
         // Get the round state, or create a new one
         let round_state = self
             .round_states
@@ -242,7 +246,7 @@ where
         transition.message
     }
 
-    pub fn round_state(&self, round: Round) -> Option<&RoundState<C>> {
+    pub fn round_state(&self, round: Round) -> Option<&RoundState<Ctx>> {
         self.round_states.get(&round)
     }
 }

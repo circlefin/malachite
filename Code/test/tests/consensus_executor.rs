@@ -1,4 +1,4 @@
-use malachite_common::{Consensus, Round, Timeout};
+use malachite_common::{Context, Round, Timeout};
 use malachite_consensus::executor::{Event, Executor, Message};
 use malachite_round::state::{RoundValue, State, Step};
 

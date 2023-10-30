@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 
-use crate::{Consensus, Round, Value};
+use crate::{Context, Round, Value};
 
 /// A type of vote.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -16,18 +16,19 @@ pub enum VoteType {
 ///
 /// Votes are signed messages from validators for a particular value which
 /// include information about the validator signing it.
-pub trait Vote<C: Consensus>
+pub trait Vote<Ctx>
 where
     Self: Clone + Debug + PartialEq + Eq,
+    Ctx: Context,
 {
     /// The round for which the vote is for.
     fn round(&self) -> Round;
 
     /// Get a reference to the value being voted for.
-    fn value(&self) -> Option<&<C::Value as Value>::Id>;
+    fn value(&self) -> Option<&<Ctx::Value as Value>::Id>;
 
     /// Take ownership of the value being voted for.
-    fn take_value(self) -> Option<<C::Value as Value>::Id>;
+    fn take_value(self) -> Option<<Ctx::Value as Value>::Id>;
 
     /// The type of vote.
     fn vote_type(&self) -> VoteType;

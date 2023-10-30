@@ -11,7 +11,7 @@
 )]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
 
-mod consensus;
+mod context;
 mod height;
 mod proposal;
 mod round;
@@ -26,12 +26,12 @@ mod vote;
 pub use ::signature;
 
 /// Type alias to make it easier to refer the `ValueId` type of a given `Consensus` engine.
-pub type ValueId<C> = <<C as Consensus>::Value as Value>::Id;
-pub type PublicKey<C> = <<C as Consensus>::SigningScheme as SigningScheme>::PublicKey;
-pub type PrivateKey<C> = <<C as Consensus>::SigningScheme as SigningScheme>::PrivateKey;
-pub type Signature<C> = <<C as Consensus>::SigningScheme as SigningScheme>::Signature;
+pub type ValueId<Ctx> = <<Ctx as Context>::Value as Value>::Id;
+pub type PublicKey<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::PublicKey;
+pub type PrivateKey<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::PrivateKey;
+pub type Signature<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::Signature;
 
-pub use consensus::Consensus;
+pub use context::Context;
 pub use height::Height;
 pub use proposal::Proposal;
 pub use round::Round;
