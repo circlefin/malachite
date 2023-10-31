@@ -285,12 +285,8 @@ pure def PolkaNil (state: ConsensusState, ev: Event) : ConsResult = {
 
 // line 47
 pure def PrecommitAny (state: ConsensusState, ev: Event) : ConsResult = {
-    if (state.step == "Precommit") {
-        val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPrecommit" } // do we need the roundnumber here? YES
-         {cs: state, out: result}
-    }
-    else
-         {cs: state, out: defaultResult} 
+    val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPrecommit" } // do we need the roundnumber here? YES
+    {cs: state, out: result}
 }
 
 // line 49
@@ -330,6 +326,7 @@ pure def TimeoutPropose (state: ConsensusState, ev: Event) : ConsResult = {
 pure def TimeoutPrevote (state: ConsensusState, ev: Event) : ConsResult = {
     if (ev.height == state.height and ev.round == state.round and state.step == "Prevote")
         val newstate = { ...state, step: "Precommit"}
+        // TODO: should we send precommit nil again
         val result = { ...defaultResult, name: "votemessage",
                                          voteMessage: { src: state.p,
                                                             height: state.height,
