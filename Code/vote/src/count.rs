@@ -80,10 +80,19 @@ where
     pub fn add_vote(&mut self, vote: Ctx::Vote, weight: Weight) -> Threshold<ValueId<Ctx>> {
         let new_weight = self.values_weights.add(vote.value().cloned(), weight);
 
-        match vote.value() {
-            Some(value) if is_quorum(new_weight, self.total_weight) => Threshold::Value(value.clone()),
+        self.values_weights.add(vote.value().cloned(), weight);
 
-            None if is_quorum(new_weight, self.total_weight) => Threshold::Nil,
+        self.compute_threshold(vote.value())
+    }
+
+    pub fn compute_threshold(&self, value: Option<&ValueId<Ctx>>) -> Threshold<ValueId<Ctx>> {
+        let value = value.cloned();
+        let weight = self.values_weights.get(&value);
+
+        match value {
+            Some(value) if is_quorum(weight, self.total_weight) => Threshold::Value(value),
+
+            None if is_quorum(weight, self.total_weight) => Threshold::Nil,
 
             _ => {
                 let sum_weight = self.values_weights.sum();
