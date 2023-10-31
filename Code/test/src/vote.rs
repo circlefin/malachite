@@ -1,5 +1,6 @@
-use malachite_common::{Round, SignedVote, VoteType};
 use signature::Signer;
+
+use malachite_common::{Round, SignedVote, VoteType};
 
 use crate::{Address, PrivateKey, TestConsensus, ValueId};
 
@@ -9,26 +10,29 @@ pub struct Vote {
     pub typ: VoteType,
     pub round: Round,
     pub value: Option<ValueId>,
+    pub validator_address: Address,
 }
 
 impl Vote {
-    pub fn new_prevote(round: Round, value: Option<ValueId>) -> Self {
+    pub fn new_prevote(round: Round, value: Option<ValueId>, validator_address: Address) -> Self {
         Self {
             typ: VoteType::Prevote,
             round,
             value,
+            validator_address,
         }
     }
 
-    pub fn new_precommit(round: Round, value: Option<ValueId>) -> Self {
+    pub fn new_precommit(round: Round, value: Option<ValueId>, address: Address) -> Self {
         Self {
             typ: VoteType::Precommit,
             round,
             value,
+            validator_address: address,
         }
     }
 
-    // TODO: Use the canonical vote
+    // TODO: Use a canonical vote
     pub fn to_bytes(&self) -> Vec<u8> {
         let vtpe = match self.typ {
             VoteType::Prevote => 0,
@@ -47,12 +51,10 @@ impl Vote {
     }
 
     pub fn signed(self, private_key: &PrivateKey) -> SignedVote<TestConsensus> {
-        let address = Address::from_public_key(&private_key.public_key());
         let signature = private_key.sign(&self.to_bytes());
 
         SignedVote {
             vote: self,
-            address,
             signature,
         }
     }
@@ -73,5 +75,9 @@ impl malachite_common::Vote<TestConsensus> for Vote {
 
     fn vote_type(&self) -> VoteType {
         self.typ
+    }
+
+    fn validator_address(&self) -> &Address {
+        &self.validator_address
     }
 }

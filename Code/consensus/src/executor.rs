@@ -102,14 +102,8 @@ where
             }
 
             RoundMessage::Vote(vote) => {
-                let address = self
-                    .validator_set
-                    .get_by_public_key(&self.key.expose_secret().verifying_key())?
-                    .address()
-                    .clone();
-
                 let signature = Ctx::sign_vote(&vote, self.key.expose_secret());
-                let signed_vote = SignedVote::new(vote, address, signature);
+                let signed_vote = SignedVote::new(vote, signature);
 
                 Some(Message::Vote(signed_vote))
             }
@@ -194,7 +188,9 @@ where
 
     fn apply_vote(&mut self, signed_vote: SignedVote<Ctx>) -> Option<RoundMessage<Ctx>> {
         // TODO: How to handle missing validator?
-        let validator = self.validator_set.get_by_address(&signed_vote.address)?;
+        let validator = self
+            .validator_set
+            .get_by_address(signed_vote.validator_address())?;
 
         if !Ctx::verify_signed_vote(&signed_vote, validator.public_key()) {
             // TODO: How to handle invalid votes?

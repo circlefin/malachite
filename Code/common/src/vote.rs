@@ -18,7 +18,7 @@ pub enum VoteType {
 /// include information about the validator signing it.
 pub trait Vote<Ctx>
 where
-    Self: Clone + Debug + PartialEq + Eq,
+    Self: Clone + Debug + Eq,
     Ctx: Context,
 {
     /// The round for which the vote is for.
@@ -32,4 +32,7 @@ where
 
     /// The type of vote.
     fn vote_type(&self) -> VoteType;
+
+    /// Address of the validator who issued this vote
+    fn validator_address(&self) -> &Ctx::Address;
 }

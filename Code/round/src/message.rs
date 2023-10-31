@@ -42,12 +42,12 @@ where
         Message::Proposal(Ctx::new_proposal(height, round, value, pol_round))
     }
 
-    pub fn prevote(round: Round, value_id: Option<ValueId<Ctx>>) -> Self {
-        Message::Vote(Ctx::new_prevote(round, value_id))
+    pub fn prevote(round: Round, value_id: Option<ValueId<Ctx>>, address: Ctx::Address) -> Self {
+        Message::Vote(Ctx::new_prevote(round, value_id, address))
     }
 
-    pub fn precommit(round: Round, value_id: Option<ValueId<Ctx>>) -> Self {
-        Message::Vote(Ctx::new_precommit(round, value_id))
+    pub fn precommit(round: Round, value_id: Option<ValueId<Ctx>>, address: Ctx::Address) -> Self {
+        Message::Vote(Ctx::new_precommit(round, value_id, address))
     }
 
     pub fn timeout(round: Round, step: TimeoutStep) -> Self {
