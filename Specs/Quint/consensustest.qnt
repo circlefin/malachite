@@ -38,8 +38,8 @@ action FireEvent(eventName: str, proc: Address_t, h: Height_t, r: Round_t, value
                                             vr: vr}
     val res = consensus(system.get(proc),  event )
     all {
-        system' = system.put(proc, res._1),
-        _Result' = res._2,
+        system' = system.put(proc, res.cs),
+        _Result' = res.out,
         _Event' = event
     }
 }
