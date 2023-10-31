@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use malachite_round::state_machine::RoundData;
 use secrecy::{ExposeSecret, Secret};
 
 use malachite_common::signature::Keypair;
@@ -93,10 +94,9 @@ where
             RoundMessage::NewRound(round) => {
                 // TODO: check if we are the proposer
 
-                self.round_states.insert(
-                    round,
-                    RoundState::new(self.height.clone(), self.address.clone()).new_round(round),
-                );
+                // XXX: Check if there is an existing state?
+                self.round_states
+                    .insert(round, RoundState::default().new_round(round));
 
                 None
             }
@@ -160,7 +160,7 @@ where
         }
 
         // Check that the proposal is for the current height and round
-        if round_state.height != proposal.height() || proposal.round() != self.round {
+        if self.height != proposal.height() || self.round != proposal.round() {
             return None;
         }
 
@@ -232,13 +232,12 @@ where
     /// Apply the event, update the state.
     fn apply_event(&mut self, round: Round, event: RoundEvent<Ctx>) -> Option<RoundMessage<Ctx>> {
         // Get the round state, or create a new one
-        let round_state = self
-            .round_states
-            .remove(&round)
-            .unwrap_or_else(|| RoundState::new(self.height.clone(), self.address.clone()));
+        let round_state = self.round_states.remove(&round).unwrap_or_default();
+
+        let data = RoundData::new(round, &self.height, &self.address);
 
         // Apply the event to the round state machine
-        let transition = round_state.apply_event(round, event);
+        let transition = round_state.apply_event(&data, event);
 
         // Update state
         self.round_states.insert(round, transition.next_state);

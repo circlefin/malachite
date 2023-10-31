@@ -4,16 +4,19 @@ use malachite_common::{Round, Timeout, TimeoutStep};
 use malachite_round::events::Event;
 use malachite_round::message::Message;
 use malachite_round::state::{State, Step};
-use malachite_round::state_machine::apply_event;
+use malachite_round::state_machine::{apply_event, RoundData};
 
 const ADDRESS: Address = Address::new([42; 20]);
 
 #[test]
 fn test_propose() {
     let value = Value::new(42);
-    let mut state: State<TestConsensus> = State::new(Height::new(10), ADDRESS);
+    let height = Height::new(10);
 
-    let transition = apply_event(state.clone(), Round::new(0), Event::NewRoundProposer(value));
+    let mut state: State<TestConsensus> = State::default();
+    let data = RoundData::new(Round::new(0), &height, &ADDRESS);
+
+    let transition = apply_event(state.clone(), &data, Event::NewRoundProposer(value));
 
     state.step = Step::Propose;
     assert_eq!(transition.next_state, state);
@@ -27,9 +30,12 @@ fn test_propose() {
 #[test]
 fn test_prevote() {
     let value = Value::new(42);
-    let state: State<TestConsensus> = State::new(Height::new(1), ADDRESS).new_round(Round::new(1));
+    let height = Height::new(1);
 
-    let transition = apply_event(state, Round::new(1), Event::NewRound);
+    let state: State<TestConsensus> = State::default().new_round(Round::new(1));
+    let data = RoundData::new(Round::new(1), &height, &ADDRESS);
+
+    let transition = apply_event(state, &data, Event::NewRound);
 
     assert_eq!(transition.next_state.step, Step::Propose);
     assert_eq!(
@@ -44,7 +50,7 @@ fn test_prevote() {
 
     let transition = apply_event(
         state,
-        Round::new(1),
+        &data,
         Event::Proposal(Proposal::new(
             Height::new(1),
             Round::new(1),
