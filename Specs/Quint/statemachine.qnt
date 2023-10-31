@@ -178,6 +178,7 @@ run DecidingRunTest = {
         valStepCommand("v3", "vote")
         })
     .then(all{
+    // validator 3 decided on "a block"
     assert(system.get("v3").es.chain.head() == "a block"),
     system' = system,
     _hist' = _hist
@@ -217,20 +218,18 @@ run TimeoutRunTest = {
     .then(valStepCommand("v1", "vote"))
     .then(valStepCommand("v1", "vote"))
     .then(valStepCommand("v1", "vote"))
-    // .then(valStepCommand("v1", "timeout"))
-    // .then(valStepCommand("v2", "timeout"))
-    // .then(valStepCommand("v3", "timeout"))
-    // .then(valStepCommand("v4", "timeout")) 
+    .then(valStepCommand("v4", "vote"))
+    .then(valStepCommand("v4", "vote"))
+    .then(valStepCommand("v4", "vote"))
+    .then(valStepCommand("v4", "vote"))
+    .then(valStepCommand("v4", "vote"))
+    .then(valStepCommand("v4", "timeout"))
+    .then(all {
+        // validator 4 timed out and went to round 1
+        assert(system.get("v4").es.cs.round == 1),
+        system' = system,
+        _hist' = _hist,
+    }) 
 }
 
-/*
-valStepCommand("v1", "start")
-valStepCommand("v2", "start")
-valStepCommand("v3", "start")
-valStepCommand("v4", "start")
-valStepCommand("v1", "timeout")
-valStepCommand("v2", "proposal")
-valStepCommand("v3", "timeout")
-valStepCommand("v4", "timeout")
-*/
 }

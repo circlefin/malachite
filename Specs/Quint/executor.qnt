@@ -147,7 +147,6 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent)
         (es, defaultResult)  
 }
 
-// TODO: make sure only valid proposals are in es.proposals
 
 // We do this if the executor receives a Prevote
 pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) : (ExecutorState, ConsensusOutput) = {
@@ -416,6 +415,7 @@ pure def nextAction (state: NodeState) : (NodeState, ExecutorInput) = {
         (state, defaultInput)
 }
 
+// This function can be used to control test runs better.
 pure def nextActionCommand (state: NodeState, command: str) : (NodeState, ExecutorInput) = {
     if (command == "start" and not(state.es.started))
         (state, { ...defaultInput, name: "start" })
