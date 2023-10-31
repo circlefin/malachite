@@ -107,28 +107,28 @@ pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (Executo
 pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent) : (ExecutorState, ConsensusOutput) = {
     if (eev.name == "PrecommitValue")
             if (es.proposals.exists(x => eev.round == x.round and eev.value == x.proposal)) {
-                callConsensus(es, es.bk, {name : "ProposalAndCommitAndValid",
-                                    height : input.vote.height,
-                                    round: input.vote.round,
-                                    value: input.vote.id,
-                                    vr: -1})
+                callConsensus(es, es.bk, {  name : "ProposalAndCommitAndValid",
+                                            height : input.vote.height,
+                                            round: input.vote.round,
+                                            value: input.vote.id,
+                                            vr: -1})
             }
             else {
                 if (eev.round == es.cs.round) {
-                    callConsensus(es, es.bk,  {name : "PrecommitAny",
-                                    height : input.vote.height,
-                                    round: input.vote.round,
-                                    value: input.vote.id,
-                                    vr: -1})   
+                    callConsensus(es, es.bk,  { name: "PrecommitAny",
+                                                height: input.vote.height,
+                                                round: input.vote.round,
+                                                value: input.vote.id,
+                                                vr: -1})   
                 }
                 else if (eev.round > es.cs.round) {
                     // if it is for a future round I can trigger skipround
                     // TODO: should we really do this. It is dead code as the f+1 event already happened
-                    callConsensus(es, es.bk,  {name : "RoundSkip",
-                                    height : input.vote.height,
-                                    round: input.vote.round,
-                                    value: input.vote.id,
-                                    vr: -1})     
+                    callConsensus(es, es.bk,  { name: "RoundSkip",
+                                                height: input.vote.height,
+                                                round: input.vote.round,
+                                                value: input.vote.id,
+                                                vr: -1})     
                 }  
                 else {
                     // messages from past round -> ignore
@@ -136,11 +136,11 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent)
                 }    
             }
     else if (eev.name == "PrecommitAny" and eev.round == es.cs.round) {
-                callConsensus(es, es.bk,  {name : "PrecommitAny",
-                                    height : input.vote.height,
-                                    round: input.vote.round,
-                                    value: input.vote.id,
-                                    vr: -1})    
+                callConsensus(es, es.bk,  { name: "PrecommitAny",
+                                            height: input.vote.height,
+                                            round: input.vote.round,
+                                            value: input.vote.id,
+                                            vr: -1})    
     }
     else
         // none of the supported Precommit events. Do nothing
@@ -155,21 +155,21 @@ pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) 
     if (eev.name == "PolkaValue")
         if (eev.round < es.cs.round and
             es.proposals.exists(p => p.round == es.cs.round and
-                eev.round == p.validRound and p.proposal == eev.value)) 
-                callConsensus(es, es.bk,  {name : "ProposalAndPolkaPreviousAndValid",
-                                    height : es.cs.height,
-                                    round: es.cs.round,
-                                    value: eev.value,
-                                    vr: eev.round})   
-                                    // TODO: the value should come from the proposal   
+            eev.round == p.validRound and p.proposal == eev.value)) 
+                callConsensus(es, es.bk, {  name: "ProposalAndPolkaPreviousAndValid",
+                                            height: es.cs.height,
+                                            round: es.cs.round,
+                                            value: eev.value,
+                                            vr: eev.round})   
+                                            // TODO: the value should come from the proposal   
         else if (eev.round == es.cs.round and
-            es.proposals.exists(p => p.round == es.cs.round and
+                es.proposals.exists(p => p.round == es.cs.round and
                 p.proposal == eev.value)) 
-                callConsensus(es, es.bk,  {name : "ProposalAndPolkaAndValid",
-                                    height : es.cs.height,
-                                    round: es.cs.round,
-                                    value: eev.value,
-                                    vr: eev.round})   
+                callConsensus(es, es.bk, {  name: "ProposalAndPolkaAndValid",
+                                            height: es.cs.height,
+                                            round: es.cs.round,
+                                            value: eev.value,
+                                            vr: eev.round})   
         else
             // we don't have a matching proposal so we do nothing
             // TODO: we might check whether it is for a future round and jump
@@ -177,17 +177,17 @@ pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) 
     else if (eev.name == "PolkaAny")
         if (eev.round == es.cs.round)
                 // call consensus and remember that we did it
-                callConsensus(es, es.bk,  {name : "PolkaAny",
-                                    height : es.cs.height,
-                                    round: es.cs.round,
-                                    value: eev.value,
-                                    vr: eev.round})  
+                callConsensus(es, es.bk, {  name: "PolkaAny",
+                                            height: es.cs.height,
+                                            round: es.cs.round,
+                                            value: eev.value,
+                                            vr: eev.round})  
         else
             // TODO: we might check whether it is for a future round and jump
             (es, defaultResult)
     else if (eev.name == "PolkaNil" and eev.round == es.cs.round)
-        callConsensus(es, es.bk,  {name : "PolkaNil",
-                                    height : es.cs.height,
+        callConsensus(es, es.bk,  { name: "PolkaNil",
+                                    height: es.cs.height,
                                     round: es.cs.round,
                                     value: eev.value,
                                     vr: eev.round})  
@@ -198,9 +198,12 @@ pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) 
 // We do this if a timeout expires at the executor
 pure def Timeout (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     // TODO: We assume that the timeout event is always for the current round. If this is not
-        // the case, we need to encode it in the input to which round the timeout belongs
-    val event: Event = {name : input.timeout, height : es.cs.height,
-                                    round: es.cs.round, value: "", vr: 0}
+    // the case, we need to encode it in the input to which round the timeout belongs
+    val event: Event = {name: input.timeout, 
+                        height: es.cs.height,
+                        round: es.cs.round, 
+                        value: "", 
+                        vr: 0}
     callConsensus(es, es.bk, event)
 }
 
@@ -208,19 +211,24 @@ pure def Timeout (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Con
 pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     val newES = { ...es, proposals: es.proposals.union(Set(input.proposal))}
     if (input.proposal.src != Proposer(es.cs.height, es.cs.round))
-        // keep ES, that is, drop proposal
+        // keep ES (don't use newES here), that is, drop proposal
         (es, defaultResult)
     else if (not(valid(input.proposal))) {
-        // keep ES, that is, drop proposal
-        // do we n
+        // keep ES (don't use newES here), that is, drop proposal
         if (es.cs.step == "propose")
             if (checkThreshold(es.bk, es.cs.round, "Prevote", {name: "PolkaValue", value: input.proposal.proposal}))
-                val event: Event = {name : "ProposalAndPolkaAndInValid", height : es.cs.height,
-                                    round: es.cs.round, value: input.proposal.proposal, vr: 0}
+                val event: Event = {name: "ProposalAndPolkaAndInValid", 
+                                    height: es.cs.height,
+                                    round: es.cs.round, 
+                                    value: input.proposal.proposal, 
+                                    vr: 0}
                 callConsensus(es, es.bk, event)
             else 
-                val event: Event = {name : "ProposalInvalid", height : es.cs.height,
-                                    round: es.cs.round, value: input.proposal.proposal, vr: 0}
+                val event: Event = {name: "ProposalInvalid", 
+                                    height: es.cs.height,
+                                    round: es.cs.round, 
+                                    value: input.proposal.proposal, 
+                                    vr: 0}
                 callConsensus(es, es.bk, event)
         else 
             (es, defaultResult)
@@ -232,53 +240,58 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
         if (newES.cs.step == "propose") 
             if (input.proposal.validRound == -1)
                 if (receivedPolkaCurrentVal)
-                    callConsensus(newES, newES.bk,  {name : "ProposalAndPolkaAndValid",
-                                    height : newES.cs.height,
-                                    round: newES.cs.round,
-                                    value: input.proposal.proposal,
-                                    vr: input.proposal.round})   
+                    callConsensus(  newES, 
+                                    newES.bk,  
+                                    {   name: "ProposalAndPolkaAndValid",
+                                        height: newES.cs.height,
+                                        round: newES.cs.round,
+                                        value: input.proposal.proposal,
+                                        vr: input.proposal.round})   
                 else
-                    callConsensus(newES, newES.bk,  {name : "Proposal",
-                                    height : newES.cs.height,
-                                    round: newES.cs.round,
-                                    value: input.proposal.proposal,
-                                    vr: input.proposal.round})    
+                    callConsensus(  newES, 
+                                    newES.bk,  
+                                    {   name: "Proposal",
+                                        height: newES.cs.height,
+                                        round: newES.cs.round,
+                                        value: input.proposal.proposal,
+                                        vr: input.proposal.round})    
             else
                 if (receivedPolkaValidRoundVal)
-                    callConsensus(newES, newES.bk,  {name : "ProposalAndPolkaPreviousAndValid",
-                                    height : newES.cs.height,
-                                    round: newES.cs.round,
-                                    value: input.proposal.proposal,
-                                    vr: input.proposal.round})  
+                    callConsensus(  newES, 
+                                    newES.bk,  
+                                    {   name: "ProposalAndPolkaPreviousAndValid",
+                                        height: newES.cs.height,
+                                        round: newES.cs.round,
+                                        value: input.proposal.proposal,
+                                        vr: input.proposal.round})  
                 else  
                     (newES, defaultResult)
         else if (newES.cs.step == "Prevote" or newES.cs.step == "Precommit") 
             if (receivedCommitCurrentVal)
                 // TODO: here we need to call both, Commit and Polka. 
                 // We do commit and append pola to pending
-                val pend = ({name : "ProposalAndPolkaAndValid",
-                                    height : newES.cs.height,
-                                    round: newES.cs.round,
-                                    value: input.proposal.proposal,
-                                    vr: input.proposal.round},
-                                    newES.cs.height,
-                                    newES.cs.round )
-                callConsensus({ ...newES, pendingEvents: 
-                    newES.pendingEvents.union(Set(pend))}, 
-                                    newES.bk,  
-                                    {name : "ProposalAndCommitAndValid",
-                                    height : newES.cs.height,
+                val pend = ( {  name: "ProposalAndPolkaAndValid",
+                                height: newES.cs.height,
+                                round: newES.cs.round,
+                                value: input.proposal.proposal,
+                                vr: input.proposal.round},
+                            newES.cs.height,
+                            newES.cs.round)
+                callConsensus(  { ...newES, pendingEvents: newES.pendingEvents.union(Set(pend))}, 
+                                newES.bk,  
+                                {   name: "ProposalAndCommitAndValid",
+                                    height: newES.cs.height,
                                     round: newES.cs.round,
                                     value: input.proposal.proposal,
                                     vr: input.proposal.round})  
             
             else if (receivedPolkaCurrentVal)
                 callConsensus( newES , 
-                newES.bk,  {name : "ProposalAndPolkaAndValid",
-                                    height : newES.cs.height,
-                                    round: newES.cs.round,
-                                    value: input.proposal.proposal,
-                                    vr: input.proposal.round})  
+                newES.bk, { name: "ProposalAndPolkaAndValid",
+                            height: newES.cs.height,
+                            round: newES.cs.round,
+                            value: input.proposal.proposal,
+                            vr: input.proposal.round})  
             else 
                 (newES, defaultResult)
         else
@@ -291,15 +304,15 @@ pure def skip (es: ExecutorState, r: int) : (ExecutorState, ConsensusOutput) = {
     val prop =  if (es.cs.validValue != "nil") es.cs.validValue
                 else getValue(es.cs, r)
     if (Proposer(es.cs.height, es.cs.round + 1) == es.cs.p)
-        callConsensus(es, es.bk,  {name : "NewRoundProposer",
-                                    height : es.cs.height,
+        callConsensus(es, es.bk,  { name: "NewRoundProposer",
+                                    height: es.cs.height,
                                     round: r,
                                     // what value?
                                     value: prop,
                                     vr: es.cs.validRound})  
     else 
-        callConsensus(es, es.bk,  {name : "NewRound",
-                                    height : es.cs.height,
+        callConsensus(es, es.bk,  { name: "NewRound",
+                                    height: es.cs.height,
                                     round: r,
                                     value: "",
                                     vr: es.cs.validRound})  
@@ -331,6 +344,11 @@ pure def PendingEvent (es: ExecutorState, input: ExecutorInput) : (ExecutorState
     val newState = { ...es, pendingEvents: es.pendingEvents.exclude(Set((input.event, es.cs.height, es.cs.round)))}
     callConsensus(newState, es.bk, input.event)
 }
+
+
+/* *********************************************************
+ * Main entry point
+ * ********************************************************/
 
 pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     // TODO: shall we check whether the sender actually is in the validator set
@@ -379,6 +397,8 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Co
 
 // This is a simple function that figures out in what external events (messages,
 // timeouts, etc.) the node should act.
+// currently this is linked in via the state machine. But we can move it into
+// the functional layer/
 pure def nextAction (state: NodeState) : (NodeState, ExecutorInput) = {
     if (not(state.es.started))
         (state, { ...defaultInput, name: "start" })

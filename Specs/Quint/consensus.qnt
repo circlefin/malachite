@@ -15,7 +15,7 @@ TODO: check
 
 
 module consensus {
-
+    
   // a process address is just a string
   type Address_t = str
   // a value is also a string
@@ -29,23 +29,23 @@ module consensus {
   // timeours are identified by strings
   type Timeout_t = str
 
-  // the type of propose messages
-  type ProposeMsg_t = {
+// the type of propose messages
+type ProposeMsg_t = {
     src: Address_t,
     height: Height_t,
     round: Round_t,
     proposal: Value_t,
     validRound: Round_t
-  }
+}
 
-  // the type of Prevote and Precommit messages
-  type VoteMsg_t = {
+// the type of Prevote and Precommit messages
+type VoteMsg_t = {
     src: Address_t,
     height: Height_t,
     round: Round_t,
     step: Step_t,  // "Prevote" or "Precommit"
     id: Value_t,
-  }
+}
 
 type ConsensusState = {
     p: Address_t,
@@ -107,15 +107,13 @@ val consensusEvents = Set(
     "TimeoutPrevote",          		// Timeout waiting for prevotes for a value.
     "TimeoutPrecommit",       		// Timeout waiting for precommits for a value.
 // found after Montebello
-    "ProposalAndPolkaAndInValid"
+    "ProposalAndPolkaAndInValid" // TODO: Discuss what to do about it
 )
 
 /*    
-
     "PolkaValue(ValueId)",     // Receive +2/3 Prevotes for Value.
     "PrecommitValue(ValueId)", // Receive +2/3 Precommits for Value.
-
-) */
+*/
 
 val noProp : ProposeMsg_t = {src: "", height: -1, round: -1, proposal: "", validRound: -1}
 val noVote : VoteMsg_t = {src: "", height: -1, round: -1, step: "", id: ""}
@@ -133,15 +131,15 @@ val defaultResult : ConsensusOutput = {
 
 
 pure def NewHeight (state: ConsensusState, ev: Event) : ConsResult = {
-    val newstate = {        p: state.p, 
-                            round: ev.round, 
-                            step: "newRound", 
-                            height : ev.height,
-                            lockedRound: -1, 
-                            lockedValue: "nil", 
-                            validRound: -1, 
-                            validValue: "nil"
-                            }
+    val newstate = {    p: state.p, 
+                        round: ev.round,
+                        step: "newRound", 
+                        height : ev.height,
+                        lockedRound: -1, 
+                        lockedValue: "nil", 
+                        validRound: -1, 
+                        validValue: "nil"
+                        }
     {cs: newstate, out: defaultResult }
 }
 
@@ -172,9 +170,11 @@ pure def NewRound (state: ConsensusState, ev: Event) : ConsResult = {
 }
 
 // line 22
+// Here it is assumed that the value has been checked to be valid
+// The executor checks this upon receiving a propose message "ProposalMsg"
 pure def Proposal (state: ConsensusState, ev: Event) : ConsResult = {
-    if (state.step == "propose") {
-        val newstate = state.with("step", "Prevote")
+    if (state.step == "propose")
+        val newstate = { ...state, step: "Prevote" }
         if (state.lockedRound == -1 or state.lockedValue == ev.value)
             val result = { ...defaultResult, name: "votemessage",
                                              voteMessage: { src: state.p,
@@ -190,15 +190,30 @@ pure def Proposal (state: ConsensusState, ev: Event) : ConsResult = {
                                                             round: state.round,
                                                             step: "Prevote",
                                                             id: "nil"}}
-             {cs: newstate, out: result}
-    }
+            {cs: newstate, out: result}
     else
-         {cs: state, out: defaultResult}
+        {cs: state, out: defaultResult}
+        // Do we need to do something if we are called in the wrong state.step?
+}
+
+// line 26
+pure def ProposalInvalid (state: ConsensusState, ev: Event) : ConsResult = {
+    if (state.step == "propose") 
+        val newstate = state.with("step", "Prevote")
+        val result = { ...defaultResult, name: "votemessage",
+                                         voteMessage: { src: state.p,
+                                                        height: state.height,
+                                                        round: state.round,
+                                                        step: "Prevote",
+                                                        id: "nil"}}
+        {cs: newstate, out: result}
+    else
+        {cs: state, out: defaultResult}     
 }
 
 // line 28
 pure def ProposalAndPolkaPreviousAndValid (state: ConsensusState, ev: Event) : ConsResult = {
-    if (state.step == "propose" and ev.vr >= 0 and ev.vr < state.round) {
+    if (state.step == "propose" and ev.vr >= 0 and ev.vr < state.round) 
         val newstate = state.with("step", "Prevote")
         if (state.lockedRound <= ev.vr or state.lockedValue == ev.value)
             val result = { ...defaultResult, name: "votemessage",
@@ -207,7 +222,7 @@ pure def ProposalAndPolkaPreviousAndValid (state: ConsensusState, ev: Event) : C
                                                             round: state.round,
                                                             step: "Prevote",
                                                             id: ev.value}}
-             {cs: newstate, out: result}
+            {cs: newstate, out: result}
         else
             val result = { ...defaultResult, name: "votemessage",
                                              voteMessage: { src: state.p,
@@ -215,38 +230,21 @@ pure def ProposalAndPolkaPreviousAndValid (state: ConsensusState, ev: Event) : C
                                                             round: state.round,
                                                             step: "Prevote",
                                                             id: "nil"}}
-             {cs: newstate, out: result}                                          
-    }
+            {cs: newstate, out: result}                                          
     else
         {cs: state, out: defaultResult}
-}
-
-
-pure def ProposalInvalid (state: ConsensusState, ev: Event) : ConsResult = {
-    if (state.step == "propose") {
-        val newstate = state.with("step", "Prevote")
-        val result = { ...defaultResult, name: "votemessage",
-                                         voteMessage: { src: state.p,
-                                                            height: state.height,
-                                                            round: state.round,
-                                                            step: "Prevote",
-                                                            id: "nil"}}
-         {cs: newstate, out: result}
-    }
-    else {
-         {cs: state, out: defaultResult}     
-    }
+        // TODO: should we add the event to pending in this case. We would need to
+        // do this in the executor
 }
 
 // line 34
 pure def PolkaAny (state: ConsensusState, ev: Event) : ConsResult = {
-    if (state.step == "Prevote") {
+    if (state.step == "Prevote") 
         val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPrevote" }
             // We just report that a timeout should be started. The executor must take care
             // of figuring out whether it needs to record the round number and height per
             // timeout
         {cs: state, out: result}
-    }
     else
         {cs: state, out: defaultResult}
 }
@@ -254,7 +252,7 @@ pure def PolkaAny (state: ConsensusState, ev: Event) : ConsResult = {
 // line 36
 pure def ProposalAndPolkaAndValid (state: ConsensusState, ev: Event) : ConsResult = {
     val auxState = { ...state, validValue: ev.value, validRound: state.round }
-    if (state.step == "Prevote") {
+    if (state.step == "Prevote") 
         val newstate = { ...auxState,   lockedValue: ev.value,
                                         lockedRound: state.round,
                                         step: "Precommit" }
@@ -264,8 +262,7 @@ pure def ProposalAndPolkaAndValid (state: ConsensusState, ev: Event) : ConsResul
                                                         round: state.round,
                                                         step: "Precommit",  
                                                         id: ev.value}}
-         {cs: newstate, out: result}
-        }
+        {cs: newstate, out: result}
     else if (state.step == "Precommit")
         // TODO: check whether Daniel's comment
         // "if state > prevote, we should update the valid round!"
@@ -273,6 +270,8 @@ pure def ProposalAndPolkaAndValid (state: ConsensusState, ev: Event) : ConsResul
         {cs: auxState,  out: defaultResult}
     else
         {cs: state, out: defaultResult}
+        // TODO: should we add the event to pending in this case. We would need to
+        // do this in the executor
 }
 
 // line 44
@@ -301,10 +300,10 @@ pure def ProposalAndCommitAndValid  (state: ConsensusState, ev: Event) : ConsRes
     if (state.step != "decided") {
         val newstate = { ...state, step: "decided"}
         val result = { ...defaultResult, name: "decided", decided: ev.value}
-         {cs: newstate, out: result}
+        {cs: newstate, out: result}
     }
     else
-         {cs: state, out: defaultResult} 
+        {cs: state, out: defaultResult} 
 }
 
 // line 55
@@ -313,7 +312,7 @@ pure def RoundSkip  (state: ConsensusState, ev: Event) : ConsResult = {
         val result = { ...defaultResult, name: "skipRound", skipRound: ev.round }
         {cs: state, out: result}
     else
-         {cs: state, out: defaultResult}
+        {cs: state, out: defaultResult}
 }
 
 pure def TimeoutPropose (state: ConsensusState, ev: Event) : ConsResult = {
@@ -321,13 +320,13 @@ pure def TimeoutPropose (state: ConsensusState, ev: Event) : ConsResult = {
         val newstate = { ...state, step: "Prevote"}
         val result = { ...defaultResult, name: "votemessage",
                                          voteMessage: { src: state.p,
-                                                            height: state.height,
-                                                            round: state.round,
-                                                            step: "Prevote",
-                                                            id: "nil"}}
+                                                        height: state.height,
+                                                        round: state.round,
+                                                        step: "Prevote",
+                                                        id: "nil"}}
         {cs: newstate, out: result}
     else
-         {cs: state, out: defaultResult}
+        {cs: state, out: defaultResult}
 }
 
 pure def TimeoutPrevote (state: ConsensusState, ev: Event) : ConsResult = {
@@ -336,13 +335,13 @@ pure def TimeoutPrevote (state: ConsensusState, ev: Event) : ConsResult = {
         // TODO: should we send precommit nil again ?
         val result = { ...defaultResult, name: "votemessage",
                                          voteMessage: { src: state.p,
-                                                            height: state.height,
-                                                            round: state.round,
-                                                            step: "Precommit", 
-                                                            id: "nil"}}
+                                                        height: state.height,
+                                                        round: state.round,
+                                                        step: "Precommit", 
+                                                        id: "nil"}}
         {cs: newstate, out: result}
     else
-         {cs: state, out: defaultResult}
+        {cs: state, out: defaultResult}
 }    
 
 pure def TimeoutPrecommit (state: ConsensusState, ev: Event) : ConsResult = {
@@ -350,9 +349,13 @@ pure def TimeoutPrecommit (state: ConsensusState, ev: Event) : ConsResult = {
         val result = {...defaultResult, name: "skipRound", skipRound: state.round + 1}
         {cs: state, out: result}
     else
-         {cs: state, out: defaultResult}
+        {cs: state, out: defaultResult}
 }    
 
+
+/* *********************************************************
+ * Main entry point
+ * ********************************************************/
 
 pure def consensus (state: ConsensusState, ev: Event) : ConsResult = {
     if (ev.name == "NewHeight")
@@ -384,11 +387,8 @@ pure def consensus (state: ConsensusState, ev: Event) : ConsResult = {
     else if (ev.name == "TimeoutPrecommit")
         TimeoutPrecommit (state, ev)
     else
-
         {cs: state, out: defaultResult}
 }
-
-
 
 }
 

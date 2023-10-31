@@ -22,11 +22,10 @@ pure def initConsensusState (v: Address_t) : ConsensusState = {
 
 
 pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
-    // sum-up all voting powers
     val tvp = vs.keys().fold(0, (sum, key) => sum + vs.get(key))
     {
-    bk : initBookKeeper(tvp),
-    cs : initConsensusState(v),
+    bk: initBookKeeper(tvp),
+    cs: initConsensusState(v),
     proposals: Set(),
     valset: vs,
     executedEvents: Set(),
