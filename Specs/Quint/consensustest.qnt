@@ -9,7 +9,7 @@ import consensus.* from "./consensus"
  * ************************************************************************* */
 
 var system : Address_t -> ConsensusState
-var _Result : Result
+var _Result : ConsensusOutput
 var _Event : Event
 
 
