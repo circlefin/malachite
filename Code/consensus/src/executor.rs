@@ -33,6 +33,7 @@ where
 {
     height: Ctx::Height,
     private_key: Secret<PrivateKey<Ctx>>,
+    address: Ctx::Address,
     validator_set: Ctx::ValidatorSet,
     round: Round,
     votes: VoteKeeper<Ctx>,
@@ -57,7 +58,8 @@ where
     pub fn new(
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
-        key: PrivateKey<Ctx>,
+        private_key: PrivateKey<Ctx>,
+        address: Ctx::Address,
     ) -> Self {
         let votes = VoteKeeper::new(
             height.clone(),
@@ -67,7 +69,8 @@ where
 
         Self {
             height,
-            private_key: Secret::new(key),
+            private_key: Secret::new(private_key),
+            address,
             validator_set,
             round: Round::INITIAL,
             votes,
@@ -90,8 +93,10 @@ where
             RoundMessage::NewRound(round) => {
                 // TODO: check if we are the proposer
 
-                self.round_states
-                    .insert(round, RoundState::new(self.height.clone()).new_round(round));
+                self.round_states.insert(
+                    round,
+                    RoundState::new(self.height.clone(), self.address.clone()).new_round(round),
+                );
 
                 None
             }
@@ -230,7 +235,7 @@ where
         let round_state = self
             .round_states
             .remove(&round)
-            .unwrap_or_else(|| RoundState::new(self.height.clone()));
+            .unwrap_or_else(|| RoundState::new(self.height.clone(), self.address.clone()));
 
         // Apply the event to the round state machine
         let transition = round_state.apply_event(round, event);

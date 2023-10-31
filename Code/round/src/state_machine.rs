@@ -170,7 +170,7 @@ where
         None => Some(proposed), // not locked, prevote the value
     };
 
-    let message = Message::prevote(state.round, value);
+    let message = Message::prevote(state.round, value, state.address.clone());
     Transition::to(state.next_step()).with_message(message)
 }
 
@@ -181,7 +181,7 @@ pub fn prevote_nil<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let message = Message::prevote(state.round, None);
+    let message = Message::prevote(state.round, None, state.address.clone());
     Transition::to(state.next_step()).with_message(message)
 }
 
@@ -199,7 +199,7 @@ pub fn precommit<Ctx>(state: State<Ctx>, value_id: ValueId<Ctx>) -> Transition<C
 where
     Ctx: Context,
 {
-    let message = Message::precommit(state.round, Some(value_id));
+    let message = Message::precommit(state.round, Some(value_id), state.address.clone());
 
     let Some(value) = state
         .proposal
@@ -222,7 +222,7 @@ pub fn precommit_nil<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let message = Message::precommit(state.round, None);
+    let message = Message::precommit(state.round, None, state.address.clone());
     Transition::to(state.next_step()).with_message(message)
 }
 

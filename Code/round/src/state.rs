@@ -32,6 +32,7 @@ pub struct State<Ctx>
 where
     Ctx: Context,
 {
+    pub address: Ctx::Address,
     pub height: Ctx::Height,
     pub round: Round,
     pub step: Step,
@@ -46,6 +47,7 @@ where
 {
     fn clone(&self) -> Self {
         Self {
+            address: self.address.clone(),
             height: self.height.clone(),
             round: self.round,
             step: self.step,
@@ -60,8 +62,9 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(height: Ctx::Height) -> Self {
+    pub fn new(height: Ctx::Height, address: Ctx::Address) -> Self {
         Self {
+            address,
             height,
             round: Round::INITIAL,
             step: Step::NewRound,
