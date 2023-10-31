@@ -14,7 +14,7 @@ fn test_propose() {
     let transition = apply_event(state.clone(), Round::new(0), Event::NewRoundProposer(value));
 
     state.step = Step::Propose;
-    assert_eq!(transition.state, state);
+    assert_eq!(transition.next_state, state);
 
     assert_eq!(
         transition.message.unwrap(),
@@ -29,7 +29,7 @@ fn test_prevote() {
 
     let transition = apply_event(state, Round::new(1), Event::NewRound);
 
-    assert_eq!(transition.state.step, Step::Propose);
+    assert_eq!(transition.next_state.step, Step::Propose);
     assert_eq!(
         transition.message.unwrap(),
         Message::Timeout(Timeout {
@@ -38,7 +38,7 @@ fn test_prevote() {
         })
     );
 
-    let state = transition.state;
+    let state = transition.next_state;
 
     let transition = apply_event(
         state,
@@ -51,7 +51,7 @@ fn test_prevote() {
         )),
     );
 
-    assert_eq!(transition.state.step, Step::Prevote);
+    assert_eq!(transition.next_state.step, Step::Prevote);
     assert_eq!(
         transition.message.unwrap(),
         Message::prevote(Round::new(1), Some(value.id()),)

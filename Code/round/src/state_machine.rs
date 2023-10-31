@@ -9,7 +9,7 @@ pub struct Transition<Ctx>
 where
     Ctx: Context,
 {
-    pub state: State<Ctx>,
+    pub next_state: State<Ctx>,
     pub message: Option<Message<Ctx>>,
     pub valid: bool,
 }
@@ -18,17 +18,17 @@ impl<Ctx> Transition<Ctx>
 where
     Ctx: Context,
 {
-    pub fn to(state: State<Ctx>) -> Self {
+    pub fn to(next_state: State<Ctx>) -> Self {
         Self {
-            state,
+            next_state,
             message: None,
             valid: true,
         }
     }
 
-    pub fn invalid(state: State<Ctx>) -> Self {
+    pub fn invalid(next_state: State<Ctx>) -> Self {
         Self {
-            state,
+            next_state,
             message: None,
             valid: false,
         }

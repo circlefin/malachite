@@ -32,7 +32,7 @@ where
     Ctx: Context,
 {
     height: Ctx::Height,
-    key: Secret<PrivateKey<Ctx>>,
+    private_key: Secret<PrivateKey<Ctx>>,
     validator_set: Ctx::ValidatorSet,
     round: Round,
     votes: VoteKeeper<Ctx>,
@@ -67,7 +67,7 @@ where
 
         Self {
             height,
-            key: Secret::new(key),
+            private_key: Secret::new(key),
             validator_set,
             round: Round::INITIAL,
             votes,
@@ -102,7 +102,7 @@ where
             }
 
             RoundMessage::Vote(vote) => {
-                let signature = Ctx::sign_vote(&vote, self.key.expose_secret());
+                let signature = Ctx::sign_vote(&vote, self.private_key.expose_secret());
                 let signed_vote = SignedVote::new(vote, signature);
 
                 Some(Message::Vote(signed_vote))
@@ -129,7 +129,7 @@ where
     fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<Ctx>> {
         let proposer = self.validator_set.get_proposer();
 
-        let event = if proposer.public_key() == &self.key.expose_secret().verifying_key() {
+        let event = if proposer.public_key() == &self.private_key.expose_secret().verifying_key() {
             let value = self.get_value();
             RoundEvent::NewRoundProposer(value)
         } else {
@@ -236,7 +236,7 @@ where
         let transition = round_state.apply_event(round, event);
 
         // Update state
-        self.round_states.insert(round, transition.state);
+        self.round_states.insert(round, transition.next_state);
 
         // Return message, if any
         transition.message
