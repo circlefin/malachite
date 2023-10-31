@@ -1,5 +1,5 @@
 use crate::events::Event;
-use crate::state_machine::Transition;
+use crate::transition::Transition;
 
 use malachite_common::{Context, Round};
 

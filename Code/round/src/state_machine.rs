@@ -3,42 +3,7 @@ use malachite_common::{Context, Proposal, Round, TimeoutStep, Value, ValueId};
 use crate::events::Event;
 use crate::message::Message;
 use crate::state::{State, Step};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Transition<Ctx>
-where
-    Ctx: Context,
-{
-    pub next_state: State<Ctx>,
-    pub message: Option<Message<Ctx>>,
-    pub valid: bool,
-}
-
-impl<Ctx> Transition<Ctx>
-where
-    Ctx: Context,
-{
-    pub fn to(next_state: State<Ctx>) -> Self {
-        Self {
-            next_state,
-            message: None,
-            valid: true,
-        }
-    }
-
-    pub fn invalid(next_state: State<Ctx>) -> Self {
-        Self {
-            next_state,
-            message: None,
-            valid: false,
-        }
-    }
-
-    pub fn with_message(mut self, message: Message<Ctx>) -> Self {
-        self.message = Some(message);
-        self
-    }
-}
+use crate::transition::Transition;
 
 /// Check that a proposal has a valid Proof-Of-Lock round
 fn is_valid_pol_round<Ctx>(state: &State<Ctx>, pol_round: Round) -> bool
