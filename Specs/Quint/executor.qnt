@@ -92,7 +92,8 @@ pure def id(v) = v
 
 
 // check whether the event has been already sent to consensus. If not, do so.
-pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (ExecutorState, Result) = {
+pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (ExecutorState, ConsensusOutput) = {
+    // check whether we already executed the event already
     if (es.executedEvents.contains((ev, es.cs.height, es.cs.round)))
         ({ ...es, bk:bk, cs: es.cs}, defaultResult)
     else
@@ -101,7 +102,7 @@ pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (Executo
 }
 
 // We do this if the executor receives a Precommit
-pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent) : (ExecutorState, Result) = {
+pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent) : (ExecutorState, ConsensusOutput) = {
     if (eev.name == "PrecommitValue")
             if (es.proposals.exists(x => eev.round == x.round and eev.value == x.proposal)) {
                 callConsensus(es, es.bk, {name : "ProposalAndCommitAndValid",
@@ -147,7 +148,7 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent)
 // TODO: make sure only valid proposals are in es.proposals
 
 // We do this if the executor receives a Prevote
-pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) : (ExecutorState, Result) = {
+pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) : (ExecutorState, ConsensusOutput) = {
     // TODO: events do not have heights now.
     // TODO: Polka implications missing.
     if (eev.name == "PolkaValue")
@@ -194,7 +195,7 @@ pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) 
 }
 
 // We do this if a timeout expires at the executor
-pure def Timeout (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Result) = {
+pure def Timeout (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     // TODO: We assume that the timeout event is always for the current round. If this is not
         // the case, we need to encode it in the input to which round the timeout belongs
     val event: Event = {name : input.timeout, height : es.cs.height,
@@ -203,7 +204,7 @@ pure def Timeout (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Res
 }
 
 // We do this if the executor receives a proposal
-pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Result) = {
+pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     val newES = { ...es, proposals: es.proposals.union(Set(input.proposal))}
     if (input.proposal.src != Proposer(es.cs.height, es.cs.round))
         // keep ES, that is, drop proposal
@@ -269,7 +270,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
 }
 
 // We do this when we need to jump to a new round
-pure def skip (es: ExecutorState, r: int) : (ExecutorState, Result) = {
+pure def skip (es: ExecutorState, r: int) : (ExecutorState, ConsensusOutput) = {
     val prop =  if (es.cs.validValue != "nil") es.cs.validValue
                 else getValue(es.cs, r)
     if (Proposer(es.cs.height, es.cs.round + 1) == es.cs.p)
@@ -290,7 +291,7 @@ pure def skip (es: ExecutorState, r: int) : (ExecutorState, Result) = {
 }
 
 // We do this when we have decided
-pure def decided (es: ExecutorState, res: Result) : (ExecutorState, Result) = {
+pure def decided (es: ExecutorState, res: ConsensusOutput) : (ExecutorState, ConsensusOutput) = {
     // here we call consensus to set a new height, that is, to initialize the state machine
     // and then we call skip to start round 0
     // TODO: one can put res.decided into the blockstore
@@ -309,12 +310,12 @@ pure def decided (es: ExecutorState, res: Result) : (ExecutorState, Result) = {
 
 // take input out of pending events and then call consensus with that event
 // We do this when the executor is asked to work on pending events
-pure def PendingEvent (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Result) = {
+pure def PendingEvent (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     val newState = { ...es, pendingEvents: es.pendingEvents.exclude(Set((input.event, es.cs.height, es.cs.round)))}
     callConsensus(newState, es.bk, input.event)
 }
 
-pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Result) = {
+pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     // TODO: shall we check whether the sender actually is in the validator set
     if (input.name == "proposal") {
         val cons_res = ProposalMsg(es, input)

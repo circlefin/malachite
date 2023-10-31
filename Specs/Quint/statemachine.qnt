@@ -48,7 +48,7 @@ val validators = Set("v1", "v2", "v3", "v4")
 val valset = validators.mapBy(x => 1)
 
 var system : Address_t -> NodeState
-var _hist: (str, ExecutorInput, Result)
+var _hist: (str, ExecutorInput, ConsensusOutput)
 //var _histSimple: (str, str, str)
 
 action init = all {
