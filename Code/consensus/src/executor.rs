@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use malachite_round::state_machine::RoundData;
 use secrecy::{ExposeSecret, Secret};
 
 use malachite_common::signature::Keypair;
@@ -32,7 +33,8 @@ where
     Ctx: Context,
 {
     height: Ctx::Height,
-    key: Secret<PrivateKey<Ctx>>,
+    private_key: Secret<PrivateKey<Ctx>>,
+    address: Ctx::Address,
     validator_set: Ctx::ValidatorSet,
     round: Round,
     votes: VoteKeeper<Ctx>,
@@ -57,7 +59,8 @@ where
     pub fn new(
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
-        key: PrivateKey<Ctx>,
+        private_key: PrivateKey<Ctx>,
+        address: Ctx::Address,
     ) -> Self {
         let votes = VoteKeeper::new(
             height.clone(),
@@ -67,7 +70,8 @@ where
 
         Self {
             height,
-            key: Secret::new(key),
+            private_key: Secret::new(private_key),
+            address,
             validator_set,
             round: Round::INITIAL,
             votes,
@@ -90,8 +94,9 @@ where
             RoundMessage::NewRound(round) => {
                 // TODO: check if we are the proposer
 
+                // XXX: Check if there is an existing state?
                 self.round_states
-                    .insert(round, RoundState::new(self.height.clone()).new_round(round));
+                    .insert(round, RoundState::default().new_round(round));
 
                 None
             }
@@ -102,14 +107,8 @@ where
             }
 
             RoundMessage::Vote(vote) => {
-                let address = self
-                    .validator_set
-                    .get_by_public_key(&self.key.expose_secret().verifying_key())?
-                    .address()
-                    .clone();
-
-                let signature = Ctx::sign_vote(&vote, self.key.expose_secret());
-                let signed_vote = SignedVote::new(vote, address, signature);
+                let signature = Ctx::sign_vote(&vote, self.private_key.expose_secret());
+                let signed_vote = SignedVote::new(vote, signature);
 
                 Some(Message::Vote(signed_vote))
             }
@@ -135,7 +134,7 @@ where
     fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<Ctx>> {
         let proposer = self.validator_set.get_proposer();
 
-        let event = if proposer.public_key() == &self.key.expose_secret().verifying_key() {
+        let event = if proposer.public_key() == &self.private_key.expose_secret().verifying_key() {
             let value = self.get_value();
             RoundEvent::NewRoundProposer(value)
         } else {
@@ -161,7 +160,7 @@ where
         }
 
         // Check that the proposal is for the current height and round
-        if round_state.height != proposal.height() || proposal.round() != self.round {
+        if self.height != proposal.height() || self.round != proposal.round() {
             return None;
         }
 
@@ -194,7 +193,9 @@ where
 
     fn apply_vote(&mut self, signed_vote: SignedVote<Ctx>) -> Option<RoundMessage<Ctx>> {
         // TODO: How to handle missing validator?
-        let validator = self.validator_set.get_by_address(&signed_vote.address)?;
+        let validator = self
+            .validator_set
+            .get_by_address(signed_vote.validator_address())?;
 
         if !Ctx::verify_signed_vote(&signed_vote, validator.public_key()) {
             // TODO: How to handle invalid votes?
@@ -231,16 +232,15 @@ where
     /// Apply the event, update the state.
     fn apply_event(&mut self, round: Round, event: RoundEvent<Ctx>) -> Option<RoundMessage<Ctx>> {
         // Get the round state, or create a new one
-        let round_state = self
-            .round_states
-            .remove(&round)
-            .unwrap_or_else(|| RoundState::new(self.height.clone()));
+        let round_state = self.round_states.remove(&round).unwrap_or_default();
+
+        let data = RoundData::new(round, &self.height, &self.address);
 
         // Apply the event to the round state machine
-        let transition = round_state.apply_event(round, event);
+        let transition = round_state.apply_event(&data, event);
 
         // Update state
-        self.round_states.insert(round, transition.state);
+        self.round_states.insert(round, transition.next_state);
 
         // Return message, if any
         transition.message
