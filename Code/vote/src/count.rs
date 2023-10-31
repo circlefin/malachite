@@ -84,7 +84,7 @@ impl<Value> VoteCount<Value> {
                 if is_quorum(sum_weight, self.total) {
                     Threshold::Any
                 } else {
-                    Threshold::Init
+                    Threshold::Unreached
                 }
             }
         }
@@ -111,7 +111,7 @@ impl<Value> VoteCount<Value> {
                 is_quorum(sum_weight, self.total)
             }
 
-            Threshold::Init => false,
+            Threshold::Unreached => false,
         }
     }
 }
@@ -123,8 +123,8 @@ impl<Value> VoteCount<Value> {
 // Thresh represents the different quorum thresholds.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Threshold<ValueId> {
-    /// No quorum
-    Init, // no quorum
+    /// No quorum has been reached yet
+    Unreached,
     /// Qorum of votes but not for the same value
     Any,
     /// Quorum for nil
@@ -178,35 +178,35 @@ mod tests {
     fn vote_count_nil() {
         let mut vc = VoteCount::new(4);
 
-        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Unreached), false);
         assert_eq!(vc.is_threshold_met(Threshold::Any), false);
         assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
 
-        assert_eq!(vc.add_vote(None, 1), Threshold::Init);
-        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.add_vote(None, 1), Threshold::Unreached);
+        assert_eq!(vc.is_threshold_met(Threshold::Unreached), false);
         assert_eq!(vc.is_threshold_met(Threshold::Any), false);
         assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
 
-        assert_eq!(vc.add_vote(None, 1), Threshold::Init);
-        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.add_vote(None, 1), Threshold::Unreached);
+        assert_eq!(vc.is_threshold_met(Threshold::Unreached), false);
         assert_eq!(vc.is_threshold_met(Threshold::Any), false);
         assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
 
         assert_eq!(vc.add_vote(None, 1), Threshold::Nil);
-        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Unreached), false);
         assert_eq!(vc.is_threshold_met(Threshold::Any), true);
         assert_eq!(vc.is_threshold_met(Threshold::Nil), true);
         assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
 
         assert_eq!(vc.add_vote(Some(1), 1), Threshold::Any);
-        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Unreached), false);
         assert_eq!(vc.is_threshold_met(Threshold::Any), true);
         assert_eq!(vc.is_threshold_met(Threshold::Nil), true);
         assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
@@ -218,35 +218,35 @@ mod tests {
     fn vote_count_value() {
         let mut vc = VoteCount::new(4);
 
-        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Unreached), false);
         assert_eq!(vc.is_threshold_met(Threshold::Any), false);
         assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
 
-        assert_eq!(vc.add_vote(Some(1), 1), Threshold::Init);
-        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.add_vote(Some(1), 1), Threshold::Unreached);
+        assert_eq!(vc.is_threshold_met(Threshold::Unreached), false);
         assert_eq!(vc.is_threshold_met(Threshold::Any), false);
         assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
 
-        assert_eq!(vc.add_vote(Some(1), 1), Threshold::Init);
-        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.add_vote(Some(1), 1), Threshold::Unreached);
+        assert_eq!(vc.is_threshold_met(Threshold::Unreached), false);
         assert_eq!(vc.is_threshold_met(Threshold::Any), false);
         assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(1)), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
 
         assert_eq!(vc.add_vote(Some(1), 1), Threshold::Value(1));
-        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Unreached), false);
         assert_eq!(vc.is_threshold_met(Threshold::Any), true);
         assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(1)), true);
         assert_eq!(vc.is_threshold_met(Threshold::Value(2)), false);
 
         assert_eq!(vc.add_vote(Some(2), 1), Threshold::Any);
-        assert_eq!(vc.is_threshold_met(Threshold::Init), false);
+        assert_eq!(vc.is_threshold_met(Threshold::Unreached), false);
         assert_eq!(vc.is_threshold_met(Threshold::Any), true);
         assert_eq!(vc.is_threshold_met(Threshold::Nil), false);
         assert_eq!(vc.is_threshold_met(Threshold::Value(1)), true);

@@ -80,7 +80,7 @@ where
         threshold: Threshold<ValueId<Ctx>>,
     ) -> Option<Message<ValueId<Ctx>>> {
         match (typ, threshold) {
-            (_, Threshold::Init) => None,
+            (_, Threshold::Unreached) => None,
 
             (VoteType::Prevote, Threshold::Any) => Some(Message::PolkaAny),
             (VoteType::Prevote, Threshold::Nil) => Some(Message::PolkaNil),

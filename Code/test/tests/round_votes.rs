@@ -16,11 +16,11 @@ fn add_votes_nil() {
     // add a vote for nil. nothing changes.
     let vote = Vote::new_prevote(Round::new(0), None, ADDRESS);
     let thresh = round_votes.add_vote(vote.clone(), 1);
-    assert_eq!(thresh, Threshold::Init);
+    assert_eq!(thresh, Threshold::Unreached);
 
     // add it again, nothing changes.
     let thresh = round_votes.add_vote(vote.clone(), 1);
-    assert_eq!(thresh, Threshold::Init);
+    assert_eq!(thresh, Threshold::Unreached);
 
     // add it again, get Nil
     let thresh = round_votes.add_vote(vote.clone(), 1);
@@ -40,11 +40,11 @@ fn add_votes_single_value() {
     // add a vote. nothing changes.
     let vote = Vote::new_prevote(Round::new(0), val, ADDRESS);
     let thresh = round_votes.add_vote(vote.clone(), weight);
-    assert_eq!(thresh, Threshold::Init);
+    assert_eq!(thresh, Threshold::Unreached);
 
     // add it again, nothing changes.
     let thresh = round_votes.add_vote(vote.clone(), weight);
-    assert_eq!(thresh, Threshold::Init);
+    assert_eq!(thresh, Threshold::Unreached);
 
     // add a vote for nil, get Thresh::Any
     let vote_nil = Vote::new_prevote(Round::new(0), None, ADDRESS);
@@ -70,25 +70,25 @@ fn add_votes_multi_values() {
     // add a vote for v1. nothing changes.
     let vote1 = Vote::new_precommit(Round::new(0), val1, ADDRESS);
     let thresh = round_votes.add_vote(vote1.clone(), 1);
-    assert_eq!(thresh, Threshold::Init);
+    assert_eq!(thresh, Threshold::Unreached);
 
     // add a vote for v2. nothing changes.
     let vote2 = Vote::new_precommit(Round::new(0), val2, ADDRESS);
     let thresh = round_votes.add_vote(vote2.clone(), 1);
-    assert_eq!(thresh, Threshold::Init);
+    assert_eq!(thresh, Threshold::Unreached);
 
     // add a vote for nil. nothing changes.
     let vote_nil = Vote::new_precommit(Round::new(0), None, ADDRESS);
     let thresh = round_votes.add_vote(vote_nil.clone(), 1);
-    assert_eq!(thresh, Threshold::Init);
+    assert_eq!(thresh, Threshold::Unreached);
 
     // add a vote for v1. nothing changes
     let thresh = round_votes.add_vote(vote1.clone(), 1);
-    assert_eq!(thresh, Threshold::Init);
+    assert_eq!(thresh, Threshold::Unreached);
 
     // add a vote for v2. nothing changes
     let thresh = round_votes.add_vote(vote2.clone(), 1);
-    assert_eq!(thresh, Threshold::Init);
+    assert_eq!(thresh, Threshold::Unreached);
 
     // add a big vote for v2. get Value(v2)
     let thresh = round_votes.add_vote(vote2.clone(), 10);
