@@ -102,6 +102,8 @@ module voteBookkeeper {
         else if (voteType == "Prevote" and threshold.name == "Any") {round: round, name: "PolkaAny", value: "null"}
         else if (voteType == "Precommit" and threshold.name == "Value") {round: round, name: "PrecommitValue", value: threshold.value}
         else if (voteType == "Precommit" and threshold.name == "Any") {round: round, name: "PrecommitAny", value: "null"}
+        // Josef's addition
+        else if (voteType == "Precommit" and threshold.name == "Nil") {round: round, name: "PrecommitAny", value: "null"}
         else {round: round, name: "None", value: "null"}
     }
 
@@ -129,4 +131,30 @@ module voteBookkeeper {
         } else false
     }
 
+run PrecommitTest = all {
+val bin : Bookkeeper = {
+               height: 0,
+               rounds:
+                 Map(
+                   0 ->
+                     {
+                       height: 0,
+                       precommits: { total: 4, valuesAddresses: Map(), valuesWeights: Map() },
+                       prevotes: { total: 4, valuesAddresses: Map(), valuesWeights: Map("a block" -> 1, "nil" -> 3) },
+                       round: 0
+                     }
+                 ),
+               totalWeight: 4
+             }
+val o1 = applyVote(bin, {value: "nil", round: 0, address: "v0", typ: "Precommit" }, 1)
+val o2 = applyVote(o1.bookkeeper, {value: "nil", round: 0, address: "v1", typ: "Precommit" }, 1)
+val o3 = applyVote(o2.bookkeeper, {value: "nil", round: 0, address: "v2", typ: "Precommit" }, 1)
+val o4 = applyVote(o3.bookkeeper, {value: "nil", round: 0, address: "v3", typ: "Precommit" }, 1)
+all{
+    assert(o1.event.name == "None"),
+    assert(o2.event.name == "None"),
+    assert(o3.event.name == "PrecommitAny"),
+    assert(o4.event.name == "PrecommitAny")
+}
+}
 }
