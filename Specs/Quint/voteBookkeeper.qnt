@@ -302,4 +302,22 @@ module voteBookkeeper {
         .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "alive"}, 60))
         .then(all{ assert(lastEmitted == {round: 1, name: "PrecommitValue", value: "proposal"}), allUnchanged })
     }
+
+    // Reaching PolkaAny 
+    run polkaAnyTest = {
+        init(100)
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "alice"}, 60))
+        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "john"}, 10))
+        .then(all{ assert(lastEmitted == {round: 1, name: "PolkaAny", value: "null"}), allUnchanged })
+    }
+
+    // Reaching PolkaNil
+    run polkaNilTest = {
+        init(100)
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "alice"}, 60))
+        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "john"}, 10))
+        .then(all{ assert(lastEmitted == {round: 1, name: "PolkaNil", value: "null"}), allUnchanged })
+    }
 }
