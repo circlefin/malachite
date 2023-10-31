@@ -132,10 +132,9 @@ val defaultResult : ConsensusOutput = {
 
 
 
-// Implies StartRound(0)
 pure def NewHeight (state: ConsensusState, ev: Event) : ConsResult = {
-    val newstate = { ...state, 
-			    round: 0, 
+    val newstate = {        p: state.p, 
+                            round: ev.round, 
                             step: "newRound", 
                             height : ev.height,
                             lockedRound: -1, 
@@ -268,7 +267,6 @@ pure def ProposalAndPolkaAndValid (state: ConsensusState, ev: Event) : ConsResul
 }
 
 // line 44
-
 pure def PolkaNil (state: ConsensusState, ev: Event) : ConsResult = {
     if (state.step == "Prevote")
         val newstate = { ...state, step: "Precommit"}
@@ -332,7 +330,6 @@ pure def TimeoutPrevote (state: ConsensusState, ev: Event) : ConsResult = {
                                                             height: state.height,
                                                             round: state.round,
                                                             step: "Precommit",  // "Prevote" or "Precommit"
-
                                                             id: "nil"}}
         {cs: newstate, out: result}
     else
