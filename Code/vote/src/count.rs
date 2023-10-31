@@ -63,6 +63,8 @@ where
     /// Weight of votes for the values, including nil
     pub values_weights: ValuesWeights<Option<ValueId<Ctx>>>,
 
+    /// Addresses of validators who voted for the values
+    pub validator_addresses: BTreeSet<Ctx::Address>,
 }
 
 impl<Ctx> VoteCount<Ctx>
@@ -73,14 +75,20 @@ where
         VoteCount {
             total_weight,
             values_weights: ValuesWeights::new(),
+            validator_addresses: BTreeSet::new(),
         }
     }
 
-    /// Add vote for a vlaue to internal counters and return the highest threshold.
+    /// Add vote for a value to internal counters, but only if we haven't seen
+    /// a vote from that particular validator yet.
     pub fn add_vote(&mut self, vote: Ctx::Vote, weight: Weight) -> Threshold<ValueId<Ctx>> {
-        let new_weight = self.values_weights.add(vote.value().cloned(), weight);
+        let already_voted = !self
+            .validator_addresses
+            .insert(vote.validator_address().clone());
 
-        self.values_weights.add(vote.value().cloned(), weight);
+        if !already_voted {
+            self.values_weights.add(vote.value().cloned(), weight);
+        }
 
         self.compute_threshold(vote.value())
     }
