@@ -184,4 +184,53 @@ run DecidingRunTest = {
     })    
 }
 
+
+run TimeoutRunTest = {
+    init
+    .then(valStepCommand("v1", "start"))
+    .then(valStepCommand("v2", "start"))
+    .then(valStepCommand("v3", "start"))
+    .then(valStepCommand("v4", "start"))
+    .then(valStepCommand("v1", "timeout"))
+    .then(valStepCommand("v2", "proposal"))
+    .then(valStepCommand("v3", "timeout"))
+    .then(valStepCommand("v4", "timeout"))
+    .then(valStepCommand("v4", "vote"))
+    .then(valStepCommand("v4", "vote"))
+    .then(valStepCommand("v4", "vote"))
+    .then(valStepCommand("v4", "vote"))    
+    .then(valStepCommand("v3", "vote"))
+    .then(valStepCommand("v3", "vote"))
+    .then(valStepCommand("v3", "vote"))
+    .then(valStepCommand("v3", "vote"))
+    .then(valStepCommand("v3", "vote"))     
+    .then(valStepCommand("v2", "vote"))    
+    .then(valStepCommand("v2", "vote"))
+    .then(valStepCommand("v2", "vote"))
+    .then(valStepCommand("v2", "vote"))
+    .then(valStepCommand("v2", "vote"))
+    .then(valStepCommand("v2", "vote"))    
+    .then(valStepCommand("v1", "vote"))     
+    .then(valStepCommand("v1", "vote"))    
+    .then(valStepCommand("v1", "vote"))
+    .then(valStepCommand("v1", "vote"))
+    .then(valStepCommand("v1", "vote"))
+    .then(valStepCommand("v1", "vote"))
+    .then(valStepCommand("v1", "vote"))
+    // .then(valStepCommand("v1", "timeout"))
+    // .then(valStepCommand("v2", "timeout"))
+    // .then(valStepCommand("v3", "timeout"))
+    // .then(valStepCommand("v4", "timeout")) 
+}
+
+/*
+valStepCommand("v1", "start")
+valStepCommand("v2", "start")
+valStepCommand("v3", "start")
+valStepCommand("v4", "start")
+valStepCommand("v1", "timeout")
+valStepCommand("v2", "proposal")
+valStepCommand("v3", "timeout")
+valStepCommand("v4", "timeout")
+*/
 }
