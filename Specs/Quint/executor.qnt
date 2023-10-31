@@ -49,7 +49,7 @@ TODO:  encode the following decision tree
 
 proposal
     invalid -> consensus event
-    valid:  BK get list of events 
+    valid:  BK list of events 
             generate all Consensus events C
             feed all events to Consensus
 

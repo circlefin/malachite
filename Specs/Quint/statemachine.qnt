@@ -106,6 +106,11 @@ action valStep(v: Address_t) : bool = {
     }
 }
 
+action step = {
+    nondet v = oneOf(validators)
+    valStep(v)
+}
+
 action valStepCommand(v: Address_t, command: str) : bool = {
     // pick action
     val input = system.get(v).nextActionCommand(command) 
@@ -133,11 +138,50 @@ action valStepCommand(v: Address_t, command: str) : bool = {
     }
 }
 
-action step = {
-    nondet v = oneOf(validators)
-    valStep(v)
+run DecidingRunTest = {
+    init
+    .then(valStepCommand("v1", "start"))
+    .then(valStepCommand("v2", "start"))
+    .then(valStepCommand("v3", "start"))
+    .then(valStepCommand("v4", "start"))
+    .then(valStepCommand("v1", "proposal"))
+    .then(valStepCommand("v2", "proposal"))
+    .then(valStepCommand("v3", "proposal"))
+    .then(valStepCommand("v4", "proposal"))  
+    .then(valStepCommand("v1", "vote"))
+    .then(valStepCommand("v1", "vote"))
+    .then(valStepCommand("v1", "vote"))
+    .then(all{
+        assert(system.get("v1").incomingVotes.contains(
+             { src: "v1", height: 0, round: 0, step: "Precommit", id: "a block" }
+        )),
+        valStepCommand("v2", "vote")
+        })
+    .then(valStepCommand("v2", "vote"))
+    .then(valStepCommand("v2", "vote"))
+    .then(valStepCommand("v2", "vote"))
+    .then(all{
+        assert(system.get("v2").incomingVotes.contains(
+             { src: "v2", height: 0, round: 0, step: "Precommit", id: "a block" }
+        )),
+        valStepCommand("v3", "vote")
+        })
+    .then(valStepCommand("v3", "vote"))
+    .then(valStepCommand("v3", "vote"))
+    .then(valStepCommand("v3", "vote"))
+    .then(valStepCommand("v3", "vote"))
+    .then(all{
+        assert(system.get("v3").incomingVotes.contains(
+             { src: "v3", height: 0, round: 0, step: "Precommit", id: "a block" }
+        )),
+        assert(system.get("v3").es.chain == List()),
+        valStepCommand("v3", "vote")
+        })
+    .then(all{
+    assert(system.get("v3").es.chain.head() == "a block"),
+    system' = system,
+    _hist' = _hist
+    })    
 }
-
-
 
 }
