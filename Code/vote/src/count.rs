@@ -57,20 +57,21 @@ pub struct VoteCount<Ctx>
 where
     Ctx: Context,
 {
+    /// Total weight
+    pub total_weight: Weight,
+
     /// Weight of votes for the values, including nil
     pub values_weights: ValuesWeights<Option<ValueId<Ctx>>>,
 
-    /// Total weight
-    pub total: Weight,
 }
 
 impl<Ctx> VoteCount<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(total: Weight) -> Self {
+    pub fn new(total_weight: Weight) -> Self {
         VoteCount {
-            total,
+            total_weight,
             values_weights: ValuesWeights::new(),
         }
     }
@@ -80,14 +81,14 @@ where
         let new_weight = self.values_weights.add(vote.value().cloned(), weight);
 
         match vote.value() {
-            Some(value) if is_quorum(new_weight, self.total) => Threshold::Value(value.clone()),
+            Some(value) if is_quorum(new_weight, self.total_weight) => Threshold::Value(value.clone()),
 
-            None if is_quorum(new_weight, self.total) => Threshold::Nil,
+            None if is_quorum(new_weight, self.total_weight) => Threshold::Nil,
 
             _ => {
                 let sum_weight = self.values_weights.sum();
 
-                if is_quorum(sum_weight, self.total) {
+                if is_quorum(sum_weight, self.total_weight) {
                     Threshold::Any
                 } else {
                     Threshold::Unreached
@@ -101,17 +102,17 @@ where
         match threshold {
             Threshold::Value(value) => {
                 let weight = self.values_weights.get(&Some(value));
-                is_quorum(weight, self.total)
+                is_quorum(weight, self.total_weight)
             }
 
             Threshold::Nil => {
                 let weight = self.values_weights.get(&None);
-                is_quorum(weight, self.total)
+                is_quorum(weight, self.total_weight)
             }
 
             Threshold::Any => {
                 let sum_weight = self.values_weights.sum();
-                is_quorum(sum_weight, self.total)
+                is_quorum(sum_weight, self.total_weight)
             }
 
             Threshold::Unreached => false,
