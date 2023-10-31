@@ -147,25 +147,32 @@ pure def NewHeight (state: ConsensusState, ev: Event) : ConsResult = {
 
 // line 11.14
 pure def NewRoundProposer (state: ConsensusState, ev: Event) : ConsResult = {
-    // TODO: ev.round must match state.round
-    val newstate = { ...state, round: ev.round, step: "propose"}
-    val proposal =  if (state.validValue != "nil") state.validValue
-                    else ev.value
-    val result = { ...defaultResult, name: "proposal",
-                                     proposal: {   src: state.p, 
-                                                        height: state.height,
-                                                        round: ev.round, 
-                                                        proposal: proposal,
-                                                        validRound: state.validRound}}
-    {cs: newstate, out: result }
+    if (ev.round == state.round)
+        val newstate = { ...state, round: ev.round, step: "propose"}
+        val proposal =  if (state.validValue != "nil") state.validValue
+                        else ev.value
+        val result = { ...defaultResult, name: "proposal",
+                                         proposal: {   src: state.p, 
+                                                            height: state.height,
+                                                            round: ev.round, 
+                                                            proposal: proposal,
+                                                            validRound: state.validRound}}
+        {cs: newstate, out: result }
+    else
+        {cs: state, out: defaultResult}
 }
 
 // line 11.20
 pure def NewRound (state: ConsensusState, ev: Event) : ConsResult = {
-    // TODO: ev.round must match state.round
-    val newstate = { ...state, round: ev.round, step: "propose" }
-    val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPropose"} // do we need the roundnumber here? YES
-         {cs: newstate, out: result}
+    if (ev.round == state.round)
+        val newstate = { ...state, round: ev.round, step: "propose" }
+        val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPropose"} 
+            // We just report that a timeout should be started. The executor must take care
+            // of figuring out whether it needs to record the round number and height per
+            // timeout
+            {cs: newstate, out: result}
+    else
+        {cs: state, out: defaultResult}            
 }
 
 // line 22
@@ -238,7 +245,10 @@ pure def ProposalInvalid (state: ConsensusState, ev: Event) : ConsResult = {
 // line 34
 pure def PolkaAny (state: ConsensusState, ev: Event) : ConsResult = {
     if (state.step == "Prevote") {
-        val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPrevote" } // do we need the roundnumber here? YES
+        val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPrevote" }
+            // We just report that a timeout should be started. The executor must take care
+            // of figuring out whether it needs to record the round number and height per
+            // timeout
         {cs: state, out: result}
     }
     else
@@ -260,10 +270,13 @@ pure def ProposalAndPolkaAndValid (state: ConsensusState, ev: Event) : ConsResul
                                                         id: ev.value}}
          {cs: newstate, out: result}
         }
-    else {
-	// TODO: if state > prevote, we should update the valid round!
-         {cs: state, out: defaultResult}
-    }
+    else if (state.step == "Precommit")
+        // TODO: check whether Daniel's comment
+        // "if state > prevote, we should update the valid round!"
+        // was properly addressed
+        {cs: auxState,  out: defaultResult}
+    else
+        {cs: state, out: defaultResult}
 }
 
 // line 44
@@ -283,7 +296,7 @@ pure def PolkaNil (state: ConsensusState, ev: Event) : ConsResult = {
 
 // line 47
 pure def PrecommitAny (state: ConsensusState, ev: Event) : ConsResult = {
-    val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPrecommit" } // do we need the roundnumber here? YES
+    val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPrecommit" }
     {cs: state, out: result}
 }
 
@@ -324,12 +337,12 @@ pure def TimeoutPropose (state: ConsensusState, ev: Event) : ConsResult = {
 pure def TimeoutPrevote (state: ConsensusState, ev: Event) : ConsResult = {
     if (ev.height == state.height and ev.round == state.round and state.step == "Prevote")
         val newstate = { ...state, step: "Precommit"}
-        // TODO: should we send precommit nil again
+        // TODO: should we send precommit nil again ?
         val result = { ...defaultResult, name: "votemessage",
                                          voteMessage: { src: state.p,
                                                             height: state.height,
                                                             round: state.round,
-                                                            step: "Precommit",  // "Prevote" or "Precommit"
+                                                            step: "Precommit", 
                                                             id: "nil"}}
         {cs: newstate, out: result}
     else
