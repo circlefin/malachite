@@ -147,7 +147,7 @@ pure def NewHeight (state: ConsensusState, ev: Event) : ConsResult = {
 
 // line 11.14
 pure def NewRoundProposer (state: ConsensusState, ev: Event) : ConsResult = {
-    if (ev.round == state.round)
+        // TODO: discuss comment "ev.round must match state.round"
         val newstate = { ...state, round: ev.round, step: "propose"}
         val proposal =  if (state.validValue != "nil") state.validValue
                         else ev.value
@@ -158,21 +158,17 @@ pure def NewRoundProposer (state: ConsensusState, ev: Event) : ConsResult = {
                                                             proposal: proposal,
                                                             validRound: state.validRound}}
         {cs: newstate, out: result }
-    else
-        {cs: state, out: defaultResult}
 }
 
 // line 11.20
 pure def NewRound (state: ConsensusState, ev: Event) : ConsResult = {
-    if (ev.round == state.round)
+        // TODO: discuss comment "ev.round must match state.round"
         val newstate = { ...state, round: ev.round, step: "propose" }
         val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPropose"} 
             // We just report that a timeout should be started. The executor must take care
             // of figuring out whether it needs to record the round number and height per
             // timeout
-            {cs: newstate, out: result}
-    else
-        {cs: state, out: defaultResult}            
+            {cs: newstate, out: result}          
 }
 
 // line 22
