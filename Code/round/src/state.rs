@@ -1,4 +1,5 @@
 use crate::events::Event;
+use crate::state_machine::RoundData;
 use crate::transition::Transition;
 
 use malachite_common::{Context, Round};
@@ -32,8 +33,6 @@ pub struct State<Ctx>
 where
     Ctx: Context,
 {
-    pub address: Ctx::Address,
-    pub height: Ctx::Height,
     pub round: Round,
     pub step: Step,
     pub proposal: Option<Ctx::Proposal>,
@@ -47,8 +46,6 @@ where
 {
     fn clone(&self) -> Self {
         Self {
-            address: self.address.clone(),
-            height: self.height.clone(),
             round: self.round,
             step: self.step,
             proposal: self.proposal.clone(),
@@ -62,10 +59,8 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(height: Ctx::Height, address: Ctx::Address) -> Self {
+    pub fn new() -> Self {
         Self {
-            address,
-            height,
             round: Round::INITIAL,
             step: Step::NewRound,
             proposal: None,
@@ -114,7 +109,16 @@ where
         }
     }
 
-    pub fn apply_event(self, round: Round, event: Event<Ctx>) -> Transition<Ctx> {
-        crate::state_machine::apply_event(self, round, event)
+    pub fn apply_event(self, data: &RoundData<Ctx>, event: Event<Ctx>) -> Transition<Ctx> {
+        crate::state_machine::apply_event(self, data, event)
+    }
+}
+
+impl<Ctx> Default for State<Ctx>
+where
+    Ctx: Context,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -57,8 +57,6 @@ fn executor_steps_proposer() {
             input_event: Some(Event::NewRound(Round::new(0))),
             expected_output: Some(Message::Propose(proposal.clone())),
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
                 proposal: None,
@@ -73,8 +71,6 @@ fn executor_steps_proposer() {
                 Vote::new_prevote(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
             )),
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: Some(proposal.clone()),
@@ -87,8 +83,6 @@ fn executor_steps_proposer() {
             input_event: None,
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: Some(proposal.clone()),
@@ -103,8 +97,6 @@ fn executor_steps_proposer() {
             )),
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: Some(proposal.clone()),
@@ -121,8 +113,6 @@ fn executor_steps_proposer() {
                 Vote::new_precommit(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
             )),
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
@@ -141,8 +131,6 @@ fn executor_steps_proposer() {
             input_event: None,
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
@@ -163,8 +151,6 @@ fn executor_steps_proposer() {
             )),
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
@@ -185,8 +171,6 @@ fn executor_steps_proposer() {
             )),
             expected_output: Some(Message::Decide(Round::new(0), value.clone())),
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Commit,
                 proposal: Some(proposal.clone()),
@@ -254,8 +238,6 @@ fn executor_steps_not_proposer() {
             input_event: Some(Event::NewRound(Round::new(0))),
             expected_output: Some(Message::SetTimeout(Timeout::propose(Round::new(0)))),
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
                 proposal: None,
@@ -270,8 +252,6 @@ fn executor_steps_not_proposer() {
                 Vote::new_prevote(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
             )),
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: Some(proposal.clone()),
@@ -284,8 +264,6 @@ fn executor_steps_not_proposer() {
             input_event: None,
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: Some(proposal.clone()),
@@ -300,8 +278,6 @@ fn executor_steps_not_proposer() {
             )),
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: Some(proposal.clone()),
@@ -318,8 +294,6 @@ fn executor_steps_not_proposer() {
                 Vote::new_precommit(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
             )),
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
@@ -338,8 +312,6 @@ fn executor_steps_not_proposer() {
             input_event: None,
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
@@ -360,8 +332,6 @@ fn executor_steps_not_proposer() {
             )),
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
@@ -382,8 +352,6 @@ fn executor_steps_not_proposer() {
             )),
             expected_output: Some(Message::Decide(Round::new(0), value.clone())),
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Commit,
                 proposal: Some(proposal.clone()),
@@ -450,8 +418,6 @@ fn executor_steps_not_proposer_timeout() {
             input_event: Some(Event::NewRound(Round::new(0))),
             expected_output: Some(Message::SetTimeout(Timeout::propose(Round::new(0)))),
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
                 proposal: None,
@@ -467,8 +433,6 @@ fn executor_steps_not_proposer_timeout() {
                 Vote::new_prevote(Round::new(0), None, my_addr).signed(&my_sk),
             )),
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: None,
@@ -482,8 +446,6 @@ fn executor_steps_not_proposer_timeout() {
             input_event: None,
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: None,
@@ -499,8 +461,6 @@ fn executor_steps_not_proposer_timeout() {
             )),
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: None,
@@ -518,8 +478,6 @@ fn executor_steps_not_proposer_timeout() {
                 Vote::new_precommit(Round::new(0), None, my_addr).signed(&my_sk),
             )),
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: None,
@@ -533,8 +491,6 @@ fn executor_steps_not_proposer_timeout() {
             input_event: None,
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: None,
@@ -550,8 +506,6 @@ fn executor_steps_not_proposer_timeout() {
             )),
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: None,
@@ -567,8 +521,6 @@ fn executor_steps_not_proposer_timeout() {
             )),
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: None,
@@ -582,8 +534,6 @@ fn executor_steps_not_proposer_timeout() {
             input_event: Some(Event::Timeout(Timeout::precommit(Round::new(0)))),
             expected_output: None,
             new_state: State {
-                address: my_addr,
-                height: Height::new(1),
                 round: Round::new(1),
                 step: Step::NewRound,
                 proposal: None,
