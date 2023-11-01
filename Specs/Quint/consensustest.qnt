@@ -14,14 +14,14 @@ var _Event : Event
 
 
 pure def initialProcess (name: Address_t) : ConsensusState = {
-    { p: name, height : 1, round: 0, step: "newRound", lockedRound: -1, lockedValue: "nil", validRound: -1, validValue: "nil"}
+    { p: name, height : 1, round: -1, step: "newRound", lockedRound: -1, lockedValue: "nil", validRound: -1, validValue: "nil"}
 }
 
 action init = all {
     system' = Map ("Josef" -> initialProcess("Josef")),
     _Result' = defaultResult,
     _Event' = {name : "Initial",
-                                            height : -1,
+                                            height : 0,
                                             round: -1,
                                             value: "",
                                             vr: -1}

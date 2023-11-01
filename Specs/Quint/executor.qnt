@@ -234,9 +234,21 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
             (es, defaultResult)
     }
     else { // proposal valid and from proposer
-        val receivedPolkaValidRoundVal = checkThreshold(newES.bk, input.proposal.validRound, "Prevote", {name: "PolkaValue", value: input.proposal.proposal})
-        val receivedPolkaCurrentVal = checkThreshold(newES.bk, newES.cs.round, "Prevote", {name: "PolkaValue", value: input.proposal.proposal})
-        val receivedCommitCurrentVal = checkThreshold(newES.bk, newES.cs.round, "Precommit", {name: "PrecommitValue", value: input.proposal.proposal})
+        val receivedPolkaValidRoundVal = checkThreshold(newES.bk,   
+                                                        input.proposal.validRound, 
+                                                        "Prevote", 
+                                                        {name: "PolkaValue", 
+                                                        value: input.proposal.proposal})
+        val receivedPolkaCurrentVal = checkThreshold(   newES.bk, 
+                                                        newES.cs.round, 
+                                                        "Prevote", 
+                                                        {name: "PolkaValue", 
+                                                        value: input.proposal.proposal})
+        val receivedCommitCurrentVal = checkThreshold(  newES.bk, 
+                                                        newES.cs.round, 
+                                                        "Precommit", 
+                                                        {name: "PrecommitValue", 
+                                                        value: input.proposal.proposal})
         if (newES.cs.step == "propose") 
             if (input.proposal.validRound == -1)
                 if (receivedPolkaCurrentVal)
@@ -301,6 +313,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
 
 // We do this when we need to jump to a new round
 pure def skip (es: ExecutorState, r: int) : (ExecutorState, ConsensusOutput) = {
+    // line 15
     val prop =  if (es.cs.validValue != "nil") es.cs.validValue
                 else getValue(es.cs, r)
     if (Proposer(es.cs.height, es.cs.round + 1) == es.cs.p)
