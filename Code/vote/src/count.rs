@@ -93,6 +93,8 @@ where
         self.compute_threshold(vote.value())
     }
 
+    /// Compute whether or not we have reached a threshold for the given value,
+    /// and return that threshold.
     pub fn compute_threshold(&self, value: Option<&ValueId<Ctx>>) -> Threshold<ValueId<Ctx>> {
         let value = value.cloned();
         let weight = self.values_weights.get(&value);
