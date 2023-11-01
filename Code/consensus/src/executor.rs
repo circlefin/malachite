@@ -1,44 +1,67 @@
 use std::collections::BTreeMap;
 
+use malachite_round::state_machine::RoundData;
+use secrecy::{ExposeSecret, Secret};
+
+use malachite_common::signature::Keypair;
 use malachite_common::{
-    Consensus, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Value, Vote,
-    VoteType,
+    Context, PrivateKey, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator,
+    ValidatorSet, Value, Vote, VoteType,
 };
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
 use malachite_round::state::State as RoundState;
 use malachite_vote::count::Threshold;
+use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 
-#[derive(Clone, Debug)]
-pub struct Executor<C>
+/// Messages that can be received and broadcast by the consensus executor.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Event<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
-    height: C::Height,
-    key: C::PublicKey,
-    validator_set: C::ValidatorSet,
+    NewRound(Round),
+    Proposal(Ctx::Proposal),
+    Vote(SignedVote<Ctx>),
+    TimeoutElapsed(Timeout),
+}
+
+#[derive(Clone, Debug)]
+pub struct Executor<Ctx>
+where
+    Ctx: Context,
+{
+    height: Ctx::Height,
+    private_key: Secret<PrivateKey<Ctx>>,
+    address: Ctx::Address,
+    validator_set: Ctx::ValidatorSet,
     round: Round,
-    votes: VoteKeeper<C>,
-    round_states: BTreeMap<Round, RoundState<C>>,
+    votes: VoteKeeper<Ctx>,
+    round_states: BTreeMap<Round, RoundState<Ctx>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Message<C>
+pub enum Message<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
-    NewRound(Round),
-    Proposal(C::Proposal),
-    Vote(C::Vote),
-    Timeout(Timeout),
+    Propose(Ctx::Proposal),
+    Vote(SignedVote<Ctx>),
+    Decide(Round, Ctx::Value),
+    ScheduleTimeout(Timeout),
 }
 
-impl<C> Executor<C>
+impl<Ctx> Executor<Ctx>
 where
-    C: Consensus,
+    Ctx: Context,
 {
-    pub fn new(height: C::Height, validator_set: C::ValidatorSet, key: C::PublicKey) -> Self {
+    pub fn new(
+        height: Ctx::Height,
+        validator_set: Ctx::ValidatorSet,
+        private_key: PrivateKey<Ctx>,
+        address: Ctx::Address,
+    ) -> Self {
         let votes = VoteKeeper::new(
             height.clone(),
             Round::INITIAL,
@@ -47,7 +70,8 @@ where
 
         Self {
             height,
-            key,
+            private_key: Secret::new(private_key),
+            address,
             validator_set,
             round: Round::INITIAL,
             votes,
@@ -55,12 +79,12 @@ where
         }
     }
 
-    pub fn get_value(&self) -> C::Value {
+    pub fn get_value(&self) -> Ctx::Value {
         // TODO - add external interface to get the value
-        C::DUMMY_VALUE
+        Ctx::DUMMY_VALUE
     }
 
-    pub fn execute(&mut self, msg: Message<C>) -> Option<Message<C>> {
+    pub fn execute(&mut self, msg: Event<Ctx>) -> Option<Message<Ctx>> {
         let round_msg = match self.apply(msg) {
             Some(msg) => msg,
             None => return None,
@@ -70,57 +94,47 @@ where
             RoundMessage::NewRound(round) => {
                 // TODO: check if we are the proposer
 
+                // XXX: Check if there is an existing state?
                 self.round_states
-                    .insert(round, RoundState::new(self.height.clone()).new_round(round));
+                    .insert(round, RoundState::default().new_round(round));
 
                 None
             }
 
-            RoundMessage::Proposal(p) => {
+            RoundMessage::Proposal(proposal) => {
                 // sign the proposal
-                Some(Message::Proposal(p))
+                Some(Message::Propose(proposal))
             }
 
-            RoundMessage::Vote(mut v) => {
-                // sign the vote
+            RoundMessage::Vote(vote) => {
+                let signature = Ctx::sign_vote(&vote, self.private_key.expose_secret());
+                let signed_vote = SignedVote::new(vote, signature);
 
-                // FIXME: round message votes should not include address
-                let address = self
-                    .validator_set
-                    .get_by_public_key(&self.key)?
-                    .address()
-                    .clone();
-
-                v.set_address(address);
-
-                Some(Message::Vote(v))
+                Some(Message::Vote(signed_vote))
             }
 
-            RoundMessage::Timeout(_) => {
-                // schedule the timeout
-                None
-            }
+            RoundMessage::ScheduleTimeout(timeout) => Some(Message::ScheduleTimeout(timeout)),
 
-            RoundMessage::Decision(_) => {
-                // update the state
-                None
+            RoundMessage::Decision(value) => {
+                // TODO: update the state
+                Some(Message::Decide(value.round, value.value))
             }
         }
     }
 
-    fn apply(&mut self, msg: Message<C>) -> Option<RoundMessage<C>> {
+    fn apply(&mut self, msg: Event<Ctx>) -> Option<RoundMessage<Ctx>> {
         match msg {
-            Message::NewRound(round) => self.apply_new_round(round),
-            Message::Proposal(proposal) => self.apply_proposal(proposal),
-            Message::Vote(vote) => self.apply_vote(vote),
-            Message::Timeout(timeout) => self.apply_timeout(timeout),
+            Event::NewRound(round) => self.apply_new_round(round),
+            Event::Proposal(proposal) => self.apply_proposal(proposal),
+            Event::Vote(signed_vote) => self.apply_vote(signed_vote),
+            Event::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
         }
     }
 
-    fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<C>> {
+    fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<Ctx>> {
         let proposer = self.validator_set.get_proposer();
 
-        let event = if proposer.public_key() == &self.key {
+        let event = if proposer.public_key() == &self.private_key.expose_secret().verifying_key() {
             let value = self.get_value();
             RoundEvent::NewRoundProposer(value)
         } else {
@@ -130,7 +144,7 @@ where
         self.apply_event(round, event)
     }
 
-    fn apply_proposal(&mut self, proposal: C::Proposal) -> Option<RoundMessage<C>> {
+    fn apply_proposal(&mut self, proposal: Ctx::Proposal) -> Option<RoundMessage<Ctx>> {
         // TODO: Check for invalid proposal
         let event = RoundEvent::Proposal(proposal.clone());
 
@@ -146,7 +160,7 @@ where
         }
 
         // Check that the proposal is for the current height and round
-        if round_state.height != proposal.height() || proposal.round() != self.round {
+        if self.height != proposal.height() || self.round != proposal.round() {
             return None;
         }
 
@@ -165,7 +179,7 @@ where
                 self.apply_event(proposal.round(), event)
             }
             Round::Some(_)
-                if self.votes.check_threshold(
+                if self.votes.is_threshold_met(
                     &proposal.pol_round(),
                     VoteType::Prevote,
                     Threshold::Value(proposal.value().id()),
@@ -177,23 +191,35 @@ where
         }
     }
 
-    fn apply_vote(&mut self, vote: C::Vote) -> Option<RoundMessage<C>> {
-        let Some(validator) = self.validator_set.get_by_address(vote.address()) else {
-            // TODO: Is this the correct behavior? How to log such "errors"?
+    fn apply_vote(&mut self, signed_vote: SignedVote<Ctx>) -> Option<RoundMessage<Ctx>> {
+        // TODO: How to handle missing validator?
+        let validator = self
+            .validator_set
+            .get_by_address(signed_vote.validator_address())?;
+
+        if !Ctx::verify_signed_vote(&signed_vote, validator.public_key()) {
+            // TODO: How to handle invalid votes?
             return None;
+        }
+
+        let round = signed_vote.vote.round();
+
+        let vote_msg = self
+            .votes
+            .apply_vote(signed_vote.vote, validator.voting_power())?;
+
+        let round_event = match vote_msg {
+            VoteMessage::PolkaAny => RoundEvent::PolkaAny,
+            VoteMessage::PolkaNil => RoundEvent::PolkaNil,
+            VoteMessage::PolkaValue(v) => RoundEvent::PolkaValue(v),
+            VoteMessage::PrecommitAny => RoundEvent::PrecommitAny,
+            VoteMessage::PrecommitValue(v) => RoundEvent::PrecommitValue(v),
         };
 
-        let round = vote.round();
-
-        let event = match self.votes.apply_vote(vote, validator.voting_power()) {
-            Some(event) => event,
-            None => return None,
-        };
-
-        self.apply_event(round, event)
+        self.apply_event(round, round_event)
     }
 
-    fn apply_timeout(&mut self, timeout: Timeout) -> Option<RoundMessage<C>> {
+    fn apply_timeout(&mut self, timeout: Timeout) -> Option<RoundMessage<Ctx>> {
         let event = match timeout.step {
             TimeoutStep::Propose => RoundEvent::TimeoutPropose,
             TimeoutStep::Prevote => RoundEvent::TimeoutPrevote,
@@ -204,24 +230,23 @@ where
     }
 
     /// Apply the event, update the state.
-    fn apply_event(&mut self, round: Round, event: RoundEvent<C>) -> Option<RoundMessage<C>> {
+    fn apply_event(&mut self, round: Round, event: RoundEvent<Ctx>) -> Option<RoundMessage<Ctx>> {
         // Get the round state, or create a new one
-        let round_state = self
-            .round_states
-            .remove(&round)
-            .unwrap_or_else(|| RoundState::new(self.height.clone()));
+        let round_state = self.round_states.remove(&round).unwrap_or_default();
+
+        let data = RoundData::new(round, &self.height, &self.address);
 
         // Apply the event to the round state machine
-        let transition = round_state.apply_event(round, event);
+        let transition = round_state.apply_event(&data, event);
 
         // Update state
-        self.round_states.insert(round, transition.state);
+        self.round_states.insert(round, transition.next_state);
 
         // Return message, if any
         transition.message
     }
 
-    pub fn round_state(&self, round: Round) -> Option<&RoundState<C>> {
+    pub fn round_state(&self, round: Round) -> Option<&RoundState<Ctx>> {
         self.round_states.get(&round)
     }
 }
