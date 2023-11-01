@@ -10,7 +10,7 @@ where
     NewRound(Round),                  // Move to the new round.
     Proposal(Ctx::Proposal),          // Broadcast the proposal.
     Vote(Ctx::Vote),                  // Broadcast the vote.
-    Timeout(Timeout),                 // Schedule the timeout.
+    ScheduleTimeout(Timeout),         // Schedule the timeout.
     Decision(RoundValue<Ctx::Value>), // Decide the value.
 }
 
@@ -23,7 +23,7 @@ where
             Message::NewRound(round) => Message::NewRound(*round),
             Message::Proposal(proposal) => Message::Proposal(proposal.clone()),
             Message::Vote(vote) => Message::Vote(vote.clone()),
-            Message::Timeout(timeout) => Message::Timeout(*timeout),
+            Message::ScheduleTimeout(timeout) => Message::ScheduleTimeout(*timeout),
             Message::Decision(round_value) => Message::Decision(round_value.clone()),
         }
     }
@@ -50,8 +50,8 @@ where
         Message::Vote(Ctx::new_precommit(round, value_id, address))
     }
 
-    pub fn timeout(round: Round, step: TimeoutStep) -> Self {
-        Message::Timeout(Timeout { round, step })
+    pub fn schedule_timeout(round: Round, step: TimeoutStep) -> Self {
+        Message::ScheduleTimeout(Timeout { round, step })
     }
 
     pub fn decision(round: Round, value: Ctx::Value) -> Self {

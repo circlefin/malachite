@@ -24,7 +24,7 @@ where
     NewRound(Round),
     Proposal(Ctx::Proposal),
     Vote(SignedVote<Ctx>),
-    Timeout(Timeout),
+    TimeoutElapsed(Timeout),
 }
 
 #[derive(Clone, Debug)]
@@ -49,7 +49,7 @@ where
     Propose(Ctx::Proposal),
     Vote(SignedVote<Ctx>),
     Decide(Round, Ctx::Value),
-    SetTimeout(Timeout),
+    ScheduleTimeout(Timeout),
 }
 
 impl<Ctx> Executor<Ctx>
@@ -113,7 +113,7 @@ where
                 Some(Message::Vote(signed_vote))
             }
 
-            RoundMessage::Timeout(timeout) => Some(Message::SetTimeout(timeout)),
+            RoundMessage::ScheduleTimeout(timeout) => Some(Message::ScheduleTimeout(timeout)),
 
             RoundMessage::Decision(value) => {
                 // TODO: update the state
@@ -127,7 +127,7 @@ where
             Event::NewRound(round) => self.apply_new_round(round),
             Event::Proposal(proposal) => self.apply_proposal(proposal),
             Event::Vote(signed_vote) => self.apply_vote(signed_vote),
-            Event::Timeout(timeout) => self.apply_timeout(timeout),
+            Event::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
         }
     }
 

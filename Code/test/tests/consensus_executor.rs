@@ -20,7 +20,7 @@ fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
         Message::Propose(p) => Some(Event::Proposal(p)),
         Message::Vote(v) => Some(Event::Vote(v)),
         Message::Decide(_, _) => None,
-        Message::SetTimeout(_) => None,
+        Message::ScheduleTimeout(_) => None,
     }
 }
 
@@ -236,7 +236,7 @@ fn executor_steps_not_proposer() {
         TestStep {
             desc: "Start round 0, we are not the proposer",
             input_event: Some(Event::NewRound(Round::new(0))),
-            expected_output: Some(Message::SetTimeout(Timeout::propose(Round::new(0)))),
+            expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Propose,
@@ -416,7 +416,7 @@ fn executor_steps_not_proposer_timeout() {
         TestStep {
             desc: "Start round 0, we are not the proposer",
             input_event: Some(Event::NewRound(Round::new(0))),
-            expected_output: Some(Message::SetTimeout(Timeout::propose(Round::new(0)))),
+            expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Propose,
@@ -428,7 +428,7 @@ fn executor_steps_not_proposer_timeout() {
         // Receive a propose timeout, prevote for nil (v1)
         TestStep {
             desc: "Receive a propose timeout, prevote for nil (v1)",
-            input_event: Some(Event::Timeout(Timeout::propose(Round::new(0)))),
+            input_event: Some(Event::TimeoutElapsed(Timeout::propose(Round::new(0)))),
             expected_output: Some(Message::Vote(
                 Vote::new_prevote(Round::new(0), None, my_addr).signed(&my_sk),
             )),
@@ -531,7 +531,7 @@ fn executor_steps_not_proposer_timeout() {
         // we receive a precommit timeout, start a new round
         TestStep {
             desc: "we receive a precommit timeout, start a new round",
-            input_event: Some(Event::Timeout(Timeout::precommit(Round::new(0)))),
+            input_event: Some(Event::TimeoutElapsed(Timeout::precommit(Round::new(0)))),
             expected_output: None,
             new_state: State {
                 round: Round::new(1),

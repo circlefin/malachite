@@ -40,7 +40,7 @@ fn test_prevote() {
     assert_eq!(transition.next_state.step, Step::Propose);
     assert_eq!(
         transition.message.unwrap(),
-        Message::Timeout(Timeout {
+        Message::ScheduleTimeout(Timeout {
             round: Round::new(1),
             step: TimeoutStep::Propose
         })

@@ -247,7 +247,7 @@ pub fn schedule_timeout_propose<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let timeout = Message::timeout(state.round, TimeoutStep::Propose);
+    let timeout = Message::schedule_timeout(state.round, TimeoutStep::Propose);
     Transition::to(state.next_step()).with_message(timeout)
 }
 
@@ -261,7 +261,7 @@ pub fn schedule_timeout_prevote<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let message = Message::timeout(state.round, TimeoutStep::Prevote);
+    let message = Message::schedule_timeout(state.round, TimeoutStep::Prevote);
     Transition::to(state.next_step()).with_message(message)
 }
 
@@ -272,7 +272,7 @@ pub fn schedule_timeout_precommit<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let message = Message::timeout(state.round, TimeoutStep::Precommit);
+    let message = Message::schedule_timeout(state.round, TimeoutStep::Precommit);
     Transition::to(state.next_step()).with_message(message)
 }
 
