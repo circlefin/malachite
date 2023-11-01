@@ -3,19 +3,19 @@ use malachite_consensus::executor::{Event, Executor, Message};
 use malachite_round::state::{RoundValue, State, Step};
 
 use malachite_test::{
-    Address, Height, PrivateKey, Proposal, TestConsensus, Validator, ValidatorSet, Vote,
+    Address, Height, PrivateKey, Proposal, TestContext, Validator, ValidatorSet, Vote,
 };
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 struct TestStep {
     desc: &'static str,
-    input_event: Option<Event<TestConsensus>>,
-    expected_output: Option<Message<TestConsensus>>,
-    new_state: State<TestConsensus>,
+    input_event: Option<Event<TestContext>>,
+    expected_output: Option<Message<TestContext>>,
+    new_state: State<TestContext>,
 }
 
-fn to_input_msg(output: Message<TestConsensus>) -> Option<Event<TestConsensus>> {
+fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
     match output {
         Message::Propose(p) => Some(Event::Proposal(p)),
         Message::Vote(v) => Some(Event::Vote(v)),
@@ -26,7 +26,7 @@ fn to_input_msg(output: Message<TestConsensus>) -> Option<Event<TestConsensus>> 
 
 #[test]
 fn executor_steps_proposer() {
-    let value = TestConsensus::DUMMY_VALUE; // TODO: get value from external source
+    let value = TestContext::DUMMY_VALUE; // TODO: get value from external source
     let value_id = value.id();
 
     let mut rng = StdRng::seed_from_u64(0x42);
@@ -207,7 +207,7 @@ fn executor_steps_proposer() {
 
 #[test]
 fn executor_steps_not_proposer() {
-    let value = TestConsensus::DUMMY_VALUE; // TODO: get value from external source
+    let value = TestContext::DUMMY_VALUE; // TODO: get value from external source
     let value_id = value.id();
 
     let mut rng = StdRng::seed_from_u64(0x42);
@@ -388,7 +388,7 @@ fn executor_steps_not_proposer() {
 
 #[test]
 fn executor_steps_not_proposer_timeout() {
-    let value = TestConsensus::DUMMY_VALUE; // TODO: get value from external source
+    let value = TestContext::DUMMY_VALUE; // TODO: get value from external source
     let value_id = value.id();
 
     let mut rng = StdRng::seed_from_u64(0x42);

@@ -2,7 +2,7 @@ use malachite_common::Round;
 use malachite_vote::count::Threshold;
 use malachite_vote::RoundVotes;
 
-use malachite_test::{Address, Height, TestConsensus, ValueId, Vote};
+use malachite_test::{Address, Height, TestContext, ValueId, Vote};
 
 const ADDRESS: Address = Address::new([42; 20]);
 
@@ -10,7 +10,7 @@ const ADDRESS: Address = Address::new([42; 20]);
 fn add_votes_nil() {
     let total = 3;
 
-    let mut round_votes: RoundVotes<TestConsensus> =
+    let mut round_votes: RoundVotes<TestContext> =
         RoundVotes::new(Height::new(1), Round::new(0), total);
 
     // add a vote for nil. nothing changes.
@@ -34,7 +34,7 @@ fn add_votes_single_value() {
     let total = 4;
     let weight = 1;
 
-    let mut round_votes: RoundVotes<TestConsensus> =
+    let mut round_votes: RoundVotes<TestContext> =
         RoundVotes::new(Height::new(1), Round::new(0), total);
 
     // add a vote. nothing changes.
@@ -64,7 +64,7 @@ fn add_votes_multi_values() {
     let val2 = Some(v2);
     let total = 15;
 
-    let mut round_votes: RoundVotes<TestConsensus> =
+    let mut round_votes: RoundVotes<TestContext> =
         RoundVotes::new(Height::new(1), Round::new(0), total);
 
     // add a vote for v1. nothing changes.

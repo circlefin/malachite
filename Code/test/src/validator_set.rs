@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use malachite_common::VotingPower;
 
-use crate::{signing::PublicKey, TestConsensus};
+use crate::{signing::PublicKey, TestContext};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Address([u8; Self::LENGTH]);
@@ -42,7 +42,7 @@ impl Validator {
     }
 }
 
-impl malachite_common::Validator<TestConsensus> for Validator {
+impl malachite_common::Validator<TestContext> for Validator {
     fn address(&self) -> &Address {
         &self.address
     }
@@ -142,7 +142,7 @@ impl ValidatorSet {
     }
 }
 
-impl malachite_common::ValidatorSet<TestConsensus> for ValidatorSet {
+impl malachite_common::ValidatorSet<TestContext> for ValidatorSet {
     fn total_voting_power(&self) -> VotingPower {
         self.total_voting_power()
     }

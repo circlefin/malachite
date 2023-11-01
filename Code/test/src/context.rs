@@ -10,9 +10,9 @@ use crate::value::*;
 use crate::vote::*;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct TestConsensus;
+pub struct TestContext;
 
-impl Context for TestConsensus {
+impl Context for TestContext {
     type Address = Address;
     type Height = Height;
     type Proposal = Proposal;

@@ -1,6 +1,6 @@
 use malachite_common::Round;
 
-use crate::{Height, TestConsensus, Value};
+use crate::{Height, TestContext, Value};
 
 /// A proposal for a value in a round
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -22,7 +22,7 @@ impl Proposal {
     }
 }
 
-impl malachite_common::Proposal<TestConsensus> for Proposal {
+impl malachite_common::Proposal<TestContext> for Proposal {
     fn height(&self) -> Height {
         self.height
     }

@@ -1,4 +1,4 @@
-use malachite_test::{Address, Height, Proposal, TestConsensus, Value};
+use malachite_test::{Address, Height, Proposal, TestContext, Value};
 
 use malachite_common::{Round, Timeout, TimeoutStep};
 use malachite_round::events::Event;
@@ -13,7 +13,7 @@ fn test_propose() {
     let value = Value::new(42);
     let height = Height::new(10);
 
-    let mut state: State<TestConsensus> = State::default();
+    let mut state: State<TestContext> = State::default();
     let data = RoundData::new(Round::new(0), &height, &ADDRESS);
 
     let transition = apply_event(state.clone(), &data, Event::NewRoundProposer(value));
@@ -32,7 +32,7 @@ fn test_prevote() {
     let value = Value::new(42);
     let height = Height::new(1);
 
-    let state: State<TestConsensus> = State::default().new_round(Round::new(1));
+    let state: State<TestContext> = State::default().new_round(Round::new(1));
     let data = RoundData::new(Round::new(1), &height, &ADDRESS);
 
     let transition = apply_event(state, &data, Event::NewRound);
