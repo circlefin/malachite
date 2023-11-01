@@ -87,7 +87,7 @@ where
             (VoteType::Prevote, Threshold::Value(v)) => Some(Message::PolkaValue(v)),
 
             (VoteType::Precommit, Threshold::Any) => Some(Message::PrecommitAny),
-            (VoteType::Precommit, Threshold::Nil) => None,
+            (VoteType::Precommit, Threshold::Nil) => Some(Message::PrecommitAny),
             (VoteType::Precommit, Threshold::Value(v)) => Some(Message::PrecommitValue(v)),
         }
     }
