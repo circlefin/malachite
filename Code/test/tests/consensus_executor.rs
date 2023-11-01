@@ -167,7 +167,7 @@ fn executor_steps_proposer() {
         TestStep {
             desc: "v3 precommits for our proposal, we get +2/3 precommits, decide it (v1)",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Round::new(0), Some(value_id), addr2).signed(&sk2),
+                Vote::new_precommit(Round::new(0), Some(value_id), addr3).signed(&sk3),
             )),
             expected_output: Some(Message::Decide(Round::new(0), value.clone())),
             new_state: State {
@@ -427,7 +427,7 @@ fn executor_steps_not_proposer_timeout() {
         },
         // Receive a propose timeout, prevote for nil (v1)
         TestStep {
-            desc: "Receive a propose timeout, prevote for nil (v1)",
+            desc: "Receive a propose timeout, prevote for nil",
             input_event: Some(Event::TimeoutElapsed(Timeout::propose(Round::new(0)))),
             expected_output: Some(Message::Vote(
                 Vote::new_prevote(Round::new(0), None, my_addr).signed(&my_sk),
@@ -453,9 +453,9 @@ fn executor_steps_not_proposer_timeout() {
                 valid: None,
             },
         },
-        // v2 prevotes for its own proposal
+        // v1 prevotes for its own proposal
         TestStep {
-            desc: "v2 prevotes for its own proposal",
+            desc: "v1 prevotes for its own proposal",
             input_event: Some(Event::Vote(
                 Vote::new_prevote(Round::new(0), Some(value_id), addr1).signed(&sk1),
             )),
@@ -468,9 +468,9 @@ fn executor_steps_not_proposer_timeout() {
                 valid: None,
             },
         },
-        // v3 prevotes for nil, it gets +2/3 prevotes, precommit for it (v1)
+        // v3 prevotes for nil, it gets +2/3 prevotes, precommit for it
         TestStep {
-            desc: "v3 prevotes for nil, it gets +2/3 prevotes, precommit for it (v1)",
+            desc: "v3 prevotes for nil, it gets +2/3 prevotes, precommit for it",
             input_event: Some(Event::Vote(
                 Vote::new_prevote(Round::new(0), None, addr3).signed(&sk3),
             )),
@@ -485,9 +485,9 @@ fn executor_steps_not_proposer_timeout() {
                 valid: None,
             },
         },
-        // v1 receives its own precommit
+        // we receive our own precommit
         TestStep {
-            desc: "v1 receives its own precommit",
+            desc: "we receive our own precommit",
             input_event: None,
             expected_output: None,
             new_state: State {
@@ -498,9 +498,9 @@ fn executor_steps_not_proposer_timeout() {
                 valid: None,
             },
         },
-        // v2 precommits its proposal
+        // v1 precommits its proposal
         TestStep {
-            desc: "v2 precommits its proposal",
+            desc: "v1 precommits its proposal",
             input_event: Some(Event::Vote(
                 Vote::new_precommit(Round::new(0), Some(value_id), addr1).signed(&sk1),
             )),
@@ -513,13 +513,13 @@ fn executor_steps_not_proposer_timeout() {
                 valid: None,
             },
         },
-        // v3 precommits for nil
+        // v3 precommits for nil, we reach the PrecommmitAny threshold, schedule a timeout
         TestStep {
-            desc: "v3 precommits for nil",
+            desc: "v3 precommits for nil, we reach the PrecommmitAny threshold, schedule a timeout",
             input_event: Some(Event::Vote(
                 Vote::new_precommit(Round::new(0), None, addr3).signed(&sk3),
             )),
-            expected_output: None,
+            expected_output: Some(Message::ScheduleTimeout(Timeout::precommit(Round::new(0)))),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Precommit,
@@ -553,10 +553,9 @@ fn executor_steps_not_proposer_timeout() {
             .unwrap_or_else(|| previous_message.unwrap());
 
         let output = executor.execute(execute_message);
-        assert_eq!(output, step.expected_output, "expected output message");
-
         let new_state = executor.round_state(Round::new(0)).unwrap();
         assert_eq!(new_state, &step.new_state, "new state");
+        assert_eq!(output, step.expected_output, "expected output message");
 
         previous_message = output.and_then(to_input_msg);
     }
