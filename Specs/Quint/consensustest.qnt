@@ -20,22 +20,22 @@ pure def initialProcess (name: Address_t) : ConsensusState = {
 action init = all {
     system' = Map ("Josef" -> initialProcess("Josef")),
     _Result' = defaultResult,
-    _Event' = {name : "Initial",
-                                            height : 0,
-                                            round: -1,
-                                            value: "",
-                                            vr: -1}
+    _Event' = { name : "Initial",
+                height : 0,
+                round: -1,
+                value: "",
+                vr: -1}
 }
 
 
 
 // just to write a test.
 action FireEvent(eventName: str, proc: Address_t, h: Height_t, r: Round_t, value: Value_t, vr: Round_t) : bool = all {
-    val event =  {name : eventName,
-                                            height : h,
-                                            round: r,
-                                            value: value,
-                                            vr: vr}
+    val event =  {  name : eventName,
+                    height : h,
+                    round: r,
+                    value: value,
+                    vr: vr}
     val res = consensus(system.get(proc),  event )
     all {
         system' = system.put(proc, res.cs),
@@ -59,99 +59,64 @@ action unchangedAll = all {
     _Event' = _Event,
 }
 
-
 // This test should call each event at least once
 run DecideNonProposerTest = {
     init
     .then(FireEvent("NewRound", "Josef", 1, 0, "", -1))
     .then(all{
         assert(_Result.timeout == "TimeoutPropose"),
-        unchangedAll
-    })
-    .then(FireEvent("Proposal", "Josef", 1, 0, "block", -1))
+        FireEvent("Proposal", "Josef", 1, 0, "block", -1)})
     .then(all{
         assert(_Result.voteMessage.step == "Prevote" and _Result.voteMessage.id == "block"),
-        unchangedAll
-    })
-    .then(FireEvent("ProposalAndPolkaAndValid", "Josef", 1, 0, "block", -1))
+        FireEvent("ProposalAndPolkaAndValid", "Josef", 1, 0, "block", -1)})
     .then(all{
         assert(_Result.voteMessage.step == "Precommit" and _Result.voteMessage.id == "block"),
-        unchangedAll
-    })
-    .then(FireEvent("ProposalAndCommitAndValid", "Josef", 1, 0, "block", -1))  
+        FireEvent("ProposalAndCommitAndValid", "Josef", 1, 0, "block", -1)})  
     .then(all{
         assert(_Result.decided == "block"),
-        unchangedAll
-    })
-    .then(FireEvent("NewHeight", "Josef", system.get("Josef").height + 1, 0, "", -1))
+        FireEvent("NewHeight", "Josef", system.get("Josef").height + 1, 0, "", -1)})
     .then(all{
         assert(system.get("Josef").height == 2),
-        unchangedAll
-    })    
-    .then(FireEvent("NewRoundProposer", "Josef", 2, 0, "nextBlock", -1))
+        FireEvent("NewRoundProposer", "Josef", 2, 0, "nextBlock", -1)})
     .then(all{
         assert(_Result.timeout != "TimeoutPropose" and _Result.proposal.proposal == "nextBlock"),
-        unchangedAll
-    })
-    .then(FireEvent("Proposal", "Josef", 2, 0, "nextBlock", -1)) // it is assumed that the proposer receives its own message
+        FireEvent("Proposal", "Josef", 2, 0, "nextBlock", -1)}) // it is assumed that the proposer receives its own message
     .then(all{
         assert(_Result.voteMessage.step == "Prevote" and system.get("Josef").step == "Prevote"),
-        unchangedAll
-    })
-    .then(FireEvent("PolkaAny", "Josef", 2, 0, "nextBlock", -1))
+        FireEvent("PolkaAny", "Josef", 2, 0, "nextBlock", -1)})
     .then(all{
         assert(_Result.timeout == "TimeoutPrevote"),
-        unchangedAll
-    })
-    .then(FireEvent("TimeoutPrevote", "Josef", 2, 0, "nextBlock", -1))
+        FireEvent("TimeoutPrevote", "Josef", 2, 0, "nextBlock", -1)})
     .then(all{
         assert(_Result.voteMessage.step == "Precommit" and _Result.voteMessage.id == "nil" and
                system.get("Josef").step == "Precommit"),
-        unchangedAll
-    })
-    .then(FireEvent("PrecommitAny", "Josef", 2, 0, "nextBlock", -1))
+        FireEvent("PrecommitAny", "Josef", 2, 0, "nextBlock", -1)})
     .then(all{
         assert(_Result.timeout == "TimeoutPrecommit"),
-        unchangedAll
-    })
-    .then(FireEvent("TimeoutPrecommit", "Josef", 2, 0, "nextBlock", -1))
+        FireEvent("TimeoutPrecommit", "Josef", 2, 0, "nextBlock", -1)})
     .then(all{
         assert(_Result.skipRound == 1),
-        unchangedAll
-    })
-    .then(FireEvent("NewRound", "Josef", 2, 1, "", -1))
+        FireEvent("NewRound", "Josef", 2, 1, "", -1)})
     .then(all{
         assert(_Result.timeout == "TimeoutPropose"),
-        unchangedAll
-    })
-    .then(FireEvent("TimeoutPropose", "Josef", 2, 1, "nextBlock", -1))
+        FireEvent("TimeoutPropose", "Josef", 2, 1, "nextBlock", -1)})
     .then(all{
         assert(_Result.voteMessage.step == "Prevote" and _Result.voteMessage.id == "nil" and
                system.get("Josef").step == "Prevote"),
-        unchangedAll
-    })
-    .then(FireEvent("PolkaNil", "Josef", 2, 1, "nextBlock", -1))
+        FireEvent("PolkaNil", "Josef", 2, 1, "nextBlock", -1)})
     .then(all{
         assert(_Result.voteMessage.step == "Precommit" and _Result.voteMessage.id == "nil" and
                system.get("Josef").step == "Precommit"),
-        unchangedAll
-    })
-    .then(FireEvent("PrecommitAny", "Josef", 2, 1, "nextBlock", -1))
+        FireEvent("PrecommitAny", "Josef", 2, 1, "nextBlock", -1)})
     .then(all{
         assert(_Result.timeout == "TimeoutPrecommit"),
-        unchangedAll
-    })
-    .then(FireEvent("TimeoutPrecommit", "Josef", 2, 1, "nextBlock", -1))
+        FireEvent("TimeoutPrecommit", "Josef", 2, 1, "nextBlock", -1)})
     .then(all{
         assert(_Result.skipRound == 2),
-        unchangedAll
-    })
-    .then(FireEvent("NewRound", "Josef", 2, 2, "", -1))
+        FireEvent("NewRound", "Josef", 2, 2, "", -1)})
     .then(all{
         assert(_Result.timeout == "TimeoutPropose"),
-        unchangedAll
-    })
-    .then(FireEvent("ProposalInvalid", "Josef", 2, 2, "", -1))
+        FireEvent("ProposalInvalid", "Josef", 2, 2, "", -1)})
     .then(all{
         assert(_Result.voteMessage.step == "Prevote" and _Result.voteMessage.id == "nil" and
                system.get("Josef").step == "Prevote"),

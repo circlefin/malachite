@@ -11,6 +11,8 @@ TODO: check
 - Should we think again about the components and the boundaries (especially between
   voteBookkeeper and executor)
 - Do we need tests for executor and bookkeeping
+- test id(v): most likely we need to change the type of Value_t as Quint doesn't have
+- string operators. Perhaps we make Value_t = int and then id(v) = -v
 */
 
 
@@ -34,7 +36,7 @@ type ProposeMsg_t = {
     src: Address_t,
     height: Height_t,
     round: Round_t,
-    proposal: Value_t,
+    proposal: Value_t, // an actual value. All other values are id(proposal)
     validRound: Round_t
 }
 
@@ -53,9 +55,9 @@ type ConsensusState = {
     round: Round_t,
     step: Step_t, // "newRound", propose, Prevote, Precommit, decided
     lockedRound: Round_t,
-    lockedValue: Value_t,
+    lockedValue: Value_t, // id("of a value")
     validRound: Round_t,
-    validValue: Value_t,
+    validValue: Value_t, // id("of a value")
     //continue
 }  
 
