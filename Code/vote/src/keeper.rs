@@ -46,7 +46,6 @@ pub struct VoteKeeper<Ctx>
 where
     Ctx: Context,
 {
-    // height: Ctx::Height,
     total_weight: Weight,
     per_round: BTreeMap<Round, PerRound<Ctx>>,
 }
@@ -55,9 +54,8 @@ impl<Ctx> VoteKeeper<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(/* height: Ctx::Height, */ total_weight: Weight) -> Self {
+    pub fn new(total_weight: Weight) -> Self {
         VoteKeeper {
-            // height,
             total_weight,
             per_round: BTreeMap::new(),
         }
