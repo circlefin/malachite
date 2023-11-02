@@ -14,7 +14,7 @@ pub enum Message<Value> {
     PolkaValue(Value),
     PrecommitAny,
     PrecommitValue(Value),
-    SkipRound,
+    SkipRound(Round),
 }
 
 #[derive(Clone, Debug)]
@@ -79,12 +79,12 @@ where
             .addresses_weights
             .set_once(vote.validator_address().clone(), weight);
 
-        let msg = threshold_to_message(vote.vote_type(), threshold)?;
+        let msg = threshold_to_message(vote.vote_type(), vote.round(), threshold)?;
 
         let final_msg = if !round.emitted_msgs.contains(&msg) {
             Some(msg)
-        } else if Self::skip_round(round, self.total_weight) {
-            Some(Message::SkipRound)
+        } else if Self::skip_round(round, self.total_weight, self.threshold_params.honest) {
+            Some(Message::SkipRound(vote.round()))
         } else {
             None
         };
@@ -108,19 +108,27 @@ where
         })
     }
 
-    fn skip_round(round: &mut PerRound<Ctx>, total_weight: Weight) -> bool {
-        round.emitted_msgs.is_empty() && is_skip(round.addresses_weights.total(), total_weight)
+    /// Check whether or not we should skip this round, in case we haven't emitted any messages
+    /// yet, and we have reached an honest threshold for the round.
+    fn skip_round(
+        round: &PerRound<Ctx>,
+        total_weight: Weight,
+        threshold_param: ThresholdParam,
+    ) -> bool {
+        round.emitted_msgs.is_empty()
+            && threshold_param.is_met(round.addresses_weights.sum(), total_weight)
     }
 }
 
 /// Map a vote type and a threshold to a state machine event.
 fn threshold_to_message<Value>(
     typ: VoteType,
+    round: Round,
     threshold: Threshold<Value>,
 ) -> Option<Message<Value>> {
     match (typ, threshold) {
         (_, Threshold::Unreached) => None,
-        (_, Threshold::Skip) => Some(Message::SkipRound),
+        (_, Threshold::Skip) => Some(Message::SkipRound(round)),
 
         (VoteType::Prevote, Threshold::Any) => Some(Message::PolkaAny),
         (VoteType::Prevote, Threshold::Nil) => Some(Message::PolkaNil),

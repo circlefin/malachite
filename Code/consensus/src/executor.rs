@@ -210,7 +210,7 @@ where
             VoteMessage::PolkaValue(v) => RoundEvent::PolkaValue(v),
             VoteMessage::PrecommitAny => RoundEvent::PrecommitAny,
             VoteMessage::PrecommitValue(v) => RoundEvent::PrecommitValue(v),
-            VoteMessage::SkipRound => RoundEvent::SkipRound,
+            VoteMessage::SkipRound(r) => RoundEvent::SkipRound(r),
         };
 
         self.apply_event(round, round_event)
