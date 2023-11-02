@@ -4,7 +4,7 @@ use malachite_common::{Context, Round, ValueId, Vote, VoteType};
 
 use crate::round_votes::RoundVotes;
 use crate::round_weights::RoundWeights;
-use crate::{Threshold, Weight};
+use crate::{Threshold, ThresholdParam, ThresholdParams, Weight};
 
 /// Messages emitted by the vote keeper
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -31,9 +31,9 @@ impl<Ctx> PerRound<Ctx>
 where
     Ctx: Context,
 {
-    fn new(total_weight: Weight) -> Self {
+    fn new(total_weight: Weight, threshold_params: ThresholdParams) -> Self {
         Self {
-            votes: RoundVotes::new(total_weight),
+            votes: RoundVotes::new(total_weight, threshold_params),
             addresses_weights: RoundWeights::new(),
             emitted_msgs: BTreeSet::new(),
         }
@@ -46,6 +46,7 @@ pub struct VoteKeeper<Ctx>
 where
     Ctx: Context,
 {
+    threshold_params: ThresholdParams,
     total_weight: Weight,
     per_round: BTreeMap<Round, PerRound<Ctx>>,
 }
@@ -56,6 +57,9 @@ where
 {
     pub fn new(total_weight: Weight) -> Self {
         VoteKeeper {
+            // TODO: Make these configurable
+            threshold_params: ThresholdParams::default(),
+
             total_weight,
             per_round: BTreeMap::new(),
         }
@@ -66,7 +70,7 @@ where
         let round = self
             .per_round
             .entry(vote.round())
-            .or_insert_with(|| PerRound::new(self.total_weight));
+            .or_insert_with(|| PerRound::new(self.total_weight, self.threshold_params));
 
         let threshold = round.votes.add_vote(
             vote.vote_type(),
@@ -138,8 +142,4 @@ fn threshold_to_message<Value>(
         (VoteType::Precommit, Threshold::Nil) => Some(Message::PrecommitAny),
         (VoteType::Precommit, Threshold::Value(v)) => Some(Message::PrecommitValue(v)),
     }
-}
-
-fn is_skip(weight: Weight, total: Weight) -> bool {
-    3 * weight > total
 }

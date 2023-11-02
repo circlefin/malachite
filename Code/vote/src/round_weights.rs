@@ -28,7 +28,7 @@ impl<Address> RoundWeights<Address> {
         *self.map.get(address).unwrap_or(&0)
     }
 
-    pub fn total(&self) -> Weight {
+    pub fn sum(&self) -> Weight {
         self.map.values().sum()
     }
 }

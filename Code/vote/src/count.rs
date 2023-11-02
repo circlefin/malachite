@@ -1,12 +1,7 @@
 use alloc::collections::BTreeSet;
 
 use crate::value_weights::ValuesWeights;
-use crate::{Threshold, Weight};
-
-/// Returns whether or note `value > (2/3)*total`.
-fn is_quorum(value: Weight, total: Weight) -> bool {
-    3 * value > 2 * total
-}
+use crate::{Threshold, ThresholdParams, Weight};
 
 /// VoteCount tallys votes of the same type.
 /// Votes are for nil or for some value.
@@ -14,6 +9,9 @@ fn is_quorum(value: Weight, total: Weight) -> bool {
 pub struct VoteCount<Address, Value> {
     /// Total weight
     pub total_weight: Weight,
+
+    /// The threshold parameters
+    pub threshold_params: ThresholdParams,
 
     /// Weight of votes for the values, including nil
     pub values_weights: ValuesWeights<Option<Value>>,
@@ -23,9 +21,10 @@ pub struct VoteCount<Address, Value> {
 }
 
 impl<Address, Value> VoteCount<Address, Value> {
-    pub fn new(total_weight: Weight) -> Self {
+    pub fn new(total_weight: Weight, threshold_params: ThresholdParams) -> Self {
         VoteCount {
             total_weight,
+            threshold_params,
             values_weights: ValuesWeights::new(),
             validator_addresses: BTreeSet::new(),
         }
@@ -62,14 +61,14 @@ impl<Address, Value> VoteCount<Address, Value> {
         let weight = self.values_weights.get(&value);
 
         match value {
-            Some(value) if is_quorum(weight, self.total_weight) => Threshold::Value(value),
+            Some(value) if self.is_quorum(weight, self.total_weight) => Threshold::Value(value),
 
-            None if is_quorum(weight, self.total_weight) => Threshold::Nil,
+            None if self.is_quorum(weight, self.total_weight) => Threshold::Nil,
 
             _ => {
                 let sum_weight = self.values_weights.sum();
 
-                if is_quorum(sum_weight, self.total_weight) {
+                if self.is_quorum(sum_weight, self.total_weight) {
                     Threshold::Any
                 } else {
                     Threshold::Unreached
@@ -86,17 +85,17 @@ impl<Address, Value> VoteCount<Address, Value> {
         match threshold {
             Threshold::Value(value) => {
                 let weight = self.values_weights.get(&Some(value));
-                is_quorum(weight, self.total_weight)
+                self.is_quorum(weight, self.total_weight)
             }
 
             Threshold::Nil => {
                 let weight = self.values_weights.get(&None);
-                is_quorum(weight, self.total_weight)
+                self.is_quorum(weight, self.total_weight)
             }
 
             Threshold::Any => {
                 let sum_weight = self.values_weights.sum();
-                is_quorum(sum_weight, self.total_weight)
+                self.is_quorum(sum_weight, self.total_weight)
             }
 
             Threshold::Skip | Threshold::Unreached => false,
@@ -113,6 +112,10 @@ impl<Address, Value> VoteCount<Address, Value> {
     pub fn total_weight(&self) -> Weight {
         self.total_weight
     }
+
+    fn is_quorum(&self, sum: Weight, total: Weight) -> bool {
+        self.threshold_params.quorum.is_met(sum, total)
+    }
 }
 
 #[cfg(test)]
@@ -122,7 +125,7 @@ mod tests {
 
     #[test]
     fn vote_count_nil() {
-        let mut vc = VoteCount::new(4);
+        let mut vc = VoteCount::new(4, Default::default());
 
         let addr1 = [1];
         let addr2 = [2];
@@ -186,7 +189,7 @@ mod tests {
 
     #[test]
     fn vote_count_value() {
-        let mut vc = VoteCount::new(4);
+        let mut vc = VoteCount::new(4, Default::default());
 
         let addr1 = [1];
         let addr2 = [2];

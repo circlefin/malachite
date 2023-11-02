@@ -5,7 +5,7 @@ use malachite_vote::Threshold;
 
 #[test]
 fn vote_count_nil() {
-    let mut vc = VoteCount::new(4);
+    let mut vc = VoteCount::new(4, Default::default());
 
     let addr1 = [1];
     let addr2 = [2];
@@ -69,7 +69,7 @@ fn vote_count_nil() {
 
 #[test]
 fn vote_count_value() {
-    let mut vc = VoteCount::new(4);
+    let mut vc = VoteCount::new(4, Default::default());
 
     let addr1 = [1];
     let addr2 = [2];

@@ -15,7 +15,7 @@ const ADDRESS6: Address = Address::new([46; 20]);
 fn add_votes_nil() {
     let total = 3;
 
-    let mut round_votes: RoundVotes<Address, ValueId> = RoundVotes::new(total);
+    let mut round_votes: RoundVotes<_, ValueId> = RoundVotes::new(total, Default::default());
 
     // add a vote for nil. nothing changes.
     let thresh = round_votes.add_vote(VoteType::Prevote, ADDRESS1, None, 1);
@@ -37,7 +37,7 @@ fn add_votes_single_value() {
     let total = 4;
     let weight = 1;
 
-    let mut round_votes: RoundVotes<Address, ValueId> = RoundVotes::new(total);
+    let mut round_votes: RoundVotes<_, ValueId> = RoundVotes::new(total, Default::default());
 
     // add a vote. nothing changes.
     let thresh = round_votes.add_vote(VoteType::Prevote, ADDRESS1, val, weight);
@@ -64,7 +64,7 @@ fn add_votes_multi_values() {
     let val2 = Some(v2);
     let total = 15;
 
-    let mut round_votes: RoundVotes<Address, ValueId> = RoundVotes::new(total);
+    let mut round_votes: RoundVotes<_, ValueId> = RoundVotes::new(total, Default::default());
 
     // add a vote for v1. nothing changes.
     let thresh = round_votes.add_vote(VoteType::Precommit, ADDRESS1, val1, 1);

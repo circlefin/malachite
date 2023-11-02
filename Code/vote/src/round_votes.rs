@@ -1,7 +1,7 @@
 use malachite_common::VoteType;
 
 use crate::count::VoteCount;
-use crate::{Threshold, Weight};
+use crate::{Threshold, ThresholdParams, Weight};
 
 /// Tracks all the votes for a single round
 #[derive(Clone, Debug)]
@@ -11,10 +11,10 @@ pub struct RoundVotes<Address, Value> {
 }
 
 impl<Address, Value> RoundVotes<Address, Value> {
-    pub fn new(total_weight: Weight) -> Self {
+    pub fn new(total_weight: Weight, threshold_params: ThresholdParams) -> Self {
         RoundVotes {
-            prevotes: VoteCount::new(total_weight),
-            precommits: VoteCount::new(total_weight),
+            prevotes: VoteCount::new(total_weight, threshold_params),
+            precommits: VoteCount::new(total_weight, threshold_params),
         }
     }
 

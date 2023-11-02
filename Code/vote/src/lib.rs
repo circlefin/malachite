@@ -28,15 +28,64 @@ pub enum Threshold<ValueId> {
     /// No quorum has been reached yet
     Unreached,
 
-    /// +1/3 votes from higher round, skip this round
+    /// Minimum number of votes correct processes,
+    /// if at a round higher than current then skip to that round.
     Skip,
 
-    /// Quorum (+2/3) of votes but not for the same value
+    /// Quorum of votes but not for the same value
     Any,
 
-    /// Quorum (+2/3) of votes for nil
+    /// Quorum of votes for nil
     Nil,
 
     /// Quorum (+2/3) of votes for a value
     Value(ValueId),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct ThresholdParams {
+    /// Threshold for a quorum (default: 2f+1)
+    pub quorum: ThresholdParam,
+
+    /// Threshold for the minimum number of honest nodes (default: f+1)
+    pub honest: ThresholdParam,
+}
+
+impl Default for ThresholdParams {
+    fn default() -> Self {
+        Self {
+            quorum: ThresholdParam::TWO_F_PLUS_ONE,
+            honest: ThresholdParam::F_PLUS_ONE,
+        }
+    }
+}
+
+/// Represents the different quorum thresholds.
+///
+/// TODO: Distinguish between quorum and honest thresholds at the type-level
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct ThresholdParam {
+    pub numerator: u64,
+    pub denominator: u64,
+}
+
+impl ThresholdParam {
+    /// 2f+1
+    pub const TWO_F_PLUS_ONE: Self = Self::new(2, 3);
+
+    /// f+1
+    pub const F_PLUS_ONE: Self = Self::new(1, 3);
+
+    pub const fn new(numerator: u64, denominator: u64) -> Self {
+        Self {
+            numerator,
+            denominator,
+        }
+    }
+
+    /// Check whether the threshold is met.
+    pub const fn is_met(&self, weight: Weight, total: Weight) -> bool {
+        // FIXME: Deal with overflows
+        weight * self.denominator > total * self.numerator
+    }
 }
