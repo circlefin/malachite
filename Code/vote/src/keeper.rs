@@ -7,7 +7,7 @@ use crate::round_weights::RoundWeights;
 use crate::{Threshold, Weight};
 
 /// Messages emitted by the vote keeper
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Message<Value> {
     PolkaAny,
     PolkaNil,
@@ -46,7 +46,7 @@ pub struct VoteKeeper<Ctx>
 where
     Ctx: Context,
 {
-    height: Ctx::Height,
+    // height: Ctx::Height,
     total_weight: Weight,
     per_round: BTreeMap<Round, PerRound<Ctx>>,
 }
@@ -55,9 +55,9 @@ impl<Ctx> VoteKeeper<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(height: Ctx::Height, total_weight: Weight) -> Self {
+    pub fn new(/* height: Ctx::Height, */ total_weight: Weight) -> Self {
         VoteKeeper {
-            height,
+            // height,
             total_weight,
             per_round: BTreeMap::new(),
         }
@@ -70,16 +70,32 @@ where
             .entry(vote.round())
             .or_insert_with(|| PerRound::new(self.total_weight));
 
-        let vote_type = vote.vote_type();
-
         let threshold = round.votes.add_vote(
-            vote_type,
+            vote.vote_type(),
             vote.validator_address().clone(),
-            vote.take_value(),
+            vote.value().cloned(),
             weight,
         );
 
-        Self::to_message(vote_type, threshold)
+        round
+            .addresses_weights
+            .set_once(vote.validator_address().clone(), weight);
+
+        let msg = threshold_to_message(vote.vote_type(), threshold)?;
+
+        let final_msg = if !round.emitted_msgs.contains(&msg) {
+            Some(msg)
+        } else if Self::skip_round(round, self.total_weight) {
+            Some(Message::SkipRound)
+        } else {
+            None
+        };
+
+        if let Some(final_msg) = &final_msg {
+            round.emitted_msgs.insert(final_msg.clone());
+        }
+
+        final_msg
     }
 
     /// Check if a threshold is met, ie. if we have a quorum for that threshold.
@@ -94,23 +110,27 @@ where
         })
     }
 
-    /// Map a vote type and a threshold to a state machine event.
-    fn to_message(
-        typ: VoteType,
-        threshold: Threshold<ValueId<Ctx>>,
-    ) -> Option<Message<ValueId<Ctx>>> {
-        match (typ, threshold) {
-            (_, Threshold::Unreached) => None,
-            (_, Threshold::Skip) => Some(Message::SkipRound),
+    fn skip_round(round: &mut PerRound<Ctx>, total_weight: Weight) -> bool {
+        round.emitted_msgs.is_empty() && is_skip(round.addresses_weights.total(), total_weight)
+    }
+}
 
-            (VoteType::Prevote, Threshold::Any) => Some(Message::PolkaAny),
-            (VoteType::Prevote, Threshold::Nil) => Some(Message::PolkaNil),
-            (VoteType::Prevote, Threshold::Value(v)) => Some(Message::PolkaValue(v)),
+/// Map a vote type and a threshold to a state machine event.
+fn threshold_to_message<Value>(
+    typ: VoteType,
+    threshold: Threshold<Value>,
+) -> Option<Message<Value>> {
+    match (typ, threshold) {
+        (_, Threshold::Unreached) => None,
+        (_, Threshold::Skip) => Some(Message::SkipRound),
 
-            (VoteType::Precommit, Threshold::Any) => Some(Message::PrecommitAny),
-            (VoteType::Precommit, Threshold::Nil) => Some(Message::PrecommitAny),
-            (VoteType::Precommit, Threshold::Value(v)) => Some(Message::PrecommitValue(v)),
-        }
+        (VoteType::Prevote, Threshold::Any) => Some(Message::PolkaAny),
+        (VoteType::Prevote, Threshold::Nil) => Some(Message::PolkaNil),
+        (VoteType::Prevote, Threshold::Value(v)) => Some(Message::PolkaValue(v)),
+
+        (VoteType::Precommit, Threshold::Any) => Some(Message::PrecommitAny),
+        (VoteType::Precommit, Threshold::Nil) => Some(Message::PrecommitAny),
+        (VoteType::Precommit, Threshold::Value(v)) => Some(Message::PrecommitValue(v)),
     }
 }
 

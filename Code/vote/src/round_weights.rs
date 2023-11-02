@@ -14,7 +14,7 @@ impl<Address> RoundWeights<Address> {
         }
     }
 
-    pub fn add(&mut self, address: Address, weight: Weight)
+    pub fn set_once(&mut self, address: Address, weight: Weight)
     where
         Address: Ord,
     {
