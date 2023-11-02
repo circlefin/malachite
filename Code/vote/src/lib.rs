@@ -15,6 +15,7 @@ extern crate alloc;
 pub mod count;
 pub mod keeper;
 pub mod round_votes;
+pub mod round_weights;
 pub mod value_weights;
 
 // TODO: Introduce newtype

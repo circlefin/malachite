@@ -1,8 +1,8 @@
-use malachite_common::Round;
+use malachite_common::VoteType;
 use malachite_vote::round_votes::RoundVotes;
 use malachite_vote::Threshold;
 
-use malachite_test::{Address, Height, TestContext, ValueId, Vote};
+use malachite_test::{Address, ValueId};
 
 const ADDRESS1: Address = Address::new([41; 20]);
 const ADDRESS2: Address = Address::new([42; 20]);
@@ -15,22 +15,18 @@ const ADDRESS6: Address = Address::new([46; 20]);
 fn add_votes_nil() {
     let total = 3;
 
-    let mut round_votes: RoundVotes<TestContext> =
-        RoundVotes::new(Height::new(1), Round::new(0), total);
+    let mut round_votes: RoundVotes<Address, ValueId> = RoundVotes::new(total);
 
     // add a vote for nil. nothing changes.
-    let vote = Vote::new_prevote(Round::new(0), None, ADDRESS1);
-    let thresh = round_votes.add_vote(vote.clone(), 1);
+    let thresh = round_votes.add_vote(VoteType::Prevote, ADDRESS1, None, 1);
     assert_eq!(thresh, Threshold::Unreached);
 
     // add it again, nothing changes.
-    let vote = Vote::new_prevote(Round::new(0), None, ADDRESS2);
-    let thresh = round_votes.add_vote(vote, 1);
+    let thresh = round_votes.add_vote(VoteType::Prevote, ADDRESS2, None, 1);
     assert_eq!(thresh, Threshold::Unreached);
 
     // add it again, get Nil
-    let vote = Vote::new_prevote(Round::new(0), None, ADDRESS3);
-    let thresh = round_votes.add_vote(vote, 1);
+    let thresh = round_votes.add_vote(VoteType::Prevote, ADDRESS3, None, 1);
     assert_eq!(thresh, Threshold::Nil);
 }
 
@@ -41,27 +37,22 @@ fn add_votes_single_value() {
     let total = 4;
     let weight = 1;
 
-    let mut round_votes: RoundVotes<TestContext> =
-        RoundVotes::new(Height::new(1), Round::new(0), total);
+    let mut round_votes: RoundVotes<Address, ValueId> = RoundVotes::new(total);
 
     // add a vote. nothing changes.
-    let vote = Vote::new_prevote(Round::new(0), val, ADDRESS1);
-    let thresh = round_votes.add_vote(vote.clone(), weight);
+    let thresh = round_votes.add_vote(VoteType::Prevote, ADDRESS1, val, weight);
     assert_eq!(thresh, Threshold::Unreached);
 
     // add it again, nothing changes.
-    let vote = Vote::new_prevote(Round::new(0), val, ADDRESS2);
-    let thresh = round_votes.add_vote(vote.clone(), weight);
+    let thresh = round_votes.add_vote(VoteType::Prevote, ADDRESS2, val, weight);
     assert_eq!(thresh, Threshold::Unreached);
 
     // add a vote for nil, get Thresh::Any
-    let vote_nil = Vote::new_prevote(Round::new(0), None, ADDRESS3);
-    let thresh = round_votes.add_vote(vote_nil, weight);
+    let thresh = round_votes.add_vote(VoteType::Prevote, ADDRESS3, None, weight);
     assert_eq!(thresh, Threshold::Any);
 
     // add vote for value, get Thresh::Value
-    let vote = Vote::new_prevote(Round::new(0), val, ADDRESS4);
-    let thresh = round_votes.add_vote(vote, weight);
+    let thresh = round_votes.add_vote(VoteType::Prevote, ADDRESS4, val, weight);
     assert_eq!(thresh, Threshold::Value(v));
 }
 
@@ -73,36 +64,29 @@ fn add_votes_multi_values() {
     let val2 = Some(v2);
     let total = 15;
 
-    let mut round_votes: RoundVotes<TestContext> =
-        RoundVotes::new(Height::new(1), Round::new(0), total);
+    let mut round_votes: RoundVotes<Address, ValueId> = RoundVotes::new(total);
 
     // add a vote for v1. nothing changes.
-    let vote1 = Vote::new_precommit(Round::new(0), val1, ADDRESS1);
-    let thresh = round_votes.add_vote(vote1, 1);
+    let thresh = round_votes.add_vote(VoteType::Precommit, ADDRESS1, val1, 1);
     assert_eq!(thresh, Threshold::Unreached);
 
     // add a vote for v2. nothing changes.
-    let vote2 = Vote::new_precommit(Round::new(0), val2, ADDRESS2);
-    let thresh = round_votes.add_vote(vote2, 1);
+    let thresh = round_votes.add_vote(VoteType::Precommit, ADDRESS2, val2, 1);
     assert_eq!(thresh, Threshold::Unreached);
 
     // add a vote for nil. nothing changes.
-    let vote_nil = Vote::new_precommit(Round::new(0), None, ADDRESS3);
-    let thresh = round_votes.add_vote(vote_nil, 1);
+    let thresh = round_votes.add_vote(VoteType::Precommit, ADDRESS3, None, 1);
     assert_eq!(thresh, Threshold::Unreached);
 
     // add a vote for v1. nothing changes
-    let vote1 = Vote::new_precommit(Round::new(0), val1, ADDRESS4);
-    let thresh = round_votes.add_vote(vote1, 1);
+    let thresh = round_votes.add_vote(VoteType::Precommit, ADDRESS4, val1, 1);
     assert_eq!(thresh, Threshold::Unreached);
 
     // add a vote for v2. nothing changes
-    let vote2 = Vote::new_precommit(Round::new(0), val2, ADDRESS5);
-    let thresh = round_votes.add_vote(vote2, 1);
+    let thresh = round_votes.add_vote(VoteType::Precommit, ADDRESS5, val2, 1);
     assert_eq!(thresh, Threshold::Unreached);
 
     // add a big vote for v2. get Value(v2)
-    let vote2 = Vote::new_precommit(Round::new(0), val2, ADDRESS6);
-    let thresh = round_votes.add_vote(vote2, 10);
+    let thresh = round_votes.add_vote(VoteType::Precommit, ADDRESS6, val2, 10);
     assert_eq!(thresh, Threshold::Value(v2));
 }

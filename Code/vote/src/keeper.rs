@@ -1,8 +1,9 @@
-use alloc::collections::BTreeMap;
+use alloc::collections::{BTreeMap, BTreeSet};
 
 use malachite_common::{Context, Round, ValueId, Vote, VoteType};
 
 use crate::round_votes::RoundVotes;
+use crate::round_weights::RoundWeights;
 use crate::{Threshold, Weight};
 
 /// Messages emitted by the vote keeper
@@ -16,6 +17,29 @@ pub enum Message<Value> {
     SkipRound,
 }
 
+#[derive(Clone, Debug)]
+struct PerRound<Ctx>
+where
+    Ctx: Context,
+{
+    votes: RoundVotes<Ctx::Address, ValueId<Ctx>>,
+    addresses_weights: RoundWeights<Ctx::Address>,
+    emitted_msgs: BTreeSet<Message<ValueId<Ctx>>>,
+}
+
+impl<Ctx> PerRound<Ctx>
+where
+    Ctx: Context,
+{
+    fn new(total_weight: Weight) -> Self {
+        Self {
+            votes: RoundVotes::new(total_weight),
+            addresses_weights: RoundWeights::new(),
+            emitted_msgs: BTreeSet::new(),
+        }
+    }
+}
+
 /// Keeps track of votes and emits messages when thresholds are reached.
 #[derive(Clone, Debug)]
 pub struct VoteKeeper<Ctx>
@@ -24,33 +48,36 @@ where
 {
     height: Ctx::Height,
     total_weight: Weight,
-    rounds: BTreeMap<Round, RoundVotes<Ctx>>,
+    per_round: BTreeMap<Round, PerRound<Ctx>>,
 }
 
 impl<Ctx> VoteKeeper<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(height: Ctx::Height, round: Round, total_weight: Weight) -> Self {
-        let mut rounds = BTreeMap::new();
-
-        rounds.insert(round, RoundVotes::new(height.clone(), round, total_weight));
-
+    pub fn new(height: Ctx::Height, total_weight: Weight) -> Self {
         VoteKeeper {
             height,
             total_weight,
-            rounds,
+            per_round: BTreeMap::new(),
         }
     }
 
     /// Apply a vote with a given weight, potentially triggering an event.
     pub fn apply_vote(&mut self, vote: Ctx::Vote, weight: Weight) -> Option<Message<ValueId<Ctx>>> {
-        let round = self.rounds.entry(vote.round()).or_insert_with(|| {
-            RoundVotes::new(self.height.clone(), vote.round(), self.total_weight)
-        });
+        let round = self
+            .per_round
+            .entry(vote.round())
+            .or_insert_with(|| PerRound::new(self.total_weight));
 
         let vote_type = vote.vote_type();
-        let threshold = round.add_vote(vote, weight);
+
+        let threshold = round.votes.add_vote(
+            vote_type,
+            vote.validator_address().clone(),
+            vote.take_value(),
+            weight,
+        );
 
         Self::to_message(vote_type, threshold)
     }
@@ -62,15 +89,9 @@ where
         vote_type: VoteType,
         threshold: Threshold<ValueId<Ctx>>,
     ) -> bool {
-        let round = match self.rounds.get(round) {
-            Some(round) => round,
-            None => return false,
-        };
-
-        match vote_type {
-            VoteType::Prevote => round.prevotes.is_threshold_met(threshold),
-            VoteType::Precommit => round.precommits.is_threshold_met(threshold),
-        }
+        self.per_round.get(round).map_or(false, |round| {
+            round.votes.is_threshold_met(vote_type, threshold)
+        })
     }
 
     /// Map a vote type and a threshold to a state machine event.
@@ -91,4 +112,8 @@ where
             (VoteType::Precommit, Threshold::Value(v)) => Some(Message::PrecommitValue(v)),
         }
     }
+}
+
+fn is_skip(weight: Weight, total: Weight) -> bool {
+    3 * weight > total
 }

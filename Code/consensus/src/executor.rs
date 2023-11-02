@@ -62,11 +62,7 @@ where
         private_key: PrivateKey<Ctx>,
         address: Ctx::Address,
     ) -> Self {
-        let votes = VoteKeeper::new(
-            height.clone(),
-            Round::INITIAL,
-            validator_set.total_voting_power(),
-        );
+        let votes = VoteKeeper::new(height.clone(), validator_set.total_voting_power());
 
         Self {
             height,
