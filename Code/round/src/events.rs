@@ -14,7 +14,7 @@ where
     PolkaValue(ValueId<Ctx>),     // Receive +2/3 prevotes for Value.
     PrecommitAny,                 // Receive +2/3 precommits for anything.
     PrecommitValue(ValueId<Ctx>), // Receive +2/3 precommits for Value.
-    RoundSkip,                    // Receive +1/3 votes from a higher round.
+    SkipRound,                    // Receive +1/3 votes from a higher round.
     TimeoutPropose,               // Timeout waiting for proposal.
     TimeoutPrevote,               // Timeout waiting for prevotes.
     TimeoutPrecommit,             // Timeout waiting for precommits.

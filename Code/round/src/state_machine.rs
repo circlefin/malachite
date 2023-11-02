@@ -123,7 +123,7 @@ where
         // From all (except Commit). Various round guards.
         (_, Event::PrecommitAny) if this_round => schedule_timeout_precommit(state), // L47
         (_, Event::TimeoutPrecommit) if this_round => round_skip(state, data.round.increment()), // L65
-        (_, Event::RoundSkip) if state.round < data.round => round_skip(state, data.round), // L55
+        (_, Event::SkipRound) if state.round < data.round => round_skip(state, data.round), // L55
         (_, Event::PrecommitValue(value_id)) => commit(state, data.round, value_id),        // L49
 
         // Invalid transition.
