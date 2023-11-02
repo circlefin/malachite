@@ -99,7 +99,7 @@ impl<Address, Value> VoteCount<Address, Value> {
                 is_quorum(sum_weight, self.total_weight)
             }
 
-            Threshold::Unreached => false,
+            Threshold::Skip | Threshold::Unreached => false,
         }
     }
 

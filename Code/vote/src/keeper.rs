@@ -13,6 +13,7 @@ pub enum Message<Value> {
     PolkaValue(Value),
     PrecommitAny,
     PrecommitValue(Value),
+    SkipRound,
 }
 
 /// Keeps track of votes and emits messages when thresholds are reached.
@@ -79,6 +80,7 @@ where
     ) -> Option<Message<ValueId<Ctx>>> {
         match (typ, threshold) {
             (_, Threshold::Unreached) => None,
+            (_, Threshold::Skip) => Some(Message::SkipRound),
 
             (VoteType::Prevote, Threshold::Any) => Some(Message::PolkaAny),
             (VoteType::Prevote, Threshold::Nil) => Some(Message::PolkaNil),

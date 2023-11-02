@@ -22,14 +22,20 @@ pub mod value_weights;
 pub type Weight = u64;
 
 /// Represents the different quorum thresholds.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Threshold<ValueId> {
     /// No quorum has been reached yet
     Unreached,
-    /// Qorum of votes but not for the same value
+
+    /// +1/3 votes from higher round, skip this round
+    Skip,
+
+    /// Quorum (+2/3) of votes but not for the same value
     Any,
-    /// Quorum for nil
+
+    /// Quorum (+2/3) of votes for nil
     Nil,
-    /// Quorum for a value
+
+    /// Quorum (+2/3) of votes for a value
     Value(ValueId),
 }
