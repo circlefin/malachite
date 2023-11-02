@@ -1,6 +1,6 @@
 use malachite_common::Round;
-use malachite_vote::count::Threshold;
-use malachite_vote::RoundVotes;
+use malachite_vote::round_votes::RoundVotes;
+use malachite_vote::Threshold;
 
 use malachite_test::{Address, Height, TestContext, ValueId, Vote};
 

@@ -14,47 +14,22 @@ extern crate alloc;
 
 pub mod count;
 pub mod keeper;
+pub mod round_votes;
+pub mod value_weights;
 
-use malachite_common::{Context, Round, ValueId, Vote, VoteType};
+// TODO: Introduce newtype
+// QUESTION: Over what type? i64?
+pub type Weight = u64;
 
-use crate::count::{Threshold, VoteCount, Weight};
-
-/// Tracks all the votes for a single round
-#[derive(Clone, Debug)]
-pub struct RoundVotes<Ctx>
-where
-    Ctx: Context,
-{
-    pub height: Ctx::Height,
-    pub round: Round,
-
-    pub prevotes: VoteCount<Ctx::Address, ValueId<Ctx>>,
-    pub precommits: VoteCount<Ctx::Address, ValueId<Ctx>>,
-}
-
-impl<Ctx> RoundVotes<Ctx>
-where
-    Ctx: Context,
-{
-    pub fn new(height: Ctx::Height, round: Round, total: Weight) -> Self {
-        RoundVotes {
-            height,
-            round,
-            prevotes: VoteCount::new(total),
-            precommits: VoteCount::new(total),
-        }
-    }
-
-    pub fn add_vote(&mut self, vote: Ctx::Vote, weight: Weight) -> Threshold<ValueId<Ctx>> {
-        match vote.vote_type() {
-            VoteType::Prevote => {
-                self.prevotes
-                    .add(vote.validator_address().clone(), vote.take_value(), weight)
-            }
-            VoteType::Precommit => {
-                self.precommits
-                    .add(vote.validator_address().clone(), vote.take_value(), weight)
-            }
-        }
-    }
+/// Represents the different quorum thresholds.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Threshold<ValueId> {
+    /// No quorum has been reached yet
+    Unreached,
+    /// Qorum of votes but not for the same value
+    Any,
+    /// Quorum for nil
+    Nil,
+    /// Quorum for a value
+    Value(ValueId),
 }

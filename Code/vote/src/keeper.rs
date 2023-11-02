@@ -2,10 +2,8 @@ use alloc::collections::BTreeMap;
 
 use malachite_common::{Context, Round, ValueId, Vote, VoteType};
 
-use crate::{
-    count::{Threshold, Weight},
-    RoundVotes,
-};
+use crate::round_votes::RoundVotes;
+use crate::{Threshold, Weight};
 
 /// Messages emitted by the vote keeper
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -11,9 +11,9 @@ use malachite_common::{
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
 use malachite_round::state::State as RoundState;
-use malachite_vote::count::Threshold;
 use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
+use malachite_vote::Threshold;
 
 /// Messages that can be received and broadcast by the consensus executor.
 #[derive(Clone, Debug, PartialEq, Eq)]

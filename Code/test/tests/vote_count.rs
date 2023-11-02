@@ -1,6 +1,7 @@
 #![allow(clippy::bool_assert_comparison)]
 
-use malachite_vote::count::{Threshold, VoteCount};
+use malachite_vote::count::VoteCount;
+use malachite_vote::Threshold;
 
 #[test]
 fn vote_count_nil() {
