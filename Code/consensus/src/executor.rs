@@ -50,6 +50,7 @@ where
     Vote(SignedVote<Ctx>),
     Decide(Round, Ctx::Value),
     ScheduleTimeout(Timeout),
+    NewRound(Round),
 }
 
 impl<Ctx> Executor<Ctx>
@@ -92,14 +93,9 @@ where
 
         match round_msg {
             RoundMessage::NewRound(round) => {
-                // TODO: How to loop Event::NewRoundProposer or Event::NewRound back to the executor?
-                // TODO: check if we are the proposer
                 // XXX: Check if there is an existing state?
                 assert!(self.round < round);
-                self.round_states
-                    .insert(round, RoundState::default().new_round(round));
-                self.round = round;
-                None
+                Some(Message::NewRound(round))
             }
 
             RoundMessage::Proposal(proposal) => {
@@ -233,7 +229,7 @@ where
     /// Apply the event, update the state.
     fn apply_event(&mut self, round: Round, event: RoundEvent<Ctx>) -> Option<RoundMessage<Ctx>> {
         // Get the round state, or create a new one
-        let round_state = self.round_states.remove(&round).unwrap_or_default();
+        let mut round_state = self.round_states.remove(&round).unwrap_or_default();
 
         let data = RoundData::new(round, &self.height, &self.address);
 
@@ -251,6 +247,14 @@ where
                 }
                 _ => RoundEvent::PrecommitAny,
             },
+            RoundEvent::NewRound | RoundEvent::NewRoundProposer(_) => {
+                assert!(self.round < round);
+                self.round_states
+                    .insert(round, RoundState::default().new_round(round));
+                self.round = round;
+                round_state.round = round;
+                event
+            }
             _ => event,
         };
 

@@ -21,6 +21,7 @@ fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
         Message::Vote(v) => Some(Event::Vote(v)),
         Message::Decide(_, _) => None,
         Message::ScheduleTimeout(_) => None,
+        Message::NewRound(round) => Some(Event::NewRound(round)),
     }
 }
 
@@ -532,7 +533,7 @@ fn executor_steps_not_proposer_timeout() {
         TestStep {
             desc: "we receive a precommit timeout, start a new round",
             input_event: Some(Event::TimeoutElapsed(Timeout::precommit(Round::new(0)))),
-            expected_output: None,
+            expected_output: Some(Message::NewRound(Round::new(1))),
             new_state: State {
                 round: Round::new(1),
                 step: Step::NewRound,
