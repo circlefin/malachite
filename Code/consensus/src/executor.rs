@@ -239,19 +239,17 @@ where
 
         // Multiplex the event with the round state.
         let mux_event = match event {
-            RoundEvent::PolkaValue(value_id) => {
-                match round_state.proposal {
-                    Some(ref proposal) if proposal.value().id() == value_id =>
-                        RoundEvent::ProposalAndPolkaCurrent(proposal.clone()),
-                    _ => RoundEvent::PolkaAny,
+            RoundEvent::PolkaValue(value_id) => match round_state.proposal {
+                Some(ref proposal) if proposal.value().id() == value_id => {
+                    RoundEvent::ProposalAndPolkaCurrent(proposal.clone())
                 }
+                _ => RoundEvent::PolkaAny,
             },
-            RoundEvent::PrecommitValue(value_id) => {
-                match round_state.proposal {
-                    Some(ref proposal) if proposal.value().id() == value_id =>
-                        RoundEvent::ProposalAndPrecommitValue(proposal.clone()),
-                    _ => RoundEvent::PrecommitAny,
+            RoundEvent::PrecommitValue(value_id) => match round_state.proposal {
+                Some(ref proposal) if proposal.value().id() == value_id => {
+                    RoundEvent::ProposalAndPrecommitValue(proposal.clone())
                 }
+                _ => RoundEvent::PrecommitAny,
             },
             _ => event,
         };
