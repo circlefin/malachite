@@ -39,13 +39,14 @@ The consensus implementation comprises three components:
 The components of the consensus implementation as well as the associated abstractions are described below, after a discussion on terminology.
 
 ### Data Types & Abstractions
-#### Consensus
 
-The Tendermint consensus implementation will satisfy the `Consensus` interface, detailed below.
+#### Context
+
+The Tendermint consensus implementation will satisfy the `Context` interface, detailed below.
 The data types used by the consensus algorithm are abstracted to allow for different implementations.
 
 ```rust
-pub trait Consensus
+pub trait Context
 where
     Self: Sized,
 {
@@ -83,11 +84,14 @@ where
     fn new_precommit(round: Round, value_id: Option<ValueId<Self>>) -> Self::Vote;
 }
 ```
+
 Note:
 - TBD: we should figure out where to put `broadcast_message(), start_timer()`
+    - @romac: Likely outside of the `Executor`, so left up to the runtime which drives the executor.
 
 
 #### Consensus Executor
+
 ##### Data Structures
 
 The Consensus Executor is concerned with running the consensus algorithm for a single height. It is therefore initialized with the height once and the instance is destroyed once a value for that height has been decided. Other parameters are required during initialization and operation as described below.
@@ -95,7 +99,7 @@ The Consensus Executor is concerned with running the consensus algorithm for a s
 ```rust
 pub struct Executor<C>
 where
-    C: Consensus,
+    C: Context
 {
     height: C::Height,
     key: Secret<PrivateKey<C>>,
@@ -112,15 +116,16 @@ Note:
 ##### Input Events (External APIs)
 
 The Consensus Executor receives events from the peer-to-peer layer and other external modules it interacts with. 
+
 ```rust
-pub enum Events<C>
+pub enum Event<C>
 where
-    C: Consensus,
+    C: Context
 {
-    StartRound(Round), // Start a new round, currently must be 0
-    Proposal(C::Proposal), // A proposal has been received, must be complete
-    Vote(SignedVote<C>), // A vote has been received
-    Timeout(Timeout), // A timeout has occurred
+    StartRound(Round),          // Start a new round, currently must be 0
+    Proposal(C::Proposal),      // A proposal has been received, must be complete
+    Vote(SignedVote<C>),        // A vote has been received
+    TimeoutElapsed(Timeout),    // A timeout has elapsed
 }
 
 ```
@@ -143,38 +148,54 @@ Notes:
 TODO: Consolidate the terminology around Events and Messages.
 
 ##### Operation
+
 The Executor sends votes to the Vote Keeper module. The Executor expects that whenever the Keeper observes any threshold of votes for the first time it returns that to the Executor.
 
 Based on its state and the results received from the Vote Keeper, the Executor sends events to the Round State Machine which, once it processes the Executor events, returns consensus-related messages back to the Executor. The Executor then processes these messages and sends them to the peer-to-peer layer, the host system, or other external modules.
 
 ##### Output Messages (External Dependencies)
+
 ```rust
-pub enum Output<C>
+pub enum Message<C>
 where
     C: Consensus,
 {
-    Propose(C::Proposal), // Request to broadcast a proposal to peers
-    Vote(SignedVote<C>), // Request to broadcast a vote to peers
-    Decide(Round, C::Value), // Signal that a decision has been reached
-    SetTimeout(Timeout), // Request the host system to start a timer
+    Propose(C::Proposal),      // Request to broadcast a proposal to peers
+    Vote(SignedVote<C>),       // Request to broadcast a vote to peers
+    Decide(Round, C::Value),   // Signal that a decision has been reached
+    ScheduleTimeout(Timeout),  // Request the host system to start a timer
 }
 ```
 
 #### Vote Keeper
+
 ##### Data Structures
+
 The Vote Keeper is concerned with keeping track of the votes received and the thresholds of votes observed for each round.
+To this end, it maintains some state per each round:
+
+```rust
+struct PerRound<Ctx>
+where
+    Ctx: Context,
+{
+    votes: RoundVotes<Ctx::Address, ValueId<Ctx>>,
+    addresses_weights: RoundWeights<Ctx::Address>,
+    emitted_msgs: BTreeSet<Message<ValueId<Ctx>>>,
+}
+```
 
 ```rust
 pub struct VoteKeeper<C>
 where
-    C: Consensus,
+    C: Context,
 {
     height: C::Height,
     validator_set: C::ValidatorSet,
     quorum_threshold: ThresholdParameter,
     honest_threshold: ThresholdParameter,
     total_weight: Weight,
-    rounds: BTreeMap<Round, RoundVotes<C>>,
+    per_round: BTreeMap<Round, PerRound<C>>,
 }
 ```
 Note: The above is a first draft and is likely to change:
@@ -183,38 +204,46 @@ Note: The above is a first draft and is likely to change:
 - TBD: may require future changes if the keeper also handles proposal messages.
 
 ##### Input Events (Internal APIs)
+
 The Vote Keeper receives votes from the Consensus Executor via:
 
 ```rust
-pub fn apply_vote(&mut self, vote: C::Vote, weight: Weight) -> Option<Message<C>>
+pub fn apply_vote(&mut self, vote: C::Vote, weight: Weight) -> Option<Message<ValueId<C>>>
 ```
 
 ##### Operation
+
 The Vote Keeper keeps track of the votes received for each round and the total weight of the votes. It returns any thresholds seen **for the first time**.
 
 ##### Output Messages
 
 The Executor receives these output messages from the Vote Keeper.
 
-TODO: Events vs. Messages fix.
-
 ```rust
-pub enum Event<C: Consensus> {
-    PolkaAny, // Received quorum prevotes for anything. L34
-    PolkaNil, // Received quorum prevotes for nil. L44
-    PolkaValue(ValueId<C>), // Received quorum prevotes for Value. L44
-    PrecommitAny, // Received quorum precommits for anything. L47
-    PrecommitValue(ValueId<C>), // Received quorum precommits for Value. L51
-    ThresholdCorrectProcessInHigherRound, // Received messages from minimum of honest validators and for a higher round (as defined by honest_threshold). See L55
+pub enum Message<C>
+where 
+    C: Context
+{
+    PolkaAny,                               // Received quorum prevotes for anything. L34
+    PolkaNil,                               // Received quorum prevotes for nil. L44
+    PolkaValue(ValueId<C>),                 // Received quorum prevotes for Value. L44
+    PrecommitAny,                           // Received quorum precommits for anything. L47
+    PrecommitValue(ValueId<C>),             // Received quorum precommits for Value. L51
+    ThresholdCorrectProcessInHigherRound,   // Received messages from minimum of honest validators and for a higher round (as defined by honest_threshold). See L55
 }
 ```
 
 #### Round State Machine
+
 ##### Data Structures
+
 The Consensus State Machine is concerned with the internal state of the consensus algorithm for a given round. It is initialized with the height and round. When moving to a new round, the executor creates a new round state machine and may or may not destroy the other round SMs.
 
 ```rust
-pub struct State<C: Consensus> {
+pub struct State<C>
+where 
+    C: Context
+{
     pub height: C::Height,
     pub round: Round,
     pub step: Step,
@@ -225,12 +254,13 @@ pub struct State<C: Consensus> {
 ```
 
 ##### Input Events (Internal APIs)
+
 The Round state machine receives events from the Consensus Executor via:
+
 ```rust
 pub fn apply_event<C>(mut state: State<C>, round: Round, event: Event<C>) -> Transition<C>
 where
-    C: Consensus,
-{}
+    C: Context
 ```
 
 The events passed to the Round state machine are very close to the preconditions for the transition functions in the BFT paper, i.e., the `upon` clauses.
@@ -239,36 +269,41 @@ In addition:
 - There are two `Poposal` events, for valid and invalid values respectively. Therefore, the `valid(v)` check is not performed in the round SM but externally by the executor (TODO TBD who exactly does that)
 
 ```rust
-pub enum Event<C: Consensus> {
-    StartRound,                   // Start a new round, not as proposer.L20
-    StartRoundProposer(C::Value), // Start a new round and propose the Value.L14
-    Proposal(C::Proposal),      // Received a proposal. L22 + L23 (valid)
-    ProposalAndPolkaPrevious(C::Value), // Received a proposal and a polka value from a previous round. L28 + L29 (valid)
-    ProposalInvalid,         // Received an invalid proposal. L26 + L32 (invalid)
-    PolkaValue(ValueId<C>),  // Received quorum prevotes for valueId. L44
-    PolkaAny,                // Received quorum prevotes for anything. L34
-    PolkaNil,                // Received quorum prevotes for nil. L44
-    ProposalAndPolkaCurrent(C::Value),     // Received quorum prevotes for Value in current round. L36
-    PrecommitAny,            // Received quorum precommits for anything. L47
-    ProposalAndPrecommitValue(C::Value), // Received quorum precommits for Value. L49
-    PrecommitValue(ValueId<C>), // Received quorum precommits for ValueId. L51
+pub enum Event<C> 
+where 
+    C: Context
+{
+    StartRound,                           // Start a new round, not as proposer.L20
+    StartRoundProposer(C::Value),         // Start a new round and propose the Value.L14
+    Proposal(C::Proposal),                // Received a proposal. L22 + L23 (valid)
+    ProposalAndPolkaPrevious(C::Value),   // Received a proposal and a polka value from a previous round. L28 + L29 (valid)
+    ProposalInvalid,                      // Received an invalid proposal. L26 + L32 (invalid)
+    PolkaValue(ValueId<C>),               // Received quorum prevotes for valueId. L44
+    PolkaAny,                             // Received quorum prevotes for anything. L34
+    PolkaNil,                             // Received quorum prevotes for nil. L44
+    ProposalAndPolkaCurrent(C::Value),    // Received quorum prevotes for Value in current round. L36
+    PrecommitAny,                         // Received quorum precommits for anything. L47
+    ProposalAndPrecommitValue(C::Value),  // Received quorum precommits for Value. L49
+    PrecommitValue(ValueId<C>),           // Received quorum precommits for ValueId. L51
     ThresholdCorrectProcessInHigherRound, // Received messages from a number of honest processes in a higher round. aka RoundSkip, L55
-    TimeoutPropose,          // Timeout waiting for proposal. L57
-    TimeoutPrevote,          // Timeout waiting for prevotes. L61
-    TimeoutPrecommit,        // Timeout waiting for precommits. L65
+    TimeoutPropose,                       // Timeout waiting for proposal. L57
+    TimeoutPrevote,                       // Timeout waiting for prevotes. L61
+    TimeoutPrecommit,                     // Timeout waiting for precommits. L65
 }
 ```
 
 ##### Operation
+
 The Round State Machine keeps track of the internal state of consensus for a given round. It resembles very closely the algorithm description in the [original "The Latest gossip on BFT consensus" paper](#References).
 
 ##### Output Messages
+
 The Round state machine returns the following messages to the Executor:
 
 ```rust
 pub enum Message<C>
-where
-    C: Consensus,
+where 
+    C: Context
 {
     NewRound(Round),                // Move to a new round, could be next or skipped round.
     Proposal(C::Proposal),          // Broadcast a proposal.
