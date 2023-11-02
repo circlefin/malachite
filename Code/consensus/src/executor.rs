@@ -92,12 +92,13 @@ where
 
         match round_msg {
             RoundMessage::NewRound(round) => {
+                // TODO: How to loop Event::NewRoundProposer or Event::NewRound back to the executor?
                 // TODO: check if we are the proposer
-
                 // XXX: Check if there is an existing state?
+                assert!(self.round < round);
                 self.round_states
                     .insert(round, RoundState::default().new_round(round));
-
+                self.round = round;
                 None
             }
 
@@ -236,8 +237,27 @@ where
 
         let data = RoundData::new(round, &self.height, &self.address);
 
+        // Multiplex the event with the round state.
+        let mux_event = match event {
+            RoundEvent::PolkaValue(value_id) => {
+                match round_state.proposal {
+                    Some(ref proposal) if proposal.value().id() == value_id =>
+                        RoundEvent::ProposalAndPolkaCurrent(proposal.clone()),
+                    _ => RoundEvent::PolkaAny,
+                }
+            },
+            RoundEvent::PrecommitValue(value_id) => {
+                match round_state.proposal {
+                    Some(ref proposal) if proposal.value().id() == value_id =>
+                        RoundEvent::ProposalAndPrecommitValue(proposal.clone()),
+                    _ => RoundEvent::PrecommitAny,
+                }
+            },
+            _ => event,
+        };
+
         // Apply the event to the round state machine
-        let transition = round_state.apply_event(&data, event);
+        let transition = round_state.apply_event(&data, mux_event);
 
         // Update state
         self.round_states.insert(round, transition.next_state);

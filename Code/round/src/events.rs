@@ -13,9 +13,9 @@ where
     PolkaValue(ValueId<Ctx>),                // Receive +2/3 prevotes for valueId. L44
     PolkaAny,                                // Receive +2/3 prevotes for anything. L34
     PolkaNil,                                // Receive +2/3 prevotes for nil. L44
-    ProposalAndPolkaCurrent(Ctx::Value), // Receive +2/3 prevotes for Value in current round. L36
+    ProposalAndPolkaCurrent(Ctx::Proposal), // Receive +2/3 prevotes for Value in current round. L36
     PrecommitAny,                        // Receive +2/3 precommits for anything. L47
-    ProposalAndPrecommitValue(Ctx::Value), // Receive +2/3 precommits for Value. L49
+    ProposalAndPrecommitValue(Ctx::Proposal), // Receive +2/3 precommits for Value. L49
     PrecommitValue(ValueId<Ctx>),        // Receive +2/3 precommits for ValueId. L51
     RoundSkip, // Receive +1/3 messages from a higher round. OneCorrectProcessInHigherRound, L55
     TimeoutPropose, // Timeout waiting for proposal. L57
