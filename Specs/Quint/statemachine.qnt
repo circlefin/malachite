@@ -33,6 +33,7 @@ pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
     started: false,
     applyvotesResult: toEvent(0, "", {name: "", value: ""}), // debug
     chain : List(),
+    nextValueToPropose: "", 
     }
 }
 
@@ -110,6 +111,15 @@ action step = {
     valStep(v)
 }
 
+action setNextValueToPropose(v: Address_t, value: Value_t) : bool = all {
+    val res = executor(system.get(v).es, { ...defaultInput, name: "SetNextProposedValue", nextValueToPropose: value})
+    val newNS = { ...system.get(v), es: res._1}
+    system' = system.put(v, newNS),
+     _hist' = _hist
+}
+
+
+
 action valStepCommand(v: Address_t, command: str) : bool = {
     // pick action
     val input = system.get(v).nextActionCommand(command) 
@@ -139,6 +149,7 @@ action valStepCommand(v: Address_t, command: str) : bool = {
 
 run DecidingRunTest = {
     init
+    .then(setNextValueToPropose("v2", "a block"))
     .then(valStepCommand("v1", "start"))
     .then(valStepCommand("v2", "start"))
     .then(valStepCommand("v3", "start"))
@@ -187,6 +198,7 @@ run DecidingRunTest = {
 
 run TimeoutRunTest = {
     init
+    .then(setNextValueToPropose("v2", "a block"))
     .then(valStepCommand("v1", "start"))
     .then(valStepCommand("v2", "start"))
     .then(valStepCommand("v3", "start"))
@@ -232,3 +244,4 @@ run TimeoutRunTest = {
 }
 
 }
+

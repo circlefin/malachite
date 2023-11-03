@@ -15,6 +15,7 @@ type ExecutorState = {
     started: bool,
     applyvotesResult: ExecutorEvent, //debug TODO!!!
     chain : List[Value_t],
+    nextValueToPropose: Value_t,
 }
 
 type NodeState = {
@@ -25,18 +26,22 @@ type NodeState = {
 }
 
 type ExecutorInput = {
-    name: str,
+    name: str, // TODO: make a set of values. 
     proposal: ProposeMsg_t,
     vote: VoteMsg_t,
     timeout: str,
-    event: Event
+    event: Event,
+    nextValueToPropose: Value_t
 }
 
-val defaultInput: ExecutorInput = {name: "",
+val defaultInput: ExecutorInput = {
+    name: "",
     proposal: { src: "", height: 0, round: 0, proposal: "", validRound: 0 },
     vote: { src: "", height: 0, round: 0, step: "", id: "", },
     timeout: "",
-    event: defaultEvent}
+    event: defaultEvent,
+    nextValueToPropose: ""
+}
 
 // this is to match the type from the bookkeeper. When we add heights there we should
 // unify
@@ -76,9 +81,11 @@ val emptyVote =
 //
 // Interface to app and/or mempool (Proposer, getValue, valid)
 // 
-// Rotating coordinator. We can do something more clever actually using the valset
+
+// In the implementation this could be a callback to the application. But it needs to be
+// a function, that is, any two validators need to agree on this
 pure def Proposer(valset: Address_t -> int, height: Height_t, round: Round_t) : Address_t = {
-    val v = valset
+    // Here: rotating coordinator. We can do something more clever actually using the valset
     val prop = (height * round + 1) % 4
     if (prop == 0) "v1"
     else if  (prop == 1) "v2"
@@ -86,7 +93,13 @@ pure def Proposer(valset: Address_t -> int, height: Height_t, round: Round_t) : 
     else "v4"
 }
 
-pure def getValue(cs: ConsensusState, round:int) : Value_t = "a block"
+
+
+
+
+
+
+pure def getValue(es: ExecutorState) : Value_t =  es.nextValueToPropose
 
 pure def valid(p: ProposeMsg_t) :bool = {
     // for simulation, if the value is "invalid", so is the proposal
@@ -323,7 +336,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
 pure def skip (es: ExecutorState, r: int) : (ExecutorState, ConsensusOutput) = {
     // line 15
     val prop =  if (es.cs.validValue != "nil") es.cs.validValue
-                else getValue(es.cs, r)
+                else getValue(es)
     if (Proposer(es.valset, es.cs.height, es.cs.round + 1) == es.cs.p)
         callConsensus(es, es.bk,  { name: "NewRoundProposer",
                                     height: es.cs.height,
@@ -366,7 +379,9 @@ pure def PendingEvent (es: ExecutorState, input: ExecutorInput) : (ExecutorState
     callConsensus(newState, es.bk, input.event)
 }
 
-
+pure def setValue(es: ExecutorState, value: Value_t) : (ExecutorState, ConsensusOutput) =
+    ({ ...es, nextValueToPropose: value }, defaultResult)
+    
 /* *********************************************************
  * Main entry point
  * ********************************************************/
@@ -412,6 +427,8 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Co
     else if (input.name == "pending") {
         PendingEvent(es, input)
     }
+    else if (input.name == "SetNextProposedValue")
+        setValue(es, input.nextValueToPropose)
     else
         (es, defaultResult)
 }
