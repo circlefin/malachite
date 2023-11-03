@@ -65,7 +65,7 @@ where
     ) -> Self {
         let votes = VoteKeeper::new(
             height.clone(),
-            Round::INITIAL,
+            Round::NIL,
             validator_set.total_voting_power(),
         );
 
@@ -74,7 +74,7 @@ where
             private_key: Secret::new(private_key),
             address,
             validator_set,
-            round: Round::INITIAL,
+            round: Round::NIL,
             votes,
             round_states: BTreeMap::new(),
         }

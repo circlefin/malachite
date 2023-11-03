@@ -16,7 +16,8 @@ pub enum Round {
 
 impl Round {
     /// The initial, zero round.
-    pub const INITIAL: Round = Round::new(-1);
+    pub const INITIAL: Round = Round::new(0);
+    pub const NIL: Round = Round::new(-1);
 
     /// Create a new round.
     ///

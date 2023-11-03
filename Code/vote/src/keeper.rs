@@ -35,7 +35,9 @@ where
     pub fn new(height: Ctx::Height, round: Round, total_weight: Weight) -> Self {
         let mut rounds = BTreeMap::new();
 
-        rounds.insert(round, RoundVotes::new(height.clone(), round, total_weight));
+        if round != Round::NIL {
+            rounds.insert(round, RoundVotes::new(height.clone(), round, total_weight));
+        }
 
         VoteKeeper {
             height,
