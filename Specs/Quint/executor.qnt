@@ -358,10 +358,12 @@ pure def skip (es: ExecutorState, r: int) : (ExecutorState, ConsensusOutput) = {
 pure def decided (es: ExecutorState, res: ConsensusOutput) : (ExecutorState, ConsensusOutput) = {
     // here we call consensus to set a new height, that is, to initialize the state machine
     // and then we call skip to start round 0
-    // TODO: one can put res.decided into the blockstore
 
-/*  // The following should be used to get to the next height. For now this
-    // function does nothing      
+/*  // The following can be used to get to the next height. For now this
+    // function does nothing
+    // If we choose to move getValue out of the executor logic into the environment (gossip)
+    // then, we would not do this here, but expect the environment to create a (to be defined) 
+    // ExecutorInput      
     val s1 = callConsensus(es, es.bk, {name : "NewHeight",
                                     height : es.cs.height + 1,
                                     round: -1,
@@ -381,7 +383,7 @@ pure def PendingEvent (es: ExecutorState, input: ExecutorInput) : (ExecutorState
 
 pure def setValue(es: ExecutorState, value: Value_t) : (ExecutorState, ConsensusOutput) =
     ({ ...es, nextValueToPropose: value }, defaultResult)
-    
+
 /* *********************************************************
  * Main entry point
  * ********************************************************/
@@ -416,6 +418,9 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Co
         // result should be vote or skip
         if (res._2.name == "skipRound")
             skip (res._1, res._2.skipRound)
+            // skip starts a new round. This may involve getValue. If we choose to move the getValue
+            // logic out of the executor, we wouldn't call skip here but add a (to be defined)
+            // ExecutorInput
         else
             res
     }
