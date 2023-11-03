@@ -78,6 +78,7 @@ val emptyVote =
 // 
 // Rotating coordinator. We can do something more clever actually using the valset
 pure def Proposer(valset: Address_t -> int, height: Height_t, round: Round_t) : Address_t = {
+    val v = valset
     val prop = (height * round + 1) % 4
     if (prop == 0) "v1"
     else if  (prop == 1) "v2"

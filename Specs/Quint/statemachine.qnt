@@ -44,14 +44,14 @@ pure def initNode  (v: Address_t, vs: Address_t -> int) : NodeState = {
 }
 
 val validators = Set("v1", "v2", "v3", "v4")
-val valset = validators.mapBy(x => 1)
+val validatorSet = validators.mapBy(x => 1)
 
 var system : Address_t -> NodeState
 var _hist: (str, ExecutorInput, ConsensusOutput)
 //var _histSimple: (str, str, str)
 
 action init = all {
-    system' = validators.mapBy(v => initNode(v, valset)),
+    system' = validators.mapBy(v => initNode(v, validatorSet)),
     _hist' = ("INIT", defaultInput, defaultResult)
 //    _histSimple' = ("INIT", "", "")
 }
