@@ -3,7 +3,7 @@ use malachite_consensus::executor::{Event, Executor, Message};
 use malachite_round::state::{RoundValue, State, Step};
 
 use malachite_test::{
-    Address, Height, PrivateKey, Proposal, TestContext, Validator, ValidatorSet, Vote,
+    Address, Height, PrivateKey, Proposal, TestClient, TestContext, Validator, ValidatorSet, Vote,
 };
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -46,8 +46,8 @@ fn executor_steps_proposer() {
     let (my_sk, my_addr) = (sk1, addr1);
 
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
-
-    let mut executor = Executor::new(Height::new(1), vs, my_sk.clone(), my_addr);
+    let client = TestClient::new(value.clone(), |_| true);
+    let mut executor = Executor::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
 
@@ -228,7 +228,8 @@ fn executor_steps_not_proposer() {
     let (my_sk, my_addr) = (sk2, addr2);
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut executor = Executor::new(Height::new(1), vs, my_sk.clone(), my_addr);
+    let client = TestClient::new(value.clone(), |_| true);
+    let mut executor = Executor::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
 
@@ -409,7 +410,8 @@ fn executor_steps_not_proposer_timeout() {
     let (my_sk, my_addr) = (sk2, addr2);
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut executor = Executor::new(Height::new(1), vs, my_sk.clone(), my_addr);
+    let client = TestClient::new(value.clone(), |_| true);
+    let mut executor = Executor::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
 
     let steps = vec![
         // Start round 0, we are not the proposer

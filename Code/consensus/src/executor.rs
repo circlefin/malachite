@@ -27,20 +27,6 @@ where
     TimeoutElapsed(Timeout),
 }
 
-#[derive(Clone, Debug)]
-pub struct Executor<Ctx>
-where
-    Ctx: Context,
-{
-    height: Ctx::Height,
-    private_key: Secret<PrivateKey<Ctx>>,
-    address: Ctx::Address,
-    validator_set: Ctx::ValidatorSet,
-    round: Round,
-    votes: VoteKeeper<Ctx>,
-    round_states: BTreeMap<Round, RoundState<Ctx>>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Message<Ctx>
 where
@@ -52,11 +38,37 @@ where
     ScheduleTimeout(Timeout),
 }
 
-impl<Ctx> Executor<Ctx>
+pub trait Client<Ctx>
 where
     Ctx: Context,
 {
+    fn get_value(&self) -> Ctx::Value;
+    fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool;
+}
+
+#[derive(Clone, Debug)]
+pub struct Executor<Ctx, Client>
+where
+    Ctx: Context,
+    Client: self::Client<Ctx>,
+{
+    client: Client,
+    height: Ctx::Height,
+    private_key: Secret<PrivateKey<Ctx>>,
+    address: Ctx::Address,
+    validator_set: Ctx::ValidatorSet,
+    round: Round,
+    votes: VoteKeeper<Ctx>,
+    round_states: BTreeMap<Round, RoundState<Ctx>>,
+}
+
+impl<Ctx, Client> Executor<Ctx, Client>
+where
+    Ctx: Context,
+    Client: self::Client<Ctx>,
+{
     pub fn new(
+        client: Client,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
         private_key: PrivateKey<Ctx>,
@@ -69,6 +81,7 @@ where
         );
 
         Self {
+            client,
             height,
             private_key: Secret::new(private_key),
             address,
@@ -79,9 +92,12 @@ where
         }
     }
 
-    pub fn get_value(&self) -> Ctx::Value {
-        // TODO - add external interface to get the value
-        Ctx::DUMMY_VALUE
+    fn get_value(&self) -> Ctx::Value {
+        self.client.get_value()
+    }
+
+    fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool {
+        self.client.validate_proposal(proposal)
     }
 
     pub fn execute(&mut self, msg: Event<Ctx>) -> Option<Message<Ctx>> {
@@ -145,7 +161,9 @@ where
     }
 
     fn apply_proposal(&mut self, proposal: Ctx::Proposal) -> Option<RoundMessage<Ctx>> {
-        // TODO: Check for invalid proposal
+        if !self.validate_proposal(&proposal) {
+            todo!("invalid proposal");
+        }
 
         // Check that there is an ongoing round
         let Some(round_state) = self.round_states.get(&self.round) else {
