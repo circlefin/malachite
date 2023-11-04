@@ -36,7 +36,7 @@ where
     private_key: Secret<PrivateKey<Ctx>>,
     address: Ctx::Address,
     validator_set: Ctx::ValidatorSet,
-    round: Round,
+    pub round: Round,
     votes: VoteKeeper<Ctx>,
     round_states: BTreeMap<Round, RoundState<Ctx>>,
 }

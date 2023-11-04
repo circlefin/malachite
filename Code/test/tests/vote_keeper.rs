@@ -34,7 +34,7 @@ fn precommit_apply_nil() {
     assert_eq!(msg, None);
 
     let msg = keeper.apply_vote(vote, 1);
-    assert_eq!(msg, None);
+    assert_eq!(msg, Some(Message::PrecommitAny));
 }
 
 #[test]
