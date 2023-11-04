@@ -138,6 +138,11 @@ where
             RoundEvent::NewRound
         };
 
+        assert!(self.round < round);
+        self.round_states
+            .insert(round, RoundState::default().new_round(round));
+        self.round = round;
+
         self.apply_event(round, event)
     }
 
@@ -229,7 +234,7 @@ where
     /// Apply the event, update the state.
     fn apply_event(&mut self, round: Round, event: RoundEvent<Ctx>) -> Option<RoundMessage<Ctx>> {
         // Get the round state, or create a new one
-        let mut round_state = self.round_states.remove(&round).unwrap_or_default();
+        let round_state = self.round_states.remove(&round).unwrap_or_default();
 
         let data = RoundData::new(round, &self.height, &self.address);
 
@@ -247,14 +252,7 @@ where
                 }
                 _ => RoundEvent::PrecommitAny,
             },
-            RoundEvent::NewRound | RoundEvent::NewRoundProposer(_) => {
-                assert!(self.round < round);
-                self.round_states
-                    .insert(round, RoundState::default().new_round(round));
-                self.round = round;
-                round_state.round = round;
-                event
-            }
+
             _ => event,
         };
 
