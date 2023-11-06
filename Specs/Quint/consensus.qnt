@@ -61,6 +61,17 @@ type ConsensusState = {
     //continue
 }  
 
+pure def initConsensusState (v: Address_t) : ConsensusState = {
+    p: v, 
+    round: -1, 
+    step: "newRound", 
+    height : 0,
+    lockedRound: -1, 
+    lockedValue: "nil", 
+    validRound: -1, 
+    validValue: "nil"
+}
+
 type Event = {
     name : str,
     height : Height_t,

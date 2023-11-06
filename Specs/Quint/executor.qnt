@@ -5,6 +5,10 @@ module executor {
 import consensus.* from "./consensus"
 import voteBookkeeper.* from "./voteBookkeeper"
 
+pure def initBookKeeper (totalVotingPower: int): Bookkeeper = 
+    { height: 0, totalWeight: totalVotingPower, rounds: Map() }
+
+
 type ExecutorState = {
     bk : Bookkeeper,
     cs : ConsensusState,
@@ -18,11 +22,34 @@ type ExecutorState = {
     nextValueToPropose: Value_t,
 }
 
+pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
+    val tvp = vs.keys().fold(0, (sum, key) => sum + vs.get(key))
+    {
+    bk: initBookKeeper(tvp),
+    cs: initConsensusState(v),
+    proposals: Set(),
+    valset: vs,
+    executedEvents: List(),
+    pendingEvents: Set(),
+    started: false,
+    applyvotesResult: toEvent(0, "", {name: "", value: ""}), // debug
+    chain : List(),
+    nextValueToPropose: "", 
+    }
+}
+
 type NodeState = {
     es: ExecutorState,
     timeout: Set[(Timeout_t, Height_t, Round_t)],
     incomingVotes: Set[VoteMsg_t],
     incomingProposals: Set[ProposeMsg_t],
+}
+
+pure def initNode  (v: Address_t, vs: Address_t -> int) : NodeState = {
+    es: initExecutor(v,vs),
+    timeout: Set(),
+    incomingVotes: Set(),
+    incomingProposals: Set(),
 }
 
 type ExecutorInput = {

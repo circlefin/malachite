@@ -6,44 +6,6 @@ import executor.* from "./executor"
 import consensus.* from "./consensus"
 import voteBookkeeper.* from "./voteBookkeeper"
 
-pure def initBookKeeper (totalVotingPower: int): Bookkeeper = 
-    { height: 0, totalWeight: totalVotingPower, rounds: Map() }
-
-pure def initConsensusState (v: Address_t) : ConsensusState = {
-    p: v, 
-    round: -1, 
-    step: "newRound", 
-    height : 0,
-    lockedRound: -1, 
-    lockedValue: "nil", 
-    validRound: -1, 
-    validValue: "nil"
-}
-
-
-pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
-    val tvp = vs.keys().fold(0, (sum, key) => sum + vs.get(key))
-    {
-    bk: initBookKeeper(tvp),
-    cs: initConsensusState(v),
-    proposals: Set(),
-    valset: vs,
-    executedEvents: List(),
-    pendingEvents: Set(),
-    started: false,
-    applyvotesResult: toEvent(0, "", {name: "", value: ""}), // debug
-    chain : List(),
-    nextValueToPropose: "", 
-    }
-}
-
-pure def initNode  (v: Address_t, vs: Address_t -> int) : NodeState = {
-    es: initExecutor(v,vs),
-    timeout: Set(),
-    incomingVotes: Set(),
-    incomingProposals: Set(),
-}
-
 val validators = Set("v1", "v2", "v3", "v4")
 val validatorSet = validators.mapBy(x => 1)
 
@@ -106,16 +68,20 @@ action valStep(v: Address_t) : bool = {
     }
 }
 
-action step = {
-    nondet v = oneOf(validators)
-    valStep(v)
-}
-
 action setNextValueToPropose(v: Address_t, value: Value_t) : bool = all {
     val res = executor(system.get(v).es, { ...defaultInput, name: "SetNextProposedValue", nextValueToPropose: value})
     val newNS = { ...system.get(v), es: res._1}
     system' = system.put(v, newNS),
      _hist' = _hist
+}
+
+action step = {
+    nondet v = oneOf(validators)
+    nondet value = oneOf(Set("a", "b", "c"))
+    any {
+        valStep(v),
+        setNextValueToPropose(v, value),
+    }
 }
 
 
