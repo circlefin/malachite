@@ -10,7 +10,7 @@ type ExecutorState = {
     cs : ConsensusState,
     proposals: Set[ProposeMsg_t],
     valset: Address_t -> int,
-    executedEvents: Set[(Event, Height_t, Round_t)],
+    executedEvents: List[(Event, Height_t, Round_t)], // We record that to have the information in the trace
     pendingEvents: Set[(Event, Height_t, Round_t)],
     started: bool,
     applyvotesResult: ExecutorEvent, //debug TODO!!!
@@ -112,16 +112,25 @@ pure def valid(p: ProposeMsg_t) :bool = {
 pure def id(v) = v 
 
 
+type ConsensusCall = {
+    es: ExecutorState,
+    event: Event,
+    out: ConsensusOutput
+}
+
+pure def ListContains(list, value) = 
+    list.foldl(false, (s,x) => s or x == value)
+
 // check whether the event has been already sent to consensus. If not, do so.
 pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (ExecutorState, ConsensusOutput) = {
     // check whether we already executed the event already
-    if (es.executedEvents.contains((ev, es.cs.height, es.cs.round)))
-        ({ ...es, bk:bk, cs: es.cs}, defaultResult)
+    if (es.executedEvents.ListContains((ev, es.cs.height, es.cs.round)))
+        (   { ...es, bk:bk, cs: es.cs}, 
+            defaultResult )
     else
         val res = consensus(es.cs, ev)
-        ({ ...es, bk: bk, cs: res.cs, 
-        executedEvents: es.executedEvents.union(Set((ev, res.cs.height, res.cs.round)))}, 
-        res.out)
+        (   { ...es, bk: bk, cs: res.cs, executedEvents: es.executedEvents.append((ev, res.cs.height, res.cs.round))}, 
+            res.out )
 }
 
 // We do this if the executor receives a Precommit
@@ -388,6 +397,7 @@ pure def setValue(es: ExecutorState, value: Value_t) : (ExecutorState, Consensus
  * Main entry point
  * ********************************************************/
 
+// TODO: return ConsensusEvent so that we know from outside what event was fired.
 pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     // TODO: shall we check whether the sender actually is in the validator set
     if (input.name == "proposal") {

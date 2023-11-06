@@ -92,6 +92,8 @@ type ConsResult = {
 //    pending: Set[ConsensusOutput], // TODO: not sure we need this
 }
 
+type ConsensusEvent = str
+
 val consensusEvents = Set(
     "NewHeight",			// Setups the state-machine for a single-height execution
     "NewRound",              		// Start a new round, not as proposer.
@@ -359,6 +361,8 @@ pure def TimeoutPrevote (state: ConsensusState, ev: Event) : ConsResult = {
 
 pure def TimeoutPrecommit (state: ConsensusState, ev: Event) : ConsResult = {
     if (ev.height == state.height and ev.round == state.round)
+        // TODO: here we should call newRound. For this we would need to know whether
+        // we are proposer for next round.
         val result = {...defaultResult, name: "skipRound", skipRound: state.round + 1}
         {cs: state, out: result}
     else

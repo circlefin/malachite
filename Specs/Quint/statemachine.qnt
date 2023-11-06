@@ -28,7 +28,7 @@ pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
     cs: initConsensusState(v),
     proposals: Set(),
     valset: vs,
-    executedEvents: Set(),
+    executedEvents: List(),
     pendingEvents: Set(),
     started: false,
     applyvotesResult: toEvent(0, "", {name: "", value: ""}), // debug
