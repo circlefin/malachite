@@ -118,30 +118,27 @@ action setNextValueToPropose(v: Address_t, value: Value_t) : bool = all {
     voteBuffer' = voteBuffer,
 }
 
+action deliverProposal(v: Address_t, p: ProposeMsg_t) : bool = all {
+    propBuffer' = propBuffer.put(v, propBuffer.get(v).exclude(Set(p))),
+    system' = system.put(v, { ...system.get(v), incomingProposals: system.get(v).incomingProposals.union(Set(p)) }),
+    _hist' = _hist,
+    voteBuffer' = voteBuffer, 
+}
+
+action deliverVote(v: Address_t, vote: VoteMsg_t) : bool = all {
+    voteBuffer' = voteBuffer.put(v, voteBuffer.get(v).exclude(Set(vote))),
+    system' = system.put(v, { ...system.get(v), incomingVotes: system.get(v).incomingVotes.union(Set(vote)) }),
+    _hist' = _hist,
+    propBuffer' = propBuffer, 
+}
 
 // deliver a message. Take it from the network buffer of from the faulty set
 //  and put it into the incoming sets
 action deliver(v: Address_t) : bool = any {
-    all {
-        (propBuffer.get(v) != Set()),
-        nondet prop = oneOf(propBuffer.get(v).union(AllFaultyProposals))
-        all {
-            propBuffer' = propBuffer.put(v, propBuffer.get(v).exclude(Set(prop))),
-            system' = system.put(v, { ...system.get(v), incomingProposals: system.get(v).incomingProposals.union(Set(prop)) }),
-            _hist' = _hist,
-            voteBuffer' = voteBuffer, 
-        }
-    },
-    all {
-        (voteBuffer.get(v) != Set()),
-        nondet vote = oneOf(voteBuffer.get(v).union(AllFaultyVotes))
-        all {
-            voteBuffer' = voteBuffer.put(v, voteBuffer.get(v).exclude(Set(vote))),
-            system' = system.put(v, { ...system.get(v), incomingVotes: system.get(v).incomingVotes.union(Set(vote)) }),
-            _hist' = _hist,
-            propBuffer' = propBuffer, 
-        }
-    },    
+    nondet prop = oneOf(propBuffer.get(v).union(AllFaultyProposals))
+    deliverProposal(v, prop),
+    nondet vote = oneOf(voteBuffer.get(v).union(AllFaultyVotes))
+    deliverVote(v, vote)
 }
 
 action step = {

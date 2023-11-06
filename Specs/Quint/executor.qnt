@@ -267,105 +267,125 @@ pure def Timeout (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Con
 // We do this if the executor receives a proposal
 pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     val newES = { ...es, proposals: es.proposals.union(Set(input.proposal))}
-    if (input.proposal.src != Proposer(es.valset, es.cs.height, es.cs.round))
+    if (input.proposal.src != Proposer(es.valset, input.proposal.height, input.proposal.round))
+        // proposer does not match the height/round of the proposal
         // keep ES (don't use newES here), that is, drop proposal
         (es, defaultResult)
-    else if (not(valid(input.proposal))) {
+    else if (valid(input.proposal)) 
+        val receivedCommit = checkThreshold(    newES.bk, 
+                                                input.proposal.round, 
+                                                "Precommit", 
+                                                {name: "PrecommitValue", 
+                                                value: id(input.proposal.proposal)})
+        if (receivedCommit)
+            // we have a commit that matches the proposal. We don't need to compare agains
+            // es.cs.round
+            callConsensus(  newES, 
+                            newES.bk,  
+                                {   name: "ProposalAndCommitAndValid",
+                                    height: input.proposal.height,
+                                    round: input.proposal.round,
+                                    value: id(input.proposal.proposal),
+                                    vr: input.proposal.validRound})  
+        else if (input.proposal.round != es.cs.round or input.proposal.height != es.cs.round) 
+            // the proposal is from the right proposer and valid, but not for this round
+            // keep the proposal, do nothing else
+            (newES, defaultResult)
+        else
+            // for current round, valid, and from right proposer
+            val receivedPolkaValidRoundVal = checkThreshold(newES.bk,   
+                                                            input.proposal.validRound, 
+                                                            "Prevote", 
+                                                            {name: "PolkaValue", 
+                                                            value: id(input.proposal.proposal)})
+            val receivedPolkaCurrentVal = checkThreshold(   newES.bk, 
+                                                            newES.cs.round, 
+                                                            "Prevote", 
+                                                            {name: "PolkaValue", 
+                                                            value: id(input.proposal.proposal)})
+            val receivedCommitCurrentVal = checkThreshold(  newES.bk, 
+                                                            newES.cs.round, 
+                                                            "Precommit", 
+                                                            {name: "PrecommitValue", 
+                                                            value: id(input.proposal.proposal)})
+            if (newES.cs.step == "propose") 
+                if (input.proposal.validRound == -1)
+                    if (receivedPolkaCurrentVal)
+                        callConsensus(  newES, 
+                                        newES.bk,  
+                                        {   name: "ProposalAndPolkaAndValid",
+                                            height: input.proposal.height,
+                                            round: input.proposal.round,
+                                            value: id(input.proposal.proposal),
+                                            vr: input.proposal.validRound})   
+                    else
+                        callConsensus(  newES, 
+                                        newES.bk,  
+                                        {   name: "Proposal",
+                                            height: input.proposal.height,
+                                            round: input.proposal.round,
+                                            value: id(input.proposal.proposal),
+                                            vr: input.proposal.validRound})    
+                else if (receivedPolkaValidRoundVal)
+                    callConsensus(  newES, 
+                                    newES.bk,  
+                                    {   name: "ProposalAndPolkaPreviousAndValid",
+                                        height: input.proposal.height,
+                                        round: input.proposal.round,
+                                        value: id(input.proposal.proposal),
+                                        vr: input.proposal.validRound})  
+                else  
+                    (newES, defaultResult)
+            else if (newES.cs.step == "Prevote" or newES.cs.step == "Precommit") 
+                if (receivedCommitCurrentVal)
+                    // here we need to call both, Commit and Polka. 
+                    // We do commit and append pola to pending
+                    val pend = ( {  name: "ProposalAndPolkaAndValid",
+                                    height: newES.cs.height,
+                                    round: newES.cs.round,
+                                    value: id(input.proposal.proposal),
+                                    vr: input.proposal.validRound},
+                                newES.cs.height,
+                                newES.cs.round)
+                    callConsensus(  { ...newES, pendingEvents: newES.pendingEvents.union(Set(pend))}, 
+                                    newES.bk,  
+                                    {   name: "ProposalAndCommitAndValid",
+                                        height: newES.cs.height,
+                                        round: newES.cs.round,
+                                        value: id(input.proposal.proposal),
+                                        vr: input.proposal.validRound})  
+                else if (receivedPolkaCurrentVal)
+                    callConsensus(  newES , 
+                                    newES.bk, 
+                                    {   name: "ProposalAndPolkaAndValid",
+                                    height: newES.cs.height,
+                                    round: newES.cs.round,
+                                    value: id(input.proposal.proposal),
+                                    vr: input.proposal.validRound})  
+                else 
+                    (newES, defaultResult)
+            else
+                (newES, defaultResult)
+    else 
+        // (not(valid(input.proposal))) 
         // keep ES (don't use newES here), that is, drop proposal
-        if (es.cs.step == "propose")
+        if (es.cs.step == "propose" and es.cs.round == input.proposal.round and es.cs.height == input.proposal.height)
             if (checkThreshold(es.bk, es.cs.round, "Prevote", {name: "PolkaValue", value: id(input.proposal.proposal)}))
                 val event: Event = {name: "ProposalAndPolkaAndInValid", 
                                     height: es.cs.height,
                                     round: es.cs.round, 
                                     value: id(input.proposal.proposal), 
-                                    vr: 0}
+                                    vr: input.proposal.validRound}
                 callConsensus(es, es.bk, event)
             else 
                 val event: Event = {name: "ProposalInvalid", 
                                     height: es.cs.height,
                                     round: es.cs.round, 
                                     value: id(input.proposal.proposal), 
-                                    vr: 0}
+                                    vr: input.proposal.validRound}
                 callConsensus(es, es.bk, event)
         else 
             (es, defaultResult)
-    }
-    else { // proposal valid and from proposer
-        val receivedPolkaValidRoundVal = checkThreshold(newES.bk,   
-                                                        input.proposal.validRound, 
-                                                        "Prevote", 
-                                                        {name: "PolkaValue", 
-                                                        value: id(input.proposal.proposal)})
-        val receivedPolkaCurrentVal = checkThreshold(   newES.bk, 
-                                                        newES.cs.round, 
-                                                        "Prevote", 
-                                                        {name: "PolkaValue", 
-                                                        value: id(input.proposal.proposal)})
-        val receivedCommitCurrentVal = checkThreshold(  newES.bk, 
-                                                        newES.cs.round, 
-                                                        "Precommit", 
-                                                        {name: "PrecommitValue", 
-                                                        value: id(input.proposal.proposal)})
-        if (newES.cs.step == "propose") 
-            if (input.proposal.validRound == -1)
-                if (receivedPolkaCurrentVal)
-                    callConsensus(  newES, 
-                                    newES.bk,  
-                                    {   name: "ProposalAndPolkaAndValid",
-                                        height: newES.cs.height,
-                                        round: newES.cs.round,
-                                        value: id(input.proposal.proposal),
-                                        vr: input.proposal.round})   
-                else
-                    callConsensus(  newES, 
-                                    newES.bk,  
-                                    {   name: "Proposal",
-                                        height: newES.cs.height,
-                                        round: newES.cs.round,
-                                        value: id(input.proposal.proposal),
-                                        vr: input.proposal.round})    
-            else
-                if (receivedPolkaValidRoundVal)
-                    callConsensus(  newES, 
-                                    newES.bk,  
-                                    {   name: "ProposalAndPolkaPreviousAndValid",
-                                        height: newES.cs.height,
-                                        round: newES.cs.round,
-                                        value: id(input.proposal.proposal),
-                                        vr: input.proposal.round})  
-                else  
-                    (newES, defaultResult)
-        else if (newES.cs.step == "Prevote" or newES.cs.step == "Precommit") 
-            if (receivedCommitCurrentVal)
-                // TODO: here we need to call both, Commit and Polka. 
-                // We do commit and append pola to pending
-                val pend = ( {  name: "ProposalAndPolkaAndValid",
-                                height: newES.cs.height,
-                                round: newES.cs.round,
-                                value: id(input.proposal.proposal),
-                                vr: input.proposal.round},
-                            newES.cs.height,
-                            newES.cs.round)
-                callConsensus(  { ...newES, pendingEvents: newES.pendingEvents.union(Set(pend))}, 
-                                newES.bk,  
-                                {   name: "ProposalAndCommitAndValid",
-                                    height: newES.cs.height,
-                                    round: newES.cs.round,
-                                    value: id(input.proposal.proposal),
-                                    vr: input.proposal.round})  
-            
-            else if (receivedPolkaCurrentVal)
-                callConsensus( newES , 
-                newES.bk, { name: "ProposalAndPolkaAndValid",
-                            height: newES.cs.height,
-                            round: newES.cs.round,
-                            value: id(input.proposal.proposal),
-                            vr: input.proposal.round})  
-            else 
-                (newES, defaultResult)
-        else
-            (newES, defaultResult)
-    }
 }
 
 // We do this when we need to jump to a new round
