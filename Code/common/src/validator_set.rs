@@ -12,7 +12,7 @@ pub type VotingPower = u64;
 /// TODO: Keep this trait or just add the bounds to Consensus::Address?
 pub trait Address
 where
-    Self: Clone + Debug + PartialEq + Eq,
+    Self: Clone + Debug + Eq + Ord,
 {
 }
 

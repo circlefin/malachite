@@ -11,9 +11,9 @@ use malachite_common::{
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
 use malachite_round::state::State as RoundState;
-use malachite_vote::count::Threshold;
 use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
+use malachite_vote::Threshold;
 
 /// Messages that can be received and broadcast by the consensus executor.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -36,6 +36,7 @@ where
     Vote(SignedVote<Ctx>),
     Decide(Round, Ctx::Value),
     ScheduleTimeout(Timeout),
+    NewRound(Round),
 }
 
 pub trait Client<Ctx>
@@ -52,14 +53,14 @@ where
     Ctx: Context,
     Client: self::Client<Ctx>,
 {
-    client: Client,
-    height: Ctx::Height,
-    private_key: Secret<PrivateKey<Ctx>>,
-    address: Ctx::Address,
-    validator_set: Ctx::ValidatorSet,
-    round: Round,
-    votes: VoteKeeper<Ctx>,
-    round_states: BTreeMap<Round, RoundState<Ctx>>,
+    pub client: Client,
+    pub height: Ctx::Height,
+    pub private_key: Secret<PrivateKey<Ctx>>,
+    pub address: Ctx::Address,
+    pub validator_set: Ctx::ValidatorSet,
+    pub round: Round,
+    pub votes: VoteKeeper<Ctx>,
+    pub round_states: BTreeMap<Round, RoundState<Ctx>>,
 }
 
 impl<Ctx, Client> Executor<Ctx, Client>
@@ -74,11 +75,7 @@ where
         private_key: PrivateKey<Ctx>,
         address: Ctx::Address,
     ) -> Self {
-        let votes = VoteKeeper::new(
-            height.clone(),
-            Round::INITIAL,
-            validator_set.total_voting_power(),
-        );
+        let votes = VoteKeeper::new(validator_set.total_voting_power());
 
         Self {
             client,
@@ -86,7 +83,7 @@ where
             private_key: Secret::new(private_key),
             address,
             validator_set,
-            round: Round::INITIAL,
+            round: Round::NIL,
             votes,
             round_states: BTreeMap::new(),
         }
@@ -108,13 +105,9 @@ where
 
         match round_msg {
             RoundMessage::NewRound(round) => {
-                // TODO: check if we are the proposer
-
                 // XXX: Check if there is an existing state?
-                self.round_states
-                    .insert(round, RoundState::default().new_round(round));
-
-                None
+                assert!(self.round < round);
+                Some(Message::NewRound(round))
             }
 
             RoundMessage::Proposal(proposal) => {
@@ -156,6 +149,11 @@ where
         } else {
             RoundEvent::NewRound
         };
+
+        assert!(self.round < round);
+        self.round_states
+            .insert(round, RoundState::default().new_round(round));
+        self.round = round;
 
         self.apply_event(round, event)
     }
@@ -235,6 +233,7 @@ where
             VoteMessage::PolkaValue(v) => RoundEvent::PolkaValue(v),
             VoteMessage::PrecommitAny => RoundEvent::PrecommitAny,
             VoteMessage::PrecommitValue(v) => RoundEvent::PrecommitValue(v),
+            VoteMessage::SkipRound(r) => RoundEvent::SkipRound(r),
         };
 
         self.apply_event(round, round_event)
@@ -257,8 +256,26 @@ where
 
         let data = RoundData::new(round, &self.height, &self.address);
 
+        // Multiplex the event with the round state.
+        let mux_event = match event {
+            RoundEvent::PolkaValue(value_id) => match round_state.proposal {
+                Some(ref proposal) if proposal.value().id() == value_id => {
+                    RoundEvent::ProposalAndPolkaCurrent(proposal.clone())
+                }
+                _ => RoundEvent::PolkaAny,
+            },
+            RoundEvent::PrecommitValue(value_id) => match round_state.proposal {
+                Some(ref proposal) if proposal.value().id() == value_id => {
+                    RoundEvent::ProposalAndPrecommitValue(proposal.clone())
+                }
+                _ => RoundEvent::PrecommitAny,
+            },
+
+            _ => event,
+        };
+
         // Apply the event to the round state machine
-        let transition = round_state.apply_event(&data, event);
+        let transition = round_state.apply_event(&data, mux_event);
 
         // Update state
         self.round_states.insert(round, transition.next_state);

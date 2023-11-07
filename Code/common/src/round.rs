@@ -5,7 +5,7 @@ use core::cmp;
 /// Can be either:
 /// - `Round::Nil` (ie. `-1`)
 /// - `Round::Some(r)` where `r >= 0`
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Round {
     /// No round, ie. `-1`
     Nil,
@@ -17,6 +17,7 @@ pub enum Round {
 impl Round {
     /// The initial, zero round.
     pub const INITIAL: Round = Round::new(0);
+    pub const NIL: Round = Round::new(-1);
 
     /// Create a new round.
     ///

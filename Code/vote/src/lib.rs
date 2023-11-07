@@ -14,41 +14,78 @@ extern crate alloc;
 
 pub mod count;
 pub mod keeper;
+pub mod round_votes;
+pub mod round_weights;
+pub mod value_weights;
 
-use malachite_common::{Context, Round, ValueId, Vote, VoteType};
+// TODO: Introduce newtype
+// QUESTION: Over what type? i64?
+pub type Weight = u64;
 
-use crate::count::{Threshold, VoteCount, Weight};
+/// Represents the different quorum thresholds.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Threshold<ValueId> {
+    /// No quorum has been reached yet
+    Unreached,
 
-/// Tracks all the votes for a single round
-#[derive(Clone, Debug)]
-pub struct RoundVotes<Ctx>
-where
-    Ctx: Context,
-{
-    pub height: Ctx::Height,
-    pub round: Round,
+    /// Minimum number of votes correct processes,
+    /// if at a round higher than current then skip to that round.
+    Skip,
 
-    pub prevotes: VoteCount<ValueId<Ctx>>,
-    pub precommits: VoteCount<ValueId<Ctx>>,
+    /// Quorum of votes but not for the same value
+    Any,
+
+    /// Quorum of votes for nil
+    Nil,
+
+    /// Quorum (+2/3) of votes for a value
+    Value(ValueId),
 }
 
-impl<Ctx> RoundVotes<Ctx>
-where
-    Ctx: Context,
-{
-    pub fn new(height: Ctx::Height, round: Round, total: Weight) -> Self {
-        RoundVotes {
-            height,
-            round,
-            prevotes: VoteCount::new(total),
-            precommits: VoteCount::new(total),
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct ThresholdParams {
+    /// Threshold for a quorum (default: 2f+1)
+    pub quorum: ThresholdParam,
+
+    /// Threshold for the minimum number of honest nodes (default: f+1)
+    pub honest: ThresholdParam,
+}
+
+impl Default for ThresholdParams {
+    fn default() -> Self {
+        Self {
+            quorum: ThresholdParam::TWO_F_PLUS_ONE,
+            honest: ThresholdParam::F_PLUS_ONE,
+        }
+    }
+}
+
+/// Represents the different quorum thresholds.
+///
+/// TODO: Distinguish between quorum and honest thresholds at the type-level
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct ThresholdParam {
+    pub numerator: u64,
+    pub denominator: u64,
+}
+
+impl ThresholdParam {
+    /// 2f+1
+    pub const TWO_F_PLUS_ONE: Self = Self::new(2, 3);
+
+    /// f+1
+    pub const F_PLUS_ONE: Self = Self::new(1, 3);
+
+    pub const fn new(numerator: u64, denominator: u64) -> Self {
+        Self {
+            numerator,
+            denominator,
         }
     }
 
-    pub fn add_vote(&mut self, vote: Ctx::Vote, weight: Weight) -> Threshold<ValueId<Ctx>> {
-        match vote.vote_type() {
-            VoteType::Prevote => self.prevotes.add_vote(vote.take_value(), weight),
-            VoteType::Precommit => self.precommits.add_vote(vote.take_value(), weight),
-        }
+    /// Check whether the threshold is met.
+    pub const fn is_met(&self, weight: Weight, total: Weight) -> bool {
+        // FIXME: Deal with overflows
+        weight * self.denominator > total * self.numerator
     }
 }

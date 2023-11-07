@@ -76,23 +76,8 @@ where
             ..self
         }
     }
-
-    pub fn next_step(self) -> Self {
-        let step = match self.step {
-            Step::NewRound => Step::Propose,
-            Step::Propose => Step::Prevote,
-            Step::Prevote => Step::Precommit,
-            _ => self.step,
-        };
-
+    pub fn with_step(self, step: Step) -> Self {
         Self { step, ..self }
-    }
-
-    pub fn commit_step(self) -> Self {
-        Self {
-            step: Step::Commit,
-            ..self
-        }
     }
 
     pub fn set_locked(self, value: Ctx::Value) -> Self {
