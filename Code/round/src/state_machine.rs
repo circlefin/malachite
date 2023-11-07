@@ -1,4 +1,4 @@
-use malachite_common::{Context, Proposal, Round, TimeoutStep, Value, ValueId};
+use malachite_common::{Context, Proposal, Round, TimeoutStep, Value};
 
 use crate::events::Event;
 use crate::message::Message;
@@ -78,25 +78,22 @@ where
                     .map_or(true, |locked| &locked.value == proposal.value())
             {
                 state.proposal = Some(proposal.clone());
-                prevote(state, data.address, proposal.round(), proposal.value().id())
+                prevote(state, data.address, &proposal)
             } else {
                 prevote_nil(state, data.address)
             }
         }
 
-        (Step::Propose, Event::Proposal(proposal))
+        (Step::Propose, Event::ProposalAndPolkaPrevious(proposal))
             if this_round && is_valid_pol_round(&state, proposal.pol_round()) =>
         {
             // L28
             let Some(locked) = state.locked.as_ref() else {
-                // TODO: Add logging
-                return Transition::invalid(state);
+                return prevote_nil(state, data.address);
             };
 
-            if proposal.value().is_valid()
-                && (locked.round <= proposal.pol_round() || &locked.value == proposal.value())
-            {
-                prevote(state, data.address, proposal.round(), proposal.value().id())
+            if locked.round <= proposal.pol_round() || &locked.value == proposal.value() {
+                prevote(state, data.address, &proposal)
             } else {
                 prevote_nil(state, data.address)
             }
@@ -107,14 +104,14 @@ where
         // From Prevote. Event must be for current round.
         (Step::Prevote, Event::PolkaAny) if this_round => schedule_timeout_prevote(state), // L34
         (Step::Prevote, Event::PolkaNil) if this_round => precommit_nil(state, data.address), // L44
-        (Step::Prevote, Event::PolkaValue(value_id)) if this_round => {
-            precommit(state, data.address, value_id) // L36/L37 - NOTE: only once?
+        (Step::Prevote, Event::ProposalAndPolkaCurrent(proposal)) if this_round => {
+            precommit(state, data.address, proposal) // L36/L37 - NOTE: only once?
         }
         (Step::Prevote, Event::TimeoutPrevote) if this_round => precommit_nil(state, data.address), // L61
 
         // From Precommit. Event must be for current round.
-        (Step::Precommit, Event::PolkaValue(value_id)) if this_round => {
-            set_valid_value(state, value_id) // L36/L42 - NOTE: only once?
+        (Step::Precommit, Event::ProposalAndPolkaCurrent(proposal)) if this_round => {
+            set_valid_value(state, proposal.value().clone()) // L36/L42 - NOTE: only once?
         }
 
         // From Commit. No more state transitions.
@@ -124,7 +121,7 @@ where
         (_, Event::PrecommitAny) if this_round => schedule_timeout_precommit(state), // L47
         (_, Event::TimeoutPrecommit) if this_round => round_skip(state, data.round.increment()), // L65
         (_, Event::RoundSkip) if state.round < data.round => round_skip(state, data.round), // L55
-        (_, Event::PrecommitValue(value_id)) => commit(state, data.round, value_id),        // L49
+        (_, Event::ProposalAndPrecommitValue(proposal)) => commit(state, data.round, proposal), // L49
 
         // Invalid transition.
         _ => Transition::invalid(state),
@@ -149,7 +146,7 @@ where
     };
 
     let proposal = Message::proposal(height.clone(), state.round, value, pol_round);
-    Transition::to(state.next_step()).with_message(proposal)
+    Transition::to(state.with_step(Step::Propose)).with_message(proposal)
 }
 
 //---------------------------------------------------------------------
@@ -163,12 +160,13 @@ where
 pub fn prevote<Ctx>(
     state: State<Ctx>,
     address: &Ctx::Address,
-    vr: Round,
-    proposed: ValueId<Ctx>,
+    proposal: &Ctx::Proposal,
 ) -> Transition<Ctx>
 where
     Ctx: Context,
 {
+    let vr = proposal.round();
+    let proposed = proposal.value().id();
     let value = match &state.locked {
         Some(locked) if locked.round <= vr => Some(proposed), // unlock and prevote
         Some(locked) if locked.value.id() == proposed => Some(proposed), // already locked on value
@@ -177,7 +175,7 @@ where
     };
 
     let message = Message::prevote(state.round, value, address.clone());
-    Transition::to(state.next_step()).with_message(message)
+    Transition::to(state.with_step(Step::Prevote)).with_message(message)
 }
 
 /// Received a complete proposal for an empty or invalid value, or timed out; prevote nil.
@@ -188,7 +186,7 @@ where
     Ctx: Context,
 {
     let message = Message::prevote(state.round, None, address.clone());
-    Transition::to(state.next_step()).with_message(message)
+    Transition::to(state.with_step(Step::Prevote)).with_message(message)
 }
 
 // ---------------------------------------------------------------------
@@ -202,25 +200,34 @@ where
 /// NOTE: Only one of this and set_valid_value should be called once in a round
 ///       How do we enforce this?
 pub fn precommit<Ctx>(
-    state: State<Ctx>,
+    mut state: State<Ctx>,
     address: &Ctx::Address,
-    value_id: ValueId<Ctx>,
+    proposal: Ctx::Proposal,
 ) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let message = Message::precommit(state.round, Some(value_id), address.clone());
+    if state.step != Step::Prevote {
+        return Transition::to(state.clone());
+    }
 
-    let Some(value) = state
-        .proposal
-        .as_ref()
-        .map(|proposal| proposal.value().clone())
-    else {
-        // TODO: Add logging
-        return Transition::invalid(state);
+    let value = proposal.value();
+    let message = Message::precommit(state.round, Some(value.id()), address.clone());
+
+    let current_value = match state.proposal {
+        Some(ref proposal) => proposal.value().clone(),
+        None => {
+            state.proposal = Some(proposal.clone());
+            proposal.value().clone()
+        }
     };
 
-    let next = state.set_locked(value.clone()).set_valid(value).next_step();
+    assert_eq!(current_value.id(), value.id());
+
+    let next = state
+        .set_locked(value.clone())
+        .set_valid(value.clone())
+        .with_step(Step::Precommit);
 
     Transition::to(next).with_message(message)
 }
@@ -233,7 +240,7 @@ where
     Ctx: Context,
 {
     let message = Message::precommit(state.round, None, address.clone());
-    Transition::to(state.next_step()).with_message(message)
+    Transition::to(state.with_step(Step::Precommit)).with_message(message)
 }
 
 // ---------------------------------------------------------------------
@@ -248,7 +255,7 @@ where
     Ctx: Context,
 {
     let timeout = Message::schedule_timeout(state.round, TimeoutStep::Propose);
-    Transition::to(state.next_step()).with_message(timeout)
+    Transition::to(state.with_step(Step::Propose)).with_message(timeout)
 }
 
 /// We received a polka for any; schedule timeout prevote.
@@ -261,8 +268,12 @@ pub fn schedule_timeout_prevote<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let message = Message::schedule_timeout(state.round, TimeoutStep::Prevote);
-    Transition::to(state.next_step()).with_message(message)
+    if state.step == Step::Prevote {
+        let message = Message::schedule_timeout(state.round, TimeoutStep::Prevote);
+        Transition::to(state).with_message(message)
+    } else {
+        Transition::to(state)
+    }
 }
 
 /// We received +2/3 precommits for any; schedule timeout precommit.
@@ -273,20 +284,20 @@ where
     Ctx: Context,
 {
     let message = Message::schedule_timeout(state.round, TimeoutStep::Precommit);
-    Transition::to(state.next_step()).with_message(message)
+    Transition::to(state).with_message(message)
 }
 
 //---------------------------------------------------------------------
 // Set the valid value.
 //---------------------------------------------------------------------
 
-/// We received a polka for a value after we already precommited.
+/// We received a polka for a value after we already precommitted.
 /// Set the valid value and current round.
 ///
 /// Ref: L36/L42
 ///
 /// NOTE: only one of this and precommit should be called once in a round
-pub fn set_valid_value<Ctx>(state: State<Ctx>, value_id: ValueId<Ctx>) -> Transition<Ctx>
+pub fn set_valid_value<Ctx>(state: State<Ctx>, value: Ctx::Value) -> Transition<Ctx>
 where
     Ctx: Context,
 {
@@ -296,7 +307,7 @@ where
         return Transition::invalid(state);
     };
 
-    if locked.value.id() != value_id {
+    if locked.value.id() != value.id() {
         // TODO: Add logging
         return Transition::invalid(state);
     }
@@ -322,7 +333,7 @@ where
 /// We received +2/3 precommits for a value - commit and decide that value!
 ///
 /// Ref: L49
-pub fn commit<Ctx>(state: State<Ctx>, round: Round, value_id: ValueId<Ctx>) -> Transition<Ctx>
+pub fn commit<Ctx>(state: State<Ctx>, round: Round, proposal: Ctx::Proposal) -> Transition<Ctx>
 where
     Ctx: Context,
 {
@@ -332,11 +343,11 @@ where
         return Transition::invalid(state);
     };
 
-    if locked.value.id() != value_id {
+    if locked.value.id() != proposal.value().id() {
         // TODO: Add logging
         return Transition::invalid(state);
     }
 
     let message = Message::decision(round, locked.value.clone());
-    Transition::to(state.commit_step()).with_message(message)
+    Transition::to(state.with_step(Step::Commit)).with_message(message)
 }
