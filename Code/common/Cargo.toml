@@ -1,9 +1,13 @@
 [package]
-name    = "malachite-common"
-version = "0.1.0"
-edition = "2021"
-publish = false
+name        = "malachite-common"
+description = "Common datatypes and interfaces for the Malachite consensus engine"
+
+version.workspace      = true
+edition.workspace      = true
+repository.workspace   = true
+license.workspace      = true
+publish.workspace      = true
 
 [dependencies]
-secrecy = "0.8.0"
-signature = "2.1.0"
+secrecy.workspace   = true
+signature.workspace = true

@@ -1,8 +1,12 @@
 [package]
-name    = "malachite-round"
-version = "0.1.0"
-edition = "2021"
-publish = false
+name        = "malachite-round"
+description = "Per-round state-machine for the Malachite consenss engine"
+
+version.workspace      = true
+edition.workspace      = true
+repository.workspace   = true
+license.workspace      = true
+publish.workspace      = true
 
 [dependencies]
 malachite-common = { version = "0.1.0", path = "../common" }
