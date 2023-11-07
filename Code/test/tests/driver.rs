@@ -27,8 +27,10 @@ fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
 
 #[test]
 fn driver_steps_proposer() {
-    let value = TestContext::DUMMY_VALUE; // TODO: get value from external source
+    let value = TestContext::DUMMY_VALUE;
     let value_id = value.id();
+
+    let client = TestClient::new(value.clone(), |_| true);
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -47,7 +49,6 @@ fn driver_steps_proposer() {
     let (my_sk, my_addr) = (sk1, addr1);
 
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
-    let client = TestClient::new(value.clone(), |_| true);
     let mut driver = Driver::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
@@ -207,9 +208,11 @@ fn driver_steps_proposer() {
 }
 
 #[test]
-fn driver_steps_not_proposer() {
-    let value = TestContext::DUMMY_VALUE; // TODO: get value from external source
+fn driver_steps_not_proposer_valid() {
+    let value = TestContext::DUMMY_VALUE;
     let value_id = value.id();
+
+    let client = TestClient::new(value.clone(), |_| true);
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -229,7 +232,6 @@ fn driver_steps_not_proposer() {
     let (my_sk, my_addr) = (sk2, addr2);
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let client = TestClient::new(value.clone(), |_| true);
     let mut driver = Driver::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
@@ -389,8 +391,139 @@ fn driver_steps_not_proposer() {
 }
 
 #[test]
+fn driver_steps_not_proposer_invalid() {
+    let value = TestContext::DUMMY_VALUE;
+    let value_id = value.id();
+
+    let client = TestClient::new(value.clone(), |_| false);
+
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
+
+    let addr1 = Address::from_public_key(&sk1.public_key());
+    let addr2 = Address::from_public_key(&sk2.public_key());
+    let addr3 = Address::from_public_key(&sk3.public_key());
+
+    let v1 = Validator::new(sk1.public_key(), 1);
+    let v2 = Validator::new(sk2.public_key(), 2);
+    let v3 = Validator::new(sk3.public_key(), 3);
+
+    // Proposer is v1, so we are not the proposer
+    let (my_sk, my_addr) = (sk2, addr2);
+
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+    let mut driver = Driver::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
+
+    let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we are not the proposer",
+            input_event: Some(Event::NewRound(Round::new(0))),
+            expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            new_state: State {
+                round: Round::new(0),
+                step: Step::Propose,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        TestStep {
+            desc: "Receive an invalid proposal, prevote for nil (v2)",
+            input_event: Some(Event::Proposal(proposal.clone())),
+            expected_output: Some(Message::Vote(
+                Vote::new_prevote(Round::new(0), None, my_addr).signed(&my_sk),
+            )),
+            new_state: State {
+                round: Round::new(0),
+                step: Step::Prevote,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        TestStep {
+            desc: "Receive our own prevote (v2)",
+            input_event: None,
+            expected_output: None,
+            new_state: State {
+                round: Round::new(0),
+                step: Step::Prevote,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        TestStep {
+            desc: "v1 prevotes for its own proposal",
+            input_event: Some(Event::Vote(
+                Vote::new_prevote(Round::new(0), Some(value_id), addr1).signed(&sk1),
+            )),
+            expected_output: None,
+            new_state: State {
+                round: Round::new(0),
+                step: Step::Prevote,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        TestStep {
+            desc: "v3 prevotes for v1's proposal, we have polka for any, schedule prevote timeout (v2)",
+            input_event: Some(Event::Vote(
+                Vote::new_prevote(Round::new(0), Some(value_id), addr3).signed(&sk3),
+            )),
+            expected_output: Some(Message::ScheduleTimeout(Timeout::prevote(Round::new(0)))),
+            new_state: State {
+                round: Round::new(0),
+                step: Step::Prevote,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        TestStep {
+            desc: "prevote timeout elapses, we precommit for nil (v2)",
+            input_event: Some(Event::TimeoutElapsed(Timeout::prevote(Round::new(0)))),
+            expected_output: Some(Message::Vote(
+                Vote::new_precommit(Round::new(0), None, my_addr).signed(&my_sk),
+            )),
+            new_state: State {
+                round: Round::new(0),
+                step: Step::Precommit,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+    ];
+
+    let mut previous_message = None;
+
+    for step in steps {
+        println!("Step: {}", step.desc);
+
+        let execute_message = step
+            .input_event
+            .unwrap_or_else(|| previous_message.unwrap());
+
+        let output = driver.execute(execute_message);
+        assert_eq!(output, step.expected_output);
+
+        let new_state = driver.round_state(Round::new(0)).unwrap();
+        assert_eq!(new_state, &step.new_state);
+
+        previous_message = output.and_then(to_input_msg);
+    }
+}
+
+#[test]
 fn driver_steps_not_proposer_timeout_multiple_rounds() {
-    let value = TestContext::DUMMY_VALUE; // TODO: get value from external source
+    let value = TestContext::DUMMY_VALUE;
     let value_id = value.id();
 
     let mut rng = StdRng::seed_from_u64(0x42);
