@@ -278,8 +278,9 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
                                                 {name: "PrecommitValue", 
                                                 value: id(input.proposal.proposal)})
         if (receivedCommit)
-            // we have a commit that matches the proposal. We don't need to compare agains
+            // we have a commit that matches the proposal. We don't need to compare against
             // es.cs.round
+            // TODO: check heights in bookkeeper
             callConsensus(  newES, 
                             newES.bk,  
                                 {   name: "ProposalAndCommitAndValid",

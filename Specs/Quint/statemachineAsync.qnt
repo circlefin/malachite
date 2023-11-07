@@ -1,5 +1,11 @@
 // -*- mode: Bluespec; -*-
 
+// This contains 
+// 1. asynchronous message transfer semantics
+// 2. parameterization with too many faulty nodes 
+// 3. a test where disagreement fails
+// TODO: cleanup. 1. needs to be re-usable also for good parameters 
+
 module statemachineAsync {
 
 import executor.* from "./executor"
@@ -34,6 +40,13 @@ var system : Address_t -> NodeState
 var propBuffer : Address_t -> Set[ProposeMsg_t]
 var voteBuffer : Address_t -> Set[VoteMsg_t]
 var _hist: (str, ExecutorInput, ConsensusOutput)
+
+action unchangedAll = all {
+    system' = system,
+    propBuffer' = propBuffer,
+    voteBuffer' = voteBuffer,
+    _hist' = _hist
+}
 
 val AgreementInv = tuples(Correct, Correct).forall((p,q) => 
     (system.get(p).es.chain != List() and system.get(q).es.chain != List())
@@ -119,6 +132,7 @@ action setNextValueToPropose(v: Address_t, value: Value_t) : bool = all {
 }
 
 action deliverProposal(v: Address_t, p: ProposeMsg_t) : bool = all {
+    propBuffer.get(v).union(AllFaultyProposals).contains(p), // the proposal must be sent or from a faulty node
     propBuffer' = propBuffer.put(v, propBuffer.get(v).exclude(Set(p))),
     system' = system.put(v, { ...system.get(v), incomingProposals: system.get(v).incomingProposals.union(Set(p)) }),
     _hist' = _hist,
@@ -126,6 +140,7 @@ action deliverProposal(v: Address_t, p: ProposeMsg_t) : bool = all {
 }
 
 action deliverVote(v: Address_t, vote: VoteMsg_t) : bool = all {
+    voteBuffer.get(v).union(AllFaultyVotes).contains(vote), // the vote must be sent or from a faulty node
     voteBuffer' = voteBuffer.put(v, voteBuffer.get(v).exclude(Set(vote))),
     system' = system.put(v, { ...system.get(v), incomingVotes: system.get(v).incomingVotes.union(Set(vote)) }),
     _hist' = _hist,
@@ -149,6 +164,59 @@ action step = {
         deliver(v),
         setNextValueToPropose(v, value),
     }
+}
+
+// v3 and v4 are correct. v2 is a faulty proposal and proposes differently to v3 and v4
+// this run leads to disagreement
+run DisagreementTest = {
+    init
+    .then(valStep("v3"))
+    .then(valStep("v4"))
+    .then(deliverProposal("v3", { height: 0, proposal: "b", round: 0, src: "v2", validRound: -1 }))
+    .then(deliverProposal("v4", { height: 0, proposal: "a", round: 0, src: "v2", validRound: -1 }))
+    .then(valStep("v3"))
+    .then(valStep("v4"))
+    .then(all{
+        // they voted differently
+        assert(voteBuffer == Map(
+            "v3" -> Set({ height: 0, id: "a", round: 0, src: "v4", step: "Prevote" },  
+                        { height: 0, id: "b", round: 0, src: "v3", step: "Prevote" }),
+            "v4" -> Set({ height: 0, id: "a", round: 0, src: "v4", step: "Prevote" }, 
+                        { height: 0, id: "b", round: 0, src: "v3", step: "Prevote" }))),
+            deliverVote("v4", { height: 0, id: "a", round: 0, src: "v1", step: "Prevote" })
+    })
+    .then(deliverVote("v4", { height: 0, id: "a", round: 0, src: "v2", step: "Prevote" }))
+    .then(deliverVote("v3", { height: 0, id: "b", round: 0, src: "v1", step: "Prevote" }))
+    .then(deliverVote("v3", { height: 0, id: "b", round: 0, src: "v2", step: "Prevote" }))
+    .then(deliverVote("v3", { height: 0, id: "b", round: 0, src: "v3", step: "Prevote" }))
+    .then(deliverVote("v4", { height: 0, id: "a", round: 0, src: "v4", step: "Prevote" }))
+    .then(valStep("v3"))  
+    .then(valStep("v3"))   
+    .then(valStep("v3"))
+    .then(valStep("v4"))
+    .then(valStep("v4"))
+    .then(valStep("v4"))
+    .then(all{
+        // they precommited differently
+        assert( voteBuffer.get("v3").contains({ height: 0, id: "a", round: 0, src: "v4", step: "Precommit" }) and
+                voteBuffer.get("v4").contains({ height: 0, id: "b", round: 0, src: "v3", step: "Precommit" })), 
+        deliverVote("v4", { height: 0, id: "a", round: 0, src: "v1", step: "Precommit" }) })
+    .then(deliverVote("v4", { height: 0, id: "a", round: 0, src: "v2", step: "Precommit" }))    
+    .then(deliverVote("v3", { height: 0, id: "b", round: 0, src: "v1", step: "Precommit" })) 
+    .then(deliverVote("v3", { height: 0, id: "b", round: 0, src: "v2", step: "Precommit" })) 
+    .then(valStep("v3"))  
+    .then(valStep("v3"))   
+    .then(valStep("v4"))
+    .then(valStep("v4"))
+    .then(all{
+        assert(AgreementInv),
+        deliverVote("v4", { height: 0, id: "a", round: 0, src: "v4", step: "Precommit" }) })
+    .then(deliverVote("v3", { height: 0, id: "b", round: 0, src: "v3", step: "Precommit" }))
+    .then(valStep("v3"))   
+    .then(valStep("v4"))
+    .then(all{
+        assert(not(AgreementInv)),
+        unchangedAll})   
 }
 
 }
