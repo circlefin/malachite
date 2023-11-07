@@ -1,4 +1,4 @@
-use malachite_consensus::executor::Client;
+use malachite_driver::Client;
 
 use crate::{Proposal, TestContext, Value};
 

@@ -9,10 +9,10 @@ repository.workspace   = true
 license.workspace      = true
 
 [dependencies]
-malachite-common    = { version = "0.1.0", path = "../common" }
-malachite-consensus = { version = "0.1.0", path = "../consensus" }
-malachite-round     = { version = "0.1.0", path = "../round" }
-malachite-vote      = { version = "0.1.0", path = "../vote" }
+malachite-common = { version = "0.1.0", path = "../common" }
+malachite-driver = { version = "0.1.0", path = "../driver" }
+malachite-round  = { version = "0.1.0", path = "../round" }
+malachite-vote   = { version = "0.1.0", path = "../vote" }
 
 ed25519-consensus.workspace = true
 signature.workspace         = true

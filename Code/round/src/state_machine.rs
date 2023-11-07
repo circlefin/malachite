@@ -44,7 +44,7 @@ where
 /// Apply an event to the current state at the current round.
 ///
 /// This function takes the current state and round, and an event,
-/// and returns the next state and an optional message for the executor to act on.
+/// and returns the next state and an optional message for the driver to act on.
 ///
 /// Valid transitions result in at least a change to the state and/or an output message.
 ///

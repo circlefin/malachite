@@ -1,5 +1,5 @@
 use malachite_common::{Context, Round, Timeout};
-use malachite_consensus::executor::{Event, Executor, Message};
+use malachite_driver::{Driver, Event, Message};
 use malachite_round::state::{RoundValue, State, Step};
 
 use malachite_test::{
@@ -26,7 +26,7 @@ fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
 }
 
 #[test]
-fn executor_steps_proposer() {
+fn driver_steps_proposer() {
     let value = TestContext::DUMMY_VALUE; // TODO: get value from external source
     let value_id = value.id();
 
@@ -48,7 +48,7 @@ fn executor_steps_proposer() {
 
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
     let client = TestClient::new(value.clone(), |_| true);
-    let mut executor = Executor::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
+    let mut driver = Driver::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
 
@@ -196,10 +196,10 @@ fn executor_steps_proposer() {
             .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
-        let output = executor.execute(execute_message);
+        let output = driver.execute(execute_message);
         assert_eq!(output, step.expected_output);
 
-        let new_state = executor.round_state(Round::new(0)).unwrap();
+        let new_state = driver.round_state(Round::new(0)).unwrap();
         assert_eq!(new_state, &step.new_state);
 
         previous_message = output.and_then(to_input_msg);
@@ -207,7 +207,7 @@ fn executor_steps_proposer() {
 }
 
 #[test]
-fn executor_steps_not_proposer() {
+fn driver_steps_not_proposer() {
     let value = TestContext::DUMMY_VALUE; // TODO: get value from external source
     let value_id = value.id();
 
@@ -230,7 +230,7 @@ fn executor_steps_not_proposer() {
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
     let client = TestClient::new(value.clone(), |_| true);
-    let mut executor = Executor::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
+    let mut driver = Driver::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
 
@@ -378,10 +378,10 @@ fn executor_steps_not_proposer() {
             .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
-        let output = executor.execute(execute_message);
+        let output = driver.execute(execute_message);
         assert_eq!(output, step.expected_output);
 
-        let new_state = executor.round_state(Round::new(0)).unwrap();
+        let new_state = driver.round_state(Round::new(0)).unwrap();
         assert_eq!(new_state, &step.new_state);
 
         previous_message = output.and_then(to_input_msg);
@@ -389,7 +389,7 @@ fn executor_steps_not_proposer() {
 }
 
 #[test]
-fn executor_steps_not_proposer_timeout_multiple_rounds() {
+fn driver_steps_not_proposer_timeout_multiple_rounds() {
     let value = TestContext::DUMMY_VALUE; // TODO: get value from external source
     let value_id = value.id();
 
@@ -412,7 +412,7 @@ fn executor_steps_not_proposer_timeout_multiple_rounds() {
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
     let client = TestClient::new(value.clone(), |_| true);
-    let mut executor = Executor::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
+    let mut driver = Driver::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
 
     let steps = vec![
         // Start round 0, we, v3, are not the proposer
@@ -567,11 +567,11 @@ fn executor_steps_not_proposer_timeout_multiple_rounds() {
             .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
-        let output = executor.execute(execute_message);
+        let output = driver.execute(execute_message);
         assert_eq!(output, step.expected_output, "expected output message");
 
-        // TODO - add expected executor round to test and assert before the new_state check below
-        let new_state = executor.round_state(executor.round).unwrap();
+        // TODO - add expected driver round to test and assert before the new_state check below
+        let new_state = driver.round_state(driver.round).unwrap();
         assert_eq!(new_state, &step.new_state, "new state");
         assert_eq!(output, step.expected_output, "expected output message");
 
