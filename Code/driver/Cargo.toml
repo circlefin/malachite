@@ -1,6 +1,6 @@
 [package]
-name        = "malachite-consensus"
-description = "Malachite consensus engine"
+name        = "malachite-driver"
+description = "Driver for the state machine of Malachite consensus engine"
 
 version.workspace      = true
 edition.workspace      = true

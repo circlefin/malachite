@@ -1,4 +1,4 @@
-//! Consensus executor
+//! Driver for the state machine of the Malachite consensus engine
 
 #![forbid(unsafe_code)]
 #![deny(unused_crate_dependencies, trivial_casts, trivial_numeric_casts)]
@@ -10,4 +10,12 @@
 )]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
 
-pub mod executor;
+mod client;
+mod driver;
+mod event;
+mod message;
+
+pub use client::Client;
+pub use driver::Driver;
+pub use event::Event;
+pub use message::Message;

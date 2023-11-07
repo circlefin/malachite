@@ -15,43 +15,15 @@ use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
 
-/// Messages that can be received and broadcast by the consensus executor.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Event<Ctx>
-where
-    Ctx: Context,
-{
-    NewRound(Round),
-    Proposal(Ctx::Proposal),
-    Vote(SignedVote<Ctx>),
-    TimeoutElapsed(Timeout),
-}
+use crate::event::Event;
+use crate::message::Message;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Message<Ctx>
-where
-    Ctx: Context,
-{
-    Propose(Ctx::Proposal),
-    Vote(SignedVote<Ctx>),
-    Decide(Round, Ctx::Value),
-    ScheduleTimeout(Timeout),
-    NewRound(Round),
-}
-
-pub trait Client<Ctx>
-where
-    Ctx: Context,
-{
-    fn get_value(&self) -> Ctx::Value;
-    fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool;
-}
-
+/// Driver for the state machine of the Malachite consensus engine.
 #[derive(Clone, Debug)]
-pub struct Executor<Ctx, Client>
+pub struct Driver<Ctx, Client>
 where
     Ctx: Context,
-    Client: self::Client<Ctx>,
+    Client: crate::client::Client<Ctx>,
 {
     pub client: Client,
     pub height: Ctx::Height,
@@ -63,10 +35,10 @@ where
     pub round_states: BTreeMap<Round, RoundState<Ctx>>,
 }
 
-impl<Ctx, Client> Executor<Ctx, Client>
+impl<Ctx, Client> Driver<Ctx, Client>
 where
     Ctx: Context,
-    Client: self::Client<Ctx>,
+    Client: crate::client::Client<Ctx>,
 {
     pub fn new(
         client: Client,
