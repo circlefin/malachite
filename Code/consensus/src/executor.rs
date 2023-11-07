@@ -148,7 +148,6 @@ where
 
     fn apply_proposal(&mut self, proposal: Ctx::Proposal) -> Option<RoundMessage<Ctx>> {
         // TODO: Check for invalid proposal
-        let event = RoundEvent::Proposal(proposal.clone());
 
         // Check that there is an ongoing round
         let Some(round_state) = self.round_states.get(&self.round) else {
@@ -178,7 +177,9 @@ where
             Round::Nil => {
                 // Is it possible to get +2/3 prevotes before the proposal?
                 // Do we wait for our own prevote to check the threshold?
-                self.apply_event(proposal.round(), event)
+                let round = proposal.round();
+                let event = RoundEvent::Proposal(proposal);
+                self.apply_event(round, event)
             }
             Round::Some(_)
                 if self.votes.is_threshold_met(
@@ -187,7 +188,9 @@ where
                     Threshold::Value(proposal.value().id()),
                 ) =>
             {
-                self.apply_event(proposal.round(), event)
+                let round = proposal.round();
+                let event = RoundEvent::Proposal(proposal);
+                self.apply_event(round, event)
             }
             _ => None,
         }

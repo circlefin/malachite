@@ -133,12 +133,14 @@ impl ValidatorSet {
         vals.dedup();
     }
 
-    pub fn get_proposer(&self) -> Validator {
+    pub fn get_proposer(&self) -> &Validator {
         // TODO: Proper implementation
         assert!(!self.validators.is_empty());
-        let proposer = self.validators[self.proposer.load(Ordering::Relaxed)].clone();
+
+        let idx = self.proposer.load(Ordering::Relaxed) % self.validators.len();
         self.proposer.fetch_add(1, Ordering::Relaxed);
-        proposer
+
+        &self.validators[idx]
     }
 }
 
@@ -151,7 +153,7 @@ impl malachite_common::ValidatorSet<TestContext> for ValidatorSet {
         self.get_by_public_key(public_key)
     }
 
-    fn get_proposer(&self) -> Validator {
+    fn get_proposer(&self) -> &Validator {
         self.get_proposer()
     }
 
