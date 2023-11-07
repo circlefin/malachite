@@ -52,13 +52,6 @@ impl Round {
         matches!(self, Round::Nil)
     }
 
-    /// Whether the round is valid, ie. either nil or defined.
-    pub fn is_valid(&self) -> bool {
-        // FIXME: This is always true, given that the constructor upholds
-        //        the invariant that `Round::Some(r)` is only created for `r >= 0`.
-        self.is_nil() || self.is_defined()
-    }
-
     /// Increment the round.
     ///
     /// If the round is nil, then the initial zero round is returned.

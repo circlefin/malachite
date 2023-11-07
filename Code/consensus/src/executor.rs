@@ -180,9 +180,7 @@ where
         }
 
         // TODO: Document
-        if !proposal.pol_round().is_valid()
-            || proposal.pol_round().is_defined() && proposal.pol_round() >= round_state.round
-        {
+        if proposal.pol_round().is_defined() && proposal.pol_round() >= round_state.round {
             return None;
         }
 
