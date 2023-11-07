@@ -30,7 +30,7 @@ TODO: Do we need to describe the code layout and Rust crates, or is the descript
 ### Overview of the Tendermint Consensus Implementation 
 
 The consensus implementation comprises three components:
-- Consensus Executor
+- Consensus Driver
 - Vote Keeper
 - Round State Machine
 
@@ -87,17 +87,19 @@ where
 
 Note:
 - TBD: we should figure out where to put `broadcast_message(), start_timer()`
-    - @romac: Likely outside of the `Executor`, so left up to the runtime which drives the executor.
+    - @romac: Likely outside of the `Driver`, so left up to the runtime which drives the driver.
 
 
-#### Consensus Executor
+#### Consensus Driver
 
 ##### Data Structures
 
-The Consensus Executor is concerned with running the consensus algorithm for a single height. It is therefore initialized with the height once and the instance is destroyed once a value for that height has been decided. Other parameters are required during initialization and operation as described below.
+The Consensus Driver is concerned with running the consensus algorithm for a single height, ie. it drives the state machine across multiple rounds.
+
+It is therefore initialized with the height once and the instance is destroyed once a value for that height has been decided. Other parameters are required during initialization and operation as described below.
 
 ```rust
-pub struct Executor<C>
+pub struct Driver<C>
 where
     C: Context
 {
@@ -115,7 +117,7 @@ Note:
 
 ##### Input Events (External APIs)
 
-The Consensus Executor receives events from the peer-to-peer layer and other external modules it interacts with. 
+The Consensus Driver receives events from the peer-to-peer layer and other external modules it interacts with. 
 
 ```rust
 pub enum Event<C>
@@ -130,7 +132,7 @@ where
 
 ```
 Notes:
-- TBD: Round `0` is always started by an external module. Subsequent rounds may be managed by the executor, or it could be the responsibility of the external module to start a new round.
+- TBD: Round `0` is always started by an external module. Subsequent rounds may be managed by the driver, or it could be the responsibility of the external module to start a new round.
   - Could also push the retrieval of the value to the external module, e.g. have `StartRoundProposer(round, proposal)`
   - Is the change to `StartRound` ok? It matches the paper and (the old name) `NewRound` is also used in some places as output message.
 - TBD: The proposal must be complete, i.e. it must contain a complete value. If this value is sent by the proposer in chunks, it is the responsibility of the chain concrete implementation to collect the proposal for the value ID together with the chunks to create a complete proposal.
@@ -138,7 +140,7 @@ Notes:
   - `Proposal(C::Proposal)` - a valid proposal has been received
   - `ProposalInvalid` - an invalid proposal has been received
 - `Vote` can be a `Prevote` or `Precommit` vote.
-- The executor interacts with the host system to start timers and expects to receive timeout events for the timers that it started and have fired. The timeouts can be:
+- The driver interacts with the host system to start timers and expects to receive timeout events for the timers that it started and have fired. The timeouts can be:
 ```
     Propose,
     Prevote,
@@ -149,9 +151,9 @@ TODO: Consolidate the terminology around Events and Messages.
 
 ##### Operation
 
-The Executor sends votes to the Vote Keeper module. The Executor expects that whenever the Keeper observes any threshold of votes for the first time it returns that to the Executor.
+The Driver sends votes to the Vote Keeper module. The Driver expects that whenever the Keeper observes any threshold of votes for the first time it returns that to the Driver.
 
-Based on its state and the results received from the Vote Keeper, the Executor sends events to the Round State Machine which, once it processes the Executor events, returns consensus-related messages back to the Executor. The Executor then processes these messages and sends them to the peer-to-peer layer, the host system, or other external modules.
+Based on its state and the results received from the Vote Keeper, the Driver sends events to the Round State Machine which, once it processes the Driver events, returns consensus-related messages back to the Driver. The Driver then processes these messages and sends them to the peer-to-peer layer, the host system, or other external modules.
 
 ##### Output Messages (External Dependencies)
 
@@ -205,7 +207,7 @@ Note: The above is a first draft and is likely to change:
 
 ##### Input Events (Internal APIs)
 
-The Vote Keeper receives votes from the Consensus Executor via:
+The Vote Keeper receives votes from the Consensus Driver via:
 
 ```rust
 pub fn apply_vote(&mut self, vote: C::Vote, weight: Weight) -> Option<Message<ValueId<C>>>
@@ -217,7 +219,7 @@ The Vote Keeper keeps track of the votes received for each round and the total w
 
 ##### Output Messages
 
-The Executor receives these output messages from the Vote Keeper.
+The Driver receives these output messages from the Vote Keeper.
 
 ```rust
 pub enum Message<C>
@@ -237,7 +239,7 @@ where
 
 ##### Data Structures
 
-The Consensus State Machine is concerned with the internal state of the consensus algorithm for a given round. It is initialized with the height and round. When moving to a new round, the executor creates a new round state machine and may or may not destroy the other round SMs.
+The Consensus State Machine is concerned with the internal state of the consensus algorithm for a given round. It is initialized with the height and round. When moving to a new round, the driver creates a new round state machine and may or may not destroy the other round SMs.
 
 ```rust
 pub struct State<C>
@@ -255,7 +257,7 @@ where
 
 ##### Input Events (Internal APIs)
 
-The Round state machine receives events from the Consensus Executor via:
+The Round state machine receives events from the Consensus Driver via:
 
 ```rust
 pub fn apply_event<C>(mut state: State<C>, round: Round, event: Event<C>) -> Transition<C>
@@ -265,8 +267,8 @@ where
 
 The events passed to the Round state machine are very close to the preconditions for the transition functions in the BFT paper, i.e., the `upon` clauses.
 In addition:
-- The `StartRound` events specify if the SM runs in the proposer mode or not. In the former case, the executor also passes a valid value to the round SM.
-- There are two `Poposal` events, for valid and invalid values respectively. Therefore, the `valid(v)` check is not performed in the round SM but externally by the executor (TODO TBD who exactly does that)
+- The `StartRound` events specify if the SM runs in the proposer mode or not. In the former case, the driver also passes a valid value to the round SM.
+- There are two `Poposal` events, for valid and invalid values respectively. Therefore, the `valid(v)` check is not performed in the round SM but externally by the driver (TODO TBD who exactly does that)
 
 ```rust
 pub enum Event<C> 
@@ -298,7 +300,7 @@ The Round State Machine keeps track of the internal state of consensus for a giv
 
 ##### Output Messages
 
-The Round state machine returns the following messages to the Executor:
+The Round state machine returns the following messages to the Driver:
 
 ```rust
 pub enum Message<C>
