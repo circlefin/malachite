@@ -14,8 +14,10 @@ fn test_propose() {
     let height = Height::new(10);
     let round = Round::new(0);
 
-    let mut state: State<TestContext> = State::default();
-    state.round = round;
+    let mut state: State<TestContext> = State {
+        round,
+        ..Default::default()
+    };
 
     let data = RoundData::new(round, &height, &ADDRESS);
 

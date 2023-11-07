@@ -168,7 +168,7 @@ fn executor_steps_proposer() {
         TestStep {
             desc: "v3 precommits for our proposal, we get +2/3 precommits, decide it (v1)",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Round::new(0), Some(value_id), addr2).signed(&sk2),
+                Vote::new_precommit(Round::new(0), Some(value_id), addr3).signed(&sk3),
             )),
             expected_output: Some(Message::Decide(Round::new(0), value.clone())),
             new_state: State {
@@ -571,6 +571,7 @@ fn executor_steps_not_proposer_timeout_multiple_rounds() {
         // TODO - add expected executor round to test and assert before the new_state check below
         let new_state = executor.round_state(executor.round).unwrap();
         assert_eq!(new_state, &step.new_state, "new state");
+        assert_eq!(output, step.expected_output, "expected output message");
 
         previous_message = output.and_then(to_input_msg);
     }
