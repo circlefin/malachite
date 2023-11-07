@@ -11,7 +11,4 @@ where
 
     /// The ID of the value.
     fn id(&self) -> Self::Id;
-
-    /// Whether the value is valid.
-    fn is_valid(&self) -> bool;
 }

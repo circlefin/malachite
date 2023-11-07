@@ -71,11 +71,10 @@ where
             if this_round && proposal.pol_round().is_nil() =>
         {
             // L22
-            if proposal.value().is_valid()
-                && state
-                    .locked
-                    .as_ref()
-                    .map_or(true, |locked| &locked.value == proposal.value())
+            if state
+                .locked
+                .as_ref()
+                .map_or(true, |locked| &locked.value == proposal.value())
             {
                 state.proposal = Some(proposal.clone());
                 prevote(state, data.address, &proposal)
