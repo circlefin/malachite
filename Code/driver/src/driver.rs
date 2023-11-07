@@ -131,10 +131,6 @@ where
     }
 
     fn apply_proposal(&mut self, proposal: Ctx::Proposal) -> Option<RoundMessage<Ctx>> {
-        if !self.validate_proposal(&proposal) {
-            todo!("invalid proposal");
-        }
-
         // Check that there is an ongoing round
         let Some(round_state) = self.round_states.get(&self.round) else {
             // TODO: Add logging
@@ -157,12 +153,20 @@ where
         }
 
         // TODO: Verify proposal signature (make some of these checks part of message validation)
+
+        let is_valid = self.validate_proposal(&proposal);
+
         match proposal.pol_round() {
             Round::Nil => {
                 // Is it possible to get +2/3 prevotes before the proposal?
                 // Do we wait for our own prevote to check the threshold?
                 let round = proposal.round();
-                let event = RoundEvent::Proposal(proposal);
+                let event = if is_valid {
+                    RoundEvent::Proposal(proposal)
+                } else {
+                    RoundEvent::ProposalInvalid
+                };
+
                 self.apply_event(round, event)
             }
             Round::Some(_)
@@ -173,7 +177,12 @@ where
                 ) =>
             {
                 let round = proposal.round();
-                let event = RoundEvent::Proposal(proposal);
+                let event = if is_valid {
+                    RoundEvent::Proposal(proposal)
+                } else {
+                    RoundEvent::ProposalInvalid
+                };
+
                 self.apply_event(round, event)
             }
             _ => None,
