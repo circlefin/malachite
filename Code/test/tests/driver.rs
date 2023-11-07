@@ -12,6 +12,7 @@ struct TestStep {
     desc: &'static str,
     input_event: Option<Event<TestContext>>,
     expected_output: Option<Message<TestContext>>,
+    expected_round: Round,
     new_state: State<TestContext>,
 }
 
@@ -58,6 +59,7 @@ fn driver_steps_proposer() {
             desc: "Start round 0, we are proposer, propose value",
             input_event: Some(Event::NewRound(Round::new(0))),
             expected_output: Some(Message::Propose(proposal.clone())),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Propose,
@@ -72,6 +74,7 @@ fn driver_steps_proposer() {
             expected_output: Some(Message::Vote(
                 Vote::new_prevote(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
             )),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -84,6 +87,7 @@ fn driver_steps_proposer() {
             desc: "Receive our own prevote v1",
             input_event: None,
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -98,6 +102,7 @@ fn driver_steps_proposer() {
                 Vote::new_prevote(Round::new(0), Some(value_id), addr2).signed(&sk2),
             )),
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -114,6 +119,7 @@ fn driver_steps_proposer() {
             expected_output: Some(Message::Vote(
                 Vote::new_precommit(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
             )),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Precommit,
@@ -132,6 +138,7 @@ fn driver_steps_proposer() {
             desc: "v1 receives its own precommit",
             input_event: None,
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Precommit,
@@ -152,6 +159,7 @@ fn driver_steps_proposer() {
                 Vote::new_precommit(Round::new(0), Some(value_id), addr2).signed(&sk2),
             )),
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Precommit,
@@ -172,6 +180,7 @@ fn driver_steps_proposer() {
                 Vote::new_precommit(Round::new(0), Some(value_id), addr3).signed(&sk3),
             )),
             expected_output: Some(Message::Decide(Round::new(0), value.clone())),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Commit,
@@ -198,10 +207,12 @@ fn driver_steps_proposer() {
             .unwrap_or_else(|| previous_message.unwrap());
 
         let output = driver.execute(execute_message);
-        assert_eq!(output, step.expected_output);
+        assert_eq!(output, step.expected_output, "expected output message");
+
+        assert_eq!(driver.round, step.expected_round, "expected round");
 
         let new_state = driver.round_state(Round::new(0)).unwrap();
-        assert_eq!(new_state, &step.new_state);
+        assert_eq!(new_state, &step.new_state, "expected state");
 
         previous_message = output.and_then(to_input_msg);
     }
@@ -241,6 +252,7 @@ fn driver_steps_not_proposer_valid() {
             desc: "Start round 0, we are not the proposer",
             input_event: Some(Event::NewRound(Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Propose,
@@ -255,6 +267,7 @@ fn driver_steps_not_proposer_valid() {
             expected_output: Some(Message::Vote(
                 Vote::new_prevote(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
             )),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -267,6 +280,7 @@ fn driver_steps_not_proposer_valid() {
             desc: "Receive our own prevote (v2)",
             input_event: None,
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -281,6 +295,7 @@ fn driver_steps_not_proposer_valid() {
                 Vote::new_prevote(Round::new(0), Some(value_id), addr1).signed(&sk1),
             )),
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -297,6 +312,7 @@ fn driver_steps_not_proposer_valid() {
             expected_output: Some(Message::Vote(
                 Vote::new_precommit(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
             )),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Precommit,
@@ -315,6 +331,7 @@ fn driver_steps_not_proposer_valid() {
             desc: "we receive our own precommit",
             input_event: None,
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Precommit,
@@ -335,6 +352,7 @@ fn driver_steps_not_proposer_valid() {
                 Vote::new_precommit(Round::new(0), Some(value_id), addr1).signed(&sk1),
             )),
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Precommit,
@@ -355,6 +373,7 @@ fn driver_steps_not_proposer_valid() {
                 Vote::new_precommit(Round::new(0), Some(value_id), addr3).signed(&sk3),
             )),
             expected_output: Some(Message::Decide(Round::new(0), value.clone())),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Commit,
@@ -381,10 +400,12 @@ fn driver_steps_not_proposer_valid() {
             .unwrap_or_else(|| previous_message.unwrap());
 
         let output = driver.execute(execute_message);
-        assert_eq!(output, step.expected_output);
+        assert_eq!(output, step.expected_output, "expected output message");
+
+        assert_eq!(driver.round, step.expected_round, "expected round");
 
         let new_state = driver.round_state(Round::new(0)).unwrap();
-        assert_eq!(new_state, &step.new_state);
+        assert_eq!(new_state, &step.new_state, "expected state");
 
         previous_message = output.and_then(to_input_msg);
     }
@@ -424,6 +445,7 @@ fn driver_steps_not_proposer_invalid() {
             desc: "Start round 0, we are not the proposer",
             input_event: Some(Event::NewRound(Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Propose,
@@ -438,6 +460,7 @@ fn driver_steps_not_proposer_invalid() {
             expected_output: Some(Message::Vote(
                 Vote::new_prevote(Round::new(0), None, my_addr).signed(&my_sk),
             )),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -450,6 +473,7 @@ fn driver_steps_not_proposer_invalid() {
             desc: "Receive our own prevote (v2)",
             input_event: None,
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -464,6 +488,7 @@ fn driver_steps_not_proposer_invalid() {
                 Vote::new_prevote(Round::new(0), Some(value_id), addr1).signed(&sk1),
             )),
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -478,6 +503,7 @@ fn driver_steps_not_proposer_invalid() {
                 Vote::new_prevote(Round::new(0), Some(value_id), addr3).signed(&sk3),
             )),
             expected_output: Some(Message::ScheduleTimeout(Timeout::prevote(Round::new(0)))),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -492,6 +518,7 @@ fn driver_steps_not_proposer_invalid() {
             expected_output: Some(Message::Vote(
                 Vote::new_precommit(Round::new(0), None, my_addr).signed(&my_sk),
             )),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Precommit,
@@ -512,10 +539,12 @@ fn driver_steps_not_proposer_invalid() {
             .unwrap_or_else(|| previous_message.unwrap());
 
         let output = driver.execute(execute_message);
-        assert_eq!(output, step.expected_output);
+        assert_eq!(output, step.expected_output, "expected output");
 
-        let new_state = driver.round_state(Round::new(0)).unwrap();
-        assert_eq!(new_state, &step.new_state);
+        assert_eq!(driver.round, step.expected_round, "expected round");
+
+        let new_state = driver.round_state(driver.round).unwrap();
+        assert_eq!(new_state, &step.new_state, "expected state");
 
         previous_message = output.and_then(to_input_msg);
     }
@@ -553,6 +582,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             desc: "Start round 0, we, v3, are not the proposer",
             input_event: Some(Event::NewRound(Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Propose,
@@ -568,6 +598,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             expected_output: Some(Message::Vote(
                 Vote::new_prevote(Round::new(0), None, my_addr).signed(&my_sk),
             )),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -581,6 +612,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             desc: "Receive our own prevote v3",
             input_event: None,
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -596,6 +628,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 Vote::new_prevote(Round::new(0), Some(value_id), addr1).signed(&sk1),
             )),
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Prevote,
@@ -613,6 +646,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             expected_output: Some(Message::Vote(
                 Vote::new_precommit(Round::new(0), None, my_addr).signed(&my_sk),
             )),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Precommit,
@@ -626,6 +660,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             desc: "v3 receives its own precommit",
             input_event: None,
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Precommit,
@@ -641,6 +676,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 Vote::new_precommit(Round::new(0), Some(value_id), addr1).signed(&sk1),
             )),
             expected_output: None,
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Precommit,
@@ -656,6 +692,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 Vote::new_precommit(Round::new(0), None, addr2).signed(&sk2),
             )),
             expected_output: Some(Message::ScheduleTimeout(Timeout::precommit(Round::new(0)))),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Precommit,
@@ -669,6 +706,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             desc: "we receive a precommit timeout, start a new round",
             input_event: Some(Event::TimeoutElapsed(Timeout::precommit(Round::new(0)))),
             expected_output: Some(Message::NewRound(Round::new(1))),
+            expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(1),
                 step: Step::NewRound,
@@ -681,6 +719,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             desc: "Start round 1, we are not the proposer",
             input_event: Some(Event::NewRound(Round::new(1))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(1)))),
+            expected_round: Round::new(1),
             new_state: State {
                 round: Round::new(1),
                 step: Step::Propose,
@@ -703,10 +742,10 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         let output = driver.execute(execute_message);
         assert_eq!(output, step.expected_output, "expected output message");
 
-        // TODO - add expected driver round to test and assert before the new_state check below
+        assert_eq!(driver.round, step.expected_round, "expected round");
+
         let new_state = driver.round_state(driver.round).unwrap();
         assert_eq!(new_state, &step.new_state, "new state");
-        assert_eq!(output, step.expected_output, "expected output message");
 
         previous_message = output.and_then(to_input_msg);
     }
