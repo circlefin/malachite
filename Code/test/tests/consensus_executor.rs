@@ -21,6 +21,7 @@ fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
         Message::Vote(v) => Some(Event::Vote(v)),
         Message::Decide(_, _) => None,
         Message::ScheduleTimeout(_) => None,
+        Message::NewRound(round) => Some(Event::NewRound(round)),
     }
 }
 
@@ -387,7 +388,7 @@ fn executor_steps_not_proposer() {
 }
 
 #[test]
-fn executor_steps_not_proposer_timeout() {
+fn executor_steps_not_proposer_timeout_multiple_rounds() {
     let value = TestContext::DUMMY_VALUE; // TODO: get value from external source
     let value_id = value.id();
 
@@ -402,19 +403,19 @@ fn executor_steps_not_proposer_timeout() {
     let addr3 = Address::from_public_key(&sk3.public_key());
 
     let v1 = Validator::new(sk1.public_key(), 1);
-    let v2 = Validator::new(sk2.public_key(), 1);
-    let v3 = Validator::new(sk3.public_key(), 3);
+    let v2 = Validator::new(sk2.public_key(), 3);
+    let v3 = Validator::new(sk3.public_key(), 1);
 
-    // Proposer is v1, so we are not the proposer
-    let (my_sk, my_addr) = (sk2, addr2);
+    // Proposer is v1, so we, v3, are not the proposer
+    let (my_sk, my_addr) = (sk3, addr3);
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
     let mut executor = Executor::new(Height::new(1), vs, my_sk.clone(), my_addr);
 
     let steps = vec![
-        // Start round 0, we are not the proposer
+        // Start round 0, we, v3, are not the proposer
         TestStep {
-            desc: "Start round 0, we are not the proposer",
+            desc: "Start round 0, we, v3, are not the proposer",
             input_event: Some(Event::NewRound(Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             new_state: State {
@@ -425,9 +426,9 @@ fn executor_steps_not_proposer_timeout() {
                 valid: None,
             },
         },
-        // Receive a propose timeout, prevote for nil (v1)
+        // Receive a propose timeout, prevote for nil (from v3)
         TestStep {
-            desc: "Receive a propose timeout, prevote for nil",
+            desc: "Receive a propose timeout, prevote for nil (v3)",
             input_event: Some(Event::TimeoutElapsed(Timeout::propose(Round::new(0)))),
             expected_output: Some(Message::Vote(
                 Vote::new_prevote(Round::new(0), None, my_addr).signed(&my_sk),
@@ -440,9 +441,9 @@ fn executor_steps_not_proposer_timeout() {
                 valid: None,
             },
         },
-        // Receive our own prevote v1
+        // Receive our own prevote v3
         TestStep {
-            desc: "Receive our own prevote v1",
+            desc: "Receive our own prevote v3",
             input_event: None,
             expected_output: None,
             new_state: State {
@@ -468,11 +469,11 @@ fn executor_steps_not_proposer_timeout() {
                 valid: None,
             },
         },
-        // v3 prevotes for nil, it gets +2/3 prevotes, precommit for it
+        // v2 prevotes for nil, we get +2/3 nil prevotes and precommit for nil
         TestStep {
-            desc: "v3 prevotes for nil, it gets +2/3 prevotes, precommit for it",
+            desc: "v2 prevotes for nil, we get +2/3 prevotes, precommit for nil",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Round::new(0), None, addr3).signed(&sk3),
+                Vote::new_prevote(Round::new(0), None, addr2).signed(&sk2),
             )),
             expected_output: Some(Message::Vote(
                 Vote::new_precommit(Round::new(0), None, my_addr).signed(&my_sk),
@@ -485,9 +486,9 @@ fn executor_steps_not_proposer_timeout() {
                 valid: None,
             },
         },
-        // we receive our own precommit
+        // v3 receives its own precommit
         TestStep {
-            desc: "we receive our own precommit",
+            desc: "v3 receives its own precommit",
             input_event: None,
             expected_output: None,
             new_state: State {
@@ -513,11 +514,11 @@ fn executor_steps_not_proposer_timeout() {
                 valid: None,
             },
         },
-        // v3 precommits for nil, we reach the PrecommmitAny threshold, schedule a timeout
+        // v2 precommits for nil
         TestStep {
-            desc: "v3 precommits for nil, we reach the PrecommmitAny threshold, schedule a timeout",
+            desc: "v2 precommits for nil",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Round::new(0), None, addr3).signed(&sk3),
+                Vote::new_precommit(Round::new(0), None, addr2).signed(&sk2),
             )),
             expected_output: Some(Message::ScheduleTimeout(Timeout::precommit(Round::new(0)))),
             new_state: State {
@@ -532,10 +533,22 @@ fn executor_steps_not_proposer_timeout() {
         TestStep {
             desc: "we receive a precommit timeout, start a new round",
             input_event: Some(Event::TimeoutElapsed(Timeout::precommit(Round::new(0)))),
-            expected_output: None,
+            expected_output: Some(Message::NewRound(Round::new(1))),
             new_state: State {
                 round: Round::new(1),
                 step: Step::NewRound,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        TestStep {
+            desc: "Start round 1, we are not the proposer",
+            input_event: Some(Event::NewRound(Round::new(1))),
+            expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(1)))),
+            new_state: State {
+                round: Round::new(1),
+                step: Step::Propose,
                 proposal: None,
                 locked: None,
                 valid: None,
@@ -553,7 +566,10 @@ fn executor_steps_not_proposer_timeout() {
             .unwrap_or_else(|| previous_message.unwrap());
 
         let output = executor.execute(execute_message);
-        let new_state = executor.round_state(Round::new(0)).unwrap();
+        assert_eq!(output, step.expected_output, "expected output message");
+
+        // TODO - add expected executor round to test and assert before the new_state check below
+        let new_state = executor.round_state(executor.round).unwrap();
         assert_eq!(new_state, &step.new_state, "new state");
         assert_eq!(output, step.expected_output, "expected output message");
 

@@ -12,9 +12,14 @@ const ADDRESS: Address = Address::new([42; 20]);
 fn test_propose() {
     let value = Value::new(42);
     let height = Height::new(10);
+    let round = Round::new(0);
 
-    let mut state: State<TestContext> = State::default();
-    let data = RoundData::new(Round::new(0), &height, &ADDRESS);
+    let mut state: State<TestContext> = State {
+        round,
+        ..Default::default()
+    };
+
+    let data = RoundData::new(round, &height, &ADDRESS);
 
     let transition = apply_event(state.clone(), &data, Event::NewRoundProposer(value));
 
