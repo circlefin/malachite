@@ -19,7 +19,7 @@ where
         Self { vote, signature }
     }
 
-    pub fn validator_address(&self) -> &Ctx::Address {
+    pub fn validator_address(&self) -> Ctx::Address {
         self.vote.validator_address()
     }
 }

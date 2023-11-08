@@ -75,7 +75,7 @@ where
         let threshold = round.votes.add_vote(
             vote.vote_type(),
             vote.validator_address().clone(),
-            vote.value().cloned(),
+            vote.value(),
             weight,
         );
 

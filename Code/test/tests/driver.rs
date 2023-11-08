@@ -23,7 +23,9 @@ fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
         Message::Vote(v) => Some(Event::Vote(v)),
         Message::Decide(_, _) => None,
         Message::ScheduleTimeout(_) => None,
-        Message::NewRound(round) => Some(Event::NewRound(round)),
+
+        // XXX: we are only testing non-proposer after the initial round
+        Message::NewRound(round) => Some(Event::NewRound(round, false)),
     }
 }
 
@@ -58,7 +60,7 @@ fn driver_steps_proposer() {
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are proposer, propose value",
-            input_event: Some(Event::NewRound(Round::new(0))),
+            input_event: Some(Event::NewRound(Round::new(0), true)),
             expected_output: Some(Message::Propose(proposal.clone())),
             expected_round: Round::new(0),
             new_state: State {
@@ -251,7 +253,7 @@ fn driver_steps_not_proposer_valid() {
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(0))),
+            input_event: Some(Event::NewRound(Round::new(0), false)),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
@@ -444,7 +446,7 @@ fn driver_steps_not_proposer_invalid() {
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(0))),
+            input_event: Some(Event::NewRound(Round::new(0), false)),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
@@ -581,7 +583,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         // Start round 0, we, v3, are not the proposer
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(0))),
+            input_event: Some(Event::NewRound(Round::new(0), false)),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
@@ -718,7 +720,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         },
         TestStep {
             desc: "Start round 1, we are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(1))),
+            input_event: Some(Event::NewRound(Round::new(1), false)),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(1)))),
             expected_round: Round::new(1),
             new_state: State {

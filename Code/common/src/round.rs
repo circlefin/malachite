@@ -94,6 +94,15 @@ impl From<u32> for Round {
     }
 }
 
+impl From<Option<u32>> for Round {
+    fn from(value: Option<u32>) -> Self {
+        match value {
+            Some(round) => Self::new(i64::from(round)),
+            None => Self::Nil,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

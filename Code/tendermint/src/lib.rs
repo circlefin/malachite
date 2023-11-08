@@ -33,9 +33,7 @@ impl mc::Proposal<Context> for Proposal {
     }
 
     fn pol_round(&self) -> mc::Round {
-        self.0
-            .pol_round
-            .map_or(mc::Round::Nil, |r| mc::Round::from(r.value()))
+        mc::Round::from(self.0.pol_round.map(|r| r.value()))
     }
 }
 
@@ -58,8 +56,15 @@ impl mc::Validator<Context> for Validator {
         Address(self.0.address)
     }
 
-    fn public_key(&self) -> &mc::PublicKey<Context> {
-        todo!()
+    fn public_key(&self) -> mc::PublicKey<Context> {
+        match self.0.pub_key {
+            tm::PublicKey::Ed25519(key) => {
+                // FIXME: unwrap
+                let vk = ed25519_consensus::VerificationKey::try_from(key).unwrap();
+                ed25519::PublicKey::new(vk)
+            }
+            _ => unreachable!(), // FIXME: unreachable
+        }
     }
 
     fn voting_power(&self) -> mc::VotingPower {
@@ -75,16 +80,8 @@ impl mc::ValidatorSet<Context> for ValidatorSet {
         self.0.total_voting_power().value()
     }
 
-    fn get_proposer(&self) -> &Validator {
-        todo!()
-    }
-
-    fn get_by_public_key(&self, public_key: &mc::PublicKey<Context>) -> Option<&Validator> {
-        todo!()
-    }
-
-    fn get_by_address(&self, address: &Address) -> Option<&Validator> {
-        todo!()
+    fn get_by_address(&self, address: &Address) -> Option<Validator> {
+        self.0.validator(address.0).map(Validator)
     }
 }
 
@@ -96,20 +93,19 @@ impl mc::Vote<Context> for Vote {
         mc::Round::from(self.0.round.value())
     }
 
-    fn value(&self) -> Option<&BlockId> {
-        todo!()
-    }
-
-    fn take_value(self) -> Option<BlockId> {
-        todo!()
+    fn value(&self) -> Option<BlockId> {
+        self.0.block_id.as_ref().map(|&id| BlockId(id))
     }
 
     fn vote_type(&self) -> mc::VoteType {
-        todo!()
+        match self.0.vote_type {
+            tm::vote::Type::Prevote => mc::VoteType::Prevote,
+            tm::vote::Type::Precommit => mc::VoteType::Precommit,
+        }
     }
 
-    fn validator_address(&self) -> &Address {
-        todo!()
+    fn validator_address(&self) -> Address {
+        Address(self.0.validator_address)
     }
 }
 

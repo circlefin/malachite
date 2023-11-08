@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use malachite_round::state_machine::RoundData;
 use secrecy::{ExposeSecret, Secret};
 
-use malachite_common::signature::Keypair;
 use malachite_common::{
     Context, PrivateKey, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator,
     ValidatorSet, Value, Vote, VoteType,
@@ -105,17 +104,15 @@ where
 
     fn apply(&mut self, msg: Event<Ctx>) -> Option<RoundMessage<Ctx>> {
         match msg {
-            Event::NewRound(round) => self.apply_new_round(round),
+            Event::NewRound(round, is_proposer) => self.apply_new_round(round, is_proposer),
             Event::Proposal(proposal) => self.apply_proposal(proposal),
             Event::Vote(signed_vote) => self.apply_vote(signed_vote),
             Event::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
         }
     }
 
-    fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<Ctx>> {
-        let proposer = self.validator_set.get_proposer();
-
-        let event = if proposer.public_key() == &self.private_key.expose_secret().verifying_key() {
+    fn apply_new_round(&mut self, round: Round, is_proposer: bool) -> Option<RoundMessage<Ctx>> {
+        let event = if is_proposer {
             let value = self.get_value();
             RoundEvent::NewRoundProposer(value)
         } else {
@@ -193,9 +190,9 @@ where
         // TODO: How to handle missing validator?
         let validator = self
             .validator_set
-            .get_by_address(signed_vote.validator_address())?;
+            .get_by_address(&signed_vote.validator_address())?;
 
-        if !Ctx::verify_signed_vote(&signed_vote, validator.public_key()) {
+        if !Ctx::verify_signed_vote(&signed_vote, &validator.public_key()) {
             // TODO: How to handle invalid votes?
             return None;
         }

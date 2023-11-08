@@ -25,14 +25,11 @@ where
     fn round(&self) -> Round;
 
     /// Get a reference to the value being voted for.
-    fn value(&self) -> Option<&<Ctx::Value as Value>::Id>;
-
-    /// Take ownership of the value being voted for.
-    fn take_value(self) -> Option<<Ctx::Value as Value>::Id>;
+    fn value(&self) -> Option<<Ctx::Value as Value>::Id>;
 
     /// The type of vote.
     fn vote_type(&self) -> VoteType;
 
     /// Address of the validator who issued this vote
-    fn validator_address(&self) -> &Ctx::Address;
+    fn validator_address(&self) -> Ctx::Address;
 }

@@ -1,5 +1,3 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-
 use malachite_common::VotingPower;
 
 use crate::{signing::PublicKey, TestContext};
@@ -47,8 +45,8 @@ impl malachite_common::Validator<TestContext> for Validator {
         self.address
     }
 
-    fn public_key(&self) -> &PublicKey {
-        &self.public_key
+    fn public_key(&self) -> PublicKey {
+        self.public_key
     }
 
     fn voting_power(&self) -> VotingPower {
@@ -59,20 +57,16 @@ impl malachite_common::Validator<TestContext> for Validator {
 /// A validator set contains a list of validators sorted by address.
 pub struct ValidatorSet {
     validators: Vec<Validator>,
-    proposer: AtomicUsize,
 }
 
 impl ValidatorSet {
     pub fn new(validators: impl IntoIterator<Item = Validator>) -> Self {
         let mut validators: Vec<_> = validators.into_iter().collect();
-        ValidatorSet::sort_validators(&mut validators);
-
         assert!(!validators.is_empty());
 
-        Self {
-            validators,
-            proposer: AtomicUsize::new(0),
-        }
+        ValidatorSet::sort_validators(&mut validators);
+
+        Self { validators }
     }
 
     /// The total voting power of the validator set
@@ -113,34 +107,18 @@ impl ValidatorSet {
         self.validators.iter().find(|v| &v.address == address)
     }
 
-    pub fn get_by_public_key(&self, public_key: &PublicKey) -> Option<&Validator> {
-        self.validators.iter().find(|v| &v.public_key == public_key)
-    }
-
     /// In place sort and deduplication of a list of validators
     fn sort_validators(vals: &mut Vec<Validator>) {
         // Sort the validators according to the current Tendermint requirements
-        //
-        // use core::cmp::Reverse;
-        //
-        // (v. 0.34 -> first by validator power, descending, then by address, ascending)
-        // vals.sort_unstable_by(|v1, v2| {
-        //     let a = (Reverse(v1.voting_power), &v1.address);
-        //     let b = (Reverse(v2.voting_power), &v2.address);
-        //     a.cmp(&b)
-        // });
+        use core::cmp::Reverse;
+
+        vals.sort_unstable_by(|v1, v2| {
+            let a = (Reverse(v1.voting_power), &v1.address);
+            let b = (Reverse(v2.voting_power), &v2.address);
+            a.cmp(&b)
+        });
 
         vals.dedup();
-    }
-
-    pub fn get_proposer(&self) -> &Validator {
-        // TODO: Proper implementation
-        assert!(!self.validators.is_empty());
-
-        let idx = self.proposer.load(Ordering::Relaxed) % self.validators.len();
-        self.proposer.fetch_add(1, Ordering::Relaxed);
-
-        &self.validators[idx]
     }
 }
 
@@ -149,16 +127,8 @@ impl malachite_common::ValidatorSet<TestContext> for ValidatorSet {
         self.total_voting_power()
     }
 
-    fn get_by_public_key(&self, public_key: &PublicKey) -> Option<&Validator> {
-        self.get_by_public_key(public_key)
-    }
-
-    fn get_proposer(&self) -> &Validator {
-        self.get_proposer()
-    }
-
-    fn get_by_address(&self, address: &Address) -> Option<&Validator> {
-        self.get_by_address(address)
+    fn get_by_address(&self, address: &Address) -> Option<Validator> {
+        self.get_by_address(address).cloned()
     }
 }
 

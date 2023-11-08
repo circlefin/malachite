@@ -31,8 +31,8 @@ impl malachite_common::Proposal<TestContext> for Proposal {
         self.round
     }
 
-    fn value(&self) -> &Value {
-        &self.value
+    fn value(&self) -> Value {
+        self.value.clone()
     }
 
     fn pol_round(&self) -> Round {

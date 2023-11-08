@@ -65,11 +65,7 @@ impl malachite_common::Vote<TestContext> for Vote {
         self.round
     }
 
-    fn value(&self) -> Option<&ValueId> {
-        self.value.as_ref()
-    }
-
-    fn take_value(self) -> Option<ValueId> {
+    fn value(&self) -> Option<ValueId> {
         self.value
     }
 
@@ -77,7 +73,7 @@ impl malachite_common::Vote<TestContext> for Vote {
         self.typ
     }
 
-    fn validator_address(&self) -> &Address {
-        &self.validator_address
+    fn validator_address(&self) -> Address {
+        self.validator_address
     }
 }
