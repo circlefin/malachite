@@ -1,8 +1,13 @@
 [package]
-name    = "malachite-itf"
-version = "0.1.0"
-edition = "2021"
+name        = "malachite-itf"
+description = "Library for working with ITF traces for the Malachite consensus engine"
+
+version.workspace      = true
+edition.workspace      = true
+repository.workspace   = true
+license.workspace      = true
+publish.workspace      = true
 
 [dependencies]
-itf   = "0.1.1"
-serde = { version = "1.0.189", features = ["derive"] }
+itf.workspace = true
+serde         = { workspace = true, features = ["derive"] }
