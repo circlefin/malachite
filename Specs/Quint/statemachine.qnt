@@ -1,5 +1,15 @@
 // -*- mode: Bluespec; -*-
 
+/*
+    This contains some (non-standard) synchronous message transfer 
+    semantics, that is, 
+     -  upon sending, messages are put into the incoming set of the 
+        validator 
+     -  no faulty messages are modeled here
+    The model is quite simple but might be useful to generates 
+    traces.
+*/
+
 module statemachine {
 
 import executor.* from "./executor"

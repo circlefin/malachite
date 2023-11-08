@@ -78,7 +78,7 @@ pure def toVote (v: VoteMsg_t) : Vote =
 val defaultEvent : Event = { name : "", height : 0, round: 0, value: "", vr: 0 }    
 
 /*
-TODO:  encode the following decision tree
+encode the following decision tree
 
 proposal
     invalid -> consensus event
@@ -120,12 +120,6 @@ pure def Proposer(valset: Address_t -> int, height: Height_t, round: Round_t) : 
     else "v4"
 }
 
-
-
-
-
-
-
 pure def getValue(es: ExecutorState) : Value_t =  es.nextValueToPropose
 
 pure def valid(p: ProposeMsg_t) :bool = {
@@ -159,6 +153,7 @@ pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (Executo
         (   { ...es, bk: bk, cs: res.cs, executedEvents: es.executedEvents.append((ev, res.cs.height, res.cs.round))}, 
             res.out )
 }
+
 
 // We do this if the executor receives a Precommit
 pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent) : (ExecutorState, ConsensusOutput) = {
@@ -252,6 +247,7 @@ pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) 
         (es, defaultResult)
 }
 
+
 // We do this if a timeout expires at the executor
 pure def Timeout (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     // TODO: We assume that the timeout event is always for the current round. If this is not
@@ -263,6 +259,7 @@ pure def Timeout (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Con
                         vr: 0}
     callConsensus(es, es.bk, event)
 }
+
 
 // We do this if the executor receives a proposal
 pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
@@ -389,6 +386,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
             (es, defaultResult)
 }
 
+
 // We do this when we need to jump to a new round
 pure def skip (es: ExecutorState, r: int) : (ExecutorState, ConsensusOutput) = {
     // line 15
@@ -411,6 +409,7 @@ pure def skip (es: ExecutorState, r: int) : (ExecutorState, ConsensusOutput) = {
     // TODO: compute pending events.
 }
 
+
 // We do this when we have decided
 pure def decided (es: ExecutorState, res: ConsensusOutput) : (ExecutorState, ConsensusOutput) = {
     // here we call consensus to set a new height, that is, to initialize the state machine
@@ -431,6 +430,7 @@ pure def decided (es: ExecutorState, res: ConsensusOutput) : (ExecutorState, Con
     ({ ...es, chain: es.chain.append(res.decided) } , res)
 }
 
+
 // take input out of pending events and then call consensus with that event
 // We do this when the executor is asked to work on pending events
 pure def PendingEvent (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
@@ -438,8 +438,12 @@ pure def PendingEvent (es: ExecutorState, input: ExecutorInput) : (ExecutorState
     callConsensus(newState, es.bk, input.event)
 }
 
+
 pure def setValue(es: ExecutorState, value: Value_t) : (ExecutorState, ConsensusOutput) =
     ({ ...es, nextValueToPropose: value }, defaultResult)
+
+
+
 
 /* *********************************************************
  * Main entry point
@@ -495,6 +499,7 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Co
     else
         (es, defaultResult)
 }
+
 
 // This is a simple function that figures out in what external events (messages,
 // timeouts, etc.) the node should act.

@@ -90,13 +90,14 @@ type ConsensusOutput = {
     skipRound: Round_t
 }
 
-val consensusOutput = Set (
+val consensusOutputs = Set (
     "proposal",
     "votemessage",
     "timeout",
     "decided",
     "skipRound"
 )
+
 type ConsResult = {
     cs: ConsensusState,
     out: ConsensusOutput,
@@ -177,7 +178,7 @@ pure def NewRoundProposer (state: ConsensusState, ev: Event) : ConsResult = {
                                                             proposal: proposal,
                                                             validRound: state.validRound}}
         {cs: newstate, out: result }
-   else
+    else
         {cs: state,  out: defaultResult }
 }
 

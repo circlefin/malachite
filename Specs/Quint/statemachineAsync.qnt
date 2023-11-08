@@ -1,10 +1,18 @@
 // -*- mode: Bluespec; -*-
 
-// This contains 
-// 1. asynchronous message transfer semantics
-// 2. parameterization with too many faulty nodes 
-// 3. a test where disagreement fails
-// TODO: cleanup. 1. needs to be re-usable also for good parameters 
+/*
+    This contains asynchronous message transfer semantics, that is, 
+     -  upon sending, messages are put into a buffer (for each receiver). 
+        The buffer is part of the network and not in any validator state
+     -  there is a deliver event that takes a message out of the buffer
+        and puts it into the incoming set of the validator (alternatively
+        a message by a faulty process may be put into the incoming set)
+     -  this allows re-ordering of message in the network, that is, a 
+        process may receive message m1 before m2 while another process 
+        may receive m2 before m1
+    Example models using this specification can be found in AsyncModels.qnt
+*/
+
 
 module statemachineAsync {
 
@@ -41,7 +49,10 @@ val AllFaultyProposals : Set[ProposeMsg_t] =
 var system : Address_t -> NodeState
 var propBuffer : Address_t -> Set[ProposeMsg_t]
 var voteBuffer : Address_t -> Set[VoteMsg_t]
-var _hist: (str, ExecutorInput, ConsensusOutput)
+var _hist: { validator: Address_t, input: ExecutorInput, output: ConsensusOutput }
+
+val ConsensusOutputInv = consensusOutputs.union(Set(defaultResult.name)).contains(_hist.output.name) 
+
 
 action unchangedAll = all {
     system' = system,
@@ -60,7 +71,7 @@ action init = all {
     system' = Correct.mapBy(v => initNode(v, validatorSet)),
     propBuffer' = Correct.mapBy(v => Set()),
     voteBuffer' = Correct.mapBy(v => Set()),
-    _hist' = ("INIT", defaultInput, defaultResult)
+    _hist' = { validator: "INIT", input: defaultInput, output: defaultResult }
 }
 
 // Put the proposal into the buffers of all validators
@@ -119,7 +130,7 @@ action valStep(v: Address_t) : bool = {
             voteBuffer' = voteBuffer,
             system' = sys,
         },
-        _hist' = (v, input._2, res._2)
+        _hist' = { validator: v, input: input._2, output: res._2 }
 //         _histSimple' = (v, input._2.name, res._2.name)
     }
 }

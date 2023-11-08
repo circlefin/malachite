@@ -1,3 +1,5 @@
+// -*- mode: Bluespec; -*-
+
 module AsyncModels {
 
 import statemachineAsync(
@@ -9,7 +11,8 @@ import statemachineAsync(
     Heights = Set(0) // , 1, 2, 3)
 ) as N4F1 from "./statemachineAsync"
 
-// quint run --init=N4F1::init --step=N4F1::step --inv=N4F1::AgreementInv AsyncModels.qnt
+// quint run --init=N4F1::init --step=N4F1::step --invariant=N4F1::AgreementInv AsyncModels.qnt
+// quint run --init=N4F1::init --step=N4F1::step --invariant=N4F1::ConsensusOutputInv AsyncModels.qnt
 
 import statemachineAsync(
     validators = Set("v1", "v2", "v3", "v4"),
