@@ -24,6 +24,7 @@ where
     Ctx: Context,
     Client: crate::client::Client<Ctx>,
 {
+    pub ctx: Ctx,
     pub client: Client,
     pub height: Ctx::Height,
     pub private_key: Secret<PrivateKey<Ctx>>,
@@ -40,6 +41,7 @@ where
     Client: crate::client::Client<Ctx>,
 {
     pub fn new(
+        ctx: Ctx,
         client: Client,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
@@ -49,6 +51,7 @@ where
         let votes = VoteKeeper::new(validator_set.total_voting_power());
 
         Self {
+            ctx,
             client,
             height,
             private_key: Secret::new(private_key),
@@ -87,7 +90,7 @@ where
             }
 
             RoundMessage::Vote(vote) => {
-                let signature = Ctx::sign_vote(&vote, self.private_key.expose_secret());
+                let signature = self.ctx.sign_vote(&vote, self.private_key.expose_secret());
                 let signed_vote = SignedVote::new(vote, signature);
 
                 Some(Message::Vote(signed_vote))
@@ -192,7 +195,10 @@ where
             .validator_set
             .get_by_address(&signed_vote.validator_address())?;
 
-        if !Ctx::verify_signed_vote(&signed_vote, &validator.public_key()) {
+        if !self
+            .ctx
+            .verify_signed_vote(&signed_vote, &validator.public_key())
+        {
             // TODO: How to handle invalid votes?
             return None;
         }

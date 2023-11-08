@@ -20,11 +20,15 @@ where
 
     /// Sign the given vote using the given private key.
     /// TODO: Maybe move this as concrete methods in `SignedVote`?
-    fn sign_vote(vote: &Self::Vote, private_key: &PrivateKey<Self>) -> Signature<Self>;
+    fn sign_vote(&self, vote: &Self::Vote, private_key: &PrivateKey<Self>) -> Signature<Self>;
 
     /// Verify the given vote's signature using the given public key.
     /// TODO: Maybe move this as concrete methods in `SignedVote`?
-    fn verify_signed_vote(signed_vote: &SignedVote<Self>, public_key: &PublicKey<Self>) -> bool;
+    fn verify_signed_vote(
+        &self,
+        signed_vote: &SignedVote<Self>,
+        public_key: &PublicKey<Self>,
+    ) -> bool;
 
     /// Build a new proposal for the given value at the given height, round and POL round.
     fn new_proposal(

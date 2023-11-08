@@ -5,8 +5,16 @@ use tendermint as tm;
 
 pub mod ed25519;
 
-#[derive(Copy, Clone, Debug)]
-pub struct Context;
+#[derive(Clone, Debug)]
+pub struct Context {
+    pub chain_id: tm::chain::Id,
+}
+
+impl Context {
+    pub fn new(chain_id: tm::chain::Id) -> Self {
+        Self { chain_id }
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Address(tm::account::Id);
@@ -119,15 +127,35 @@ impl mc::Context for Context {
     type Vote = Vote;
     type SigningScheme = crate::ed25519::Ed25519;
 
-    fn sign_vote(vote: &Self::Vote, private_key: &mc::PrivateKey<Self>) -> mc::Signature<Self> {
+    fn sign_vote(
+        &self,
+        vote: &Self::Vote,
+        private_key: &mc::PrivateKey<Self>,
+    ) -> mc::Signature<Self> {
         todo!()
     }
 
     fn verify_signed_vote(
+        &self,
         signed_vote: &mc::SignedVote<Self>,
         public_key: &mc::PublicKey<Self>,
     ) -> bool {
-        todo!()
+        use signature::Verifier;
+        use tm::vote::SignedVote;
+
+        let Some(signed_vote) =
+            SignedVote::from_vote(signed_vote.vote.0.clone(), self.chain_id.clone())
+        else {
+            return false;
+        };
+
+        let signed_bytes = signed_vote.sign_bytes();
+
+        let Ok(signature) = ed25519::Signature::try_from(signed_vote.signature().as_bytes()) else {
+            return false;
+        };
+
+        public_key.verify(&signed_bytes, &signature).is_ok()
     }
 
     fn new_proposal(
