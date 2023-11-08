@@ -6,6 +6,7 @@ members = [
   "driver",
   "round",
   "vote",
+  "tendermint",
   "test",
 ]
 
@@ -22,3 +23,4 @@ rand              = { version = "0.8.5", features = ["std_rng"] }
 secrecy           = "0.8.0"
 sha2              = "0.10.8"
 signature         = "2.1.0"
+tendermint        = { version = "0.34.0", default-features = false }

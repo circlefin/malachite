@@ -22,8 +22,6 @@ impl Context for TestContext {
     type Vote = Vote;
     type SigningScheme = Ed25519;
 
-    const DUMMY_VALUE: Self::Value = Value::new(9999);
-
     fn sign_vote(vote: &Self::Vote, private_key: &PrivateKey) -> Signature {
         use signature::Signer;
         private_key.sign(&vote.to_bytes())

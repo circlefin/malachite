@@ -1,9 +1,10 @@
-use malachite_common::{Context, Round, Timeout};
+use malachite_common::{Round, Timeout};
 use malachite_driver::{Driver, Event, Message};
 use malachite_round::state::{RoundValue, State, Step};
 
 use malachite_test::{
-    Address, Height, PrivateKey, Proposal, TestClient, TestContext, Validator, ValidatorSet, Vote,
+    Address, Height, PrivateKey, Proposal, TestClient, TestContext, Validator, ValidatorSet, Value,
+    Vote,
 };
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -28,7 +29,7 @@ fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
 
 #[test]
 fn driver_steps_proposer() {
-    let value = TestContext::DUMMY_VALUE;
+    let value = Value::new(9999);
     let value_id = value.id();
 
     let client = TestClient::new(value.clone(), |_| true);
@@ -220,7 +221,7 @@ fn driver_steps_proposer() {
 
 #[test]
 fn driver_steps_not_proposer_valid() {
-    let value = TestContext::DUMMY_VALUE;
+    let value = Value::new(9999);
     let value_id = value.id();
 
     let client = TestClient::new(value.clone(), |_| true);
@@ -413,7 +414,7 @@ fn driver_steps_not_proposer_valid() {
 
 #[test]
 fn driver_steps_not_proposer_invalid() {
-    let value = TestContext::DUMMY_VALUE;
+    let value = Value::new(9999);
     let value_id = value.id();
 
     let client = TestClient::new(value.clone(), |_| false);
@@ -552,7 +553,7 @@ fn driver_steps_not_proposer_invalid() {
 
 #[test]
 fn driver_steps_not_proposer_timeout_multiple_rounds() {
-    let value = TestContext::DUMMY_VALUE;
+    let value = Value::new(9999);
     let value_id = value.id();
 
     let mut rng = StdRng::seed_from_u64(0x42);

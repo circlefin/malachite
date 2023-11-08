@@ -23,7 +23,7 @@ where
     Ctx: Context,
 {
     /// The address of the validator, typically derived from its public key.
-    fn address(&self) -> &Ctx::Address;
+    fn address(&self) -> Ctx::Address;
 
     /// The public key of the validator, used to verify signatures.
     fn public_key(&self) -> &PublicKey<Ctx>;

@@ -43,8 +43,8 @@ impl Validator {
 }
 
 impl malachite_common::Validator<TestContext> for Validator {
-    fn address(&self) -> &Address {
-        &self.address
+    fn address(&self) -> Address {
+        self.address
     }
 
     fn public_key(&self) -> &PublicKey {
