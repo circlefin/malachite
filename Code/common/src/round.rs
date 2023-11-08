@@ -76,6 +76,24 @@ impl Ord for Round {
     }
 }
 
+impl From<i64> for Round {
+    fn from(round: i64) -> Self {
+        Self::new(round)
+    }
+}
+
+impl From<i32> for Round {
+    fn from(round: i32) -> Self {
+        Self::new(i64::from(round))
+    }
+}
+
+impl From<u32> for Round {
+    fn from(round: u32) -> Self {
+        Self::new(i64::from(round))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

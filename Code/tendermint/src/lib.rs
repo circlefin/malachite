@@ -25,31 +25,28 @@ impl mc::Proposal<Context> for Proposal {
     }
 
     fn round(&self) -> mc::Round {
-        mc::Round::new(i64::from(self.0.round.value()))
+        mc::Round::from(self.0.round.value())
     }
 
-    fn value(&self) -> &Block {
-        todo!()
+    fn value(&self) -> BlockId {
+        BlockId(self.0.block_id.unwrap()) // FIXME: unwrap
     }
 
     fn pol_round(&self) -> mc::Round {
         self.0
             .pol_round
-            .map_or(mc::Round::Nil, |r| mc::Round::new(i64::from(r.value())))
+            .map_or(mc::Round::Nil, |r| mc::Round::from(r.value()))
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BlockId(tm::block::Id);
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Block(tm::block::Block);
-
-impl mc::Value for Block {
+impl mc::Value for BlockId {
     type Id = BlockId;
 
-    fn id(&self) -> Self::Id {
-        todo!()
+    fn id(&self) -> BlockId {
+        self.clone()
     }
 }
 
@@ -96,7 +93,7 @@ pub struct Vote(tm::vote::Vote);
 
 impl mc::Vote<Context> for Vote {
     fn round(&self) -> mc::Round {
-        todo!()
+        mc::Round::from(self.0.round.value())
     }
 
     fn value(&self) -> Option<&BlockId> {
@@ -122,7 +119,7 @@ impl mc::Context for Context {
     type Proposal = Proposal;
     type Validator = Validator;
     type ValidatorSet = ValidatorSet;
-    type Value = Block;
+    type Value = BlockId;
     type Vote = Vote;
     type SigningScheme = crate::ed25519::Ed25519;
 
@@ -140,7 +137,7 @@ impl mc::Context for Context {
     fn new_proposal(
         height: Height,
         round: mc::Round,
-        value: Block,
+        value: BlockId,
         pol_round: mc::Round,
     ) -> Proposal {
         todo!()

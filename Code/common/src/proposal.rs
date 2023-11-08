@@ -15,8 +15,8 @@ where
     fn round(&self) -> Round;
 
     /// The value that is proposed.
-    fn value(&self) -> &Ctx::Value;
+    fn value(&self) -> Ctx::Value;
 
-    /// The POL round for which the proposal is for.
+    /// The POL round for which the proposal is for, can be `nil`.
     fn pol_round(&self) -> Round;
 }

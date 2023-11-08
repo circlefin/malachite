@@ -74,7 +74,7 @@ where
             if state
                 .locked
                 .as_ref()
-                .map_or(true, |locked| &locked.value == proposal.value())
+                .map_or(true, |locked| locked.value == proposal.value())
             {
                 state.proposal = Some(proposal.clone());
                 prevote(state, data.address, &proposal)
@@ -91,7 +91,7 @@ where
                 return prevote_nil(state, data.address);
             };
 
-            if locked.round <= proposal.pol_round() || &locked.value == proposal.value() {
+            if locked.round <= proposal.pol_round() || locked.value == proposal.value() {
                 prevote(state, data.address, &proposal)
             } else {
                 prevote_nil(state, data.address)
