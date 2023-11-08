@@ -45,7 +45,7 @@ action FireEvent(eventName: str, proc: Address_t, h: Height_t, r: Round_t, value
 }
 
 action step = any {
-    nondet name = oneOf(consensusEvents)
+    nondet name = oneOf(ConsensusEvents)
     nondet height = 1//oneOf(1.to(4))
     nondet round = 0//oneOf(1.to(4))
     nondet value = oneOf(Set("block 1", "block 2", "block 3"))

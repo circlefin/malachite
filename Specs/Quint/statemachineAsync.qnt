@@ -38,11 +38,15 @@ val Steps = Set("Prevote", "Precommit")
 
 val AllFaultyVotes : Set[VoteMsg_t] = 
     tuples(Faulty, Heights, Rounds, Values, Steps)
-    .map((p, h, r, v, s) => { src: p, height: h, round: r, id: v, step: s })
+    .map(t => { src: t._1, height: t._2, round: t._3, id: t._4, step: t._5 })
+
+// val AllFaultyVotes : Set[VoteMsg_t] = 
+//     tuples(Faulty, Heights, Rounds, Values, Steps)
+//     .map((p, h, r, v, s) => { src: p, height: h, round: r, id: v, step: s })
 
 val AllFaultyProposals : Set[ProposeMsg_t] =
     tuples(Faulty, Heights, Rounds, Values, RoundsOrNil)
-    .map((p, h, r, v, vr) => { src: p, height: h, round: r, proposal: v, validRound: vr })
+    .map(t => { src: t._1, height: t._2, round: t._3, proposal: t._4, validRound: t._5 })
 
 
 // Global State
@@ -61,10 +65,10 @@ action unchangedAll = all {
     _hist' = _hist
 }
 
-val AgreementInv = tuples(Correct, Correct).forall((p,q) => 
-    (system.get(p).es.chain != List() and system.get(q).es.chain != List())
+val AgreementInv = tuples(Correct, Correct).forall(p => 
+    (system.get(p._1).es.chain != List() and system.get(p._2).es.chain != List())
         implies
-            system.get(p).es.chain[0] == system.get(q).es.chain[0])
+            system.get(p._1).es.chain[0] == system.get(p._2).es.chain[0])
 
 // Actions
 action init = all {

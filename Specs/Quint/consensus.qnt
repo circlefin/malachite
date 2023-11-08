@@ -106,7 +106,7 @@ type ConsResult = {
 
 type ConsensusEvent = str
 
-val consensusEvents = Set(
+val ConsensusEvents = Set(
     "NewHeight",			// Setups the state-machine for a single-height execution
     "NewRound",              		// Start a new round, not as proposer.
     "NewRoundProposer", 		// Start a new round as proposer with the proposed Value.
