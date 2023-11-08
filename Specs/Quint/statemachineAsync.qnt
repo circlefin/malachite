@@ -12,17 +12,19 @@ import executor.* from "./executor"
 import consensus.* from "./consensus"
 import voteBookkeeper.* from "./voteBookkeeper"
 
-val validators = Set("v1", "v2", "v3", "v4")
-val validatorSet = validators.mapBy(x => 1)
-val Faulty = Set("v1", "v2")
+const validators : Set[Address_t]
+const validatorSet : Address_t -> int
+const Faulty  : Set[Address_t]
 val Correct = validators.exclude(Faulty)
 
+// These are used to define what messages can be sent by faulty validators
+const Values : Set[Value_t]
+const Rounds : Set[Round_t]
+const Heights : Set[Height_t]
 
-// putting all messages that could be ever sent into 
+// putting all messages that could be ever sent by faulty validators into 
 // AllFaultyVotes and AllFaultyProposals
-val Values = Set("a", "b")
-val Rounds = Set(0)  // , 1, 2, 3)
-val Heights = Set(0) // , 1, 2, 3)
+
 val RoundsOrNil = Rounds.union(Set(-1))
 val Steps = Set("Prevote", "Precommit")
 
@@ -166,57 +168,5 @@ action step = {
     }
 }
 
-// v3 and v4 are correct. v2 is a faulty proposal and proposes differently to v3 and v4
-// this run leads to disagreement
-run DisagreementTest = {
-    init
-    .then(valStep("v3"))
-    .then(valStep("v4"))
-    .then(deliverProposal("v3", { height: 0, proposal: "b", round: 0, src: "v2", validRound: -1 }))
-    .then(deliverProposal("v4", { height: 0, proposal: "a", round: 0, src: "v2", validRound: -1 }))
-    .then(valStep("v3"))
-    .then(valStep("v4"))
-    .then(all{
-        // they voted differently
-        assert(voteBuffer == Map(
-            "v3" -> Set({ height: 0, id: "a", round: 0, src: "v4", step: "Prevote" },  
-                        { height: 0, id: "b", round: 0, src: "v3", step: "Prevote" }),
-            "v4" -> Set({ height: 0, id: "a", round: 0, src: "v4", step: "Prevote" }, 
-                        { height: 0, id: "b", round: 0, src: "v3", step: "Prevote" }))),
-            deliverVote("v4", { height: 0, id: "a", round: 0, src: "v1", step: "Prevote" })
-    })
-    .then(deliverVote("v4", { height: 0, id: "a", round: 0, src: "v2", step: "Prevote" }))
-    .then(deliverVote("v3", { height: 0, id: "b", round: 0, src: "v1", step: "Prevote" }))
-    .then(deliverVote("v3", { height: 0, id: "b", round: 0, src: "v2", step: "Prevote" }))
-    .then(deliverVote("v3", { height: 0, id: "b", round: 0, src: "v3", step: "Prevote" }))
-    .then(deliverVote("v4", { height: 0, id: "a", round: 0, src: "v4", step: "Prevote" }))
-    .then(valStep("v3"))  
-    .then(valStep("v3"))   
-    .then(valStep("v3"))
-    .then(valStep("v4"))
-    .then(valStep("v4"))
-    .then(valStep("v4"))
-    .then(all{
-        // they precommited differently
-        assert( voteBuffer.get("v3").contains({ height: 0, id: "a", round: 0, src: "v4", step: "Precommit" }) and
-                voteBuffer.get("v4").contains({ height: 0, id: "b", round: 0, src: "v3", step: "Precommit" })), 
-        deliverVote("v4", { height: 0, id: "a", round: 0, src: "v1", step: "Precommit" }) })
-    .then(deliverVote("v4", { height: 0, id: "a", round: 0, src: "v2", step: "Precommit" }))    
-    .then(deliverVote("v3", { height: 0, id: "b", round: 0, src: "v1", step: "Precommit" })) 
-    .then(deliverVote("v3", { height: 0, id: "b", round: 0, src: "v2", step: "Precommit" })) 
-    .then(valStep("v3"))  
-    .then(valStep("v3"))   
-    .then(valStep("v4"))
-    .then(valStep("v4"))
-    .then(all{
-        assert(AgreementInv),
-        deliverVote("v4", { height: 0, id: "a", round: 0, src: "v4", step: "Precommit" }) })
-    .then(deliverVote("v3", { height: 0, id: "b", round: 0, src: "v3", step: "Precommit" }))
-    .then(valStep("v3"))   
-    .then(valStep("v4"))
-    .then(all{
-        assert(not(AgreementInv)),
-        unchangedAll})   
-}
 
 }
