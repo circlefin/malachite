@@ -1,5 +1,3 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-
 use malachite_common::VotingPower;
 
 use crate::{signing::PublicKey, TestContext};
@@ -61,8 +59,7 @@ impl malachite_common::Validator<TestContext> for Validator {
 
 /// A validator set contains a list of validators sorted by address.
 pub struct ValidatorSet {
-    validators: Vec<Validator>,
-    proposer: AtomicUsize,
+    pub validators: Vec<Validator>,
 }
 
 impl ValidatorSet {
@@ -72,10 +69,7 @@ impl ValidatorSet {
 
         assert!(!validators.is_empty());
 
-        Self {
-            validators,
-            proposer: AtomicUsize::new(0),
-        }
+        Self { validators }
     }
 
     /// The total voting power of the validator set
@@ -135,16 +129,6 @@ impl ValidatorSet {
 
         vals.dedup();
     }
-
-    pub fn get_proposer(&self) -> &Validator {
-        // TODO: Proper implementation
-        assert!(!self.validators.is_empty());
-
-        let idx = self.proposer.load(Ordering::Relaxed) % self.validators.len();
-        self.proposer.fetch_add(1, Ordering::Relaxed);
-
-        &self.validators[idx]
-    }
 }
 
 impl malachite_common::ValidatorSet<TestContext> for ValidatorSet {
@@ -154,10 +138,6 @@ impl malachite_common::ValidatorSet<TestContext> for ValidatorSet {
 
     fn get_by_public_key(&self, public_key: &PublicKey) -> Option<&Validator> {
         self.get_by_public_key(public_key)
-    }
-
-    fn get_proposer(&self) -> &Validator {
-        self.get_proposer()
     }
 
     fn get_by_address(&self, address: &Address) -> Option<&Validator> {

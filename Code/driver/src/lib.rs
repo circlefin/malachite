@@ -15,8 +15,10 @@ mod client;
 mod driver;
 mod event;
 mod message;
+mod proposer;
 
 pub use client::Client;
 pub use driver::Driver;
 pub use event::Event;
 pub use message::Message;
+pub use proposer::ProposerSelector;

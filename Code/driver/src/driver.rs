@@ -15,18 +15,23 @@ use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
 
+use crate::client::Client as EnvClient;
 use crate::event::Event;
 use crate::message::Message;
+use crate::ProposerSelector;
 
 /// Driver for the state machine of the Malachite consensus engine.
 #[derive(Clone, Debug)]
-pub struct Driver<Ctx, Client>
+pub struct Driver<Ctx, Client, PSel>
 where
     Ctx: Context,
-    Client: crate::client::Client<Ctx>,
+    Client: EnvClient<Ctx>,
+    PSel: ProposerSelector<Ctx>,
 {
     pub ctx: Ctx,
     pub client: Client,
+    pub proposer_selector: PSel,
+
     pub height: Ctx::Height,
     pub private_key: Secret<PrivateKey<Ctx>>,
     pub address: Ctx::Address,
@@ -37,14 +42,16 @@ where
     pub round_states: BTreeMap<Round, RoundState<Ctx>>,
 }
 
-impl<Ctx, Client> Driver<Ctx, Client>
+impl<Ctx, Client, PSel> Driver<Ctx, Client, PSel>
 where
     Ctx: Context,
-    Client: crate::client::Client<Ctx>,
+    Client: EnvClient<Ctx>,
+    PSel: ProposerSelector<Ctx>,
 {
     pub fn new(
         ctx: Ctx,
         client: Client,
+        proposer_selector: PSel,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
         private_key: PrivateKey<Ctx>,
@@ -55,6 +62,7 @@ where
         Self {
             ctx,
             client,
+            proposer_selector,
             height,
             private_key: Secret::new(private_key),
             address,
@@ -115,8 +123,16 @@ where
     }
 
     fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<Ctx>> {
-        let proposer = self.validator_set.get_proposer();
+        let proposer_address = self
+            .proposer_selector
+            .select_proposer(round, &self.validator_set);
 
+        let proposer = self
+            .validator_set
+            .get_by_address(&proposer_address)
+            .expect("proposer not found"); // FIXME: expect
+
+        // TODO: Write this check differently, maybe just based on the address
         let event = if proposer.public_key() == &self.private_key.expose_secret().verifying_key() {
             let value = self.get_value();
             RoundEvent::NewRoundProposer(value)

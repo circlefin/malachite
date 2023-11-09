@@ -42,9 +42,6 @@ where
     /// The total voting power of the validator set.
     fn total_voting_power(&self) -> VotingPower;
 
-    /// The proposer in the validator set.
-    fn get_proposer(&self) -> &Ctx::Validator;
-
     /// Get the validator with the given public key.
     fn get_by_public_key(&self, public_key: &PublicKey<Ctx>) -> Option<&Ctx::Validator>;
 
