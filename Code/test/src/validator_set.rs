@@ -149,10 +149,6 @@ impl malachite_common::ValidatorSet<TestContext> for ValidatorSet {
         self.total_voting_power()
     }
 
-    fn get_by_public_key(&self, public_key: &PublicKey) -> Option<&Validator> {
-        self.get_by_public_key(public_key)
-    }
-
     fn get_proposer(&self) -> &Validator {
         self.get_proposer()
     }

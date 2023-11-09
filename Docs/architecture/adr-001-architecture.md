@@ -36,7 +36,7 @@ The consensus implementation comprises three components:
 
 ![Consensus SM Architecture Diagram](assets/sm_arch.jpeg)
 
-The components of the consensus implementation as well as the associated abstractions are described below, after a discussion on terminology.
+The components of the consensus implementation as well as the associated abstractions are described in more detail below.
 
 ### Data Types & Abstractions
 
@@ -124,21 +124,16 @@ pub enum Event<C>
 where
     C: Context
 {
-    StartRound(Round),          // Start a new round, currently must be 0
-    Proposal(C::Proposal),      // A proposal has been received, must be complete
-    Vote(SignedVote<C>),        // A vote has been received
-    TimeoutElapsed(Timeout),    // A timeout has elapsed
+    StartRound(Round),            // Start a new round
+    Proposal(C::Proposal, Valid), // A proposal has been received, must be complete
+    Vote(SignedVote<C>),          // A vote has been received
+    TimeoutElapsed(Timeout),      // A timeout has elapsed
 }
 
 ```
 Notes:
-- TBD: Round `0` is always started by an external module. Subsequent rounds may be managed by the driver, or it could be the responsibility of the external module to start a new round.
-  - Could also push the retrieval of the value to the external module, e.g. have `StartRoundProposer(round, proposal)`
-  - Is the change to `StartRound` ok? It matches the paper and (the old name) `NewRound` is also used in some places as output message.
-- TBD: The proposal must be complete, i.e. it must contain a complete value. If this value is sent by the proposer in chunks, it is the responsibility of the chain concrete implementation to collect the proposal for the value ID together with the chunks to create a complete proposal.
-- TBD: The proposal should also implement `valid(v)`. Alternatively, the caller could do the verification and use the following inputs:
-  - `Proposal(C::Proposal)` - a valid proposal has been received
-  - `ProposalInvalid` - an invalid proposal has been received
+- Round `0` is always started by an external module. Subsequent rounds are started by the driver when the Round State Machine indicates it via the `NewRound` message.
+- A proposal event must include a proposal and a `valid` flag indicating if the proposal is valid. The proposal must be complete, i.e. it must contain a complete value or an identifier of the value (`id(v)`). If the value is sent by the proposer in multiple parts, it is the responsibility of the consensus environment to collect and verify all the parts and the proposal message in order to create a complete proposal and the validity flag.
 - `Vote` can be a `Prevote` or `Precommit` vote.
 - The driver interacts with the host system to start timers and expects to receive timeout events for the timers that it started and have fired. The timeouts can be:
 ```
@@ -147,13 +142,20 @@ Notes:
     Precommit,
 ```
 
-TODO: Consolidate the terminology around Events and Messages.
-
 ##### Operation
 
 The Driver sends votes to the Vote Keeper module. The Driver expects that whenever the Keeper observes any threshold of votes for the first time it returns that to the Driver.
 
-Based on its state and the results received from the Vote Keeper, the Driver sends events to the Round State Machine which, once it processes the Driver events, returns consensus-related messages back to the Driver. The Driver then processes these messages and sends them to the peer-to-peer layer, the host system, or other external modules.
+Based on its state and the results received from the Vote Keeper, the Driver sends events to the Round State Machine which, once it processes the Driver events, returns consensus-related messages back to the Driver. The Driver then processes these messages and sends them to the consensus environment, the host system, or in some cases processes them internally (e.g. `NewRound(round)` message).
+
+Notes:
+- Proposals and vote messages must be signed by the sender and validated by the receiver. Signer must be the proposer for `Proposal` and a validator for `Vote`.
+  - TBD: Should the driver perform any signature verification of the messages it receives from the consensus environment (see `verify_signed_vote()` in `Context` trait? Or are we assuming that the consensus environment performs this validation?
+- On `StartRound(round)` event, the Driver must determine if it is the proposer for the given round. For this it needs access to a `validator_set.get_proposer(round)` method or similar.
+- TBD: When skipping to a new round, it may be beneficial to mutate the validator set such that the proposer for the new round is different from the proposer of the previous round, i.e. access to `validator_set.update_proposer()` method (or similar) may be required.
+- When building a proposal the driver will use the `get_value()` method of the environment context to retrieve the value to propose. It will block until a value is available or a (propose) timeout occurs.
+  - It is TBD which Rust constructs will be used to implement this behavior.
+  - TBD how the Round SM could start the propose timer if we block on `get_value()` in the driver.
 
 ##### Output Messages (External Dependencies)
 
@@ -168,6 +170,8 @@ where
     ScheduleTimeout(Timeout),  // Request the host system to start a timer
 }
 ```
+Notes:
+- Should the driver sign the messages before sending them to the consensus environment (see `sign_vote()` in `Context` trait)? Or are we assuming that the consensus environment does this?
 
 #### Vote Keeper
 
@@ -200,10 +204,9 @@ where
     per_round: BTreeMap<Round, PerRound<C>>,
 }
 ```
-Note: The above is a first draft and is likely to change:
+
 - The quorum and minimum correct validator thresholds are passed in as parameters during initialization. These are used for the different threshold calculations.
 - The `validator_set` is used to detect equivocation; also to ensure that prevote and precommit messages from the same validator are not counted twice for the same round, e.g. in the case of the `honest_threshold` case (`f+1` in L55 in the BFT paper) for prevotes and precommits.
-- TBD: may require future changes if the keeper also handles proposal messages.
 
 ##### Input Events (Internal APIs)
 
@@ -268,7 +271,7 @@ where
 The events passed to the Round state machine are very close to the preconditions for the transition functions in the BFT paper, i.e., the `upon` clauses.
 In addition:
 - The `StartRound` events specify if the SM runs in the proposer mode or not. In the former case, the driver also passes a valid value to the round SM.
-- There are two `Poposal` events, for valid and invalid values respectively. Therefore, the `valid(v)` check is not performed in the round SM but externally by the driver (TODO TBD who exactly does that)
+- There are two `Poposal` events, for valid and invalid values respectively. Therefore, the `valid(v)` check is not performed in the round SM but by the Driver
 
 ```rust
 pub enum Event<C> 
