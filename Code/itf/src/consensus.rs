@@ -1,4 +1,4 @@
-use itf::ItfMap;
+use itf::{ItfBigInt, ItfMap};
 use serde::Deserialize;
 
 use crate::deserializers as de;
@@ -6,8 +6,8 @@ use crate::deserializers as de;
 pub type Address = String;
 pub type Value = String;
 pub type Step = String;
-pub type Round = i64;
-pub type Height = i64;
+pub type Round = ItfBigInt;
+pub type Height = ItfBigInt;
 
 #[derive(Clone, Debug, Deserialize)]
 pub enum Timeout {
@@ -132,9 +132,9 @@ impl Proposal {
     pub fn is_empty(&self) -> bool {
         self.src.is_empty()
             && self.proposal.is_empty()
-            && self.height == -1
-            && self.round == -1
-            && self.valid_round == -1
+            && self.height == ItfBigInt::from(-1)
+            && self.round == ItfBigInt::from(-1)
+            && self.valid_round == ItfBigInt::from(-1)
     }
 }
 
@@ -152,8 +152,8 @@ impl VoteMessage {
     pub fn is_empty(&self) -> bool {
         self.src.is_empty()
             && self.id.is_empty()
-            && self.height == -1
-            && self.round == -1
+            && self.height == ItfBigInt::from(-1)
+            && self.round == ItfBigInt::from(-1)
             && self.step.is_empty()
     }
 }

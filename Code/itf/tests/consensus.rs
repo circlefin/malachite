@@ -7,6 +7,7 @@ fn parse_fixtures() {
     let fixtures = std::fs::read_dir(folder)
         .unwrap()
         .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().map_or(false, |ext| ext == "json"))
         .collect::<Vec<_>>();
 
     for fixture in fixtures {

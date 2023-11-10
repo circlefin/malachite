@@ -1,3 +1,4 @@
+use itf::ItfBigInt;
 use serde::de::IntoDeserializer;
 use serde::Deserialize;
 
@@ -15,15 +16,15 @@ where
     }
 }
 
-pub(crate) fn minus_one_as_none<'de, D, T>(de: D) -> Result<Option<T>, D::Error>
+pub(crate) fn minus_one_as_none<'de, D>(de: D) -> Result<Option<ItfBigInt>, D::Error>
 where
     D: serde::Deserializer<'de>,
-    T: serde::Deserialize<'de>,
 {
-    let opt = Option::<i64>::deserialize(de)?;
+    let opt = Option::<ItfBigInt>::deserialize(de)?;
     match opt {
-        None | Some(-1) => Ok(None),
-        Some(i) => T::deserialize(i.into_deserializer()).map(Some),
+        None => Ok(None),
+        Some(i) if i == ItfBigInt::from(-1) => Ok(None),
+        Some(i) => Ok(Some(i)),
     }
 }
 
