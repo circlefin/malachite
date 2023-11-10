@@ -9,5 +9,4 @@ license.workspace      = true
 publish.workspace      = true
 
 [dependencies]
-secrecy.workspace   = true
 signature.workspace = true
