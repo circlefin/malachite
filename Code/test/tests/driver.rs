@@ -28,7 +28,6 @@ fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
 
 #[test]
 fn driver_steps_proposer() {
-    let ctx = TestContext;
     let value = TestContext::DUMMY_VALUE;
     let value_id = value.id();
 
@@ -49,6 +48,8 @@ fn driver_steps_proposer() {
     let v3 = Validator::new(sk3.public_key(), 3);
 
     let (my_sk, my_addr) = (sk1, addr1);
+
+    let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
     let mut driver = Driver::new(ctx, client, Height::new(1), vs, my_sk.clone(), my_addr);
@@ -221,7 +222,6 @@ fn driver_steps_proposer() {
 
 #[test]
 fn driver_steps_not_proposer_valid() {
-    let ctx = TestContext;
     let value = TestContext::DUMMY_VALUE;
     let value_id = value.id();
 
@@ -243,6 +243,8 @@ fn driver_steps_not_proposer_valid() {
 
     // Proposer is v1, so we are not the proposer
     let (my_sk, my_addr) = (sk2, addr2);
+
+    let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
     let mut driver = Driver::new(ctx, client, Height::new(1), vs, my_sk.clone(), my_addr);
@@ -415,7 +417,6 @@ fn driver_steps_not_proposer_valid() {
 
 #[test]
 fn driver_steps_not_proposer_invalid() {
-    let ctx = TestContext;
     let value = TestContext::DUMMY_VALUE;
     let value_id = value.id();
 
@@ -437,6 +438,8 @@ fn driver_steps_not_proposer_invalid() {
 
     // Proposer is v1, so we are not the proposer
     let (my_sk, my_addr) = (sk2, addr2);
+
+    let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
     let mut driver = Driver::new(ctx, client, Height::new(1), vs, my_sk.clone(), my_addr);
@@ -555,7 +558,6 @@ fn driver_steps_not_proposer_invalid() {
 
 #[test]
 fn driver_steps_not_proposer_timeout_multiple_rounds() {
-    let ctx = TestContext;
     let value = TestContext::DUMMY_VALUE;
     let value_id = value.id();
 
@@ -575,6 +577,8 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
 
     // Proposer is v1, so we, v3, are not the proposer
     let (my_sk, my_addr) = (sk3, addr3);
+
+    let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
     let client = TestClient::new(value.clone(), |_| true);

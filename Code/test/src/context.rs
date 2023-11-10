@@ -4,13 +4,21 @@ use malachite_common::SignedVote;
 
 use crate::height::*;
 use crate::proposal::*;
-use crate::signing::{Ed25519, PrivateKey, PublicKey, Signature};
+use crate::signing::{Ed25519, PrivateKey, PublicKey};
 use crate::validator_set::*;
 use crate::value::*;
 use crate::vote::*;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct TestContext;
+#[derive(Clone, Debug)]
+pub struct TestContext {
+    private_key: PrivateKey,
+}
+
+impl TestContext {
+    pub fn new(private_key: PrivateKey) -> Self {
+        Self { private_key }
+    }
+}
 
 impl Context for TestContext {
     type Address = Address;
@@ -24,9 +32,10 @@ impl Context for TestContext {
 
     const DUMMY_VALUE: Self::Value = Value::new(9999);
 
-    fn sign_vote(&self, vote: &Self::Vote, private_key: &PrivateKey) -> Signature {
+    fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self> {
         use signature::Signer;
-        private_key.sign(&vote.to_bytes())
+        let signature = self.private_key.sign(&vote.to_bytes());
+        SignedVote::new(vote, signature)
     }
 
     fn verify_signed_vote(&self, signed_vote: &SignedVote<Self>, public_key: &PublicKey) -> bool {

@@ -92,9 +92,7 @@ where
             }
 
             RoundMessage::Vote(vote) => {
-                let signature = self.ctx.sign_vote(&vote, self.private_key.expose_secret());
-                let signed_vote = SignedVote::new(vote, signature);
-
+                let signed_vote = self.ctx.sign_vote(vote);
                 Some(Message::Vote(signed_vote))
             }
 
