@@ -10,10 +10,12 @@ pub struct Address([u8; Self::LENGTH]);
 impl Address {
     const LENGTH: usize = 20;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub const fn new(value: [u8; Self::LENGTH]) -> Self {
         Self(value)
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn from_public_key(public_key: &PublicKey) -> Self {
         let hash = public_key.hash();
         let mut address = [0; Self::LENGTH];
@@ -33,6 +35,7 @@ pub struct Validator {
 }
 
 impl Validator {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn new(public_key: PublicKey, voting_power: VotingPower) -> Self {
         Self {
             address: Address::from_public_key(&public_key),

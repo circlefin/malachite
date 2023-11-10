@@ -47,6 +47,7 @@ impl<Ctx: Context> Message<Ctx> {
 //       which may not hold for all contexts.
 
 impl<Ctx: Context> Clone for Message<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         match self {
             Message::NewRound(round) => Message::NewRound(*round),
@@ -59,6 +60,7 @@ impl<Ctx: Context> Clone for Message<Ctx> {
 }
 
 impl<Ctx: Context> fmt::Debug for Message<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Message::NewRound(round) => write!(f, "NewRound({:?})", round),
@@ -71,6 +73,7 @@ impl<Ctx: Context> fmt::Debug for Message<Ctx> {
 }
 
 impl<Ctx: Context> PartialEq for Message<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Message::NewRound(round), Message::NewRound(other_round)) => round == other_round,

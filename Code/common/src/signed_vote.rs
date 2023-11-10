@@ -30,6 +30,7 @@ where
 //       which may not hold for all contexts.
 
 impl<Ctx: Context> Clone for SignedVote<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         Self {
             vote: self.vote.clone(),
@@ -39,6 +40,7 @@ impl<Ctx: Context> Clone for SignedVote<Ctx> {
 }
 
 impl<Ctx: Context> fmt::Debug for SignedVote<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SignedVote")
             .field("vote", &self.vote)
@@ -48,6 +50,7 @@ impl<Ctx: Context> fmt::Debug for SignedVote<Ctx> {
 }
 
 impl<Ctx: Context> PartialEq for SignedVote<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn eq(&self, other: &Self) -> bool {
         self.vote == other.vote && self.signature == other.signature
     }

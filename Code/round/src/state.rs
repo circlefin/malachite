@@ -102,6 +102,7 @@ impl<Ctx> Clone for State<Ctx>
 where
     Ctx: Context,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         Self {
             round: self.round,
@@ -117,6 +118,7 @@ impl<Ctx> fmt::Debug for State<Ctx>
 where
     Ctx: Context,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("State")
             .field("round", &self.round)
@@ -132,6 +134,7 @@ impl<Ctx> PartialEq for State<Ctx>
 where
     Ctx: Context,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn eq(&self, other: &Self) -> bool {
         self.round == other.round
             && self.step == other.step

@@ -19,6 +19,7 @@ where
 //       which may not hold for all contexts.
 
 impl<Ctx: Context> Clone for Message<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         match self {
             Message::Propose(proposal) => Message::Propose(proposal.clone()),
@@ -31,6 +32,7 @@ impl<Ctx: Context> Clone for Message<Ctx> {
 }
 
 impl<Ctx: Context> fmt::Debug for Message<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Message::Propose(proposal) => write!(f, "Propose({:?})", proposal),
@@ -43,6 +45,7 @@ impl<Ctx: Context> fmt::Debug for Message<Ctx> {
 }
 
 impl<Ctx: Context> PartialEq for Message<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Message::Propose(proposal), Message::Propose(other_proposal)) => {
