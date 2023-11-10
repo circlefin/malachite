@@ -1,15 +1,19 @@
 use malachite_itf::votekeeper::State;
 
-const FIXTURES: &[&str] = &["votekeeper.itf.json"];
-
 #[test]
 fn parse_fixtures() {
-    for fixture in FIXTURES {
-        println!("Parsing '{fixture}'");
+    // read fixtures files in test/fixtures/votekeeper/
+    let folder = format!("{}/tests/fixtures/votekeeper", env!("CARGO_MANIFEST_DIR"));
 
-        let path = format!("{}/tests/fixtures/{}", env!("CARGO_MANIFEST_DIR"), fixture);
+    let fixtures = std::fs::read_dir(folder)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect::<Vec<_>>();
 
-        let json = std::fs::read_to_string(&path).unwrap();
+    for fixture in fixtures {
+        println!("Parsing '{}'", fixture.display());
+
+        let json = std::fs::read_to_string(&fixture).unwrap();
         let trace = itf::trace_from_str::<State>(&json).unwrap();
 
         dbg!(trace);
