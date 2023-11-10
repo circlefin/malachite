@@ -267,7 +267,7 @@ module voteBookkeeper {
       lastEmitted' = lastEmitted
     }
 
-    action init(totalWeight: Weight): bool = all {
+    action initial(totalWeight: Weight): bool = all {
         bookkeeper' = {height: 10, totalWeight: totalWeight, rounds: Map()},
         lastEmitted' = {round: -1, name: "", value: "null"}
     }
@@ -280,6 +280,23 @@ module voteBookkeeper {
         }   
     }
 
+    action init = all {
+        initial(100)
+    }
+
+    action step = all {
+        nondet validator = oneOf(Set(
+            { address: "alice", weight: 60 },
+            { address: "bob", weight: 30 },
+            { address: "john", weight: 10 }
+        ))
+        nondet typ = oneOf(Set("Prevote", "Precommit"))
+        nondet value = oneOf(Set("null", "proposal"))
+        
+        val vote = {typ: typ, round: 1, value: value, address: validator.address}
+        applyVoteAction(vote, validator.weight)
+    }
+
     // ****************************************************************************
     // Test traces
     // ****************************************************************************
@@ -288,7 +305,7 @@ module voteBookkeeper {
     // all messages are received in order. We assume three validators in the validator set wtih 60%, 30% and 10%
     // each of the total voting power
     run synchronousConsensusTest = {
-        init(100)
+        initial(100)
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "alice"}, 60))
         .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "john"}, 10))
@@ -305,7 +322,7 @@ module voteBookkeeper {
 
     // Reaching PolkaAny 
     run polkaAnyTest = {
-        init(100)
+        initial(100)
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "alice"}, 60))
         .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "john"}, 10))
@@ -314,7 +331,7 @@ module voteBookkeeper {
 
     // Reaching PolkaNil
     run polkaNilTest = {
-        init(100)
+        initial(100)
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "alice"}, 60))
         .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "john"}, 10))
