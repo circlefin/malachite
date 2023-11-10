@@ -1,6 +1,6 @@
-use malachite_itf::consensus::State;
+use malachite_itf::votekeeper::State;
 
-const FIXTURES: &[&str] = &["DecideNonProposerTest0.itf.json"];
+const FIXTURES: &[&str] = &["votekeeper.itf.json"];
 
 #[test]
 fn parse_fixtures() {
@@ -10,8 +10,8 @@ fn parse_fixtures() {
         let path = format!("{}/tests/fixtures/{}", env!("CARGO_MANIFEST_DIR"), fixture);
 
         let json = std::fs::read_to_string(&path).unwrap();
-        let state = itf::trace_from_str::<State>(&json).unwrap();
+        let trace = itf::trace_from_str::<State>(&json).unwrap();
 
-        dbg!(state);
+        dbg!(trace);
     }
 }

@@ -1,7 +1,7 @@
 use serde::de::IntoDeserializer;
 use serde::Deserialize;
 
-use crate::{Proposal, VoteMessage};
+use crate::consensus::{Proposal, VoteMessage};
 
 pub(crate) fn empty_string_as_none<'de, D, T>(de: D) -> Result<Option<T>, D::Error>
 where
