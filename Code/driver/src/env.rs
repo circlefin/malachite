@@ -4,10 +4,10 @@ use async_trait::async_trait;
 
 use malachite_common::Context;
 
-/// Client for use by the [`Driver`](crate::Driver) to ask
+/// Environment for use by the [`Driver`](crate::Driver) to ask
 /// for a value to propose and validate proposals.
 #[async_trait]
-pub trait Client<Ctx>
+pub trait Env<Ctx>
 where
     Ctx: Context,
 {

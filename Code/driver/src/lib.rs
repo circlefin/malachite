@@ -14,14 +14,14 @@
 
 extern crate alloc;
 
-mod client;
 mod driver;
+mod env;
 mod event;
 mod message;
 mod proposer;
 
-pub use client::Client;
 pub use driver::Driver;
+pub use env::Env;
 pub use event::Event;
 pub use message::Message;
 pub use proposer::ProposerSelector;

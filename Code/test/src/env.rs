@@ -1,22 +1,22 @@
 use async_trait::async_trait;
 
-use malachite_driver::Client;
+use malachite_driver::Env;
 
 use crate::{Proposal, TestContext, Value};
 
-pub struct TestClient {
+pub struct TestEnv {
     pub value: Value,
     pub is_valid: fn(&Proposal) -> bool,
 }
 
-impl TestClient {
+impl TestEnv {
     pub fn new(value: Value, is_valid: fn(&Proposal) -> bool) -> Self {
         Self { value, is_valid }
     }
 }
 
 #[async_trait]
-impl Client<TestContext> for TestClient {
+impl Env<TestContext> for TestEnv {
     async fn get_value(&self) -> Value {
         self.value.clone()
     }
