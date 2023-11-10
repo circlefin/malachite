@@ -30,10 +30,6 @@ impl Value {
         self.0
     }
 
-    pub const fn valid(&self) -> bool {
-        self.0 > 0
-    }
-
     pub const fn id(&self) -> ValueId {
         ValueId(self.0)
     }
@@ -44,11 +40,5 @@ impl malachite_common::Value for Value {
 
     fn id(&self) -> ValueId {
         self.id()
-    }
-}
-
-impl From<u64> for Value {
-    fn from(value: u64) -> Self {
-        Self::new(value)
     }
 }

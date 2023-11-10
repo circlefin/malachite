@@ -1,8 +1,9 @@
+use core::fmt;
+
 use malachite_common::{Context, Round, Timeout, TimeoutStep, ValueId};
 
 use crate::state::RoundValue;
 
-#[derive(Debug, PartialEq, Eq)]
 pub enum Message<Ctx>
 where
     Ctx: Context,
@@ -14,25 +15,7 @@ where
     Decision(RoundValue<Ctx::Value>), // Decide the value.
 }
 
-impl<Ctx> Clone for Message<Ctx>
-where
-    Ctx: Context,
-{
-    fn clone(&self) -> Self {
-        match self {
-            Message::NewRound(round) => Message::NewRound(*round),
-            Message::Proposal(proposal) => Message::Proposal(proposal.clone()),
-            Message::Vote(vote) => Message::Vote(vote.clone()),
-            Message::ScheduleTimeout(timeout) => Message::ScheduleTimeout(*timeout),
-            Message::Decision(round_value) => Message::Decision(round_value.clone()),
-        }
-    }
-}
-
-impl<Ctx> Message<Ctx>
-where
-    Ctx: Context,
-{
+impl<Ctx: Context> Message<Ctx> {
     pub fn proposal(
         height: Ctx::Height,
         round: Round,
@@ -58,3 +41,55 @@ where
         Message::Decision(RoundValue { round, value })
     }
 }
+
+// NOTE: We have to derive these instances manually, otherwise
+//       the compiler would infer a Clone/Debug/PartialEq/Eq bound on `Ctx`,
+//       which may not hold for all contexts.
+
+impl<Ctx: Context> Clone for Message<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn clone(&self) -> Self {
+        match self {
+            Message::NewRound(round) => Message::NewRound(*round),
+            Message::Proposal(proposal) => Message::Proposal(proposal.clone()),
+            Message::Vote(vote) => Message::Vote(vote.clone()),
+            Message::ScheduleTimeout(timeout) => Message::ScheduleTimeout(*timeout),
+            Message::Decision(round_value) => Message::Decision(round_value.clone()),
+        }
+    }
+}
+
+impl<Ctx: Context> fmt::Debug for Message<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Message::NewRound(round) => write!(f, "NewRound({:?})", round),
+            Message::Proposal(proposal) => write!(f, "Proposal({:?})", proposal),
+            Message::Vote(vote) => write!(f, "Vote({:?})", vote),
+            Message::ScheduleTimeout(timeout) => write!(f, "ScheduleTimeout({:?})", timeout),
+            Message::Decision(round_value) => write!(f, "Decision({:?})", round_value),
+        }
+    }
+}
+
+impl<Ctx: Context> PartialEq for Message<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Message::NewRound(round), Message::NewRound(other_round)) => round == other_round,
+            (Message::Proposal(proposal), Message::Proposal(other_proposal)) => {
+                proposal == other_proposal
+            }
+            (Message::Vote(vote), Message::Vote(other_vote)) => vote == other_vote,
+            (Message::ScheduleTimeout(timeout), Message::ScheduleTimeout(other_timeout)) => {
+                timeout == other_timeout
+            }
+            (Message::Decision(round_value), Message::Decision(other_round_value)) => {
+                round_value == other_round_value
+            }
+            _ => false,
+        }
+    }
+}
+
+impl<Ctx: Context> Eq for Message<Ctx> {}

@@ -17,6 +17,8 @@ license      = "Apache-2.0"
 publish      = false
 
 [workspace.dependencies]
+async-trait       = "0.1"
+futures           = "0.3"
 ed25519-consensus = "2.1.0"
 rand              = { version = "0.8.5", features = ["std_rng"] }
 secrecy           = "0.8.0"

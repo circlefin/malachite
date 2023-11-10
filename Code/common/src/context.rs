@@ -1,6 +1,6 @@
 use crate::{
-    Address, Height, PrivateKey, Proposal, PublicKey, Round, Signature, SignedVote, SigningScheme,
-    Validator, ValidatorSet, Value, ValueId, Vote,
+    Address, Height, Proposal, PublicKey, Round, SignedVote, SigningScheme, Validator,
+    ValidatorSet, Value, ValueId, Vote,
 };
 
 /// This trait allows to abstract over the various datatypes
@@ -21,13 +21,16 @@ where
     // FIXME: Remove altogether
     const DUMMY_VALUE: Self::Value;
 
-    /// Sign the given vote using the given private key.
-    /// TODO: Maybe move this as concrete methods in `SignedVote`?
-    fn sign_vote(vote: &Self::Vote, private_key: &PrivateKey<Self>) -> Signature<Self>;
+    /// Sign the given vote our private key.
+    fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self>;
 
     /// Verify the given vote's signature using the given public key.
     /// TODO: Maybe move this as concrete methods in `SignedVote`?
-    fn verify_signed_vote(signed_vote: &SignedVote<Self>, public_key: &PublicKey<Self>) -> bool;
+    fn verify_signed_vote(
+        &self,
+        signed_vote: &SignedVote<Self>,
+        public_key: &PublicKey<Self>,
+    ) -> bool;
 
     /// Build a new proposal for the given value at the given height, round and POL round.
     fn new_proposal(

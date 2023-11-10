@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 
 use malachite_round::state_machine::RoundData;
 use secrecy::{ExposeSecret, Secret};
@@ -15,33 +15,43 @@ use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
 
+use crate::client::Client as EnvClient;
 use crate::event::Event;
 use crate::message::Message;
+use crate::ProposerSelector;
 
-/// Driver for the state machine of the Malachite consensus engine.
+/// Driver for the state machine of the Malachite consensus engine at a given height.
 #[derive(Clone, Debug)]
-pub struct Driver<Ctx, Client>
+pub struct Driver<Ctx, Client, PSel>
 where
     Ctx: Context,
-    Client: crate::client::Client<Ctx>,
+    Client: EnvClient<Ctx>,
+    PSel: ProposerSelector<Ctx>,
 {
+    pub ctx: Ctx,
     pub client: Client,
+    pub proposer_selector: PSel,
+
     pub height: Ctx::Height,
     pub private_key: Secret<PrivateKey<Ctx>>,
     pub address: Ctx::Address,
     pub validator_set: Ctx::ValidatorSet,
+
     pub round: Round,
     pub votes: VoteKeeper<Ctx>,
     pub round_states: BTreeMap<Round, RoundState<Ctx>>,
 }
 
-impl<Ctx, Client> Driver<Ctx, Client>
+impl<Ctx, Client, PSel> Driver<Ctx, Client, PSel>
 where
     Ctx: Context,
-    Client: crate::client::Client<Ctx>,
+    Client: EnvClient<Ctx>,
+    PSel: ProposerSelector<Ctx>,
 {
     pub fn new(
+        ctx: Ctx,
         client: Client,
+        proposer_selector: PSel,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
         private_key: PrivateKey<Ctx>,
@@ -50,7 +60,9 @@ where
         let votes = VoteKeeper::new(validator_set.total_voting_power());
 
         Self {
+            ctx,
             client,
+            proposer_selector,
             height,
             private_key: Secret::new(private_key),
             address,
@@ -61,16 +73,16 @@ where
         }
     }
 
-    fn get_value(&self) -> Ctx::Value {
-        self.client.get_value()
+    async fn get_value(&self) -> Ctx::Value {
+        self.client.get_value().await
     }
 
-    fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool {
-        self.client.validate_proposal(proposal)
+    async fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool {
+        self.client.validate_proposal(proposal).await
     }
 
-    pub fn execute(&mut self, msg: Event<Ctx>) -> Option<Message<Ctx>> {
-        let round_msg = match self.apply(msg) {
+    pub async fn execute(&mut self, msg: Event<Ctx>) -> Option<Message<Ctx>> {
+        let round_msg = match self.apply(msg).await {
             Some(msg) => msg,
             None => return None,
         };
@@ -88,9 +100,7 @@ where
             }
 
             RoundMessage::Vote(vote) => {
-                let signature = Ctx::sign_vote(&vote, self.private_key.expose_secret());
-                let signed_vote = SignedVote::new(vote, signature);
-
+                let signed_vote = self.ctx.sign_vote(vote);
                 Some(Message::Vote(signed_vote))
             }
 
@@ -103,20 +113,28 @@ where
         }
     }
 
-    fn apply(&mut self, msg: Event<Ctx>) -> Option<RoundMessage<Ctx>> {
+    async fn apply(&mut self, msg: Event<Ctx>) -> Option<RoundMessage<Ctx>> {
         match msg {
-            Event::NewRound(round) => self.apply_new_round(round),
-            Event::Proposal(proposal) => self.apply_proposal(proposal),
+            Event::NewRound(round) => self.apply_new_round(round).await,
+            Event::Proposal(proposal) => self.apply_proposal(proposal).await,
             Event::Vote(signed_vote) => self.apply_vote(signed_vote),
             Event::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
         }
     }
 
-    fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<Ctx>> {
-        let proposer = self.validator_set.get_proposer();
+    async fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<Ctx>> {
+        let proposer_address = self
+            .proposer_selector
+            .select_proposer(round, &self.validator_set);
 
+        let proposer = self
+            .validator_set
+            .get_by_address(&proposer_address)
+            .expect("proposer not found"); // FIXME: expect
+
+        // TODO: Write this check differently, maybe just based on the address
         let event = if proposer.public_key() == &self.private_key.expose_secret().verifying_key() {
-            let value = self.get_value();
+            let value = self.get_value().await;
             RoundEvent::NewRoundProposer(value)
         } else {
             RoundEvent::NewRound
@@ -130,7 +148,7 @@ where
         self.apply_event(round, event)
     }
 
-    fn apply_proposal(&mut self, proposal: Ctx::Proposal) -> Option<RoundMessage<Ctx>> {
+    async fn apply_proposal(&mut self, proposal: Ctx::Proposal) -> Option<RoundMessage<Ctx>> {
         // Check that there is an ongoing round
         let Some(round_state) = self.round_states.get(&self.round) else {
             // TODO: Add logging
@@ -154,7 +172,7 @@ where
 
         // TODO: Verify proposal signature (make some of these checks part of message validation)
 
-        let is_valid = self.validate_proposal(&proposal);
+        let is_valid = self.validate_proposal(&proposal).await;
 
         match proposal.pol_round() {
             Round::Nil => {
@@ -195,7 +213,10 @@ where
             .validator_set
             .get_by_address(signed_vote.validator_address())?;
 
-        if !Ctx::verify_signed_vote(&signed_vote, validator.public_key()) {
+        if !self
+            .ctx
+            .verify_signed_vote(&signed_vote, validator.public_key())
+        {
             // TODO: How to handle invalid votes?
             return None;
         }
