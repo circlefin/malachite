@@ -1,3 +1,5 @@
+use async_trait::async_trait;
+
 use malachite_driver::Client;
 
 use crate::{Proposal, TestContext, Value};
@@ -13,12 +15,13 @@ impl TestClient {
     }
 }
 
+#[async_trait]
 impl Client<TestContext> for TestClient {
-    fn get_value(&self) -> Value {
+    async fn get_value(&self) -> Value {
         self.value.clone()
     }
 
-    fn validate_proposal(&self, proposal: &Proposal) -> bool {
+    async fn validate_proposal(&self, proposal: &Proposal) -> bool {
         (self.is_valid)(proposal)
     }
 }

@@ -22,3 +22,6 @@ pub use driver::Driver;
 pub use event::Event;
 pub use message::Message;
 pub use proposer::ProposerSelector;
+
+// Re-export `#[async_trait]` macro for convenience.
+pub use async_trait::async_trait;

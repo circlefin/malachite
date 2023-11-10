@@ -20,7 +20,7 @@ use crate::event::Event;
 use crate::message::Message;
 use crate::ProposerSelector;
 
-/// Driver for the state machine of the Malachite consensus engine.
+/// Driver for the state machine of the Malachite consensus engine at a given height.
 #[derive(Clone, Debug)]
 pub struct Driver<Ctx, Client, PSel>
 where
@@ -73,16 +73,16 @@ where
         }
     }
 
-    fn get_value(&self) -> Ctx::Value {
-        self.client.get_value()
+    async fn get_value(&self) -> Ctx::Value {
+        self.client.get_value().await
     }
 
-    fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool {
-        self.client.validate_proposal(proposal)
+    async fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool {
+        self.client.validate_proposal(proposal).await
     }
 
-    pub fn execute(&mut self, msg: Event<Ctx>) -> Option<Message<Ctx>> {
-        let round_msg = match self.apply(msg) {
+    pub async fn execute(&mut self, msg: Event<Ctx>) -> Option<Message<Ctx>> {
+        let round_msg = match self.apply(msg).await {
             Some(msg) => msg,
             None => return None,
         };
@@ -113,16 +113,16 @@ where
         }
     }
 
-    fn apply(&mut self, msg: Event<Ctx>) -> Option<RoundMessage<Ctx>> {
+    async fn apply(&mut self, msg: Event<Ctx>) -> Option<RoundMessage<Ctx>> {
         match msg {
-            Event::NewRound(round) => self.apply_new_round(round),
-            Event::Proposal(proposal) => self.apply_proposal(proposal),
+            Event::NewRound(round) => self.apply_new_round(round).await,
+            Event::Proposal(proposal) => self.apply_proposal(proposal).await,
             Event::Vote(signed_vote) => self.apply_vote(signed_vote),
             Event::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
         }
     }
 
-    fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<Ctx>> {
+    async fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<Ctx>> {
         let proposer_address = self
             .proposer_selector
             .select_proposer(round, &self.validator_set);
@@ -134,7 +134,7 @@ where
 
         // TODO: Write this check differently, maybe just based on the address
         let event = if proposer.public_key() == &self.private_key.expose_secret().verifying_key() {
-            let value = self.get_value();
+            let value = self.get_value().await;
             RoundEvent::NewRoundProposer(value)
         } else {
             RoundEvent::NewRound
@@ -148,7 +148,7 @@ where
         self.apply_event(round, event)
     }
 
-    fn apply_proposal(&mut self, proposal: Ctx::Proposal) -> Option<RoundMessage<Ctx>> {
+    async fn apply_proposal(&mut self, proposal: Ctx::Proposal) -> Option<RoundMessage<Ctx>> {
         // Check that there is an ongoing round
         let Some(round_state) = self.round_states.get(&self.round) else {
             // TODO: Add logging
@@ -172,7 +172,7 @@ where
 
         // TODO: Verify proposal signature (make some of these checks part of message validation)
 
-        let is_valid = self.validate_proposal(&proposal);
+        let is_valid = self.validate_proposal(&proposal).await;
 
         match proposal.pol_round() {
             Round::Nil => {
