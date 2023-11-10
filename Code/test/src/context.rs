@@ -24,12 +24,12 @@ impl Context for TestContext {
 
     const DUMMY_VALUE: Self::Value = Value::new(9999);
 
-    fn sign_vote(vote: &Self::Vote, private_key: &PrivateKey) -> Signature {
+    fn sign_vote(&self, vote: &Self::Vote, private_key: &PrivateKey) -> Signature {
         use signature::Signer;
         private_key.sign(&vote.to_bytes())
     }
 
-    fn verify_signed_vote(signed_vote: &SignedVote<Self>, public_key: &PublicKey) -> bool {
+    fn verify_signed_vote(&self, signed_vote: &SignedVote<Self>, public_key: &PublicKey) -> bool {
         use signature::Verifier;
         public_key
             .verify(&signed_vote.vote.to_bytes(), &signed_vote.signature)

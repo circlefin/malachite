@@ -28,6 +28,7 @@ fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
 
 #[test]
 fn driver_steps_proposer() {
+    let ctx = TestContext;
     let value = TestContext::DUMMY_VALUE;
     let value_id = value.id();
 
@@ -50,7 +51,7 @@ fn driver_steps_proposer() {
     let (my_sk, my_addr) = (sk1, addr1);
 
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
+    let mut driver = Driver::new(ctx, client, Height::new(1), vs, my_sk.clone(), my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
 
@@ -220,6 +221,7 @@ fn driver_steps_proposer() {
 
 #[test]
 fn driver_steps_not_proposer_valid() {
+    let ctx = TestContext;
     let value = TestContext::DUMMY_VALUE;
     let value_id = value.id();
 
@@ -243,7 +245,7 @@ fn driver_steps_not_proposer_valid() {
     let (my_sk, my_addr) = (sk2, addr2);
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
+    let mut driver = Driver::new(ctx, client, Height::new(1), vs, my_sk.clone(), my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
 
@@ -413,6 +415,7 @@ fn driver_steps_not_proposer_valid() {
 
 #[test]
 fn driver_steps_not_proposer_invalid() {
+    let ctx = TestContext;
     let value = TestContext::DUMMY_VALUE;
     let value_id = value.id();
 
@@ -436,7 +439,7 @@ fn driver_steps_not_proposer_invalid() {
     let (my_sk, my_addr) = (sk2, addr2);
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
+    let mut driver = Driver::new(ctx, client, Height::new(1), vs, my_sk.clone(), my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
 
@@ -552,6 +555,7 @@ fn driver_steps_not_proposer_invalid() {
 
 #[test]
 fn driver_steps_not_proposer_timeout_multiple_rounds() {
+    let ctx = TestContext;
     let value = TestContext::DUMMY_VALUE;
     let value_id = value.id();
 
@@ -574,7 +578,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
     let client = TestClient::new(value.clone(), |_| true);
-    let mut driver = Driver::new(client, Height::new(1), vs, my_sk.clone(), my_addr);
+    let mut driver = Driver::new(ctx, client, Height::new(1), vs, my_sk.clone(), my_addr);
 
     let steps = vec![
         // Start round 0, we, v3, are not the proposer
