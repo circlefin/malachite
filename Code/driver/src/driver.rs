@@ -15,21 +15,21 @@ use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
 
-use crate::client::Client as EnvClient;
+use crate::env::Env as DriverEnv;
 use crate::event::Event;
 use crate::message::Message;
 use crate::ProposerSelector;
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
 #[derive(Clone, Debug)]
-pub struct Driver<Ctx, Client, PSel>
+pub struct Driver<Ctx, Env, PSel>
 where
     Ctx: Context,
-    Client: EnvClient<Ctx>,
+    Env: DriverEnv<Ctx>,
     PSel: ProposerSelector<Ctx>,
 {
     pub ctx: Ctx,
-    pub client: Client,
+    pub env: Env,
     pub proposer_selector: PSel,
 
     pub height: Ctx::Height,
@@ -42,15 +42,15 @@ where
     pub round_states: BTreeMap<Round, RoundState<Ctx>>,
 }
 
-impl<Ctx, Client, PSel> Driver<Ctx, Client, PSel>
+impl<Ctx, Env, PSel> Driver<Ctx, Env, PSel>
 where
     Ctx: Context,
-    Client: EnvClient<Ctx>,
+    Env: DriverEnv<Ctx>,
     PSel: ProposerSelector<Ctx>,
 {
     pub fn new(
         ctx: Ctx,
-        client: Client,
+        env: Env,
         proposer_selector: PSel,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
@@ -61,7 +61,7 @@ where
 
         Self {
             ctx,
-            client,
+            env,
             proposer_selector,
             height,
             private_key: Secret::new(private_key),
@@ -74,11 +74,11 @@ where
     }
 
     async fn get_value(&self) -> Ctx::Value {
-        self.client.get_value().await
+        self.env.get_value().await
     }
 
     async fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool {
-        self.client.validate_proposal(proposal).await
+        self.env.validate_proposal(proposal).await
     }
 
     pub async fn execute(&mut self, msg: Event<Ctx>) -> Option<Message<Ctx>> {
