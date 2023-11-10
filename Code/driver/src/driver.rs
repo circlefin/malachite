@@ -1,12 +1,10 @@
 use alloc::collections::BTreeMap;
 
 use malachite_round::state_machine::RoundData;
-use secrecy::{ExposeSecret, Secret};
 
-use malachite_common::signature::Keypair;
 use malachite_common::{
-    Context, PrivateKey, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator,
-    ValidatorSet, Value, Vote, VoteType,
+    Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
+    Vote, VoteType,
 };
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
@@ -33,7 +31,6 @@ where
     pub proposer_selector: PSel,
 
     pub height: Ctx::Height,
-    pub private_key: Secret<PrivateKey<Ctx>>,
     pub address: Ctx::Address,
     pub validator_set: Ctx::ValidatorSet,
 
@@ -54,7 +51,6 @@ where
         proposer_selector: PSel,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
-        private_key: PrivateKey<Ctx>,
         address: Ctx::Address,
     ) -> Self {
         let votes = VoteKeeper::new(validator_set.total_voting_power());
@@ -64,7 +60,6 @@ where
             env,
             proposer_selector,
             height,
-            private_key: Secret::new(private_key),
             address,
             validator_set,
             round: Round::NIL,
@@ -132,8 +127,7 @@ where
             .get_by_address(&proposer_address)
             .expect("proposer not found"); // FIXME: expect
 
-        // TODO: Write this check differently, maybe just based on the address
-        let event = if proposer.public_key() == &self.private_key.expose_secret().verifying_key() {
+        let event = if proposer.address() == &self.address {
             let value = self.get_value().await;
             RoundEvent::NewRoundProposer(value)
         } else {
