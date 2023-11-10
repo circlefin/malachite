@@ -99,16 +99,18 @@ The Consensus Driver is concerned with running the consensus algorithm for a sin
 It is therefore initialized with the height once and the instance is destroyed once a value for that height has been decided. Other parameters are required during initialization and operation as described below.
 
 ```rust
-pub struct Driver<C>
+pub struct Driver<Ctx>
 where
-    C: Context
+    Ctx: Context
 {
-    height: C::Height,
-    key: Secret<PrivateKey<C>>,
-    validator_set: C::ValidatorSet,
+    ctx: Ctx
+    env: Env<Ctx>,
+    height: Ctx::Height,
+    address: Ctx::Address,
+    validator_set: Ctx::ValidatorSet,
     round: Round, // Current round, initialized with None
-    votes: VoteKeeper<C>,
-    round_states: BTreeMap<Round, RoundState<C>>,
+    votes: VoteKeeper<Ctx>,
+    round_states: BTreeMap<Round, RoundState<Ctx>>,
 }
 
 ```
@@ -171,7 +173,38 @@ where
 }
 ```
 Notes:
-- Should the driver sign the messages before sending them to the consensus environment (see `sign_vote()` in `Context` trait)? Or are we assuming that the consensus environment does this?
+- Should the driver sign the messages before sending them to the consensus context (see `sign_vote()` in `Context` trait)? Or are we assuming that the consensus environment does this?
+  - @romac: See simlar note below in the "Driver Context" section.
+
+### Driver Context
+
+The driver is passed a instance of the `Context` trait which defines all the data types used by this instance of the consensus engine,
+and also provides synchronous, stateless methods for creating and signing votes.
+
+Notes:
+- Should these methods rather live in the driver environment, ie. in the `Env` trait?
+  For example, signing can require I/O and/or asynchrony, eg. in the case where one use a hardware keypair.
+
+### Driver Environment
+
+The driver can make use of an environment to get a value to propose.
+This environment is defined as an async interface to be implemented by the code downstream of the `Driver`.
+
+```rust
+#[async_trait]
+pub trait Env<Ctx>
+where
+    Ctx: Context,
+{
+    /// Get the value to propose.
+    async fn get_value(&self) -> Ctx::Value;
+}
+```
+
+Notes:
+- Should we build in the notion of fallability and timeouts for assembling a value?
+  ie. change the signature of `get_value` to `async fn get_value(&self) -> Result<Ctx::Value, Error>`,
+  for some error type `Error` that can model timeouts and failures.
 
 #### Vote Keeper
 
