@@ -117,7 +117,7 @@ module voteBookkeeper {
         else if (voteType == "Precommit" and threshold.name == "Value") {round: round, name: "PrecommitValue", value: threshold.value}
         else if (voteType == "Precommit" and threshold.name == "Any") {round: round, name: "PrecommitAny", value: "null"}
         // Josef's addition
-        else if (voteType == "Precommit" and threshold.name == "Nil") {round: round, name: "PrecommitAny", value: "null"}
+        // else if (voteType == "Precommit" and threshold.name == "Nil") {round: round, name: "PrecommitAny", value: "null"}
         else if (threshold.name == "Skip") {round: round, name: "Skip", value: "null"}
         else {round: round, name: "None", value: "null"}
     }
