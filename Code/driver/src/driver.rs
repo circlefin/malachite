@@ -69,8 +69,8 @@ where
         }
     }
 
-    async fn get_value(&self) -> Ctx::Value {
-        self.env.get_value().await
+    async fn get_value(&self, round: Round) -> Option<Ctx::Value> {
+        self.env.get_value(self.height.clone(), round).await
     }
 
     async fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool {
@@ -137,7 +137,10 @@ where
             // We are the proposer
             // TODO: Schedule propose timeout
 
-            let value = self.get_value().await;
+            let Some(value) = self.get_value(round).await else {
+                return Err(Error::NoValueToPropose);
+            };
+
             RoundEvent::NewRoundProposer(value)
         } else {
             RoundEvent::NewRound

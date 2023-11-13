@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 
 use async_trait::async_trait;
 
-use malachite_common::Context;
+use malachite_common::{Context, Round};
 
 /// Environment for use by the [`Driver`](crate::Driver) to ask
 /// for a value to propose and validate proposals.
@@ -11,8 +11,11 @@ pub trait Env<Ctx>
 where
     Ctx: Context,
 {
-    /// Get the value to propose.
-    async fn get_value(&self) -> Ctx::Value;
+    /// Get the value to propose for the given height and round.
+    ///
+    /// If `None` is returned, the driver will understand this
+    /// as an error and will not propose a value.
+    async fn get_value(&self, height: Ctx::Height, round: Round) -> Option<Ctx::Value>;
 
     /// Validate a proposal.
     async fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool;

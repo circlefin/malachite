@@ -46,7 +46,7 @@ fn driver_steps_proposer() {
     let value_id = value.id();
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(value.clone(), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value), |_| true);
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -69,7 +69,7 @@ fn driver_steps_proposer() {
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
     let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
+    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
 
     let steps = vec![
         TestStep {
@@ -142,11 +142,11 @@ fn driver_steps_proposer() {
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -161,11 +161,11 @@ fn driver_steps_proposer() {
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -182,11 +182,11 @@ fn driver_steps_proposer() {
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -196,18 +196,18 @@ fn driver_steps_proposer() {
             input_event: Some(Event::Vote(
                 Vote::new_precommit(Round::new(0), Some(value_id), addr3).signed(&sk3),
             )),
-            expected_output: Some(Message::Decide(Round::new(0), value.clone())),
+            expected_output: Some(Message::Decide(Round::new(0), value)),
             expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Commit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -241,7 +241,7 @@ fn driver_steps_not_proposer_valid() {
     let value_id = value.id();
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(value.clone(), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value), |_| true);
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -265,7 +265,7 @@ fn driver_steps_not_proposer_valid() {
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
     let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
+    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
 
     let steps = vec![
         TestStep {
@@ -338,11 +338,11 @@ fn driver_steps_not_proposer_valid() {
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -357,11 +357,11 @@ fn driver_steps_not_proposer_valid() {
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -378,11 +378,11 @@ fn driver_steps_not_proposer_valid() {
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -392,18 +392,18 @@ fn driver_steps_not_proposer_valid() {
             input_event: Some(Event::Vote(
                 Vote::new_precommit(Round::new(0), Some(value_id), addr3).signed(&sk3),
             )),
-            expected_output: Some(Message::Decide(Round::new(0), value.clone())),
+            expected_output: Some(Message::Decide(Round::new(0), value)),
             expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
                 step: Step::Commit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -437,7 +437,7 @@ fn driver_steps_not_proposer_invalid() {
     let value_id = value.id();
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(value.clone(), |_| false);
+    let env = TestEnv::new(move |_, _| Some(value), |_| false);
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -461,7 +461,7 @@ fn driver_steps_not_proposer_invalid() {
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
     let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
+    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
 
     let steps = vec![
         TestStep {
@@ -579,7 +579,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
     let value_id = value.id();
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(value.clone(), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value), |_| true);
 
     let mut rng = StdRng::seed_from_u64(0x42);
 

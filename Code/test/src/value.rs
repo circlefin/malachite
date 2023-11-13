@@ -18,7 +18,7 @@ impl From<u64> for ValueId {
 }
 
 /// The value to decide on
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Value(u64);
 
 impl Value {
