@@ -24,6 +24,7 @@ impl<Ctx> fmt::Display for Error<Ctx>
 where
     Ctx: Context,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::NoValueToPropose => write!(f, "No value to propose"),
@@ -42,6 +43,7 @@ impl<Ctx> PartialEq for Error<Ctx>
 where
     Ctx: Context,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Error::NoValueToPropose, Error::NoValueToPropose) => true,
