@@ -47,6 +47,14 @@ jobs:
         with:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
+      - run: npx @informalsystems/quint test AsyncModels.qnt
+      - run: npx @informalsystems/quint test basicSpells.qnt
+      - run: npx @informalsystems/quint test consensus.qnt
       - run: npx @informalsystems/quint test consensustest.qnt
+      - run: npx @informalsystems/quint test executor.qnt
+      - run: npx @informalsystems/quint test extraSpells.qnt
+      - run: npx @informalsystems/quint test statemachine.qnt
+      - run: npx @informalsystems/quint test statemachineAsync.qnt
+      - run: npx @informalsystems/quint test voteBookkeeper.qnt
       - run: npx @informalsystems/quint test voteBookkeeperTest.qnt
 
