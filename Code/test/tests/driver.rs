@@ -223,7 +223,7 @@ fn driver_steps_proposer() {
             .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
-        let output = block_on(driver.execute(execute_message));
+        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(driver.round, step.expected_round, "expected round");
@@ -419,7 +419,7 @@ fn driver_steps_not_proposer_valid() {
             .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
-        let output = block_on(driver.execute(execute_message));
+        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(driver.round, step.expected_round, "expected round");
@@ -561,7 +561,7 @@ fn driver_steps_not_proposer_invalid() {
             .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
-        let output = block_on(driver.execute(execute_message));
+        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(driver.round, step.expected_round, "expected round");
@@ -766,7 +766,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
-        let output = block_on(driver.execute(execute_message));
+        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(driver.round, step.expected_round, "expected round");

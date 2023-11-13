@@ -16,12 +16,14 @@ extern crate alloc;
 
 mod driver;
 mod env;
+mod error;
 mod event;
 mod message;
 mod proposer;
 
 pub use driver::Driver;
 pub use env::Env;
+pub use error::Error;
 pub use event::Event;
 pub use message::Message;
 pub use proposer::ProposerSelector;
