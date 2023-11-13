@@ -15,46 +15,22 @@ jobs:
   quint-typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./Specs/Quint
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
         with:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
-      - run: npx @informalsystems/quint typecheck AsyncModels.qnt
-      - run: npx @informalsystems/quint typecheck basicSpells.qnt
-      - run: npx @informalsystems/quint typecheck consensus.qnt
-      - run: npx @informalsystems/quint typecheck consensustest.qnt
-      - run: npx @informalsystems/quint typecheck executor.qnt
-      - run: npx @informalsystems/quint typecheck extraSpells.qnt
-      - run: npx @informalsystems/quint typecheck statemachine.qnt
-      - run: npx @informalsystems/quint typecheck statemachineAsync.qnt
-      - run: npx @informalsystems/quint typecheck voteBookkeeper.qnt
-      - run: npx @informalsystems/quint typecheck voteBookkeeperTest.qnt
+      - run: bash Scripts/quint-forall.sh typecheck Specs/Quint/*.qnt
 
   quint-test:
     name: Test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./Specs/Quint
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
         with:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
-      - run: npx @informalsystems/quint test AsyncModels.qnt
-      - run: npx @informalsystems/quint test basicSpells.qnt
-      - run: npx @informalsystems/quint test consensus.qnt
-      - run: npx @informalsystems/quint test consensustest.qnt
-      - run: npx @informalsystems/quint test executor.qnt
-      - run: npx @informalsystems/quint test extraSpells.qnt
-      - run: npx @informalsystems/quint test statemachine.qnt
-      - run: npx @informalsystems/quint test statemachineAsync.qnt
-      - run: npx @informalsystems/quint test voteBookkeeper.qnt
-      - run: npx @informalsystems/quint test voteBookkeeperTest.qnt
+      - run: bash Scripts/quint-forall.sh test Specs/Quint/*.qnt
 
