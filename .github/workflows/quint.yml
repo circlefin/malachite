@@ -33,6 +33,7 @@ jobs:
       - run: npx @informalsystems/quint typecheck statemachine.qnt
       - run: npx @informalsystems/quint typecheck statemachineAsync.qnt
       - run: npx @informalsystems/quint typecheck voteBookkeeper.qnt
+      - run: npx @informalsystems/quint typecheck voteBookkeeperTest.qnt
 
   quint-test:
     name: Test
@@ -40,14 +41,12 @@ jobs:
     defaults:
       run:
         working-directory: ./Specs/Quint
-    env:
-      MAX_STEPS:   20
-      MAX_SAMPLES: 10000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
         with:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
-      - run: npx @informalsystems/quint run --max-steps $MAX_STEPS --max-samples $MAX_SAMPLES consensustest.qnt
+      - run: npx @informalsystems/quint test consensustest.qnt
+      - run: npx @informalsystems/quint test voteBookkeeperTest.qnt
 
