@@ -73,5 +73,5 @@ import voteBookkeeper.* from "./voteBookkeeper"
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "john"}, 10))
         .then(all{ assert(lastEmitted == {round: 1, name: "PolkaNil", value: "null"}), allUnchanged })
     }
-    
+
 }

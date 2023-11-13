@@ -116,8 +116,7 @@ module voteBookkeeper {
         else if (voteType == "Prevote" and threshold.name == "Any") {round: round, name: "PolkaAny", value: "null"}
         else if (voteType == "Precommit" and threshold.name == "Value") {round: round, name: "PrecommitValue", value: threshold.value}
         else if (voteType == "Precommit" and threshold.name == "Any") {round: round, name: "PrecommitAny", value: "null"}
-        // Josef's addition
-        // else if (voteType == "Precommit" and threshold.name == "Nil") {round: round, name: "PrecommitAny", value: "null"}
+        else if (voteType == "Precommit" and threshold.name == "Nil") {round: round, name: "PrecommitAny", value: "null"}
         else if (threshold.name == "Skip") {round: round, name: "Skip", value: "null"}
         else {round: round, name: "None", value: "null"}
     }
@@ -272,7 +271,7 @@ module voteBookkeeper {
             assert(toEvent(round, "Prevote", thresholdNil) == {round: round, name: "PolkaNil", value: "null"}),
             assert(toEvent(round, "Prevote", thresholdValue) == {round: round, name: "PolkaValue", value: "val1"}),
             assert(toEvent(round, "Precommit", thresholdAny) == {round: round, name: "PrecommitAny", value: "null"}),
-            assert(toEvent(round, "Precommit", thresholdNil) == {round: round, name: "None", value: "null"}),
+            assert(toEvent(round, "Precommit", thresholdNil) == {round: round, name: "PrecommitAny", value: "null"}),
             assert(toEvent(round, "Precommit", thresholdValue) == {round: round, name: "PrecommitValue", value: "val1"}),
             assert(toEvent(round, "Prevote", thresholdSkip) == {round: round, name: "Skip", value: "null"}),
             assert(toEvent(round, "Precommit", thresholdSkip) == {round: round, name: "Skip", value: "null"}),
