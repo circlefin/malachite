@@ -42,7 +42,7 @@ val AllFaultyVotes : Set[VoteMsg_t] =
 
 // val AllFaultyVotes : Set[VoteMsg_t] = 
 //     tuples(Faulty, Heights, Rounds, Values, Steps)
-//     .map((p, h, r, v, s) => { src: p, height: h, round: r, id: v, step: s })
+//     .map(((p, h, r, v, s)) => { src: p, height: h, round: r, id: v, step: s })
 
 val AllFaultyProposals : Set[ProposeMsg_t] =
     tuples(Faulty, Heights, Rounds, Values, RoundsOrNil)

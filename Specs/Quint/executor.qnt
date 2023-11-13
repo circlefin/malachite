@@ -1,5 +1,10 @@
 // -*- mode: Bluespec; -*-
 
+/*
+  TODO: round switch upon f+1 messages from the future is not done yet. We need to catch
+  the event from the bookkeeper
+*/ 
+
 module executor {
 
 import consensus.* from "./consensus"
@@ -17,7 +22,7 @@ type ExecutorState = {
     executedEvents: List[(Event, Height_t, Round_t)], // We record that to have the information in the trace
     pendingEvents: Set[(Event, Height_t, Round_t)],
     started: bool,
-    applyvotesResult: ExecutorEvent, //debug TODO!!!
+    applyvotesResult: ExecutorEvent, //debug TODO
     chain : List[Value_t],
     nextValueToPropose: Value_t,
 }
@@ -536,7 +541,9 @@ pure def nextAction (state: NodeState) : (NodeState, ExecutorInput) = {
     else if (state.es.pendingEvents != Set())
         // this might be cheating as we look into the "es"
         (state, { ...defaultInput, name: "pending" })
-
+        // TODO: In the "starkBFT Spec" Google doc, it is written that pending events
+        // should be executed before new messages, which would requir to push this
+        // branch up.
     else
         (state, defaultInput)
 }
