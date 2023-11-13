@@ -1,0 +1,26 @@
+codecov:
+  require_ci_to_pass: yes
+
+coverage:
+  precision: 2
+  round: nearest
+  range: "50...100"
+
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 5%
+        removed_code_behavior: adjust_base
+        paths:
+          - "Code"
+    patch:
+      default:
+        target: auto
+        threshold: 5%
+        paths:
+          - "Code"
+
+    changes:
+      default:
+        informational: true

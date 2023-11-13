@@ -2,7 +2,7 @@ name: Coverage
 
 on:
   push:
-    branches: master
+    branches: main
     paths:
       - Code/**
   pull_request:
@@ -12,6 +12,9 @@ on:
 jobs:
   coverage:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Code
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -20,17 +23,16 @@ jobs:
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
+          toolchain: nightly
           components: llvm-tools-preview
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        working-directory: Code
         run: cargo llvm-cov nextest --all-features --workspace --lcov --output-path lcov.info
       - name: Generate text report
-        working-directory: Code
-        run: cargo llvm-cov report --text
+        run: cargo llvm-cov report
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:

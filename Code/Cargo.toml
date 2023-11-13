@@ -1,4 +1,25 @@
 [workspace]
 resolver = "2"
 
-members = []
+members = [
+  "common",
+  "driver",
+  "round",
+  "vote",
+  "test",
+]
+
+[workspace.package]
+version      = "0.1.0"
+edition      = "2021"
+repository   = "https://github.com/informalsystems/malachite"
+license      = "Apache-2.0"
+publish      = false
+
+[workspace.dependencies]
+async-trait       = "0.1"
+futures           = "0.3"
+ed25519-consensus = "2.1.0"
+rand              = { version = "0.8.5", features = ["std_rng"] }
+sha2              = "0.10.8"
+signature         = "2.1.0"
