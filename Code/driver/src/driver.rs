@@ -1,12 +1,10 @@
 use alloc::collections::BTreeMap;
 
 use malachite_round::state_machine::RoundData;
-use secrecy::{ExposeSecret, Secret};
 
-use malachite_common::signature::Keypair;
 use malachite_common::{
-    Context, PrivateKey, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator,
-    ValidatorSet, Value, Vote, VoteType,
+    Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
+    Vote, VoteType,
 };
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
@@ -18,7 +16,9 @@ use malachite_vote::Threshold;
 use crate::env::Env as DriverEnv;
 use crate::event::Event;
 use crate::message::Message;
+use crate::Error;
 use crate::ProposerSelector;
+use crate::Validity;
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
 #[derive(Clone, Debug)]
@@ -33,7 +33,6 @@ where
     pub proposer_selector: PSel,
 
     pub height: Ctx::Height,
-    pub private_key: Secret<PrivateKey<Ctx>>,
     pub address: Ctx::Address,
     pub validator_set: Ctx::ValidatorSet,
 
@@ -54,7 +53,6 @@ where
         proposer_selector: PSel,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
-        private_key: PrivateKey<Ctx>,
         address: Ctx::Address,
     ) -> Self {
         let votes = VoteKeeper::new(validator_set.total_voting_power());
@@ -64,7 +62,6 @@ where
             env,
             proposer_selector,
             height,
-            private_key: Secret::new(private_key),
             address,
             validator_set,
             round: Round::NIL,
@@ -73,56 +70,59 @@ where
         }
     }
 
-    async fn get_value(&self) -> Ctx::Value {
-        self.env.get_value().await
+    async fn get_value(&self, round: Round) -> Option<Ctx::Value> {
+        self.env.get_value(self.height.clone(), round).await
     }
 
-    async fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool {
-        self.env.validate_proposal(proposal).await
-    }
-
-    pub async fn execute(&mut self, msg: Event<Ctx>) -> Option<Message<Ctx>> {
-        let round_msg = match self.apply(msg).await {
+    pub async fn execute(&mut self, msg: Event<Ctx>) -> Result<Option<Message<Ctx>>, Error<Ctx>> {
+        let round_msg = match self.apply(msg).await? {
             Some(msg) => msg,
-            None => return None,
+            None => return Ok(None),
         };
 
-        match round_msg {
+        let msg = match round_msg {
             RoundMessage::NewRound(round) => {
                 // XXX: Check if there is an existing state?
                 assert!(self.round < round);
-                Some(Message::NewRound(round))
+                Message::NewRound(round)
             }
 
             RoundMessage::Proposal(proposal) => {
                 // sign the proposal
-                Some(Message::Propose(proposal))
+                Message::Propose(proposal)
             }
 
             RoundMessage::Vote(vote) => {
                 let signed_vote = self.ctx.sign_vote(vote);
-                Some(Message::Vote(signed_vote))
+                Message::Vote(signed_vote)
             }
 
-            RoundMessage::ScheduleTimeout(timeout) => Some(Message::ScheduleTimeout(timeout)),
+            RoundMessage::ScheduleTimeout(timeout) => Message::ScheduleTimeout(timeout),
 
             RoundMessage::Decision(value) => {
                 // TODO: update the state
-                Some(Message::Decide(value.round, value.value))
+                Message::Decide(value.round, value.value)
             }
-        }
+        };
+
+        Ok(Some(msg))
     }
 
-    async fn apply(&mut self, msg: Event<Ctx>) -> Option<RoundMessage<Ctx>> {
+    async fn apply(&mut self, msg: Event<Ctx>) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         match msg {
             Event::NewRound(round) => self.apply_new_round(round).await,
-            Event::Proposal(proposal) => self.apply_proposal(proposal).await,
+            Event::Proposal(proposal, validity) => {
+                Ok(self.apply_proposal(proposal, validity).await)
+            }
             Event::Vote(signed_vote) => self.apply_vote(signed_vote),
-            Event::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
+            Event::TimeoutElapsed(timeout) => Ok(self.apply_timeout(timeout)),
         }
     }
 
-    async fn apply_new_round(&mut self, round: Round) -> Option<RoundMessage<Ctx>> {
+    async fn apply_new_round(
+        &mut self,
+        round: Round,
+    ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         let proposer_address = self
             .proposer_selector
             .select_proposer(round, &self.validator_set);
@@ -130,11 +130,16 @@ where
         let proposer = self
             .validator_set
             .get_by_address(&proposer_address)
-            .expect("proposer not found"); // FIXME: expect
+            .ok_or_else(|| Error::ProposerNotFound(proposer_address.clone()))?;
 
-        // TODO: Write this check differently, maybe just based on the address
-        let event = if proposer.public_key() == &self.private_key.expose_secret().verifying_key() {
-            let value = self.get_value().await;
+        let event = if proposer.address() == &self.address {
+            // We are the proposer
+            // TODO: Schedule propose timeout
+
+            let Some(value) = self.get_value(round).await else {
+                return Err(Error::NoValueToPropose);
+            };
+
             RoundEvent::NewRoundProposer(value)
         } else {
             RoundEvent::NewRound
@@ -145,10 +150,14 @@ where
             .insert(round, RoundState::default().new_round(round));
         self.round = round;
 
-        self.apply_event(round, event)
+        Ok(self.apply_event(round, event))
     }
 
-    async fn apply_proposal(&mut self, proposal: Ctx::Proposal) -> Option<RoundMessage<Ctx>> {
+    async fn apply_proposal(
+        &mut self,
+        proposal: Ctx::Proposal,
+        validity: Validity,
+    ) -> Option<RoundMessage<Ctx>> {
         // Check that there is an ongoing round
         let Some(round_state) = self.round_states.get(&self.round) else {
             // TODO: Add logging
@@ -172,14 +181,12 @@ where
 
         // TODO: Verify proposal signature (make some of these checks part of message validation)
 
-        let is_valid = self.validate_proposal(&proposal).await;
-
         match proposal.pol_round() {
             Round::Nil => {
                 // Is it possible to get +2/3 prevotes before the proposal?
                 // Do we wait for our own prevote to check the threshold?
                 let round = proposal.round();
-                let event = if is_valid {
+                let event = if validity.is_valid() {
                     RoundEvent::Proposal(proposal)
                 } else {
                     RoundEvent::ProposalInvalid
@@ -195,7 +202,7 @@ where
                 ) =>
             {
                 let round = proposal.round();
-                let event = if is_valid {
+                let event = if validity.is_valid() {
                     RoundEvent::Proposal(proposal)
                 } else {
                     RoundEvent::ProposalInvalid
@@ -207,25 +214,33 @@ where
         }
     }
 
-    fn apply_vote(&mut self, signed_vote: SignedVote<Ctx>) -> Option<RoundMessage<Ctx>> {
-        // TODO: How to handle missing validator?
+    fn apply_vote(
+        &mut self,
+        signed_vote: SignedVote<Ctx>,
+    ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         let validator = self
             .validator_set
-            .get_by_address(signed_vote.validator_address())?;
+            .get_by_address(signed_vote.validator_address())
+            .ok_or_else(|| Error::ValidatorNotFound(signed_vote.validator_address().clone()))?;
 
         if !self
             .ctx
             .verify_signed_vote(&signed_vote, validator.public_key())
         {
-            // TODO: How to handle invalid votes?
-            return None;
+            return Err(Error::InvalidVoteSignature(
+                signed_vote.clone(),
+                validator.clone(),
+            ));
         }
 
         let round = signed_vote.vote.round();
 
-        let vote_msg = self
+        let Some(vote_msg) = self
             .votes
-            .apply_vote(signed_vote.vote, validator.voting_power())?;
+            .apply_vote(signed_vote.vote, validator.voting_power())
+        else {
+            return Ok(None);
+        };
 
         let round_event = match vote_msg {
             VoteMessage::PolkaAny => RoundEvent::PolkaAny,
@@ -236,7 +251,7 @@ where
             VoteMessage::SkipRound(r) => RoundEvent::SkipRound(r),
         };
 
-        self.apply_event(round, round_event)
+        Ok(self.apply_event(round, round_event))
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Option<RoundMessage<Ctx>> {
