@@ -1,4 +1,4 @@
-use itf::{ItfBigInt, ItfMap, ItfSet};
+use itf::{ItfBigInt, ItfMap, ItfSet, ItfTuple};
 use serde::Deserialize;
 
 pub type Height = ItfBigInt;
@@ -6,6 +6,7 @@ pub type Weight = ItfBigInt;
 pub type Round = ItfBigInt;
 pub type Address = String;
 pub type Value = String;
+pub type VoteType = String;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -13,6 +14,14 @@ pub struct Bookkeeper {
     pub height: Height,
     pub total_weight: Weight,
     pub rounds: ItfMap<Round, RoundVotes>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct Vote {
+    pub typ: VoteType,
+    pub round: Round,
+    pub value: Value,
+    pub address: Address,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -46,4 +55,5 @@ pub struct ExecutorEvent {
 pub struct State {
     pub bookkeeper: Bookkeeper,
     pub last_emitted: ExecutorEvent,
+    pub weighted_vote: ItfTuple<(Vote, Weight)>,
 }

@@ -9,5 +9,10 @@ license.workspace      = true
 publish.workspace      = true
 
 [dependencies]
-itf.workspace = true
-serde         = { workspace = true, features = ["derive"] }
+itf.workspace    = true
+rand.workspace   = true
+malachite-common = { version = "0.1.0", path = "../common" }
+malachite-vote   = { version = "0.1.0", path = "../vote" }
+malachite-test   = { version = "0.1.0", path = "../test" }
+num-bigint       = { version = "0.4", features = ["serde"] }
+serde            = { workspace = true, features = ["derive"] }
