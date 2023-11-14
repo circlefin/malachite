@@ -3,7 +3,6 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 mod context;
-mod env;
 mod height;
 mod proposal;
 mod signing;
@@ -12,7 +11,6 @@ mod value;
 mod vote;
 
 pub use crate::context::*;
-pub use crate::env::*;
 pub use crate::height::*;
 pub use crate::proposal::*;
 pub use crate::signing::*;

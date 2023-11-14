@@ -21,11 +21,19 @@ fn test_propose() {
 
     let data = RoundData::new(round, &height, &ADDRESS);
 
-    let transition = apply_event(state.clone(), &data, Event::NewRoundProposer(value));
+    let transition = apply_event(state.clone(), &data, Event::NewRoundProposer);
 
     state.step = Step::Propose;
     assert_eq!(transition.next_state, state);
+    assert_eq!(
+        transition.message.unwrap(),
+        Message::get_value_and_schedule_timeout(round, TimeoutStep::Propose)
+    );
 
+    let transition = apply_event(transition.next_state, &data, Event::ProposeValue(value));
+
+    state.step = Step::Propose;
+    assert_eq!(transition.next_state, state);
     assert_eq!(
         transition.message.unwrap(),
         Message::proposal(Height::new(10), Round::new(0), Value::new(42), Round::Nil)

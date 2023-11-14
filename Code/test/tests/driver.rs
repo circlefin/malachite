@@ -2,12 +2,11 @@ use futures::executor::block_on;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use malachite_common::{Round, Timeout};
+use malachite_common::{Round, Timeout, TimeoutStep};
 use malachite_driver::{Driver, Error, Event, Message, ProposerSelector, Validity};
 use malachite_round::state::{RoundValue, State, Step};
 use malachite_test::{
-    Address, Height, PrivateKey, Proposal, TestContext, TestEnv, Validator, ValidatorSet, Value,
-    Vote,
+    Address, Height, PrivateKey, Proposal, TestContext, Validator, ValidatorSet, Value, Vote,
 };
 
 struct TestStep {
@@ -20,12 +19,13 @@ struct TestStep {
 
 fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
     match output {
+        Message::NewRound(round) => Some(Event::NewRound(round)),
         // Let's consider our own proposal to always be valid
         Message::Propose(p) => Some(Event::Proposal(p, Validity::Valid)),
         Message::Vote(v) => Some(Event::Vote(v)),
         Message::Decide(_, _) => None,
         Message::ScheduleTimeout(_) => None,
-        Message::NewRound(round) => Some(Event::NewRound(round)),
+        Message::GetValueAndScheduleTimeout(_, _) => None,
     }
 }
 
@@ -64,7 +64,6 @@ fn driver_steps_proposer() {
     let value = Value::new(9999);
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -85,14 +84,31 @@ fn driver_steps_proposer() {
     let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, sel, Height::new(1), vs, my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
 
     let steps = vec![
         TestStep {
-            desc: "Start round 0, we are proposer, propose value",
+            desc: "Start round 0, we are proposer, ask for a value to propose",
             input_event: Some(Event::NewRound(Round::new(0))),
+            expected_output: Some(Message::GetValueAndScheduleTimeout(
+                Round::new(0),
+                Timeout::new(Round::new(0), TimeoutStep::Propose),
+            )),
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Propose,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        TestStep {
+            desc: "Feed a value to propose, propose that value",
+            input_event: Some(Event::ProposeValue(Round::new(0), value)),
             expected_output: Some(Message::Propose(proposal.clone())),
             expected_round: Round::new(0),
             new_state: State {
@@ -272,7 +288,6 @@ fn driver_steps_not_proposer_valid() {
     let value = Value::new(9999);
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -294,7 +309,7 @@ fn driver_steps_not_proposer_valid() {
     let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, sel, Height::new(1), vs, my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
 
@@ -481,7 +496,6 @@ fn driver_steps_not_proposer_invalid() {
     let value = Value::new(9999);
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -503,7 +517,7 @@ fn driver_steps_not_proposer_invalid() {
     let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, sel, Height::new(1), vs, my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
 
@@ -628,7 +642,6 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
     let value = Value::new(9999);
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -650,7 +663,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
     let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, sel, Height::new(1), vs, my_addr);
 
     let steps = vec![
         // Start round 0, we, v3, are not the proposer
@@ -842,7 +855,6 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
 #[test]
 fn driver_steps_no_value_to_propose() {
     // No value to propose
-    let env = TestEnv::new(|_, _| None);
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -861,18 +873,22 @@ fn driver_steps_no_value_to_propose() {
     let sel = FixedProposer::new(v1.address);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, sel, Height::new(1), vs, my_addr);
 
-    let output = block_on(driver.execute(Event::NewRound(Round::new(0))));
-    assert_eq!(output, Err(Error::NoValueToPropose));
+    let output =
+        block_on(driver.execute(Event::NewRound(Round::new(0)))).expect("execute succeeded");
+
+    assert_eq!(
+        output,
+        Some(Message::GetValueAndScheduleTimeout(
+            Round::new(0),
+            Timeout::propose(Round::new(0))
+        ))
+    );
 }
 
 #[test]
 fn driver_steps_proposer_not_found() {
-    let value = Value::new(9999);
-
-    let env = TestEnv::new(move |_, _| Some(value));
-
     let mut rng = StdRng::seed_from_u64(0x42);
 
     let sk1 = PrivateKey::generate(&mut rng);
@@ -892,7 +908,7 @@ fn driver_steps_proposer_not_found() {
     let sel = FixedProposer::new(v1.address);
     let vs = ValidatorSet::new(vec![v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, sel, Height::new(1), vs, my_addr);
 
     let output = block_on(driver.execute(Event::NewRound(Round::new(0))));
     assert_eq!(output, Err(Error::ProposerNotFound(v1.address)));
@@ -901,8 +917,6 @@ fn driver_steps_proposer_not_found() {
 #[test]
 fn driver_steps_validator_not_found() {
     let value = Value::new(9999);
-
-    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -922,7 +936,7 @@ fn driver_steps_validator_not_found() {
     // We omit v2 from the validator set
     let vs = ValidatorSet::new(vec![v1.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, sel, Height::new(1), vs, my_addr);
 
     // Start new round
     block_on(driver.execute(Event::NewRound(Round::new(0)))).expect("execute succeeded");
@@ -938,8 +952,6 @@ fn driver_steps_validator_not_found() {
 #[test]
 fn driver_steps_invalid_signature() {
     let value = Value::new(9999);
-
-    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -957,7 +969,7 @@ fn driver_steps_invalid_signature() {
     let sel = FixedProposer::new(v1.address);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, sel, Height::new(1), vs, my_addr);
 
     // Start new round
     block_on(driver.execute(Event::NewRound(Round::new(0)))).expect("execute succeeded");

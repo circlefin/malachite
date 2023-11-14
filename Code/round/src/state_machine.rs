@@ -61,12 +61,16 @@ where
 
     match (state.step, event) {
         // From NewRound. Event must be for current round.
-        (Step::NewRound, Event::NewRoundProposer(value)) if this_round => {
-            propose(state, data.height, value) // L11/L14
+        (Step::NewRound, Event::NewRoundProposer) if this_round => {
+            get_value_and_schedule_timeout_propose(state) // L18
         }
         (Step::NewRound, Event::NewRound) if this_round => schedule_timeout_propose(state), // L11/L20
 
         // From Propose. Event must be for current round.
+        (Step::Propose, Event::ProposeValue(value)) if this_round => {
+            propose(state, data.height, value) // L11/L14
+        }
+
         (Step::Propose, Event::Proposal(proposal))
             if this_round && proposal.pol_round().is_nil() =>
         {
@@ -130,6 +134,18 @@ where
 //---------------------------------------------------------------------
 // Propose
 //---------------------------------------------------------------------
+
+/// We are the proposer, but don't have a value yet; schedule timeout propose
+/// and ask for a value.
+///
+/// Ref: L18
+pub fn get_value_and_schedule_timeout_propose<Ctx>(state: State<Ctx>) -> Transition<Ctx>
+where
+    Ctx: Context,
+{
+    let timeout = Message::get_value_and_schedule_timeout(state.round, TimeoutStep::Propose);
+    Transition::to(state.with_step(Step::Propose)).with_message(timeout)
+}
 
 /// We are the proposer; propose the valid value if it exists,
 /// otherwise propose the given value.

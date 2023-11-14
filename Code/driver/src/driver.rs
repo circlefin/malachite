@@ -13,7 +13,6 @@ use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
 
-use crate::env::Env as DriverEnv;
 use crate::event::Event;
 use crate::message::Message;
 use crate::Error;
@@ -22,14 +21,12 @@ use crate::Validity;
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
 #[derive(Clone, Debug)]
-pub struct Driver<Ctx, Env, PSel>
+pub struct Driver<Ctx, PSel>
 where
     Ctx: Context,
-    Env: DriverEnv<Ctx>,
     PSel: ProposerSelector<Ctx>,
 {
     pub ctx: Ctx,
-    pub env: Env,
     pub proposer_selector: PSel,
 
     pub height: Ctx::Height,
@@ -41,15 +38,13 @@ where
     pub round_states: BTreeMap<Round, RoundState<Ctx>>,
 }
 
-impl<Ctx, Env, PSel> Driver<Ctx, Env, PSel>
+impl<Ctx, PSel> Driver<Ctx, PSel>
 where
     Ctx: Context,
-    Env: DriverEnv<Ctx>,
     PSel: ProposerSelector<Ctx>,
 {
     pub fn new(
         ctx: Ctx,
-        env: Env,
         proposer_selector: PSel,
         height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
@@ -59,7 +54,6 @@ where
 
         Self {
             ctx,
-            env,
             proposer_selector,
             height,
             address,
@@ -68,10 +62,6 @@ where
             votes,
             round_states: BTreeMap::new(),
         }
-    }
-
-    async fn get_value(&self, round: Round) -> Option<Ctx::Value> {
-        self.env.get_value(self.height.clone(), round).await
     }
 
     pub async fn execute(&mut self, msg: Event<Ctx>) -> Result<Option<Message<Ctx>>, Error<Ctx>> {
@@ -99,6 +89,10 @@ where
 
             RoundMessage::ScheduleTimeout(timeout) => Message::ScheduleTimeout(timeout),
 
+            RoundMessage::GetValueAndScheduleTimeout(round, timeout) => {
+                Message::GetValueAndScheduleTimeout(round, timeout)
+            }
+
             RoundMessage::Decision(value) => {
                 // TODO: update the state
                 Message::Decide(value.round, value.value)
@@ -111,6 +105,7 @@ where
     async fn apply(&mut self, msg: Event<Ctx>) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         match msg {
             Event::NewRound(round) => self.apply_new_round(round).await,
+            Event::ProposeValue(round, value) => Ok(self.apply_propose_value(round, value).await),
             Event::Proposal(proposal, validity) => {
                 Ok(self.apply_proposal(proposal, validity).await)
             }
@@ -133,14 +128,7 @@ where
             .ok_or_else(|| Error::ProposerNotFound(proposer_address.clone()))?;
 
         let event = if proposer.address() == &self.address {
-            // We are the proposer
-            // TODO: Schedule propose timeout
-
-            let Some(value) = self.get_value(round).await else {
-                return Err(Error::NoValueToPropose);
-            };
-
-            RoundEvent::NewRoundProposer(value)
+            RoundEvent::NewRoundProposer
         } else {
             RoundEvent::NewRound
         };
@@ -153,6 +141,14 @@ where
         self.round = round;
 
         Ok(self.apply_event(round, event))
+    }
+
+    async fn apply_propose_value(
+        &mut self,
+        round: Round,
+        value: Ctx::Value,
+    ) -> Option<RoundMessage<Ctx>> {
+        self.apply_event(round, RoundEvent::ProposeValue(value))
     }
 
     async fn apply_proposal(
