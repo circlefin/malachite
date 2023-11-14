@@ -12,7 +12,7 @@ TODO: check
   voteBookkeeper and executor)
 - Do we need tests for executor and bookkeeping
 - test id(v): most likely we need to change the type of Value_t as Quint doesn't have
-- string operators. Perhaps we make Value_t = int and then id(v) = -v
+  string operators. Perhaps we make Value_t = int and then id(v) = -v
 */
 
 
@@ -147,7 +147,7 @@ val defaultResult : ConsensusOutput = {
 
 
 pure def NewHeight (state: ConsensusState, ev: Event) : ConsResult = {
- //   if (ev.height > state.height)
+    if (ev.height > state.height)
         val newstate = {    p: state.p, 
                             round: -1, 
                             // must be -1, as nothing should be done before a NewRound
@@ -160,13 +160,12 @@ pure def NewHeight (state: ConsensusState, ev: Event) : ConsResult = {
                             validValue: "nil"
                         }
         {cs: newstate, out: defaultResult }
-//    else
-//        {cs: state,  out: defaultResult }
+    else
+        {cs: state,  out: defaultResult }
 }
 
 // line 11.14
 pure def NewRoundProposer (state: ConsensusState, ev: Event) : ConsResult = {
-        // TODO: discuss comment "ev.round must match state.round"
     if (ev.round > state.round)
         val newstate = { ...state, round: ev.round, step: "propose"}
         val proposal =  if (state.validValue != "nil") state.validValue
@@ -197,7 +196,9 @@ pure def NewRound (state: ConsensusState, ev: Event) : ConsResult = {
 }
 
 // line 22
-// Here it is assumed that the value has been checked to be valid
+// Here it is assumed that 
+// - the value has been checked to be valid
+// - it is for the current round
 // The executor checks this upon receiving a propose message "ProposalMsg"
 pure def Proposal (state: ConsensusState, ev: Event) : ConsResult = {
     if (state.step == "propose")
@@ -220,7 +221,7 @@ pure def Proposal (state: ConsensusState, ev: Event) : ConsResult = {
             {cs: newstate, out: result}
     else
         {cs: state, out: defaultResult}
-        // Do we need to do something if we are called in the wrong state.step?
+        // This should be dead code as the executor checks the step
 }
 
 // line 26

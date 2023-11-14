@@ -5,6 +5,83 @@ module asyncModelsTest {
 import statemachineAsync(
     validators = Set("v1", "v2", "v3", "v4"),
     validatorSet = Set("v1", "v2", "v3", "v4").mapBy(x => 1),
+    Faulty = Set(),
+    Values = Set("a", "b"),
+    Rounds = Set(0, 1, 2, 3),
+    Heights = Set(0) // , 1, 2, 3)
+) as N4F0 from "./statemachineAsync"
+
+run NewRoundTest = {
+    N4F0::init
+    .then(N4F0::setNextValueToPropose("v2", "block"))
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3"))
+    .then(N4F0::valStep("v4"))
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::deliverProposal("v2", { height: 0, proposal: "block", round: 0, src: "v2", validRound: -1 }))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+    .then(N4F0::deliverVote("v1", { height: 0, id: "nil", round: 0, src: "v1", step: "Prevote" }))
+    .then(N4F0::deliverVote("v1", { height: 0, id: "block", round: 0, src: "v2", step: "Prevote" }))
+    .then(N4F0::deliverVote("v1", { height: 0, id: "nil", round: 0, src: "v3", step: "Prevote" }))
+    .then(N4F0::deliverVote("v2", { height: 0, id: "nil", round: 0, src: "v1", step: "Prevote" }))
+    .then(N4F0::deliverVote("v2", { height: 0, id: "block", round: 0, src: "v2", step: "Prevote" }))
+    .then(N4F0::deliverVote("v2", { height: 0, id: "nil", round: 0, src: "v3", step: "Prevote" }))
+    .then(N4F0::deliverVote("v3", { height: 0, id: "nil", round: 0, src: "v1", step: "Prevote" }))
+    .then(N4F0::deliverVote("v3", { height: 0, id: "block", round: 0, src: "v2", step: "Prevote" }))
+    .then(N4F0::deliverVote("v3", { height: 0, id: "nil", round: 0, src: "v3", step: "Prevote" }))   
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+    // timeoutPrevote started
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+    .then(N4F0::deliverVote("v1", { height: 0, id: "nil", round: 0, src: "v1", step: "Precommit" }))
+    .then(N4F0::deliverVote("v1", { height: 0, id: "nil", round: 0, src: "v2", step: "Precommit" }))
+    .then(N4F0::deliverVote("v1", { height: 0, id: "nil", round: 0, src: "v3", step: "Precommit" }))
+    .then(N4F0::deliverVote("v2", { height: 0, id: "nil", round: 0, src: "v1", step: "Precommit" }))
+    .then(N4F0::deliverVote("v2", { height: 0, id: "nil", round: 0, src: "v2", step: "Precommit" }))
+    .then(N4F0::deliverVote("v2", { height: 0, id: "nil", round: 0, src: "v3", step: "Precommit" }))
+    .then(N4F0::deliverVote("v3", { height: 0, id: "nil", round: 0, src: "v1", step: "Precommit" }))
+    .then(N4F0::deliverVote("v3", { height: 0, id: "nil", round: 0, src: "v2", step: "Precommit" }))
+    .then(N4F0::deliverVote("v3", { height: 0, id: "nil", round: 0, src: "v3", step: "Precommit" }))
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3"))    
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3"))     
+  //  .then(N4F0::deliverProposal("v1",  { height: 0, proposal: "block", round: 1, src: "v2", validRound: -1 }))
+/*     .then(N4F0::deliverProposal("v1", { height: 0, proposal: "block", round: 0, src: "v2", validRound: -1 }))
+    .then(N4F0::deliverProposal("v2", { height: 0, proposal: "block", round: 0, src: "v2", validRound: -1 }))
+    .then(N4F0::deliverProposal("v3", { height: 0, proposal: "block", round: 0, src: "v2", validRound: -1 }))
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+  
+          */              
+}
+
+import statemachineAsync(
+    validators = Set("v1", "v2", "v3", "v4"),
+    validatorSet = Set("v1", "v2", "v3", "v4").mapBy(x => 1),
     Faulty = Set("v1"),
     Values = Set("a", "b"),
     Rounds = Set(0, 1, 2, 3),
