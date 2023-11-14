@@ -1,6 +1,6 @@
 // -*- mode: Bluespec; -*-
 
-module AsyncModels {
+module asyncModelsTest {
 
 import statemachineAsync(
     validators = Set("v1", "v2", "v3", "v4"),

@@ -1,6 +1,6 @@
 // -*- mode: Bluespec; -*-
 
-module consensustest {
+module consensusTest {
 
 import consensus.* from "./consensus"
 
