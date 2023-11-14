@@ -37,7 +37,7 @@ fn test_prevote() {
     let value = Value::new(42);
     let height = Height::new(1);
 
-    let state: State<TestContext> = State::default().new_round(Round::new(1));
+    let state: State<TestContext> = State::default().new_round(height, Round::new(1));
     let data = RoundData::new(Round::new(1), &height, &ADDRESS);
 
     let transition = apply_event(state, &data, Event::NewRound);
@@ -67,6 +67,6 @@ fn test_prevote() {
     assert_eq!(transition.next_state.step, Step::Prevote);
     assert_eq!(
         transition.message.unwrap(),
-        Message::prevote(Round::new(1), Some(value.id()), ADDRESS)
+        Message::prevote(Height::new(1), Round::new(1), Some(value.id()), ADDRESS)
     );
 }

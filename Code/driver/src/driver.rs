@@ -147,8 +147,10 @@ where
         };
 
         assert!(self.round < round);
-        self.round_states
-            .insert(round, RoundState::default().new_round(round));
+        self.round_states.insert(
+            round,
+            RoundState::default().new_round(self.height.clone(), round),
+        );
         self.round = round;
 
         Ok(self.apply_event(round, event))
