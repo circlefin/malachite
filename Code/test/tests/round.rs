@@ -36,8 +36,14 @@ fn test_propose() {
 fn test_prevote() {
     let value = Value::new(42);
     let height = Height::new(1);
+    let round = Round::new(1);
 
-    let state: State<TestContext> = State::default().new_round(height, Round::new(1));
+    let state: State<TestContext> = State {
+        height,
+        round,
+        ..Default::default()
+    };
+
     let data = RoundData::new(Round::new(1), &height, &ADDRESS);
 
     let transition = apply_event(state, &data, Event::NewRound);

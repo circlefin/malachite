@@ -46,10 +46,10 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new() -> Self {
+    pub fn new(height: Ctx::Height, round: Round) -> Self {
         Self {
-            height: Ctx::Height::default(),
-            round: Round::INITIAL,
+            height,
+            round,
             step: Step::NewRound,
             proposal: None,
             locked: None,
@@ -57,14 +57,6 @@ where
         }
     }
 
-    pub fn new_round(self, height: Ctx::Height, round: Round) -> Self {
-        Self {
-            height,
-            round,
-            step: Step::NewRound,
-            ..self
-        }
-    }
     pub fn with_step(self, step: Step) -> Self {
         Self { step, ..self }
     }
@@ -97,7 +89,7 @@ where
     Ctx: Context,
 {
     fn default() -> Self {
-        Self::new()
+        Self::new(Ctx::Height::default(), Round::NIL)
     }
 }
 

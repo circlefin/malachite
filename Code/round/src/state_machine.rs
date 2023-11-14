@@ -331,8 +331,7 @@ pub fn round_skip<Ctx>(state: State<Ctx>, round: Round) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    Transition::to(state.clone().new_round(state.height.clone(), round))
-        .with_message(Message::NewRound(round))
+    Transition::to(State::new(state.height.clone(), round)).with_message(Message::NewRound(round))
 }
 
 /// We received +2/3 precommits for a value - commit and decide that value!
