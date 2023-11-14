@@ -116,6 +116,7 @@ module voteBookkeeper {
         else if (voteType == "Prevote" and threshold.name == "Any") {round: round, name: "PolkaAny", value: "null"}
         else if (voteType == "Precommit" and threshold.name == "Value") {round: round, name: "PrecommitValue", value: threshold.value}
         else if (voteType == "Precommit" and threshold.name == "Any") {round: round, name: "PrecommitAny", value: "null"}
+        else if (voteType == "Precommit" and threshold.name == "Nil") {round: round, name: "PrecommitAny", value: "null"}
         else if (threshold.name == "Skip") {round: round, name: "Skip", value: "null"}
         else {round: round, name: "None", value: "null"}
     }
@@ -123,6 +124,8 @@ module voteBookkeeper {
 
 
     // Executor interface
+    type BKResult =  {bookkeeper: Bookkeeper, event: ExecutorEvent}
+
 
     // Called by the executor when it receives a vote. The functiojn takes the following steps:
     // - It first adds the vote and then computes a threshold.
@@ -158,7 +161,7 @@ module voteBookkeeper {
         val updatedBookkeeper = keeper.with("rounds", keeper.rounds.mapSafeSet(vote.round, updatedRoundVotes.with("votesAddressesWeights", updatedVotesAddressesWeights)
                                                                                                             .with("emittedEvents", updatedEmmittedEvents)))
         {bookkeeper: updatedBookkeeper, event: finalEvent}
-    }
+   }
     
     // Called by the executor to check if there is a specific threshold for a given round and voteType.
     // TO DISCUSS:
@@ -178,6 +181,34 @@ module voteBookkeeper {
             else false
         } else false
     }
+
+
+// run PrecommitTest = all {
+// val bin : Bookkeeper = {
+//                height: 0,
+//                rounds:
+//                  Map(
+//                    0 ->
+//                      {
+//                        height: 0,
+//                        precommits: { total: 4, valuesAddresses: Map(), valuesWeights: Map() },
+//                        prevotes: { total: 4, valuesAddresses: Map(), valuesWeights: Map("a block" -> 1, "nil" -> 3) },
+//                        round: 0
+//                      }
+//                  ),
+//                totalWeight: 4
+//              }
+// val o1 = applyVote(bin, {value: "nil", round: 0, address: "v0", typ: "Precommit" }, 1)
+// val o2 = applyVote(o1.bookkeeper, {value: "nil", round: 0, address: "v1", typ: "Precommit" }, 1)
+// val o3 = applyVote(o2.bookkeeper, {value: "nil", round: 0, address: "v2", typ: "Precommit" }, 1)
+// val o4 = applyVote(o3.bookkeeper, {value: "nil", round: 0, address: "v3", typ: "Precommit" }, 1)
+// all{
+//     assert(o1.event.name == "None"),
+//     assert(o2.event.name == "None"),
+//     assert(o3.event.name == "PrecommitAny"),
+//     assert(o4.event.name == "PrecommitAny")
+// }
+// }
 
     // ****************************************************************************
     // Unit tests
@@ -240,7 +271,7 @@ module voteBookkeeper {
             assert(toEvent(round, "Prevote", thresholdNil) == {round: round, name: "PolkaNil", value: "null"}),
             assert(toEvent(round, "Prevote", thresholdValue) == {round: round, name: "PolkaValue", value: "val1"}),
             assert(toEvent(round, "Precommit", thresholdAny) == {round: round, name: "PrecommitAny", value: "null"}),
-            assert(toEvent(round, "Precommit", thresholdNil) == {round: round, name: "None", value: "null"}),
+            assert(toEvent(round, "Precommit", thresholdNil) == {round: round, name: "PrecommitAny", value: "null"}),
             assert(toEvent(round, "Precommit", thresholdValue) == {round: round, name: "PrecommitValue", value: "val1"}),
             assert(toEvent(round, "Prevote", thresholdSkip) == {round: round, name: "Skip", value: "null"}),
             assert(toEvent(round, "Precommit", thresholdSkip) == {round: round, name: "Skip", value: "null"}),
@@ -249,75 +280,5 @@ module voteBookkeeper {
         }
     }
 
-    // ****************************************************************************
-    // State machine state
-    // **************************************************************************** 
 
-    // Bookkeeper state
-    var bookkeeper: Bookkeeper
-    // Last emitted event
-    var lastEmitted: ExecutorEvent
-
-    // ****************************************************************************
-    // Execution
-    // ****************************************************************************
-
-    action allUnchanged: bool = all {
-      bookkeeper' = bookkeeper,
-      lastEmitted' = lastEmitted
-    }
-
-    action init(totalWeight: Weight): bool = all {
-        bookkeeper' = {height: 10, totalWeight: totalWeight, rounds: Map()},
-        lastEmitted' = {round: -1, name: "", value: "null"}
-    }
-
-    action applyVoteAction(vote: Vote, weight: Weight): bool = all {
-        val result = applyVote(bookkeeper, vote, weight)
-        all {
-            bookkeeper' = result.bookkeeper,
-            lastEmitted' = result.event
-        }   
-    }
-
-    // ****************************************************************************
-    // Test traces
-    // ****************************************************************************
-
-    // Consensus full execution with all honest validators (including the leader) and a synchronous network:
-    // all messages are received in order. We assume three validators in the validator set wtih 60%, 30% and 10%
-    // each of the total voting power
-    run synchronousConsensusTest = {
-        init(100)
-        .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "alice"}, 60))
-        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
-        .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "john"}, 10))
-        .then(all{ assert(lastEmitted == {round: 1, name: "PolkaValue", value: "proposal"}), allUnchanged })
-        .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "bob"}, 30))
-        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
-        .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "bob"}, 30))
-        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
-        .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "john"}, 10))
-        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
-        .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "alive"}, 60))
-        .then(all{ assert(lastEmitted == {round: 1, name: "PrecommitValue", value: "proposal"}), allUnchanged })
-    }
-
-    // Reaching PolkaAny 
-    run polkaAnyTest = {
-        init(100)
-        .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "alice"}, 60))
-        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
-        .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "john"}, 10))
-        .then(all{ assert(lastEmitted == {round: 1, name: "PolkaAny", value: "null"}), allUnchanged })
-    }
-
-    // Reaching PolkaNil
-    run polkaNilTest = {
-        init(100)
-        .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "alice"}, 60))
-        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
-        .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "john"}, 10))
-        .then(all{ assert(lastEmitted == {round: 1, name: "PolkaNil", value: "null"}), allUnchanged })
-    }
 }
