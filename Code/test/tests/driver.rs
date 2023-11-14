@@ -1,13 +1,13 @@
 use futures::executor::block_on;
-use malachite_common::{Context, Round, Timeout};
-use malachite_driver::{Driver, Event, Message, ProposerSelector};
-use malachite_round::state::{RoundValue, State, Step};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 
+use malachite_common::{Context, Round, Timeout};
+use malachite_driver::{Driver, Error, Event, Message, ProposerSelector};
+use malachite_round::state::{RoundValue, State, Step};
 use malachite_test::{
     Address, Height, PrivateKey, Proposal, TestContext, TestEnv, Validator, ValidatorSet, Vote,
 };
-use rand::rngs::StdRng;
-use rand::SeedableRng;
 
 struct TestStep {
     desc: &'static str,
@@ -37,6 +37,23 @@ impl ProposerSelector<TestContext> for RotateProposer {
         let proposer = &validator_set.validators[self.proposer_index];
         self.proposer_index = (self.proposer_index + 1) % validator_set.validators.len();
         proposer.address
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct FixedProposer {
+    proposer: Address,
+}
+
+impl FixedProposer {
+    pub fn new(proposer: Address) -> Self {
+        Self { proposer }
+    }
+}
+
+impl ProposerSelector<TestContext> for FixedProposer {
+    fn select_proposer(&mut self, _round: Round, _validator_set: &ValidatorSet) -> Address {
+        self.proposer
     }
 }
 
@@ -776,4 +793,136 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
 
         previous_message = output.and_then(to_input_msg);
     }
+}
+
+#[test]
+fn driver_steps_no_value_to_propose() {
+    // No value to propose
+    let env = TestEnv::new(|_, _| None, |_| true);
+
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
+
+    let v1 = Validator::new(sk1.public_key(), 1);
+    let v2 = Validator::new(sk2.public_key(), 2);
+    let v3 = Validator::new(sk3.public_key(), 3);
+
+    let (my_sk, my_addr) = (sk1, v1.address);
+    let ctx = TestContext::new(my_sk.clone());
+
+    // We are the proposer
+    let sel = FixedProposer::new(v1.address);
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+
+    let output = block_on(driver.execute(Event::NewRound(Round::new(0))));
+    assert_eq!(output, Err(Error::NoValueToPropose));
+}
+
+#[test]
+fn driver_steps_proposer_not_found() {
+    let value = TestContext::DUMMY_VALUE;
+
+    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
+
+    let addr2 = Address::from_public_key(&sk2.public_key());
+
+    let v1 = Validator::new(sk1.public_key(), 1);
+    let v2 = Validator::new(sk2.public_key(), 2);
+    let v3 = Validator::new(sk3.public_key(), 3);
+
+    let (my_sk, my_addr) = (sk2, addr2);
+    let ctx = TestContext::new(my_sk.clone());
+
+    // Proposer is v1, which is not in the validator set
+    let sel = FixedProposer::new(v1.address);
+    let vs = ValidatorSet::new(vec![v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+
+    let output = block_on(driver.execute(Event::NewRound(Round::new(0))));
+    assert_eq!(output, Err(Error::ProposerNotFound(v1.address)));
+}
+
+#[test]
+fn driver_steps_validator_not_found() {
+    let value = TestContext::DUMMY_VALUE;
+
+    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
+
+    let v1 = Validator::new(sk1.public_key(), 1);
+    let v2 = Validator::new(sk2.public_key(), 2);
+    let v3 = Validator::new(sk3.public_key(), 3);
+
+    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let ctx = TestContext::new(my_sk.clone());
+
+    // Proposer is v1
+    let sel = FixedProposer::new(v1.address);
+    // We omit v2 from the validator set
+    let vs = ValidatorSet::new(vec![v1.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+
+    // Start new round
+    block_on(driver.execute(Event::NewRound(Round::new(0)))).expect("execute succeeded");
+
+    // v2 prevotes for some proposal, we cannot find it in the validator set => error
+    let output = block_on(driver.execute(Event::Vote(
+        Vote::new_prevote(Round::new(0), Some(value.id()), v2.address).signed(&sk2),
+    )));
+
+    assert_eq!(output, Err(Error::ValidatorNotFound(v2.address)));
+}
+
+#[test]
+fn driver_steps_invalid_signature() {
+    let value = TestContext::DUMMY_VALUE;
+
+    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
+
+    let v1 = Validator::new(sk1.public_key(), 1);
+    let v2 = Validator::new(sk2.public_key(), 2);
+    let v3 = Validator::new(sk3.public_key(), 3);
+
+    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let ctx = TestContext::new(my_sk.clone());
+
+    let sel = FixedProposer::new(v1.address);
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+
+    // Start new round
+    block_on(driver.execute(Event::NewRound(Round::new(0)))).expect("execute succeeded");
+
+    // v2 prevotes for some proposal, with an invalid signature,
+    // ie. signed by v1 instead of v2, just a way of forging an invalid signature
+    let output = block_on(driver.execute(Event::Vote(
+        Vote::new_prevote(Round::new(0), Some(value.id()), v2.address).signed(&sk1),
+    )));
+
+    assert!(matches!(output, Err(Error::InvalidVoteSignature(_, _))));
 }
