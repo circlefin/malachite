@@ -76,7 +76,9 @@ where
         };
 
         let msg = match round_msg {
-            RoundMessage::NewRound(round) => Message::NewRound(round),
+            RoundMessage::NewRound(round) => {
+                Message::NewRound(self.round_state.height.clone(), round)
+            }
 
             RoundMessage::Proposal(proposal) => {
                 // sign the proposal
@@ -101,12 +103,7 @@ where
 
     async fn apply(&mut self, event: Event<Ctx>) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         match event {
-            Event::StartHeight(height) => self.apply_new_round(height, Round::new(0)).await,
-
-            Event::NewRound(round) => {
-                self.apply_new_round(self.round_state.height.clone(), round)
-                    .await
-            }
+            Event::NewRound(height, round) => self.apply_new_round(height, round).await,
 
             Event::Proposal(proposal, validity) => {
                 Ok(self.apply_proposal(proposal, validity).await)

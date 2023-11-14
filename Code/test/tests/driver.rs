@@ -25,7 +25,7 @@ fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
         Message::Vote(v) => Some(Event::Vote(v)),
         Message::Decide(_, _) => None,
         Message::ScheduleTimeout(_) => None,
-        Message::NewRound(round) => Some(Event::NewRound(round)),
+        Message::NewRound(height, round) => Some(Event::NewRound(height, round)),
     }
 }
 
@@ -92,7 +92,7 @@ fn driver_steps_proposer() {
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are proposer, propose value",
-            input_event: Some(Event::StartHeight(Height::new(1))),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
             expected_output: Some(Message::Propose(proposal.clone())),
             expected_round: Round::new(0),
             new_state: State {
@@ -303,7 +303,7 @@ fn driver_steps_not_proposer_valid() {
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input_event: Some(Event::StartHeight(Height::new(1))),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
@@ -514,7 +514,7 @@ fn driver_steps_not_proposer_invalid() {
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input_event: Some(Event::StartHeight(Height::new(1))),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
@@ -662,7 +662,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         // Start round 0, we, v3, are not the proposer
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer",
-            input_event: Some(Event::StartHeight(Height::new(1))),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
@@ -797,7 +797,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "we receive a precommit timeout, start a new round",
             input_event: Some(Event::TimeoutElapsed(Timeout::precommit(Round::new(0)))),
-            expected_output: Some(Message::NewRound(Round::new(1))),
+            expected_output: Some(Message::NewRound(Height::new(1), Round::new(1))),
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -810,7 +810,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         },
         TestStep {
             desc: "Start round 1, we are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(1))),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(1))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(1)))),
             expected_round: Round::new(1),
             new_state: State {
@@ -866,7 +866,7 @@ fn driver_steps_no_value_to_propose() {
 
     let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
-    let output = block_on(driver.execute(Event::StartHeight(Height::new(1))));
+    let output = block_on(driver.execute(Event::NewRound(Height::new(1), Round::new(0))));
     assert_eq!(output, Err(Error::NoValueToPropose));
 }
 
@@ -897,7 +897,7 @@ fn driver_steps_proposer_not_found() {
 
     let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
-    let output = block_on(driver.execute(Event::StartHeight(Height::new(1))));
+    let output = block_on(driver.execute(Event::NewRound(Height::new(1), Round::new(0))));
     assert_eq!(output, Err(Error::ProposerNotFound(v1.address)));
 }
 
@@ -928,7 +928,8 @@ fn driver_steps_validator_not_found() {
     let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
     // Start new height
-    block_on(driver.execute(Event::StartHeight(Height::new(1)))).expect("execute succeeded");
+    block_on(driver.execute(Event::NewRound(Height::new(1), Round::new(0))))
+        .expect("execute succeeded");
 
     // v2 prevotes for some proposal, we cannot find it in the validator set => error
     let output = block_on(driver.execute(Event::Vote(
@@ -963,7 +964,8 @@ fn driver_steps_invalid_signature() {
     let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
     // Start new round
-    block_on(driver.execute(Event::StartHeight(Height::new(1)))).expect("execute succeeded");
+    block_on(driver.execute(Event::NewRound(Height::new(1), Round::new(0))))
+        .expect("execute succeeded");
 
     // v2 prevotes for some proposal, with an invalid signature,
     // ie. signed by v1 instead of v2, just a way of forging an invalid signature
