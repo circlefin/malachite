@@ -1024,13 +1024,25 @@ fn driver_steps_skip_round() {
             input_event: Some(Event::Vote(
                 Vote::new_prevote(Round::new(1), Some(value.id()), addr2).signed(&sk2),
             )),
-            expected_output: Some(Message::Vote(
-                Vote::new_precommit(Round::new(0), None, my_addr).signed(&my_sk),
-            )),
+            expected_output: Some(Message::NewRound(Round::new(1))),
+            expected_round: Round::new(0),
+            new_state: State {
+                round: Round::new(0),
+                step: Step::Prevote,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        // move to next round
+        TestStep {
+            desc: "move to next round",
+            input_event: None,
+            expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(1)))),
             expected_round: Round::new(1),
             new_state: State {
                 round: Round::new(1),
-                step: Step::NewRound,
+                step: Step::Propose,
                 proposal: None,
                 locked: None,
                 valid: None,
