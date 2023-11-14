@@ -99,18 +99,23 @@ The Consensus Driver is concerned with running the consensus algorithm for a sin
 It is therefore initialized with the height once and the instance is destroyed once a value for that height has been decided. Other parameters are required during initialization and operation as described below.
 
 ```rust
-pub struct Driver<Ctx>
-where
-    Ctx: Context
+pub struct Driver<Ctx, Env, PSel>
+  where
+          Ctx: Context,
+          Env: DriverEnv<Ctx>,
+          PSel: ProposerSelector<Ctx>,
 {
-    ctx: Ctx
-    env: Env<Ctx>,
-    height: Ctx::Height,
-    address: Ctx::Address,
-    validator_set: Ctx::ValidatorSet,
-    round: Round, // Current round, initialized with None
-    votes: VoteKeeper<Ctx>,
-    round_states: BTreeMap<Round, RoundState<Ctx>>,
+  pub ctx: Ctx,
+  pub env: Env,
+  pub proposer_selector: PSel,
+
+  pub height: Ctx::Height,
+  pub address: Ctx::Address,
+  pub validator_set: Ctx::ValidatorSet,
+
+  pub round: Round,
+  pub votes: VoteKeeper<Ctx>,
+  pub round_states: BTreeMap<Round, RoundState<Ctx>>,
 }
 
 ```
@@ -122,14 +127,14 @@ Note:
 The Consensus Driver receives events from the peer-to-peer layer and other external modules it interacts with. 
 
 ```rust
-pub enum Event<C>
-where
-    C: Context
+pub enum Event<Ctx>
+  where
+          Ctx: Context,
 {
-    StartRound(Round),            // Start a new round
-    Proposal(C::Proposal, Valid), // A proposal has been received, must be complete
-    Vote(SignedVote<C>),          // A vote has been received
-    TimeoutElapsed(Timeout),      // A timeout has elapsed
+  NewRound(Ctx::Height, Round),
+  Proposal(Ctx::Proposal, bool), // (proposal, valid)
+  Vote(SignedVote<Ctx>),
+  TimeoutElapsed(Timeout),
 }
 
 ```
@@ -162,14 +167,15 @@ Notes:
 ##### Output Messages (External Dependencies)
 
 ```rust
-pub enum Message<C>
-where
-    C: Consensus,
+pub enum Message<Ctx>
+  where
+          Ctx: Context,
 {
-    Propose(C::Proposal),      // Request to broadcast a proposal to peers
-    Vote(SignedVote<C>),       // Request to broadcast a vote to peers
-    Decide(Round, C::Value),   // Signal that a decision has been reached
-    ScheduleTimeout(Timeout),  // Request the host system to start a timer
+  Propose(Ctx::Proposal),
+  Vote(SignedVote<Ctx>),
+  Decide(Round, Ctx::Value),
+  ScheduleTimeout(Timeout),
+  NewRound(Ctx::Height, Round),
 }
 ```
 Notes:
@@ -203,7 +209,7 @@ where
 
 Notes:
 - Should we build in the notion of fallability and timeouts for assembling a value?
-  ie. change the signature of `get_value` to `async fn get_value(&self) -> Result<Ctx::Value, Error>`,
+  i.e. change the signature of `get_value` to `async fn get_value(&self) -> Result<Ctx::Value, Error>`,
   for some error type `Error` that can model timeouts and failures.
 
 #### Vote Keeper
