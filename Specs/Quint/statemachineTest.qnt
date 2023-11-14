@@ -10,7 +10,7 @@
     traces.
 */
 
-module statemachine {
+module statemachineTest {
 
 import executor.* from "./executor"
 import consensus.* from "./consensus"
