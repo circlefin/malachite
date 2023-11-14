@@ -18,6 +18,7 @@ use crate::event::Event;
 use crate::message::Message;
 use crate::Error;
 use crate::ProposerSelector;
+use crate::Validity;
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
 #[derive(Clone, Debug)]
@@ -73,10 +74,6 @@ where
         self.env.get_value(self.height.clone(), round).await
     }
 
-    async fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool {
-        self.env.validate_proposal(proposal).await
-    }
-
     pub async fn execute(&mut self, msg: Event<Ctx>) -> Result<Option<Message<Ctx>>, Error<Ctx>> {
         let round_msg = match self.apply(msg).await? {
             Some(msg) => msg,
@@ -114,7 +111,9 @@ where
     async fn apply(&mut self, msg: Event<Ctx>) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         match msg {
             Event::NewRound(round) => self.apply_new_round(round).await,
-            Event::Proposal(proposal) => Ok(self.apply_proposal(proposal).await),
+            Event::Proposal(proposal, validity) => {
+                Ok(self.apply_proposal(proposal, validity).await)
+            }
             Event::Vote(signed_vote) => self.apply_vote(signed_vote),
             Event::TimeoutElapsed(timeout) => Ok(self.apply_timeout(timeout)),
         }
@@ -154,7 +153,11 @@ where
         Ok(self.apply_event(round, event))
     }
 
-    async fn apply_proposal(&mut self, proposal: Ctx::Proposal) -> Option<RoundMessage<Ctx>> {
+    async fn apply_proposal(
+        &mut self,
+        proposal: Ctx::Proposal,
+        validity: Validity,
+    ) -> Option<RoundMessage<Ctx>> {
         // Check that there is an ongoing round
         let Some(round_state) = self.round_states.get(&self.round) else {
             // TODO: Add logging
@@ -178,14 +181,12 @@ where
 
         // TODO: Verify proposal signature (make some of these checks part of message validation)
 
-        let is_valid = self.validate_proposal(&proposal).await;
-
         match proposal.pol_round() {
             Round::Nil => {
                 // Is it possible to get +2/3 prevotes before the proposal?
                 // Do we wait for our own prevote to check the threshold?
                 let round = proposal.round();
-                let event = if is_valid {
+                let event = if validity.is_valid() {
                     RoundEvent::Proposal(proposal)
                 } else {
                     RoundEvent::ProposalInvalid
@@ -201,7 +202,7 @@ where
                 ) =>
             {
                 let round = proposal.round();
-                let event = if is_valid {
+                let event = if validity.is_valid() {
                     RoundEvent::Proposal(proposal)
                 } else {
                     RoundEvent::ProposalInvalid

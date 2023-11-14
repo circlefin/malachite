@@ -3,7 +3,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use malachite_common::{Context, Round, Timeout};
-use malachite_driver::{Driver, Error, Event, Message, ProposerSelector};
+use malachite_driver::{Driver, Error, Event, Message, ProposerSelector, Validity};
 use malachite_round::state::{RoundValue, State, Step};
 use malachite_test::{
     Address, Height, PrivateKey, Proposal, TestContext, TestEnv, Validator, ValidatorSet, Vote,
@@ -19,7 +19,8 @@ struct TestStep {
 
 fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
     match output {
-        Message::Propose(p) => Some(Event::Proposal(p)),
+        // Let's consider our own proposal to always be valid
+        Message::Propose(p) => Some(Event::Proposal(p, Validity::Valid)),
         Message::Vote(v) => Some(Event::Vote(v)),
         Message::Decide(_, _) => None,
         Message::ScheduleTimeout(_) => None,
@@ -63,7 +64,7 @@ fn driver_steps_proposer() {
     let value_id = value.id();
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -258,7 +259,7 @@ fn driver_steps_not_proposer_valid() {
     let value_id = value.id();
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -300,7 +301,7 @@ fn driver_steps_not_proposer_valid() {
         },
         TestStep {
             desc: "Receive a proposal, prevote for it (v2)",
-            input_event: Some(Event::Proposal(proposal.clone())),
+            input_event: Some(Event::Proposal(proposal.clone(), Validity::Valid)),
             expected_output: Some(Message::Vote(
                 Vote::new_prevote(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
             )),
@@ -454,7 +455,7 @@ fn driver_steps_not_proposer_invalid() {
     let value_id = value.id();
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(move |_, _| Some(value), |_| false);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -496,7 +497,7 @@ fn driver_steps_not_proposer_invalid() {
         },
         TestStep {
             desc: "Receive an invalid proposal, prevote for nil (v2)",
-            input_event: Some(Event::Proposal(proposal.clone())),
+            input_event: Some(Event::Proposal(proposal.clone(), Validity::Invalid)),
             expected_output: Some(Message::Vote(
                 Vote::new_prevote(Round::new(0), None, my_addr).signed(&my_sk),
             )),
@@ -596,7 +597,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
     let value_id = value.id();
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -798,7 +799,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
 #[test]
 fn driver_steps_no_value_to_propose() {
     // No value to propose
-    let env = TestEnv::new(|_, _| None, |_| true);
+    let env = TestEnv::new(|_, _| None);
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -827,7 +828,7 @@ fn driver_steps_no_value_to_propose() {
 fn driver_steps_proposer_not_found() {
     let value = TestContext::DUMMY_VALUE;
 
-    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -858,7 +859,7 @@ fn driver_steps_proposer_not_found() {
 fn driver_steps_validator_not_found() {
     let value = TestContext::DUMMY_VALUE;
 
-    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -895,7 +896,7 @@ fn driver_steps_validator_not_found() {
 fn driver_steps_invalid_signature() {
     let value = TestContext::DUMMY_VALUE;
 
-    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
