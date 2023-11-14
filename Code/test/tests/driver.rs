@@ -2,11 +2,12 @@ use futures::executor::block_on;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use malachite_common::{Context, Round, Timeout};
-use malachite_driver::{Driver, Error, Event, Message, ProposerSelector};
+use malachite_common::{Round, Timeout};
+use malachite_driver::{Driver, Error, Event, Message, ProposerSelector, Validity};
 use malachite_round::state::{RoundValue, State, Step};
 use malachite_test::{
-    Address, Height, PrivateKey, Proposal, TestContext, TestEnv, Validator, ValidatorSet, Vote,
+    Address, Height, PrivateKey, Proposal, TestContext, TestEnv, Validator, ValidatorSet, Value,
+    Vote,
 };
 
 struct TestStep {
@@ -19,7 +20,8 @@ struct TestStep {
 
 fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
     match output {
-        Message::Propose(p) => Some(Event::Proposal(p)),
+        // Let's consider our own proposal to always be valid
+        Message::Propose(p) => Some(Event::Proposal(p, Validity::Valid)),
         Message::Vote(v) => Some(Event::Vote(v)),
         Message::Decide(_, _) => None,
         Message::ScheduleTimeout(_) => None,
@@ -59,11 +61,10 @@ impl ProposerSelector<TestContext> for FixedProposer {
 
 #[test]
 fn driver_steps_proposer() {
-    let value = TestContext::DUMMY_VALUE;
-    let value_id = value.id();
+    let value = Value::new(9999);
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -107,7 +108,7 @@ fn driver_steps_proposer() {
             desc: "Receive our own proposal, prevote for it (v1)",
             input_event: None,
             expected_output: Some(Message::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value_id), my_addr)
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), my_addr)
                     .signed(&my_sk),
             )),
             expected_round: Round::new(0),
@@ -137,7 +138,7 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v2 prevotes for our proposal",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value_id), addr2)
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr2)
                     .signed(&sk2),
             )),
             expected_output: None,
@@ -154,11 +155,11 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v3 prevotes for our proposal, we get +2/3 prevotes, precommit for it (v1)",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value_id), addr3)
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr3)
                     .signed(&sk3),
             )),
             expected_output: Some(Message::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), Some(value_id), my_addr)
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), my_addr)
                     .signed(&my_sk),
             )),
             expected_round: Round::new(0),
@@ -200,7 +201,7 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v2 precommits for our proposal",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), Some(value_id), addr2)
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr2)
                     .signed(&sk2),
             )),
             expected_output: None,
@@ -223,7 +224,7 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v3 precommits for our proposal, we get +2/3 precommits, decide it (v1)",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), Some(value_id), addr3)
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr3)
                     .signed(&sk3),
             )),
             expected_output: Some(Message::Decide(Round::new(0), value)),
@@ -268,11 +269,10 @@ fn driver_steps_proposer() {
 
 #[test]
 fn driver_steps_not_proposer_valid() {
-    let value = TestContext::DUMMY_VALUE;
-    let value_id = value.id();
+    let value = Value::new(9999);
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -315,9 +315,9 @@ fn driver_steps_not_proposer_valid() {
         },
         TestStep {
             desc: "Receive a proposal, prevote for it (v2)",
-            input_event: Some(Event::Proposal(proposal.clone())),
+            input_event: Some(Event::Proposal(proposal.clone(), Validity::Valid)),
             expected_output: Some(Message::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value_id), my_addr)
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), my_addr)
                     .signed(&my_sk),
             )),
             expected_round: Round::new(0),
@@ -347,7 +347,7 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "v1 prevotes for its own proposal",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value_id), addr1)
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr1)
                     .signed(&sk1),
             )),
             expected_output: None,
@@ -364,11 +364,11 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "v3 prevotes for v1's proposal, it gets +2/3 prevotes, precommit for it (v2)",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value_id), addr3)
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr3)
                     .signed(&sk3),
             )),
             expected_output: Some(Message::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), Some(value_id), my_addr)
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), my_addr)
                     .signed(&my_sk),
             )),
             expected_round: Round::new(0),
@@ -410,7 +410,7 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "v1 precommits its proposal",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), Some(value_id), addr1)
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr1)
                     .signed(&sk1),
             )),
             expected_output: None,
@@ -433,7 +433,7 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "v3 precommits for v1's proposal, it gets +2/3 precommits, decide it",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), Some(value_id), addr3)
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr3)
                     .signed(&sk3),
             )),
             expected_output: Some(Message::Decide(Round::new(0), value)),
@@ -478,11 +478,10 @@ fn driver_steps_not_proposer_valid() {
 
 #[test]
 fn driver_steps_not_proposer_invalid() {
-    let value = TestContext::DUMMY_VALUE;
-    let value_id = value.id();
+    let value = Value::new(9999);
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(move |_, _| Some(value), |_| false);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -525,7 +524,7 @@ fn driver_steps_not_proposer_invalid() {
         },
         TestStep {
             desc: "Receive an invalid proposal, prevote for nil (v2)",
-            input_event: Some(Event::Proposal(proposal.clone())),
+            input_event: Some(Event::Proposal(proposal.clone(), Validity::Invalid)),
             expected_output: Some(Message::Vote(
                 Vote::new_prevote(Height::new(1),Round::new(0), None, my_addr).signed(&my_sk),
             )),
@@ -556,7 +555,7 @@ fn driver_steps_not_proposer_invalid() {
         TestStep {
             desc: "v1 prevotes for its own proposal",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value_id), addr1).signed(&sk1),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr1).signed(&sk1),
             )),
             expected_output: None,
             expected_round: Round::new(0),
@@ -572,7 +571,7 @@ fn driver_steps_not_proposer_invalid() {
         TestStep {
             desc: "v3 prevotes for v1's proposal, we have polka for any, schedule prevote timeout (v2)",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value_id), addr3).signed(&sk3),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr3).signed(&sk3),
             )),
             expected_output: Some(Message::ScheduleTimeout(Timeout::prevote(Round::new(0)))),
             expected_round: Round::new(0),
@@ -626,11 +625,10 @@ fn driver_steps_not_proposer_invalid() {
 
 #[test]
 fn driver_steps_not_proposer_timeout_multiple_rounds() {
-    let value = TestContext::DUMMY_VALUE;
-    let value_id = value.id();
+    let value = Value::new(9999);
 
     let sel = RotateProposer::default();
-    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -706,7 +704,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "v1 prevotes for its own proposal",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value_id), addr1)
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr1)
                     .signed(&sk1),
             )),
             expected_output: None,
@@ -758,7 +756,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "v1 precommits its proposal",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), Some(value_id), addr1)
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr1)
                     .signed(&sk1),
             )),
             expected_output: None,
@@ -844,7 +842,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
 #[test]
 fn driver_steps_no_value_to_propose() {
     // No value to propose
-    let env = TestEnv::new(|_, _| None, |_| true);
+    let env = TestEnv::new(|_, _| None);
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -871,9 +869,9 @@ fn driver_steps_no_value_to_propose() {
 
 #[test]
 fn driver_steps_proposer_not_found() {
-    let value = TestContext::DUMMY_VALUE;
+    let value = Value::new(9999);
 
-    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -902,9 +900,9 @@ fn driver_steps_proposer_not_found() {
 
 #[test]
 fn driver_steps_validator_not_found() {
-    let value = TestContext::DUMMY_VALUE;
+    let value = Value::new(9999);
 
-    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -939,9 +937,9 @@ fn driver_steps_validator_not_found() {
 
 #[test]
 fn driver_steps_invalid_signature() {
-    let value = TestContext::DUMMY_VALUE;
+    let value = Value::new(9999);
 
-    let env = TestEnv::new(move |_, _| Some(value), |_| true);
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 

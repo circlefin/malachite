@@ -16,7 +16,4 @@ where
     /// If `None` is returned, the driver will understand this
     /// as an error and will not propose a value.
     async fn get_value(&self, height: Ctx::Height, round: Round) -> Option<Ctx::Value>;
-
-    /// Validate a proposal.
-    async fn validate_proposal(&self, proposal: &Ctx::Proposal) -> bool;
 }
