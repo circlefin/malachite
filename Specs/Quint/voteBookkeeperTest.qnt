@@ -52,7 +52,7 @@ import voteBookkeeper.* from "./voteBookkeeper"
         .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
         .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "john"}, 10))
         .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
-        .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "alive"}, 60))
+        .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "alice"}, 60))
         .then(all{ assert(lastEmitted == {round: 1, name: "PrecommitValue", value: "proposal"}), allUnchanged })
     }
 
