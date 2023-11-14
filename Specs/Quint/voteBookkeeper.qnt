@@ -32,6 +32,8 @@ module voteBookkeeper {
         address: Address
     }
 
+    type WeightedVote = (Vote, Weight)
+
     type VoteCount = {
         totalWeight: Weight,
         // includes nil
