@@ -48,6 +48,8 @@ where
 {
     threshold_params: ThresholdParams,
     total_weight: Weight,
+
+    current_round: Round,
     per_round: BTreeMap<Round, PerRound<Ctx>>,
 }
 
@@ -55,14 +57,19 @@ impl<Ctx> VoteKeeper<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(total_weight: Weight) -> Self {
+    pub fn new(current_round: Round, total_weight: Weight) -> Self {
         VoteKeeper {
             // TODO: Make these configurable
             threshold_params: ThresholdParams::default(),
-
             total_weight,
+
+            current_round,
             per_round: BTreeMap::new(),
         }
+    }
+
+    pub fn set_current_round(&mut self, round: Round) {
+        self.current_round = round;
     }
 
     /// Apply a vote with a given weight, potentially triggering an event.
@@ -79,16 +86,30 @@ where
             weight,
         );
 
+
         round
             .addresses_weights
             .set_once(vote.validator_address().clone(), weight);
 
-        let msg = threshold_to_message(vote.vote_type(), vote.round(), threshold)?;
+        let msg = threshold_to_message(vote.vote_type(), vote.round(), threshold);
 
-        let final_msg = if !round.emitted_msgs.contains(&msg) {
-            Some(msg)
-        } else if Self::skip_round(round, self.total_weight, self.threshold_params.honest) {
+        let already_emitted = match &msg {
+            None => true, // Note: This value does not matter as it is only checked when `msg.is_some()`
+            Some(msg) => round.emitted_msgs.contains(msg),
+        };
+
+        // If we have a message, and we have not emitted it yet, then emit it.
+        // Note: The `msg.is_some()` check is redundant, but it makes the code easier to read.
+        let final_msg = if msg.is_some() && !already_emitted {
+            msg
+
+            // We only check if we can skip the current round if we get a skip threshold for a future round.
+        } else if vote.round() > self.current_round
+            && Self::skip_round(round, self.total_weight, self.threshold_params.honest)
+        {
             Some(Message::SkipRound(vote.round()))
+
+        // Either nothing to emit, or we have already emitted it.
         } else {
             None
         };

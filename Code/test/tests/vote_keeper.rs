@@ -10,7 +10,7 @@ const ADDRESS4: Address = Address::new([44; 20]);
 
 #[test]
 fn prevote_apply_nil() {
-    let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(3);
+    let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(Round::new(0), 3);
 
     let vote = Vote::new_prevote(Round::new(0), None, ADDRESS1);
     let msg = keeper.apply_vote(vote.clone(), 1);
@@ -27,7 +27,7 @@ fn prevote_apply_nil() {
 
 #[test]
 fn precommit_apply_nil() {
-    let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(3);
+    let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(Round::new(0), 3);
 
     let vote = Vote::new_precommit(Round::new(0), None, ADDRESS1);
     let msg = keeper.apply_vote(vote.clone(), 1);
@@ -44,7 +44,7 @@ fn precommit_apply_nil() {
 
 #[test]
 fn prevote_apply_single_value() {
-    let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(4);
+    let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(Round::new(0), 4);
 
     let v = ValueId::new(1);
     let val = Some(v);
@@ -68,7 +68,7 @@ fn prevote_apply_single_value() {
 
 #[test]
 fn precommit_apply_single_value() {
-    let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(4);
+    let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(Round::new(0), 4);
 
     let v = ValueId::new(1);
     let val = Some(v);
@@ -88,4 +88,24 @@ fn precommit_apply_single_value() {
     let vote = Vote::new_precommit(Round::new(0), val, ADDRESS4);
     let msg = keeper.apply_vote(vote, 1);
     assert_eq!(msg, Some(Message::PrecommitValue(v)));
+}
+
+#[test]
+fn skip_round() {
+    let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(Round::new(0), 4);
+
+    let v = ValueId::new(1);
+    let val = Some(v);
+
+    let vote = Vote::new_prevote(Round::new(0), val, ADDRESS1);
+    let msg = keeper.apply_vote(vote.clone(), 1);
+    assert_eq!(msg, None);
+
+    let vote = Vote::new_prevote(Round::new(1), val, ADDRESS2);
+    let msg = keeper.apply_vote(vote.clone(), 1);
+    assert_eq!(msg, None);
+
+    let vote = Vote::new_prevote(Round::new(1), val, ADDRESS3);
+    let msg = keeper.apply_vote(vote, 1);
+    assert_eq!(msg, Some(Message::SkipRound(Round::new(1))));
 }

@@ -55,7 +55,7 @@ where
         validator_set: Ctx::ValidatorSet,
         address: Ctx::Address,
     ) -> Self {
-        let votes = VoteKeeper::new(validator_set.total_voting_power());
+        let votes = VoteKeeper::new(Round::NIL, validator_set.total_voting_power());
 
         Self {
             ctx,
@@ -149,6 +149,7 @@ where
         self.round_states
             .insert(round, RoundState::default().new_round(round));
         self.round = round;
+        self.votes.set_current_round(round);
 
         Ok(self.apply_event(round, event))
     }
