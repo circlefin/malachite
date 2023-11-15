@@ -10,8 +10,8 @@ module executor {
 import consensus.* from "./consensus"
 import voteBookkeeper.* from "./voteBookkeeper"
 
-pure def initBookKeeper (totalVotingPower: int): Bookkeeper = 
-    { height: 0, totalWeight: totalVotingPower, rounds: Map() }
+pure def initBookKeeper (currentRound: Round, totalVotingPower: int): Bookkeeper = 
+    { height: 0, currentRound: currentRound, totalWeight: totalVotingPower, rounds: Map() }
 
 
 type ExecutorState = {
@@ -30,7 +30,7 @@ type ExecutorState = {
 pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
     val tvp = vs.keys().fold(0, (sum, key) => sum + vs.get(key))
     {
-    bk: initBookKeeper(tvp),
+    bk: initBookKeeper(0, tvp),
     cs: initConsensusState(v),
     proposals: Set(),
     valset: vs,
