@@ -201,6 +201,7 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent)
     }
     else
         // none of the supported Precommit events. Do nothing
+        // TODO: catch skip round event
         (es, defaultResult)  
 }
 
@@ -249,6 +250,7 @@ pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) 
                                     value: eev.value,
                                     vr: eev.round})  
     else
+        // TODO: catch skip round event
         (es, defaultResult)
 }
 
