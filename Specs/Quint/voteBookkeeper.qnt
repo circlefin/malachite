@@ -281,6 +281,4 @@ module voteBookkeeper {
             assert(toEvent(round, "Error", thresholdAny) == {round: round, name: "None", value: "null"}),
         }
     }
-
-
 }
