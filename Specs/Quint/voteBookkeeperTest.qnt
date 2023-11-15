@@ -45,38 +45,42 @@ module voteBookkeeperTest {
     // Test traces
     // ****************************************************************************
 
+    // auxiliary action for tests
+    action _assert(predicate: bool): bool = 
+        all { predicate, allUnchanged }
+
     // Consensus full execution with all honest validators (including the leader) and a synchronous network:
     // all messages are received in order. We assume three validators in the validator set wtih 60%, 30% and 10%
     // each of the total voting power
     run synchronousConsensusTest =
         initWith(100)
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "alice"}, 60))
-        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
+        .then(_assert(lastEmitted == {round: 1, name: "None", value: "null"}))
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "john"}, 10))
-        .then(all{ assert(lastEmitted == {round: 1, name: "PolkaValue", value: "proposal"}), allUnchanged })
+        .then(_assert(lastEmitted == {round: 1, name: "PolkaValue", value: "proposal"}))
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "bob"}, 30))
-        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
+        .then(_assert(lastEmitted == {round: 1, name: "None", value: "null"}))
         .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "bob"}, 30))
-        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
+        .then(_assert(lastEmitted == {round: 1, name: "None", value: "null"}))
         .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "john"}, 10))
-        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
+        .then(_assert(lastEmitted == {round: 1, name: "None", value: "null"}))
         .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "alice"}, 60))
-        .then(all{ assert(lastEmitted == {round: 1, name: "PrecommitValue", value: "proposal"}), allUnchanged })
+        .then(_assert(lastEmitted == {round: 1, name: "PrecommitValue", value: "proposal"}))
 
     // Reaching PolkaAny 
     run polkaAnyTest =
         initWith(100)
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "alice"}, 60))
-        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
+        .then(_assert(lastEmitted == {round: 1, name: "None", value: "null"}))
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "john"}, 10))
-        .then(all{ assert(lastEmitted == {round: 1, name: "PolkaAny", value: "null"}), allUnchanged })
+        .then(_assert(lastEmitted == {round: 1, name: "PolkaAny", value: "null"}))
 
     // Reaching PolkaNil
     run polkaNilTest =
         initWith(100)
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "alice"}, 60))
-        .then(all{ assert(lastEmitted == {round: 1, name: "None", value: "null"}), allUnchanged })
+        .then(_assert(lastEmitted == {round: 1, name: "None", value: "null"}))
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "john"}, 10))
-        .then(all{ assert(lastEmitted == {round: 1, name: "PolkaNil", value: "null"}), allUnchanged })
+        .then(_assert(lastEmitted == {round: 1, name: "PolkaNil", value: "null"}))
 
 }

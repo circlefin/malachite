@@ -118,7 +118,7 @@ val emptyVote =
 // a function, that is, any two validators need to agree on this
 pure def Proposer(valset: Address_t -> int, height: Height_t, round: Round_t) : Address_t = {
     // Here: rotating coordinator. We can do something more clever actually using the valset
-    val prop = (height * round + 1) % 4
+    val prop = (round + 1) % 4
     if (prop == 0) "v1"
     else if  (prop == 1) "v2"
     else if  (prop == 2) "v3"
@@ -201,6 +201,7 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent)
     }
     else
         // none of the supported Precommit events. Do nothing
+        // TODO: catch skip round event
         (es, defaultResult)  
 }
 
@@ -249,6 +250,7 @@ pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) 
                                     value: eev.value,
                                     vr: eev.round})  
     else
+        // TODO: catch skip round event
         (es, defaultResult)
 }
 
@@ -295,7 +297,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
             // keep the proposal, do nothing else
             (newES, defaultResult)
         else
-            // for current round, valid, and from right proposer
+            // for current round and q, valid, and from right proposer
             val receivedPolkaValidRoundVal = checkThreshold(newES.bk,   
                                                             input.proposal.validRound, 
                                                             "Prevote", 
