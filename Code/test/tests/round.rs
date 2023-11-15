@@ -19,7 +19,7 @@ fn test_propose() {
         ..Default::default()
     };
 
-    let data = RoundData::new(round, &height, &ADDRESS);
+    let data = RoundData::new(round, height, &ADDRESS);
 
     let transition = apply_event(state.clone(), &data, Event::NewRoundProposer(value));
 
@@ -44,7 +44,7 @@ fn test_prevote() {
         ..Default::default()
     };
 
-    let data = RoundData::new(Round::new(1), &height, &ADDRESS);
+    let data = RoundData::new(Round::new(1), height, &ADDRESS);
 
     let transition = apply_event(state, &data, Event::NewRound);
 

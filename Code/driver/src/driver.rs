@@ -261,17 +261,19 @@ where
 
     /// Apply the event, update the state.
     fn apply_event(&mut self, round: Round, event: RoundEvent<Ctx>) -> Option<RoundMessage<Ctx>> {
-        let data = RoundData::new(round, &self.round_state.height, &self.address);
+        let round_state = core::mem::take(&mut self.round_state);
+
+        let data = RoundData::new(round, round_state.height.clone(), &self.address);
 
         // Multiplex the event with the round state.
         let mux_event = match event {
-            RoundEvent::PolkaValue(value_id) => match self.round_state.proposal {
+            RoundEvent::PolkaValue(value_id) => match round_state.proposal {
                 Some(ref proposal) if proposal.value().id() == value_id => {
                     RoundEvent::ProposalAndPolkaCurrent(proposal.clone())
                 }
                 _ => RoundEvent::PolkaAny,
             },
-            RoundEvent::PrecommitValue(value_id) => match self.round_state.proposal {
+            RoundEvent::PrecommitValue(value_id) => match round_state.proposal {
                 Some(ref proposal) if proposal.value().id() == value_id => {
                     RoundEvent::ProposalAndPrecommitValue(proposal.clone())
                 }
@@ -282,7 +284,7 @@ where
         };
 
         // Apply the event to the round state machine
-        let transition = self.round_state.clone().apply_event(&data, mux_event);
+        let transition = round_state.apply_event(&data, mux_event);
 
         // Update state
         self.round_state = transition.next_state;
