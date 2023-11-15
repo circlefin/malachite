@@ -190,11 +190,10 @@ module voteBookkeeper {
             else 
                 roundVotes.with("precommits", updatedVoteCount)
 
-        val combinedWeight = updatedRoundVotes.prevotes.valuesWeights.getOrElse(vote.value, 0)
-            + updatedRoundVotes.precommits.valuesWeights.getOrElse(vote.value, 0)
+        // Combined weight of all validators at this height
+        val combinedWeight = updatedVotesAddressesWeights.mapSumValues()
 
         val finalEvent =
-            // TODO: do we need to check if we have not emitted any event yet for the vote round?
             if (vote.round > keeper.currentRound and isSkip(combinedWeight, total))
                 { round: vote.round, name: "Skip", value: "null" }
             else
