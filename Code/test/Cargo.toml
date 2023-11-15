@@ -21,4 +21,3 @@ ed25519-consensus.workspace = true
 signature.workspace         = true
 rand.workspace              = true
 sha2.workspace              = true
-secrecy.workspace           = true

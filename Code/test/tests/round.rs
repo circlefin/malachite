@@ -59,7 +59,7 @@ fn test_prevote() {
         Event::Proposal(Proposal::new(
             Height::new(1),
             Round::new(1),
-            value.clone(),
+            value,
             Round::Nil,
         )),
     );

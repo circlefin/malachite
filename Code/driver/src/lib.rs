@@ -14,17 +14,21 @@
 
 extern crate alloc;
 
-mod client;
 mod driver;
+mod env;
+mod error;
 mod event;
 mod message;
 mod proposer;
+mod util;
 
-pub use client::Client;
 pub use driver::Driver;
+pub use env::Env;
+pub use error::Error;
 pub use event::Event;
 pub use message::Message;
 pub use proposer::ProposerSelector;
+pub use util::Validity;
 
 // Re-export `#[async_trait]` macro for convenience.
 pub use async_trait::async_trait;
