@@ -1,3 +1,5 @@
+use core::fmt;
+
 use malachite_common::VotingPower;
 
 use crate::{signing::PublicKey, TestContext};
@@ -19,6 +21,16 @@ impl Address {
         let mut address = [0; Self::LENGTH];
         address.copy_from_slice(&hash[..Self::LENGTH]);
         Self(address)
+    }
+}
+
+impl fmt::Display for Address {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for byte in self.0.iter() {
+            write!(f, "{:02x}", byte)?;
+        }
+        Ok(())
     }
 }
 

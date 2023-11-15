@@ -4,9 +4,10 @@ resolver = "2"
 members = [
   "common",
   "driver",
+  "itf",
   "round",
-  "vote",
   "test",
+  "vote",
 ]
 
 [workspace.package]
@@ -20,6 +21,8 @@ publish      = false
 async-trait       = "0.1"
 futures           = "0.3"
 ed25519-consensus = "2.1.0"
+itf               = "0.1.2"
 rand              = { version = "0.8.5", features = ["std_rng"] }
+serde             = "1.0"
 sha2              = "0.10.8"
 signature         = "2.1.0"

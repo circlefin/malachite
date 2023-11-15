@@ -1,4 +1,4 @@
-use core::fmt::Debug;
+use core::fmt::{Debug, Display};
 
 use crate::{Context, PublicKey};
 
@@ -12,7 +12,7 @@ pub type VotingPower = u64;
 /// TODO: Keep this trait or just add the bounds to Consensus::Address?
 pub trait Address
 where
-    Self: Clone + Debug + Eq + Ord,
+    Self: Clone + Debug + Display + Eq + Ord,
 {
 }
 
