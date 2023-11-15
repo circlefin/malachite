@@ -18,9 +18,6 @@ where
     type Vote: Vote<Self>;
     type SigningScheme: SigningScheme; // TODO: Do we need to support multiple signing schemes?
 
-    // FIXME: Remove altogether
-    const DUMMY_VALUE: Self::Value;
-
     /// Sign the given vote our private key.
     fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self>;
 
