@@ -350,25 +350,40 @@ module voteBookkeeper {
             assert(computeThreshold(voteCount.with("valuesWeights", mapNoneReached), Nil) == unreachedThreshold),
         }
 
-    run toEventTest =
-        val thresholdUnreached = {name: "Unreached", value: "null"}
-        val thresholdAny = {name: "Any", value: "null"}
-        val thresholdNil = {name: "Nil", value: "null"}
-        val thresholdValue = {name: "Value", value: "val1"}
-        val thresholdSkip = {name: "Skip", value: "null"}
-        val round = 10
+    // ************************************************************************
+    // State 
+    // ************************************************************************
+
+    // The value used as parameter on each action taken.
+    var weightedVote: WeightedVote
+    // The state of the Bookkeeper.
+    var bookkeeper: Bookkeeper
+    // The event resulting from applying a weighted vote to the bookkeeper.
+    var lastEmitted: ExecutorEvent
+
+    // ************************************************************************
+    // Actions
+    // ************************************************************************
+
+    action allUnchanged: bool = all {
+        weightedVote' = weightedVote,
+        bookkeeper' = bookkeeper,
+        lastEmitted' = lastEmitted,
+    }
+
+    action initWith(initialHeight: Height, totalWeight: Weight): bool = all {
+        weightedVote' = ({ typ: "", round: -1, value: "", address: "" }, -1),
+        bookkeeper' = { height: initialHeight, totalWeight: totalWeight, rounds: Map() },
+        lastEmitted' = { round: -1, name: "", value: "null" }
+    }
+
+    // The vote keeper receives a weighted vote and produces an event.
+    action applyVoteAction(vote: Vote, weight: Weight): bool =
+        val result = applyVote(bookkeeper, vote, weight)
         all {
-            assert(toEvent(round, "Prevote", thresholdUnreached) == {round: round, name: "None", value: "null"}),
-            assert(toEvent(round, "Precommit", thresholdUnreached) == {round: round, name: "None", value: "null"}),
-            assert(toEvent(round, "Prevote", thresholdAny) == {round: round, name: "PolkaAny", value: "null"}),
-            assert(toEvent(round, "Prevote", thresholdNil) == {round: round, name: "PolkaNil", value: "null"}),
-            assert(toEvent(round, "Prevote", thresholdValue) == {round: round, name: "PolkaValue", value: "val1"}),
-            assert(toEvent(round, "Precommit", thresholdAny) == {round: round, name: "PrecommitAny", value: "null"}),
-            assert(toEvent(round, "Precommit", thresholdNil) == {round: round, name: "PrecommitAny", value: "null"}),
-            assert(toEvent(round, "Precommit", thresholdValue) == {round: round, name: "PrecommitValue", value: "val1"}),
-            assert(toEvent(round, "Prevote", thresholdSkip) == {round: round, name: "Skip", value: "null"}),
-            assert(toEvent(round, "Precommit", thresholdSkip) == {round: round, name: "Skip", value: "null"}),
-            assert(toEvent(round, "Precommit", {name: "Error", value: "null"}) == {round: round, name: "None", value: "null"}),
-            assert(toEvent(round, "Error", thresholdAny) == {round: round, name: "None", value: "null"}),
+            weightedVote' = (vote, weight),
+            bookkeeper' = result.bookkeeper,
+            lastEmitted' = result.event
         }
+
 }
