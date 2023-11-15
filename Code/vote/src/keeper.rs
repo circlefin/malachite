@@ -87,7 +87,7 @@ where
             .set_once(vote.validator_address().clone(), weight);
 
         if vote.round() > current_round {
-            let combined_weight = round.votes.combined_weight(vote.value());
+            let combined_weight = round.addresses_weights.sum();
 
             let skip_round = self
                 .threshold_params
