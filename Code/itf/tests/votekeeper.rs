@@ -51,12 +51,12 @@ fn model_address_map() -> HashMap<String, Address> {
 
 #[rstest]
 fn test_itf(
-    #[files("tests/fixtures/votekeeper/*.json")] fixture: PathBuf,
+    #[files("tests/fixtures/votekeeper/*.json")] json_fixture: PathBuf,
     model_address_map: &HashMap<String, Address>,
 ) {
-    println!("Parsing '{}'", fixture.display());
+    println!("Parsing {json_fixture:?}");
 
-    let json = std::fs::read_to_string(&fixture).unwrap();
+    let json = std::fs::read_to_string(&json_fixture).unwrap();
     let trace = itf::trace_from_str::<ItfState>(&json).unwrap();
 
     // Obtain the initial total_weight from the first state in the model.
