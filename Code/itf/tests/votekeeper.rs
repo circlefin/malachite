@@ -15,6 +15,43 @@ use rand::SeedableRng;
 
 use rstest::{fixture, rstest};
 
+// TODO: move to itf-rs repo
+fn uint_from_model(bigint: ItfBigInt) -> Option<u64> {
+    let (sign, digits) = bigint.value().to_u64_digits();
+    if sign == Sign::Minus {
+        None
+    } else {
+        Some(u64::try_from(digits[0]).unwrap())
+    }
+}
+
+// TODO: move to itf-rs repo
+fn extract_int(bigint: ItfBigInt) -> Option<i64> {
+    let (sign, digits) = bigint.value().to_u64_digits();
+    let i = i64::try_from(digits[0]).unwrap();
+    Some(if sign == Sign::Minus { -i } else { i })
+}
+
+fn round_from_model(round: malachite_itf::votekeeper::Round) -> Round {
+    let i = extract_int(round).unwrap();
+    if i < 0 {
+        Round::Nil
+    } else {
+        Round::Some(i)
+    }
+}
+
+fn value_from_model(value: malachite_itf::votekeeper::Value) -> Option<malachite_test::ValueId> {
+    match value.as_str() {
+        "nil" => None,
+        "proposal" => Some(ValueId::from(0)),
+        "val1" => Some(ValueId::from(1)),
+        "val2" => Some(ValueId::from(2)),
+        "val3" => Some(ValueId::from(3)),
+        _ => None,
+    }
+}
+
 #[fixture]
 #[once]
 fn model_address_map() -> HashMap<String, Address> {
@@ -96,42 +133,5 @@ fn test_itf(
                 msg => assert_eq!(model_result.name, format!("{:?}", msg)),
             }
         }
-    }
-}
-
-// TODO: move to itf-rs repo
-fn uint_from_model(bigint: ItfBigInt) -> Option<u64> {
-    let (sign, digits) = bigint.value().to_u64_digits();
-    if sign == Sign::Minus {
-        None
-    } else {
-        Some(u64::try_from(digits[0]).unwrap())
-    }
-}
-
-// TODO: move to itf-rs repo
-fn extract_int(bigint: ItfBigInt) -> Option<i64> {
-    let (sign, digits) = bigint.value().to_u64_digits();
-    let i = i64::try_from(digits[0]).unwrap();
-    Some(if sign == Sign::Minus { -i } else { i })
-}
-
-fn round_from_model(round: malachite_itf::votekeeper::Round) -> Round {
-    let i = extract_int(round).unwrap();
-    if i < 0 {
-        Round::Nil
-    } else {
-        Round::Some(i)
-    }
-}
-
-fn value_from_model(value: malachite_itf::votekeeper::Value) -> Option<malachite_test::ValueId> {
-    match value.as_str() {
-        "nil" => None,
-        "proposal" => Some(ValueId::from(0)),
-        "val1" => Some(ValueId::from(1)),
-        "val2" => Some(ValueId::from(2)),
-        "val3" => Some(ValueId::from(3)),
-        _ => None,
     }
 }
