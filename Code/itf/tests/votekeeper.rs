@@ -1,8 +1,11 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 
-use itf::ItfBigInt;
+use itf::Itf;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+
 use malachite_common::Round;
-use malachite_itf::votekeeper::Round as ItfRound;
 use malachite_itf::votekeeper::State as ItfState;
 use malachite_itf::votekeeper::Value as ItfValue;
 use malachite_test::ValueId;
@@ -10,30 +13,14 @@ use malachite_test::{Address, PrivateKey, TestContext, Vote};
 use malachite_vote::keeper::Message;
 use malachite_vote::{keeper::VoteKeeper, Weight};
 
-use std::path::PathBuf;
-
-use rand::rngs::StdRng;
-use rand::SeedableRng;
-
 use rstest::{fixture, rstest};
 
 // TODO: move to itf-rs repo
-fn uint_from_model(bigint: ItfBigInt) -> Option<u64> {
+fn from_itf<T, U>(bigint: Itf<T>) -> Option<U>
+where
+    U: TryFrom<T>,
+{
     bigint.value().try_into().ok()
-}
-
-// TODO: move to itf-rs repo
-fn extract_int(bigint: ItfBigInt) -> Option<i64> {
-    bigint.value().try_into().ok()
-}
-
-fn round_from_model(round: ItfRound) -> Round {
-    let i = extract_int(round).unwrap();
-    if i < 0 {
-        Round::Nil
-    } else {
-        Round::Some(i)
-    }
 }
 
 fn value_from_model(value: ItfValue) -> Option<ValueId> {
@@ -75,7 +62,7 @@ fn test_itf(
 
     // Obtain the initial total_weight from the first state in the model.
     let bookkeper = trace.states[0].value.bookkeeper.clone();
-    let total_weight: Weight = uint_from_model(bookkeper.total_weight).unwrap();
+    let total_weight: Weight = from_itf(bookkeper.total_weight).unwrap();
 
     let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(total_weight);
 
@@ -84,7 +71,7 @@ fn test_itf(
 
         // Build step to execute.
         let (input_vote, weight) = state.weighted_vote.value();
-        let round = round_from_model(input_vote.round);
+        let round = Round::new(from_itf::<_, i64>(input_vote.round).unwrap());
         let value = value_from_model(input_vote.value);
         let address = model_address_map.get(input_vote.address.as_str()).unwrap();
         let vote = match input_vote.typ.as_str() {
@@ -92,7 +79,7 @@ fn test_itf(
             "Precommit" => Vote::new_precommit(round, value, *address),
             _ => unreachable!(),
         };
-        let weight: Weight = uint_from_model(weight).unwrap();
+        let weight: Weight = from_itf(weight).unwrap();
         println!(
             "🟢 step: vote={:?}, round={:?}, value={:?}, address={:?}, weight={:?}",
             input_vote.typ, round, value, input_vote.address, weight
@@ -123,7 +110,10 @@ fn test_itf(
                 }
                 Message::SkipRound(round) => {
                     assert_eq!(model_result.name, "SkipRound");
-                    assert_eq!(round_from_model(model_result.round), round);
+                    assert_eq!(
+                        Round::new(from_itf::<_, i64>(model_result.round).unwrap()),
+                        round
+                    );
                 }
                 msg => assert_eq!(model_result.name, format!("{:?}", msg)),
             }
