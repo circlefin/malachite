@@ -15,4 +15,5 @@ malachite-common = { version = "0.1.0", path = "../common" }
 malachite-vote   = { version = "0.1.0", path = "../vote" }
 malachite-test   = { version = "0.1.0", path = "../test" }
 num-bigint       = { version = "0.4", features = ["serde"] }
+rstest           = { version = "0.18.2", default-features = false }
 serde            = { workspace = true, features = ["derive"] }
