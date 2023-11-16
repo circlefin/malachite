@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use itf::ItfBigInt;
 use malachite_common::Round;
-use malachite_itf::votekeeper::State;
+use malachite_itf::votekeeper::Round as ItfRound;
+use malachite_itf::votekeeper::State as ItfState;
+use malachite_itf::votekeeper::Value as ItfValue;
+use malachite_test::ValueId;
 use malachite_test::{Address, PrivateKey, TestContext, Vote};
 use malachite_vote::keeper::Message;
 use malachite_vote::{keeper::VoteKeeper, Weight};
@@ -24,7 +27,7 @@ fn extract_int(bigint: ItfBigInt) -> Option<i64> {
     bigint.value().try_into().ok()
 }
 
-fn round_from_model(round: malachite_itf::votekeeper::Round) -> Round {
+fn round_from_model(round: ItfRound) -> Round {
     let i = extract_int(round).unwrap();
     if i < 0 {
         Round::Nil
@@ -33,7 +36,7 @@ fn round_from_model(round: malachite_itf::votekeeper::Round) -> Round {
     }
 }
 
-fn value_from_model(value: malachite_itf::votekeeper::Value) -> Option<malachite_test::ValueId> {
+fn value_from_model(value: ItfValue) -> Option<ValueId> {
     match value.as_str() {
         "nil" => None,
         "proposal" => Some(0.into()),
@@ -68,7 +71,7 @@ fn test_itf(
     println!("Parsing '{}'", fixture.display());
 
     let json = std::fs::read_to_string(&fixture).unwrap();
-    let trace = itf::trace_from_str::<State>(&json).unwrap();
+    let trace = itf::trace_from_str::<ItfState>(&json).unwrap();
 
     // Obtain the initial total_weight from the first state in the model.
     let bookkeper = trace.states[0].value.bookkeeper.clone();
