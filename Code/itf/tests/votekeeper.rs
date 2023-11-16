@@ -29,7 +29,7 @@ fn value_from_model(value: ItfValue) -> Option<ValueId> {
         "val1" => Some(1.into()),
         "val2" => Some(2.into()),
         "val3" => Some(3.into()),
-        _ => None,
+        _ => unimplemented!("unknown value {value:?}"),
     }
 }
 
