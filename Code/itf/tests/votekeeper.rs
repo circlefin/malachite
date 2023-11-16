@@ -3,10 +3,9 @@ use std::collections::HashMap;
 use itf::ItfBigInt;
 use malachite_common::Round;
 use malachite_itf::votekeeper::State;
-use malachite_test::{Address, PrivateKey, TestContext, ValueId, Vote};
+use malachite_test::{Address, PrivateKey, TestContext, Vote};
 use malachite_vote::keeper::Message;
 use malachite_vote::{keeper::VoteKeeper, Weight};
-use num_bigint::Sign;
 
 use std::path::PathBuf;
 
@@ -17,19 +16,12 @@ use rstest::{fixture, rstest};
 
 // TODO: move to itf-rs repo
 fn uint_from_model(bigint: ItfBigInt) -> Option<u64> {
-    let (sign, digits) = bigint.value().to_u64_digits();
-    if sign == Sign::Minus {
-        None
-    } else {
-        Some(u64::try_from(digits[0]).unwrap())
-    }
+    bigint.value().try_into().ok()
 }
 
 // TODO: move to itf-rs repo
 fn extract_int(bigint: ItfBigInt) -> Option<i64> {
-    let (sign, digits) = bigint.value().to_u64_digits();
-    let i = i64::try_from(digits[0]).unwrap();
-    Some(if sign == Sign::Minus { -i } else { i })
+    bigint.value().try_into().ok()
 }
 
 fn round_from_model(round: malachite_itf::votekeeper::Round) -> Round {
@@ -44,10 +36,10 @@ fn round_from_model(round: malachite_itf::votekeeper::Round) -> Round {
 fn value_from_model(value: malachite_itf::votekeeper::Value) -> Option<malachite_test::ValueId> {
     match value.as_str() {
         "nil" => None,
-        "proposal" => Some(ValueId::from(0)),
-        "val1" => Some(ValueId::from(1)),
-        "val2" => Some(ValueId::from(2)),
-        "val3" => Some(ValueId::from(3)),
+        "proposal" => Some(0.into()),
+        "val1" => Some(1.into()),
+        "val2" => Some(2.into()),
+        "val3" => Some(3.into()),
         _ => None,
     }
 }
