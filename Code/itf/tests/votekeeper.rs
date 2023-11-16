@@ -70,7 +70,7 @@ fn test_itf(
 
         // Build step to execute.
         let (input_vote, weight) = state.weighted_vote.value();
-        let round = Round::new(from_itf::<_, i64>(input_vote.round).unwrap());
+        let round = Round::new(from_itf(input_vote.round).unwrap());
         let value = value_from_model(input_vote.value);
         let address = model_address_map.get(input_vote.address.as_str()).unwrap();
         let vote = match input_vote.typ.as_str() {
@@ -107,10 +107,7 @@ fn test_itf(
                 }
                 Message::SkipRound(round) => {
                     assert_eq!(model_result.name, "SkipRound");
-                    assert_eq!(
-                        Round::new(from_itf::<_, i64>(model_result.round).unwrap()),
-                        round
-                    );
+                    assert_eq!(Round::new(from_itf(model_result.round).unwrap()), round);
                 }
                 msg => assert_eq!(model_result.name, format!("{:?}", msg)),
             },
