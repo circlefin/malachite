@@ -1,18 +1,17 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use itf::Itf;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use malachite_common::Round;
 use malachite_itf::votekeeper::State as ItfState;
 use malachite_itf::votekeeper::Value as ItfValue;
-use malachite_test::ValueId;
-use malachite_test::{Address, PrivateKey, TestContext, Vote};
-use malachite_vote::keeper::Message;
-use malachite_vote::{keeper::VoteKeeper, Weight};
+use malachite_test::{Address, PrivateKey, TestContext, ValueId, Vote};
+use malachite_vote::keeper::{Message, VoteKeeper};
+use malachite_vote::Weight;
 
+use itf::Itf;
 use rstest::{fixture, rstest};
 
 // TODO: move to itf-rs repo
