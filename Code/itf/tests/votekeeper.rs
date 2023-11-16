@@ -95,10 +95,8 @@ fn test_itf(
         );
 
         // Check result against expected result.
-        if result.is_none() {
-            assert_eq!(model_result.name, "None");
-        } else {
-            match result.unwrap() {
+        match result {
+            Some(result) => match result {
                 Message::PolkaValue(value) => {
                     assert_eq!(model_result.name, "PolkaValue");
                     assert_eq!(value_from_model(model_result.value), Some(value));
@@ -115,7 +113,8 @@ fn test_itf(
                     );
                 }
                 msg => assert_eq!(model_result.name, format!("{:?}", msg)),
-            }
+            },
+            None => assert_eq!(model_result.name, "None"),
         }
     }
 }
