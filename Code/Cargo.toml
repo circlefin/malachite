@@ -26,3 +26,6 @@ rand              = { version = "0.8.5", features = ["std_rng"] }
 serde             = "1.0"
 sha2              = "0.10.8"
 signature         = "2.1.0"
+
+[patch.crates-io]
+itf = { git = "https://github.com/rnbguy/informal-itf-rs", rev = "ddddb14" }
