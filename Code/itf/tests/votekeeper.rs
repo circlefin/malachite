@@ -8,7 +8,7 @@ use rand::SeedableRng;
 use malachite_common::{Context, Round, Value};
 use malachite_itf::votekeeper::{State as ItfState, Value as ItfValue};
 use malachite_itf::TraceRunner;
-use malachite_test::{Address, PrivateKey, TestContext, ValueId, Vote};
+use malachite_test::{Address, Height, PrivateKey, TestContext, ValueId, Vote};
 use malachite_vote::keeper::{Message, VoteKeeper};
 use malachite_vote::Weight;
 
@@ -62,11 +62,12 @@ impl TraceRunner for VoteKeeperRunner {
         // Build step to execute.
         let (input_vote, weight) = expected_state.weighted_vote.deref();
         let round = Round::new(from_itf(&input_vote.round).unwrap());
+        let height = Height::new(from_itf(&input_vote.height).unwrap());
         let value = value_from_model(&input_vote.value);
         let address = self.address_map.get(input_vote.address.as_str()).unwrap();
         let vote = match input_vote.typ.as_str() {
-            "Prevote" => Vote::new_prevote(round, value, *address),
-            "Precommit" => Vote::new_precommit(round, value, *address),
+            "Prevote" => Vote::new_prevote(height, round, value, *address),
+            "Precommit" => Vote::new_precommit(height, round, value, *address),
             _ => unreachable!(),
         };
         let weight: Weight = from_itf(weight).unwrap();
