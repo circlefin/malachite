@@ -11,10 +11,10 @@ import statemachineAsync(
     Heights = Set(0) // , 1, 2, 3)
 ) as N4F0 from "./statemachineAsync"
 
-run NewRoundTest = {
+run ThreeDecideInRound1V4stillinZeroTest = {
     N4F0::init
     .then(N4F0::setNextValueToPropose("v2", "block"))
-    .then(N4F0::valStep("v1"))
+.then(N4F0::valStep("v1"))
     .then(N4F0::valStep("v2"))
     .then(N4F0::valStep("v3"))
     .then(N4F0::valStep("v4"))
@@ -64,20 +64,86 @@ run NewRoundTest = {
     .then(N4F0::valStep("v3")) 
     .then(N4F0::valStep("v1"))
     .then(N4F0::valStep("v2"))
-    .then(N4F0::valStep("v3"))    
+    .then(N4F0::valStep("v3"))   
+    .then(N4F0::setNextValueToPropose("v3", "another block")) 
     .then(N4F0::valStep("v1"))
     .then(N4F0::valStep("v2"))
     .then(N4F0::valStep("v3"))     
-  //  .then(N4F0::deliverProposal("v1",  { height: 0, proposal: "block", round: 1, src: "v2", validRound: -1 }))
-/*     .then(N4F0::deliverProposal("v1", { height: 0, proposal: "block", round: 0, src: "v2", validRound: -1 }))
-    .then(N4F0::deliverProposal("v2", { height: 0, proposal: "block", round: 0, src: "v2", validRound: -1 }))
-    .then(N4F0::deliverProposal("v3", { height: 0, proposal: "block", round: 0, src: "v2", validRound: -1 }))
+    .then(N4F0::deliverProposal("v1",  { height: 0, proposal: "another block", round: 1, src: "v3", validRound: -1 }))
+    .then(N4F0::deliverProposal("v2",  { height: 0, proposal: "another block", round: 1, src: "v3", validRound: -1 }))
+    .then(N4F0::deliverProposal("v3",  { height: 0, proposal: "another block", round: 1, src: "v3", validRound: -1 }))
     .then(N4F0::valStep("v1"))
     .then(N4F0::valStep("v2"))
     .then(N4F0::valStep("v3")) 
-  
-          */              
+    .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v1", step: "Prevote" }))
+    .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v2", step: "Prevote" }))
+    .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v3", step: "Prevote" }))
+    .then(N4F0::deliverVote("v2", { height: 0, id: "another block", round: 1, src: "v1", step: "Prevote" }))
+    .then(N4F0::deliverVote("v2", { height: 0, id: "another block", round: 1, src: "v2", step: "Prevote" }))
+    .then(N4F0::deliverVote("v2", { height: 0, id: "another block", round: 1, src: "v3", step: "Prevote" }))
+    .then(N4F0::deliverVote("v3", { height: 0, id: "another block", round: 1, src: "v1", step: "Prevote" }))
+    .then(N4F0::deliverVote("v3", { height: 0, id: "another block", round: 1, src: "v2", step: "Prevote" }))
+    .then(N4F0::deliverVote("v3", { height: 0, id: "another block", round: 1, src: "v3", step: "Prevote" }))
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3"))
+    .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
+    .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v2", step: "Precommit" }))
+    .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v3", step: "Precommit" }))
+    .then(N4F0::deliverVote("v2", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
+    .then(N4F0::deliverVote("v2", { height: 0, id: "another block", round: 1, src: "v2", step: "Precommit" }))
+    .then(N4F0::deliverVote("v2", { height: 0, id: "another block", round: 1, src: "v3", step: "Precommit" }))
+    .then(N4F0::deliverVote("v3", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
+    .then(N4F0::deliverVote("v3", { height: 0, id: "another block", round: 1, src: "v2", step: "Precommit" }))
+    .then(N4F0::deliverVote("v3", { height: 0, id: "another block", round: 1, src: "v3", step: "Precommit" }))     
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3")) 
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3"))
 }
+
+run DecideForFutureRoundTest = {
+    ThreeDecideInRound1V4stillinZeroTest
+    .then(N4F0::deliverProposal("v4",  { height: 0, proposal: "another block", round: 1, src: "v3", validRound: -1 }))
+    .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
+    .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v2", step: "Precommit" }))
+    .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v3", step: "Precommit" }))
+    .then(N4F0::valStep("v4"))
+    .then(N4F0::valStep("v4"))
+    .then(N4F0::valStep("v4"))
+    .then(N4F0::valStep("v4"))
+    .then(all {
+        assert(N4F0::system.get("v4").es.chain.head() == "another block"),
+        N4F0::unchangedAll
+    })
+   // .then(N4F0::valStep("v4"))
+           
+}
+
+run CatchUpTest = {
+    ThreeDecideInRound1V4stillinZeroTest
+    .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
+    .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v2", step: "Prevote" }))
+    .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v3", step: "Precommit" })) 
+//    .then(N4F0::valStep("v4"))
+//    .then(N4F0::valStep("v4"))
+//    .then(N4F0::valStep("v4"))
+    // .then(all {
+    //     assert(N4F0::system.get("v4").es.chain.head() == "another block"),
+    //     N4F0::unchangedAll
+    // })   
+}    
 
 import statemachineAsync(
     validators = Set("v1", "v2", "v3", "v4"),

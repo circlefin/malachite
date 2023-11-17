@@ -193,15 +193,20 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent)
                 }    
             }
     else if (eev.name == "PrecommitAny" and eev.round == es.cs.round) {
-                callConsensus(es, es.bk,  { name: "PrecommitAny",
-                                            height: input.vote.height,
-                                            round: input.vote.round,
-                                            value: input.vote.id,
-                                            vr: -1})    
+        callConsensus(es, es.bk,  { name: "PrecommitAny",
+                                    height: input.vote.height,
+                                    round: input.vote.round,
+                                    value: input.vote.id,
+                                    vr: -1})    
     }
+    else if (eev.name == "Skip" and eev.round > es.cs.round)
+        callConsensus(es, es.bk,  { name: "RoundSkip",
+                                    height: input.vote.height,
+                                    round: input.vote.round,
+                                    value: input.vote.id,
+                                    vr: -1}) 
     else
         // none of the supported Precommit events. Do nothing
-        // TODO: catch skip round event
         (es, defaultResult)  
 }
 
@@ -249,8 +254,13 @@ pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) 
                                     round: es.cs.round,
                                     value: eev.value,
                                     vr: eev.round})  
+    else if (eev.name == "Skip" and eev.round > es.cs.round)
+        callConsensus(es, es.bk,  { name: "RoundSkip",
+                                    height: input.vote.height,
+                                    round: input.vote.round,
+                                    value: input.vote.id,
+                                    vr: -1}) 
     else
-        // TODO: catch skip round event
         (es, defaultResult)
 }
 
@@ -292,7 +302,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
                                     round: input.proposal.round,
                                     value: id(input.proposal.proposal),
                                     vr: input.proposal.validRound})  
-        else if (input.proposal.round != es.cs.round or input.proposal.height != es.cs.round) 
+        else if (input.proposal.round != es.cs.round or input.proposal.height != es.cs.height) 
             // the proposal is from the right proposer and valid, but not for this round
             // keep the proposal, do nothing else
             (newES, defaultResult)
