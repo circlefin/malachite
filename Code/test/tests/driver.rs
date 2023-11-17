@@ -25,7 +25,7 @@ fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
         Message::Vote(v) => Some(Event::Vote(v)),
         Message::Decide(_, _) => None,
         Message::ScheduleTimeout(_) => None,
-        Message::NewRound(round) => Some(Event::NewRound(round)),
+        Message::NewRound(height, round) => Some(Event::NewRound(height, round)),
     }
 }
 
@@ -85,14 +85,14 @@ fn driver_steps_proposer() {
     let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are proposer, propose value",
-            input_event: Some(Event::NewRound(Round::new(0))),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
             expected_output: Some(Message::Propose(proposal.clone())),
             expected_round: Round::new(0),
             new_state: State {
@@ -258,10 +258,12 @@ fn driver_steps_proposer() {
         let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
-        assert_eq!(driver.round, step.expected_round, "expected round");
+        assert_eq!(
+            driver.round_state.round, step.expected_round,
+            "expected round"
+        );
 
-        let new_state = driver.round_state(Round::new(0)).unwrap();
-        assert_eq!(new_state, &step.new_state, "expected state");
+        assert_eq!(driver.round_state, step.new_state, "expected state");
 
         previous_message = output.and_then(to_input_msg);
     }
@@ -294,14 +296,14 @@ fn driver_steps_not_proposer_valid() {
     let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(0))),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
@@ -467,10 +469,12 @@ fn driver_steps_not_proposer_valid() {
         let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
-        assert_eq!(driver.round, step.expected_round, "expected round");
+        assert_eq!(
+            driver.round_state.round, step.expected_round,
+            "expected round"
+        );
 
-        let new_state = driver.round_state(Round::new(0)).unwrap();
-        assert_eq!(new_state, &step.new_state, "expected state");
+        assert_eq!(driver.round_state, step.new_state, "expected state");
 
         previous_message = output.and_then(to_input_msg);
     }
@@ -503,14 +507,14 @@ fn driver_steps_not_proposer_invalid() {
     let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(0))),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
@@ -614,10 +618,12 @@ fn driver_steps_not_proposer_invalid() {
         let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
-        assert_eq!(driver.round, step.expected_round, "expected round");
+        assert_eq!(
+            driver.round_state.round, step.expected_round,
+            "expected round"
+        );
 
-        let new_state = driver.round_state(driver.round).unwrap();
-        assert_eq!(new_state, &step.new_state, "expected state");
+        assert_eq!(driver.round_state, step.new_state, "expected state");
 
         previous_message = output.and_then(to_input_msg);
     }
@@ -650,13 +656,13 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
     let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
     let steps = vec![
         // Start round 0, we, v3, are not the proposer
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(0))),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
@@ -791,7 +797,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "we receive a precommit timeout, start a new round",
             input_event: Some(Event::TimeoutElapsed(Timeout::precommit(Round::new(0)))),
-            expected_output: Some(Message::NewRound(Round::new(1))),
+            expected_output: Some(Message::NewRound(Height::new(1), Round::new(1))),
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -804,7 +810,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         },
         TestStep {
             desc: "Start round 1, we are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(1))),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(1))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(1)))),
             expected_round: Round::new(1),
             new_state: State {
@@ -830,10 +836,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
-        assert_eq!(driver.round, step.expected_round, "expected round");
-
-        let new_state = driver.round_state(driver.round).unwrap();
-        assert_eq!(new_state, &step.new_state, "new state");
+        assert_eq!(driver.round_state, step.new_state, "new state");
 
         previous_message = output.and_then(to_input_msg);
     }
@@ -861,9 +864,9 @@ fn driver_steps_no_value_to_propose() {
     let sel = FixedProposer::new(v1.address);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
-    let output = block_on(driver.execute(Event::NewRound(Round::new(0))));
+    let output = block_on(driver.execute(Event::NewRound(Height::new(1), Round::new(0))));
     assert_eq!(output, Err(Error::NoValueToPropose));
 }
 
@@ -892,9 +895,9 @@ fn driver_steps_proposer_not_found() {
     let sel = FixedProposer::new(v1.address);
     let vs = ValidatorSet::new(vec![v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
-    let output = block_on(driver.execute(Event::NewRound(Round::new(0))));
+    let output = block_on(driver.execute(Event::NewRound(Height::new(1), Round::new(0))));
     assert_eq!(output, Err(Error::ProposerNotFound(v1.address)));
 }
 
@@ -922,10 +925,11 @@ fn driver_steps_validator_not_found() {
     // We omit v2 from the validator set
     let vs = ValidatorSet::new(vec![v1.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
-    // Start new round
-    block_on(driver.execute(Event::NewRound(Round::new(0)))).expect("execute succeeded");
+    // Start new height
+    block_on(driver.execute(Event::NewRound(Height::new(1), Round::new(0))))
+        .expect("execute succeeded");
 
     // v2 prevotes for some proposal, we cannot find it in the validator set => error
     let output = block_on(driver.execute(Event::Vote(
@@ -957,10 +961,11 @@ fn driver_steps_invalid_signature() {
     let sel = FixedProposer::new(v1.address);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, env, sel, Height::new(1), vs, my_addr);
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
     // Start new round
-    block_on(driver.execute(Event::NewRound(Round::new(0)))).expect("execute succeeded");
+    block_on(driver.execute(Event::NewRound(Height::new(1), Round::new(0))))
+        .expect("execute succeeded");
 
     // v2 prevotes for some proposal, with an invalid signature,
     // ie. signed by v1 instead of v2, just a way of forging an invalid signature
