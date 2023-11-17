@@ -2,30 +2,43 @@ use signature::Signer;
 
 use malachite_common::{Round, SignedVote, VoteType};
 
-use crate::{Address, PrivateKey, TestContext, ValueId};
+use crate::{Address, Height, PrivateKey, TestContext, ValueId};
 
 /// A vote for a value in a round
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Vote {
     pub typ: VoteType,
+    pub height: Height,
     pub round: Round,
     pub value: Option<ValueId>,
     pub validator_address: Address,
 }
 
 impl Vote {
-    pub fn new_prevote(round: Round, value: Option<ValueId>, validator_address: Address) -> Self {
+    pub fn new_prevote(
+        height: Height,
+        round: Round,
+        value: Option<ValueId>,
+        validator_address: Address,
+    ) -> Self {
         Self {
             typ: VoteType::Prevote,
+            height,
             round,
             value,
             validator_address,
         }
     }
 
-    pub fn new_precommit(round: Round, value: Option<ValueId>, address: Address) -> Self {
+    pub fn new_precommit(
+        height: Height,
+        round: Round,
+        value: Option<ValueId>,
+        address: Address,
+    ) -> Self {
         Self {
             typ: VoteType::Precommit,
+            height,
             round,
             value,
             validator_address: address,
@@ -61,6 +74,10 @@ impl Vote {
 }
 
 impl malachite_common::Vote<TestContext> for Vote {
+    fn height(&self) -> Height {
+        self.height
+    }
+
     fn round(&self) -> Round {
         self.round
     }

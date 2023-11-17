@@ -34,6 +34,7 @@ pub struct State<Ctx>
 where
     Ctx: Context,
 {
+    pub height: Ctx::Height,
     pub round: Round,
     pub step: Step,
     pub proposal: Option<Ctx::Proposal>,
@@ -47,6 +48,7 @@ where
 {
     pub fn new() -> Self {
         Self {
+            height: Ctx::Height::default(),
             round: Round::INITIAL,
             step: Step::NewRound,
             proposal: None,
@@ -55,8 +57,9 @@ where
         }
     }
 
-    pub fn new_round(self, round: Round) -> Self {
+    pub fn new_round(self, height: Ctx::Height, round: Round) -> Self {
         Self {
+            height,
             round,
             step: Step::NewRound,
             ..self
@@ -105,6 +108,7 @@ where
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         Self {
+            height: self.height.clone(),
             round: self.round,
             step: self.step,
             proposal: self.proposal.clone(),

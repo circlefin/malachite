@@ -40,6 +40,7 @@ where
     /// Build a new prevote vote by the validator with the given address,
     /// for the value identified by the given value id, at the given round.
     fn new_prevote(
+        height: Self::Height,
         round: Round,
         value_id: Option<ValueId<Self>>,
         address: Self::Address,
@@ -48,6 +49,7 @@ where
     /// Build a new precommit vote by the validator with the given address,
     /// for the value identified by the given value id, at the given round.
     fn new_precommit(
+        height: Self::Height,
         round: Round,
         value_id: Option<ValueId<Self>>,
         address: Self::Address,
