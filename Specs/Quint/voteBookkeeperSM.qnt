@@ -11,6 +11,7 @@ module voteBookkeeperSM  {
     // Model parameters 
     // ************************************************************************
 
+    const INITIAL_HEIGHT: Height
     const INITIAL_ROUND: Round
     const INITIAL_TOTAL_WEIGHT: Weight
     const ADDRESS_WEIGHTS: Address -> Weight // an address has a constant weight during a height
@@ -22,7 +23,7 @@ module voteBookkeeperSM  {
     // ************************************************************************
 
     action init = 
-        initWith(INITIAL_ROUND, INITIAL_TOTAL_WEIGHT)
+        initWith(INITIAL_HEIGHT, INITIAL_ROUND, INITIAL_TOTAL_WEIGHT)
     
     action step = 
         nondet voteType = oneOf(VoteTypes)

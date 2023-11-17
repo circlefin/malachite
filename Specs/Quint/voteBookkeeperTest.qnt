@@ -1,7 +1,8 @@
 module voteBookkeeperTest {
 
     import voteBookkeeperSM(
-        INITIAL_ROUND = 10,
+        INITIAL_HEIGHT = 1,
+        INITIAL_ROUND = 1,
         INITIAL_TOTAL_WEIGHT = 100,
         ADDRESS_WEIGHTS = Map("alice" -> 10, "bob" -> 30, "john" -> 60),
         ROUNDS = 1.to(1),
@@ -49,6 +50,72 @@ module voteBookkeeperTest {
         .then(_assert(lastEmitted == noEvent(1)))
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "nil", address: "john"}, 10))
         .then(_assert(lastEmitted == polkaNilEvent(1)))
+
+    // Reaching Skip via n+1 threshold with prevotes from two validators at a future round
+    run skipSmallQuorumAllPrevotesTest =
+        initWith(1, 1, 100)
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "alice"}, 60))
+        .then(_assert(lastEmitted == noEvent(1)))
+        .then(applyVoteAction({typ: "Prevote", round: 2, value: "val1", address: "john"}, 10))
+        .then(_assert(lastEmitted == noEvent(2)))
+        .then(applyVoteAction({typ: "Prevote", round: 2, value: "val1", address: "bob"}, 30))
+        .then(_assert(lastEmitted == skipEvent(2)))
+
+    // Cannot reach Skip via f+1 threshold with one prevote and one precommit from the same validator at a future round
+    run noSkipSmallQuorumMixedVotesSameValTest =
+        initWith(1, 1, 90)
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "alice"}, 10))
+        .then(_assert(lastEmitted == noEvent(1)))
+        .then(applyVoteAction({typ: "Prevote", round: 2, value: "val1", address: "john"}, 20))
+        .then(_assert(lastEmitted == noEvent(2)))
+        .then(applyVoteAction({typ: "Precommit", round: 2, value: "val1", address: "john"}, 20))
+        .then(_assert(lastEmitted != skipEvent(2)))
+
+    // Reaching Skip via f+1 threshold with one prevote and one precommit from two validators at a future round
+    run skipSmallQuorumMixedVotesTwoValsTest =
+        initWith(1, 1, 80)
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "alice"}, 50))
+        .then(_assert(lastEmitted == noEvent(1)))
+        .then(applyVoteAction({typ: "Prevote", round: 2, value: "val1", address: "john"}, 10))
+        .then(_assert(lastEmitted == noEvent(2)))
+        .then(applyVoteAction({typ: "Precommit", round: 2, value: "val1", address: "bob"}, 20))
+        .then(_assert(lastEmitted == skipEvent(2)))
+        
+    // Reaching Skip via 2f+1 threshold with a single prevote from a single validator at a future round
+    run skipQuorumSinglePrevoteTest =
+        initWith(1, 1, 100)
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "alice"}, 10))
+        .then(_assert(lastEmitted == noEvent(1)))
+        .then(applyVoteAction({typ: "Prevote", round: 2, value: "val1", address: "john"}, 60))
+        .then(_assert(lastEmitted == skipEvent(2)))
+
+    // Reaching Skip via 2f+1 threshold with a single precommit from a single validator at a future round
+    run skipQuorumSinglePrecommitTest =
+        initWith(1, 1, 100)
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "alice"}, 10))
+        .then(_assert(lastEmitted == {round: 1, name: "None", value: "null"}))
+        .then(applyVoteAction({typ: "Precommit", round: 2, value: "val1", address: "john"}, 60))
+        .then(_assert(lastEmitted == {round: 2, name: "Skip", value: "null"}))
+
+    // Cannot reach Skip via 2f+1 threshold with one prevote and one precommit from the same validator at a future round
+    run noSkipQuorumMixedVotesSameValTest =
+        initWith(1, 1, 100)
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "alice"}, 10))
+        .then(_assert(lastEmitted == noEvent(1)))
+        .then(applyVoteAction({typ: "Prevote", round: 2, value: "val1", address: "john"}, 30))
+        .then(_assert(lastEmitted == noEvent(2)))
+        .then(applyVoteAction({typ: "Precommit", round: 2, value: "val1", address: "john"}, 30))
+        .then(_assert(lastEmitted != skipEvent(2)))
+
+    // Reaching Skip via 2f+1 threshold with one prevote and one precommit from two validators at a future round
+    run skipQuorumMixedVotesTwoValsTest =
+        initWith(1, 1, 80)
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "alice"}, 20))
+        .then(_assert(lastEmitted == noEvent(1)))
+        .then(applyVoteAction({typ: "Prevote", round: 2, value: "val1", address: "john"}, 10))
+        .then(_assert(lastEmitted == noEvent(2)))
+        .then(applyVoteAction({typ: "Precommit", round: 2, value: "val1", address: "bob"}, 50))
+        .then(_assert(lastEmitted == skipEvent(2)))
 
     // ****************************************************************************
     // Properties that define an expected final state (for generating traces)

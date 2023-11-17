@@ -80,6 +80,7 @@ module voteBookkeeper {
 
     type Bookkeeper = {
         height: Height,
+        currentRound: Round,
         totalWeight: Weight,
         rounds: Round -> RoundVotes
     }
@@ -261,29 +262,37 @@ module voteBookkeeper {
             else 
                 roundVotes.votesAddressesWeights.mapSafeSet(vote.address, weight)
 
-        val threshold = computeThreshold(updatedVoteCount, vote.value)
-        val event = toEvent(round, vote.typ, threshold)
-        val finalEvent = 
-            if (not(event.in(roundVotes.emittedEvents))) 
-                event
-            else if (roundVotes.emittedEvents == Set() and isSkip(updatedVotesAddressesWeights.mapSumValues(), keeper.totalWeight)) 
-                skipEvent(round)
-            else 
-                noEvent(round)
-
-        val updatedEmmittedEvents = roundVotes.emittedEvents.setAddIf(finalEvent, finalEvent.name != "None")
-        
         val updatedRoundVotes = 
             if (vote.typ.isPrevote()) 
                 roundVotes.with("prevotes", updatedVoteCount)                                   
             else 
                 roundVotes.with("precommits", updatedVoteCount)
+
+        // Combined weight of all validators at this height
+        val combinedWeight = updatedVotesAddressesWeights.mapSumValues()
+
+        val finalEvent =
+            if (vote.round > keeper.currentRound and isSkip(combinedWeight, keeper.totalWeight))
+                skipEvent(vote.round)
+            else
+                val threshold = computeThreshold(updatedVoteCount, vote.value)
+                val event = toEvent(vote.round, vote.typ, threshold)
+                if (not(event.in(roundVotes.emittedEvents))) 
+                    event
+                else 
+                    noEvent(vote.round)
+
+        val updatedEmittedEvents = roundVotes.emittedEvents.setAddIf(finalEvent, finalEvent.name != "None")
+
         val updatedRoundVotes2 = updatedRoundVotes
                 .with("votesAddressesWeights", updatedVotesAddressesWeights)
-                .with("emittedEvents", updatedEmmittedEvents)
+                .with("emittedEvents", updatedEmittedEvents)
+
+        val newBookkeeper =
+            keeper.with("rounds", keeper.rounds.mapSafeSet(vote.round, updatedRoundVotes2))
 
         { 
-            bookkeeper: keeper.with("rounds", keeper.rounds.mapSafeSet(round, updatedRoundVotes2)), 
+            bookkeeper: newBookkeeper, 
             event: finalEvent 
         }
 
@@ -395,9 +404,9 @@ module voteBookkeeper {
         lastEmitted' = lastEmitted,
     }
 
-    action initWith(initialHeight: Height, totalWeight: Weight): bool = all {
+    action initWith(initialHeight: Height, initialRound: Round, totalWeight: Weight): bool = all {
         weightedVote' = ({ typ: "", round: -1, value: "", address: "" }, -1),
-        bookkeeper' = { height: initialHeight, totalWeight: totalWeight, rounds: Map() },
+        bookkeeper' = { height: initialHeight, currentRound: initialRound, totalWeight: totalWeight, rounds: Map() },
         lastEmitted' = { round: -1, name: "", value: "null" }
     }
 
