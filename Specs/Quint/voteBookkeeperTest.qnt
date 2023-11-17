@@ -6,7 +6,7 @@ module voteBookkeeperTest {
         INITIAL_TOTAL_WEIGHT = 100,
         ADDRESS_WEIGHTS = Map("alice" -> 10, "bob" -> 30, "john" -> 60),
         ROUNDS = 1.to(1),
-        VALUES = Set("nil", "val1", "val2")
+        VALUES = Set("val1", "val2")
     ).* from "./voteBookkeeperSM"
 
     // ****************************************************************************
