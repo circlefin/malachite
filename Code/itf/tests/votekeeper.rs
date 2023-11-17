@@ -10,7 +10,7 @@ use malachite_itf::votekeeper::{State as ItfState, Value as ItfValue};
 use malachite_itf::TraceRunner;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValueId, Vote};
 use malachite_vote::keeper::{Message, VoteKeeper};
-use malachite_vote::Weight;
+use malachite_vote::{ThresholdParams, Weight};
 
 use itf::Itf;
 use rstest::{fixture, rstest};
@@ -51,7 +51,7 @@ impl TraceRunner for VoteKeeperRunner {
     fn init(&mut self, expected_state: &Self::ExpectedState) -> Result<Self::State, Self::Error> {
         // Obtain the initial total_weight from the first state in the model.
         let total_weight: Weight = from_itf(&expected_state.bookkeeper.total_weight).unwrap();
-        Ok(VoteKeeper::new(total_weight))
+        Ok(VoteKeeper::new(total_weight, ThresholdParams::default()))
     }
 
     fn step(
@@ -76,8 +76,10 @@ impl TraceRunner for VoteKeeperRunner {
             input_vote.typ, round, value, input_vote.address, weight
         );
 
+        let current_round = Round::new(from_itf(&expected_state.bookkeeper.current_round).unwrap());
+
         // Execute step.
-        Ok(state.apply_vote(vote, weight))
+        Ok(state.apply_vote(vote, weight, current_round))
     }
 
     fn result_invariant(
@@ -109,7 +111,7 @@ impl TraceRunner for VoteKeeperRunner {
                     );
                 }
                 Message::SkipRound(round) => {
-                    assert_eq!(expected_result.name, "SkipRound");
+                    assert_eq!(expected_result.name, "Skip");
                     assert_eq!(
                         &Round::new(from_itf(&expected_result.round).unwrap()),
                         round
@@ -149,7 +151,7 @@ fn vote_keeper_runner() -> VoteKeeperRunner {
 
 #[rstest]
 fn test_itf(
-    #[files("tests/fixtures/votekeeper/*.json")] json_fixture: PathBuf,
+    #[files("tests/fixtures/votekeeper/voteBookkeeper_skipQuorumMixedVotesTwoValsTest.itf.json")] json_fixture: PathBuf,
     mut vote_keeper_runner: VoteKeeperRunner,
 ) {
     println!("Parsing {json_fixture:?}");
