@@ -7,12 +7,11 @@ use rand::SeedableRng;
 
 use malachite_common::{Context, Round, Value};
 use malachite_itf::votekeeper::{State as ItfState, Value as ItfValue};
-use malachite_itf::TraceRunner;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValueId, Vote};
 use malachite_vote::keeper::{Message, VoteKeeper};
 use malachite_vote::{ThresholdParams, Weight};
 
-use itf::Itf;
+use itf::{Itf, Runner as ItfRunner};
 use rstest::{fixture, rstest};
 
 const ADDRESSES: [&str; 3] = ["alice", "bob", "john"];
@@ -42,14 +41,16 @@ struct VoteKeeperRunner {
     address_map: HashMap<String, Address>,
 }
 
-impl TraceRunner for VoteKeeperRunner {
-    type State = VoteKeeper<TestContext>;
+impl ItfRunner for VoteKeeperRunner {
+    type ActualState = VoteKeeper<TestContext>;
     type Result = Option<Message<<<TestContext as Context>::Value as Value>::Id>>;
-
     type ExpectedState = ItfState;
     type Error = ();
 
-    fn init(&mut self, expected_state: &Self::ExpectedState) -> Result<Self::State, Self::Error> {
+    fn init(
+        &mut self,
+        expected_state: &Self::ExpectedState,
+    ) -> Result<Self::ActualState, Self::Error> {
         // Obtain the initial total_weight from the first state in the model.
         let total_weight: Weight = from_itf(&expected_state.bookkeeper.total_weight).unwrap();
         Ok(VoteKeeper::new(total_weight, ThresholdParams::default()))
@@ -57,7 +58,7 @@ impl TraceRunner for VoteKeeperRunner {
 
     fn step(
         &mut self,
-        state: &mut Self::State,
+        state: &mut Self::ActualState,
         expected_state: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
         // Build step to execute.
@@ -127,7 +128,7 @@ impl TraceRunner for VoteKeeperRunner {
 
     fn state_invariant(
         &self,
-        _state: &Self::State,
+        _state: &Self::ActualState,
         _expected_state: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
         Ok(true)
