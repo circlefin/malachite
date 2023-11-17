@@ -78,7 +78,7 @@ val defaultInput: ExecutorInput = {
 // this is to match the type from the bookkeeper. When we add heights there we should
 // unify
 pure def toVote (v: VoteMsg_t) : Vote = 
-    { typ: v.step, round: v.round, value: v.id, address: v.src }
+    { typ: v.step, height: v.height, round: v.round, value: v.id, address: v.src }
 
 val defaultEvent : Event = { name : "", height : 0, round: 0, value: "", vr: 0 }    
 
