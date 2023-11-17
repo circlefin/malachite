@@ -21,18 +21,18 @@ module voteBookkeeperTest {
     // each of the total voting power
     run synchronousConsensusTest =
         init
-        .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "alice"}, 60))
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "alice"}, 60))
         .then(_assert(lastEmitted == noEvent(1)))
-        .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "john"}, 10))
-        .then(_assert(lastEmitted == polkaValueEvent(1, "proposal")))
-        .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "bob"}, 30))
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "john"}, 10))
+        .then(_assert(lastEmitted == polkaValueEvent(1, "val1")))
+        .then(applyVoteAction({typ: "Prevote", round: 1, value: "val1", address: "bob"}, 30))
         .then(_assert(lastEmitted == noEvent(1)))
-        .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "bob"}, 30))
+        .then(applyVoteAction({typ: "Precommit", round: 1, value: "val1", address: "bob"}, 30))
         .then(_assert(lastEmitted == noEvent(1)))
-        .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "john"}, 10))
+        .then(applyVoteAction({typ: "Precommit", round: 1, value: "val1", address: "john"}, 10))
         .then(_assert(lastEmitted == noEvent(1)))
-        .then(applyVoteAction({typ: "Precommit", round: 1, value: "proposal", address: "alice"}, 60))
-        .then(_assert(lastEmitted == precommitValueEvent(1, "proposal")))
+        .then(applyVoteAction({typ: "Precommit", round: 1, value: "val1", address: "alice"}, 60))
+        .then(_assert(lastEmitted == precommitValueEvent(1, "val1")))
 
     // Reaching PolkaAny 
     run polkaAnyTest =
