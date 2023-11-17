@@ -32,6 +32,7 @@ module voteBookkeeper {
 
     type Vote = {
         typ: VoteType,
+        height: Height,
         round: Round,
         value: Value,
         address: Address
@@ -154,7 +155,7 @@ module voteBookkeeper {
             valuesWeights: Map("val1" -> 30, "val2" -> 20), 
             votesAddresses: Set("alice", "bob")
         }
-        val vote = { typ: "Precommit", round: 10, value: "val3", address: "john" }
+        val vote = { typ: "Precommit", height: 1, round: 10, value: "val3", address: "john" }
         all {
             // new voter, new value
             assert(addVote(voteCount, vote, 10) == { 
@@ -405,7 +406,7 @@ module voteBookkeeper {
     }
 
     action initWith(initialHeight: Height, initialRound: Round, totalWeight: Weight): bool = all {
-        weightedVote' = ({ typ: "", round: -1, value: "", address: "" }, -1),
+        weightedVote' = ({ typ: "", height: initialHeight, round: -1, value: "", address: "" }, -1),
         bookkeeper' = { height: initialHeight, currentRound: initialRound, totalWeight: totalWeight, rounds: Map() },
         lastEmitted' = { round: -1, name: "", value: "null" }
     }
