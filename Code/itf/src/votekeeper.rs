@@ -19,6 +19,7 @@ pub struct Bookkeeper {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct Vote {
     pub typ: VoteType,
+    pub height: Height,
     pub round: Round,
     pub value: Value,
     pub address: Address,
