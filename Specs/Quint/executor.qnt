@@ -470,11 +470,13 @@ pure def setValue(es: ExecutorState, value: Value_t) : (ExecutorState, Consensus
 pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     // TODO: shall we check whether the sender actually is in the validator set
     if (input.name == "proposal") {
-        val cons_res = ProposalMsg(es, input)
-        if (cons_res._2.name == "decided")
-            decided (cons_res._1, cons_res._2)
+        val res = ProposalMsg(es, input)
+        if (res._2.name == "decided")
+            decided (res._1, res._2)
+        else if (res._2.name == "skipRound")
+            skip (res._1, res._2.skipRound)
         else
-            cons_res
+            res
     }
     else if (input.name == "votemessage" and input.vote.step == "Precommit") {
         val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
@@ -483,6 +485,8 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Co
         val cons_res = Precommit(newES, input, res.event) 
         if (cons_res._2.name == "decided")
             decided (cons_res._1, cons_res._2)
+        else if (cons_res._2.name == "skipRound")
+            skip (cons_res._1, cons_res._2.skipRound)
         else
             cons_res
     }
@@ -490,7 +494,14 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Co
         val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
         val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
         // only a commit event can come here. 
-        Prevote(newES, input, res.event) 
+        val cons_res = Prevote(newES, input, res.event) 
+        if (cons_res._2.name == "decided")
+            // TODO: dead branch. But we should put this after consensus call logic into a function
+            decided (cons_res._1, cons_res._2)
+        else if (cons_res._2.name == "skipRound")
+            skip (cons_res._1, cons_res._2.skipRound)
+        else
+            cons_res
     }
     else if (input.name == "timeout") {
         val res = Timeout(es, input)
