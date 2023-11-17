@@ -236,7 +236,7 @@ where
 
         let Some(vote_msg) =
             self.votes
-                .apply_vote(signed_vote.vote, validator.voting_power(), self.round)
+                .apply_vote(signed_vote.vote, validator.voting_power(), round)
         else {
             return Ok(None);
         };
