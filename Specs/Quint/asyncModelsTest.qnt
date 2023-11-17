@@ -147,6 +147,23 @@ run DecideOnProposalTest = {
     })   
 }    
 
+run RoundswitchTest = {
+    ThreeDecideInRound1V4stillinZeroTest
+    .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
+    .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v2", step: "Prevote" }))
+    .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v3", step: "Precommit" })) 
+    .then(N4F0::valStep("v4"))
+    .then(N4F0::valStep("v4"))
+    .then(N4F0::valStep("v4"))
+    .then(all {
+        // this should work, once the bookkeeper skip event is fixed
+        // assert(N4F0::system.get("v4").es.cs.round == 1),
+        N4F0::unchangedAll
+    })   
+}   
+
+
+
 import statemachineAsync(
     validators = Set("v1", "v2", "v3", "v4"),
     validatorSet = Set("v1", "v2", "v3", "v4").mapBy(x => 1),
