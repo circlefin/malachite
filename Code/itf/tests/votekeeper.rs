@@ -16,6 +16,7 @@ use itf::Itf;
 use rstest::{fixture, rstest};
 
 const ADDRESSES: [&str; 3] = ["alice", "bob", "john"];
+const NIL_VALUE: &str = "nil";
 
 // TODO: move to itf-rs repo
 fn from_itf<T, U>(bigint: &Itf<T>) -> Option<U>
@@ -28,7 +29,7 @@ where
 
 fn value_from_model(value: &ItfValue) -> Option<ValueId> {
     match value.as_str() {
-        "nil" => None,
+        NIL_VALUE => None,
         "proposal" => Some(0.into()),
         "val1" => Some(1.into()),
         "val2" => Some(2.into()),
@@ -90,8 +91,8 @@ impl TraceRunner for VoteKeeperRunner {
         // Get expected result.
         let expected_result = &expected_state.last_emitted;
         println!(
-            "🟣 result: model={:?}({:?}), code={:?}",
-            expected_result.name, expected_result.value, result
+            "🟣 result: model={:?}({:?},{:?}), code={:?}",
+            expected_result.name, expected_result.value, expected_result.round, result
         );
         // Check result against expected result.
         match result {
@@ -151,7 +152,8 @@ fn vote_keeper_runner() -> VoteKeeperRunner {
 
 #[rstest]
 fn test_itf(
-    #[files("tests/fixtures/votekeeper/voteBookkeeper_skipQuorumMixedVotesTwoValsTest.itf.json")] json_fixture: PathBuf,
+    #[files("tests/fixtures/votekeeper/*.itf.json")]
+    json_fixture: PathBuf,
     mut vote_keeper_runner: VoteKeeperRunner,
 ) {
     println!("Parsing {json_fixture:?}");

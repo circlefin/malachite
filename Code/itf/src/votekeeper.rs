@@ -12,6 +12,7 @@ pub type VoteType = String;
 #[serde(rename_all = "camelCase")]
 pub struct Bookkeeper {
     pub height: Height,
+    pub current_round: Round,
     pub total_weight: Weight,
     pub rounds: ItfMap<Round, RoundVotes>,
 }
@@ -52,9 +53,11 @@ pub struct ExecutorEvent {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct State {
+    #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::bookkeeper")]
     pub bookkeeper: Bookkeeper,
+    #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::lastEmitted")]
     pub last_emitted: ExecutorEvent,
+    #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::weightedVote")]
     pub weighted_vote: ItfTuple<(Vote, Weight)>,
 }
