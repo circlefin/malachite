@@ -10,6 +10,7 @@ use malachite_round::state::State as RoundState;
 use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
+use malachite_vote::ThresholdParams;
 
 use crate::env::Env as DriverEnv;
 use crate::event::Event;
@@ -50,7 +51,10 @@ where
         validator_set: Ctx::ValidatorSet,
         address: Ctx::Address,
     ) -> Self {
-        let votes = VoteKeeper::new(validator_set.total_voting_power());
+        let votes = VoteKeeper::new(
+            validator_set.total_voting_power(),
+            ThresholdParams::default(), // TODO: Make this configurable
+        );
 
         Self {
             ctx,
@@ -230,9 +234,9 @@ where
 
         let round = signed_vote.vote.round();
 
-        let Some(vote_msg) = self
-            .votes
-            .apply_vote(signed_vote.vote, validator.voting_power())
+        let Some(vote_msg) =
+            self.votes
+                .apply_vote(signed_vote.vote, validator.voting_power(), self.round)
         else {
             return Ok(None);
         };
