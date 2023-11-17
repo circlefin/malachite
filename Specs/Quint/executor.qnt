@@ -289,7 +289,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
         val receivedCommit = checkThreshold(    newES.bk, 
                                                 input.proposal.round, 
                                                 "Precommit", 
-                                                {name: "PrecommitValue", 
+                                                {name: "Value", 
                                                 value: id(input.proposal.proposal)})
         if (receivedCommit)
             // we have a commit that matches the proposal. We don't need to compare against
@@ -311,17 +311,17 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
             val receivedPolkaValidRoundVal = checkThreshold(newES.bk,   
                                                             input.proposal.validRound, 
                                                             "Prevote", 
-                                                            {name: "PolkaValue", 
+                                                            {name: "Value", 
                                                             value: id(input.proposal.proposal)})
             val receivedPolkaCurrentVal = checkThreshold(   newES.bk, 
                                                             newES.cs.round, 
                                                             "Prevote", 
-                                                            {name: "PolkaValue", 
+                                                            {name: "Value", 
                                                             value: id(input.proposal.proposal)})
             val receivedCommitCurrentVal = checkThreshold(  newES.bk, 
                                                             newES.cs.round, 
                                                             "Precommit", 
-                                                            {name: "PrecommitValue", 
+                                                            {name: "Value", 
                                                             value: id(input.proposal.proposal)})
             if (newES.cs.step == "propose") 
                 if (input.proposal.validRound == -1)
