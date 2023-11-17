@@ -152,8 +152,7 @@ fn vote_keeper_runner() -> VoteKeeperRunner {
 
 #[rstest]
 fn test_itf(
-    #[files("tests/fixtures/votekeeper/*.itf.json")]
-    json_fixture: PathBuf,
+    #[files("tests/fixtures/votekeeper/*.itf.json")] json_fixture: PathBuf,
     mut vote_keeper_runner: VoteKeeperRunner,
 ) {
     println!("Parsing {json_fixture:?}");

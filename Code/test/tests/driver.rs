@@ -1057,7 +1057,8 @@ fn driver_steps_skip_round_skip_threshold() {
         TestStep {
             desc: "v1 prevotes for its own proposal in round 1",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(1), Some(value.id()), addr1).signed(&sk1),
+                Vote::new_prevote(Height::new(1), Round::new(1), Some(value.id()), addr1)
+                    .signed(&sk1),
             )),
             expected_output: None,
             expected_round: Round::new(0),
@@ -1074,7 +1075,8 @@ fn driver_steps_skip_round_skip_threshold() {
         TestStep {
             desc: "v2 prevotes for v1 proposal, we get +1/3 messages from future round",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(1), Some(value.id()), addr2).signed(&sk2),
+                Vote::new_prevote(Height::new(1), Round::new(1), Some(value.id()), addr2)
+                    .signed(&sk2),
             )),
             expected_output: Some(Message::NewRound(Height::new(1), Round::new(1))),
             expected_round: Round::new(0),
@@ -1134,7 +1136,7 @@ fn driver_steps_skip_round_quorum_threshold() {
     let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(ctx, env, sel,vs, my_addr);
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
     let steps = vec![
         // Start round 0, we, v3, are not the proposer
@@ -1188,7 +1190,8 @@ fn driver_steps_skip_round_quorum_threshold() {
         TestStep {
             desc: "v1 prevotes for its own proposal in round 1",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(1), Some(value.id()), addr1).signed(&sk1),
+                Vote::new_prevote(Height::new(1), Round::new(1), Some(value.id()), addr1)
+                    .signed(&sk1),
             )),
             expected_output: None,
             expected_round: Round::new(0),
@@ -1205,7 +1208,8 @@ fn driver_steps_skip_round_quorum_threshold() {
         TestStep {
             desc: "v2 prevotes for v1 proposal, we get +1/3 messages from future round",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(1), Some(value.id()), addr2).signed(&sk2),
+                Vote::new_prevote(Height::new(1), Round::new(1), Some(value.id()), addr2)
+                    .signed(&sk2),
             )),
             expected_output: Some(Message::NewRound(Height::new(1), Round::new(1))),
             expected_round: Round::new(0),
