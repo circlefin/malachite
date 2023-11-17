@@ -1,10 +1,11 @@
 module voteBookkeeperTest {
 
     import voteBookkeeperSM(
-        Addresses = Set("alice", "bob", "john"),
-        Rounds = 1.to(1),
-        Values = Set("nil", "proposal"),
-        Weights = Set(10, 30, 60, 100)
+        INITIAL_ROUND = 10,
+        INITIAL_TOTAL_WEIGHT = 100,
+        ADDRESS_WEIGHTS = Map("alice" -> 10, "bob" -> 30, "john" -> 60),
+        ROUNDS = 1.to(1),
+        VALUES = Set("nil", "val1", "val2")
     ).* from "./voteBookkeeperSM"
 
     // ****************************************************************************

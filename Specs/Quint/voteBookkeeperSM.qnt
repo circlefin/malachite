@@ -11,25 +11,25 @@ module voteBookkeeperSM  {
     // Model parameters 
     // ************************************************************************
 
-    const Addresses: Set[Address]
-    const Rounds: Set[Round]
-    const Values: Set[Value]
-    const Weights: Set[Weight]
+    const INITIAL_ROUND: Round
+    const INITIAL_TOTAL_WEIGHT: Weight
+    const ADDRESS_WEIGHTS: Address -> Weight // an address has a constant weight during a height
+    const ROUNDS: Set[Round]
+    const VALUES: Set[Value]
 
     // ************************************************************************
     // State machine
     // ************************************************************************
 
     action init = 
-        initWith(10, 100)
+        initWith(INITIAL_ROUND, INITIAL_TOTAL_WEIGHT)
     
     action step = 
         nondet voteType = oneOf(VoteTypes)
-        nondet round = oneOf(Rounds)
-        nondet value = oneOf(Values)
-        nondet address = oneOf(Addresses)
-        nondet weight = oneOf(Weights)
+        nondet round = oneOf(ROUNDS)
+        nondet value = oneOf(VALUES)
+        nondet address = oneOf(ADDRESS_WEIGHTS.keys())
         val vote: Vote = { typ: voteType, round: round, value: value, address: address }
-        applyVoteAction(vote, weight)
+        applyVoteAction(vote, ADDRESS_WEIGHTS.get(address))
 
 }

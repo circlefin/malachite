@@ -21,8 +21,12 @@ vk-test:
 test: con-test sm-test vk-test
 .PHONY: test
 
+verify:
+	npx @informalsystems/quint verify --max-steps 10 --invariant Inv voteBookkeeperTest.qnt
+.PHONY: verify
+
 traces:
-	./scripts/gen-traces.sh voteBookkeeperTest.qnt emitPrecommitValue
-	./scripts/gen-traces.sh voteBookkeeperTest.qnt emitPolkaAny
-	./scripts/gen-traces.sh voteBookkeeperTest.qnt emitPolkaNil
+	./scripts/gen-traces.sh voteBookkeeperTest.qnt emitPrecommitValue 30
+	./scripts/gen-traces.sh voteBookkeeperTest.qnt emitPolkaAny 30
+	./scripts/gen-traces.sh voteBookkeeperTest.qnt emitPolkaNil 30
 .PHONY: traces

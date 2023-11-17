@@ -351,6 +351,30 @@ module voteBookkeeper {
         }
 
     // ************************************************************************
+    // Properties/Invariants
+    // ************************************************************************
+
+    // Each weight in a voteCount is less or equal than the total weight.
+    def voteValidWeightInv(voteCount) = 
+        voteCount.valuesWeights.forallValues(weight => weight <= voteCount.totalWeight)
+
+    // The sum of all weights is less or equal than the total weight.
+    def voteValidWeightSumInv(voteCount: VoteCount): bool = 
+        voteCount.valuesWeights.mapSumValues() <= voteCount.totalWeight
+
+    def roundVotesInv(rounds: Round -> RoundVotes): bool = 
+        rounds.forallEntries((round, roundVotes) => all {
+            voteValidWeightInv(roundVotes.prevotes),
+            voteValidWeightInv(roundVotes.precommits),
+            voteValidWeightSumInv(roundVotes.prevotes),
+            voteValidWeightSumInv(roundVotes.precommits),
+        })
+
+    def Inv = all {
+        roundVotesInv(bookkeeper.rounds)
+    }
+
+    // ************************************************************************
     // State 
     // ************************************************************************
 
