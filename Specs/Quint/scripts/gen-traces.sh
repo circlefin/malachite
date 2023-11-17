@@ -40,7 +40,7 @@ case $OUTPUT in
         echo "Success: reached a state that violates $FILEPATH::$PROP"
         ;;
     *)
-        echo "Generated trace: $TRACE_PATH"
+        [ -f $TRACE_PATH ] && echo "Generated trace: $TRACE_PATH"
         echo "Failed: did not find a state that violates $FILEPATH::$PROP in $MAX_STEPS steps"
         ;;
 esac

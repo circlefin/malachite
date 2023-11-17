@@ -6,19 +6,19 @@ parse:
 	npx @informalsystems/quint parse voteBookkeeperTest.qnt
 .PHONY: parse
 
-con-test:
+test-con:
 	npx @informalsystems/quint run consensusTest.qnt
-.PHONY: con-test
+.PHONY: test-con
 
-sm-test:
+test-sm:
 	npx @informalsystems/quint test statemachineTest.qnt
-.PHONY: sm-test
+.PHONY: test-sm
 
-vk-test:
+test-vk:
 	npx @informalsystems/quint test voteBookkeeperTest.qnt
-.PHONY: vk-test
+.PHONY: test-vk
 
-test: con-test sm-test vk-test
+test: test-con test-sm test-vk
 .PHONY: test
 
 verify:
@@ -29,4 +29,5 @@ traces:
 	./scripts/gen-traces.sh voteBookkeeperTest.qnt emitPrecommitValue 30
 	./scripts/gen-traces.sh voteBookkeeperTest.qnt emitPolkaAny 30
 	./scripts/gen-traces.sh voteBookkeeperTest.qnt emitPolkaNil 30
+	./scripts/gen-traces.sh voteBookkeeperTest.qnt emitSkip 30
 .PHONY: traces

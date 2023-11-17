@@ -15,7 +15,7 @@ module voteBookkeeperTest {
 
     // auxiliary action for tests
     action _assert(predicate: bool): bool = 
-        all { predicate, allUnchanged }
+        all { assert(predicate), allUnchanged }
 
     // Consensus full execution with all honest validators (including the leader) and a synchronous network:
     // all messages are received in order. We assume three validators in the validator set wtih 60%, 30% and 10%
@@ -129,5 +129,8 @@ module voteBookkeeperTest {
 
     val emitPolkaNilState = lastEmitted.name == "PolkaNil"
     val emitPolkaNil = not(emitPolkaNilState)
+
+    val emitSkipState = lastEmitted.name == "Skip"
+    val emitSkip = not(emitSkipState)
 
 }
