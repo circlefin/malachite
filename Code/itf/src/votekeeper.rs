@@ -1,9 +1,11 @@
-use itf::{ItfBigInt, ItfMap, ItfSet, ItfTuple};
+use std::collections::{HashMap, HashSet};
+
 use serde::Deserialize;
 
-pub type Height = ItfBigInt;
-pub type Weight = ItfBigInt;
-pub type Round = ItfBigInt;
+pub type Height = u64;
+// TODO: need i64 as dummy weight is -1
+pub type Weight = i64;
+pub type Round = i64;
 pub type Address = String;
 pub type Value = String;
 pub type VoteType = String;
@@ -14,7 +16,7 @@ pub struct Bookkeeper {
     pub height: Height,
     pub current_round: Round,
     pub total_weight: Weight,
-    pub rounds: ItfMap<Round, RoundVotes>,
+    pub rounds: HashMap<Round, RoundVotes>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -33,16 +35,16 @@ pub struct RoundVotes {
     pub round: Round,
     pub prevotes: VoteCount,
     pub precommits: VoteCount,
-    pub emitted_events: ItfSet<ExecutorEvent>,
-    pub votes_addresses_weights: ItfMap<Address, Weight>,
+    pub emitted_events: HashSet<ExecutorEvent>,
+    pub votes_addresses_weights: HashMap<Address, Weight>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VoteCount {
     pub total_weight: Weight,
-    pub values_weights: ItfMap<Value, Weight>,
-    pub votes_addresses: ItfSet<Address>,
+    pub values_weights: HashMap<Value, Weight>,
+    pub votes_addresses: HashSet<Address>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Hash)]
@@ -59,5 +61,5 @@ pub struct State {
     #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::lastEmitted")]
     pub last_emitted: ExecutorEvent,
     #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::weightedVote")]
-    pub weighted_vote: ItfTuple<(Vote, Weight)>,
+    pub weighted_vote: (Vote, Weight),
 }
