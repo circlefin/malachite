@@ -18,6 +18,14 @@ impl<Address, Value> RoundVotes<Address, Value> {
         }
     }
 
+    pub fn prevotes(&self) -> &VoteCount<Address, Value> {
+        &self.prevotes
+    }
+
+    pub fn precommits(&self) -> &VoteCount<Address, Value> {
+        &self.precommits
+    }
+
     pub fn add_vote(
         &mut self,
         vote_type: VoteType,
