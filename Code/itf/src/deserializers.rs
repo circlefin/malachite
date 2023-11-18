@@ -1,3 +1,4 @@
+use num_bigint::BigInt;
 use serde::de::IntoDeserializer;
 use serde::Deserialize;
 
@@ -15,7 +16,7 @@ where
     }
 }
 
-pub(crate) fn minus_one_as_none<'de, D>(de: D) -> Result<Option<i64>, D::Error>
+pub(crate) fn minus_one_as_none<'de, D>(de: D) -> Result<Option<BigInt>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -23,7 +24,7 @@ where
     match opt {
         None => Ok(None),
         Some(i) if i == -1 => Ok(None),
-        Some(i) => Ok(Some(i)),
+        Some(i) => Ok(Some(i.into())),
     }
 }
 
