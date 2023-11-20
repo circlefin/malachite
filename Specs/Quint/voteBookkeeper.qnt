@@ -56,10 +56,23 @@ module voteBookkeeper {
         | SkipThreshold
         | ValueThreshold(Value)
 
-    type ExecutorEvent = {
-        round: Round,
-        name: str,
-        value: Value
+    type ExecutorEvent = 
+        | NoEvent(Round)
+        | PolkaAnyEvent(Round)
+        | PolkaNilEvent(Round)
+        | PolkaValueEvent((Round, Value))
+        | PrecommitAnyEvent(Round)
+        | PrecommitValueEvent((Round, Value))
+        | SkipEvent(Round)
+
+    def isNoEvent(event) = match event { 
+        | NoEvent(_) => true
+        | PolkaAnyEvent(_) => false
+        | PolkaNilEvent(_) => false
+        | PolkaValueEvent(_) => false
+        | PrecommitAnyEvent(_) => false
+        | PrecommitValueEvent(_) => false
+        | SkipEvent(_) => false
     }
 
     type Bookkeeper = {
@@ -125,25 +138,25 @@ module voteBookkeeper {
     // Given a round, voteType and threshold, return the corresponding ExecutorEvent
     pure def toEvent(round: Round, voteType: VoteType, threshold: Threshold): ExecutorEvent =
         match threshold {
-            | UnreachedThreshold =>
-                { round: round, name: "None", value: "null" }
+            | UnreachedThreshold => 
+                NoEvent(round)
             | ValueThreshold(value) =>
                 match voteType {
-                    | Prevote => { round: round, name: "PolkaValue", value: value }
-                    | Precommit => { round: round, name: "PrecommitValue", value: value }
+                    | Prevote => PolkaValueEvent((round, value))
+                    | Precommit => PrecommitValueEvent((round, value))
                 }
             | NilThreshold =>
                 match voteType {
-                    | Prevote => { round: round, name: "PolkaNil", value: "null" }
-                    | Precommit => { round: round, name: "PrecommitAny", value: "null" }
+                    | Prevote => PolkaNilEvent(round)
+                    | Precommit => PrecommitAnyEvent(round)
                 }
             | AnyThreshold =>
                 match voteType {
-                    | Prevote => { round: round, name: "PolkaAny", value: "null" }
-                    | Precommit => { round: round, name: "PrecommitAny", value: "null" }
+                    | Prevote => PolkaAnyEvent(round)
+                    | Precommit => PrecommitAnyEvent(round)
                 }
-            | SkipThreshold =>
-                { round: round, name: "Skip", value: "null" }
+            | SkipThreshold => 
+                SkipEvent(round)
         }
 
     // Executor interface
@@ -194,16 +207,16 @@ module voteBookkeeper {
 
         val finalEvent =
             if (vote.round > keeper.currentRound and isSkip(combinedWeight, total))
-                { round: vote.round, name: "Skip", value: "null" }
+                SkipEvent(vote.round)
             else
                 val threshold = computeThreshold(updatedVoteCount, vote.value)
                 val event = toEvent(vote.round, vote.typ, threshold)
                 if (not(event.in(roundVotes.emittedEvents))) 
                     event
                 else 
-                    { round: vote.round, name: "None", value: "null" }
+                    NoEvent(vote.round)
 
-        val updatedEmittedEvents = roundVotes.emittedEvents.setAddIf(finalEvent, finalEvent.name != "None")
+        val updatedEmittedEvents = roundVotes.emittedEvents.setAddIf(finalEvent, not(isNoEvent(finalEvent)))
 
         val updatedRoundVotes2 = updatedRoundVotes
                 .with("votesAddressesWeights", updatedVotesAddressesWeights)
@@ -211,7 +224,7 @@ module voteBookkeeper {
 
         val newBookkeeper =
             keeper.with("rounds", keeper.rounds.mapSafeSet(vote.round, updatedRoundVotes2))
-       
+        
         { 
             bookkeeper: newBookkeeper, 
             event: finalEvent 
@@ -309,16 +322,16 @@ module voteBookkeeper {
     run toEventTest =
         val round = 10
         all {
-            assert(toEvent(round, Prevote, UnreachedThreshold) == {round: round, name: "None", value: "null"}),
-            assert(toEvent(round, Precommit, UnreachedThreshold) == {round: round, name: "None", value: "null"}),
-            assert(toEvent(round, Prevote, AnyThreshold) == {round: round, name: "PolkaAny", value: "null"}),
-            assert(toEvent(round, Prevote, NilThreshold) == {round: round, name: "PolkaNil", value: "null"}),
-            assert(toEvent(round, Prevote, ValueThreshold("val1")) == {round: round, name: "PolkaValue", value: "val1"}),
-            assert(toEvent(round, Precommit, AnyThreshold) == {round: round, name: "PrecommitAny", value: "null"}),
-            assert(toEvent(round, Precommit, NilThreshold) == {round: round, name: "PrecommitAny", value: "null"}),
-            assert(toEvent(round, Precommit, ValueThreshold("val1")) == {round: round, name: "PrecommitValue", value: "val1"}),
-            assert(toEvent(round, Prevote, SkipThreshold) == {round: round, name: "Skip", value: "null"}),
-            assert(toEvent(round, Precommit, SkipThreshold) == {round: round, name: "Skip", value: "null"}),
+            assert(toEvent(round, Prevote, UnreachedThreshold) == NoEvent(round)),
+            assert(toEvent(round, Precommit, UnreachedThreshold) == NoEvent(round)),
+            assert(toEvent(round, Prevote, AnyThreshold) == PolkaAnyEvent(round)),
+            assert(toEvent(round, Prevote, NilThreshold) == PolkaNilEvent(round)),
+            assert(toEvent(round, Prevote, ValueThreshold("val1")) == PolkaValueEvent((round, "val1"))),
+            assert(toEvent(round, Precommit, AnyThreshold) == PrecommitAnyEvent(round)),
+            assert(toEvent(round, Precommit, NilThreshold) == PrecommitAnyEvent(round)),
+            assert(toEvent(round, Precommit, ValueThreshold("val1")) == PrecommitValueEvent((round, "val1"))),
+            assert(toEvent(round, Prevote, SkipThreshold) == SkipEvent(round)),
+            assert(toEvent(round, Precommit, SkipThreshold) == SkipEvent(round)),
         }
 
 }
