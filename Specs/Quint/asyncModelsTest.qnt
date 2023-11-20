@@ -140,7 +140,10 @@ run DecideOnProposalTest = {
     .then(N4F0::valStep("v4"))
     .then(N4F0::valStep("v4"))
     .then(N4F0::deliverProposal("v4",  { height: 0, proposal: "another block", round: 1, src: "v3", validRound: -1 }))
-    .then(N4F0::valStep("v4"))
+    .then(all {
+        assert(N4F0::system.get("v4").es.chain == List()),
+        N4F0::valStep("v4")
+    })
     .then(all {
         assert(N4F0::system.get("v4").es.chain.head() == "another block"),
         N4F0::unchangedAll
