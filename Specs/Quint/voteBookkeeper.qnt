@@ -49,10 +49,12 @@ module voteBookkeeper {
         votesAddressesWeights: Address -> Weight
     }
 
-    type Threshold = {
-        name: str,
-        value: Value
-    }
+    type Threshold =
+        | UnreachedThreshold
+        | NilThreshold
+        | AnyThreshold
+        | SkipThreshold
+        | ValueThreshold(Value)
 
     type ExecutorEvent = {
         round: Round,
@@ -112,40 +114,37 @@ module voteBookkeeper {
     pure def computeThreshold(voteCount: VoteCount, value: Value): Threshold =
         if (voteCount.hasQuorumOnValue(value)) {
             if (value == "nil") 
-                { name: "Nil", value: "null" }
+                NilThreshold
             else 
-                { name: "Value", value: value }
+                ValueThreshold(value)
         } else if (voteCount.hasQuorumOnAny()) {
-            { name: "Any", value: "null" }
+            AnyThreshold
         } else 
-            { name: "Unreached", value: "null" }
+            UnreachedThreshold
 
     // Given a round, voteType and threshold, return the corresponding ExecutorEvent
     pure def toEvent(round: Round, voteType: VoteType, threshold: Threshold): ExecutorEvent =
-        if (threshold.name == "Unreached") 
-            { round: round, name: "None", value: "null" }
-        
-        // prevote
-        else if (voteType == Prevote and threshold.name == "Value") 
-            { round: round, name: "PolkaValue", value: threshold.value }        
-        else if (voteType == Prevote and threshold.name == "Nil") 
-            { round: round, name: "PolkaNil", value: "null" }
-        else if (voteType == Prevote and threshold.name == "Any") 
-            { round: round, name: "PolkaAny", value: "null" }
-        
-        // precommit
-        else if (voteType == Precommit and threshold.name == "Value") 
-            { round: round, name: "PrecommitValue", value: threshold.value }
-        else if (voteType == Precommit and threshold.name == "Any")
-            { round: round, name: "PrecommitAny", value: "null" }
-        else if (voteType == Precommit and threshold.name == "Nil")
-            { round: round, name: "PrecommitAny", value: "null" }
-
-        else if (threshold.name == "Skip") 
-            { round: round, name: "Skip", value: "null" }
-        
-        else 
-            { round: round, name: "None", value: "null" }
+        match threshold {
+            | UnreachedThreshold =>
+                { round: round, name: "None", value: "null" }
+            | ValueThreshold(value) =>
+                match voteType {
+                    | Prevote => { round: round, name: "PolkaValue", value: value }
+                    | Precommit => { round: round, name: "PrecommitValue", value: value }
+                }
+            | NilThreshold =>
+                match voteType {
+                    | Prevote => { round: round, name: "PolkaNil", value: "null" }
+                    | Precommit => { round: round, name: "PrecommitAny", value: "null" }
+                }
+            | AnyThreshold =>
+                match voteType {
+                    | Prevote => { round: round, name: "PolkaAny", value: "null" }
+                    | Precommit => { round: round, name: "PrecommitAny", value: "null" }
+                }
+            | SkipThreshold =>
+                { round: round, name: "Skip", value: "null" }
+        }
 
     // Executor interface
     type BKResult = { bookkeeper: Bookkeeper, event: ExecutorEvent }
@@ -227,13 +226,13 @@ module voteBookkeeper {
         if (keeper.rounds.has(round)) {
             val roundVotes = keeper.rounds.get(round)
             val voteCount = if (voteType == Prevote) roundVotes.prevotes else roundVotes.precommits
-            if (threshold.name == "Value") {
-                voteCount.hasQuorumOnValue(threshold.value)
-            } else if (threshold.name == "Nil") {
-                voteCount.hasQuorumOnValue("nil")
-            } else if (threshold.name == "Any") {
-                voteCount.hasQuorumOnAny()
-            } else false
+            match threshold {
+                | ValueThreshold(value) => voteCount.hasQuorumOnValue(value)
+                | NilThreshold => voteCount.hasQuorumOnValue("nil")
+                | AnyThreshold => voteCount.hasQuorumOnAny()
+                | SkipThreshold => false
+                | UnreachedThreshold => false
+            }
         } else false
 
 // run PrecommitTest = all {
@@ -298,34 +297,28 @@ module voteBookkeeper {
         val mapNilReached = Map("nil" -> 70, "val2" -> 20)
         val mapNoneReached = Map("nil" -> 20, "val2" -> 20)
         all {
-            assert(computeThreshold(voteCount, "val3") == {name: "Unreached", value: "null"}),
-            assert(computeThreshold(voteCount.with("valuesWeights", mapValueReached), "val1") == {name: "Value", value: "val1"}),
-            assert(computeThreshold(voteCount.with("valuesWeights", mapValueReached), "val2") == {name: "Any", value: "null"}),
-            assert(computeThreshold(voteCount.with("valuesWeights", mapNilReached), "nil") == {name: "Nil", value: "null"}),
-            assert(computeThreshold(voteCount.with("valuesWeights", mapNilReached), "val2") == {name: "Any", value: "null"}),
-            assert(computeThreshold(voteCount.with("valuesWeights", mapNoneReached), "val1") == {name: "Unreached", value: "null"}),
-            assert(computeThreshold(voteCount.with("valuesWeights", mapNoneReached), "nil") == {name: "Unreached", value: "null"}),
+            assert(computeThreshold(voteCount, "val3") == UnreachedThreshold),
+            assert(computeThreshold(voteCount.with("valuesWeights", mapValueReached), "val1") == ValueThreshold("val1")),
+            assert(computeThreshold(voteCount.with("valuesWeights", mapValueReached), "val2") == AnyThreshold),
+            assert(computeThreshold(voteCount.with("valuesWeights", mapNilReached), "nil") == NilThreshold),
+            assert(computeThreshold(voteCount.with("valuesWeights", mapNilReached), "val2") == AnyThreshold),
+            assert(computeThreshold(voteCount.with("valuesWeights", mapNoneReached), "val1") == UnreachedThreshold),
+            assert(computeThreshold(voteCount.with("valuesWeights", mapNoneReached), "nil") == UnreachedThreshold),
         }
 
     run toEventTest =
-        val thresholdUnreached = {name: "Unreached", value: "null"}
-        val thresholdAny = {name: "Any", value: "null"}
-        val thresholdNil = {name: "Nil", value: "null"}
-        val thresholdValue = {name: "Value", value: "val1"}
-        val thresholdSkip = {name: "Skip", value: "null"}
         val round = 10
         all {
-            assert(toEvent(round, Prevote, thresholdUnreached) == {round: round, name: "None", value: "null"}),
-            assert(toEvent(round, Precommit, thresholdUnreached) == {round: round, name: "None", value: "null"}),
-            assert(toEvent(round, Prevote, thresholdAny) == {round: round, name: "PolkaAny", value: "null"}),
-            assert(toEvent(round, Prevote, thresholdNil) == {round: round, name: "PolkaNil", value: "null"}),
-            assert(toEvent(round, Prevote, thresholdValue) == {round: round, name: "PolkaValue", value: "val1"}),
-            assert(toEvent(round, Precommit, thresholdAny) == {round: round, name: "PrecommitAny", value: "null"}),
-            assert(toEvent(round, Precommit, thresholdNil) == {round: round, name: "PrecommitAny", value: "null"}),
-            assert(toEvent(round, Precommit, thresholdValue) == {round: round, name: "PrecommitValue", value: "val1"}),
-            assert(toEvent(round, Prevote, thresholdSkip) == {round: round, name: "Skip", value: "null"}),
-            assert(toEvent(round, Precommit, thresholdSkip) == {round: round, name: "Skip", value: "null"}),
-            assert(toEvent(round, Precommit, {name: "Error", value: "null"}) == {round: round, name: "None", value: "null"}),
+            assert(toEvent(round, Prevote, UnreachedThreshold) == {round: round, name: "None", value: "null"}),
+            assert(toEvent(round, Precommit, UnreachedThreshold) == {round: round, name: "None", value: "null"}),
+            assert(toEvent(round, Prevote, AnyThreshold) == {round: round, name: "PolkaAny", value: "null"}),
+            assert(toEvent(round, Prevote, NilThreshold) == {round: round, name: "PolkaNil", value: "null"}),
+            assert(toEvent(round, Prevote, ValueThreshold("val1")) == {round: round, name: "PolkaValue", value: "val1"}),
+            assert(toEvent(round, Precommit, AnyThreshold) == {round: round, name: "PrecommitAny", value: "null"}),
+            assert(toEvent(round, Precommit, NilThreshold) == {round: round, name: "PrecommitAny", value: "null"}),
+            assert(toEvent(round, Precommit, ValueThreshold("val1")) == {round: round, name: "PrecommitValue", value: "val1"}),
+            assert(toEvent(round, Prevote, SkipThreshold) == {round: round, name: "Skip", value: "null"}),
+            assert(toEvent(round, Precommit, SkipThreshold) == {round: round, name: "Skip", value: "null"}),
         }
 
 }
