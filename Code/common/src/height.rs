@@ -9,6 +9,6 @@ use core::fmt::Debug;
 pub trait Height
 where
     // TODO: Require Copy as well?
-    Self: Clone + Debug + PartialEq + Eq + PartialOrd + Ord,
+    Self: Default + Clone + Debug + PartialEq + Eq + PartialOrd + Ord,
 {
 }

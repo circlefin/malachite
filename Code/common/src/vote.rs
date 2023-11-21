@@ -21,6 +21,9 @@ where
     Self: Clone + Debug + Eq,
     Ctx: Context,
 {
+    /// The height for which the vote is for.
+    fn height(&self) -> Ctx::Height;
+
     /// The round for which the vote is for.
     fn round(&self) -> Round;
 

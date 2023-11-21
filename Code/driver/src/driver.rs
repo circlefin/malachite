@@ -1,5 +1,3 @@
-use alloc::collections::BTreeMap;
-
 use malachite_round::state_machine::RoundData;
 
 use malachite_common::{
@@ -33,13 +31,11 @@ where
     pub env: Env,
     pub proposer_selector: PSel,
 
-    pub height: Ctx::Height,
     pub address: Ctx::Address,
     pub validator_set: Ctx::ValidatorSet,
 
-    pub round: Round,
     pub votes: VoteKeeper<Ctx>,
-    pub round_states: BTreeMap<Round, RoundState<Ctx>>,
+    pub round_state: RoundState<Ctx>,
 }
 
 impl<Ctx, Env, PSel> Driver<Ctx, Env, PSel>
@@ -52,7 +48,6 @@ where
         ctx: Ctx,
         env: Env,
         proposer_selector: PSel,
-        height: Ctx::Height,
         validator_set: Ctx::ValidatorSet,
         address: Ctx::Address,
     ) -> Self {
@@ -65,17 +60,25 @@ where
             ctx,
             env,
             proposer_selector,
-            height,
             address,
             validator_set,
-            round: Round::NIL,
             votes,
-            round_states: BTreeMap::new(),
+            round_state: RoundState::default(),
         }
     }
 
-    async fn get_value(&self, round: Round) -> Option<Ctx::Value> {
-        self.env.get_value(self.height.clone(), round).await
+    pub fn height(&self) -> &Ctx::Height {
+        &self.round_state.height
+    }
+
+    pub fn round(&self) -> Round {
+        self.round_state.round
+    }
+
+    async fn get_value(&self) -> Option<Ctx::Value> {
+        self.env
+            .get_value(self.height().clone(), self.round())
+            .await
     }
 
     pub async fn execute(&mut self, msg: Event<Ctx>) -> Result<Option<Message<Ctx>>, Error<Ctx>> {
@@ -85,11 +88,7 @@ where
         };
 
         let msg = match round_msg {
-            RoundMessage::NewRound(round) => {
-                // XXX: Check if there is an existing state?
-                assert!(self.round < round);
-                Message::NewRound(round)
-            }
+            RoundMessage::NewRound(round) => Message::NewRound(self.height().clone(), round),
 
             RoundMessage::Proposal(proposal) => {
                 // sign the proposal
@@ -112,21 +111,27 @@ where
         Ok(Some(msg))
     }
 
-    async fn apply(&mut self, msg: Event<Ctx>) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
-        match msg {
-            Event::NewRound(round) => self.apply_new_round(round).await,
+    async fn apply(&mut self, event: Event<Ctx>) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
+        match event {
+            Event::NewRound(height, round) => self.apply_new_round(height, round).await,
+
             Event::Proposal(proposal, validity) => {
                 Ok(self.apply_proposal(proposal, validity).await)
             }
+
             Event::Vote(signed_vote) => self.apply_vote(signed_vote),
+
             Event::TimeoutElapsed(timeout) => Ok(self.apply_timeout(timeout)),
         }
     }
 
     async fn apply_new_round(
         &mut self,
+        height: Ctx::Height,
         round: Round,
     ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
+        self.round_state = RoundState::new(height, round);
+
         let proposer_address = self
             .proposer_selector
             .select_proposer(round, &self.validator_set);
@@ -140,7 +145,7 @@ where
             // We are the proposer
             // TODO: Schedule propose timeout
 
-            let Some(value) = self.get_value(round).await else {
+            let Some(value) = self.get_value().await else {
                 return Err(Error::NoValueToPropose);
             };
 
@@ -148,11 +153,6 @@ where
         } else {
             RoundEvent::NewRound
         };
-
-        assert!(self.round < round);
-        self.round_states
-            .insert(round, RoundState::default().new_round(round));
-        self.round = round;
 
         Ok(self.apply_event(round, event))
     }
@@ -163,23 +163,24 @@ where
         validity: Validity,
     ) -> Option<RoundMessage<Ctx>> {
         // Check that there is an ongoing round
-        let Some(round_state) = self.round_states.get(&self.round) else {
-            // TODO: Add logging
+        if self.round_state.round == Round::NIL {
             return None;
-        };
+        }
 
         // Only process the proposal if there is no other proposal
-        if round_state.proposal.is_some() {
+        if self.round_state.proposal.is_some() {
             return None;
         }
 
         // Check that the proposal is for the current height and round
-        if self.height != proposal.height() || self.round != proposal.round() {
+        if self.round_state.height != proposal.height()
+            || self.round_state.round != proposal.round()
+        {
             return None;
         }
 
         // TODO: Document
-        if proposal.pol_round().is_defined() && proposal.pol_round() >= round_state.round {
+        if proposal.pol_round().is_defined() && proposal.pol_round() >= self.round_state.round {
             return None;
         }
 
@@ -237,11 +238,12 @@ where
             ));
         }
 
-        let round = signed_vote.vote.round();
+        let vote_round = signed_vote.vote.round();
+        let current_round = self.round();
 
         let Some(vote_msg) =
             self.votes
-                .apply_vote(signed_vote.vote, validator.voting_power(), self.round)
+                .apply_vote(signed_vote.vote, validator.voting_power(), current_round)
         else {
             return Ok(None);
         };
@@ -255,7 +257,7 @@ where
             VoteMessage::SkipRound(r) => RoundEvent::SkipRound(r),
         };
 
-        Ok(self.apply_event(round, round_event))
+        Ok(self.apply_event(vote_round, round_event))
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Option<RoundMessage<Ctx>> {
@@ -270,10 +272,9 @@ where
 
     /// Apply the event, update the state.
     fn apply_event(&mut self, round: Round, event: RoundEvent<Ctx>) -> Option<RoundMessage<Ctx>> {
-        // Get the round state, or create a new one
-        let round_state = self.round_states.remove(&round).unwrap_or_default();
+        let round_state = core::mem::take(&mut self.round_state);
 
-        let data = RoundData::new(round, &self.height, &self.address);
+        let data = RoundData::new(round, round_state.height.clone(), &self.address);
 
         // Multiplex the event with the round state.
         let mux_event = match event {
@@ -297,13 +298,9 @@ where
         let transition = round_state.apply_event(&data, mux_event);
 
         // Update state
-        self.round_states.insert(round, transition.next_state);
+        self.round_state = transition.next_state;
 
         // Return message, if any
         transition.message
-    }
-
-    pub fn round_state(&self, round: Round) -> Option<&RoundState<Ctx>> {
-        self.round_states.get(&round)
     }
 }

@@ -25,12 +25,22 @@ impl<Ctx: Context> Message<Ctx> {
         Message::Proposal(Ctx::new_proposal(height, round, value, pol_round))
     }
 
-    pub fn prevote(round: Round, value_id: Option<ValueId<Ctx>>, address: Ctx::Address) -> Self {
-        Message::Vote(Ctx::new_prevote(round, value_id, address))
+    pub fn prevote(
+        height: Ctx::Height,
+        round: Round,
+        value_id: Option<ValueId<Ctx>>,
+        address: Ctx::Address,
+    ) -> Self {
+        Message::Vote(Ctx::new_prevote(height, round, value_id, address))
     }
 
-    pub fn precommit(round: Round, value_id: Option<ValueId<Ctx>>, address: Ctx::Address) -> Self {
-        Message::Vote(Ctx::new_precommit(round, value_id, address))
+    pub fn precommit(
+        height: Ctx::Height,
+        round: Round,
+        value_id: Option<ValueId<Ctx>>,
+        address: Ctx::Address,
+    ) -> Self {
+        Message::Vote(Ctx::new_precommit(height, round, value_id, address))
     }
 
     pub fn schedule_timeout(round: Round, step: TimeoutStep) -> Self {

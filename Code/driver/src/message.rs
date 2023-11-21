@@ -11,7 +11,7 @@ where
     Vote(SignedVote<Ctx>),
     Decide(Round, Ctx::Value),
     ScheduleTimeout(Timeout),
-    NewRound(Round),
+    NewRound(Ctx::Height, Round),
 }
 
 // NOTE: We have to derive these instances manually, otherwise
@@ -26,7 +26,7 @@ impl<Ctx: Context> Clone for Message<Ctx> {
             Message::Vote(signed_vote) => Message::Vote(signed_vote.clone()),
             Message::Decide(round, value) => Message::Decide(*round, value.clone()),
             Message::ScheduleTimeout(timeout) => Message::ScheduleTimeout(*timeout),
-            Message::NewRound(round) => Message::NewRound(*round),
+            Message::NewRound(height, round) => Message::NewRound(height.clone(), *round),
         }
     }
 }
@@ -39,7 +39,7 @@ impl<Ctx: Context> fmt::Debug for Message<Ctx> {
             Message::Vote(signed_vote) => write!(f, "Vote({:?})", signed_vote),
             Message::Decide(round, value) => write!(f, "Decide({:?}, {:?})", round, value),
             Message::ScheduleTimeout(timeout) => write!(f, "ScheduleTimeout({:?})", timeout),
-            Message::NewRound(round) => write!(f, "NewRound({:?})", round),
+            Message::NewRound(height, round) => write!(f, "NewRound({:?}, {:?})", height, round),
         }
     }
 }
@@ -60,7 +60,9 @@ impl<Ctx: Context> PartialEq for Message<Ctx> {
             (Message::ScheduleTimeout(timeout), Message::ScheduleTimeout(other_timeout)) => {
                 timeout == other_timeout
             }
-            (Message::NewRound(round), Message::NewRound(other_round)) => round == other_round,
+            (Message::NewRound(height, round), Message::NewRound(other_height, other_round)) => {
+                height == other_height && round == other_round
+            }
             _ => false,
         }
     }

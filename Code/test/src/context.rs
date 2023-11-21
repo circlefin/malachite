@@ -47,11 +47,21 @@ impl Context for TestContext {
         Proposal::new(height, round, value, pol_round)
     }
 
-    fn new_prevote(round: Round, value_id: Option<ValueId>, address: Address) -> Vote {
-        Vote::new_prevote(round, value_id, address)
+    fn new_prevote(
+        height: Height,
+        round: Round,
+        value_id: Option<ValueId>,
+        address: Address,
+    ) -> Vote {
+        Vote::new_prevote(height, round, value_id, address)
     }
 
-    fn new_precommit(round: Round, value_id: Option<ValueId>, address: Address) -> Vote {
-        Vote::new_precommit(round, value_id, address)
+    fn new_precommit(
+        height: Height,
+        round: Round,
+        value_id: Option<ValueId>,
+        address: Address,
+    ) -> Vote {
+        Vote::new_precommit(height, round, value_id, address)
     }
 }

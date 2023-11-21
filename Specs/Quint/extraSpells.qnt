@@ -115,6 +115,22 @@ module extraSpells {
     assert(Set(3) == Set(3).setAdd(3)),
   }
 
+  /// Add a set element only if a condition is true.
+  ///
+  /// - @param __set a set to add an element to
+  /// - @param __elem an element to add
+  /// - @param __cond a condition that must be true to add the element to the set
+  /// - @returns a new set that contains all elements of __set and __elem, if __cond is true
+  pure def setAddIf(__set: Set[a], __elem: a, __cond: bool): Set[a] =
+    if (__cond) __set.setAdd(__elem) else __set
+
+  run setAddIfTest = all {
+    assert(Set(2, 3, 4, 5) == Set(2, 3, 4).setAddIf(5, true)),
+    assert(Set(2, 3, 4) == Set(2, 3, 4).setAddIf(5, false)),
+    assert(Set(3) == Set(3).setAddIf(3, true)),
+    assert(Set(3) == Set(3).setAddIf(3, false)),
+  }
+
   /// Safely set a map entry.
   ///
   /// - @param __map a map to set an entry to
@@ -160,11 +176,24 @@ module extraSpells {
   ///          plus the ones in __entries
   pure def mapAddSet(__map: a -> int, __entries: a -> int): a -> int = {
     __map.keys().union(__entries.keys()).mapBy(__k => if (__map.has(__k) and __entries.has(__k)) __map.get(__k) + __entries.get(__k)
-                                                       else if (__map.has(__k)) __map.get(__k) else __entries.get(__k))
+                                                      else if (__map.has(__k)) __map.get(__k) else __entries.get(__k))
   }
 
   run mapAddSetTest = all {
     assert(Map(2 -> 3, 4 -> 5, 7 -> 8).mapAddSet(Map(3 -> 6, 8 -> 9)) == Map(2 -> 3, 4 -> 5, 3 -> 6, 7 -> 8, 8 -> 9)),
     assert(Map(2 -> 3, 4 -> 5, 7 -> 8).mapAddSet(Map(3 -> 6, 7 -> 9)) == Map(2 -> 3, 4 -> 5, 3 -> 6, 7 -> 17)),
   }
+
+  /// Compute the sum of all values in the map.
+  ///
+  /// - @param __map a map with values of type int
+  /// - @returns the sum of the values of all entries in __map
+ pure def mapSumValues(__map: a -> int): int =
+    __map.keys().fold(0, (__acc, __val) => __acc + __map.get(__val))
+
+  run mapSumValuesTest = all {
+    assert(0 == Map().mapSumValues()),
+    assert(6 == Map("a" -> 0, "b" -> 1, "c" -> 2, "d" -> 3).mapSumValues()),
+  }
+
 }
