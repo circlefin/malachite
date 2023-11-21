@@ -8,7 +8,7 @@ where
     Ctx: Context,
 {
     /// Start a new round
-    NewRound(Round),
+    NewRound(Ctx::Height, Round),
 
     /// Broadcast a proposal
     Propose(Ctx::Proposal),
@@ -34,6 +34,7 @@ impl<Ctx: Context> Clone for Message<Ctx> {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         match self {
+            Message::NewRound(height, round) => Message::NewRound(height.clone(), *round),
             Message::Propose(proposal) => Message::Propose(proposal.clone()),
             Message::Vote(signed_vote) => Message::Vote(signed_vote.clone()),
             Message::Decide(round, value) => Message::Decide(*round, value.clone()),
@@ -41,7 +42,6 @@ impl<Ctx: Context> Clone for Message<Ctx> {
             Message::GetValueAndScheduleTimeout(round, timeout) => {
                 Message::GetValueAndScheduleTimeout(*round, *timeout)
             }
-            Message::NewRound(round) => Message::NewRound(*round),
         }
     }
 }
@@ -50,6 +50,7 @@ impl<Ctx: Context> fmt::Debug for Message<Ctx> {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Message::NewRound(height, round) => write!(f, "NewRound({:?}, {:?})", height, round),
             Message::Propose(proposal) => write!(f, "Propose({:?})", proposal),
             Message::Vote(signed_vote) => write!(f, "Vote({:?})", signed_vote),
             Message::Decide(round, value) => write!(f, "Decide({:?}, {:?})", round, value),
@@ -57,7 +58,6 @@ impl<Ctx: Context> fmt::Debug for Message<Ctx> {
             Message::GetValueAndScheduleTimeout(round, timeout) => {
                 write!(f, "GetValueAndScheduleTimeout({:?}, {:?})", round, timeout)
             }
-            Message::NewRound(round) => write!(f, "NewRound({:?})", round),
         }
     }
 }
@@ -66,6 +66,9 @@ impl<Ctx: Context> PartialEq for Message<Ctx> {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Message::NewRound(height, round), Message::NewRound(other_height, other_round)) => {
+                height == other_height && round == other_round
+            }
             (Message::Propose(proposal), Message::Propose(other_proposal)) => {
                 proposal == other_proposal
             }
@@ -82,7 +85,6 @@ impl<Ctx: Context> PartialEq for Message<Ctx> {
                 Message::GetValueAndScheduleTimeout(round, timeout),
                 Message::GetValueAndScheduleTimeout(other_round, other_timeout),
             ) => round == other_round && timeout == other_timeout,
-            (Message::NewRound(round), Message::NewRound(other_round)) => round == other_round,
             _ => false,
         }
     }

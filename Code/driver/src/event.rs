@@ -9,7 +9,7 @@ where
     Ctx: Context,
 {
     /// Start a new round
-    NewRound(Round),
+    NewRound(Ctx::Height, Round),
 
     /// Propose a value for the given round
     ProposeValue(Round, Ctx::Value),

@@ -10,8 +10,8 @@ module executor {
 import consensus.* from "./consensus"
 import voteBookkeeper.* from "./voteBookkeeper"
 
-pure def initBookKeeper (totalVotingPower: int): Bookkeeper = 
-    { height: 0, totalWeight: totalVotingPower, rounds: Map() }
+pure def initBookKeeper (currentRound: Round, totalVotingPower: int): Bookkeeper = 
+    { height: 0, currentRound: currentRound, totalWeight: totalVotingPower, rounds: Map() }
 
 
 type ExecutorState = {
@@ -30,7 +30,7 @@ type ExecutorState = {
 pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
     val tvp = vs.keys().fold(0, (sum, key) => sum + vs.get(key))
     {
-    bk: initBookKeeper(tvp),
+    bk: initBookKeeper(0, tvp),
     cs: initConsensusState(v),
     proposals: Set(),
     valset: vs,
@@ -149,14 +149,18 @@ pure def ListContains(list, value) =
 
 // check whether the event has been already sent to consensus. If not, do so.
 pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (ExecutorState, ConsensusOutput) = {
-    // check whether we already executed the event already
+    // Check whether we already executed the event already
     if (es.executedEvents.ListContains((ev, es.cs.height, es.cs.round)))
-        (   { ...es, bk:bk, cs: es.cs}, 
-            defaultResult )
+        ({ ...es, bk: bk, cs: es.cs }, defaultResult)
     else
+        // Go to consensus
         val res = consensus(es.cs, ev)
-        (   { ...es, bk: bk, cs: res.cs, executedEvents: es.executedEvents.append((ev, res.cs.height, res.cs.round))}, 
-            res.out )
+        // Update the round in the vote keeper, in case we moved to a new round
+        val newBk = { ...bk, currentRound: res.cs.round }
+        // Record that we executed the event
+        val events = es.executedEvents.append((ev, res.cs.height, res.cs.round))
+
+        ({ ...es, bk: newBk, cs: res.cs, executedEvents: events }, res.out)
 }
 
 

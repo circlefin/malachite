@@ -16,7 +16,7 @@ where
     Ctx: Context,
 {
     pub round: Round,
-    pub height: &'a Ctx::Height,
+    pub height: Ctx::Height,
     pub address: &'a Ctx::Address,
 }
 
@@ -24,7 +24,7 @@ impl<'a, Ctx> RoundData<'a, Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(round: Round, height: &'a Ctx::Height, address: &'a Ctx::Address) -> Self {
+    pub fn new(round: Round, height: Ctx::Height, address: &'a Ctx::Address) -> Self {
         Self {
             round,
             height,
@@ -68,7 +68,7 @@ where
 
         // From Propose. Event must be for current round.
         (Step::Propose, Event::ProposeValue(value)) if this_round => {
-            propose(state, data.height, value) // L11/L14
+            propose(state, &data.height, value) // L11/L14
         }
 
         (Step::Propose, Event::Proposal(proposal))
@@ -347,8 +347,7 @@ pub fn round_skip<Ctx>(state: State<Ctx>, round: Round) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    Transition::to(state.clone().new_round(state.height.clone(), round))
-        .with_message(Message::NewRound(round))
+    Transition::to(State::new(state.height.clone(), round)).with_message(Message::NewRound(round))
 }
 
 /// We received +2/3 precommits for a value - commit and decide that value!

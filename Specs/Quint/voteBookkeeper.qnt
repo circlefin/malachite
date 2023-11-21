@@ -62,6 +62,7 @@ module voteBookkeeper {
 
     type Bookkeeper = {
         height: Height,
+        currentRound: Round,
         totalWeight: Weight,
         rounds: Round -> RoundVotes
     }
@@ -183,29 +184,37 @@ module voteBookkeeper {
             else 
                 roundVotes.votesAddressesWeights.mapSafeSet(vote.address, weight)
 
-        val threshold = computeThreshold(updatedVoteCount, vote.value)
-        val event = toEvent(vote.round, vote.typ, threshold)
-        val finalEvent = 
-            if (not(event.in(roundVotes.emittedEvents))) 
-                event
-            else if (roundVotes.emittedEvents == Set() and isSkip(updatedVotesAddressesWeights.mapSumValues(), total)) 
-                { round: vote.round, name: "Skip", value: "null" }
-            else 
-                { round: vote.round, name: "None", value: "null" }
-
-        val updatedEmmittedEvents = roundVotes.emittedEvents.setAddIf(finalEvent, finalEvent.name != "None")
-        
         val updatedRoundVotes = 
             if (vote.typ == "Prevote") 
                 roundVotes.with("prevotes", updatedVoteCount)                                   
             else 
                 roundVotes.with("precommits", updatedVoteCount)
+
+        // Combined weight of all validators at this height
+        val combinedWeight = updatedVotesAddressesWeights.mapSumValues()
+
+        val finalEvent =
+            if (vote.round > keeper.currentRound and isSkip(combinedWeight, total))
+                { round: vote.round, name: "Skip", value: "null" }
+            else
+                val threshold = computeThreshold(updatedVoteCount, vote.value)
+                val event = toEvent(vote.round, vote.typ, threshold)
+                if (not(event.in(roundVotes.emittedEvents))) 
+                    event
+                else 
+                    { round: vote.round, name: "None", value: "null" }
+
+        val updatedEmittedEvents = roundVotes.emittedEvents.setAddIf(finalEvent, finalEvent.name != "None")
+
         val updatedRoundVotes2 = updatedRoundVotes
                 .with("votesAddressesWeights", updatedVotesAddressesWeights)
-                .with("emittedEvents", updatedEmmittedEvents)
+                .with("emittedEvents", updatedEmittedEvents)
 
+        val newBookkeeper =
+            keeper.with("rounds", keeper.rounds.mapSafeSet(vote.round, updatedRoundVotes2))
+       
         { 
-            bookkeeper: keeper.with("rounds", keeper.rounds.mapSafeSet(vote.round, updatedRoundVotes2)), 
+            bookkeeper: newBookkeeper, 
             event: finalEvent 
         }
     
