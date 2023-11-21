@@ -76,25 +76,20 @@ pub struct ValidatorSet {
 
 impl ValidatorSet {
     pub fn new(validators: impl IntoIterator<Item = Validator>) -> Self {
-        let mut validators: Vec<_> = validators.into_iter().collect();
+        let validators: Vec<_> = validators.into_iter().collect();
         assert!(!validators.is_empty());
-
-        Self::sort_validators(&mut validators);
 
         Self { validators }
     }
 
     /// The total voting power of the validator set
     pub fn total_voting_power(&self) -> VotingPower {
-        // TODO: Cache this?
         self.validators.iter().map(|v| v.voting_power).sum()
     }
 
     /// Add a validator to the set
     pub fn add(&mut self, validator: Validator) {
         self.validators.push(validator);
-
-        ValidatorSet::sort_validators(&mut self.validators);
     }
 
     /// Update the voting power of the given validator
@@ -106,34 +101,16 @@ impl ValidatorSet {
         {
             v.voting_power = val.voting_power;
         }
-
-        Self::sort_validators(&mut self.validators);
     }
 
     /// Remove a validator from the set
     pub fn remove(&mut self, address: &Address) {
         self.validators.retain(|v| &v.address != address);
-
-        Self::sort_validators(&mut self.validators); // TODO: Not needed
     }
 
     /// Get a validator by its address
     pub fn get_by_address(&self, address: &Address) -> Option<&Validator> {
         self.validators.iter().find(|v| &v.address == address)
-    }
-
-    /// In place sort and deduplication of a list of validators
-    fn sort_validators(vals: &mut Vec<Validator>) {
-        // Sort the validators according to the current Tendermint requirements
-        use core::cmp::Reverse;
-
-        vals.sort_unstable_by(|v1, v2| {
-            let a = (Reverse(v1.voting_power), &v1.address);
-            let b = (Reverse(v2.voting_power), &v2.address);
-            a.cmp(&b)
-        });
-
-        vals.dedup();
     }
 }
 

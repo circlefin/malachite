@@ -32,7 +32,7 @@ impl malachite_common::Proposal<TestContext> for Proposal {
     }
 
     fn value(&self) -> Value {
-        self.value.clone()
+        self.value
     }
 
     fn pol_round(&self) -> Round {
