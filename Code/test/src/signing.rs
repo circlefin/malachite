@@ -1,6 +1,5 @@
 use malachite_common::SigningScheme;
 use rand::{CryptoRng, RngCore};
-use secrecy::{CloneableSecret, DebugSecret, Zeroize};
 use signature::{Keypair, Signer, Verifier};
 
 pub use ed25519_consensus::Signature;
@@ -9,6 +8,7 @@ pub use ed25519_consensus::Signature;
 pub struct Ed25519;
 
 impl Ed25519 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn generate_keypair<R>(rng: R) -> PrivateKey
     where
         R: RngCore + CryptoRng,
@@ -27,6 +27,7 @@ impl SigningScheme for Ed25519 {
 pub struct PrivateKey(ed25519_consensus::SigningKey);
 
 impl PrivateKey {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn generate<R>(rng: R) -> Self
     where
         R: RngCore + CryptoRng,
@@ -36,6 +37,7 @@ impl PrivateKey {
         Self(signing_key)
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn public_key(&self) -> PublicKey {
         PublicKey::new(self.0.verification_key())
     }
@@ -54,15 +56,6 @@ impl Keypair for PrivateKey {
         self.public_key()
     }
 }
-
-impl Zeroize for PrivateKey {
-    fn zeroize(&mut self) {
-        self.0.zeroize()
-    }
-}
-
-impl DebugSecret for PrivateKey {}
-impl CloneableSecret for PrivateKey {}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct PublicKey(ed25519_consensus::VerificationKey);

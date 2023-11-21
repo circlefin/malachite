@@ -18,7 +18,7 @@ impl From<u64> for ValueId {
 }
 
 /// The value to decide on
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Value(u64);
 
 impl Value {
@@ -28,10 +28,6 @@ impl Value {
 
     pub const fn as_u64(&self) -> u64 {
         self.0
-    }
-
-    pub const fn valid(&self) -> bool {
-        self.0 > 0
     }
 
     pub const fn id(&self) -> ValueId {
@@ -44,11 +40,5 @@ impl malachite_common::Value for Value {
 
     fn id(&self) -> ValueId {
         self.id()
-    }
-}
-
-impl From<u64> for Value {
-    fn from(value: u64) -> Self {
-        Self::new(value)
     }
 }

@@ -1,6 +1,9 @@
 #![allow(unused_variables)]
 
+use core::fmt;
+
 use malachite_common as mc;
+use mc::SignedVote;
 use tendermint as tm;
 
 pub mod ed25519;
@@ -20,7 +23,13 @@ impl Context {
 pub struct Address(tm::account::Id);
 impl mc::Address for Address {}
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+impl fmt::Display for Address {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Height(tm::block::Height);
 impl mc::Height for Height {}
 
@@ -97,6 +106,10 @@ impl mc::ValidatorSet<Context> for ValidatorSet {
 pub struct Vote(tm::vote::Vote);
 
 impl mc::Vote<Context> for Vote {
+    fn height(&self) -> Height {
+        Height(self.0.height)
+    }
+
     fn round(&self) -> mc::Round {
         mc::Round::from(self.0.round.value())
     }
@@ -127,11 +140,7 @@ impl mc::Context for Context {
     type Vote = Vote;
     type SigningScheme = crate::ed25519::Ed25519;
 
-    fn sign_vote(
-        &self,
-        vote: &Self::Vote,
-        private_key: &mc::PrivateKey<Self>,
-    ) -> mc::Signature<Self> {
+    fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self> {
         todo!()
     }
 
@@ -167,11 +176,21 @@ impl mc::Context for Context {
         todo!()
     }
 
-    fn new_prevote(round: mc::Round, value_id: Option<BlockId>, address: Address) -> Self::Vote {
+    fn new_prevote(
+        height: Height,
+        round: mc::Round,
+        value_id: Option<BlockId>,
+        address: Address,
+    ) -> Self::Vote {
         todo!()
     }
 
-    fn new_precommit(round: mc::Round, value_id: Option<BlockId>, address: Address) -> Self::Vote {
+    fn new_precommit(
+        height: Height,
+        round: mc::Round,
+        value_id: Option<BlockId>,
+        address: Address,
+    ) -> Self::Vote {
         todo!()
     }
 }

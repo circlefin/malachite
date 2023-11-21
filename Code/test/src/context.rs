@@ -4,13 +4,21 @@ use malachite_common::SignedVote;
 
 use crate::height::*;
 use crate::proposal::*;
-use crate::signing::{Ed25519, PrivateKey, PublicKey, Signature};
+use crate::signing::{Ed25519, PrivateKey, PublicKey};
 use crate::validator_set::*;
 use crate::value::*;
 use crate::vote::*;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct TestContext;
+#[derive(Clone, Debug)]
+pub struct TestContext {
+    private_key: PrivateKey,
+}
+
+impl TestContext {
+    pub fn new(private_key: PrivateKey) -> Self {
+        Self { private_key }
+    }
+}
 
 impl Context for TestContext {
     type Address = Address;
@@ -22,9 +30,10 @@ impl Context for TestContext {
     type Vote = Vote;
     type SigningScheme = Ed25519;
 
-    fn sign_vote(&self, vote: &Self::Vote, private_key: &PrivateKey) -> Signature {
+    fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self> {
         use signature::Signer;
-        private_key.sign(&vote.to_bytes())
+        let signature = self.private_key.sign(&vote.to_bytes());
+        SignedVote::new(vote, signature)
     }
 
     fn verify_signed_vote(&self, signed_vote: &SignedVote<Self>, public_key: &PublicKey) -> bool {
@@ -38,11 +47,21 @@ impl Context for TestContext {
         Proposal::new(height, round, value, pol_round)
     }
 
-    fn new_prevote(round: Round, value_id: Option<ValueId>, address: Address) -> Vote {
-        Vote::new_prevote(round, value_id, address)
+    fn new_prevote(
+        height: Height,
+        round: Round,
+        value_id: Option<ValueId>,
+        address: Address,
+    ) -> Vote {
+        Vote::new_prevote(height, round, value_id, address)
     }
 
-    fn new_precommit(round: Round, value_id: Option<ValueId>, address: Address) -> Vote {
-        Vote::new_precommit(round, value_id, address)
+    fn new_precommit(
+        height: Height,
+        round: Round,
+        value_id: Option<ValueId>,
+        address: Address,
+    ) -> Vote {
+        Vote::new_precommit(height, round, value_id, address)
     }
 }

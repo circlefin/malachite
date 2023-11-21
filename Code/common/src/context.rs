@@ -1,6 +1,6 @@
 use crate::{
-    Address, Height, PrivateKey, Proposal, PublicKey, Round, Signature, SignedVote, SigningScheme,
-    Validator, ValidatorSet, Value, ValueId, Vote,
+    Address, Height, Proposal, PublicKey, Round, SignedVote, SigningScheme, Validator,
+    ValidatorSet, Value, ValueId, Vote,
 };
 
 /// This trait allows to abstract over the various datatypes
@@ -18,9 +18,8 @@ where
     type Vote: Vote<Self>;
     type SigningScheme: SigningScheme; // TODO: Do we need to support multiple signing schemes?
 
-    /// Sign the given vote using the given private key.
-    /// TODO: Maybe move this as concrete methods in `SignedVote`?
-    fn sign_vote(&self, vote: &Self::Vote, private_key: &PrivateKey<Self>) -> Signature<Self>;
+    /// Sign the given vote with our private key.
+    fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self>;
 
     /// Verify the given vote's signature using the given public key.
     /// TODO: Maybe move this as concrete methods in `SignedVote`?
@@ -41,6 +40,7 @@ where
     /// Build a new prevote vote by the validator with the given address,
     /// for the value identified by the given value id, at the given round.
     fn new_prevote(
+        height: Self::Height,
         round: Round,
         value_id: Option<ValueId<Self>>,
         address: Self::Address,
@@ -49,6 +49,7 @@ where
     /// Build a new precommit vote by the validator with the given address,
     /// for the value identified by the given value id, at the given round.
     fn new_precommit(
+        height: Self::Height,
         round: Round,
         value_id: Option<ValueId<Self>>,
         address: Self::Address,

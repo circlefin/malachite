@@ -1,13 +1,14 @@
-use malachite_common::{Round, Timeout};
-use malachite_driver::{Driver, Event, Message};
-use malachite_round::state::{RoundValue, State, Step};
-
-use malachite_test::{
-    Address, Height, PrivateKey, Proposal, TestClient, TestContext, Validator, ValidatorSet, Value,
-    Vote,
-};
+use futures::executor::block_on;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+
+use malachite_common::{Round, Timeout};
+use malachite_driver::{Driver, Error, Event, Message, ProposerSelector, Validity};
+use malachite_round::state::{RoundValue, State, Step};
+use malachite_test::{
+    Address, Height, PrivateKey, Proposal, TestContext, TestEnv, Validator, ValidatorSet, Value,
+    Vote,
+};
 
 struct TestStep {
     desc: &'static str,
@@ -19,22 +20,51 @@ struct TestStep {
 
 fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
     match output {
-        Message::Propose(p) => Some(Event::Proposal(p)),
+        // Let's consider our own proposal to always be valid
+        Message::Propose(p) => Some(Event::Proposal(p, Validity::Valid)),
         Message::Vote(v) => Some(Event::Vote(v)),
         Message::Decide(_, _) => None,
         Message::ScheduleTimeout(_) => None,
+        Message::NewRound(height, round) => Some(Event::NewRound(height, round)),
+    }
+}
 
-        // XXX: we are only testing non-proposer after the initial round
-        Message::NewRound(round) => Some(Event::NewRound(round, false)),
+#[derive(Copy, Clone, Debug, Default)]
+pub struct RotateProposer {
+    proposer_index: usize,
+}
+
+impl ProposerSelector<TestContext> for RotateProposer {
+    fn select_proposer(&mut self, _round: Round, validator_set: &ValidatorSet) -> Address {
+        let proposer = &validator_set.validators[self.proposer_index];
+        self.proposer_index = (self.proposer_index + 1) % validator_set.validators.len();
+        proposer.address
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct FixedProposer {
+    proposer: Address,
+}
+
+impl FixedProposer {
+    pub fn new(proposer: Address) -> Self {
+        Self { proposer }
+    }
+}
+
+impl ProposerSelector<TestContext> for FixedProposer {
+    fn select_proposer(&mut self, _round: Round, _validator_set: &ValidatorSet) -> Address {
+        self.proposer
     }
 }
 
 #[test]
 fn driver_steps_proposer() {
     let value = Value::new(9999);
-    let value_id = value.id();
 
-    let client = TestClient::new(value.clone(), |_| true);
+    let sel = RotateProposer::default();
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -52,25 +82,21 @@ fn driver_steps_proposer() {
 
     let (my_sk, my_addr) = (sk1, addr1);
 
-    let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(
-        TestContext,
-        client,
-        Height::new(1),
-        vs,
-        my_sk.clone(),
-        my_addr,
-    );
+    let ctx = TestContext::new(my_sk.clone());
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
+    let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
+
+    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are proposer, propose value",
-            input_event: Some(Event::NewRound(Round::new(0), true)),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
             expected_output: Some(Message::Propose(proposal.clone())),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
                 proposal: None,
@@ -82,10 +108,12 @@ fn driver_steps_proposer() {
             desc: "Receive our own proposal, prevote for it (v1)",
             input_event: None,
             expected_output: Some(Message::Vote(
-                Vote::new_prevote(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), my_addr)
+                    .signed(&my_sk),
             )),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: Some(proposal.clone()),
@@ -99,6 +127,7 @@ fn driver_steps_proposer() {
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: Some(proposal.clone()),
@@ -109,11 +138,13 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v2 prevotes for our proposal",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Round::new(0), Some(value_id), addr2).signed(&sk2),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr2)
+                    .signed(&sk2),
             )),
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: Some(proposal.clone()),
@@ -124,22 +155,25 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v3 prevotes for our proposal, we get +2/3 prevotes, precommit for it (v1)",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Round::new(0), Some(value_id), addr3).signed(&sk3),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr3)
+                    .signed(&sk3),
             )),
             expected_output: Some(Message::Vote(
-                Vote::new_precommit(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), my_addr)
+                    .signed(&my_sk),
             )),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -150,15 +184,16 @@ fn driver_steps_proposer() {
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -166,20 +201,22 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v2 precommits for our proposal",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Round::new(0), Some(value_id), addr2).signed(&sk2),
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr2)
+                    .signed(&sk2),
             )),
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -187,20 +224,22 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v3 precommits for our proposal, we get +2/3 precommits, decide it (v1)",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Round::new(0), Some(value_id), addr3).signed(&sk3),
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr3)
+                    .signed(&sk3),
             )),
-            expected_output: Some(Message::Decide(Round::new(0), value.clone())),
+            expected_output: Some(Message::Decide(Round::new(0), value)),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Commit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -216,13 +255,15 @@ fn driver_steps_proposer() {
             .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
-        let output = driver.execute(execute_message);
+        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
-        assert_eq!(driver.round, step.expected_round, "expected round");
+        assert_eq!(
+            driver.round_state.round, step.expected_round,
+            "expected round"
+        );
 
-        let new_state = driver.round_state(Round::new(0)).unwrap();
-        assert_eq!(new_state, &step.new_state, "expected state");
+        assert_eq!(driver.round_state, step.new_state, "expected state");
 
         previous_message = output.and_then(to_input_msg);
     }
@@ -231,9 +272,9 @@ fn driver_steps_proposer() {
 #[test]
 fn driver_steps_not_proposer_valid() {
     let value = Value::new(9999);
-    let value_id = value.id();
 
-    let client = TestClient::new(value.clone(), |_| true);
+    let sel = RotateProposer::default();
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -252,25 +293,21 @@ fn driver_steps_not_proposer_valid() {
     // Proposer is v1, so we are not the proposer
     let (my_sk, my_addr) = (sk2, addr2);
 
-    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(
-        TestContext,
-        client,
-        Height::new(1),
-        vs,
-        my_sk.clone(),
-        my_addr,
-    );
+    let ctx = TestContext::new(my_sk.clone());
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
+
+    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(0), false)),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
                 proposal: None,
@@ -280,12 +317,14 @@ fn driver_steps_not_proposer_valid() {
         },
         TestStep {
             desc: "Receive a proposal, prevote for it (v2)",
-            input_event: Some(Event::Proposal(proposal.clone())),
+            input_event: Some(Event::Proposal(proposal.clone(), Validity::Valid)),
             expected_output: Some(Message::Vote(
-                Vote::new_prevote(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), my_addr)
+                    .signed(&my_sk),
             )),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: Some(proposal.clone()),
@@ -299,6 +338,7 @@ fn driver_steps_not_proposer_valid() {
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: Some(proposal.clone()),
@@ -309,11 +349,13 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "v1 prevotes for its own proposal",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Round::new(0), Some(value_id), addr1).signed(&sk1),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr1)
+                    .signed(&sk1),
             )),
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: Some(proposal.clone()),
@@ -324,22 +366,25 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "v3 prevotes for v1's proposal, it gets +2/3 prevotes, precommit for it (v2)",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Round::new(0), Some(value_id), addr3).signed(&sk3),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr3)
+                    .signed(&sk3),
             )),
             expected_output: Some(Message::Vote(
-                Vote::new_precommit(Round::new(0), Some(value_id), my_addr).signed(&my_sk),
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), my_addr)
+                    .signed(&my_sk),
             )),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -350,15 +395,16 @@ fn driver_steps_not_proposer_valid() {
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -366,20 +412,22 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "v1 precommits its proposal",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Round::new(0), Some(value_id), addr1).signed(&sk1),
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr1)
+                    .signed(&sk1),
             )),
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -387,20 +435,22 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "v3 precommits for v1's proposal, it gets +2/3 precommits, decide it",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Round::new(0), Some(value_id), addr3).signed(&sk3),
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr3)
+                    .signed(&sk3),
             )),
-            expected_output: Some(Message::Decide(Round::new(0), value.clone())),
+            expected_output: Some(Message::Decide(Round::new(0), value)),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Commit,
                 proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
             },
@@ -416,13 +466,15 @@ fn driver_steps_not_proposer_valid() {
             .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
-        let output = driver.execute(execute_message);
+        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
-        assert_eq!(driver.round, step.expected_round, "expected round");
+        assert_eq!(
+            driver.round_state.round, step.expected_round,
+            "expected round"
+        );
 
-        let new_state = driver.round_state(Round::new(0)).unwrap();
-        assert_eq!(new_state, &step.new_state, "expected state");
+        assert_eq!(driver.round_state, step.new_state, "expected state");
 
         previous_message = output.and_then(to_input_msg);
     }
@@ -431,9 +483,9 @@ fn driver_steps_not_proposer_valid() {
 #[test]
 fn driver_steps_not_proposer_invalid() {
     let value = Value::new(9999);
-    let value_id = value.id();
 
-    let client = TestClient::new(value.clone(), |_| false);
+    let sel = RotateProposer::default();
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -452,25 +504,21 @@ fn driver_steps_not_proposer_invalid() {
     // Proposer is v1, so we are not the proposer
     let (my_sk, my_addr) = (sk2, addr2);
 
-    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(
-        TestContext,
-        client,
-        Height::new(1),
-        vs,
-        my_sk.clone(),
-        my_addr,
-    );
+    let ctx = TestContext::new(my_sk.clone());
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value.clone(), Round::new(-1));
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
+
+    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(0), false)),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
                 proposal: None,
@@ -480,12 +528,13 @@ fn driver_steps_not_proposer_invalid() {
         },
         TestStep {
             desc: "Receive an invalid proposal, prevote for nil (v2)",
-            input_event: Some(Event::Proposal(proposal.clone())),
+            input_event: Some(Event::Proposal(proposal.clone(), Validity::Invalid)),
             expected_output: Some(Message::Vote(
-                Vote::new_prevote(Round::new(0), None, my_addr).signed(&my_sk),
+                Vote::new_prevote(Height::new(1),Round::new(0), None, my_addr).signed(&my_sk),
             )),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: None,
@@ -499,6 +548,7 @@ fn driver_steps_not_proposer_invalid() {
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: None,
@@ -509,11 +559,12 @@ fn driver_steps_not_proposer_invalid() {
         TestStep {
             desc: "v1 prevotes for its own proposal",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Round::new(0), Some(value_id), addr1).signed(&sk1),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr1).signed(&sk1),
             )),
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: None,
@@ -524,11 +575,12 @@ fn driver_steps_not_proposer_invalid() {
         TestStep {
             desc: "v3 prevotes for v1's proposal, we have polka for any, schedule prevote timeout (v2)",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Round::new(0), Some(value_id), addr3).signed(&sk3),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr3).signed(&sk3),
             )),
             expected_output: Some(Message::ScheduleTimeout(Timeout::prevote(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: None,
@@ -540,10 +592,11 @@ fn driver_steps_not_proposer_invalid() {
             desc: "prevote timeout elapses, we precommit for nil (v2)",
             input_event: Some(Event::TimeoutElapsed(Timeout::prevote(Round::new(0)))),
             expected_output: Some(Message::Vote(
-                Vote::new_precommit(Round::new(0), None, my_addr).signed(&my_sk),
+                Vote::new_precommit(Height::new(1), Round::new(0), None, my_addr).signed(&my_sk),
             )),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: None,
@@ -562,13 +615,15 @@ fn driver_steps_not_proposer_invalid() {
             .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
-        let output = driver.execute(execute_message);
+        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
-        assert_eq!(driver.round, step.expected_round, "expected round");
+        assert_eq!(
+            driver.round_state.round, step.expected_round,
+            "expected round"
+        );
 
-        let new_state = driver.round_state(driver.round).unwrap();
-        assert_eq!(new_state, &step.new_state, "expected state");
+        assert_eq!(driver.round_state, step.new_state, "expected state");
 
         previous_message = output.and_then(to_input_msg);
     }
@@ -577,7 +632,9 @@ fn driver_steps_not_proposer_invalid() {
 #[test]
 fn driver_steps_not_proposer_timeout_multiple_rounds() {
     let value = Value::new(9999);
-    let value_id = value.id();
+
+    let sel = RotateProposer::default();
+    let env = TestEnv::new(move |_, _| Some(value));
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -596,25 +653,20 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
     // Proposer is v1, so we, v3, are not the proposer
     let (my_sk, my_addr) = (sk3, addr3);
 
+    let ctx = TestContext::new(my_sk.clone());
+
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let client = TestClient::new(value.clone(), |_| true);
-    let mut driver = Driver::new(
-        TestContext,
-        client,
-        Height::new(1),
-        vs,
-        my_sk.clone(),
-        my_addr,
-    );
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
 
     let steps = vec![
         // Start round 0, we, v3, are not the proposer
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(0), false)),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
                 proposal: None,
@@ -627,11 +679,12 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             desc: "Receive a propose timeout, prevote for nil (v3)",
             input_event: Some(Event::TimeoutElapsed(Timeout::propose(Round::new(0)))),
             expected_output: Some(Message::Vote(
-                Vote::new_prevote(Round::new(0), None, my_addr).signed(&my_sk),
+                Vote::new_prevote(Height::new(1), Round::new(0), None, my_addr).signed(&my_sk),
             )),
             expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
+                height: Height::new(1),
                 step: Step::Prevote,
                 proposal: None,
                 locked: None,
@@ -645,6 +698,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: None,
@@ -656,11 +710,13 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "v1 prevotes for its own proposal",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Round::new(0), Some(value_id), addr1).signed(&sk1),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr1)
+                    .signed(&sk1),
             )),
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
                 proposal: None,
@@ -672,13 +728,14 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "v2 prevotes for nil, we get +2/3 prevotes, precommit for nil",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Round::new(0), None, addr2).signed(&sk2),
+                Vote::new_prevote(Height::new(1), Round::new(0), None, addr2).signed(&sk2),
             )),
             expected_output: Some(Message::Vote(
-                Vote::new_precommit(Round::new(0), None, my_addr).signed(&my_sk),
+                Vote::new_precommit(Height::new(1), Round::new(0), None, my_addr).signed(&my_sk),
             )),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: None,
@@ -693,6 +750,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: None,
@@ -704,11 +762,13 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "v1 precommits its proposal",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Round::new(0), Some(value_id), addr1).signed(&sk1),
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr1)
+                    .signed(&sk1),
             )),
             expected_output: None,
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: None,
@@ -720,11 +780,12 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "v2 precommits for nil",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Round::new(0), None, addr2).signed(&sk2),
+                Vote::new_precommit(Height::new(1), Round::new(0), None, addr2).signed(&sk2),
             )),
             expected_output: Some(Message::ScheduleTimeout(Timeout::precommit(Round::new(0)))),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
                 proposal: None,
@@ -736,9 +797,10 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "we receive a precommit timeout, start a new round",
             input_event: Some(Event::TimeoutElapsed(Timeout::precommit(Round::new(0)))),
-            expected_output: Some(Message::NewRound(Round::new(1))),
+            expected_output: Some(Message::NewRound(Height::new(1), Round::new(1))),
             expected_round: Round::new(0),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(1),
                 step: Step::NewRound,
                 proposal: None,
@@ -748,10 +810,11 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         },
         TestStep {
             desc: "Start round 1, we are not the proposer",
-            input_event: Some(Event::NewRound(Round::new(1), false)),
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(1))),
             expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(1)))),
             expected_round: Round::new(1),
             new_state: State {
+                height: Height::new(1),
                 round: Round::new(1),
                 step: Step::Propose,
                 proposal: None,
@@ -770,14 +833,145 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             .input_event
             .unwrap_or_else(|| previous_message.unwrap());
 
-        let output = driver.execute(execute_message);
+        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
-        assert_eq!(driver.round, step.expected_round, "expected round");
-
-        let new_state = driver.round_state(driver.round).unwrap();
-        assert_eq!(new_state, &step.new_state, "new state");
+        assert_eq!(driver.round_state, step.new_state, "new state");
 
         previous_message = output.and_then(to_input_msg);
     }
+}
+
+#[test]
+fn driver_steps_no_value_to_propose() {
+    // No value to propose
+    let env = TestEnv::new(|_, _| None);
+
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
+
+    let v1 = Validator::new(sk1.public_key(), 1);
+    let v2 = Validator::new(sk2.public_key(), 2);
+    let v3 = Validator::new(sk3.public_key(), 3);
+
+    let (my_sk, my_addr) = (sk1, v1.address);
+    let ctx = TestContext::new(my_sk.clone());
+
+    // We are the proposer
+    let sel = FixedProposer::new(v1.address);
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
+
+    let output = block_on(driver.execute(Event::NewRound(Height::new(1), Round::new(0))));
+    assert_eq!(output, Err(Error::NoValueToPropose));
+}
+
+#[test]
+fn driver_steps_proposer_not_found() {
+    let value = Value::new(9999);
+
+    let env = TestEnv::new(move |_, _| Some(value));
+
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
+
+    let addr2 = Address::from_public_key(&sk2.public_key());
+
+    let v1 = Validator::new(sk1.public_key(), 1);
+    let v2 = Validator::new(sk2.public_key(), 2);
+    let v3 = Validator::new(sk3.public_key(), 3);
+
+    let (my_sk, my_addr) = (sk2, addr2);
+    let ctx = TestContext::new(my_sk.clone());
+
+    // Proposer is v1, which is not in the validator set
+    let sel = FixedProposer::new(v1.address);
+    let vs = ValidatorSet::new(vec![v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
+
+    let output = block_on(driver.execute(Event::NewRound(Height::new(1), Round::new(0))));
+    assert_eq!(output, Err(Error::ProposerNotFound(v1.address)));
+}
+
+#[test]
+fn driver_steps_validator_not_found() {
+    let value = Value::new(9999);
+
+    let env = TestEnv::new(move |_, _| Some(value));
+
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
+
+    let v1 = Validator::new(sk1.public_key(), 1);
+    let v2 = Validator::new(sk2.public_key(), 2);
+    let v3 = Validator::new(sk3.public_key(), 3);
+
+    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let ctx = TestContext::new(my_sk.clone());
+
+    // Proposer is v1
+    let sel = FixedProposer::new(v1.address);
+    // We omit v2 from the validator set
+    let vs = ValidatorSet::new(vec![v1.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
+
+    // Start new height
+    block_on(driver.execute(Event::NewRound(Height::new(1), Round::new(0))))
+        .expect("execute succeeded");
+
+    // v2 prevotes for some proposal, we cannot find it in the validator set => error
+    let output = block_on(driver.execute(Event::Vote(
+        Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v2.address).signed(&sk2),
+    )));
+
+    assert_eq!(output, Err(Error::ValidatorNotFound(v2.address)));
+}
+
+#[test]
+fn driver_steps_invalid_signature() {
+    let value = Value::new(9999);
+
+    let env = TestEnv::new(move |_, _| Some(value));
+
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
+
+    let v1 = Validator::new(sk1.public_key(), 1);
+    let v2 = Validator::new(sk2.public_key(), 2);
+    let v3 = Validator::new(sk3.public_key(), 3);
+
+    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+    let ctx = TestContext::new(my_sk.clone());
+
+    let sel = FixedProposer::new(v1.address);
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, env, sel, vs, my_addr);
+
+    // Start new round
+    block_on(driver.execute(Event::NewRound(Height::new(1), Round::new(0))))
+        .expect("execute succeeded");
+
+    // v2 prevotes for some proposal, with an invalid signature,
+    // ie. signed by v1 instead of v2, just a way of forging an invalid signature
+    let output = block_on(driver.execute(Event::Vote(
+        Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v2.address).signed(&sk1),
+    )));
+
+    assert!(matches!(output, Err(Error::InvalidVoteSignature(_, _))));
 }

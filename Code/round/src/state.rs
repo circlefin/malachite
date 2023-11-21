@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::events::Event;
 use crate::state_machine::RoundData;
 use crate::transition::Transition;
@@ -28,11 +30,11 @@ pub enum Step {
 }
 
 /// The state of the consensus state machine
-#[derive(Debug, PartialEq, Eq)]
 pub struct State<Ctx>
 where
     Ctx: Context,
 {
+    pub height: Ctx::Height,
     pub round: Round,
     pub step: Step,
     pub proposal: Option<Ctx::Proposal>,
@@ -40,28 +42,14 @@ where
     pub valid: Option<RoundValue<Ctx::Value>>,
 }
 
-impl<Ctx> Clone for State<Ctx>
-where
-    Ctx: Context,
-{
-    fn clone(&self) -> Self {
-        Self {
-            round: self.round,
-            step: self.step,
-            proposal: self.proposal.clone(),
-            locked: self.locked.clone(),
-            valid: self.valid.clone(),
-        }
-    }
-}
-
 impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new() -> Self {
+    pub fn new(height: Ctx::Height, round: Round) -> Self {
         Self {
-            round: Round::INITIAL,
+            height,
+            round,
             step: Step::NewRound,
             proposal: None,
             locked: None,
@@ -69,13 +57,6 @@ where
         }
     }
 
-    pub fn new_round(self, round: Round) -> Self {
-        Self {
-            round,
-            step: Step::NewRound,
-            ..self
-        }
-    }
     pub fn with_step(self, step: Step) -> Self {
         Self { step, ..self }
     }
@@ -99,11 +80,64 @@ where
     }
 }
 
+// NOTE: We have to derive these instances manually, otherwise
+//       the compiler would infer a Clone/Debug/PartialEq/Eq bound on `Ctx`,
+//       which may not hold for all contexts.
+
 impl<Ctx> Default for State<Ctx>
 where
     Ctx: Context,
 {
     fn default() -> Self {
-        Self::new()
+        Self::new(Ctx::Height::default(), Round::NIL)
     }
 }
+
+impl<Ctx> Clone for State<Ctx>
+where
+    Ctx: Context,
+{
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn clone(&self) -> Self {
+        Self {
+            height: self.height.clone(),
+            round: self.round,
+            step: self.step,
+            proposal: self.proposal.clone(),
+            locked: self.locked.clone(),
+            valid: self.valid.clone(),
+        }
+    }
+}
+
+impl<Ctx> fmt::Debug for State<Ctx>
+where
+    Ctx: Context,
+{
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("State")
+            .field("round", &self.round)
+            .field("step", &self.step)
+            .field("proposal", &self.proposal)
+            .field("locked", &self.locked)
+            .field("valid", &self.valid)
+            .finish()
+    }
+}
+
+impl<Ctx> PartialEq for State<Ctx>
+where
+    Ctx: Context,
+{
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn eq(&self, other: &Self) -> bool {
+        self.round == other.round
+            && self.step == other.step
+            && self.proposal == other.proposal
+            && self.locked == other.locked
+            && self.valid == other.valid
+    }
+}
+
+impl<Ctx> Eq for State<Ctx> where Ctx: Context {}

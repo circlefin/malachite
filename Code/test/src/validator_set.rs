@@ -1,3 +1,5 @@
+use core::fmt;
+
 use malachite_common::VotingPower;
 
 use crate::{signing::PublicKey, TestContext};
@@ -8,15 +10,27 @@ pub struct Address([u8; Self::LENGTH]);
 impl Address {
     const LENGTH: usize = 20;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub const fn new(value: [u8; Self::LENGTH]) -> Self {
         Self(value)
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn from_public_key(public_key: &PublicKey) -> Self {
         let hash = public_key.hash();
         let mut address = [0; Self::LENGTH];
         address.copy_from_slice(&hash[..Self::LENGTH]);
         Self(address)
+    }
+}
+
+impl fmt::Display for Address {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for byte in self.0.iter() {
+            write!(f, "{:02x}", byte)?;
+        }
+        Ok(())
     }
 }
 
@@ -31,6 +45,7 @@ pub struct Validator {
 }
 
 impl Validator {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn new(public_key: PublicKey, voting_power: VotingPower) -> Self {
         Self {
             address: Address::from_public_key(&public_key),
@@ -56,7 +71,7 @@ impl malachite_common::Validator<TestContext> for Validator {
 
 /// A validator set contains a list of validators sorted by address.
 pub struct ValidatorSet {
-    validators: Vec<Validator>,
+    pub validators: Vec<Validator>,
 }
 
 impl ValidatorSet {
@@ -64,7 +79,7 @@ impl ValidatorSet {
         let mut validators: Vec<_> = validators.into_iter().collect();
         assert!(!validators.is_empty());
 
-        ValidatorSet::sort_validators(&mut validators);
+        Self::sort_validators(&mut validators);
 
         Self { validators }
     }

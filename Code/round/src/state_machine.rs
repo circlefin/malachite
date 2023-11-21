@@ -16,7 +16,7 @@ where
     Ctx: Context,
 {
     pub round: Round,
-    pub height: &'a Ctx::Height,
+    pub height: Ctx::Height,
     pub address: &'a Ctx::Address,
 }
 
@@ -24,7 +24,7 @@ impl<'a, Ctx> RoundData<'a, Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(round: Round, height: &'a Ctx::Height, address: &'a Ctx::Address) -> Self {
+    pub fn new(round: Round, height: Ctx::Height, address: &'a Ctx::Address) -> Self {
         Self {
             round,
             height,
@@ -62,7 +62,7 @@ where
     match (state.step, event) {
         // From NewRound. Event must be for current round.
         (Step::NewRound, Event::NewRoundProposer(value)) if this_round => {
-            propose(state, data.height, value) // L11/L14
+            propose(state, &data.height, value) // L11/L14
         }
         (Step::NewRound, Event::NewRound) if this_round => schedule_timeout_propose(state), // L11/L20
 
@@ -173,7 +173,7 @@ where
         None => Some(proposed), // not locked, prevote the value
     };
 
-    let message = Message::prevote(state.round, value, address.clone());
+    let message = Message::prevote(state.height.clone(), state.round, value, address.clone());
     Transition::to(state.with_step(Step::Prevote)).with_message(message)
 }
 
@@ -184,7 +184,7 @@ pub fn prevote_nil<Ctx>(state: State<Ctx>, address: &Ctx::Address) -> Transition
 where
     Ctx: Context,
 {
-    let message = Message::prevote(state.round, None, address.clone());
+    let message = Message::prevote(state.height.clone(), state.round, None, address.clone());
     Transition::to(state.with_step(Step::Prevote)).with_message(message)
 }
 
@@ -211,7 +211,12 @@ where
     }
 
     let value = proposal.value();
-    let message = Message::precommit(state.round, Some(value.id()), address.clone());
+    let message = Message::precommit(
+        state.height.clone(),
+        state.round,
+        Some(value.id()),
+        address.clone(),
+    );
 
     let current_value = match state.proposal {
         Some(ref proposal) => proposal.value().clone(),
@@ -238,7 +243,7 @@ pub fn precommit_nil<Ctx>(state: State<Ctx>, address: &Ctx::Address) -> Transiti
 where
     Ctx: Context,
 {
-    let message = Message::precommit(state.round, None, address.clone());
+    let message = Message::precommit(state.height.clone(), state.round, None, address.clone());
     Transition::to(state.with_step(Step::Precommit)).with_message(message)
 }
 
@@ -326,7 +331,7 @@ pub fn round_skip<Ctx>(state: State<Ctx>, round: Round) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    Transition::to(state.new_round(round)).with_message(Message::NewRound(round))
+    Transition::to(State::new(state.height.clone(), round)).with_message(Message::NewRound(round))
 }
 
 /// We received +2/3 precommits for a value - commit and decide that value!
