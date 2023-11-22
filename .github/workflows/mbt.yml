@@ -2,7 +2,6 @@ name: Model-based testing
 on:
   workflow_run:
     workflows: [Quint, Rust]
-    branches: [main]
     types: 
       - completed
 
@@ -21,16 +20,16 @@ jobs:
       - name: Generate traces 
         working-directory: Specs/Quint
         run: |
-          quint test --output ../../${{ env.FIXTURES_DIR }}/voteBookkeeper_{}.itf.json voteBookkeeperTest.qnt 
+          quint test --output ../../${FIXTURES_DIR}/voteBookkeeper_{}.itf.json voteBookkeeperTest.qnt 
       # This step is needed as a hack to clean the generated traces of repeated steps. The problem
       # is that `quint test --output ...` on `run` statements registers in the traces the
       # `allUnchanged` actions that are used when checking properties (see
       # https://github.com/informalsystems/quint/issues/1252).
       - name: Remove stuttering steps
-        run: find ${{ env.FIXTURES_DIR }} -maxdepth 1 -type f -exec ./Scripts/trace-remove-stuttering-steps.sh {} \; 
+        run: find ${FIXTURES_DIR} -maxdepth 1 -type f -exec ./Scripts/trace-remove-stuttering-steps.sh {} \; 
       # This step removes trace files generated from tests defined in imported modules.
       - name: Remove tests from imported modules
-        run: rm ${{ env.FIXTURES_DIR }}/*voteBookkeeperTest::*.*
+        run: rm ${FIXTURES_DIR}/*voteBookkeeperTest::*.*
 
   test-traces:
     needs: gen-traces
