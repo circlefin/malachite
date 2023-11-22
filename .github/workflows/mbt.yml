@@ -28,14 +28,14 @@ jobs:
         working-directory: Specs/Quint
         run: |
           quint test --output traces/voteBookkeeper_{}.itf.json voteBookkeeperTest.qnt 
+      - name: Remove traces from imported modules
+        run: rm $TRACES_DIR/*voteBookkeeperTest::*.*
       # This step is needed as a hack to clean the generated traces of repeated steps. The problem
       # is that `quint test --output ...` on `run` statements registers in the traces the
       # `allUnchanged` actions that are used when checking properties (see
       # https://github.com/informalsystems/quint/issues/1252).
       - name: Remove stuttering steps
         run: find $TRACES_DIR -maxdepth 1 -type f -exec ./Scripts/trace-remove-stuttering-steps.sh {} \; 
-      - name: Remove traces from imported modules
-        run: rm $TRACES_DIR/*voteBookkeeperTest::*.*
       - name: Display generated files
         run: ls -la $TRACES_DIR
       - name: Upload traces to artifact
@@ -49,6 +49,8 @@ jobs:
     needs: gen-traces
     name: Execute traces as tests
     runs-on: ubuntu-latest
+    env:
+      FIXTURES_DIR: Code/itf/tests/fixtures
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,11 +61,12 @@ jobs:
       - name: Build code
         working-directory: Code/itf
         run: cargo nextest run --workspace --all-features --no-run
+      - run: mkdir -p $FIXTURES_DIR
       - name: Download traces from artifact
         uses: actions/download-artifact@v3
         with:
           name: trace-files
-          path: Code/itf/tests/fixtures
+          path: ${{ env.FIXTURES_DIR }}
       - name: Run tests from traces
         working-directory: Code/itf
         run: cargo nextest run --workspace --all-features test_itf
