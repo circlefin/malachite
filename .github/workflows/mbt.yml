@@ -1,9 +1,15 @@
 name: MBT
 on:
-  workflow_run:
-    workflows: [Quint, Rust]
-    types: 
-      - completed
+  push:
+    branches:
+      - main
+    paths:
+      - Specs/Quint/**
+      - Code/**
+  pull_request:
+    paths:
+      - Specs/Quint/**
+      - Code/**
 
 jobs:
   gen-traces:
