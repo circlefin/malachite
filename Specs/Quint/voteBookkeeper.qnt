@@ -82,6 +82,13 @@ module voteBookkeeper {
         rounds: Round -> RoundVotes
     }
 
+    pure def initBookKeeper(initialHeight: Height, initialRound: Round, totalVotingPower: Weight): Bookkeeper = { 
+        height: initialHeight, 
+        currentRound: initialRound, 
+        totalWeight: totalVotingPower, 
+        rounds: Map()
+    }
+
     // ****************************************************************************
     // Functional Layer
     // ****************************************************************************

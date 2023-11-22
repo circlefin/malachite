@@ -22,7 +22,7 @@ module voteBookkeeperTest {
     }
 
     action initWith(round: Round, totalWeight: Weight): bool = all {
-        bookkeeper' = { height: 10, currentRound: round, totalWeight: totalWeight, rounds: Map() },
+        bookkeeper' = initBookKeeper(10, round, totalWeight),
         lastEmitted' = NoEvent(-1),
     }
 
