@@ -1,10 +1,26 @@
 #!/usr/bin/env bash
 
+BLUE=$(tput setaf 4)
+RED=$(tput setaf 1)
+RESET=$(tput sgr0)
+
+# [INFO] message in blue
+info()
+{
+    echo "${BLUE}[INFO] $*${RESET}"
+} 
+
+# [ERROR] message in red
+error()
+{
+    echo "${RED}[ERROR] $*${RESET} "
+}
+
 FILEPATH=$1
 PROP=$2
 MAX_STEPS=${3:-100}
-[[ ! -f "$FILEPATH" ]] && echo "Error: file $FILEPATH does not exist" && exit 1
-[[ -z "$PROP" ]] && echo "Error: property name required" && exit 1
+[[ ! -f "$FILEPATH" ]] && error "file $FILEPATH does not exist" && exit 1
+[[ -z "$PROP" ]] && error "property name required" && exit 1
 
 MODULE=$(basename ${FILEPATH%".qnt"})
 TRACES_DIR="traces/$MODULE"
@@ -16,18 +32,18 @@ function nextFilename() {
     local dir=$1
     local name=$2
     local ext=$3
-    i=1
-    while [[ -e "$dir/$name-$i.$ext" || -L "$dir/$name-$i.$ext" ]] ; do
-        let i++
-    done
-    name=$name-$i
-    echo $name.$ext
+    local result="$dir/$name.$ext"
+    if [ -f $result ]; then 
+        i=1
+        result="$dir/$name-$i.$ext"
+        while [[ -e "$result" || -L "$result" ]] ; do
+            result="$dir/$name-$((i+1)).$ext"
+        done
+    fi
+    echo "$result"
 }
 
-FILE_NAME=$(nextFilename "$TRACES_DIR" "$PROP" "itf.json")
-TRACE_PATH="$TRACES_DIR/$FILE_NAME"
-# echo "Generating $MAX_STEPS $TRACE_PATH for $FILEPATH::$PROP..."
-
+TRACE_PATH=$(nextFilename "$TRACES_DIR" "$PROP" "itf.json")
 OUTPUT=$(npx @informalsystems/quint run \
     --max-steps=$MAX_STEPS \
     --max-samples=1 \
@@ -36,11 +52,11 @@ OUTPUT=$(npx @informalsystems/quint run \
     "$FILEPATH" 2>&1)
 case $OUTPUT in
     "error: Invariant violated")
-        echo "Generated trace: $TRACE_PATH"
-        echo "Success: reached a state that violates $FILEPATH::$PROP"
+        # info "Success: reached a state that violates $FILEPATH::$PROP"
+        info "Generated trace: $TRACE_PATH"
         ;;
     *)
-        [ -f $TRACE_PATH ] && echo "Generated trace: $TRACE_PATH"
-        echo "Failed: did not find a state that violates $FILEPATH::$PROP in $MAX_STEPS steps"
+        error "Failed: did not find a state that violates $FILEPATH::$PROP in $MAX_STEPS steps"
+        [ -f $TRACE_PATH ] && info "Generated trace: $TRACE_PATH"
         ;;
 esac
