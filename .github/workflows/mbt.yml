@@ -1,4 +1,4 @@
-name: Model-based testing
+name: MBT
 on:
   workflow_run:
     workflows: [Quint, Rust]
@@ -33,7 +33,7 @@ jobs:
 
   test-traces:
     needs: gen-traces
-    name: Test traces
+    name: Execute traces as tests
     runs-on: ubuntu-latest
     defaults:
       run:
