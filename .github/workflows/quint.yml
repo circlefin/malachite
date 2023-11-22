@@ -46,7 +46,7 @@ jobs:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
       - name: Generate traces 
-        working-directory: Spec/Quint
+        working-directory: Specs/Quint
         run: |
           quint test --output ../../$fixture_dir/voteBookkeeper_{}.itf.json voteBookkeeperTest.qnt 
       # This step is needed as a hack to clean the generated traces of repeated steps. The problem
