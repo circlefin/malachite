@@ -67,9 +67,17 @@ where
         }
     }
 
+    pub fn height(&self) -> &Ctx::Height {
+        &self.round_state.height
+    }
+
+    pub fn round(&self) -> Round {
+        self.round_state.round
+    }
+
     async fn get_value(&self) -> Option<Ctx::Value> {
         self.env
-            .get_value(self.round_state.height.clone(), self.round_state.round)
+            .get_value(self.height().clone(), self.round())
             .await
     }
 
@@ -80,9 +88,7 @@ where
         };
 
         let msg = match round_msg {
-            RoundMessage::NewRound(round) => {
-                Message::NewRound(self.round_state.height.clone(), round)
-            }
+            RoundMessage::NewRound(round) => Message::NewRound(self.height().clone(), round),
 
             RoundMessage::Proposal(proposal) => {
                 // sign the proposal
@@ -232,11 +238,12 @@ where
             ));
         }
 
-        let round = signed_vote.vote.round();
+        let vote_round = signed_vote.vote.round();
+        let current_round = self.round();
 
         let Some(vote_msg) =
             self.votes
-                .apply_vote(signed_vote.vote, validator.voting_power(), round)
+                .apply_vote(signed_vote.vote, validator.voting_power(), current_round)
         else {
             return Ok(None);
         };
@@ -250,7 +257,7 @@ where
             VoteMessage::SkipRound(r) => RoundEvent::SkipRound(r),
         };
 
-        Ok(self.apply_event(round, round_event))
+        Ok(self.apply_event(vote_round, round_event))
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Option<RoundMessage<Ctx>> {
