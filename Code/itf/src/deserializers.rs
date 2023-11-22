@@ -20,11 +20,11 @@ pub(crate) fn minus_one_as_none<'de, D>(de: D) -> Result<Option<BigInt>, D::Erro
 where
     D: serde::Deserializer<'de>,
 {
-    let opt = Option::<i64>::deserialize(de)?;
+    let opt = Option::<BigInt>::deserialize(de)?;
     match opt {
         None => Ok(None),
-        Some(i) if i == -1 => Ok(None),
-        Some(i) => Ok(Some(i.into())),
+        Some(i) if i == BigInt::from(-1) => Ok(None),
+        Some(i) => Ok(Some(i)),
     }
 }
 
