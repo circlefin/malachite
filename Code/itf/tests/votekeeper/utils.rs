@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use malachite_itf::votekeeper::Value;
 use malachite_test::{Address, ValueId};
-use num_bigint::BigInt;
 
 pub const ADDRESSES: [&str; 3] = ["alice", "bob", "john"];
 pub const NIL_VALUE: &str = "nil";
@@ -32,8 +31,8 @@ pub fn check_votes(
 
     for value in expected_values_weights.keys() {
         assert_eq!(
-            &BigInt::from(actual_values_weights.get(&value_from_model(value))),
-            expected_values_weights.get(value).unwrap(),
+            actual_values_weights.get(&value_from_model(value)),
+            *expected_values_weights.get(value).unwrap() as u64,
             "weight for value {value:?}"
         );
     }

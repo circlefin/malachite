@@ -17,3 +17,4 @@ malachite-test   = { version = "0.1.0", path = "../test" }
 num-bigint       = { version = "0.4", features = ["serde"] }
 rstest           = { version = "0.18.2", default-features = false }
 serde            = { workspace = true, features = ["derive"] }
+serde_with       = { version = "3.4.0" }
