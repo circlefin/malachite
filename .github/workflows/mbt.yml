@@ -38,11 +38,14 @@ jobs:
         run: find $TRACES_DIR -maxdepth 1 -type f -exec ../../Scripts/trace-remove-stuttering-steps.sh {} \; 
       - name: Remove traces from imported modules
         run: rm $TRACES_DIR/*voteBookkeeperTest::*.*
+      - name: Display generated files
+        run: pwd && ls -la $TRACES_DIR
       - name: Store traces as an artifact
         uses: actions/upload-artifact@v3
         with:
           name: trace-files
-          path: ${{ env.TRACES_DIR }}/*.itf.json
+          path: ${{ env.TRACES_DIR }}/*
+          if-no-files-found: error
 
   test-traces:
     needs: gen-traces
