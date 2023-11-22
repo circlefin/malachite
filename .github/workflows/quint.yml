@@ -56,5 +56,5 @@ jobs:
       - name: Remove stuttering steps
         run: find ${{ env.FIXTURES_DIR }} -maxdepth 1 -type f -exec ./Scripts/trace-remove-stuttering-steps.sh {} \; 
       # This step removes trace files generated from tests defined in imported modules.
-      - name: Remove tests
+      - name: Remove tests from imported modules
         run: rm ${{ env.FIXTURES_DIR }}/*voteBookkeeperTest::*.*
