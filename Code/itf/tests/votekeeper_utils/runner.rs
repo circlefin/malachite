@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use num_bigint::BigInt;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
@@ -27,10 +28,14 @@ impl ItfRunner for VoteKeeperRunner {
     type Error = ();
 
     fn init(&mut self, expected: &Self::ExpectedState) -> Result<Self::ActualState, Self::Error> {
-        // Obtain the initial total_weight from the first state in the model.
-        let total_weight = expected.bookkeeper.total_weight;
+        // Initialize VoteKeeper from the initial total_weight from the first state in the model.
         Ok(VoteKeeper::new(
-            total_weight as u64,
+            expected
+                .bookkeeper
+                .total_weight
+                .clone()
+                .try_into()
+                .expect("integer overflow"),
             ThresholdParams::default(),
         ))
     }
@@ -42,8 +47,20 @@ impl ItfRunner for VoteKeeperRunner {
     ) -> Result<Self::Result, Self::Error> {
         // Build step to execute.
         let (input_vote, weight) = &expected.weighted_vote;
-        let round = Round::new(input_vote.round);
-        let height = Height::new(input_vote.height);
+        let round = Round::new(
+            input_vote
+                .round
+                .clone()
+                .try_into()
+                .expect("integer overflow"),
+        );
+        let height = Height::new(
+            input_vote
+                .height
+                .clone()
+                .try_into()
+                .expect("integer overflow"),
+        );
         let value = value_from_model(&input_vote.value);
         let address = self.address_map.get(input_vote.address.as_str()).unwrap();
         let vote = match input_vote.typ.as_str() {
@@ -56,10 +73,21 @@ impl ItfRunner for VoteKeeperRunner {
             input_vote.typ, round, value, input_vote.address, weight
         );
 
-        let current_round = Round::new(expected.bookkeeper.current_round);
+        let current_round = Round::new(
+            expected
+                .bookkeeper
+                .current_round
+                .clone()
+                .try_into()
+                .expect("integer overflow"),
+        );
 
         // Execute step.
-        Ok(actual.apply_vote(vote, *weight as u64, current_round))
+        Ok(actual.apply_vote(
+            vote,
+            weight.try_into().expect("integer overflow"),
+            current_round,
+        ))
     }
 
     fn result_invariant(
@@ -92,7 +120,16 @@ impl ItfRunner for VoteKeeperRunner {
                 }
                 Message::SkipRound(round) => {
                     assert_eq!(expected_result.name, "Skip");
-                    assert_eq!(&Round::new(expected_result.round), round);
+                    assert_eq!(
+                        &Round::new(
+                            expected_result
+                                .round
+                                .clone()
+                                .try_into()
+                                .expect("integer overflow")
+                        ),
+                        round
+                    );
                 }
                 msg => assert_eq!(expected_result.name, format!("{msg:?}")),
             },
@@ -112,17 +149,20 @@ impl ItfRunner for VoteKeeperRunner {
         let expected_state = &expected.bookkeeper;
 
         assert_eq!(
-            actual_state.total_weight(),
-            &(expected_state.total_weight as u64),
+            BigInt::from(*actual_state.total_weight()),
+            expected_state.total_weight,
             "total_weight for the current height"
         );
 
         assert_eq!(actual_state.per_round().len(), expected_state.rounds.len());
 
-        for (&round, expected_round) in &expected_state.rounds {
+        for (round, expected_round) in &expected_state.rounds {
             // doesn't check for current Height and Round
 
-            let actual_round = actual_state.per_round().get(&Round::new(round)).unwrap();
+            let actual_round = actual_state
+                .per_round()
+                .get(&Round::new(round.try_into().expect("integer overflow")))
+                .unwrap();
 
             let expected_events = &expected_round.emitted_events;
             let actual_events = actual_round.emitted_msgs();
@@ -159,11 +199,12 @@ impl ItfRunner for VoteKeeperRunner {
             let actual_addresses_weights = &actual_round.addresses_weights().get_inner();
             for address in expected_addresses_weights.keys() {
                 assert_eq!(
-                    actual_addresses_weights.get(self.address_map.get(address).unwrap()),
-                    expected_addresses_weights
-                        .get(address)
-                        .map(|&w| w as u64)
+                    actual_addresses_weights
+                        .get(self.address_map.get(address).unwrap())
+                        .cloned()
+                        .map(BigInt::from)
                         .as_ref(),
+                    expected_addresses_weights.get(address),
                     "weight for address {address:?}"
                 );
             }

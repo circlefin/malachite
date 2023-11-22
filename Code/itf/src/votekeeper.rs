@@ -1,11 +1,11 @@
+use num_bigint::BigInt;
 use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
 
-pub type Height = u64;
-// TODO: need i64 as dummy weight is -1
-pub type Weight = i64;
-pub type Round = i64;
+pub type Height = BigInt;
+pub type Weight = BigInt;
+pub type Round = BigInt;
 pub type Address = String;
 pub type Value = String;
 pub type VoteType = String;

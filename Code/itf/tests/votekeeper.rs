@@ -20,13 +20,6 @@ fn test_itf(
     let trace = itf::trace_from_str::<State>(&json).unwrap();
 
     vote_keeper_runner
-        .test(
-            trace
-                .states
-                .into_iter()
-                .map(|s| s.value)
-                .collect::<Vec<_>>()
-                .as_slice(),
-        )
+        .test(trace.states.into_iter().map(|s| s.value))
         .unwrap();
 }
