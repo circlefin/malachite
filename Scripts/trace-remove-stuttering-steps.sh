@@ -9,4 +9,4 @@ FILE=$1
 # Note that for comparing states we remove from all states the "#meta" field, which is different for
 # each state as it includes a sequential index number. This information is not needed for displaying
 # or doing MBT on the trace.
-echo $(cat $1 | jq -c '.states |= [to_entries | .[] | select(.key % 2 == 0) | .value."#meta".index -= (.key / 2 | floor) | .value]') > $1
+echo $(cat $1 | jq -c '.states |= [to_entries | .[] | select(.key % 2 == 0) | .value."#meta".index = .key / 2 | .value]') > $1
