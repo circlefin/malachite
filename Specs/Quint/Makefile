@@ -33,14 +33,14 @@ traces-sim:
 	./scripts/gen-traces.sh voteBookkeeperTest.qnt emitSkip 30
 .PHONY: traces-sim
 
-# Generate traces following the test `run`s step by step.
+# Generate traces from `run` statements.
 traces-run:
-	mkdir -p traces
-	npx @informalsystems/quint test --output traces/voteBookkeeper_{}.itf.json voteBookkeeperTest.qnt
-	rm traces/*voteBookkeeperTest::*.*
-	find traces -maxdepth 1 -type f -exec ../../Scripts/trace-remove-stuttering-steps.sh {} \; 
-	mkdir -p ../../Code/itf/tests/fixtures/votekeeper
-	mv traces/* ../../Code/itf/tests/fixtures/votekeeper
+	mkdir -p traces/votekeeper
+	npx @informalsystems/quint test --output traces/votekeeper/{}.itf.json voteBookkeeperTest.qnt
+	rm traces/votekeeper/*voteBookkeeperTest::*.*
+	find traces/votekeeper -maxdepth 1 -type f -exec ../../Scripts/trace-remove-stuttering-steps.sh {} \; 
+	mkdir -p ../../Code/itf/tests/fixtures/
+	mv traces/* ../../Code/itf/tests/fixtures/
 	rm -rdf traces
 .PHONY: traces-run
 
