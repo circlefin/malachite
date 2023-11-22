@@ -34,3 +34,27 @@ jobs:
       - run: npm install -g @informalsystems/quint
       - run: bash Scripts/quint-forall.sh test Specs/Quint/*Test.qnt
 
+  quint-traces:
+    name: Generate trace files
+    runs-on: ubuntu-latest
+    env:
+      fixture_dir: Code/itf/tests/fixtures/votekeeper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+      - run: npm install -g @informalsystems/quint
+      - name: Generate traces 
+        working-directory: Spec/Quint
+        run: |
+          quint test --output ../../$fixture_dir/voteBookkeeper_{}.itf.json voteBookkeeperTest.qnt 
+      # This step is needed as a hack to clean the generated traces of repeated steps. The problem
+      # is that `quint test --output ...` on `run` statements registers in the traces the
+      # `allUnchanged` actions that are used when checking properties (see
+      # https://github.com/informalsystems/quint/issues/1252).
+      - name: Remove stuttering steps
+        run: find $fixture_dir -maxdepth 1 -type f -exec ./Scripts/trace-remove-stuttering-steps.sh {} \; 
+      # This step removes trace files generated from tests defined in imported modules.
+      - name: Remove tests
+        run: rm $fixture_dir/*voteBookkeeperTest::*.*
