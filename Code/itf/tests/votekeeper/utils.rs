@@ -1,15 +1,13 @@
-pub mod runner;
-
 use std::collections::HashMap;
 
 use malachite_itf::votekeeper::Value;
 use malachite_test::{Address, ValueId};
 use num_bigint::BigInt;
 
-const ADDRESSES: [&str; 3] = ["alice", "bob", "john"];
-const NIL_VALUE: &str = "nil";
+pub const ADDRESSES: [&str; 3] = ["alice", "bob", "john"];
+pub const NIL_VALUE: &str = "nil";
 
-fn value_from_model(value: &Value) -> Option<ValueId> {
+pub fn value_from_model(value: &Value) -> Option<ValueId> {
     match value.as_str() {
         NIL_VALUE => None,
         "proposal" => Some(0.into()),
@@ -20,7 +18,7 @@ fn value_from_model(value: &Value) -> Option<ValueId> {
     }
 }
 
-fn check_votes(
+pub fn check_votes(
     expected: &malachite_itf::votekeeper::VoteCount,
     actual: &malachite_vote::count::VoteCount<Address, ValueId>,
     address_map: &HashMap<String, Address>,

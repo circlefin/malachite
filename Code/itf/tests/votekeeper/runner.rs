@@ -15,7 +15,7 @@ use malachite_vote::{
 use itf::Runner as ItfRunner;
 use rstest::fixture;
 
-use super::{check_votes, value_from_model, ADDRESSES};
+use super::utils::{check_votes, value_from_model, ADDRESSES};
 
 pub struct VoteKeeperRunner {
     address_map: HashMap<String, Address>,

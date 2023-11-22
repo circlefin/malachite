@@ -5,9 +5,12 @@ use malachite_itf::votekeeper::State;
 use itf::Runner as ItfRunner;
 use rstest::rstest;
 
-mod votekeeper_utils;
+#[path = "votekeeper/runner.rs"]
+pub mod runner;
+#[path = "votekeeper/utils.rs"]
+pub mod utils;
 
-use votekeeper_utils::runner::{vote_keeper_runner, VoteKeeperRunner};
+use runner::{vote_keeper_runner, VoteKeeperRunner};
 
 #[rstest]
 fn test_itf(
