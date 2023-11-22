@@ -21,7 +21,7 @@ publish      = false
 async-trait       = "0.1"
 futures           = "0.3"
 ed25519-consensus = "2.1.0"
-itf               = { git = "https://github.com/informalsystems/itf-rs", rev = "52313d1" }
+itf               = { git = "https://github.com/informalsystems/itf-rs", rev = "6cc9ffd" }
 rand              = { version = "0.8.5", features = ["std_rng"] }
 serde             = "1.0"
 sha2              = "0.10.8"
