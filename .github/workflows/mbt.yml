@@ -42,7 +42,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: trace-files
-          path: $TRACES_DIR/*.itf.json
+          path: ${{ env.TRACES_DIR }}/*.itf.json
 
   test-traces:
     needs: gen-traces
