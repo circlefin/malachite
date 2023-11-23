@@ -36,6 +36,7 @@ where
 {
     pub height: Ctx::Height,
     pub round: Round,
+
     pub step: Step,
     pub proposal: Option<Ctx::Proposal>,
     pub locked: Option<RoundValue<Ctx::Value>>,
@@ -117,6 +118,7 @@ where
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("State")
+            .field("height", &self.round)
             .field("round", &self.round)
             .field("step", &self.step)
             .field("proposal", &self.proposal)
@@ -132,7 +134,8 @@ where
 {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn eq(&self, other: &Self) -> bool {
-        self.round == other.round
+        self.height == other.height
+            && self.round == other.round
             && self.step == other.step
             && self.proposal == other.proposal
             && self.locked == other.locked

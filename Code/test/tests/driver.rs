@@ -30,15 +30,12 @@ fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
 }
 
 #[derive(Copy, Clone, Debug, Default)]
-pub struct RotateProposer {
-    proposer_index: usize,
-}
+pub struct RotateProposer;
 
 impl ProposerSelector<TestContext> for RotateProposer {
-    fn select_proposer(&mut self, _round: Round, validator_set: &ValidatorSet) -> Address {
-        let proposer = &validator_set.validators[self.proposer_index];
-        self.proposer_index = (self.proposer_index + 1) % validator_set.validators.len();
-        proposer.address
+    fn select_proposer(&self, round: Round, validator_set: &ValidatorSet) -> Address {
+        let proposer_index = round.as_i64() as usize % validator_set.validators.len();
+        validator_set.validators[proposer_index].address
     }
 }
 
@@ -54,7 +51,7 @@ impl FixedProposer {
 }
 
 impl ProposerSelector<TestContext> for FixedProposer {
-    fn select_proposer(&mut self, _round: Round, _validator_set: &ValidatorSet) -> Address {
+    fn select_proposer(&self, _round: Round, _validator_set: &ValidatorSet) -> Address {
         self.proposer
     }
 }
@@ -62,8 +59,6 @@ impl ProposerSelector<TestContext> for FixedProposer {
 #[test]
 fn driver_steps_proposer() {
     let value = Value::new(9999);
-
-    let sel = RotateProposer::default();
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -82,8 +77,9 @@ fn driver_steps_proposer() {
     let (my_sk, my_addr) = (sk1, addr1);
 
     let ctx = TestContext::new(my_sk.clone());
-
+    let sel = FixedProposer::new(my_addr);
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
+
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
@@ -287,8 +283,6 @@ fn driver_steps_proposer() {
 
 #[test]
 fn driver_steps_proposer_timeout_get_value() {
-    let sel = RotateProposer::default();
-
     let mut rng = StdRng::seed_from_u64(0x42);
 
     let sk1 = PrivateKey::generate(&mut rng);
@@ -304,8 +298,9 @@ fn driver_steps_proposer_timeout_get_value() {
     let (my_sk, my_addr) = (sk1, addr1);
 
     let ctx = TestContext::new(my_sk.clone());
-
+    let sel = FixedProposer::new(my_addr);
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
+
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
     let steps = vec![
@@ -371,8 +366,6 @@ fn driver_steps_proposer_timeout_get_value() {
 fn driver_steps_not_proposer_valid() {
     let value = Value::new(9999);
 
-    let sel = RotateProposer::default();
-
     let mut rng = StdRng::seed_from_u64(0x42);
 
     let sk1 = PrivateKey::generate(&mut rng);
@@ -391,8 +384,9 @@ fn driver_steps_not_proposer_valid() {
     let (my_sk, my_addr) = (sk2, addr2);
 
     let ctx = TestContext::new(my_sk.clone());
-
+    let sel = FixedProposer::new(addr1);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
@@ -581,8 +575,6 @@ fn driver_steps_not_proposer_valid() {
 fn driver_steps_not_proposer_invalid() {
     let value = Value::new(9999);
 
-    let sel = RotateProposer::default();
-
     let mut rng = StdRng::seed_from_u64(0x42);
 
     let sk1 = PrivateKey::generate(&mut rng);
@@ -601,8 +593,9 @@ fn driver_steps_not_proposer_invalid() {
     let (my_sk, my_addr) = (sk2, addr2);
 
     let ctx = TestContext::new(my_sk.clone());
-
+    let sel = FixedProposer::new(addr1);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
@@ -729,8 +722,6 @@ fn driver_steps_not_proposer_invalid() {
 fn driver_steps_not_proposer_timeout_multiple_rounds() {
     let value = Value::new(9999);
 
-    let sel = RotateProposer::default();
-
     let mut rng = StdRng::seed_from_u64(0x42);
 
     let sk1 = PrivateKey::generate(&mut rng);
@@ -749,8 +740,9 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
     let (my_sk, my_addr) = (sk3, addr3);
 
     let ctx = TestContext::new(my_sk.clone());
-
+    let sel = FixedProposer::new(addr1);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
     let steps = vec![
