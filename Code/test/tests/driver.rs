@@ -108,7 +108,7 @@ fn driver_steps_proposer() {
         },
         TestStep {
             desc: "Feed a value to propose, propose that value",
-            input_event: Some(Event::ProposeValue(Round::new(0), value)),
+            input_event: Some(Event::ProposeValue(Round::new(0), Some(value))),
             expected_output: Some(Message::Propose(proposal.clone())),
             expected_round: Round::new(0),
             new_state: State {
@@ -258,6 +258,88 @@ fn driver_steps_proposer() {
                     value,
                     round: Round::new(0),
                 }),
+            },
+        },
+    ];
+
+    let mut previous_message = None;
+
+    for step in steps {
+        println!("Step: {}", step.desc);
+
+        let execute_message = step
+            .input_event
+            .unwrap_or_else(|| previous_message.unwrap());
+
+        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
+        assert_eq!(output, step.expected_output, "expected output message");
+
+        assert_eq!(
+            driver.round_state.round, step.expected_round,
+            "expected round"
+        );
+
+        assert_eq!(driver.round_state, step.new_state, "expected state");
+
+        previous_message = output.and_then(to_input_msg);
+    }
+}
+
+#[test]
+fn driver_steps_proposer_timeout_get_value() {
+    let sel = RotateProposer::default();
+
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
+
+    let addr1 = Address::from_public_key(&sk1.public_key());
+
+    let v1 = Validator::new(sk1.public_key(), 1);
+    let v2 = Validator::new(sk2.public_key(), 2);
+    let v3 = Validator::new(sk3.public_key(), 3);
+
+    let (my_sk, my_addr) = (sk1, addr1);
+
+    let ctx = TestContext::new(my_sk.clone());
+
+    let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
+    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we are proposer, ask for a value to propose",
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
+            expected_output: Some(Message::GetValueAndScheduleTimeout(
+                Round::new(0),
+                Timeout::new(Round::new(0), TimeoutStep::Propose),
+            )),
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Propose,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        TestStep {
+            desc: "Receive a nil propose value",
+            input_event: Some(Event::ProposeValue(Round::new(0), None)),
+            expected_output: Some(Message::Vote(
+                Vote::new_prevote(Height::new(1), Round::new(0), None, my_addr).signed(&my_sk),
+            )),
+            expected_round: Round::new(0),
+            new_state: State {
+                round: Round::new(0),
+                height: Height::new(1),
+                step: Step::Prevote,
+                proposal: None,
+                locked: None,
+                valid: None,
             },
         },
     ];

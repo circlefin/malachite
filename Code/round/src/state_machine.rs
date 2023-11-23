@@ -62,7 +62,8 @@ where
     match (state.step, event) {
         // From NewRound. Event must be for current round.
         (Step::NewRound, Event::NewRoundProposer) if this_round => {
-            get_value_and_schedule_timeout_propose(state) // L18
+            propose_valid_or_get_value(state, &data.height)
+            // L18
         }
         (Step::NewRound, Event::NewRound) if this_round => schedule_timeout_propose(state), // L11/L20
 
@@ -139,29 +140,47 @@ where
 /// and ask for a value.
 ///
 /// Ref: L18
-pub fn get_value_and_schedule_timeout_propose<Ctx>(state: State<Ctx>) -> Transition<Ctx>
+pub fn propose_valid_or_get_value<Ctx>(state: State<Ctx>, height: &Ctx::Height) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let timeout = Message::get_value_and_schedule_timeout(state.round, TimeoutStep::Propose);
-    Transition::to(state.with_step(Step::Propose)).with_message(timeout)
+    match &state.valid {
+        Some(round_value) => {
+            let pol_round = round_value.round;
+            let proposal = Message::proposal(
+                height.clone(),
+                state.round,
+                round_value.value.clone(),
+                pol_round,
+            );
+            Transition::to(state.with_step(Step::Propose)).with_message(proposal)
+        }
+        None => {
+            let timeout =
+                Message::get_value_and_schedule_timeout(state.round, TimeoutStep::Propose);
+            Transition::to(state.with_step(Step::Propose)).with_message(timeout)
+        }
+    }
 }
 
 /// We are the proposer; propose the valid value if it exists,
 /// otherwise propose the given value.
 ///
 /// Ref: L11/L14
-pub fn propose<Ctx>(state: State<Ctx>, height: &Ctx::Height, value: Ctx::Value) -> Transition<Ctx>
+pub fn propose<Ctx>(
+    state: State<Ctx>,
+    height: &Ctx::Height,
+    value: Option<Ctx::Value>,
+) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let (value, pol_round) = match &state.valid {
-        Some(round_value) => (round_value.value.clone(), round_value.round),
-        None => (value, Round::Nil),
-    };
-
-    let proposal = Message::proposal(height.clone(), state.round, value, pol_round);
-    Transition::to(state.with_step(Step::Propose)).with_message(proposal)
+    if let Some(value) = value {
+        let proposal = Message::proposal(height.clone(), state.round, value, Round::Nil);
+        Transition::to(state.with_step(Step::Propose)).with_message(proposal)
+    } else {
+        panic!("Propose called with None value")
+    }
 }
 
 //---------------------------------------------------------------------
