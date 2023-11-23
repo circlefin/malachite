@@ -5,26 +5,33 @@ use crate::message::Message;
 use crate::state::{State, Step};
 use crate::transition::Transition;
 
-/// Immutable data about the current round,
-/// height and address of the node.
-///
-/// Because this data is immutable for a given round,
-/// it is purposefully not included in the state,
-/// but rather passed in as a reference.
+/// Immutable data about the event and our node:
+/// - Address of our node
+/// - Proposer for the round we are at
+/// - Round for which the event is for, can be different than the round we are at
 pub struct RoundData<'a, Ctx>
 where
     Ctx: Context,
 {
-    pub round: Round,
+    pub event_round: Round,
     pub address: &'a Ctx::Address,
+    pub proposer: &'a Ctx::Address,
 }
 
 impl<'a, Ctx> RoundData<'a, Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(round: Round, address: &'a Ctx::Address) -> Self {
-        Self { round, address }
+    pub fn new(event_round: Round, address: &'a Ctx::Address, proposer: &'a Ctx::Address) -> Self {
+        Self {
+            event_round,
+            address,
+            proposer,
+        }
+    }
+
+    pub fn is_proposer(&self) -> bool {
+        self.address == self.proposer
     }
 }
 
@@ -52,13 +59,12 @@ pub fn apply_event<Ctx>(
 where
     Ctx: Context,
 {
-    let this_round = state.round == data.round;
+    let this_round = state.round == data.event_round;
 
     match (state.step, event) {
         // From NewRound. Event must be for current round.
         (Step::NewRound, Event::NewRoundProposer) if this_round => {
-            propose_valid_or_get_value(state)
-            // L18
+            propose_valid_or_get_value(state) // L18
         }
         (Step::NewRound, Event::NewRound) if this_round => schedule_timeout_propose(state), // L11/L20
 
@@ -118,9 +124,13 @@ where
 
         // From all (except Commit). Various round guards.
         (_, Event::PrecommitAny) if this_round => schedule_timeout_precommit(state), // L47
-        (_, Event::TimeoutPrecommit) if this_round => round_skip(state, data.round.increment()), // L65
+        (_, Event::TimeoutPrecommit) if this_round => {
+            round_skip(state, data.event_round.increment())
+        } // L65
         (_, Event::SkipRound(round)) if state.round < round => round_skip(state, round), // L55
-        (_, Event::ProposalAndPrecommitValue(proposal)) => commit(state, data.round, proposal), // L49
+        (_, Event::ProposalAndPrecommitValue(proposal)) => {
+            commit(state, data.event_round, proposal)
+        } // L49
 
         // Invalid transition.
         _ => Transition::invalid(state),

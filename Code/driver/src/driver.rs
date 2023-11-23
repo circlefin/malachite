@@ -57,6 +57,11 @@ where
         }
     }
 
+    pub fn get_proposer(&self, round: Round) -> Ctx::Address {
+        self.proposer_selector
+            .select_proposer(round, &self.validator_set)
+    }
+
     pub async fn execute(&mut self, msg: Event<Ctx>) -> Result<Option<Message<Ctx>>, Error<Ctx>> {
         let round_msg = match self.apply(msg).await? {
             Some(msg) => msg,
@@ -114,16 +119,14 @@ where
         height: Ctx::Height,
         round: Round,
     ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
-        self.round_state = RoundState::new(height, round);
-
-        let proposer_address = self
-            .proposer_selector
-            .select_proposer(round, &self.validator_set);
+        let proposer_address = self.get_proposer(round);
 
         let proposer = self
             .validator_set
             .get_by_address(&proposer_address)
             .ok_or_else(|| Error::ProposerNotFound(proposer_address.clone()))?;
+
+        self.round_state = RoundState::new(height, round);
 
         let event = if proposer.address() == &self.address {
             RoundEvent::NewRoundProposer
@@ -255,10 +258,15 @@ where
     }
 
     /// Apply the event, update the state.
-    fn apply_event(&mut self, round: Round, event: RoundEvent<Ctx>) -> Option<RoundMessage<Ctx>> {
+    fn apply_event(
+        &mut self,
+        event_round: Round,
+        event: RoundEvent<Ctx>,
+    ) -> Option<RoundMessage<Ctx>> {
         let round_state = core::mem::take(&mut self.round_state);
+        let proposer = self.get_proposer(round_state.round);
 
-        let data = RoundData::new(round, &self.address);
+        let data = RoundData::new(event_round, &self.address, &proposer);
 
         // Multiplex the event with the round state.
         let mux_event = match event {

@@ -15,11 +15,12 @@ fn test_propose() {
     let round = Round::new(0);
 
     let mut state: State<TestContext> = State {
+        height,
         round,
         ..Default::default()
     };
 
-    let data = RoundData::new(round, height, &ADDRESS);
+    let data = RoundData::new(round, &ADDRESS, &ADDRESS);
 
     let transition = apply_event(state.clone(), &data, Event::NewRoundProposer);
 
@@ -56,7 +57,7 @@ fn test_prevote() {
         ..Default::default()
     };
 
-    let data = RoundData::new(Round::new(1), height, &ADDRESS);
+    let data = RoundData::new(Round::new(1), &ADDRESS, &ADDRESS);
 
     let transition = apply_event(state, &data, Event::NewRound);
 
