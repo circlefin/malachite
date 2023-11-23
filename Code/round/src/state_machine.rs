@@ -53,13 +53,13 @@ where
 /// Commented numbers refer to line numbers in the spec paper.
 pub fn apply_event<Ctx>(
     mut state: State<Ctx>,
-    data: &Info<Ctx>,
+    info: &Info<Ctx>,
     event: Event<Ctx>,
 ) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let this_round = state.round == data.event_round;
+    let this_round = state.round == info.event_round;
 
     match (state.step, event) {
         // From NewRound. Event must be for current round.
@@ -70,6 +70,7 @@ where
 
         // From Propose. Event must be for current round.
         (Step::Propose, Event::ProposeValue(value)) if this_round => {
+            debug_assert!(info.is_proposer());
             propose(state, value) // L11/L14
         }
 
@@ -83,9 +84,9 @@ where
                 .map_or(true, |locked| &locked.value == proposal.value())
             {
                 state.proposal = Some(proposal.clone());
-                prevote(state, data.address, &proposal)
+                prevote(state, info.address, &proposal)
             } else {
-                prevote_nil(state, data.address)
+                prevote_nil(state, info.address)
             }
         }
 
@@ -94,25 +95,33 @@ where
         {
             // L28
             let Some(locked) = state.locked.as_ref() else {
-                return prevote_nil(state, data.address);
+                return prevote_nil(state, info.address);
             };
 
             if locked.round <= proposal.pol_round() || &locked.value == proposal.value() {
-                prevote(state, data.address, &proposal)
+                prevote(state, info.address, &proposal)
             } else {
-                prevote_nil(state, data.address)
+                prevote_nil(state, info.address)
             }
         }
-        (Step::Propose, Event::ProposalInvalid) if this_round => prevote_nil(state, data.address), // L22/L25, L28/L31
-        (Step::Propose, Event::TimeoutPropose) if this_round => prevote_nil(state, data.address), // L57
+
+        (Step::Propose, Event::ProposalInvalid) if this_round => prevote_nil(state, info.address), // L22/L25, L28/L31
+
+        // We are the proposer.
+        (Step::Propose, Event::TimeoutPropose) if this_round && info.is_proposer() => {
+            // TOOD: Do we need to do something else here?
+            prevote_nil(state, info.address) // L57
+        }
+        // We are not the proposer.
+        (Step::Propose, Event::TimeoutPropose) if this_round => prevote_nil(state, info.address), // L57
 
         // From Prevote. Event must be for current round.
         (Step::Prevote, Event::PolkaAny) if this_round => schedule_timeout_prevote(state), // L34
-        (Step::Prevote, Event::PolkaNil) if this_round => precommit_nil(state, data.address), // L44
+        (Step::Prevote, Event::PolkaNil) if this_round => precommit_nil(state, info.address), // L44
         (Step::Prevote, Event::ProposalAndPolkaCurrent(proposal)) if this_round => {
-            precommit(state, data.address, proposal) // L36/L37 - NOTE: only once?
+            precommit(state, info.address, proposal) // L36/L37 - NOTE: only once?
         }
-        (Step::Prevote, Event::TimeoutPrevote) if this_round => precommit_nil(state, data.address), // L61
+        (Step::Prevote, Event::TimeoutPrevote) if this_round => precommit_nil(state, info.address), // L61
 
         // From Precommit. Event must be for current round.
         (Step::Precommit, Event::ProposalAndPolkaCurrent(proposal)) if this_round => {
@@ -125,11 +134,11 @@ where
         // From all (except Commit). Various round guards.
         (_, Event::PrecommitAny) if this_round => schedule_timeout_precommit(state), // L47
         (_, Event::TimeoutPrecommit) if this_round => {
-            round_skip(state, data.event_round.increment())
+            round_skip(state, info.event_round.increment())
         } // L65
         (_, Event::SkipRound(round)) if state.round < round => round_skip(state, round), // L55
         (_, Event::ProposalAndPrecommitValue(proposal)) => {
-            commit(state, data.event_round, proposal)
+            commit(state, info.event_round, proposal)
         } // L49
 
         // Invalid transition.
