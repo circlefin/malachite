@@ -5,11 +5,11 @@ use crate::message::Message;
 use crate::state::{State, Step};
 use crate::transition::Transition;
 
-/// Immutable data about the event and our node:
+/// Immutable information about the event and our node:
 /// - Address of our node
 /// - Proposer for the round we are at
 /// - Round for which the event is for, can be different than the round we are at
-pub struct RoundData<'a, Ctx>
+pub struct Info<'a, Ctx>
 where
     Ctx: Context,
 {
@@ -18,7 +18,7 @@ where
     pub proposer: &'a Ctx::Address,
 }
 
-impl<'a, Ctx> RoundData<'a, Ctx>
+impl<'a, Ctx> Info<'a, Ctx>
 where
     Ctx: Context,
 {
@@ -53,7 +53,7 @@ where
 /// Commented numbers refer to line numbers in the spec paper.
 pub fn apply_event<Ctx>(
     mut state: State<Ctx>,
-    data: &RoundData<Ctx>,
+    data: &Info<Ctx>,
     event: Event<Ctx>,
 ) -> Transition<Ctx>
 where

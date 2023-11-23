@@ -4,7 +4,7 @@ use malachite_common::{Round, Timeout, TimeoutStep};
 use malachite_round::events::Event;
 use malachite_round::message::Message;
 use malachite_round::state::{State, Step};
-use malachite_round::state_machine::{apply_event, RoundData};
+use malachite_round::state_machine::{apply_event, Info};
 
 const ADDRESS: Address = Address::new([42; 20]);
 
@@ -20,7 +20,7 @@ fn test_propose() {
         ..Default::default()
     };
 
-    let data = RoundData::new(round, &ADDRESS, &ADDRESS);
+    let data = Info::new(round, &ADDRESS, &ADDRESS);
 
     let transition = apply_event(state.clone(), &data, Event::NewRoundProposer);
 
@@ -57,7 +57,7 @@ fn test_prevote() {
         ..Default::default()
     };
 
-    let data = RoundData::new(Round::new(1), &ADDRESS, &ADDRESS);
+    let data = Info::new(Round::new(1), &ADDRESS, &ADDRESS);
 
     let transition = apply_event(state, &data, Event::NewRound);
 
