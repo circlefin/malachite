@@ -1,4 +1,4 @@
-use malachite_round::state_machine::RoundData;
+use malachite_round::state_machine::Info;
 
 use malachite_common::{
     Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
@@ -266,7 +266,7 @@ where
         let round_state = core::mem::take(&mut self.round_state);
         let proposer = self.get_proposer(round_state.round);
 
-        let data = RoundData::new(event_round, &self.address, &proposer);
+        let data = Info::new(event_round, &self.address, &proposer);
 
         // Multiplex the event with the round state.
         let mux_event = match event {

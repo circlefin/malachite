@@ -1,7 +1,7 @@
 use core::fmt;
 
 use crate::events::Event;
-use crate::state_machine::RoundData;
+use crate::state_machine::Info;
 use crate::transition::Transition;
 
 use malachite_common::{Context, Round};
@@ -76,7 +76,7 @@ where
         }
     }
 
-    pub fn apply_event(self, data: &RoundData<Ctx>, event: Event<Ctx>) -> Transition<Ctx> {
+    pub fn apply_event(self, data: &Info<Ctx>, event: Event<Ctx>) -> Transition<Ctx> {
         crate::state_machine::apply_event(self, data, event)
     }
 }
