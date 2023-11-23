@@ -140,7 +140,7 @@ where
     async fn apply_propose_value(
         &mut self,
         round: Round,
-        value: Option<Ctx::Value>,
+        value: Ctx::Value,
     ) -> Option<RoundMessage<Ctx>> {
         self.apply_event(round, RoundEvent::ProposeValue(value))
     }

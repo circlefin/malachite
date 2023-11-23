@@ -172,16 +172,12 @@ where
 /// otherwise propose the given value.
 ///
 /// Ref: L11/L14
-pub fn propose<Ctx>(state: State<Ctx>, value: Option<Ctx::Value>) -> Transition<Ctx>
+pub fn propose<Ctx>(state: State<Ctx>, value: Ctx::Value) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    if let Some(value) = value {
-        let proposal = Message::proposal(state.height.clone(), state.round, value, Round::Nil);
-        Transition::to(state.with_step(Step::Propose)).with_message(proposal)
-    } else {
-        panic!("Propose called with None value")
-    }
+    let proposal = Message::proposal(state.height.clone(), state.round, value, Round::Nil);
+    Transition::to(state.with_step(Step::Propose)).with_message(proposal)
 }
 
 //---------------------------------------------------------------------

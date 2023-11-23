@@ -12,7 +12,7 @@ where
     NewRound(Ctx::Height, Round),
 
     /// Propose a value for the given round
-    ProposeValue(Round, Option<<Ctx>::Value>),
+    ProposeValue(Round, Ctx::Value),
 
     /// Receive a proposal, of the given validity
     Proposal(Ctx::Proposal, Validity),
