@@ -104,7 +104,7 @@ fn driver_steps_proposer() {
         },
         TestStep {
             desc: "Feed a value to propose, propose that value",
-            input_event: Some(Event::ProposeValue(Round::new(0), Some(value))),
+            input_event: Some(Event::ProposeValue(Round::new(0), value)),
             expected_output: Some(Message::Propose(proposal.clone())),
             expected_round: Round::new(0),
             new_state: State {
@@ -322,8 +322,8 @@ fn driver_steps_proposer_timeout_get_value() {
             },
         },
         TestStep {
-            desc: "Receive a nil propose value",
-            input_event: Some(Event::ProposeValue(Round::new(0), None)),
+            desc: "Receive a propose timeout",
+            input_event: Some(Event::TimeoutElapsed(Timeout::propose(Round::new(0)))),
             expected_output: Some(Message::Vote(
                 Vote::new_prevote(Height::new(1), Round::new(0), None, my_addr).signed(&my_sk),
             )),
