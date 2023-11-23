@@ -30,7 +30,11 @@ fn test_propose() {
         Message::get_value_and_schedule_timeout(round, TimeoutStep::Propose)
     );
 
-    let transition = apply_event(transition.next_state, &data, Event::ProposeValue(value));
+    let transition = apply_event(
+        transition.next_state,
+        &data,
+        Event::ProposeValue(Some(value)),
+    );
 
     state.step = Step::Propose;
     assert_eq!(transition.next_state, state);
