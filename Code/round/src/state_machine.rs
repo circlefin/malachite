@@ -16,7 +16,6 @@ where
     Ctx: Context,
 {
     pub round: Round,
-    pub height: Ctx::Height,
     pub address: &'a Ctx::Address,
 }
 
@@ -24,12 +23,8 @@ impl<'a, Ctx> RoundData<'a, Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(round: Round, height: Ctx::Height, address: &'a Ctx::Address) -> Self {
-        Self {
-            round,
-            height,
-            address,
-        }
+    pub fn new(round: Round, address: &'a Ctx::Address) -> Self {
+        Self { round, address }
     }
 }
 
@@ -62,14 +57,14 @@ where
     match (state.step, event) {
         // From NewRound. Event must be for current round.
         (Step::NewRound, Event::NewRoundProposer) if this_round => {
-            propose_valid_or_get_value(state, &data.height)
+            propose_valid_or_get_value(state)
             // L18
         }
         (Step::NewRound, Event::NewRound) if this_round => schedule_timeout_propose(state), // L11/L20
 
         // From Propose. Event must be for current round.
         (Step::Propose, Event::ProposeValue(value)) if this_round => {
-            propose(state, &data.height, value) // L11/L14
+            propose(state, value) // L11/L14
         }
 
         (Step::Propose, Event::Proposal(proposal))
@@ -140,7 +135,7 @@ where
 /// and ask for a value.
 ///
 /// Ref: L18
-pub fn propose_valid_or_get_value<Ctx>(state: State<Ctx>, height: &Ctx::Height) -> Transition<Ctx>
+pub fn propose_valid_or_get_value<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
@@ -148,7 +143,7 @@ where
         Some(round_value) => {
             let pol_round = round_value.round;
             let proposal = Message::proposal(
-                height.clone(),
+                state.height.clone(),
                 state.round,
                 round_value.value.clone(),
                 pol_round,
@@ -167,16 +162,12 @@ where
 /// otherwise propose the given value.
 ///
 /// Ref: L11/L14
-pub fn propose<Ctx>(
-    state: State<Ctx>,
-    height: &Ctx::Height,
-    value: Option<Ctx::Value>,
-) -> Transition<Ctx>
+pub fn propose<Ctx>(state: State<Ctx>, value: Option<Ctx::Value>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
     if let Some(value) = value {
-        let proposal = Message::proposal(height.clone(), state.round, value, Round::Nil);
+        let proposal = Message::proposal(state.height.clone(), state.round, value, Round::Nil);
         Transition::to(state.with_step(Step::Propose)).with_message(proposal)
     } else {
         panic!("Propose called with None value")

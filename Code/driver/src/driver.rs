@@ -258,7 +258,7 @@ where
     fn apply_event(&mut self, round: Round, event: RoundEvent<Ctx>) -> Option<RoundMessage<Ctx>> {
         let round_state = core::mem::take(&mut self.round_state);
 
-        let data = RoundData::new(round, round_state.height.clone(), &self.address);
+        let data = RoundData::new(round, &self.address);
 
         // Multiplex the event with the round state.
         let mux_event = match event {
