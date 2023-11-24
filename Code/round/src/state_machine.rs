@@ -153,7 +153,7 @@ where
 // Propose
 //---------------------------------------------------------------------
 
-/// We are the proposer, but don't have a value yet; schedule timeout propose
+/// We are the proposer. Propose the valid value if present, otherwise schedule timeout propose
 /// and ask for a value.
 ///
 /// Ref: L18
