@@ -78,7 +78,10 @@ run UnSuccessfulRound (prop: str, r: int) : bool = {
 run UnSuccessfulRoundWithSetup (prop: str, r: int) : bool = {
     N4F0::setNextValueToPropose(N4F0::Proposer(N4F0::validatorSet, 0, r), prop)
     .then(everyoneTakesAStep)
-    .then(UnSuccessfulRound (prop, r))  
+    .then(all {
+        assert(N4F0::system.keys().forall(p => N4F0::system.get(p).es.cs.round == r)),
+        UnSuccessfulRound (prop, r)
+    })  
 }
 
 run multiRoundTest = {
