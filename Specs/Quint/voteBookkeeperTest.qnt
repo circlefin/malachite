@@ -46,7 +46,7 @@ module voteBookkeeperTest {
     run synchronousConsensusTest =
         init(100)
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "alice"}, 60, 1))
-        .then(_assert(debug("lastEmitted", lastEmitted) == {round: 1, name: "None", value: "null"}))
+        .then(_assert(lastEmitted == {round: 1, name: "None", value: "null"}))
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "john"}, 10, 1))
         .then(_assert(lastEmitted == {round: 1, name: "PolkaValue", value: "proposal"}))
         .then(applyVoteAction({typ: "Prevote", round: 1, value: "proposal", address: "bob"}, 30, 1))
