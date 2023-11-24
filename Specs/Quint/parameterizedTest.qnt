@@ -11,22 +11,14 @@ import statemachineAsync(
 
 val validatorList = N4F0::validators.fold(List(), (s, x) => s.append(x))
 
-// run everyoneTakesAStep (proposer, nonprop) = {
-//     N4F0::valStep(nonprop._1)
-//     .then(N4F0::valStep(nonprop._2))
-//     .then(N4F0::valStep(nonprop._3))
-//     .then(N4F0::valStep(proposer))
-// }
-
 run everyoneTakesAStep = {
     validatorList.length().reps(i => N4F0::valStep(validatorList[i]))
 }
 
 // here there is a different prevote from the proposer
 run oneDeliversPrevote (validator, prop, r, proposer, nonprop) = {
-    N4F0::deliverVote(validator, { height: 0, id: "nil", round: r, src: nonprop._1, step: "Prevote" })
-    .then(N4F0::deliverVote(validator, { height: 0, id: "nil", round: r, src: nonprop._2, step: "Prevote" }))
-    .then(N4F0::deliverVote(validator, { height: 0, id: "nil", round: r, src: nonprop._3, step: "Prevote" }))
+    nonprop.length().reps( i => 
+        N4F0::deliverVote(validator, { height: 0, id: "nil", round: r, src: nonprop[i], step: "Prevote" }))
     .then(N4F0::deliverVote(validator, { height: 0, id: prop, round: r, src: proposer, step: "Prevote" }))
 }
 
@@ -44,13 +36,9 @@ run everyoneDeliversPrecommit  (prop, r, proposer, nonprop) = {
     validatorList.length().reps(i => oneDeliversPrecommit (validatorList[i], prop, r, proposer, nonprop))    
 }
 
-
 run UnSuccessfulRound (prop: str, r: int) : bool = {
     val proposer = N4F0::Proposer(N4F0::validatorSet, 0, r)
-    val nonprop =   if (proposer == "v1") ("v2", "v3", "v4")
-                    else if (proposer == "v2") ("v1", "v3", "v4")
-                    else if (proposer == "v3")  ("v1", "v2", "v4")
-                    else ("v1", "v2", "v3")
+    val nonprop = validatorList.select(x => x != proposer)
     // everyone is in round r and proposer sent a proposal
     all {
         assert(N4F0::propBuffer.keys().forall(p => N4F0::propBuffer.get(p).contains(
