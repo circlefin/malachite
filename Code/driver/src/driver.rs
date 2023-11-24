@@ -121,17 +121,9 @@ where
         height: Ctx::Height,
         round: Round,
     ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
-        let proposer = self.get_proposer(round)?;
-
-        let event = if proposer.address() == &self.address {
-            RoundEvent::NewRoundProposer
-        } else {
-            RoundEvent::NewRound
-        };
-
         self.round_state = RoundState::new(height, round);
 
-        self.apply_event(round, event)
+        self.apply_event(round, RoundEvent::NewRound)
     }
 
     async fn apply_propose_value(

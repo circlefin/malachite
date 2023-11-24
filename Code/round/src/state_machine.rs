@@ -63,9 +63,12 @@ where
 
     match (state.step, event) {
         // From NewRound. Event must be for current round.
-        (Step::NewRound, Event::NewRoundProposer) if this_round => {
+
+        // We are the proposer
+        (Step::NewRound, Event::NewRound) if this_round && info.is_proposer() => {
             propose_valid_or_get_value(state) // L18
         }
+        // We are not the proposer
         (Step::NewRound, Event::NewRound) if this_round => schedule_timeout_propose(state), // L11/L20
 
         // From Propose. Event must be for current round.
