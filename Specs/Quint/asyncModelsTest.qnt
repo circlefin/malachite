@@ -190,7 +190,7 @@ import statemachineAsync(
     Heights = Set(0) // , 1, 2, 3)
 ) as N4F2 from "./statemachineAsync"
 
-// v3 and v4 are correct. v2 is a N4N4F22aulty proposal and proposes diN4N4F22N4N4F22erently to v3 and v4
+// v3 and v4 are correct. v2 is a faulty proposal and proposes differently to v3 and v4
 // this run leads to disagreement
 run DisagreementTest = {
     N4F2::init
