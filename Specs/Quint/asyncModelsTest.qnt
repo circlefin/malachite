@@ -159,7 +159,6 @@ run RoundswitchTest = {
     .then(N4F0::valStep("v4"))
     .then(N4F0::valStep("v4"))
     .then(all {
-        // this should work, once the bookkeeper skip event is fixed
         assert(N4F0::system.get("v4").es.cs.round == 1),
         N4F0::unchangedAll
     })   

@@ -186,7 +186,7 @@ module voteBookkeeper {
         val threshold = computeThreshold(updatedVoteCount, vote.value)
         val event = toEvent(vote.round, vote.typ, threshold)
         val finalEvent = 
-            if (not(event.in(roundVotes.emittedEvents))) 
+            if (event.name != "None" and not(event.in(roundVotes.emittedEvents)))
                 event
             else if (roundVotes.emittedEvents == Set() and isSkip(updatedVotesAddressesWeights.mapSumValues(), total)) 
                 { round: vote.round, name: "Skip", value: "null" }
