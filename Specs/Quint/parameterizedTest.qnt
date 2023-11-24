@@ -1,3 +1,5 @@
+// -*- mode: Bluespec; -*-
+
 module parameterizedTest {
 
 import statemachineAsync(
