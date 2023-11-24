@@ -11,6 +11,7 @@ import statemachineAsync(
     Heights = Set(0) // , 1, 2, 3)
 ) as N4F0 from "./statemachineAsync"
 
+
 run ThreeDecideInRound1V4stillinZeroTest = {
     N4F0::init
     .then(N4F0::setNextValueToPropose("v2", "block"))
@@ -119,6 +120,7 @@ run DecideForFutureRoundTest = {
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v2", step: "Precommit" }))
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v3", step: "Precommit" }))
+//    .then(4.reps(i => N4F0::valStep("v4")))
     .then(N4F0::valStep("v4"))
     .then(N4F0::valStep("v4"))
     .then(N4F0::valStep("v4"))

@@ -17,7 +17,9 @@
 module statemachineAsync {
 
 import executor.* from "./executor"
+export executor.* 
 import consensus.* from "./consensus"
+export consensus.* 
 import voteBookkeeper.* from "./voteBookkeeper"
 
 const validators : Set[Address_t]
