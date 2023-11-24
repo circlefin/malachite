@@ -57,9 +57,17 @@ where
         }
     }
 
-    pub fn get_proposer(&self, round: Round) -> Ctx::Address {
-        self.proposer_selector
-            .select_proposer(round, &self.validator_set)
+    pub fn get_proposer(&self, round: Round) -> Result<&Ctx::Validator, Error<Ctx>> {
+        let address = self
+            .proposer_selector
+            .select_proposer(round, &self.validator_set);
+
+        let proposer = self
+            .validator_set
+            .get_by_address(&address)
+            .ok_or_else(|| Error::ProposerNotFound(address))?;
+
+        Ok(proposer)
     }
 
     pub async fn execute(&mut self, msg: Event<Ctx>) -> Result<Option<Message<Ctx>>, Error<Ctx>> {
@@ -101,16 +109,10 @@ where
     async fn apply(&mut self, event: Event<Ctx>) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         match event {
             Event::NewRound(height, round) => self.apply_new_round(height, round).await,
-
-            Event::ProposeValue(round, value) => Ok(self.apply_propose_value(round, value).await),
-
-            Event::Proposal(proposal, validity) => {
-                Ok(self.apply_proposal(proposal, validity).await)
-            }
-
+            Event::ProposeValue(round, value) => self.apply_propose_value(round, value).await,
+            Event::Proposal(proposal, validity) => self.apply_proposal(proposal, validity).await,
             Event::Vote(signed_vote) => self.apply_vote(signed_vote),
-
-            Event::TimeoutElapsed(timeout) => Ok(self.apply_timeout(timeout)),
+            Event::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
         }
     }
 
@@ -119,14 +121,7 @@ where
         height: Ctx::Height,
         round: Round,
     ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
-        let proposer_address = self.get_proposer(round);
-
-        let proposer = self
-            .validator_set
-            .get_by_address(&proposer_address)
-            .ok_or_else(|| Error::ProposerNotFound(proposer_address.clone()))?;
-
-        self.round_state = RoundState::new(height, round);
+        let proposer = self.get_proposer(round)?;
 
         let event = if proposer.address() == &self.address {
             RoundEvent::NewRoundProposer
@@ -134,14 +129,16 @@ where
             RoundEvent::NewRound
         };
 
-        Ok(self.apply_event(round, event))
+        self.round_state = RoundState::new(height, round);
+
+        self.apply_event(round, event)
     }
 
     async fn apply_propose_value(
         &mut self,
         round: Round,
         value: Ctx::Value,
-    ) -> Option<RoundMessage<Ctx>> {
+    ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         self.apply_event(round, RoundEvent::ProposeValue(value))
     }
 
@@ -149,27 +146,27 @@ where
         &mut self,
         proposal: Ctx::Proposal,
         validity: Validity,
-    ) -> Option<RoundMessage<Ctx>> {
+    ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         // Check that there is an ongoing round
         if self.round_state.round == Round::NIL {
-            return None;
+            return Ok(None);
         }
 
         // Only process the proposal if there is no other proposal
         if self.round_state.proposal.is_some() {
-            return None;
+            return Ok(None);
         }
 
         // Check that the proposal is for the current height and round
         if self.round_state.height != proposal.height()
             || self.round_state.round != proposal.round()
         {
-            return None;
+            return Ok(None);
         }
 
         // TODO: Document
         if proposal.pol_round().is_defined() && proposal.pol_round() >= self.round_state.round {
-            return None;
+            return Ok(None);
         }
 
         // TODO: Verify proposal signature (make some of these checks part of message validation)
@@ -203,7 +200,7 @@ where
 
                 self.apply_event(round, event)
             }
-            _ => None,
+            _ => Ok(None),
         }
     }
 
@@ -244,10 +241,10 @@ where
             VoteMessage::SkipRound(r) => RoundEvent::SkipRound(r),
         };
 
-        Ok(self.apply_event(round, round_event))
+        self.apply_event(round, round_event)
     }
 
-    fn apply_timeout(&mut self, timeout: Timeout) -> Option<RoundMessage<Ctx>> {
+    fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         let event = match timeout.step {
             TimeoutStep::Propose => RoundEvent::TimeoutPropose,
             TimeoutStep::Prevote => RoundEvent::TimeoutPrevote,
@@ -262,11 +259,11 @@ where
         &mut self,
         event_round: Round,
         event: RoundEvent<Ctx>,
-    ) -> Option<RoundMessage<Ctx>> {
+    ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         let round_state = core::mem::take(&mut self.round_state);
-        let proposer = self.get_proposer(round_state.round);
+        let proposer = self.get_proposer(round_state.round)?;
 
-        let data = Info::new(event_round, &self.address, &proposer);
+        let data = Info::new(event_round, &self.address, proposer.address());
 
         // Multiplex the event with the round state.
         let mux_event = match event {
@@ -293,6 +290,6 @@ where
         self.round_state = transition.next_state;
 
         // Return message, if any
-        transition.message
+        Ok(transition.message)
     }
 }
