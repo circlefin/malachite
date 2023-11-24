@@ -100,6 +100,7 @@ fn driver_steps_proposer() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: true,
             },
         },
         TestStep {
@@ -114,6 +115,7 @@ fn driver_steps_proposer() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: true,
             },
         },
         TestStep {
@@ -131,6 +133,7 @@ fn driver_steps_proposer() {
                 proposal: Some(proposal.clone()),
                 locked: None,
                 valid: None,
+                is_proposer: true,
             },
         },
         TestStep {
@@ -145,6 +148,7 @@ fn driver_steps_proposer() {
                 proposal: Some(proposal.clone()),
                 locked: None,
                 valid: None,
+                is_proposer: true,
             },
         },
         TestStep {
@@ -162,6 +166,7 @@ fn driver_steps_proposer() {
                 proposal: Some(proposal.clone()),
                 locked: None,
                 valid: None,
+                is_proposer: true,
             },
         },
         TestStep {
@@ -188,6 +193,7 @@ fn driver_steps_proposer() {
                     value,
                     round: Round::new(0),
                 }),
+                is_proposer: true,
             },
         },
         TestStep {
@@ -208,6 +214,7 @@ fn driver_steps_proposer() {
                     value,
                     round: Round::new(0),
                 }),
+                is_proposer: true,
             },
         },
         TestStep {
@@ -231,6 +238,7 @@ fn driver_steps_proposer() {
                     value,
                     round: Round::new(0),
                 }),
+                is_proposer: true,
             },
         },
         TestStep {
@@ -254,6 +262,7 @@ fn driver_steps_proposer() {
                     value,
                     round: Round::new(0),
                 }),
+                is_proposer: true,
             },
         },
     ];
@@ -319,6 +328,7 @@ fn driver_steps_proposer_timeout_get_value() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: true,
             },
         },
         TestStep {
@@ -335,6 +345,7 @@ fn driver_steps_proposer_timeout_get_value() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: true,
             },
         },
     ];
@@ -404,6 +415,7 @@ fn driver_steps_not_proposer_valid() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         TestStep {
@@ -421,6 +433,7 @@ fn driver_steps_not_proposer_valid() {
                 proposal: Some(proposal.clone()),
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         TestStep {
@@ -435,6 +448,7 @@ fn driver_steps_not_proposer_valid() {
                 proposal: Some(proposal.clone()),
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         TestStep {
@@ -452,6 +466,7 @@ fn driver_steps_not_proposer_valid() {
                 proposal: Some(proposal.clone()),
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         TestStep {
@@ -478,6 +493,7 @@ fn driver_steps_not_proposer_valid() {
                     value,
                     round: Round::new(0),
                 }),
+                is_proposer: false,
             },
         },
         TestStep {
@@ -498,6 +514,7 @@ fn driver_steps_not_proposer_valid() {
                     value,
                     round: Round::new(0),
                 }),
+                is_proposer: false,
             },
         },
         TestStep {
@@ -521,6 +538,7 @@ fn driver_steps_not_proposer_valid() {
                     value,
                     round: Round::new(0),
                 }),
+                is_proposer: false,
             },
         },
         TestStep {
@@ -544,6 +562,7 @@ fn driver_steps_not_proposer_valid() {
                     value,
                     round: Round::new(0),
                 }),
+                is_proposer: false,
             },
         },
     ];
@@ -613,6 +632,7 @@ fn driver_steps_not_proposer_invalid() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         TestStep {
@@ -629,6 +649,7 @@ fn driver_steps_not_proposer_invalid() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         TestStep {
@@ -643,6 +664,7 @@ fn driver_steps_not_proposer_invalid() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         TestStep {
@@ -659,6 +681,7 @@ fn driver_steps_not_proposer_invalid() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         TestStep {
@@ -675,6 +698,7 @@ fn driver_steps_not_proposer_invalid() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         TestStep {
@@ -691,6 +715,7 @@ fn driver_steps_not_proposer_invalid() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
     ];
@@ -759,6 +784,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         // Receive a propose timeout, prevote for nil (from v3)
@@ -776,6 +802,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         // Receive our own prevote v3
@@ -791,6 +818,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         // v1 prevotes for its own proposal
@@ -809,6 +837,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         // v2 prevotes for nil, we get +2/3 nil prevotes and precommit for nil
@@ -828,6 +857,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         // v3 receives its own precommit
@@ -843,6 +873,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         // v1 precommits its proposal
@@ -861,6 +892,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         // v2 precommits for nil
@@ -878,6 +910,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         // we receive a precommit timeout, start a new round
@@ -893,6 +926,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
         TestStep {
@@ -907,6 +941,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 proposal: None,
                 locked: None,
                 valid: None,
+                is_proposer: false,
             },
         },
     ];

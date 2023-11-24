@@ -15,23 +15,17 @@ where
 {
     pub event_round: Round,
     pub address: &'a Ctx::Address,
-    pub proposer: &'a Ctx::Address,
 }
 
 impl<'a, Ctx> Info<'a, Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(event_round: Round, address: &'a Ctx::Address, proposer: &'a Ctx::Address) -> Self {
+    pub fn new(event_round: Round, address: &'a Ctx::Address) -> Self {
         Self {
             event_round,
             address,
-            proposer,
         }
-    }
-
-    pub fn is_proposer(&self) -> bool {
-        self.address == self.proposer
     }
 }
 
@@ -64,13 +58,17 @@ where
     match (state.step, event) {
         // From NewRound. Event must be for current round.
         (Step::NewRound, Event::NewRoundProposer) if this_round => {
+            state.is_proposer = true;
             propose_valid_or_get_value(state) // L18
         }
-        (Step::NewRound, Event::NewRound) if this_round => schedule_timeout_propose(state), // L11/L20
+        (Step::NewRound, Event::NewRound) if this_round => {
+            state.is_proposer = false;
+            schedule_timeout_propose(state) // L11/L20
+        }
 
         // From Propose. Event must be for current round.
         (Step::Propose, Event::ProposeValue(value)) if this_round => {
-            debug_assert!(info.is_proposer());
+            debug_assert!(state.is_proposer);
             propose(state, value) // L11/L14
         }
 
@@ -108,7 +106,7 @@ where
         (Step::Propose, Event::ProposalInvalid) if this_round => prevote_nil(state, info.address), // L22/L25, L28/L31
 
         // We are the proposer.
-        (Step::Propose, Event::TimeoutPropose) if this_round && info.is_proposer() => {
+        (Step::Propose, Event::TimeoutPropose) if this_round && state.is_proposer => {
             // TOOD: Do we need to do something else here?
             prevote_nil(state, info.address) // L57
         }

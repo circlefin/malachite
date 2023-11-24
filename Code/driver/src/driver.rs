@@ -261,9 +261,8 @@ where
         event: RoundEvent<Ctx>,
     ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         let round_state = core::mem::take(&mut self.round_state);
-        let proposer = self.get_proposer(round_state.round)?;
 
-        let data = Info::new(event_round, &self.address, proposer.address());
+        let data = Info::new(event_round, &self.address);
 
         // Multiplex the event with the round state.
         let mux_event = match event {

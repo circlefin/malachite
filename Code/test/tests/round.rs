@@ -20,11 +20,12 @@ fn test_propose() {
         ..Default::default()
     };
 
-    let data = Info::new(round, &ADDRESS, &ADDRESS);
+    let data = Info::new(round, &ADDRESS);
 
     let transition = apply_event(state.clone(), &data, Event::NewRoundProposer);
 
     state.step = Step::Propose;
+    state.is_proposer = true;
     assert_eq!(transition.next_state, state);
     assert_eq!(
         transition.message.unwrap(),
@@ -53,7 +54,7 @@ fn test_prevote() {
         ..Default::default()
     };
 
-    let data = Info::new(Round::new(1), &ADDRESS, &ADDRESS);
+    let data = Info::new(Round::new(1), &ADDRESS);
 
     let transition = apply_event(state, &data, Event::NewRound);
 

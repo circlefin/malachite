@@ -41,6 +41,7 @@ where
     pub proposal: Option<Ctx::Proposal>,
     pub locked: Option<RoundValue<Ctx::Value>>,
     pub valid: Option<RoundValue<Ctx::Value>>,
+    pub is_proposer: bool,
 }
 
 impl<Ctx> State<Ctx>
@@ -55,6 +56,7 @@ where
             proposal: None,
             locked: None,
             valid: None,
+            is_proposer: false,
         }
     }
 
@@ -107,6 +109,7 @@ where
             proposal: self.proposal.clone(),
             locked: self.locked.clone(),
             valid: self.valid.clone(),
+            is_proposer: self.is_proposer,
         }
     }
 }
@@ -124,6 +127,7 @@ where
             .field("proposal", &self.proposal)
             .field("locked", &self.locked)
             .field("valid", &self.valid)
+            .field("is_proposer", &self.is_proposer)
             .finish()
     }
 }
@@ -140,6 +144,7 @@ where
             && self.proposal == other.proposal
             && self.locked == other.locked
             && self.valid == other.valid
+            && self.is_proposer == other.is_proposer
     }
 }
 
