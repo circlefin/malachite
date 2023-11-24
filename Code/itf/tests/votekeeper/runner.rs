@@ -1,23 +1,19 @@
 use std::collections::HashMap;
 
-use rand::rngs::StdRng;
-use rand::SeedableRng;
-
 use malachite_common::{Context, Round, Value};
 use malachite_itf::votekeeper::State;
-use malachite_test::{Address, Height, PrivateKey, TestContext, Vote};
+use malachite_test::{Address, Height, TestContext, Vote};
 use malachite_vote::{
     keeper::{Message, VoteKeeper},
     ThresholdParams,
 };
 
 use itf::Runner as ItfRunner;
-use rstest::fixture;
 
-use super::utils::{check_votes, value_from_model, ADDRESSES};
+use super::utils::{check_votes, value_from_model};
 
 pub struct VoteKeeperRunner {
-    address_map: HashMap<String, Address>,
+    pub address_map: HashMap<String, Address>,
 }
 
 impl ItfRunner for VoteKeeperRunner {
@@ -179,21 +175,5 @@ impl ItfRunner for VoteKeeperRunner {
         }
 
         Ok(true)
-    }
-}
-
-#[fixture]
-pub fn vote_keeper_runner() -> VoteKeeperRunner {
-    let mut rng = StdRng::seed_from_u64(0x42);
-
-    // build mapping from model addresses to real addresses
-    VoteKeeperRunner {
-        address_map: ADDRESSES
-            .iter()
-            .map(|&name| {
-                let pk = PrivateKey::generate(&mut rng).public_key();
-                (name.into(), Address::from_public_key(&pk))
-            })
-            .collect(),
     }
 }
