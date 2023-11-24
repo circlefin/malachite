@@ -156,7 +156,7 @@ where
 /// We are the proposer. Propose the valid value if present, otherwise schedule timeout propose
 /// and ask for a value.
 ///
-/// Ref: L18
+/// Ref: L15-L18
 pub fn propose_valid_or_get_value<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
