@@ -479,7 +479,7 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Co
             res
     }
     else if (input.name == "votemessage" and input.vote.step == "Precommit") {
-        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
+        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src), es.cs.round)
         val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
         // only a commit event can come here. 
         val cons_res = Precommit(newES, input, res.event) 
@@ -491,7 +491,7 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Co
             cons_res
     }
     else if (input.name == "votemessage" and input.vote.step == "Prevote") {
-        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
+        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src), es.cs.round)
         val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
         // only a commit event can come here. 
         val cons_res = Prevote(newES, input, res.event) 
