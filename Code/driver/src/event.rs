@@ -8,7 +8,7 @@ pub enum Event<Ctx>
 where
     Ctx: Context,
 {
-    NewRound(Round),
+    NewRound(Ctx::Height, Round),
     Proposal(Ctx::Proposal, Validity),
     Vote(SignedVote<Ctx>),
     TimeoutElapsed(Timeout),
