@@ -1061,3 +1061,268 @@ fn driver_steps_invalid_signature() {
 
     assert!(matches!(output, Err(Error::InvalidVoteSignature(_, _))));
 }
+
+#[test]
+fn driver_steps_skip_round_skip_threshold() {
+    let value = Value::new(9999);
+
+    let sel = RotateProposer::default();
+
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
+
+    let addr1 = Address::from_public_key(&sk1.public_key());
+    let addr2 = Address::from_public_key(&sk2.public_key());
+    let addr3 = Address::from_public_key(&sk3.public_key());
+
+    let v1 = Validator::new(sk1.public_key(), 1);
+    let v2 = Validator::new(sk2.public_key(), 1);
+    let v3 = Validator::new(sk3.public_key(), 1);
+
+    // Proposer is v1, so we, v3, are not the proposer
+    let (my_sk, my_addr) = (sk3, addr3);
+
+    let ctx = TestContext::new(my_sk.clone());
+    let height = Height::new(1);
+
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+
+    let steps = vec![
+        // Start round 0, we, v3, are not the proposer
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer",
+            input_event: Some(Event::NewRound(height, Round::new(0))),
+            expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_round: Round::new(0),
+            new_state: State {
+                height,
+                round: Round::new(0),
+                step: Step::Propose,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        // Receive a propose timeout, prevote for nil (from v3)
+        TestStep {
+            desc: "Receive a propose timeout, prevote for nil (v3)",
+            input_event: Some(Event::TimeoutElapsed(Timeout::propose(Round::new(0)))),
+            expected_output: Some(Message::Vote(
+                Vote::new_prevote(height, Round::new(0), None, my_addr).signed(&my_sk),
+            )),
+            expected_round: Round::new(0),
+            new_state: State {
+                height,
+                round: Round::new(0),
+                step: Step::Prevote,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        // Receive our own prevote v3
+        TestStep {
+            desc: "Receive our own prevote v3",
+            input_event: None,
+            expected_output: None,
+            expected_round: Round::new(0),
+            new_state: State {
+                height,
+                round: Round::new(0),
+                step: Step::Prevote,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        // v1 prevotes for its own proposal
+        TestStep {
+            desc: "v1 prevotes for its own proposal in round 1",
+            input_event: Some(Event::Vote(
+                Vote::new_prevote(height, Round::new(1), Some(value.id()), addr1).signed(&sk1),
+            )),
+            expected_output: None,
+            expected_round: Round::new(0),
+            new_state: State {
+                height,
+                round: Round::new(0),
+                step: Step::Prevote,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        // v2 prevotes for v1 proposal in round 1, expected output is to move to next round
+        TestStep {
+            desc: "v2 prevotes for v1 proposal, we get +1/3 messages from future round",
+            input_event: Some(Event::Vote(
+                Vote::new_prevote(height, Round::new(1), Some(value.id()), addr2).signed(&sk2),
+            )),
+            expected_output: Some(Message::NewRound(height, Round::new(1))),
+            expected_round: Round::new(1),
+            new_state: State {
+                height,
+                round: Round::new(1),
+                step: Step::NewRound,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+    ];
+
+    let mut previous_message = None;
+
+    for step in steps {
+        println!("Step: {}", step.desc);
+
+        let execute_message = step
+            .input_event
+            .unwrap_or_else(|| previous_message.unwrap());
+
+        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
+        assert_eq!(output, step.expected_output, "expected output message");
+
+        assert_eq!(driver.round(), step.expected_round, "expected round");
+        assert_eq!(driver.round_state, step.new_state, "new state");
+
+        previous_message = output.and_then(to_input_msg);
+    }
+}
+
+#[test]
+fn driver_steps_skip_round_quorum_threshold() {
+    let value = Value::new(9999);
+
+    let sel = RotateProposer::default();
+
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let sk1 = PrivateKey::generate(&mut rng);
+    let sk2 = PrivateKey::generate(&mut rng);
+    let sk3 = PrivateKey::generate(&mut rng);
+
+    let addr1 = Address::from_public_key(&sk1.public_key());
+    let addr2 = Address::from_public_key(&sk2.public_key());
+    let addr3 = Address::from_public_key(&sk3.public_key());
+
+    let v1 = Validator::new(sk1.public_key(), 1);
+    let v2 = Validator::new(sk2.public_key(), 2);
+    let v3 = Validator::new(sk3.public_key(), 1);
+
+    // Proposer is v1, so we, v3, are not the proposer
+    let (my_sk, my_addr) = (sk3, addr3);
+
+    let ctx = TestContext::new(my_sk.clone());
+    let height = Height::new(1);
+
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+
+    let steps = vec![
+        // Start round 0, we, v3, are not the proposer
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer",
+            input_event: Some(Event::NewRound(height, Round::new(0))),
+            expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_round: Round::new(0),
+            new_state: State {
+                height,
+                round: Round::new(0),
+                step: Step::Propose,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        // Receive a propose timeout, prevote for nil (from v3)
+        TestStep {
+            desc: "Receive a propose timeout, prevote for nil (v3)",
+            input_event: Some(Event::TimeoutElapsed(Timeout::propose(Round::new(0)))),
+            expected_output: Some(Message::Vote(
+                Vote::new_prevote(height, Round::new(0), None, my_addr).signed(&my_sk),
+            )),
+            expected_round: Round::new(0),
+            new_state: State {
+                height,
+                round: Round::new(0),
+                step: Step::Prevote,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        // Receive our own prevote v3
+        TestStep {
+            desc: "Receive our own prevote v3",
+            input_event: None,
+            expected_output: None,
+            expected_round: Round::new(0),
+            new_state: State {
+                height,
+                round: Round::new(0),
+                step: Step::Prevote,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        // v1 prevotes for its own proposal
+        TestStep {
+            desc: "v1 prevotes for its own proposal in round 1",
+            input_event: Some(Event::Vote(
+                Vote::new_prevote(height, Round::new(1), Some(value.id()), addr1).signed(&sk1),
+            )),
+            expected_output: None,
+            expected_round: Round::new(0),
+            new_state: State {
+                height,
+                round: Round::new(0),
+                step: Step::Prevote,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        // v2 prevotes for v1 proposal in round 1, expected output is to move to next round
+        TestStep {
+            desc: "v2 prevotes for v1 proposal, we get +1/3 messages from future round",
+            input_event: Some(Event::Vote(
+                Vote::new_prevote(height, Round::new(1), Some(value.id()), addr2).signed(&sk2),
+            )),
+            expected_output: Some(Message::NewRound(height, Round::new(1))),
+            expected_round: Round::new(1),
+            new_state: State {
+                height,
+                round: Round::new(1),
+                step: Step::NewRound,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+    ];
+
+    let mut previous_message = None;
+
+    for step in steps {
+        println!("Step: {}", step.desc);
+
+        let execute_message = step
+            .input_event
+            .unwrap_or_else(|| previous_message.unwrap());
+
+        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
+        assert_eq!(output, step.expected_output, "expected output message");
+
+        assert_eq!(driver.round(), step.expected_round, "expected round");
+
+        assert_eq!(driver.round_state, step.new_state, "new state");
+
+        previous_message = output.and_then(to_input_msg);
+    }
+}

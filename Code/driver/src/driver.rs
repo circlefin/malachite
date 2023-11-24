@@ -10,6 +10,7 @@ use malachite_round::state::State as RoundState;
 use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
+use malachite_vote::ThresholdParams;
 
 use crate::event::Event;
 use crate::message::Message;
@@ -45,7 +46,10 @@ where
         validator_set: Ctx::ValidatorSet,
         address: Ctx::Address,
     ) -> Self {
-        let votes = VoteKeeper::new(validator_set.total_voting_power());
+        let votes = VoteKeeper::new(
+            validator_set.total_voting_power(),
+            ThresholdParams::default(), // TODO: Make this configurable
+        );
 
         Self {
             ctx,
@@ -55,6 +59,14 @@ where
             votes,
             round_state: RoundState::default(),
         }
+    }
+
+    pub fn height(&self) -> &Ctx::Height {
+        &self.round_state.height
+    }
+
+    pub fn round(&self) -> Round {
+        self.round_state.round
     }
 
     pub fn get_proposer(&self, round: Round) -> Result<&Ctx::Validator, Error<Ctx>> {
@@ -77,9 +89,7 @@ where
         };
 
         let msg = match round_msg {
-            RoundMessage::NewRound(round) => {
-                Message::NewRound(self.round_state.height.clone(), round)
-            }
+            RoundMessage::NewRound(round) => Message::NewRound(self.height().clone(), round),
 
             RoundMessage::Proposal(proposal) => {
                 // sign the proposal
@@ -215,11 +225,12 @@ where
             ));
         }
 
-        let round = signed_vote.vote.round();
+        let vote_round = signed_vote.vote.round();
+        let current_round = self.round();
 
-        let Some(vote_msg) = self
-            .votes
-            .apply_vote(signed_vote.vote, validator.voting_power())
+        let Some(vote_msg) =
+            self.votes
+                .apply_vote(signed_vote.vote, validator.voting_power(), current_round)
         else {
             return Ok(None);
         };
@@ -233,7 +244,7 @@ where
             VoteMessage::SkipRound(r) => RoundEvent::SkipRound(r),
         };
 
-        self.apply_event(round, round_event)
+        self.apply_event(vote_round, round_event)
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
