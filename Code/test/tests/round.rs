@@ -7,6 +7,7 @@ use malachite_round::state::{State, Step};
 use malachite_round::state_machine::{apply_event, Info};
 
 const ADDRESS: Address = Address::new([42; 20]);
+const OTHER_ADDRESS: Address = Address::new([21; 20]);
 
 #[test]
 fn test_propose() {
@@ -20,9 +21,10 @@ fn test_propose() {
         ..Default::default()
     };
 
+    // We are the proposer
     let data = Info::new(round, &ADDRESS, &ADDRESS);
 
-    let transition = apply_event(state.clone(), &data, Event::NewRoundProposer);
+    let transition = apply_event(state.clone(), &data, Event::NewRound);
 
     state.step = Step::Propose;
     assert_eq!(transition.next_state, state);
@@ -53,7 +55,8 @@ fn test_prevote() {
         ..Default::default()
     };
 
-    let data = Info::new(Round::new(1), &ADDRESS, &ADDRESS);
+    // We are not the proposer
+    let data = Info::new(Round::new(1), &ADDRESS, &OTHER_ADDRESS);
 
     let transition = apply_event(state, &data, Event::NewRound);
 

@@ -5,10 +5,9 @@ pub enum Event<Ctx>
 where
     Ctx: Context,
 {
-    NewRound,                                 // Start a new round, not as proposer.L20
-    NewRoundProposer, // Start a new round and wait for a value to propose.L14
+    NewRound,                 // Start a new round, either as proposer or not. L14/L20
     ProposeValue(Ctx::Value), // Propose a value.L14
-    Proposal(Ctx::Proposal), // Receive a proposal. L22 + L23 (valid)
+    Proposal(Ctx::Proposal),  // Receive a proposal. L22 + L23 (valid)
     ProposalAndPolkaPrevious(Ctx::Proposal), // Recieved a proposal and a polka value from a previous round. L28 + L29 (valid)
     ProposalInvalid,                         // Receive an invalid proposal. L26 + L32 (invalid)
     PolkaValue(ValueId<Ctx>),                // Receive +2/3 prevotes for valueId. L44
