@@ -153,7 +153,7 @@ module voteBookkeeper {
     // Called by the executor when it receives a vote. The function takes the following steps:
     // - It first adds the vote and then computes a threshold.
     // - If there exist a threshold and has not emitted before, the function returns the corresponsing ExecutorEvent.
-    // - Othewise, the function returns a no-threshold event.
+    // - Otherwise, the function returns a no-threshold event.
     // - Note that if there is no threshold after adding the vote, the function checks if there is a skip threshold.
     // TO DISCUSS:
     // - There might be a problem if we generalize from single-shot to multi-shot: the keeper only keeps the totalWeight
