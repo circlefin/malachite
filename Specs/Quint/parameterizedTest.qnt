@@ -57,6 +57,11 @@ run UnSuccessfulRound (prop: str, r: int) : bool = {
     .then(everyoneTakesAStep)
     .then(everyoneDeliversPrecommit(prop, r, proposer, nonprop))
     .then(4.reps(i => everyoneTakesAStep))
+    .then(all {
+        assert(N4F0::system.keys().forall(p => N4F0::system.get(p).timeout.contains(
+            ("TimeoutPrecommit", 0, r)) )),
+        N4F0::unchangedAll
+    })    
 } 
 
 run UnSuccessfulRoundWithSetup (prop: str, r: int) : bool = {
