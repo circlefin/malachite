@@ -10,8 +10,8 @@ module executor {
 import consensus.* from "./consensus"
 import voteBookkeeper.* from "./voteBookkeeper"
 
-pure def initBookKeeper (currentRound: Round, totalVotingPower: int): Bookkeeper = 
-    { height: 0, currentRound: currentRound, totalWeight: totalVotingPower, rounds: Map() }
+pure def initBookKeeper(totalVotingPower: int): Bookkeeper = 
+    { height: 0, totalWeight: totalVotingPower, rounds: Map() }
 
 
 type ExecutorState = {
@@ -30,7 +30,7 @@ type ExecutorState = {
 pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
     val tvp = vs.keys().fold(0, (sum, key) => sum + vs.get(key))
     {
-    bk: initBookKeeper(0, tvp),
+    bk: initBookKeeper(tvp),
     cs: initConsensusState(v),
     proposals: Set(),
     valset: vs,
@@ -155,12 +155,10 @@ pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (Executo
     else
         // Go to consensus
         val res = consensus(es.cs, ev)
-        // Update the round in the vote keeper, in case we moved to a new round
-        val newBk = { ...bk, currentRound: res.cs.round }
         // Record that we executed the event
         val events = es.executedEvents.append((ev, res.cs.height, res.cs.round))
 
-        ({ ...es, bk: newBk, cs: res.cs, executedEvents: events }, res.out)
+        ({ ...es, bk: bk, cs: res.cs, executedEvents: events }, res.out)
 }
 
 
@@ -483,7 +481,7 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Co
             res
     }
     else if (input.name == "votemessage" and input.vote.step == "Precommit") {
-        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
+        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src), es.cs.round)
         val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
         // only a commit event can come here. 
         val cons_res = Precommit(newES, input, res.event) 
@@ -495,7 +493,7 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Co
             cons_res
     }
     else if (input.name == "votemessage" and input.vote.step == "Prevote") {
-        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
+        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src), es.cs.round)
         val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
         // only a commit event can come here. 
         val cons_res = Prevote(newES, input, res.event) 
