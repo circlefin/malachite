@@ -87,27 +87,27 @@ pub fn decide_message(round: Round, value: Value) -> Option<Message<TestContext>
     Some(Message::Decide(round, value))
 }
 
-pub fn timeout_propose_msg(round: Round) -> Option<Message<TestContext>> {
+pub fn start_propose_timer_msg(round: Round) -> Option<Message<TestContext>> {
     Some(Message::ScheduleTimeout(Timeout::propose(round)))
 }
 
-pub fn timeout_propose_fire_event(round: Round) -> Option<Event<TestContext>> {
+pub fn timeout_propose_event(round: Round) -> Option<Event<TestContext>> {
     Some(Event::TimeoutElapsed(Timeout::propose(round)))
 }
 
-pub fn timeout_prevote_msg(round: Round) -> Option<Message<TestContext>> {
+pub fn start_prevote_timer_msg(round: Round) -> Option<Message<TestContext>> {
     Some(Message::ScheduleTimeout(Timeout::prevote(round)))
 }
 
-pub fn timeout_prevote_fire_event(round: Round) -> Option<Event<TestContext>> {
+pub fn timeout_prevote_event(round: Round) -> Option<Event<TestContext>> {
     Some(Event::TimeoutElapsed(Timeout::prevote(round)))
 }
 
-pub fn timeout_precommit_msg(round: Round) -> Option<Message<TestContext>> {
+pub fn start_precommit_timer_msg(round: Round) -> Option<Message<TestContext>> {
     Some(Message::ScheduleTimeout(Timeout::precommit(round)))
 }
 
-pub fn timeout_precommit_fire_event(round: Round) -> Option<Event<TestContext>> {
+pub fn timeout_precommit_event(round: Round) -> Option<Event<TestContext>> {
     Some(Event::TimeoutElapsed(Timeout::precommit(round)))
 }
 
