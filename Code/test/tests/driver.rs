@@ -9,7 +9,7 @@ use malachite_test::{
     Address, Height, PrivateKey, Proposal, TestContext, Validator, ValidatorSet, Value, Vote,
 };
 
-struct TestStep {
+pub struct TestStep {
     desc: &'static str,
     input_event: Option<Event<TestContext>>,
     expected_output: Option<Message<TestContext>>,
@@ -17,7 +17,7 @@ struct TestStep {
     new_state: State<TestContext>,
 }
 
-fn to_input_msg(output: Message<TestContext>) -> Option<Event<TestContext>> {
+pub fn msg_to_event(output: Message<TestContext>) -> Option<Event<TestContext>> {
     match output {
         Message::NewRound(height, round) => Some(Event::NewRound(height, round)),
         // Let's consider our own proposal to always be valid
@@ -258,16 +258,16 @@ fn driver_steps_proposer() {
         },
     ];
 
-    let mut previous_message = None;
+    let mut event_from_previous_msg = None;
 
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let execute_message = step
+        let execute_event = step
             .input_event
-            .unwrap_or_else(|| previous_message.unwrap());
+            .unwrap_or_else(|| event_from_previous_msg.unwrap());
 
-        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
+        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(
@@ -277,7 +277,7 @@ fn driver_steps_proposer() {
 
         assert_eq!(driver.round_state, step.new_state, "expected state");
 
-        previous_message = output.and_then(to_input_msg);
+        event_from_previous_msg = output.and_then(msg_to_event);
     }
 }
 
@@ -339,16 +339,16 @@ fn driver_steps_proposer_timeout_get_value() {
         },
     ];
 
-    let mut previous_message = None;
+    let mut event_from_previous_msg = None;
 
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let execute_message = step
+        let execute_event = step
             .input_event
-            .unwrap_or_else(|| previous_message.unwrap());
+            .unwrap_or_else(|| event_from_previous_msg.unwrap());
 
-        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
+        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(
@@ -358,7 +358,7 @@ fn driver_steps_proposer_timeout_get_value() {
 
         assert_eq!(driver.round_state, step.new_state, "expected state");
 
-        previous_message = output.and_then(to_input_msg);
+        event_from_previous_msg = output.and_then(msg_to_event);
     }
 }
 
@@ -548,16 +548,16 @@ fn driver_steps_not_proposer_valid() {
         },
     ];
 
-    let mut previous_message = None;
+    let mut event_from_previous_msg = None;
 
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let execute_message = step
+        let execute_event = step
             .input_event
-            .unwrap_or_else(|| previous_message.unwrap());
+            .unwrap_or_else(|| event_from_previous_msg.unwrap());
 
-        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
+        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(
@@ -567,7 +567,7 @@ fn driver_steps_not_proposer_valid() {
 
         assert_eq!(driver.round_state, step.new_state, "expected state");
 
-        previous_message = output.and_then(to_input_msg);
+        event_from_previous_msg = output.and_then(msg_to_event);
     }
 }
 
@@ -695,16 +695,16 @@ fn driver_steps_not_proposer_invalid() {
         },
     ];
 
-    let mut previous_message = None;
+    let mut event_from_previous_msg = None;
 
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let execute_message = step
+        let execute_event = step
             .input_event
-            .unwrap_or_else(|| previous_message.unwrap());
+            .unwrap_or_else(|| event_from_previous_msg.unwrap());
 
-        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
+        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(
@@ -714,7 +714,7 @@ fn driver_steps_not_proposer_invalid() {
 
         assert_eq!(driver.round_state, step.new_state, "expected state");
 
-        previous_message = output.and_then(to_input_msg);
+        event_from_previous_msg = output.and_then(msg_to_event);
     }
 }
 
@@ -911,21 +911,21 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         },
     ];
 
-    let mut previous_message = None;
+    let mut event_from_previous_msg = None;
 
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let execute_message = step
+        let execute_event = step
             .input_event
-            .unwrap_or_else(|| previous_message.unwrap());
+            .unwrap_or_else(|| event_from_previous_msg.unwrap());
 
-        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
+        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(driver.round_state, step.new_state, "new state");
 
-        previous_message = output.and_then(to_input_msg);
+        event_from_previous_msg = output.and_then(msg_to_event);
     }
 }
 
@@ -1175,22 +1175,22 @@ fn driver_steps_skip_round_skip_threshold() {
         },
     ];
 
-    let mut previous_message = None;
+    let mut event_from_previous_msg = None;
 
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let execute_message = step
+        let execute_event = step
             .input_event
-            .unwrap_or_else(|| previous_message.unwrap());
+            .unwrap_or_else(|| event_from_previous_msg.unwrap());
 
-        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
+        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(driver.round(), step.expected_round, "expected round");
         assert_eq!(driver.round_state, step.new_state, "new state");
 
-        previous_message = output.and_then(to_input_msg);
+        event_from_previous_msg = output.and_then(msg_to_event);
     }
 }
 
@@ -1307,22 +1307,22 @@ fn driver_steps_skip_round_quorum_threshold() {
         },
     ];
 
-    let mut previous_message = None;
+    let mut event_from_previous_msg = None;
 
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let execute_message = step
+        let execute_event = step
             .input_event
-            .unwrap_or_else(|| previous_message.unwrap());
+            .unwrap_or_else(|| event_from_previous_msg.unwrap());
 
-        let output = block_on(driver.execute(execute_message)).expect("execute succeeded");
+        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(driver.round(), step.expected_round, "expected round");
 
         assert_eq!(driver.round_state, step.new_state, "new state");
 
-        previous_message = output.and_then(to_input_msg);
+        event_from_previous_msg = output.and_then(msg_to_event);
     }
 }
