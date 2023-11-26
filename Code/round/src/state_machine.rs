@@ -51,11 +51,7 @@ where
 /// Valid transitions result in at least a change to the state and/or an output message.
 ///
 /// Commented numbers refer to line numbers in the spec paper.
-pub fn apply_event<Ctx>(
-    mut state: State<Ctx>,
-    info: &Info<Ctx>,
-    event: Event<Ctx>,
-) -> Transition<Ctx>
+pub fn apply_event<Ctx>(state: State<Ctx>, info: &Info<Ctx>, event: Event<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
@@ -77,26 +73,25 @@ where
             propose(state, value) // L11/L14
         }
 
+        // L22 with valid proposal
         (Step::Propose, Event::Proposal(proposal))
             if this_round && proposal.pol_round().is_nil() =>
         {
-            // L22
             if state
                 .locked
                 .as_ref()
                 .map_or(true, |locked| &locked.value == proposal.value())
             {
-                state.proposal = Some(proposal.clone());
                 prevote(state, info.address, &proposal)
             } else {
                 prevote_nil(state, info.address)
             }
         }
 
+        // L28 with valid proposal
         (Step::Propose, Event::ProposalAndPolkaPrevious(proposal))
             if this_round && is_valid_pol_round(&state, proposal.pol_round()) =>
         {
-            // L28
             let Some(locked) = state.locked.as_ref() else {
                 return prevote_nil(state, info.address);
             };
@@ -108,7 +103,14 @@ where
             }
         }
 
-        (Step::Propose, Event::ProposalInvalid) if this_round => prevote_nil(state, info.address), // L22/L25, L28/L31
+        // L28 with invalid proposal
+        (Step::Propose, Event::InvalidProposalAndPolkaPrevious(proposal))
+            if this_round && is_valid_pol_round(&state, proposal.pol_round()) =>
+        {
+            prevote_nil(state, info.address)
+        }
+
+        (Step::Propose, Event::InvalidProposal) if this_round => prevote_nil(state, info.address), // L22/L25, L28/L31
 
         // We are the proposer.
         (Step::Propose, Event::TimeoutPropose) if this_round && info.is_proposer() => {
@@ -128,7 +130,7 @@ where
 
         // From Precommit. Event must be for current round.
         (Step::Precommit, Event::ProposalAndPolkaCurrent(proposal)) if this_round => {
-            set_valid_value(state, proposal.value().clone()) // L36/L42 - NOTE: only once?
+            set_valid_value(state, &proposal) // L36/L42 - NOTE: only once?
         }
 
         // From Commit. No more state transitions.
@@ -201,7 +203,7 @@ where
 ///
 /// Ref: L22/L28
 pub fn prevote<Ctx>(
-    state: State<Ctx>,
+    mut state: State<Ctx>,
     address: &Ctx::Address,
     proposal: &Ctx::Proposal,
 ) -> Transition<Ctx>
@@ -218,6 +220,7 @@ where
     };
 
     let message = Message::prevote(state.height.clone(), state.round, value, address.clone());
+    state.proposal = Some(proposal.clone());
     Transition::to(state.with_step(Step::Prevote)).with_message(message)
 }
 
@@ -345,22 +348,12 @@ where
 /// Ref: L36/L42
 ///
 /// NOTE: only one of this and precommit should be called once in a round
-pub fn set_valid_value<Ctx>(state: State<Ctx>, value: Ctx::Value) -> Transition<Ctx>
+pub fn set_valid_value<Ctx>(mut state: State<Ctx>, proposal: &Ctx::Proposal) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    // Check that we're locked on this value
-    let Some(locked) = state.locked.as_ref() else {
-        // TODO: Add logging
-        return Transition::invalid(state);
-    };
-
-    if locked.value.id() != value.id() {
-        // TODO: Add logging
-        return Transition::invalid(state);
-    }
-
-    Transition::to(state.clone().set_valid(locked.value.clone()))
+    state.proposal = Some(proposal.clone());
+    Transition::to(state.clone().set_valid(proposal.value().clone()))
 }
 
 //---------------------------------------------------------------------
@@ -375,7 +368,13 @@ pub fn round_skip<Ctx>(state: State<Ctx>, round: Round) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    Transition::to(State::new(state.height.clone(), round)).with_message(Message::NewRound(round))
+    let new_state = State {
+        round,
+        step: Step::NewRound,
+        ..state
+    };
+
+    Transition::to(new_state).with_message(Message::NewRound(round))
 }
 
 /// We received +2/3 precommits for a value - commit and decide that value!
@@ -385,17 +384,6 @@ pub fn commit<Ctx>(state: State<Ctx>, round: Round, proposal: Ctx::Proposal) -> 
 where
     Ctx: Context,
 {
-    // Check that we're locked on this value
-    let Some(locked) = state.locked.as_ref() else {
-        // TODO: Add logging
-        return Transition::invalid(state);
-    };
-
-    if locked.value.id() != proposal.value().id() {
-        // TODO: Add logging
-        return Transition::invalid(state);
-    }
-
-    let message = Message::decision(round, locked.value.clone());
+    let message = Message::decision(round, proposal.value().clone());
     Transition::to(state.with_step(Step::Commit)).with_message(message)
 }
