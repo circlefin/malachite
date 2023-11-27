@@ -713,6 +713,78 @@ fn driver_steps_not_proposer_other_height() {
 }
 
 #[test]
+fn driver_steps_not_proposer_other_round() {
+    let value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, sk2)] = make_validators([1, 2]);
+
+    // Proposer is v1, so we are not the proposer
+    let (my_sk, my_addr) = (sk2, v2.address);
+
+    let ctx = TestContext::new(my_sk.clone());
+    let sel = FixedProposer::new(v1.address);
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone()]);
+
+    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+
+    // Proposal is for another round
+    let proposal = Proposal::new(Height::new(1), Round::new(1), value, Round::new(-1));
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we are not the proposer",
+            input_event: Some(Event::NewRound(Height::new(1), Round::new(0))),
+            expected_output: Some(Message::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Propose,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+        TestStep {
+            desc: "Receive a proposal for another round, ignore it (v2)",
+            input_event: Some(Event::Proposal(proposal.clone(), Validity::Invalid)),
+            expected_output: None,
+            expected_round: Round::new(0),
+            new_state: State {
+                height: Height::new(1),
+                round: Round::new(0),
+                step: Step::Propose,
+                proposal: None,
+                locked: None,
+                valid: None,
+            },
+        },
+    ];
+
+    let mut event_from_previous_msg = None;
+
+    for step in steps {
+        println!("Step: {}", step.desc);
+
+        let execute_event = step
+            .input_event
+            .unwrap_or_else(|| event_from_previous_msg.unwrap());
+
+        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
+        assert_eq!(output, step.expected_output, "expected output");
+
+        assert_eq!(
+            driver.round_state.round, step.expected_round,
+            "expected round"
+        );
+
+        assert_eq!(driver.round_state, step.new_state, "expected state");
+
+        event_from_previous_msg = output.and_then(msg_to_event);
+    }
+}
+
+#[test]
 fn driver_steps_not_proposer_timeout_multiple_rounds() {
     let value = Value::new(9999);
 
