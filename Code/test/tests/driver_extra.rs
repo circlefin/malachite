@@ -8,10 +8,10 @@ use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value};
 
 use malachite_test::utils::*;
 
-// TODO - move all bellow to utils?
+// TODO - move all below to utils?
 struct TestStep {
     desc: &'static str,
-    input_event: Option<Event<TestContext>>,
+    input_event: Event<TestContext>,
     expected_output: Option<Message<TestContext>>,
     expected_round: Round,
     new_state: State<TestContext>,
@@ -89,16 +89,10 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
         },
     ];
 
-    let mut event_from_previous_msg = None;
-
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let execute_event = step
-            .input_event
-            .unwrap_or_else(|| event_from_previous_msg.unwrap());
-
-        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
+        let output = block_on(driver.execute(step.input_event)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(
@@ -107,8 +101,6 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
         );
 
         assert_eq!(driver.round_state, step.new_state, "expected state");
-
-        event_from_previous_msg = output.and_then(msg_to_event);
     }
 }
 
@@ -209,16 +201,10 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
         },
     ];
 
-    let mut event_from_previous_msg = None;
-
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let execute_event = step
-            .input_event
-            .unwrap_or_else(|| event_from_previous_msg.unwrap());
-
-        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
+        let output = block_on(driver.execute(step.input_event)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(
@@ -227,8 +213,6 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
         );
 
         assert_eq!(driver.round_state, step.new_state, "expected state");
-
-        event_from_previous_msg = output.and_then(msg_to_event);
     }
 }
 
@@ -338,16 +322,10 @@ fn driver_steps_polka_previous_with_locked() {
         },
     ];
 
-    let mut event_from_previous_msg = None;
-
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let execute_event = step
-            .input_event
-            .unwrap_or_else(|| event_from_previous_msg.unwrap());
-
-        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
+        let output = block_on(driver.execute(step.input_event)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(
@@ -356,8 +334,6 @@ fn driver_steps_polka_previous_with_locked() {
         );
 
         assert_eq!(driver.round_state, step.new_state, "expected state");
-
-        event_from_previous_msg = output.and_then(msg_to_event);
     }
 }
 
@@ -444,16 +420,10 @@ fn driver_steps_polka_previous_invalid_proposal_with_locked() {
         },
     ];
 
-    let mut event_from_previous_msg = None;
-
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let execute_event = step
-            .input_event
-            .unwrap_or_else(|| event_from_previous_msg.unwrap());
-
-        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
+        let output = block_on(driver.execute(step.input_event)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(
@@ -462,8 +432,6 @@ fn driver_steps_polka_previous_invalid_proposal_with_locked() {
         );
 
         assert_eq!(driver.round_state, step.new_state, "expected state");
-
-        event_from_previous_msg = output.and_then(msg_to_event);
     }
 }
 
@@ -559,7 +527,7 @@ fn driver_steps_polka_previous_with_no_locked() {
         },
         TestStep {
             desc: "Receive f+1 vote for round 1 from v3",
-            input_event: prevote_msg(Round::new(1), &v3.address, &sk3).and_then(msg_to_event),
+            input_event: prevote_event_at(Round::new(1), &v3.address, &sk3),
             expected_output: new_round_msg(Round::new(1)),
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_valid(
@@ -591,16 +559,10 @@ fn driver_steps_polka_previous_with_no_locked() {
         },
     ];
 
-    let mut event_from_previous_msg = None;
-
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let execute_event = step
-            .input_event
-            .unwrap_or_else(|| event_from_previous_msg.unwrap());
-
-        let output = block_on(driver.execute(execute_event)).expect("execute succeeded");
+        let output = block_on(driver.execute(step.input_event)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output message");
 
         assert_eq!(
@@ -609,7 +571,5 @@ fn driver_steps_polka_previous_with_no_locked() {
         );
 
         assert_eq!(driver.round_state, step.new_state, "expected state");
-
-        event_from_previous_msg = output.and_then(msg_to_event);
     }
 }
