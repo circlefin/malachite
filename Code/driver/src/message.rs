@@ -7,11 +7,23 @@ pub enum Message<Ctx>
 where
     Ctx: Context,
 {
-    Propose(Ctx::Proposal),
-    Vote(SignedVote<Ctx>),
-    Decide(Round, Ctx::Value),
-    ScheduleTimeout(Timeout),
+    /// Start a new round
     NewRound(Ctx::Height, Round),
+
+    /// Broadcast a proposal
+    Propose(Ctx::Proposal),
+
+    /// Broadcast a vote for a value
+    Vote(SignedVote<Ctx>),
+
+    /// Decide on a value
+    Decide(Round, Ctx::Value),
+
+    /// Schedule a timeout
+    ScheduleTimeout(Timeout),
+
+    /// Ask for a value to propose and schedule a timeout
+    GetValueAndScheduleTimeout(Round, Timeout),
 }
 
 // NOTE: We have to derive these instances manually, otherwise
@@ -22,11 +34,14 @@ impl<Ctx: Context> Clone for Message<Ctx> {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         match self {
+            Message::NewRound(height, round) => Message::NewRound(height.clone(), *round),
             Message::Propose(proposal) => Message::Propose(proposal.clone()),
             Message::Vote(signed_vote) => Message::Vote(signed_vote.clone()),
             Message::Decide(round, value) => Message::Decide(*round, value.clone()),
             Message::ScheduleTimeout(timeout) => Message::ScheduleTimeout(*timeout),
-            Message::NewRound(height, round) => Message::NewRound(height.clone(), *round),
+            Message::GetValueAndScheduleTimeout(round, timeout) => {
+                Message::GetValueAndScheduleTimeout(*round, *timeout)
+            }
         }
     }
 }
@@ -35,11 +50,14 @@ impl<Ctx: Context> fmt::Debug for Message<Ctx> {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Message::NewRound(height, round) => write!(f, "NewRound({:?}, {:?})", height, round),
             Message::Propose(proposal) => write!(f, "Propose({:?})", proposal),
             Message::Vote(signed_vote) => write!(f, "Vote({:?})", signed_vote),
             Message::Decide(round, value) => write!(f, "Decide({:?}, {:?})", round, value),
             Message::ScheduleTimeout(timeout) => write!(f, "ScheduleTimeout({:?})", timeout),
-            Message::NewRound(height, round) => write!(f, "NewRound({:?}, {:?})", height, round),
+            Message::GetValueAndScheduleTimeout(round, timeout) => {
+                write!(f, "GetValueAndScheduleTimeout({:?}, {:?})", round, timeout)
+            }
         }
     }
 }
@@ -48,6 +66,9 @@ impl<Ctx: Context> PartialEq for Message<Ctx> {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Message::NewRound(height, round), Message::NewRound(other_height, other_round)) => {
+                height == other_height && round == other_round
+            }
             (Message::Propose(proposal), Message::Propose(other_proposal)) => {
                 proposal == other_proposal
             }
@@ -60,9 +81,10 @@ impl<Ctx: Context> PartialEq for Message<Ctx> {
             (Message::ScheduleTimeout(timeout), Message::ScheduleTimeout(other_timeout)) => {
                 timeout == other_timeout
             }
-            (Message::NewRound(height, round), Message::NewRound(other_height, other_round)) => {
-                height == other_height && round == other_round
-            }
+            (
+                Message::GetValueAndScheduleTimeout(round, timeout),
+                Message::GetValueAndScheduleTimeout(other_round, other_timeout),
+            ) => round == other_round && timeout == other_timeout,
             _ => false,
         }
     }

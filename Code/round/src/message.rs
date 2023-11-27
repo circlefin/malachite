@@ -8,11 +8,12 @@ pub enum Message<Ctx>
 where
     Ctx: Context,
 {
-    NewRound(Round),                  // Move to the new round.
-    Proposal(Ctx::Proposal),          // Broadcast the proposal.
-    Vote(Ctx::Vote),                  // Broadcast the vote.
-    ScheduleTimeout(Timeout),         // Schedule the timeout.
-    Decision(RoundValue<Ctx::Value>), // Decide the value.
+    NewRound(Round),                            // Move to the new round.
+    Proposal(Ctx::Proposal),                    // Broadcast the proposal.
+    Vote(Ctx::Vote),                            // Broadcast the vote.
+    ScheduleTimeout(Timeout),                   // Schedule the timeout.
+    GetValueAndScheduleTimeout(Round, Timeout), // Ask for a value and schedule a timeout.
+    Decision(RoundValue<Ctx::Value>),           // Decide the value.
 }
 
 impl<Ctx: Context> Message<Ctx> {
@@ -47,6 +48,10 @@ impl<Ctx: Context> Message<Ctx> {
         Message::ScheduleTimeout(Timeout { round, step })
     }
 
+    pub fn get_value_and_schedule_timeout(round: Round, step: TimeoutStep) -> Self {
+        Message::GetValueAndScheduleTimeout(round, Timeout { round, step })
+    }
+
     pub fn decision(round: Round, value: Ctx::Value) -> Self {
         Message::Decision(RoundValue { round, value })
     }
@@ -64,6 +69,9 @@ impl<Ctx: Context> Clone for Message<Ctx> {
             Message::Proposal(proposal) => Message::Proposal(proposal.clone()),
             Message::Vote(vote) => Message::Vote(vote.clone()),
             Message::ScheduleTimeout(timeout) => Message::ScheduleTimeout(*timeout),
+            Message::GetValueAndScheduleTimeout(round, timeout) => {
+                Message::GetValueAndScheduleTimeout(*round, *timeout)
+            }
             Message::Decision(round_value) => Message::Decision(round_value.clone()),
         }
     }
@@ -77,6 +85,9 @@ impl<Ctx: Context> fmt::Debug for Message<Ctx> {
             Message::Proposal(proposal) => write!(f, "Proposal({:?})", proposal),
             Message::Vote(vote) => write!(f, "Vote({:?})", vote),
             Message::ScheduleTimeout(timeout) => write!(f, "ScheduleTimeout({:?})", timeout),
+            Message::GetValueAndScheduleTimeout(round, timeout) => {
+                write!(f, "GetValueAndScheduleTimeout({:?}, {:?})", round, timeout)
+            }
             Message::Decision(round_value) => write!(f, "Decision({:?})", round_value),
         }
     }
@@ -94,6 +105,10 @@ impl<Ctx: Context> PartialEq for Message<Ctx> {
             (Message::ScheduleTimeout(timeout), Message::ScheduleTimeout(other_timeout)) => {
                 timeout == other_timeout
             }
+            (
+                Message::GetValueAndScheduleTimeout(round, timeout),
+                Message::GetValueAndScheduleTimeout(other_round, other_timeout),
+            ) => round == other_round && timeout == other_timeout,
             (Message::Decision(round_value), Message::Decision(other_round_value)) => {
                 round_value == other_round_value
             }

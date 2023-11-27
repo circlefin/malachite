@@ -17,7 +17,9 @@
 module statemachineAsync {
 
 import executor.* from "./executor"
+export executor.* 
 import consensus.* from "./consensus"
+export consensus.* 
 import voteBookkeeper.* from "./voteBookkeeper"
 
 const validators : Set[Address_t]
@@ -109,13 +111,15 @@ action valStep(v: Address_t) : bool = {
         val sys = sys1.put(v, { ...sys1.get(v), es: res._1})
         // do networking
         if (res._2.name == "proposal") all {
-            propBuffer' = sendProposal(propBuffer, res._2.proposal), // TODO: this is immediate
+            // TODO: do we need to start a timeout on this result, that is, when we are proposer and
+            // send a proposal?
+            propBuffer' = sendProposal(propBuffer, res._2.proposal), 
             voteBuffer' = voteBuffer,
             system' = sys,
         }
         else if (res._2.name == "votemessage") all {
             propBuffer' = propBuffer,
-            voteBuffer' = sendVote(voteBuffer, res._2.voteMessage), // TODO: this is immediate
+            voteBuffer' = sendVote(voteBuffer, res._2.voteMessage), 
             system' = sys,
         }
         else if (res._2.name == "timeout") all {

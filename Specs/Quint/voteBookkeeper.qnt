@@ -81,7 +81,6 @@ module voteBookkeeper {
 
     type Bookkeeper = {
         height: Height,
-        currentRound: Round,
         totalWeight: Weight,
         rounds: Round -> RoundVotes
     }
@@ -241,12 +240,12 @@ module voteBookkeeper {
     // Called by the executor when it receives a vote. The function takes the following steps:
     // - It first adds the vote and then computes a threshold.
     // - If there exist a threshold and has not emitted before, the function returns the corresponsing ExecutorEvent.
-    // - Othewise, the function returns a no-threshold event.
+    // - Otherwise, the function returns a no-threshold event.
     // - Note that if there is no threshold after adding the vote, the function checks if there is a skip threshold.
     // TO DISCUSS:
     // - There might be a problem if we generalize from single-shot to multi-shot: the keeper only keeps the totalWeight
     //   of the current height; I wonder if we need to keep the totalWeight for every Height that we may receive a vote for.
-    pure def applyVote(keeper: Bookkeeper, vote: Vote, weight: Weight): { bookkeeper: Bookkeeper, event: ExecutorEvent } =
+    pure def applyVote(keeper: Bookkeeper, vote: Vote, weight: Weight, currentRound: Round): { bookkeeper: Bookkeeper, event: ExecutorEvent } =
         val round = vote.round
         val roundVotes = keeper.rounds.getOrElse(round, newRoundVotes(keeper.height, round, keeper.totalWeight))
         
@@ -273,7 +272,7 @@ module voteBookkeeper {
         val combinedWeight = updatedVotesAddressesWeights.mapSumValues()
 
         val finalEvent =
-            if (vote.round > keeper.currentRound and isSkip(combinedWeight, keeper.totalWeight))
+            if (vote.round > currentRound and isSkip(combinedWeight, keeper.totalWeight))
                 skipEvent(vote.round)
             else
                 val threshold = computeThreshold(updatedVoteCount, vote.value)
@@ -405,15 +404,15 @@ module voteBookkeeper {
         lastEmitted' = lastEmitted,
     }
 
-    action initWith(initialHeight: Height, initialRound: Round, totalWeight: Weight): bool = all {
+    action initWith(initialHeight: Height, totalWeight: Weight): bool = all {
         weightedVote' = ({ typ: "", height: initialHeight, round: -1, value: "", address: "" }, -1),
-        bookkeeper' = { height: initialHeight, currentRound: initialRound, totalWeight: totalWeight, rounds: Map() },
+        bookkeeper' = { height: initialHeight, totalWeight: totalWeight, rounds: Map() },
         lastEmitted' = { round: -1, name: "", value: "null" }
     }
 
     // The vote keeper receives a weighted vote and produces an event.
-    action applyVoteAction(vote: Vote, weight: Weight): bool =
-        val result = applyVote(bookkeeper, vote, weight)
+    action applyVoteAction(vote: Vote, weight: Weight, currentRound: Round): bool =
+        val result = applyVote(bookkeeper, vote, weight, currentRound)
         all {
             weightedVote' = (vote, weight),
             bookkeeper' = result.bookkeeper,

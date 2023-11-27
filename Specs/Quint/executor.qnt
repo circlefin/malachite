@@ -10,8 +10,8 @@ module executor {
 import consensus.* from "./consensus"
 import voteBookkeeper.* from "./voteBookkeeper"
 
-pure def initBookKeeper (currentRound: Round, totalVotingPower: int): Bookkeeper = 
-    { height: 0, currentRound: currentRound, totalWeight: totalVotingPower, rounds: Map() }
+pure def initBookKeeper(totalVotingPower: int): Bookkeeper = 
+    { height: 0, totalWeight: totalVotingPower, rounds: Map() }
 
 
 type ExecutorState = {
@@ -30,7 +30,7 @@ type ExecutorState = {
 pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
     val tvp = vs.keys().fold(0, (sum, key) => sum + vs.get(key))
     {
-    bk: initBookKeeper(0, tvp),
+    bk: initBookKeeper(tvp),
     cs: initConsensusState(v),
     proposals: Set(),
     valset: vs,
@@ -155,12 +155,10 @@ pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (Executo
     else
         // Go to consensus
         val res = consensus(es.cs, ev)
-        // Update the round in the vote keeper, in case we moved to a new round
-        val newBk = { ...bk, currentRound: res.cs.round }
         // Record that we executed the event
         val events = es.executedEvents.append((ev, res.cs.height, res.cs.round))
 
-        ({ ...es, bk: newBk, cs: res.cs, executedEvents: events }, res.out)
+        ({ ...es, bk: bk, cs: res.cs, executedEvents: events }, res.out)
 }
 
 
@@ -197,15 +195,20 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent)
                 }    
             }
     else if (eev.name == "PrecommitAny" and eev.round == es.cs.round) {
-                callConsensus(es, es.bk,  { name: "PrecommitAny",
-                                            height: input.vote.height,
-                                            round: input.vote.round,
-                                            value: input.vote.id,
-                                            vr: -1})    
+        callConsensus(es, es.bk,  { name: "PrecommitAny",
+                                    height: input.vote.height,
+                                    round: input.vote.round,
+                                    value: input.vote.id,
+                                    vr: -1})    
     }
+    else if (eev.name == "Skip" and eev.round > es.cs.round)
+        callConsensus(es, es.bk,  { name: "RoundSkip",
+                                    height: input.vote.height,
+                                    round: input.vote.round,
+                                    value: input.vote.id,
+                                    vr: -1}) 
     else
         // none of the supported Precommit events. Do nothing
-        // TODO: catch skip round event
         (es, defaultResult)  
 }
 
@@ -253,8 +256,13 @@ pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) 
                                     round: es.cs.round,
                                     value: eev.value,
                                     vr: eev.round})  
+    else if (eev.name == "Skip" and eev.round > es.cs.round)
+        callConsensus(es, es.bk,  { name: "RoundSkip",
+                                    height: input.vote.height,
+                                    round: input.vote.round,
+                                    value: input.vote.id,
+                                    vr: -1}) 
     else
-        // TODO: catch skip round event
         (es, defaultResult)
 }
 
@@ -283,7 +291,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
         val receivedCommit = checkThreshold(    newES.bk, 
                                                 input.proposal.round, 
                                                 "Precommit", 
-                                                {name: "PrecommitValue", 
+                                                {name: "Value", 
                                                 value: id(input.proposal.proposal)})
         if (receivedCommit)
             // we have a commit that matches the proposal. We don't need to compare against
@@ -296,7 +304,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
                                     round: input.proposal.round,
                                     value: id(input.proposal.proposal),
                                     vr: input.proposal.validRound})  
-        else if (input.proposal.round != es.cs.round or input.proposal.height != es.cs.round) 
+        else if (input.proposal.round != es.cs.round or input.proposal.height != es.cs.height) 
             // the proposal is from the right proposer and valid, but not for this round
             // keep the proposal, do nothing else
             (newES, defaultResult)
@@ -305,17 +313,17 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
             val receivedPolkaValidRoundVal = checkThreshold(newES.bk,   
                                                             input.proposal.validRound, 
                                                             "Prevote", 
-                                                            {name: "PolkaValue", 
+                                                            {name: "Value", 
                                                             value: id(input.proposal.proposal)})
             val receivedPolkaCurrentVal = checkThreshold(   newES.bk, 
                                                             newES.cs.round, 
                                                             "Prevote", 
-                                                            {name: "PolkaValue", 
+                                                            {name: "Value", 
                                                             value: id(input.proposal.proposal)})
             val receivedCommitCurrentVal = checkThreshold(  newES.bk, 
                                                             newES.cs.round, 
                                                             "Precommit", 
-                                                            {name: "PrecommitValue", 
+                                                            {name: "Value", 
                                                             value: id(input.proposal.proposal)})
             if (newES.cs.step == "propose") 
                 if (input.proposal.validRound == -1)
@@ -379,7 +387,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
         // (not(valid(input.proposal))) 
         // keep ES (don't use newES here), that is, drop proposal
         if (es.cs.step == "propose" and es.cs.round == input.proposal.round and es.cs.height == input.proposal.height)
-            if (checkThreshold(es.bk, es.cs.round, "Prevote", {name: "PolkaValue", value: id(input.proposal.proposal)}))
+            if (checkThreshold(es.bk, es.cs.round, "Prevote", {name: "Value", value: id(input.proposal.proposal)}))
                 val event: Event = {name: "ProposalAndPolkaAndInValid", 
                                     height: es.cs.height,
                                     round: es.cs.round, 
@@ -464,27 +472,38 @@ pure def setValue(es: ExecutorState, value: Value_t) : (ExecutorState, Consensus
 pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     // TODO: shall we check whether the sender actually is in the validator set
     if (input.name == "proposal") {
-        val cons_res = ProposalMsg(es, input)
-        if (cons_res._2.name == "decided")
-            decided (cons_res._1, cons_res._2)
+        val res = ProposalMsg(es, input)
+        if (res._2.name == "decided")
+            decided (res._1, res._2)
+        else if (res._2.name == "skipRound")
+            skip (res._1, res._2.skipRound)
         else
-            cons_res
+            res
     }
     else if (input.name == "votemessage" and input.vote.step == "Precommit") {
-        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
+        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src), es.cs.round)
         val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
         // only a commit event can come here. 
         val cons_res = Precommit(newES, input, res.event) 
         if (cons_res._2.name == "decided")
             decided (cons_res._1, cons_res._2)
+        else if (cons_res._2.name == "skipRound")
+            skip (cons_res._1, cons_res._2.skipRound)
         else
             cons_res
     }
     else if (input.name == "votemessage" and input.vote.step == "Prevote") {
-        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
+        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src), es.cs.round)
         val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
         // only a commit event can come here. 
-        Prevote(newES, input, res.event) 
+        val cons_res = Prevote(newES, input, res.event) 
+        if (cons_res._2.name == "decided")
+            // TODO: dead branch. But we should put this after consensus call logic into a function
+            decided (cons_res._1, cons_res._2)
+        else if (cons_res._2.name == "skipRound")
+            skip (cons_res._1, cons_res._2.skipRound)
+        else
+            cons_res
     }
     else if (input.name == "timeout") {
         val res = Timeout(es, input)
