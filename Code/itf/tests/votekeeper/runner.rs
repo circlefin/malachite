@@ -47,14 +47,12 @@ impl ItfRunner for VoteKeeperRunner {
             _ => unreachable!(),
         };
         println!(
-            "🔵 step: vote={:?}, round={:?}, value={:?}, address={:?}, weight={:?}",
-            input_vote.typ, round, value, input_vote.address, weight
+            "🔵 step: vote={:?}, round={:?}, value={:?}, address={:?}, weight={:?}, current_round={:?}",
+            input_vote.typ, round, value, input_vote.address, weight, current_round
         );
 
-        let current_round = Round::new(*current_round);
-
         // Execute step.
-        Ok(actual.apply_vote(vote, *weight as u64, current_round))
+        Ok(actual.apply_vote(vote, *weight as u64, Round::new(*current_round)))
     }
 
     fn result_invariant(
