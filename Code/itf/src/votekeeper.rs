@@ -17,8 +17,6 @@ pub struct Bookkeeper {
     #[serde(with = "As::<Integer>")]
     pub height: Height,
     #[serde(with = "As::<Integer>")]
-    pub current_round: Round,
-    #[serde(with = "As::<Integer>")]
     pub total_weight: Weight,
     #[serde(with = "As::<HashMap<Integer, Same>>")]
     pub rounds: HashMap<Round, RoundVotes>,
@@ -74,6 +72,6 @@ pub struct State {
     #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::lastEmitted")]
     pub last_emitted: ExecutorEvent,
     #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::weightedVote")]
-    #[serde(with = "As::<(Same, Integer)>")]
-    pub weighted_vote: (Vote, Weight),
+    #[serde(with = "As::<(Same, Integer, Integer)>")]
+    pub weighted_vote: (Vote, Weight, Round),
 }

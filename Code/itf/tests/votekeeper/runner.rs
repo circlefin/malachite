@@ -36,7 +36,7 @@ impl ItfRunner for VoteKeeperRunner {
         expected: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
         // Build step to execute.
-        let (input_vote, weight) = &expected.weighted_vote;
+        let (input_vote, weight, current_round) = &expected.weighted_vote;
         let round = Round::new(input_vote.round);
         let height = Height::new(input_vote.height as u64);
         let value = value_from_model(&input_vote.value);
@@ -51,7 +51,7 @@ impl ItfRunner for VoteKeeperRunner {
             input_vote.typ, round, value, input_vote.address, weight
         );
 
-        let current_round = Round::new(expected.bookkeeper.current_round);
+        let current_round = Round::new(*current_round);
 
         // Execute step.
         Ok(actual.apply_vote(vote, *weight as u64, current_round))
