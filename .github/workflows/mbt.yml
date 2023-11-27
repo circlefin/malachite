@@ -6,10 +6,12 @@ on:
     paths:
       - Specs/Quint/**
       - Code/**
+      - .github/workflows/mbt.yml
   pull_request:
     paths:
       - Specs/Quint/**
       - Code/**
+      - .github/workflows/mbt.yml
 
 jobs:
   gen-traces:
