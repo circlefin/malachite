@@ -1,51 +1,29 @@
 name: Coverage
 
 on:
-  workflow_run:
-    workflows: [MBT]
-    types:
-      - completed
+  push:
+    branches: main
+    paths:
+      - Code/**
+      - Specs/Quint/**
+      - .github/workflows/coverage.yml
+  pull_request:
+    paths:
+      - Code/**
+      - Specs/Quint/**
+      - .github/workflows/coverage.yml
 
 jobs:
   coverage:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     defaults:
       run:
         working-directory: Code
     env:
       CARGO_TERM_COLOR: always
-      FIXTURES_DIR: Code/itf/tests/fixtures
-      ARTIFACT_NAME: trace-files
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - run: mkdir -p ${{ env.FIXTURES_DIR }}
-      - name: "Download artifact"
-        uses: actions/github-script@v6
-        with:
-          script: |
-            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               run_id: context.payload.workflow_run.id,
-            });
-            let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
-              return artifact.name == "${{ env.ARTIFACT_NAME }}"
-            })[0];
-            let download = await github.rest.actions.downloadArtifact({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               artifact_id: matchArtifact.id,
-               archive_format: 'zip',
-            });
-            let fs = require('fs');
-            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${process.env.FIXTURES_DIR}/${{ env.ARTIFACT_NAME }}.zip`, Buffer.from(download.data));
-
-      - name: "Unzip artifact"
-        working-directory: ${{ env.FIXTURES_DIR }}
-        run: unzip ${{ env.ARTIFACT_NAME }}.zip
-
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
