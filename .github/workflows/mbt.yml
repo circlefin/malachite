@@ -24,10 +24,10 @@ jobs:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
       - run: mkdir -p $TRACES_DIR
-      - name: Generate traces 
+      - name: Generate traces
         working-directory: Specs/Quint
         run: |
-          quint test --output traces/voteBookkeeper_{}.itf.json voteBookkeeperTest.qnt 
+          quint test --output traces/voteBookkeeper_{}.itf.json voteBookkeeperTest.qnt
       - name: Remove traces from imported modules
         run: rm $TRACES_DIR/*voteBookkeeperTest::*.*
       # This step is needed as a hack to clean the generated traces of repeated steps. The problem
@@ -35,7 +35,7 @@ jobs:
       # `allUnchanged` actions that are used when checking properties (see
       # https://github.com/informalsystems/quint/issues/1252).
       - name: Remove stuttering steps
-        run: find $TRACES_DIR -maxdepth 1 -type f -exec ./Scripts/trace-remove-stuttering-steps.sh {} \; 
+        run: find $TRACES_DIR -maxdepth 1 -type f -exec ./Scripts/trace-remove-stuttering-steps.sh {} \;
       - name: Display generated files
         run: ls -la $TRACES_DIR
       - name: Upload traces to artifact

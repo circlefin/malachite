@@ -51,7 +51,7 @@ jobs:
         with:
           token: ${{secrets.GITHUB_TOKEN}}
           args: --all-features --all-targets --manifest-path Code/Cargo.toml
- 
+
   fmt:
     name: Formatting
     runs-on: ubuntu-latest
