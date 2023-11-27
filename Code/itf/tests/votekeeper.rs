@@ -18,7 +18,26 @@ const RANDOM_SEED: u64 = 0x42;
 
 #[test]
 fn test_itf() {
-    for json_fixture in glob("tests/fixtures/votekeeper/*.itf.json")
+    let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+
+    let quint_seed = option_env!("QUINT_SEED")
+        // use inspect when stabilized
+        .map(|x| {
+            println!("using QUINT_SEED={}", x);
+            x
+        })
+        .or(Some("118"))
+        .and_then(|x| x.parse::<u64>().ok())
+        .filter(|&x| x != 0)
+        .expect("invalid random seed for quint");
+
+    generate_traces(
+        "voteBookkeeperTest.qnt",
+        &temp_dir.path().to_string_lossy(),
+        quint_seed,
+    );
+
+    for json_fixture in glob(&format!("{}/*.itf.json", temp_dir.path().display()))
         .expect("Failed to read glob pattern")
         .flatten()
     {

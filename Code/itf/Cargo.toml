@@ -19,3 +19,6 @@ serde            = { workspace = true, features = ["derive"] }
 serde_with       = { version = "3.4.0" }
 serde_json       = { version = "1.0.108" }
 glob             = { version = "0.3.1" }
+
+[dev-dependencies]
+tempfile         = { version = "3.8.1" }
