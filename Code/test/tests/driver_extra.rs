@@ -1,7 +1,7 @@
 use futures::executor::block_on;
 
 use malachite_common::Round;
-use malachite_driver::{Driver, Event, Message, Validity};
+use malachite_driver::{Driver, Event, Message, ProposerSelector, Validity};
 use malachite_round::state::State;
 
 use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value};
@@ -89,19 +89,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
         },
     ];
 
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let output = block_on(driver.execute(step.input_event)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output message");
-
-        assert_eq!(
-            driver.round_state.round, step.expected_round,
-            "expected round"
-        );
-
-        assert_eq!(driver.round_state, step.new_state, "expected state");
-    }
+    run_steps(&mut driver, steps)
 }
 
 // Arrive at L49 with commits from previous rounds, no locked value, no valid value
@@ -201,19 +189,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
         },
     ];
 
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let output = block_on(driver.execute(step.input_event)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output message");
-
-        assert_eq!(
-            driver.round_state.round, step.expected_round,
-            "expected round"
-        );
-
-        assert_eq!(driver.round_state, step.new_state, "expected state");
-    }
+    run_steps(&mut driver, steps);
 }
 
 // Arrive at L36 in round 0, with step prevote and then L28 in round 1, with locked value v.
@@ -322,19 +298,7 @@ fn driver_steps_polka_previous_with_locked() {
         },
     ];
 
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let output = block_on(driver.execute(step.input_event)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output message");
-
-        assert_eq!(
-            driver.round_state.round, step.expected_round,
-            "expected round"
-        );
-
-        assert_eq!(driver.round_state, step.new_state, "expected state");
-    }
+    run_steps(&mut driver, steps)
 }
 
 #[test]
@@ -420,19 +384,7 @@ fn driver_steps_polka_previous_invalid_proposal_with_locked() {
         },
     ];
 
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let output = block_on(driver.execute(step.input_event)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output message");
-
-        assert_eq!(
-            driver.round_state.round, step.expected_round,
-            "expected round"
-        );
-
-        assert_eq!(driver.round_state, step.new_state, "expected state");
-    }
+    run_steps(&mut driver, steps);
 }
 
 // Arrive at L36 in round 0, with step precommit and then L28 in round 1 with no locked value.
@@ -559,6 +511,13 @@ fn driver_steps_polka_previous_with_no_locked() {
         },
     ];
 
+    run_steps(&mut driver, steps);
+}
+
+fn run_steps<P>(driver: &mut Driver<TestContext, P>, steps: Vec<TestStep>)
+where
+    P: ProposerSelector<TestContext>,
+{
     for step in steps {
         println!("Step: {}", step.desc);
 
