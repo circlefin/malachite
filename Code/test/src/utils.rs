@@ -1,9 +1,35 @@
 use malachite_common::{Round, Timeout};
-use malachite_driver::{Event, Message, Validity};
+use malachite_driver::{Event, Message, ProposerSelector, Validity};
 use malachite_round::state::{RoundValue, State, Step};
 
-use crate::{Address, Height, PrivateKey, Proposal, TestContext, Value, Vote};
+use crate::{Address, Height, PrivateKey, Proposal, TestContext, ValidatorSet, Value, Vote};
 
+#[derive(Copy, Clone, Debug, Default)]
+pub struct RotateProposer;
+
+impl ProposerSelector<TestContext> for RotateProposer {
+    fn select_proposer(&self, round: Round, validator_set: &ValidatorSet) -> Address {
+        let proposer_index = round.as_i64() as usize % validator_set.validators.len();
+        validator_set.validators[proposer_index].address
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct FixedProposer {
+    proposer: Address,
+}
+
+impl FixedProposer {
+    pub fn new(proposer: Address) -> Self {
+        Self { proposer }
+    }
+}
+
+impl ProposerSelector<TestContext> for FixedProposer {
+    fn select_proposer(&self, _round: Round, _validator_set: &ValidatorSet) -> Address {
+        self.proposer
+    }
+}
 
 pub fn new_round_event(round: Round) -> Option<Event<TestContext>> {
     Some(Event::NewRound(Height::new(1), round))

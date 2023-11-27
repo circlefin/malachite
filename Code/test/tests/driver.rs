@@ -1,9 +1,10 @@
 use futures::executor::block_on;
+use malachite_test::utils::{FixedProposer, RotateProposer};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use malachite_common::{Round, Timeout, TimeoutStep};
-use malachite_driver::{Driver, Error, Event, Message, ProposerSelector, Validity};
+use malachite_driver::{Driver, Error, Event, Message, Validity};
 use malachite_round::state::{RoundValue, State, Step};
 use malachite_test::{
     Address, Height, PrivateKey, Proposal, TestContext, Validator, ValidatorSet, Value, Vote,
@@ -26,33 +27,6 @@ pub fn msg_to_event(output: Message<TestContext>) -> Option<Event<TestContext>> 
         Message::Decide(_, _) => None,
         Message::ScheduleTimeout(_) => None,
         Message::GetValueAndScheduleTimeout(_, _) => None,
-    }
-}
-
-#[derive(Copy, Clone, Debug, Default)]
-pub struct RotateProposer;
-
-impl ProposerSelector<TestContext> for RotateProposer {
-    fn select_proposer(&self, round: Round, validator_set: &ValidatorSet) -> Address {
-        let proposer_index = round.as_i64() as usize % validator_set.validators.len();
-        validator_set.validators[proposer_index].address
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct FixedProposer {
-    proposer: Address,
-}
-
-impl FixedProposer {
-    pub fn new(proposer: Address) -> Self {
-        Self { proposer }
-    }
-}
-
-impl ProposerSelector<TestContext> for FixedProposer {
-    fn select_proposer(&self, _round: Round, _validator_set: &ValidatorSet) -> Address {
-        self.proposer
     }
 }
 

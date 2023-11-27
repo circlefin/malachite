@@ -3,7 +3,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use malachite_common::Round;
-use malachite_driver::{Driver, Event, Message, ProposerSelector, Validity};
+use malachite_driver::{Driver, Event, Message, Validity};
 use malachite_round::state::State;
 
 use malachite_test::{
@@ -33,34 +33,6 @@ pub fn msg_to_event(output: Message<TestContext>) -> Option<Event<TestContext>> 
     }
 }
 
-#[derive(Copy, Clone, Debug, Default)]
-pub struct RotateProposer;
-
-impl ProposerSelector<TestContext> for RotateProposer {
-    fn select_proposer(&self, round: Round, validator_set: &ValidatorSet) -> Address {
-        let proposer_index = round.as_i64() as usize % validator_set.validators.len();
-        validator_set.validators[proposer_index].address
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct FixedProposer {
-    proposer: Address,
-}
-
-impl FixedProposer {
-    pub fn new(proposer: Address) -> Self {
-        Self { proposer }
-    }
-}
-
-impl ProposerSelector<TestContext> for FixedProposer {
-    fn select_proposer(&self, _round: Round, _validator_set: &ValidatorSet) -> Address {
-        self.proposer
-    }
-}
-
-#[test]
 // Arrive at L49 with commits from current rounds, no locked value, no valid value
 //
 // Ev:             NewRound                    <quorum>                       Proposal
@@ -73,6 +45,7 @@ impl ProposerSelector<TestContext> for FixedProposer {
 // L21 - v3 is not proposer starts propose timer (step propose)
 // L46 - v3 gets +2/3 precommits (from v1 and v2), starts precommit timer (step propose)
 // L49 - v3 receives proposal and has already +2/3 precommit(id(v), round=0) (step decided)
+#[test]
 fn driver_steps_decide_current_with_no_locked_no_valid() {
     let value = Value::new(9999);
     let mut rng = StdRng::seed_from_u64(0x42);
@@ -155,7 +128,6 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
     }
 }
 
-#[test]
 // Arrive at L49 with commits from previous rounds, no locked value, no valid value
 //
 // Ev:             NewRound(0)           Timeout(propose)          <polka>               Timeout(prevote)
@@ -177,6 +149,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
 // L65 - v3 receives timeout precommit, starts new round (step new_round)
 // L21 - v3 receives new round, is not the proposer, starts propose timer
 // L49 - v3 receives proposal(v, round=0) and has already +2/3 precommit(id(v), round=0) (step decided)
+#[test]
 fn driver_steps_decide_previous_with_no_locked_no_valid() {
     let value = Value::new(9999);
     let mut rng = StdRng::seed_from_u64(0x42);
@@ -287,7 +260,6 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
     }
 }
 
-#[test]
 // Arrive at L36 in round 0, with step prevote and then L28 in round 1, with locked value v.
 //
 // Ev:             NewRound(0)           Proposal           <polka>                <honest precommit(round=1)>
@@ -311,6 +283,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
 // L28 - v2 receives its proposal and has 2f+1 prevotes from round 0 and:
 //   L29 - locked_round(0) <= valid_round(0) and valid_round(0) < round(1)
 //     L30 - v2 sends prevote(id(v), round=1) (step prevote)
+#[test]
 fn driver_steps_polka_previous_with_locked() {
     let value = Value::new(9999);
     let mut rng = StdRng::seed_from_u64(0x42);
@@ -428,7 +401,6 @@ fn driver_steps_polka_previous_with_locked() {
     }
 }
 
-#[test]
 // Arrive at L36 in round 0, with step precommit and then L28 in round 1 with no locked value.
 //
 // Ev:             NewRound(0)           Timeout(propose)         <polka>              Timeout(prevote)
@@ -459,6 +431,7 @@ fn driver_steps_polka_previous_with_locked() {
 // L28 - v2 receives its proposal and has 2f+1 prevotes from round 0 and:
 //   L29 - locked_round(-1) < valid_round(0) and valid_round(0) < round(1) BUT locked_value is nil
 //     L32 - v2 sends prevote(nil, round=1) (step prevote)
+#[test]
 fn driver_steps_polka_previous_with_no_locked() {
     let value = Value::new(9999);
     let mut rng = StdRng::seed_from_u64(0x42);
