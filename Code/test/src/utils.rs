@@ -73,9 +73,10 @@ pub fn proposal_event(
     round: Round,
     value: Value,
     locked_round: Round,
+    validity: Validity,
 ) -> Option<Event<TestContext>> {
     let proposal = Proposal::new(Height::new(1), round, value, locked_round);
-    Some(Event::Proposal(proposal.clone(), Validity::Valid))
+    Some(Event::Proposal(proposal.clone(), validity))
 }
 
 pub fn prevote_msg(round: Round, addr: &Address, sk: &PrivateKey) -> Option<Message<TestContext>> {

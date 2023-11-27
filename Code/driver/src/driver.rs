@@ -179,10 +179,10 @@ where
                     // L26
                     return self.apply_event(proposal.round(), RoundEvent::InvalidProposal);
                 } else if polka_previous {
-                    // L32 - TODO - InvalidProposalAndPolkaPrevious
+                    // L32
                     return self.apply_event(
                         proposal.round(),
-                        RoundEvent::ProposalAndPolkaPrevious(proposal.clone()),
+                        RoundEvent::InvalidProposalAndPolkaPrevious(proposal.clone()),
                     );
                 } else {
                     return Ok(None);
