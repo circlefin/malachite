@@ -45,6 +45,7 @@ impl<Ctx> Clone for PerRound<Ctx>
 where
     Ctx: Context,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         Self {
             votes: self.votes.clone(),
@@ -58,6 +59,7 @@ impl<Ctx> fmt::Debug for PerRound<Ctx>
 where
     Ctx: Context,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PerRound")
             .field("votes", &self.votes)
@@ -219,6 +221,7 @@ impl<Ctx> Clone for VoteKeeper<Ctx>
 where
     Ctx: Context,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         Self {
             total_weight: self.total_weight,
@@ -232,6 +235,7 @@ impl<Ctx> fmt::Debug for VoteKeeper<Ctx>
 where
     Ctx: Context,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("VoteKeeper")
             .field("total_weight", &self.total_weight)
