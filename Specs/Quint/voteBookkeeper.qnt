@@ -62,7 +62,6 @@ module voteBookkeeper {
 
     type Bookkeeper = {
         height: Height,
-        currentRound: Round,
         totalWeight: Weight,
         rounds: Round -> RoundVotes
     }
@@ -158,7 +157,7 @@ module voteBookkeeper {
     // TO DISCUSS:
     // - There might be a problem if we generalize from single-shot to multi-shot: the keeper only keeps the totalWeight
     //   of the current height; I wonder if we need to keep the totalWeight for every Height that we may receive a vote for.
-    pure def applyVote(keeper: Bookkeeper, vote: Vote, weight: Weight): { bookkeeper: Bookkeeper, event: ExecutorEvent } =
+    pure def applyVote(keeper: Bookkeeper, vote: Vote, weight: Weight, currentRound: Round): { bookkeeper: Bookkeeper, event: ExecutorEvent } =
         val height = keeper.height
         val total = keeper.totalWeight
         
@@ -194,7 +193,7 @@ module voteBookkeeper {
         val combinedWeight = updatedVotesAddressesWeights.mapSumValues()
 
         val finalEvent =
-            if (vote.round > keeper.currentRound and isSkip(combinedWeight, total))
+            if (vote.round > currentRound and isSkip(combinedWeight, total))
                 { round: vote.round, name: "Skip", value: "null" }
             else
                 val threshold = computeThreshold(updatedVoteCount, vote.value)
