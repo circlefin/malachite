@@ -154,7 +154,7 @@ where
         validity: Validity,
     ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         // Check that there is an ongoing round
-        if self.round_state.round == Round::NIL {
+        if self.round_state.round == Round::Nil {
             return Ok(None);
         }
 
