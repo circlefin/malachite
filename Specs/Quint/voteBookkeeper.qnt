@@ -38,7 +38,7 @@ module voteBookkeeper {
         address: Address
     }
 
-    type WeightedVote = (Vote, Weight)
+    type WeightedVote = (Vote, Weight, Round)
 
     type VoteCount = {
         totalWeight: Weight,
@@ -405,7 +405,7 @@ module voteBookkeeper {
     }
 
     action initWith(initialHeight: Height, totalWeight: Weight): bool = all {
-        weightedVote' = ({ typ: "", height: initialHeight, round: -1, value: "", address: "" }, -1),
+        weightedVote' = ({ typ: "", height: initialHeight, round: -1, value: "", address: "" }, -1, -1),
         bookkeeper' = { height: initialHeight, totalWeight: totalWeight, rounds: Map() },
         lastEmitted' = { round: -1, name: "", value: "null" }
     }
@@ -414,7 +414,7 @@ module voteBookkeeper {
     action applyVoteAction(vote: Vote, weight: Weight, currentRound: Round): bool =
         val result = applyVote(bookkeeper, vote, weight, currentRound)
         all {
-            weightedVote' = (vote, weight),
+            weightedVote' = (vote, weight, currentRound),
             bookkeeper' = result.bookkeeper,
             lastEmitted' = result.event
         }
