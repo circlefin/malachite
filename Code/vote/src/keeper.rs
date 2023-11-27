@@ -1,3 +1,5 @@
+use core::fmt;
+
 use alloc::collections::{BTreeMap, BTreeSet};
 
 use malachite_common::{Context, Round, ValueId, Vote, VoteType};
@@ -17,7 +19,6 @@ pub enum Message<Value> {
     SkipRound(Round),
 }
 
-#[derive(Clone, Debug)]
 struct PerRound<Ctx>
 where
     Ctx: Context,
@@ -40,8 +41,33 @@ where
     }
 }
 
+impl<Ctx> Clone for PerRound<Ctx>
+where
+    Ctx: Context,
+{
+    fn clone(&self) -> Self {
+        Self {
+            votes: self.votes.clone(),
+            addresses_weights: self.addresses_weights.clone(),
+            emitted_msgs: self.emitted_msgs.clone(),
+        }
+    }
+}
+
+impl<Ctx> fmt::Debug for PerRound<Ctx>
+where
+    Ctx: Context,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PerRound")
+            .field("votes", &self.votes)
+            .field("addresses_weights", &self.addresses_weights)
+            .field("emitted_msgs", &self.emitted_msgs)
+            .finish()
+    }
+}
+
 /// Keeps track of votes and emits messages when thresholds are reached.
-#[derive(Clone, Debug)]
 pub struct VoteKeeper<Ctx>
 where
     Ctx: Context,
@@ -186,5 +212,31 @@ fn threshold_to_message<Value>(
         (VoteType::Precommit, Threshold::Any) => Some(Message::PrecommitAny),
         (VoteType::Precommit, Threshold::Nil) => Some(Message::PrecommitAny),
         (VoteType::Precommit, Threshold::Value(v)) => Some(Message::PrecommitValue(v)),
+    }
+}
+
+impl<Ctx> Clone for VoteKeeper<Ctx>
+where
+    Ctx: Context,
+{
+    fn clone(&self) -> Self {
+        Self {
+            total_weight: self.total_weight,
+            threshold_params: self.threshold_params,
+            per_round: self.per_round.clone(),
+        }
+    }
+}
+
+impl<Ctx> fmt::Debug for VoteKeeper<Ctx>
+where
+    Ctx: Context,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("VoteKeeper")
+            .field("total_weight", &self.total_weight)
+            .field("threshold_params", &self.threshold_params)
+            .field("per_round", &self.per_round)
+            .finish()
     }
 }

@@ -1,4 +1,5 @@
 use alloc::boxed::Box;
+use core::fmt;
 
 use malachite_common::{
     Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
@@ -18,6 +19,20 @@ use crate::message::Message;
 use crate::Error;
 use crate::ProposerSelector;
 use crate::Validity;
+
+impl<Ctx> fmt::Debug for Driver<Ctx>
+where
+    Ctx: Context,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Driver")
+            .field("address", &self.address)
+            .field("validator_set", &self.validator_set)
+            .field("votes", &self.votes)
+            .field("round_state", &self.round_state)
+            .finish()
+    }
+}
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
 pub struct Driver<Ctx>
