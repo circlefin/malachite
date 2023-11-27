@@ -1066,7 +1066,7 @@ fn driver_steps_invalid_signature() {
 fn driver_steps_skip_round_skip_threshold() {
     let value = Value::new(9999);
 
-    let sel = RotateProposer::default();
+    let sel = RotateProposer;
 
     let mut rng = StdRng::seed_from_u64(0x42);
 
@@ -1198,7 +1198,7 @@ fn driver_steps_skip_round_skip_threshold() {
 fn driver_steps_skip_round_quorum_threshold() {
     let value = Value::new(9999);
 
-    let sel = RotateProposer::default();
+    let sel = RotateProposer;
 
     let mut rng = StdRng::seed_from_u64(0x42);
 

@@ -89,10 +89,10 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
     let v2 = Validator::new(sk2.public_key(), 3);
     let v3 = Validator::new(sk3.public_key(), 2);
 
-    let (my_sk, my_addr) = (sk3.clone(), addr3.clone());
+    let (my_sk, my_addr) = (sk3.clone(), addr3);
 
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer::default();
+    let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
@@ -193,10 +193,10 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
     let v2 = Validator::new(sk2.public_key(), 3);
     let v3 = Validator::new(sk3.public_key(), 2);
 
-    let (my_sk, my_addr) = (sk3.clone(), addr3.clone());
+    let (my_sk, my_addr) = (sk3.clone(), addr3);
 
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer::default();
+    let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
@@ -330,7 +330,7 @@ fn driver_steps_polka_previous_with_locked() {
     let (my_sk, my_addr) = (sk2, addr2);
 
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer::default();
+    let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
@@ -478,7 +478,7 @@ fn driver_steps_polka_previous_with_no_locked() {
     let (my_sk, my_addr) = (sk2, addr2);
 
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer::default();
+    let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
