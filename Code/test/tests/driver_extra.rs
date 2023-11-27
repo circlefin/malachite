@@ -6,11 +6,10 @@ use malachite_common::Round;
 use malachite_driver::{Driver, Event, Message, ProposerSelector, Validity};
 use malachite_round::state::State;
 
+use malachite_test::utils;
 use malachite_test::{
     Address, Height, PrivateKey, Proposal, TestContext, Validator, ValidatorSet, Value,
 };
-
-mod utils;
 
 // TODO - move all bellow to utils?
 struct TestStep {

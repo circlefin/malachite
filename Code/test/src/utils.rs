@@ -1,7 +1,9 @@
 use malachite_common::{Round, Timeout};
 use malachite_driver::{Event, Message, Validity};
 use malachite_round::state::{RoundValue, State, Step};
-use malachite_test::{Address, Height, PrivateKey, Proposal, TestContext, Value, Vote};
+
+use crate::{Address, Height, PrivateKey, Proposal, TestContext, Value, Vote};
+
 
 pub fn new_round_event(round: Round) -> Option<Event<TestContext>> {
     Some(Event::NewRound(Height::new(1), round))
