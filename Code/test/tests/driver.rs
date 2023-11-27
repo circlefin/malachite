@@ -1,14 +1,10 @@
 use futures::executor::block_on;
-use malachite_test::utils::{FixedProposer, RotateProposer};
-use rand::rngs::StdRng;
-use rand::SeedableRng;
+use malachite_test::utils::{make_validators, FixedProposer, RotateProposer};
 
 use malachite_common::{Round, Timeout, TimeoutStep};
 use malachite_driver::{Driver, Error, Event, Message, Validity};
 use malachite_round::state::{RoundValue, State, Step};
-use malachite_test::{
-    Address, Height, PrivateKey, Proposal, TestContext, Validator, ValidatorSet, Value, Vote,
-};
+use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value, Vote};
 
 pub struct TestStep {
     desc: &'static str,
@@ -34,21 +30,8 @@ pub fn msg_to_event(output: Message<TestContext>) -> Option<Event<TestContext>> 
 fn driver_steps_proposer() {
     let value = Value::new(9999);
 
-    let mut rng = StdRng::seed_from_u64(0x42);
-
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let addr1 = Address::from_public_key(&sk1.public_key());
-    let addr2 = Address::from_public_key(&sk2.public_key());
-    let addr3 = Address::from_public_key(&sk3.public_key());
-
-    let v1 = Validator::new(sk1.public_key(), 1);
-    let v2 = Validator::new(sk2.public_key(), 2);
-    let v3 = Validator::new(sk3.public_key(), 3);
-
-    let (my_sk, my_addr) = (sk1, addr1);
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([1, 2, 3]);
+    let (my_sk, my_addr) = (sk1, v1.address);
 
     let ctx = TestContext::new(my_sk.clone());
     let sel = FixedProposer::new(my_addr);
@@ -124,7 +107,7 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v2 prevotes for our proposal",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr2)
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v2.address)
                     .signed(&sk2),
             )),
             expected_output: None,
@@ -141,7 +124,7 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v3 prevotes for our proposal, we get +2/3 prevotes, precommit for it (v1)",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr3)
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v3.address)
                     .signed(&sk3),
             )),
             expected_output: Some(Message::Vote(
@@ -187,7 +170,7 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v2 precommits for our proposal",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr2)
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), v2.address)
                     .signed(&sk2),
             )),
             expected_output: None,
@@ -210,7 +193,7 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v3 precommits for our proposal, we get +2/3 precommits, decide it (v1)",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr3)
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), v3.address)
                     .signed(&sk3),
             )),
             expected_output: Some(Message::Decide(Round::new(0), value)),
@@ -257,19 +240,8 @@ fn driver_steps_proposer() {
 
 #[test]
 fn driver_steps_proposer_timeout_get_value() {
-    let mut rng = StdRng::seed_from_u64(0x42);
-
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let addr1 = Address::from_public_key(&sk1.public_key());
-
-    let v1 = Validator::new(sk1.public_key(), 1);
-    let v2 = Validator::new(sk2.public_key(), 2);
-    let v3 = Validator::new(sk3.public_key(), 3);
-
-    let (my_sk, my_addr) = (sk1, addr1);
+    let [(v1, sk1), (v2, _sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
+    let (my_sk, my_addr) = (sk1, v1.address);
 
     let ctx = TestContext::new(my_sk.clone());
     let sel = FixedProposer::new(my_addr);
@@ -340,25 +312,13 @@ fn driver_steps_proposer_timeout_get_value() {
 fn driver_steps_not_proposer_valid() {
     let value = Value::new(9999);
 
-    let mut rng = StdRng::seed_from_u64(0x42);
-
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let addr1 = Address::from_public_key(&sk1.public_key());
-    let addr2 = Address::from_public_key(&sk2.public_key());
-    let addr3 = Address::from_public_key(&sk3.public_key());
-
-    let v1 = Validator::new(sk1.public_key(), 1);
-    let v2 = Validator::new(sk2.public_key(), 2);
-    let v3 = Validator::new(sk3.public_key(), 3);
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([1, 2, 3]);
 
     // Proposer is v1, so we are not the proposer
-    let (my_sk, my_addr) = (sk2, addr2);
+    let (my_sk, my_addr) = (sk2, v2.address);
 
     let ctx = TestContext::new(my_sk.clone());
-    let sel = FixedProposer::new(addr1);
+    let sel = FixedProposer::new(v1.address);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
@@ -414,7 +374,7 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "v1 prevotes for its own proposal",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr1)
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v1.address)
                     .signed(&sk1),
             )),
             expected_output: None,
@@ -431,7 +391,7 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "v3 prevotes for v1's proposal, it gets +2/3 prevotes, precommit for it (v2)",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr3)
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v3.address)
                     .signed(&sk3),
             )),
             expected_output: Some(Message::Vote(
@@ -477,7 +437,7 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "v1 precommits its proposal",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr1)
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), v1.address)
                     .signed(&sk1),
             )),
             expected_output: None,
@@ -500,7 +460,7 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "v3 precommits for v1's proposal, it gets +2/3 precommits, decide it",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr3)
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), v3.address)
                     .signed(&sk3),
             )),
             expected_output: Some(Message::Decide(Round::new(0), value)),
@@ -549,25 +509,13 @@ fn driver_steps_not_proposer_valid() {
 fn driver_steps_not_proposer_invalid() {
     let value = Value::new(9999);
 
-    let mut rng = StdRng::seed_from_u64(0x42);
-
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let addr1 = Address::from_public_key(&sk1.public_key());
-    let addr2 = Address::from_public_key(&sk2.public_key());
-    let addr3 = Address::from_public_key(&sk3.public_key());
-
-    let v1 = Validator::new(sk1.public_key(), 1);
-    let v2 = Validator::new(sk2.public_key(), 2);
-    let v3 = Validator::new(sk3.public_key(), 3);
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([1, 2, 3]);
 
     // Proposer is v1, so we are not the proposer
-    let (my_sk, my_addr) = (sk2, addr2);
+    let (my_sk, my_addr) = (sk2, v2.address);
 
     let ctx = TestContext::new(my_sk.clone());
-    let sel = FixedProposer::new(addr1);
+    let sel = FixedProposer::new(v1.address);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
@@ -622,7 +570,7 @@ fn driver_steps_not_proposer_invalid() {
         TestStep {
             desc: "v1 prevotes for its own proposal",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr1).signed(&sk1),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v1.address).signed(&sk1),
             )),
             expected_output: None,
             expected_round: Round::new(0),
@@ -638,7 +586,7 @@ fn driver_steps_not_proposer_invalid() {
         TestStep {
             desc: "v3 prevotes for v1's proposal, we have polka for any, schedule prevote timeout (v2)",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr3).signed(&sk3),
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v3.address).signed(&sk3),
             )),
             expected_output: Some(Message::ScheduleTimeout(Timeout::prevote(Round::new(0)))),
             expected_round: Round::new(0),
@@ -696,25 +644,13 @@ fn driver_steps_not_proposer_invalid() {
 fn driver_steps_not_proposer_timeout_multiple_rounds() {
     let value = Value::new(9999);
 
-    let mut rng = StdRng::seed_from_u64(0x42);
-
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let addr1 = Address::from_public_key(&sk1.public_key());
-    let addr2 = Address::from_public_key(&sk2.public_key());
-    let addr3 = Address::from_public_key(&sk3.public_key());
-
-    let v1 = Validator::new(sk1.public_key(), 1);
-    let v2 = Validator::new(sk2.public_key(), 3);
-    let v3 = Validator::new(sk3.public_key(), 1);
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([1, 3, 1]);
 
     // Proposer is v1, so we, v3, are not the proposer
-    let (my_sk, my_addr) = (sk3, addr3);
+    let (my_sk, my_addr) = (sk3, v3.address);
 
     let ctx = TestContext::new(my_sk.clone());
-    let sel = FixedProposer::new(addr1);
+    let sel = FixedProposer::new(v1.address);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
@@ -771,7 +707,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "v1 prevotes for its own proposal",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), addr1)
+                Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v1.address)
                     .signed(&sk1),
             )),
             expected_output: None,
@@ -789,7 +725,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "v2 prevotes for nil, we get +2/3 prevotes, precommit for nil",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), None, addr2).signed(&sk2),
+                Vote::new_prevote(Height::new(1), Round::new(0), None, v2.address).signed(&sk2),
             )),
             expected_output: Some(Message::Vote(
                 Vote::new_precommit(Height::new(1), Round::new(0), None, my_addr).signed(&my_sk),
@@ -823,7 +759,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "v1 precommits its proposal",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), addr1)
+                Vote::new_precommit(Height::new(1), Round::new(0), Some(value.id()), v1.address)
                     .signed(&sk1),
             )),
             expected_output: None,
@@ -841,7 +777,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "v2 precommits for nil",
             input_event: Some(Event::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), None, addr2).signed(&sk2),
+                Vote::new_precommit(Height::new(1), Round::new(0), None, v2.address).signed(&sk2),
             )),
             expected_output: Some(Message::ScheduleTimeout(Timeout::precommit(Round::new(0)))),
             expected_round: Round::new(0),
@@ -903,20 +839,10 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
     }
 }
 
+// No value to propose
 #[test]
 fn driver_steps_no_value_to_propose() {
-    // No value to propose
-
-    let mut rng = StdRng::seed_from_u64(0x42);
-
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let v1 = Validator::new(sk1.public_key(), 1);
-    let v2 = Validator::new(sk2.public_key(), 2);
-    let v3 = Validator::new(sk3.public_key(), 3);
-
+    let [(v1, sk1), (v2, _sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
     let (my_sk, my_addr) = (sk1, v1.address);
     let ctx = TestContext::new(my_sk.clone());
 
@@ -940,19 +866,10 @@ fn driver_steps_no_value_to_propose() {
 
 #[test]
 fn driver_steps_proposer_not_found() {
-    let mut rng = StdRng::seed_from_u64(0x42);
+    let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
 
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
+    let (my_sk, my_addr) = (sk2, v2.address);
 
-    let addr2 = Address::from_public_key(&sk2.public_key());
-
-    let v1 = Validator::new(sk1.public_key(), 1);
-    let v2 = Validator::new(sk2.public_key(), 2);
-    let v3 = Validator::new(sk3.public_key(), 3);
-
-    let (my_sk, my_addr) = (sk2, addr2);
     let ctx = TestContext::new(my_sk.clone());
 
     // Proposer is v1, which is not in the validator set
@@ -969,15 +886,7 @@ fn driver_steps_proposer_not_found() {
 fn driver_steps_validator_not_found() {
     let value = Value::new(9999);
 
-    let mut rng = StdRng::seed_from_u64(0x42);
-
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let v1 = Validator::new(sk1.public_key(), 1);
-    let v2 = Validator::new(sk2.public_key(), 2);
-    let v3 = Validator::new(sk3.public_key(), 3);
+    let [(v1, _sk1), (v2, sk2), (v3, sk3)] = make_validators([1, 2, 3]);
 
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
     let ctx = TestContext::new(my_sk.clone());
@@ -1005,15 +914,7 @@ fn driver_steps_validator_not_found() {
 fn driver_steps_invalid_signature() {
     let value = Value::new(9999);
 
-    let mut rng = StdRng::seed_from_u64(0x42);
-
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let v1 = Validator::new(sk1.public_key(), 1);
-    let v2 = Validator::new(sk2.public_key(), 2);
-    let v3 = Validator::new(sk3.public_key(), 3);
+    let [(v1, sk1), (v2, _sk2), (v3, sk3)] = make_validators([1, 2, 3]);
 
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
     let ctx = TestContext::new(my_sk.clone());
@@ -1042,22 +943,10 @@ fn driver_steps_skip_round_skip_threshold() {
 
     let sel = RotateProposer;
 
-    let mut rng = StdRng::seed_from_u64(0x42);
-
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let addr1 = Address::from_public_key(&sk1.public_key());
-    let addr2 = Address::from_public_key(&sk2.public_key());
-    let addr3 = Address::from_public_key(&sk3.public_key());
-
-    let v1 = Validator::new(sk1.public_key(), 1);
-    let v2 = Validator::new(sk2.public_key(), 1);
-    let v3 = Validator::new(sk3.public_key(), 1);
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([1, 1, 1]);
 
     // Proposer is v1, so we, v3, are not the proposer
-    let (my_sk, my_addr) = (sk3, addr3);
+    let (my_sk, my_addr) = (sk3, v3.address);
 
     let ctx = TestContext::new(my_sk.clone());
     let height = Height::new(1);
@@ -1117,7 +1006,7 @@ fn driver_steps_skip_round_skip_threshold() {
         TestStep {
             desc: "v1 prevotes for its own proposal in round 1",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(height, Round::new(1), Some(value.id()), addr1).signed(&sk1),
+                Vote::new_prevote(height, Round::new(1), Some(value.id()), v1.address).signed(&sk1),
             )),
             expected_output: None,
             expected_round: Round::new(0),
@@ -1134,7 +1023,7 @@ fn driver_steps_skip_round_skip_threshold() {
         TestStep {
             desc: "v2 prevotes for v1 proposal, we get +1/3 messages from future round",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(height, Round::new(1), Some(value.id()), addr2).signed(&sk2),
+                Vote::new_prevote(height, Round::new(1), Some(value.id()), v2.address).signed(&sk2),
             )),
             expected_output: Some(Message::NewRound(height, Round::new(1))),
             expected_round: Round::new(1),
@@ -1174,22 +1063,10 @@ fn driver_steps_skip_round_quorum_threshold() {
 
     let sel = RotateProposer;
 
-    let mut rng = StdRng::seed_from_u64(0x42);
-
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let addr1 = Address::from_public_key(&sk1.public_key());
-    let addr2 = Address::from_public_key(&sk2.public_key());
-    let addr3 = Address::from_public_key(&sk3.public_key());
-
-    let v1 = Validator::new(sk1.public_key(), 1);
-    let v2 = Validator::new(sk2.public_key(), 2);
-    let v3 = Validator::new(sk3.public_key(), 1);
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([1, 2, 1]);
 
     // Proposer is v1, so we, v3, are not the proposer
-    let (my_sk, my_addr) = (sk3, addr3);
+    let (my_sk, my_addr) = (sk3, v3.address);
 
     let ctx = TestContext::new(my_sk.clone());
     let height = Height::new(1);
@@ -1249,7 +1126,7 @@ fn driver_steps_skip_round_quorum_threshold() {
         TestStep {
             desc: "v1 prevotes for its own proposal in round 1",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(height, Round::new(1), Some(value.id()), addr1).signed(&sk1),
+                Vote::new_prevote(height, Round::new(1), Some(value.id()), v1.address).signed(&sk1),
             )),
             expected_output: None,
             expected_round: Round::new(0),
@@ -1266,7 +1143,7 @@ fn driver_steps_skip_round_quorum_threshold() {
         TestStep {
             desc: "v2 prevotes for v1 proposal, we get +1/3 messages from future round",
             input_event: Some(Event::Vote(
-                Vote::new_prevote(height, Round::new(1), Some(value.id()), addr2).signed(&sk2),
+                Vote::new_prevote(height, Round::new(1), Some(value.id()), v2.address).signed(&sk2),
             )),
             expected_output: Some(Message::NewRound(height, Round::new(1))),
             expected_round: Round::new(1),

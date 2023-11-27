@@ -1,14 +1,10 @@
 use futures::executor::block_on;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
 
 use malachite_common::Round;
 use malachite_driver::{Driver, Event, Message, Validity};
 use malachite_round::state::State;
 
-use malachite_test::{
-    Address, Height, PrivateKey, Proposal, TestContext, Validator, ValidatorSet, Value,
-};
+use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value};
 
 use malachite_test::utils::*;
 
@@ -48,25 +44,13 @@ pub fn msg_to_event(output: Message<TestContext>) -> Option<Event<TestContext>> 
 #[test]
 fn driver_steps_decide_current_with_no_locked_no_valid() {
     let value = Value::new(9999);
-    let mut rng = StdRng::seed_from_u64(0x42);
 
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let addr1 = Address::from_public_key(&sk1.public_key());
-    let addr2 = Address::from_public_key(&sk2.public_key());
-    let addr3 = Address::from_public_key(&sk3.public_key());
-
-    let v1 = Validator::new(sk1.public_key(), 2);
-    let v2 = Validator::new(sk2.public_key(), 3);
-    let v3 = Validator::new(sk3.public_key(), 2);
-
-    let (my_sk, my_addr) = (sk3.clone(), addr3);
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
-    let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
@@ -80,14 +64,14 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
         },
         TestStep {
             desc: "v1 precommits a proposal",
-            input_event: precommit_event(Round::new(0), value, &addr1, &sk1),
+            input_event: precommit_event(Round::new(0), value, &v1.address, &sk1),
             expected_output: None,
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
             desc: "v2 precommits for same proposal, we get +2/3 precommit, start precommit timer",
-            input_event: precommit_event(Round::new(0), value, &addr2, &sk2),
+            input_event: precommit_event(Round::new(0), value, &v2.address, &sk2),
             expected_output: start_precommit_timer_msg(Round::new(0)),
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
@@ -152,25 +136,13 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
 #[test]
 fn driver_steps_decide_previous_with_no_locked_no_valid() {
     let value = Value::new(9999);
-    let mut rng = StdRng::seed_from_u64(0x42);
 
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let addr1 = Address::from_public_key(&sk1.public_key());
-    let addr2 = Address::from_public_key(&sk2.public_key());
-    let addr3 = Address::from_public_key(&sk3.public_key());
-
-    let v1 = Validator::new(sk1.public_key(), 2);
-    let v2 = Validator::new(sk2.public_key(), 3);
-    let v3 = Validator::new(sk3.public_key(), 2);
-
-    let (my_sk, my_addr) = (sk3.clone(), addr3);
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (my_sk, my_addr) = (sk3.clone(), v3.address);
 
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
-    let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
@@ -191,28 +163,28 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
         },
         TestStep {
             desc: "v1 prevotes a proposal",
-            input_event: prevote_event(&addr1, &sk1),
+            input_event: prevote_event(&v1.address, &sk1),
             expected_output: None,
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
         TestStep {
             desc: "v2 prevotes for same proposal, we get +2/3 prevotes, start prevote timer",
-            input_event: prevote_event(&addr2, &sk2),
+            input_event: prevote_event(&v2.address, &sk2),
             expected_output: start_prevote_timer_msg(Round::new(0)),
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
         TestStep {
             desc: "v1 precommits a proposal",
-            input_event: precommit_event(Round::new(0), value, &addr1, &sk1),
+            input_event: precommit_event(Round::new(0), value, &v1.address, &sk1),
             expected_output: None,
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
         TestStep {
             desc: "v2 precommits for same proposal, we get +2/3 precommit, start precommit timer",
-            input_event: precommit_event(Round::new(0), value, &addr2, &sk2),
+            input_event: precommit_event(Round::new(0), value, &v2.address, &sk2),
             expected_output: start_precommit_timer_msg(Round::new(0)),
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
@@ -286,25 +258,13 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
 #[test]
 fn driver_steps_polka_previous_with_locked() {
     let value = Value::new(9999);
-    let mut rng = StdRng::seed_from_u64(0x42);
 
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let addr1 = Address::from_public_key(&sk1.public_key());
-    let addr2 = Address::from_public_key(&sk2.public_key());
-    let addr3 = Address::from_public_key(&sk3.public_key());
-
-    let v1 = Validator::new(sk1.public_key(), 2);
-    let v2 = Validator::new(sk2.public_key(), 2);
-    let v3 = Validator::new(sk3.public_key(), 3);
-
-    let (my_sk, my_addr) = (sk2, addr2);
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 2, 3]);
+    let (my_sk, my_addr) = (sk2, v2.address);
 
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
-    let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
@@ -328,7 +288,7 @@ fn driver_steps_polka_previous_with_locked() {
         },
         TestStep {
             desc: "v3 prevotes the proposal",
-            input_event: prevote_event(&addr3, &sk3),
+            input_event: prevote_event(&v3.address, &sk3),
             expected_output: None,
             expected_round: Round::new(0),
             new_state: prevote_state_with_proposal(
@@ -338,7 +298,7 @@ fn driver_steps_polka_previous_with_locked() {
         },
         TestStep {
             desc: "v1 prevotes for same proposal, we get +2/3 prevotes, precommit",
-            input_event: prevote_event(&addr1, &sk1),
+            input_event: prevote_event(&v1.address, &sk1),
             expected_output: precommit_msg(Round::new(0), value, &my_addr, &my_sk),
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
@@ -348,7 +308,7 @@ fn driver_steps_polka_previous_with_locked() {
         },
         TestStep {
             desc: "Receive f+1 vote for round 1 from v3",
-            input_event: precommit_event(Round::new(1), Value::new(8888), &addr3, &sk3),
+            input_event: precommit_event(Round::new(1), Value::new(8888), &v3.address, &sk3),
             expected_output: new_round_msg(Round::new(1)),
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_locked_and_valid(
@@ -434,25 +394,13 @@ fn driver_steps_polka_previous_with_locked() {
 #[test]
 fn driver_steps_polka_previous_with_no_locked() {
     let value = Value::new(9999);
-    let mut rng = StdRng::seed_from_u64(0x42);
 
-    let sk1 = PrivateKey::generate(&mut rng);
-    let sk2 = PrivateKey::generate(&mut rng);
-    let sk3 = PrivateKey::generate(&mut rng);
-
-    let addr1 = Address::from_public_key(&sk1.public_key());
-    let addr2 = Address::from_public_key(&sk2.public_key());
-    let addr3 = Address::from_public_key(&sk3.public_key());
-
-    let v1 = Validator::new(sk1.public_key(), 2);
-    let v2 = Validator::new(sk2.public_key(), 2);
-    let v3 = Validator::new(sk3.public_key(), 3);
-
-    let (my_sk, my_addr) = (sk2, addr2);
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 2, 3]);
+    let (my_sk, my_addr) = (sk2, v2.address);
 
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
-    let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
@@ -473,14 +421,14 @@ fn driver_steps_polka_previous_with_no_locked() {
         },
         TestStep {
             desc: "v3 prevotes for some proposal",
-            input_event: prevote_event(&addr3, &sk3),
+            input_event: prevote_event(&v3.address, &sk3),
             expected_output: None,
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
         TestStep {
             desc: "v1 prevotes for same proposal, we get +2/3 prevotes, start timeout prevote",
-            input_event: prevote_event(&addr1, &sk1),
+            input_event: prevote_event(&v1.address, &sk1),
             expected_output: start_prevote_timer_msg(Round::new(0)),
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
@@ -505,7 +453,7 @@ fn driver_steps_polka_previous_with_no_locked() {
         },
         TestStep {
             desc: "Receive f+1 vote for round 1 from v3",
-            input_event: prevote_msg(Round::new(1), &addr3, &sk3).and_then(msg_to_event),
+            input_event: prevote_msg(Round::new(1), &v3.address, &sk3).and_then(msg_to_event),
             expected_output: new_round_msg(Round::new(1)),
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_valid(

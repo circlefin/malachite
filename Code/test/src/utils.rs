@@ -1,8 +1,13 @@
-use malachite_common::{Round, Timeout};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+
+use malachite_common::{Round, Timeout, VotingPower};
 use malachite_driver::{Event, Message, ProposerSelector, Validity};
 use malachite_round::state::{RoundValue, State, Step};
 
-use crate::{Address, Height, PrivateKey, Proposal, TestContext, ValidatorSet, Value, Vote};
+use crate::{
+    Address, Height, PrivateKey, Proposal, TestContext, Validator, ValidatorSet, Value, Vote,
+};
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct RotateProposer;
@@ -29,6 +34,22 @@ impl ProposerSelector<TestContext> for FixedProposer {
     fn select_proposer(&self, _round: Round, _validator_set: &ValidatorSet) -> Address {
         self.proposer
     }
+}
+
+pub fn make_validators<const N: usize>(
+    voting_powers: [VotingPower; N],
+) -> [(Validator, PrivateKey); N] {
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let mut validators = Vec::with_capacity(N);
+
+    for vp in voting_powers {
+        let sk = PrivateKey::generate(&mut rng);
+        let val = Validator::new(sk.public_key(), vp);
+        validators.push((val, sk));
+    }
+
+    validators.try_into().expect("N validators")
 }
 
 pub fn new_round_event(round: Round) -> Option<Event<TestContext>> {
