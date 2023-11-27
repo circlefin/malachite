@@ -1,4 +1,4 @@
-use malachite_round::state_machine::Info;
+use alloc::boxed::Box;
 
 use malachite_common::{
     Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
@@ -7,6 +7,7 @@ use malachite_common::{
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
 use malachite_round::state::State as RoundState;
+use malachite_round::state_machine::Info;
 use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
@@ -19,14 +20,12 @@ use crate::ProposerSelector;
 use crate::Validity;
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
-#[derive(Clone, Debug)]
-pub struct Driver<Ctx, PSel>
+pub struct Driver<Ctx>
 where
     Ctx: Context,
-    PSel: ProposerSelector<Ctx>,
 {
     pub ctx: Ctx,
-    pub proposer_selector: PSel,
+    pub proposer_selector: Box<dyn ProposerSelector<Ctx>>,
 
     pub address: Ctx::Address,
     pub validator_set: Ctx::ValidatorSet,
@@ -35,14 +34,13 @@ where
     pub round_state: RoundState<Ctx>,
 }
 
-impl<Ctx, PSel> Driver<Ctx, PSel>
+impl<Ctx> Driver<Ctx>
 where
     Ctx: Context,
-    PSel: ProposerSelector<Ctx>,
 {
     pub fn new(
         ctx: Ctx,
-        proposer_selector: PSel,
+        proposer_selector: impl ProposerSelector<Ctx> + 'static,
         validator_set: Ctx::ValidatorSet,
         address: Ctx::Address,
     ) -> Self {
@@ -53,7 +51,7 @@ where
 
         Self {
             ctx,
-            proposer_selector,
+            proposer_selector: Box::new(proposer_selector),
             address,
             validator_set,
             votes,
