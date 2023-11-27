@@ -24,6 +24,12 @@ impl ItfRunner for VoteKeeperRunner {
 
     fn init(&mut self, expected: &Self::ExpectedState) -> Result<Self::ActualState, Self::Error> {
         // Initialize VoteKeeper from the initial total_weight from the first state in the model.
+        let (input_vote, weight, current_round) = &expected.weighted_vote;
+        let round = Round::new(input_vote.round);
+        println!(
+            "🔵 init: vote={:?}, round={:?}, value={:?}, address={:?}, weight={:?}, current_round={:?}",
+            input_vote.typ, round, input_vote.value, input_vote.address, weight, current_round
+        );
         Ok(VoteKeeper::new(
             expected.bookkeeper.total_weight as u64,
             ThresholdParams::default(),
