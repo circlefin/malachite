@@ -37,11 +37,6 @@ traces-sim:
 traces-run:
 	mkdir -p traces/votekeeper
 	npx @informalsystems/quint test --output traces/votekeeper/{}.itf.json voteBookkeeperTest.qnt
-	rm traces/votekeeper/*voteBookkeeperTest::*.*
-	find traces/votekeeper -maxdepth 1 -type f -exec ../../Scripts/trace-remove-stuttering-steps.sh {} \; 
-	mkdir -p ../../Code/itf/tests/fixtures/
-	mv traces/* ../../Code/itf/tests/fixtures/
-	rm -rdf traces
 .PHONY: traces-run
 
 traces: traces-sim traces-run
