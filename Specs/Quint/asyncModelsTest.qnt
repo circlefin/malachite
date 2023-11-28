@@ -156,10 +156,10 @@ run RoundswitchTest = {
     ThreeDecideInRound1V4stillinZeroTest
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v2", step: "Prevote" }))
-    .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v3", step: "Precommit" })) 
     .then(N4F0::valStep("v4"))
-    .then(N4F0::valStep("v4"))
-    .then(N4F0::valStep("v4"))
+    .then(all {
+        assert(N4F0::system.get("v4").es.cs.round == 0),
+        N4F0::valStep("v4")})
     .then(all {
         assert(N4F0::system.get("v4").es.cs.round == 1),
         N4F0::unchangedAll
