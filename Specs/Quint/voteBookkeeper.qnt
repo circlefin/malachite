@@ -255,18 +255,11 @@ module voteBookkeeper {
             else 
                 roundVotes.precommits.addVote(vote, weight)
 
-        // CHECK: if alice first prevotes with weight 10 and then alice precommits with weight 60, only 10 is registered here.
         val updatedVotesAddressesWeights =
             if (roundVotes.votesAddressesWeights.has(vote.address)) 
                 roundVotes.votesAddressesWeights
             else 
                 roundVotes.votesAddressesWeights.mapSafeSet(vote.address, weight)
-
-        val updatedRoundVotes = 
-            if (vote.typ.isPrevote()) 
-                roundVotes.with("prevotes", updatedVoteCount)                                   
-            else 
-                roundVotes.with("precommits", updatedVoteCount)
 
         // Combined weight of all validators at this height
         val combinedWeight = updatedVotesAddressesWeights.mapSumValues()
@@ -282,19 +275,19 @@ module voteBookkeeper {
                 else 
                     noEvent(vote.round)
 
-        val updatedEmittedEvents = roundVotes.emittedEvents.setAddIf(finalEvent, finalEvent.name != "None")
-
+        val updatedRoundVotes = 
+            if (vote.typ.isPrevote()) 
+                roundVotes.with("prevotes", updatedVoteCount)                                   
+            else
+                roundVotes.with("precommits", updatedVoteCount)
         val updatedRoundVotes2 = updatedRoundVotes
-                .with("votesAddressesWeights", updatedVotesAddressesWeights)
-                .with("emittedEvents", updatedEmittedEvents)
+            .with("votesAddressesWeights", updatedVotesAddressesWeights)
+            .with("emittedEvents", roundVotes.emittedEvents.setAddIf(finalEvent, finalEvent.name != "None"))
 
-        val newBookkeeper =
-            keeper.with("rounds", keeper.rounds.mapSafeSet(vote.round, updatedRoundVotes2))
+        val updatedBookkeeper = keeper
+            .with("rounds", keeper.rounds.mapSafeSet(vote.round, updatedRoundVotes2))
 
-        { 
-            bookkeeper: newBookkeeper, 
-            event: finalEvent 
-        }
+        { bookkeeper: updatedBookkeeper, event: finalEvent }
 
     // run PrecommitTest = all {
     // val bin : Bookkeeper = {
@@ -332,10 +325,10 @@ module voteBookkeeper {
         if (keeper.rounds.has(round)) {
             val roundVotes = keeper.rounds.get(round)
             val voteCount = if (voteType.isPrevote()) roundVotes.prevotes else roundVotes.precommits
-            checkThresholdOnVoteCount(voteCount, threshold)
+            checkThresholdOnVoteCount(threshold, voteCount)
         } else false
 
-    pure def checkThresholdOnVoteCount(voteCount: VoteCount, threshold: Threshold): bool =
+    pure def checkThresholdOnVoteCount(threshold: Threshold, voteCount: VoteCount): bool =
         if (threshold.isThresholdOnValue())
             voteCount.hasQuorumOnValue(threshold.value)
         else if (threshold == nilThreshold)
