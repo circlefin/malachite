@@ -15,7 +15,7 @@ on:
 
 jobs:
   gen-and-exec-traces:
-    name: Generate and execute traces as tests
+    name: Generate and execute random traces
     runs-on: ubuntu-latest
     env:
       FIXTURES_DIR: Code/itf/tests/fixtures
@@ -33,7 +33,7 @@ jobs:
       - name: Build code
         working-directory: Code/itf
         run: cargo nextest run --workspace --all-features --no-run
-      - name: Set current elapsed seconds since the Epoch as random seed for Quint
+      - name: Current time as random seed for Quint
         run: echo "QUINT_SEED=$(date +%s)" >> $GITHUB_ENV
       - name: Run tests from traces (with random seed)
         working-directory: Code/itf
