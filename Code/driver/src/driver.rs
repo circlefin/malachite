@@ -187,7 +187,7 @@ where
                     // L32
                     return self.apply_event(
                         proposal.round(),
-                        RoundEvent::InvalidProposalAndPolkaPrevious(proposal.clone()),
+                        RoundEvent::InvalidProposalAndPolkaPrevious(proposal),
                     );
                 } else {
                     return Ok(None);
@@ -207,7 +207,7 @@ where
         ) {
             return self.apply_event(
                 proposal.round(),
-                RoundEvent::ProposalAndPrecommitValue(proposal.clone()),
+                RoundEvent::ProposalAndPrecommitValue(proposal),
             );
         }
 
