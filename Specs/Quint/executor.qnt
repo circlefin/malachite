@@ -229,16 +229,31 @@ pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) 
                                             value: eev.value,
                                             vr: eev.round})   
                                             // TODO: the value should come from the proposal   
-        else if (eev.round == es.cs.round and
-                es.proposals.exists(p => p.round == es.cs.round and
+        else if (eev.round == es.cs.round)
+            if (es.proposals.exists(p => p.round == es.cs.round and
                 id(p.proposal) == eev.value)) 
-                callConsensus(es, es.bk, {  name: "ProposalAndPolkaAndValid",
+                val pend = (  {  name: "ProposalAndPolkaAndValid",
+                                            height: es.cs.height,
+                                            round: es.cs.round,
+                                            value: eev.value,
+                                            vr: eev.round}, es.cs.height, es.cs.round)   
+                callConsensus( { ...es,  pendingEvents: es.pendingEvents.union(Set(pend)) },
+                                es.bk, 
+                                {   name: "PolkaAny",
+                                    height: es.cs.height,
+                                    round: es.cs.round,
+                                    value: eev.value,
+                                    vr: eev.round})   
+            else
+                // there is no matching proposal
+                callConsensus(es, es.bk, {  name: "PolkaAny",
                                             height: es.cs.height,
                                             round: es.cs.round,
                                             value: eev.value,
                                             vr: eev.round})   
+
         else
-            // we don't have a matching proposal so we do nothing
+            // It is for a future round
             // TODO: we might check whether it is for a future round and jump
             (es, defaultResult)
     else if (eev.name == "PolkaAny")
@@ -358,7 +373,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
             else if (newES.cs.step == "Prevote" or newES.cs.step == "Precommit") 
                 if (receivedCommitCurrentVal)
                     // here we need to call both, Commit and Polka. 
-                    // We do commit and append pola to pending
+                    // We do commit and append polka to pending
                     val pend = ( {  name: "ProposalAndPolkaAndValid",
                                     height: newES.cs.height,
                                     round: newES.cs.round,
@@ -455,8 +470,12 @@ pure def decided (es: ExecutorState, res: ConsensusOutput) : (ExecutorState, Con
 // take input out of pending events and then call consensus with that event
 // We do this when the executor is asked to work on pending events
 pure def PendingEvent (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
-    val newState = { ...es, pendingEvents: es.pendingEvents.exclude(Set((input.event, es.cs.height, es.cs.round)))}
-    callConsensus(newState, es.bk, input.event)
+    val ev = es.pendingEvents.fold((defaultEvent, -1, -1) , (sum, y) => y)
+    val newState = { ...es, pendingEvents: es.pendingEvents.exclude(Set(ev))}
+    if (ev._2 == es.cs.height and ev._3 == es.cs.round)
+        callConsensus(newState, es.bk, ev._1)
+    else
+        (newState, defaultResult)
 }
 
 
@@ -541,6 +560,12 @@ pure def nextAction (state: NodeState) : (NodeState, ExecutorInput) = {
     if (not(state.es.started))
         (state, { ...defaultInput, name: "start" })
 
+    else if (state.es.pendingEvents != Set())
+        // this might be cheating as we look into the "es"
+        (state, { ...defaultInput, name: "pending" })
+        // I DID IT. TODO: In the "starkBFT Spec" Google doc, it is written that pending events
+        // should be executed before new messages, which would requir to push this
+        // branch up.
     else if (state.incomingProposals != Set())
         // pick proposal, remove it from incoming
         // val prop = state.incomingProposals.chooseSome()
@@ -564,13 +589,6 @@ pure def nextAction (state: NodeState) : (NodeState, ExecutorInput) = {
         val timeout = timeouts.fold(("", 0, 0), (sum, y) => y)
         val newstate = { ...state, timeout: state.timeout.exclude(Set(timeout))}
         (newstate, { ...defaultInput, name: "timeout", timeout: timeout._1})
-
-    else if (state.es.pendingEvents != Set())
-        // this might be cheating as we look into the "es"
-        (state, { ...defaultInput, name: "pending" })
-        // TODO: In the "starkBFT Spec" Google doc, it is written that pending events
-        // should be executed before new messages, which would requir to push this
-        // branch up.
     else
         (state, defaultInput)
 }
