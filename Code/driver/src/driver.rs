@@ -1,4 +1,5 @@
-use malachite_round::state_machine::Info;
+use alloc::boxed::Box;
+use core::fmt;
 
 use malachite_common::{
     Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
@@ -7,6 +8,7 @@ use malachite_common::{
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
 use malachite_round::state::{State as RoundState, Step};
+use malachite_round::state_machine::Info;
 use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
@@ -19,14 +21,12 @@ use crate::ProposerSelector;
 use crate::Validity;
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
-#[derive(Clone, Debug)]
-pub struct Driver<Ctx, PSel>
+pub struct Driver<Ctx>
 where
     Ctx: Context,
-    PSel: ProposerSelector<Ctx>,
 {
     pub ctx: Ctx,
-    pub proposer_selector: PSel,
+    pub proposer_selector: Box<dyn ProposerSelector<Ctx>>,
 
     pub address: Ctx::Address,
     pub validator_set: Ctx::ValidatorSet,
@@ -35,14 +35,13 @@ where
     pub round_state: RoundState<Ctx>,
 }
 
-impl<Ctx, PSel> Driver<Ctx, PSel>
+impl<Ctx> Driver<Ctx>
 where
     Ctx: Context,
-    PSel: ProposerSelector<Ctx>,
 {
     pub fn new(
         ctx: Ctx,
-        proposer_selector: PSel,
+        proposer_selector: impl ProposerSelector<Ctx> + 'static,
         validator_set: Ctx::ValidatorSet,
         address: Ctx::Address,
     ) -> Self {
@@ -53,7 +52,7 @@ where
 
         Self {
             ctx,
-            proposer_selector,
+            proposer_selector: Box::new(proposer_selector),
             address,
             validator_set,
             votes,
@@ -327,5 +326,20 @@ where
 
         // Return message, if any
         Ok(transition.message)
+    }
+}
+
+impl<Ctx> fmt::Debug for Driver<Ctx>
+where
+    Ctx: Context,
+{
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Driver")
+            .field("address", &self.address)
+            .field("validator_set", &self.validator_set)
+            .field("votes", &self.votes)
+            .field("round_state", &self.round_state)
+            .finish()
     }
 }

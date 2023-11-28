@@ -1,7 +1,7 @@
 use futures::executor::block_on;
 
 use malachite_common::Round;
-use malachite_driver::{Driver, Event, Message, ProposerSelector, Validity};
+use malachite_driver::{Driver, Event, Message, Validity};
 use malachite_round::state::State;
 
 use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value};
@@ -514,10 +514,7 @@ fn driver_steps_polka_previous_with_no_locked() {
     run_steps(&mut driver, steps);
 }
 
-fn run_steps<P>(driver: &mut Driver<TestContext, P>, steps: Vec<TestStep>)
-where
-    P: ProposerSelector<TestContext>,
-{
+fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
     for step in steps {
         println!("Step: {}", step.desc);
 
