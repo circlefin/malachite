@@ -309,7 +309,7 @@ where
         // Multiplex the event with the round state.
         let mux_event = match event {
             RoundEvent::PolkaValue(value_id) => {
-                let proposal = self.proposals.get(event_round, &value_id);
+                let proposal = self.proposals.find(&value_id, |p| p.round() == event_round);
 
                 if let Some(proposal) = proposal {
                     assert_eq!(proposal.value().id(), value_id);
@@ -320,7 +320,7 @@ where
             }
 
             RoundEvent::PrecommitValue(value_id) => {
-                let proposal = self.proposals.get(event_round, &value_id);
+                let proposal = self.proposals.find(&value_id, |p| p.round() == event_round);
 
                 if let Some(proposal) = proposal {
                     assert_eq!(proposal.value().id(), value_id);

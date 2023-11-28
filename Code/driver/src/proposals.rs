@@ -1,16 +1,15 @@
 use alloc::collections::BTreeMap;
+use alloc::vec::Vec;
 
+use malachite_common::ValueId;
 use malachite_common::{Context, Proposal, Value};
-use malachite_common::{Round, ValueId};
 
 /// Stores proposals at each round, indexed by their value id.
 pub struct Proposals<Ctx>
 where
     Ctx: Context,
 {
-    // NOTE: We have to use a nested map instead of just one with tuple keys
-    // otherwise we would have to clone the value id to call `get`.
-    pub(crate) proposals: BTreeMap<Round, BTreeMap<ValueId<Ctx>, Ctx::Proposal>>,
+    pub(crate) proposals: BTreeMap<ValueId<Ctx>, Vec<Ctx::Proposal>>,
 }
 
 impl<Ctx> Proposals<Ctx>
@@ -24,19 +23,18 @@ where
     }
 
     pub fn insert(&mut self, proposal: Ctx::Proposal) {
-        let round = proposal.round();
         let value_id = proposal.value().id();
-
-        self.proposals
-            .entry(round)
-            .or_default()
-            .insert(value_id, proposal);
+        self.proposals.entry(value_id).or_default().push(proposal);
     }
 
-    pub fn get(&self, round: Round, value_id: &ValueId<Ctx>) -> Option<&Ctx::Proposal> {
+    pub fn find(
+        &self,
+        value_id: &ValueId<Ctx>,
+        p: impl Fn(&Ctx::Proposal) -> bool,
+    ) -> Option<&Ctx::Proposal> {
         self.proposals
-            .get(&round)
-            .and_then(|proposals| proposals.get(value_id))
+            .get(value_id)
+            .and_then(|proposals| proposals.iter().find(|proposal| p(proposal)))
     }
 }
 
