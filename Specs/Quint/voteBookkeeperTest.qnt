@@ -17,7 +17,7 @@ module voteBookkeeperTest {
         all { assert(predicate), allUnchanged }
 
     // Consensus full execution with all honest validators (including the leader) and a synchronous network:
-    // all messages are received in order. We assume three validators in the validator set wtih 60%, 30% and 10%
+    // all messages are received in order. We assume three validators in the validator set with 60%, 30% and 10%
     // each of the total voting power
     run synchronousConsensusTest =
         initWith(1, 100)

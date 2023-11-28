@@ -137,7 +137,7 @@ module voteBookkeeper {
         assert(isSkip(3,6) == true),
     }
 
-    // Adds a vote of weight weigth to a voteCount if there is not vote registered for the voter.
+    // Adds a weighted vote to a voteCount if there is no vote registered for the voter.
     pure def addVote(voteCount: VoteCount, vote: Vote, weight: Weight): VoteCount =
         if (vote.address.in(voteCount.votesAddresses))
             // Do not count vote if address has already voted.
@@ -175,7 +175,7 @@ module voteBookkeeper {
     // Given a voteCount and a value, the function returns:
     // - A threshold Value if there is a quorum for the given value;
     // - A threshold Nil if there is a quorum for the nil and no quorum for the value;
-    // - A threshold Any if there is no quorum for the value or nil and there is a quroum for any (including nil);
+    // - A threshold Any if there is no quorum for the value or nil and there is a quorum for any (including nil);
     // - A threshold Unreached otherwise indicating that no quorum has been yet reached.
     pure def computeThreshold(voteCount: VoteCount, value: Value): Threshold =
         if (voteCount.hasQuorumOnValue(value)) {
@@ -239,7 +239,7 @@ module voteBookkeeper {
 
     // Called by the executor when it receives a vote. The function takes the following steps:
     // - It first adds the vote and then computes a threshold.
-    // - If there exist a threshold and has not emitted before, the function returns the corresponsing ExecutorEvent.
+    // - If there exist a threshold and has not emitted before, the function returns the corresponding ExecutorEvent.
     // - Otherwise, the function returns a no-threshold event.
     // - Note that if there is no threshold after adding the vote, the function checks if there is a skip threshold.
     // TO DISCUSS:

@@ -41,12 +41,12 @@ impl Round {
         }
     }
 
-    /// Wether the round is defined, ie. `Round::Some(r)` where `r >= 0`.
+    /// Whether the round is defined, ie. `Round::Some(r)` where `r >= 0`.
     pub fn is_defined(&self) -> bool {
         matches!(self, Round::Some(r) if *r >= 0)
     }
 
-    /// Wether the round is `Round::Nil`.
+    /// Whether the round is `Round::Nil`.
     pub fn is_nil(&self) -> bool {
         matches!(self, Round::Nil)
     }

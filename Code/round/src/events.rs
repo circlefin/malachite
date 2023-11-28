@@ -9,8 +9,8 @@ where
     ProposeValue(Ctx::Value), // Propose a value.L14
     Proposal(Ctx::Proposal),  // Receive a proposal. L22 + L23 (valid)
     InvalidProposal,          // Receive an invalid proposal. L26 + L32 (invalid)
-    ProposalAndPolkaPrevious(Ctx::Proposal), // Recieved a proposal and a polka value from a previous round. L28 + L29 (valid)
-    InvalidProposalAndPolkaPrevious(Ctx::Proposal), // Recieved a proposal and a polka value from a previous round. L28 + L29 (invalid)
+    ProposalAndPolkaPrevious(Ctx::Proposal), // Received a proposal and a polka value from a previous round. L28 + L29 (valid)
+    InvalidProposalAndPolkaPrevious(Ctx::Proposal), // Received a proposal and a polka value from a previous round. L28 + L29 (invalid)
     PolkaValue(ValueId<Ctx>),                       // Receive +2/3 prevotes for valueId. L44
     PolkaAny,                                       // Receive +2/3 prevotes for anything. L34
     PolkaNil,                                       // Receive +2/3 prevotes for nil. L44
