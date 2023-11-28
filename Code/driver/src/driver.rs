@@ -6,7 +6,7 @@ use malachite_common::{
 };
 use malachite_round::events::Event as RoundEvent;
 use malachite_round::message::Message as RoundMessage;
-use malachite_round::state::State as RoundState;
+use malachite_round::state::{State as RoundState, Step};
 use malachite_vote::keeper::Message as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
@@ -131,8 +131,12 @@ where
         height: Ctx::Height,
         round: Round,
     ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
-        self.round_state = RoundState::new(height, round);
-
+        if self.height() == &height {
+            // If it's a new round for same height, just reset the round, keep the valid and locked values
+            self.round_state.round = round;
+        } else {
+            self.round_state = RoundState::new(height, round);
+        }
         self.apply_event(round, RoundEvent::NewRound)
     }
 
@@ -150,60 +154,89 @@ where
         validity: Validity,
     ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
         // Check that there is an ongoing round
-        if self.round_state.round == Round::NIL {
+        if self.round_state.round == Round::Nil {
             return Ok(None);
         }
 
-        // Only process the proposal if there is no other proposal
-        if self.round_state.proposal.is_some() {
+        // Check that the proposal is for the current height
+        if self.round_state.height != proposal.height() {
             return Ok(None);
         }
 
-        // Check that the proposal is for the current height and round
-        if self.round_state.height != proposal.height()
-            || self.round_state.round != proposal.round()
-        {
-            return Ok(None);
-        }
+        let polka_for_pol = self.votes.is_threshold_met(
+            &proposal.pol_round(),
+            VoteType::Prevote,
+            Threshold::Value(proposal.value().id()),
+        );
+        let polka_previous = proposal.pol_round().is_defined()
+            && polka_for_pol
+            && proposal.pol_round() < self.round_state.round;
 
-        // TODO: Document
-        if proposal.pol_round().is_defined() && proposal.pol_round() >= self.round_state.round {
-            return Ok(None);
-        }
-
-        // TODO: Verify proposal signature (make some of these checks part of message validation)
-
-        match proposal.pol_round() {
-            Round::Nil => {
-                // Is it possible to get +2/3 prevotes before the proposal?
-                // Do we wait for our own prevote to check the threshold?
-                let round = proposal.round();
-                let event = if validity.is_valid() {
-                    RoundEvent::Proposal(proposal)
+        // Handle invalid proposal
+        if !validity.is_valid() {
+            if self.round_state.step == Step::Propose {
+                if proposal.pol_round().is_nil() {
+                    // L26
+                    return self.apply_event(proposal.round(), RoundEvent::InvalidProposal);
+                } else if polka_previous {
+                    // L32
+                    return self.apply_event(
+                        proposal.round(),
+                        RoundEvent::InvalidProposalAndPolkaPrevious(proposal.clone()),
+                    );
                 } else {
-                    RoundEvent::ProposalInvalid
-                };
-
-                self.apply_event(round, event)
+                    return Ok(None);
+                }
+            } else {
+                return Ok(None);
             }
-            Round::Some(_)
-                if self.votes.is_threshold_met(
-                    &proposal.pol_round(),
-                    VoteType::Prevote,
-                    Threshold::Value(proposal.value().id()),
-                ) =>
-            {
-                let round = proposal.round();
-                let event = if validity.is_valid() {
-                    RoundEvent::Proposal(proposal)
-                } else {
-                    RoundEvent::ProposalInvalid
-                };
-
-                self.apply_event(round, event)
-            }
-            _ => Ok(None),
         }
+
+        // We have a valid proposal.
+        // L49
+        // TODO - check if not already decided
+        if self.votes.is_threshold_met(
+            &proposal.round(),
+            VoteType::Precommit,
+            Threshold::Value(proposal.value().id()),
+        ) {
+            return self.apply_event(
+                proposal.round(),
+                RoundEvent::ProposalAndPrecommitValue(proposal.clone()),
+            );
+        }
+
+        // If the proposal is for a different round drop the proposal
+        // TODO - this check is also done in the round state machine, decide where to do it
+        if self.round_state.round != proposal.round() {
+            return Ok(None);
+        }
+
+        let polka_for_current = self.votes.is_threshold_met(
+            &proposal.round(),
+            VoteType::Prevote,
+            Threshold::Value(proposal.value().id()),
+        );
+        let polka_current = polka_for_current && self.round_state.step >= Step::Prevote;
+
+        // L36
+        if polka_current {
+            return self.apply_event(
+                proposal.round(),
+                RoundEvent::ProposalAndPolkaCurrent(proposal.clone()),
+            );
+        }
+
+        // L28
+        if polka_previous {
+            return self.apply_event(
+                proposal.round(),
+                RoundEvent::ProposalAndPolkaPrevious(proposal.clone()),
+            );
+        }
+
+        // TODO - Caller needs to store the proposal (valid or not) as the quorum (polka or commits) may be met later
+        self.apply_event(proposal.round(), RoundEvent::Proposal(proposal.clone()))
     }
 
     fn apply_vote(
