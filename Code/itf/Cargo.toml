@@ -14,10 +14,10 @@ rand             = { workspace = true }
 malachite-common = { version = "0.1.0", path = "../common" }
 malachite-vote   = { version = "0.1.0", path = "../vote" }
 malachite-test   = { version = "0.1.0", path = "../test" }
-num-bigint       = { version = "0.4", features = ["serde"] }
+num-bigint       = { workspace = true, features = ["serde"] }
 serde            = { workspace = true, features = ["derive"] }
-serde_json       = { version = "1.0.108" }
-glob             = { version = "0.3.1" }
+serde_json       = { workspace = true }
+glob             = { workspace = true }
 
 [dev-dependencies]
 tempfile         = { version = "3.8.1" }
