@@ -3,10 +3,8 @@
 FILE=$1
 [[ ! -f "$FILE" ]] && echo "Error: $FILE does not exist" && exit 1
 
-# The following jq command removes all stuttering steps on an ITF trace file. A stuttering step
-# happens in a trace when a state is followed by the same state.
-#
-# Note that for comparing states we remove from all states the "#meta" field, which is different for
-# each state as it includes a sequential index number. This information is not needed for displaying
-# or doing MBT on the trace.
+# The following jq command removes all even steps on an ITF trace file. This is a hack to get round
+# a Quint issue which makes the generated trace to have a stuttering step on `run` steps that are
+# used for checking assertions, where all variables are unchanged (see
+# https://github.com/informalsystems/quint/issues/1252).
 echo $(cat $1 | jq -c '.states |= [to_entries | .[] | select(.key % 2 == 0) | .value."#meta".index = .key / 2 | .value]') > $1
