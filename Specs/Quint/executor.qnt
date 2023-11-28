@@ -77,7 +77,7 @@ val defaultInput: ExecutorInput = {
 pure def toVote (v: VoteMsg_t) : Vote = 
     val voteType = if (v.step == "Precommit") Precommit else Prevote
     val value = if (v.id == "nil") Nil else Val(v.id)
-    { typ: voteType, round: v.round, value: value, address: v.src }
+    { typ: voteType, height: v.height, round: v.round, value: value, address: v.src }
 
 val defaultEvent : Event = { name : "", height : 0, round: 0, value: "", vr: 0 }    
 
@@ -154,12 +154,10 @@ pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (Executo
     else
         // Go to consensus
         val res = consensus(es.cs, ev)
-        // Update the round in the vote keeper, in case we moved to a new round
-        val newBk = { ...bk, currentRound: res.cs.round }
         // Record that we executed the event
         val events = es.executedEvents.append((ev, res.cs.height, res.cs.round))
 
-        ({ ...es, bk: newBk, cs: res.cs, executedEvents: events }, res.out)
+        ({ ...es, bk: bk, cs: res.cs, executedEvents: events }, res.out)
 }
 
 
@@ -306,7 +304,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
                                     round: input.proposal.round,
                                     value: id(input.proposal.proposal),
                                     vr: input.proposal.validRound})  
-        else if (input.proposal.round != es.cs.round or input.proposal.height != es.cs.round) 
+        else if (input.proposal.round != es.cs.round or input.proposal.height != es.cs.height) 
             // the proposal is from the right proposer and valid, but not for this round
             // keep the proposal, do nothing else
             (newES, defaultResult)
@@ -469,27 +467,38 @@ pure def setValue(es: ExecutorState, value: Value_t) : (ExecutorState, Consensus
 pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
     // TODO: shall we check whether the sender actually is in the validator set
     if (input.name == "proposal") {
-        val cons_res = ProposalMsg(es, input)
-        if (cons_res._2.name == "decided")
-            decided (cons_res._1, cons_res._2)
+        val res = ProposalMsg(es, input)
+        if (res._2.name == "decided")
+            decided (res._1, res._2)
+        else if (res._2.name == "skipRound")
+            skip (res._1, res._2.skipRound)
         else
-            cons_res
+            res
     }
     else if (input.name == "votemessage" and input.vote.step == "Precommit") {
-        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
+        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src), es.cs.round)
         val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
         // only a commit event can come here. 
         val cons_res = precommit(newES, input, res.event) 
         if (cons_res._2.name == "decided")
             decided (cons_res._1, cons_res._2)
+        else if (cons_res._2.name == "skipRound")
+            skip (cons_res._1, cons_res._2.skipRound)
         else
             cons_res
     }
     else if (input.name == "votemessage" and input.vote.step == "Prevote") {
-        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src))
+        val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src), es.cs.round)
         val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
         // only a commit event can come here. 
-        prevote(newES, input, res.event) 
+        val cons_res = prevote(newES, input, res.event) 
+        if (cons_res._2.name == "decided")
+            // TODO: dead branch. But we should put this after consensus call logic into a function
+            decided (cons_res._1, cons_res._2)
+        else if (cons_res._2.name == "skipRound")
+            skip (cons_res._1, cons_res._2.skipRound)
+        else
+            cons_res
     }
     else if (input.name == "timeout") {
         val res = Timeout(es, input)

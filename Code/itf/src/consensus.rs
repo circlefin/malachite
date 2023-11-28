@@ -1,13 +1,14 @@
-use itf::{ItfBigInt, ItfMap};
+use num_bigint::BigInt;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 use crate::deserializers as de;
 
 pub type Address = String;
 pub type Value = String;
 pub type Step = String;
-pub type Round = ItfBigInt;
-pub type Height = ItfBigInt;
+pub type Round = BigInt;
+pub type Height = BigInt;
 
 #[derive(Clone, Debug, Deserialize)]
 pub enum Timeout {
@@ -33,7 +34,7 @@ pub struct State {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct System(ItfMap<Address, ConsensusState>);
+pub struct System(HashMap<Address, ConsensusState>);
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "name")]
@@ -132,9 +133,9 @@ impl Proposal {
     pub fn is_empty(&self) -> bool {
         self.src.is_empty()
             && self.proposal.is_empty()
-            && self.height == ItfBigInt::from(-1)
-            && self.round == ItfBigInt::from(-1)
-            && self.valid_round == ItfBigInt::from(-1)
+            && self.height == BigInt::from(-1)
+            && self.round == BigInt::from(-1)
+            && self.valid_round == BigInt::from(-1)
     }
 }
 
@@ -152,8 +153,8 @@ impl VoteMessage {
     pub fn is_empty(&self) -> bool {
         self.src.is_empty()
             && self.id.is_empty()
-            && self.height == ItfBigInt::from(-1)
-            && self.round == ItfBigInt::from(-1)
+            && self.height == BigInt::from(-1)
+            && self.round == BigInt::from(-1)
             && self.step.is_empty()
     }
 }

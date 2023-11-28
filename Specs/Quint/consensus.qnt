@@ -410,6 +410,8 @@ pure def consensus (state: ConsensusState, ev: Event) : ConsResult = {
         PrecommitAny(state, ev)
     else if (ev.name == "ProposalAndCommitAndValid")
         ProposalAndCommitAndValid(state, ev)
+    else if (ev.name == "RoundSkip")
+        RoundSkip (state, ev)
     else if (ev.name == "TimeoutPropose")
         TimeoutPropose (state, ev)
     else if (ev.name == "TimeoutPrevote")

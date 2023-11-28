@@ -82,8 +82,8 @@ impl malachite_common::Vote<TestContext> for Vote {
         self.round
     }
 
-    fn value(&self) -> Option<&ValueId> {
-        self.value.as_ref()
+    fn value(&self) -> &Option<ValueId> {
+        &self.value
     }
 
     fn take_value(self) -> Option<ValueId> {

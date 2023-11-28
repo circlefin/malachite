@@ -28,7 +28,7 @@ where
     fn round(&self) -> Round;
 
     /// Get a reference to the value being voted for.
-    fn value(&self) -> Option<&<Ctx::Value as Value>::Id>;
+    fn value(&self) -> &Option<<Ctx::Value as Value>::Id>;
 
     /// Take ownership of the value being voted for.
     fn take_value(self) -> Option<<Ctx::Value as Value>::Id>;

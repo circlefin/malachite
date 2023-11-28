@@ -188,12 +188,21 @@ module extraSpells {
   ///
   /// - @param __map a map with values of type int
   /// - @returns the sum of the values of all entries in __map
- pure def mapSumValues(__map: a -> int): int =
+  pure def mapSumValues(__map: a -> int): int =
     __map.keys().fold(0, (__acc, __val) => __acc + __map.get(__val))
 
   run mapSumValuesTest = all {
     assert(0 == Map().mapSumValues()),
     assert(6 == Map("a" -> 0, "b" -> 1, "c" -> 2, "d" -> 3).mapSumValues()),
   }
+
+  /// True iff all (key, value) pairs in the map satisfy the given predicate.
+  pure def forallEntries(__map: a -> b, __f: (a, b) => bool): bool =
+      __map.keys().forall(__key => __f(__key, __map.get(__key)))
+
+
+  /// True iff all values in the map satisfy the given predicate.
+  pure def forallValues(__map: a -> b, __f: b => bool): bool =
+      __map.keys().forall(__key => __f(__map.get(__key)))
 
 }
