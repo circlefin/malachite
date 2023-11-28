@@ -228,7 +228,7 @@ where
         if polka_current {
             return self.apply_event(
                 proposal.round(),
-                RoundEvent::ProposalAndPolkaCurrent(proposal.clone()),
+                RoundEvent::ProposalAndPolkaCurrent(proposal),
             );
         }
 
@@ -236,12 +236,12 @@ where
         if polka_previous {
             return self.apply_event(
                 proposal.round(),
-                RoundEvent::ProposalAndPolkaPrevious(proposal.clone()),
+                RoundEvent::ProposalAndPolkaPrevious(proposal),
             );
         }
 
         // TODO - Caller needs to store the proposal (valid or not) as the quorum (polka or commits) may be met later
-        self.apply_event(proposal.round(), RoundEvent::Proposal(proposal.clone()))
+        self.apply_event(proposal.round(), RoundEvent::Proposal(proposal))
     }
 
     fn apply_vote(
