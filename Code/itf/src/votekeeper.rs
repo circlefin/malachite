@@ -1,5 +1,4 @@
-use itf::de::Integer;
-use serde_with::{As, Same};
+use itf::de::{As, Integer, Same};
 use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
