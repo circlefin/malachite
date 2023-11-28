@@ -241,9 +241,9 @@ fn driver_steps_polka_previous_with_locked() {
             input_event: proposal_event(Round::new(0), value, Round::Nil, Validity::Valid),
             expected_output: prevote_msg(Round::new(0), &my_addr, &my_sk),
             expected_round: Round::new(0),
-            new_state: prevote_state_with_proposal(
+            new_state: prevote_state(
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                // Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
             ),
         },
         TestStep {
@@ -251,9 +251,9 @@ fn driver_steps_polka_previous_with_locked() {
             input_event: prevote_event(&v3.address, &sk3),
             expected_output: None,
             expected_round: Round::new(0),
-            new_state: prevote_state_with_proposal(
+            new_state: prevote_state(
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                // Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
             ),
         },
         TestStep {
@@ -327,9 +327,9 @@ fn driver_steps_polka_previous_invalid_proposal_with_locked() {
             input_event: proposal_event(Round::new(0), value, Round::Nil, Validity::Valid),
             expected_output: prevote_msg(Round::new(0), &my_addr, &my_sk),
             expected_round: Round::new(0),
-            new_state: prevote_state_with_proposal(
+            new_state: prevote_state(
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                // Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
             ),
         },
         TestStep {
@@ -337,9 +337,9 @@ fn driver_steps_polka_previous_invalid_proposal_with_locked() {
             input_event: prevote_event(&v3.address, &sk3),
             expected_output: None,
             expected_round: Round::new(0),
-            new_state: prevote_state_with_proposal(
+            new_state: prevote_state(
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                // Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
             ),
         },
         TestStep {

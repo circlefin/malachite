@@ -16,6 +16,7 @@ use malachite_vote::ThresholdParams;
 
 use crate::event::Event;
 use crate::message::Message;
+use crate::proposals::Proposals;
 use crate::Error;
 use crate::ProposerSelector;
 use crate::Validity;
@@ -33,6 +34,7 @@ where
 
     pub votes: VoteKeeper<Ctx>,
     pub round_state: RoundState<Ctx>,
+    pub proposals: Proposals<Ctx>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -57,6 +59,7 @@ where
             validator_set,
             votes,
             round_state: RoundState::default(),
+            proposals: Proposals::new(),
         }
     }
 
@@ -162,11 +165,14 @@ where
             return Ok(None);
         }
 
+        self.proposals.insert(proposal.clone());
+
         let polka_for_pol = self.votes.is_threshold_met(
             &proposal.pol_round(),
             VoteType::Prevote,
             Threshold::Value(proposal.value().id()),
         );
+
         let polka_previous = proposal.pol_round().is_defined()
             && polka_for_pol
             && proposal.pol_round() < self.round_state.round;
@@ -302,18 +308,27 @@ where
 
         // Multiplex the event with the round state.
         let mux_event = match event {
-            RoundEvent::PolkaValue(value_id) => match round_state.proposal {
-                Some(ref proposal) if proposal.value().id() == value_id => {
+            RoundEvent::PolkaValue(value_id) => {
+                let proposal = self.proposals.get(event_round, &value_id);
+
+                if let Some(proposal) = proposal {
+                    assert_eq!(proposal.value().id(), value_id);
                     RoundEvent::ProposalAndPolkaCurrent(proposal.clone())
+                } else {
+                    RoundEvent::PolkaAny
                 }
-                _ => RoundEvent::PolkaAny,
-            },
-            RoundEvent::PrecommitValue(value_id) => match round_state.proposal {
-                Some(ref proposal) if proposal.value().id() == value_id => {
+            }
+
+            RoundEvent::PrecommitValue(value_id) => {
+                let proposal = self.proposals.get(event_round, &value_id);
+
+                if let Some(proposal) = proposal {
+                    assert_eq!(proposal.value().id(), value_id);
                     RoundEvent::ProposalAndPrecommitValue(proposal.clone())
+                } else {
+                    RoundEvent::PrecommitAny
                 }
-                _ => RoundEvent::PrecommitAny,
-            },
+            }
 
             _ => event,
         };
@@ -339,6 +354,7 @@ where
             .field("address", &self.address)
             .field("validator_set", &self.validator_set)
             .field("votes", &self.votes)
+            .field("proposals", &self.proposals.proposals)
             .field("round_state", &self.round_state)
             .finish()
     }

@@ -203,7 +203,7 @@ where
 ///
 /// Ref: L22/L28
 pub fn prevote<Ctx>(
-    mut state: State<Ctx>,
+    state: State<Ctx>,
     address: &Ctx::Address,
     proposal: &Ctx::Proposal,
 ) -> Transition<Ctx>
@@ -220,7 +220,7 @@ where
     };
 
     let message = Message::prevote(state.height.clone(), state.round, value, address.clone());
-    state.proposal = Some(proposal.clone());
+    // state.proposal = Some(proposal.clone());
     Transition::to(state.with_step(Step::Prevote)).with_message(message)
 }
 
@@ -246,7 +246,7 @@ where
 /// NOTE: Only one of this and set_valid_value should be called once in a round
 ///       How do we enforce this?
 pub fn precommit<Ctx>(
-    mut state: State<Ctx>,
+    state: State<Ctx>,
     address: &Ctx::Address,
     proposal: Ctx::Proposal,
 ) -> Transition<Ctx>
@@ -254,7 +254,7 @@ where
     Ctx: Context,
 {
     if state.step != Step::Prevote {
-        return Transition::to(state.clone());
+        return Transition::to(state);
     }
 
     let value = proposal.value();
@@ -265,15 +265,15 @@ where
         address.clone(),
     );
 
-    let current_value = match state.proposal {
-        Some(ref proposal) => proposal.value().clone(),
-        None => {
-            state.proposal = Some(proposal.clone());
-            proposal.value().clone()
-        }
-    };
-
-    assert_eq!(current_value.id(), value.id());
+    // let current_value = match state.proposal {
+    //     Some(ref proposal) => proposal.value().clone(),
+    //     None => {
+    //         state.proposal = Some(proposal.clone());
+    //         proposal.value().clone()
+    //     }
+    // };
+    //
+    // assert_eq!(current_value.id(), value.id());
 
     let next = state
         .set_locked(value.clone())
@@ -348,12 +348,12 @@ where
 /// Ref: L36/L42
 ///
 /// NOTE: only one of this and precommit should be called once in a round
-pub fn set_valid_value<Ctx>(mut state: State<Ctx>, proposal: &Ctx::Proposal) -> Transition<Ctx>
+pub fn set_valid_value<Ctx>(state: State<Ctx>, proposal: &Ctx::Proposal) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    state.proposal = Some(proposal.clone());
-    Transition::to(state.clone().set_valid(proposal.value().clone()))
+    // state.proposal = Some(proposal.clone());
+    Transition::to(state.set_valid(proposal.value().clone()))
 }
 
 //---------------------------------------------------------------------

@@ -170,7 +170,6 @@ pub fn propose_state(round: Round) -> State<TestContext> {
         height: Height::new(1),
         round,
         step: Step::Propose,
-        proposal: None,
         locked: None,
         valid: None,
     }
@@ -190,9 +189,8 @@ pub fn propose_state_with_proposal_and_valid(
         height: Height::new(1),
         round: state_round,
         step: Step::Propose,
-        proposal: Some(proposal.clone()),
         valid: Some(RoundValue {
-            value: proposal.clone().value,
+            value: proposal.value,
             round: valid_round,
         }),
         locked: None,
@@ -207,13 +205,12 @@ pub fn propose_state_with_proposal_and_locked_and_valid(
         height: Height::new(1),
         round,
         step: Step::Propose,
-        proposal: Some(proposal.clone()),
         valid: Some(RoundValue {
-            value: proposal.clone().value,
+            value: proposal.value,
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
-            value: proposal.clone().value,
+            value: proposal.value,
             round: Round::new(0),
         }),
     }
@@ -224,20 +221,8 @@ pub fn prevote_state(round: Round) -> State<TestContext> {
         height: Height::new(1),
         round,
         step: Step::Prevote,
-        proposal: None,
         locked: None,
         valid: None,
-    }
-}
-
-pub fn prevote_state_with_proposal(round: Round, proposal: Proposal) -> State<TestContext> {
-    State {
-        height: Height::new(1),
-        round,
-        step: Step::Prevote,
-        proposal: Some(proposal.clone()),
-        valid: None,
-        locked: None,
     }
 }
 
@@ -250,9 +235,8 @@ pub fn prevote_state_with_proposal_and_valid(
         height: Height::new(1),
         round: state_round,
         step: Step::Prevote,
-        proposal: Some(proposal.clone()),
         valid: Some(RoundValue {
-            value: proposal.clone().value,
+            value: proposal.value,
             round: valid_round,
         }),
         locked: None,
@@ -267,13 +251,12 @@ pub fn prevote_state_with_proposal_and_locked_and_valid(
         height: Height::new(1),
         round,
         step: Step::Prevote,
-        proposal: Some(proposal.clone()),
         valid: Some(RoundValue {
-            value: proposal.clone().value,
+            value: proposal.value,
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
-            value: proposal.clone().value,
+            value: proposal.value,
             round: Round::new(0),
         }),
     }
@@ -287,13 +270,12 @@ pub fn precommit_state_with_proposal_and_locked_and_valid(
         height: Height::new(1),
         round,
         step: Step::Precommit,
-        proposal: Some(proposal.clone()),
         valid: Some(RoundValue {
-            value: proposal.clone().value,
+            value: proposal.value,
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
-            value: proposal.clone().value,
+            value: proposal.value,
             round: Round::new(0),
         }),
     }
@@ -304,7 +286,6 @@ pub fn precommit_state(round: Round) -> State<TestContext> {
         height: Height::new(1),
         round,
         step: Step::Precommit,
-        proposal: None,
         locked: None,
         valid: None,
     }
@@ -319,9 +300,8 @@ pub fn precommit_state_with_proposal_and_valid(
         height: Height::new(1),
         round: state_round,
         step: Step::Precommit,
-        proposal: Some(proposal.clone()),
         valid: Some(RoundValue {
-            value: proposal.clone().value,
+            value: proposal.value,
             round: valid_round,
         }),
         locked: None,
@@ -333,7 +313,6 @@ pub fn new_round(round: Round) -> State<TestContext> {
         height: Height::new(1),
         round,
         step: Step::NewRound,
-        proposal: None,
         valid: None,
         locked: None,
     }
@@ -344,9 +323,8 @@ pub fn new_round_with_proposal_and_valid(round: Round, proposal: Proposal) -> St
         height: Height::new(1),
         round,
         step: Step::NewRound,
-        proposal: Some(proposal.clone()),
         valid: Some(RoundValue {
-            value: proposal.clone().value,
+            value: proposal.value,
             round: Round::new(0),
         }),
         locked: None,
@@ -361,13 +339,12 @@ pub fn new_round_with_proposal_and_locked_and_valid(
         height: Height::new(1),
         round,
         step: Step::NewRound,
-        proposal: Some(proposal.clone()),
         valid: Some(RoundValue {
-            value: proposal.clone().value,
+            value: proposal.value,
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
-            value: proposal.clone().value,
+            value: proposal.value,
             round: Round::new(0),
         }),
     }
@@ -379,7 +356,6 @@ pub fn decided_state(round: Round, _value: Value) -> State<TestContext> {
         height: Height::new(1),
         round,
         step: Step::Commit,
-        proposal: None,
         valid: None,
         locked: None,
     }
