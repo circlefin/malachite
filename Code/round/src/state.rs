@@ -90,7 +90,7 @@ where
     Ctx: Context,
 {
     fn default() -> Self {
-        Self::new(Ctx::Height::default(), Round::NIL)
+        Self::new(Ctx::Height::default(), Round::Nil)
     }
 }
 

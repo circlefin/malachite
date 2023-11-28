@@ -10,6 +10,8 @@ mod validator_set;
 mod value;
 mod vote;
 
+pub mod utils;
+
 pub use crate::context::*;
 pub use crate::height::*;
 pub use crate::proposal::*;
