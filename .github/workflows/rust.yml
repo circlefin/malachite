@@ -5,9 +5,13 @@ on:
     branches: main
     paths:
       - Code/**
+      - Specs/Quint/**
+      - .github/workflows/rust.yml
   pull_request:
     paths:
       - Code/**
+      - Specs/Quint/**
+      - .github/workflows/rust.yml
 
 env:
   CARGO_INCREMENTAL: 0
