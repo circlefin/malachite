@@ -211,9 +211,8 @@ where
             );
         }
 
-        // If the proposal is for a different round drop the proposal
-        // TODO - this check is also done in the round state machine, decide where to do it
-        if self.round_state.round != proposal.round() {
+        // If the proposal is for a different round, drop the proposal
+        if self.round() != proposal.round() {
             return Ok(None);
         }
 
@@ -222,6 +221,7 @@ where
             VoteType::Prevote,
             Threshold::Value(proposal.value().id()),
         );
+
         let polka_current = polka_for_current && self.round_state.step >= Step::Prevote;
 
         // L36
