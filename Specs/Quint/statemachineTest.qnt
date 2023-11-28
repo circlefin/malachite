@@ -137,6 +137,7 @@ run DecidingRunTest = {
     .then(valStepCommand("v1", "vote"))
     .then(valStepCommand("v1", "vote"))
     .then(valStepCommand("v1", "vote"))
+    .then(valStepCommand("v1", "pending"))
     .then(all{
         assert(system.get("v1").incomingVotes.contains(
              { src: "v1", height: 0, round: 0, step: "Precommit", id: "a block" }
@@ -146,6 +147,7 @@ run DecidingRunTest = {
     .then(valStepCommand("v2", "vote"))
     .then(valStepCommand("v2", "vote"))
     .then(valStepCommand("v2", "vote"))
+    .then(valStepCommand("v2", "pending"))
     .then(all{
         assert(system.get("v2").incomingVotes.contains(
              { src: "v2", height: 0, round: 0, step: "Precommit", id: "a block" }
@@ -156,6 +158,7 @@ run DecidingRunTest = {
     .then(valStepCommand("v3", "vote"))
     .then(valStepCommand("v3", "vote"))
     .then(valStepCommand("v3", "vote"))
+    .then(valStepCommand("v3", "pending"))
     .then(all{
         assert(system.get("v3").incomingVotes.contains(
              { src: "v3", height: 0, round: 0, step: "Precommit", id: "a block" }

@@ -598,6 +598,10 @@ pure def nextActionCommand (state: NodeState, command: str) : (NodeState, Execut
     if (command == "start" and not(state.es.started))
         (state, { ...defaultInput, name: "start" })
 
+    else if (command == "pending" and state.es.pendingEvents != Set())
+        // this might be cheating as we look into the "es"
+        (state, { ...defaultInput, name: "pending" })
+
     else if (command == "proposal" and state.incomingProposals != Set())
         // pick proposal, remove it from incoming
         // val prop = state.incomingProposals.chooseSome()
@@ -621,10 +625,6 @@ pure def nextActionCommand (state: NodeState, command: str) : (NodeState, Execut
         val timeout = timeouts.fold(("", 0, 0), (sum, y) => y)
         val newstate = { ...state, timeout: state.timeout.exclude(Set(timeout))}
         (newstate, { ...defaultInput, name: "timeout", timeout: timeout._1})
-
-    else if (command == "pending" and state.es.pendingEvents != Set())
-        // this might be cheating as we look into the "es"
-        (state, { ...defaultInput, name: "pending" })
 
     else
         (state, defaultInput)

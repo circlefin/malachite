@@ -93,6 +93,7 @@ pure def sendVote (sys: Address_t -> Set[VoteMsg_t], vote: VoteMsg_t) : Address_
 }
 
 // Record that a timeout has started at node v
+// As we do set union here, there is no need to check whether this happens the first time
 pure def startTimeout (sys: Address_t -> NodeState, v: Address_t, toName: str) : Address_t -> NodeState = {
     sys.put(v, { ...sys.get(v), timeout: sys.get(v).timeout.union(Set(
         {(toName, sys.get(v).es.cs.height, sys.get(v).es.cs.round)}
