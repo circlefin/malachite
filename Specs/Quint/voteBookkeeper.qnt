@@ -289,32 +289,28 @@ module voteBookkeeper {
 
         { bookkeeper: updatedBookkeeper, event: finalEvent }
 
-    // run PrecommitTest = all {
-    // val bin : Bookkeeper = {
-    //                height: 0,
-    //                rounds:
-    //                  Map(
-    //                    0 ->
-    //                      {
-    //                        height: 0,
-    //                        precommits: { total: 4, valuesAddresses: Map(), valuesWeights: Map() },
-    //                        prevotes: { total: 4, valuesAddresses: Map(), valuesWeights: Map("a block" -> 1, "nil" -> 3) },
-    //                        round: 0
-    //                      }
-    //                  ),
-    //                totalWeight: 4
-    //              }
-    // val o1 = applyVote(bin, {value: "nil", round: 0, address: "v0", typ: "Precommit" }, 1)
-    // val o2 = applyVote(o1.bookkeeper, {value: "nil", round: 0, address: "v1", typ: "Precommit" }, 1)
-    // val o3 = applyVote(o2.bookkeeper, {value: "nil", round: 0, address: "v2", typ: "Precommit" }, 1)
-    // val o4 = applyVote(o3.bookkeeper, {value: "nil", round: 0, address: "v3", typ: "Precommit" }, 1)
-    // all{
-    //     assert(o1.event.name == "None"),
-    //     assert(o2.event.name == "None"),
-    //     assert(o3.event.name == "PrecommitAny"),
-    //     assert(o4.event.name == "PrecommitAny")
-    // }
-    // }
+    run applyVoteTest =
+        val roundVotes: RoundVotes = {
+            height: 0,
+            round: 0,
+            prevotes: { totalWeight: 4, votesAddresses: Set(), valuesWeights: Map("v1" -> 1, Nil -> 3) },
+            precommits: { totalWeight: 4, votesAddresses: Set(), valuesWeights: Map() },
+            emittedEvents: Set(),
+            votesAddressesWeights: Map(),
+        }
+        val vk: Bookkeeper = { height: 0, totalWeight: 4, rounds: Map(0 -> roundVotes) }
+        val o1 = applyVote(vk, { height: 0, round: 0, address: "a0", typ: "Precommit", value: Nil }, 1, 0)
+        val o2 = applyVote(o1.bookkeeper, { height: 0, round: 0, address: "a1", typ: "Precommit", value: Nil }, 1, 0)
+        val o3 = applyVote(o2.bookkeeper, { height: 0, round: 0, address: "a2", typ: "Precommit", value: Nil }, 1, 0)
+        val o4 = applyVote(o3.bookkeeper, { height: 0, round: 0, address: "a3", typ: "Precommit", value: Nil }, 1, 0)
+        val o5 = applyVote(o4.bookkeeper, { height: 0, round: 1, address: "a4", typ: "Precommit", value: Nil }, 3, 0)
+        all {
+            assert(o1.event.name == "None"),
+            assert(o2.event.name == "None"),
+            assert(o3.event.name == "PrecommitAny"),
+            assert(o4.event.name == "None"),
+            assert(o5.event.name == "Skip"),
+        }
 
     // Called by the executor to check if there is a specific threshold for a given round and voteType.
     // TO DISCUSS:
