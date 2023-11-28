@@ -103,6 +103,13 @@ module voteBookkeeper {
     pure def isQuorum(weight: Weight, total: Weight): bool =
         3 * weight > 2 * total
 
+    run isQuorumTest = all {
+        assert(isQuorum(0,0) == false),
+        assert(isQuorum(2,6) == false),
+        assert(isQuorum(4,6) == false),
+        assert(isQuorum(5,6) == true)
+    }
+
     // True iff the vote count has a quorum on a specific value.
     pure def hasQuorumOnValue(voteCount: VoteCount, value: Value): bool =
         isQuorum(voteCount.valuesWeights.getOrElse(value, 0), voteCount.totalWeight)
@@ -115,6 +122,12 @@ module voteBookkeeper {
     pure def isSkip(weight: Weight, total: Weight): bool =
         3 * weight > total
 
+    run isSkipTest = all {
+        assert(isSkip(0,0) == false),
+        assert(isSkip(2,6) == false),
+        assert(isSkip(3,6) == true)
+    }
+
     // Adds a vote of weight weigth to a voteCount if there is not vote registered for the voter.
     pure def addVote(voteCount: VoteCount, vote: Vote, weight: Weight): VoteCount =
         if (vote.address.in(voteCount.votesAddresses))
@@ -125,6 +138,18 @@ module voteBookkeeper {
             voteCount
                 .with("valuesWeights", voteCount.valuesWeights.mapSafeSet(vote.value, newWeight))
                 .with("votesAddresses", voteCount.votesAddresses.setAdd(vote.address))
+
+    run addVoteTest =
+        val voteCount = {totalWeight: 100, valuesWeights: Map(Val("v1") -> 30, Val("v2") -> 20), votesAddresses: Set("alice", "bob")}
+        val vote = {typ: Precommit, round: 10, value: Val("v3"), address: "john"}
+        all {
+            // new voter, new value
+            assert(addVote(voteCount, vote, 10) == {totalWeight: 100, valuesWeights: Map(Val("v1") -> 30, Val("v2") -> 20, Val("v3") -> 10), votesAddresses: Set("alice", "bob", "john")}),
+            // new voter, existing value
+            assert(addVote(voteCount, vote.with("value", Val("v2")), 10) == {totalWeight: 100, valuesWeights: Map(Val("v1") -> 30, Val("v2") -> 30), votesAddresses: Set("alice", "bob", "john")}),
+            // existing voter
+            assert(addVote(voteCount, vote.with("address", "alice"), 10) == voteCount),
+        }
 
     // Given a voteCount and a value, the function returns:
     // - A threshold Value if there is a quorum for the given value;
@@ -141,6 +166,21 @@ module voteBookkeeper {
             AnyThreshold
         } else 
             UnreachedThreshold
+
+    run computeThresholdTest =
+        val voteCount = {totalWeight: 100, valuesWeights: Map(), votesAddresses: Set("alice", "bob")}
+        val mapValueReached = Map(Val("v1") -> 67, Val("v2") -> 20)
+        val mapNilReached = Map(Nil -> 70, Val("v2") -> 20)
+        val mapNoneReached = Map(Nil -> 20, Val("v2") -> 20)
+        all {
+            assert(computeThreshold(voteCount, Val("v3")) == UnreachedThreshold),
+            assert(computeThreshold(voteCount.with("valuesWeights", mapValueReached), Val("v1")) == ValueThreshold("v1")),
+            assert(computeThreshold(voteCount.with("valuesWeights", mapValueReached), Val("v2")) == AnyThreshold),
+            assert(computeThreshold(voteCount.with("valuesWeights", mapNilReached), Nil) == NilThreshold),
+            assert(computeThreshold(voteCount.with("valuesWeights", mapNilReached), Val("v2")) == AnyThreshold),
+            assert(computeThreshold(voteCount.with("valuesWeights", mapNoneReached), Val("v1")) == UnreachedThreshold),
+            assert(computeThreshold(voteCount.with("valuesWeights", mapNoneReached), Nil) == UnreachedThreshold),
+        }
 
     // Given a round, voteType and threshold, return the corresponding ExecutorEvent
     pure def toEvent(round: Round, voteType: VoteType, threshold: Threshold): ExecutorEvent =
@@ -164,6 +204,21 @@ module voteBookkeeper {
                 }
             | SkipThreshold => 
                 SkipEvent(round)
+        }
+
+    run toEventTest =
+        val round = 10
+        all {
+            assert(toEvent(round, Prevote, UnreachedThreshold) == NoEvent(round)),
+            assert(toEvent(round, Precommit, UnreachedThreshold) == NoEvent(round)),
+            assert(toEvent(round, Prevote, AnyThreshold) == PolkaAnyEvent(round)),
+            assert(toEvent(round, Prevote, NilThreshold) == PolkaNilEvent(round)),
+            assert(toEvent(round, Prevote, ValueThreshold("v1")) == PolkaValueEvent((round, Val("v1")))),
+            assert(toEvent(round, Precommit, AnyThreshold) == PrecommitAnyEvent(round)),
+            assert(toEvent(round, Precommit, NilThreshold) == PrecommitAnyEvent(round)),
+            assert(toEvent(round, Precommit, ValueThreshold("v1")) == PrecommitValueEvent((round, Val("v1")))),
+            assert(toEvent(round, Prevote, SkipThreshold) == SkipEvent(round)),
+            assert(toEvent(round, Precommit, SkipThreshold) == SkipEvent(round)),
         }
 
     // Executor interface
@@ -254,91 +309,5 @@ module voteBookkeeper {
                 | UnreachedThreshold => false
             }
         } else false
-
-// run PrecommitTest = all {
-// val bin : Bookkeeper = {
-//                height: 0,
-//                rounds:
-//                  Map(
-//                    0 ->
-//                      {
-//                        height: 0,
-//                        precommits: { total: 4, valuesAddresses: Map(), valuesWeights: Map() },
-//                        prevotes: { total: 4, valuesAddresses: Map(), valuesWeights: Map("a block" -> 1, "nil" -> 3) },
-//                        round: 0
-//                      }
-//                  ),
-//                totalWeight: 4
-//              }
-// val o1 = applyVote(bin, {value: "nil", round: 0, address: "v0", typ: Precommit }, 1)
-// val o2 = applyVote(o1.bookkeeper, {value: "nil", round: 0, address: "v1", typ: Precommit }, 1)
-// val o3 = applyVote(o2.bookkeeper, {value: "nil", round: 0, address: "v2", typ: Precommit }, 1)
-// val o4 = applyVote(o3.bookkeeper, {value: "nil", round: 0, address: "v3", typ: Precommit }, 1)
-// all{
-//     assert(o1.event.name == "None"),
-//     assert(o2.event.name == "None"),
-//     assert(o3.event.name == "PrecommitAny"),
-//     assert(o4.event.name == "PrecommitAny")
-// }
-// }
-
-    // ****************************************************************************
-    // Unit tests
-    // ****************************************************************************
-
-    run isQuorumTest = all {
-        assert(isQuorum(0,0) == false),
-        assert(isQuorum(2,6) == false),
-        assert(isQuorum(4,6) == false),
-        assert(isQuorum(5,6) == true)
-    }
-
-    run isSkipTest = all {
-        assert(isSkip(0,0) == false),
-        assert(isSkip(2,6) == false),
-        assert(isSkip(3,6) == true)
-    }
-
-    run addVoteTest =
-        val voteCount = {totalWeight: 100, valuesWeights: Map(Val("v1") -> 30, Val("v2") -> 20), votesAddresses: Set("alice", "bob")}
-        val vote = {typ: Precommit, round: 10, value: Val("v3"), address: "john"}
-        all {
-            // new voter, new value
-            assert(addVote(voteCount, vote, 10) == {totalWeight: 100, valuesWeights: Map(Val("v1") -> 30, Val("v2") -> 20, Val("v3") -> 10), votesAddresses: Set("alice", "bob", "john")}),
-            // new voter, existing value
-            assert(addVote(voteCount, vote.with("value", Val("v2")), 10) == {totalWeight: 100, valuesWeights: Map(Val("v1") -> 30, Val("v2") -> 30), votesAddresses: Set("alice", "bob", "john")}),
-            // existing voter
-            assert(addVote(voteCount, vote.with("address", "alice"), 10) == voteCount),
-        }
-
-    run computeThresholdTest =
-        val voteCount = {totalWeight: 100, valuesWeights: Map(), votesAddresses: Set("alice", "bob")}
-        val mapValueReached = Map(Val("v1") -> 67, Val("v2") -> 20)
-        val mapNilReached = Map(Nil -> 70, Val("v2") -> 20)
-        val mapNoneReached = Map(Nil -> 20, Val("v2") -> 20)
-        all {
-            assert(computeThreshold(voteCount, Val("v3")) == UnreachedThreshold),
-            assert(computeThreshold(voteCount.with("valuesWeights", mapValueReached), Val("v1")) == ValueThreshold("v1")),
-            assert(computeThreshold(voteCount.with("valuesWeights", mapValueReached), Val("v2")) == AnyThreshold),
-            assert(computeThreshold(voteCount.with("valuesWeights", mapNilReached), Nil) == NilThreshold),
-            assert(computeThreshold(voteCount.with("valuesWeights", mapNilReached), Val("v2")) == AnyThreshold),
-            assert(computeThreshold(voteCount.with("valuesWeights", mapNoneReached), Val("v1")) == UnreachedThreshold),
-            assert(computeThreshold(voteCount.with("valuesWeights", mapNoneReached), Nil) == UnreachedThreshold),
-        }
-
-    run toEventTest =
-        val round = 10
-        all {
-            assert(toEvent(round, Prevote, UnreachedThreshold) == NoEvent(round)),
-            assert(toEvent(round, Precommit, UnreachedThreshold) == NoEvent(round)),
-            assert(toEvent(round, Prevote, AnyThreshold) == PolkaAnyEvent(round)),
-            assert(toEvent(round, Prevote, NilThreshold) == PolkaNilEvent(round)),
-            assert(toEvent(round, Prevote, ValueThreshold("v1")) == PolkaValueEvent((round, Val("v1")))),
-            assert(toEvent(round, Precommit, AnyThreshold) == PrecommitAnyEvent(round)),
-            assert(toEvent(round, Precommit, NilThreshold) == PrecommitAnyEvent(round)),
-            assert(toEvent(round, Precommit, ValueThreshold("v1")) == PrecommitValueEvent((round, Val("v1")))),
-            assert(toEvent(round, Prevote, SkipThreshold) == SkipEvent(round)),
-            assert(toEvent(round, Precommit, SkipThreshold) == SkipEvent(round)),
-        }
 
 }
