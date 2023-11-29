@@ -15,6 +15,7 @@ run runToLine28 = {
         // others should be at most 2/3.
         // if this assertion fails the set need to be set differently
         assert(3 * size(otherSet) <= 2 * size(validators)),  
+        assert(3 * size(otherSet.union(Faulty)) > 2 * size(validators)),  
         everyoneReceivesProposal(correctList, validatorList, validatorSet, 0, 0, "blue")
     })
     // receive all prevotes    
