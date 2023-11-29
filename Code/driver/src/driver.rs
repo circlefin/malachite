@@ -233,17 +233,12 @@ where
         }
 
         // L28
-        if polka_previous {
+        if self.round_state.step == Step::Propose && polka_previous {
             // TODO: Check proposal vr is equal to threshold vr
-            if self.round_state.step == Step::Propose {
-                return self.apply_event(
-                    proposal.round(),
-                    RoundEvent::ProposalAndPolkaPrevious(proposal),
-                );
-            } else {
-                // XXX: Do we abort here or do we fall through?
-                return Ok(None);
-            }
+            return self.apply_event(
+                proposal.round(),
+                RoundEvent::ProposalAndPolkaPrevious(proposal),
+            );
         }
 
         // TODO - Caller needs to store the proposal (valid or not) as the quorum (polka or commits) may be met later
