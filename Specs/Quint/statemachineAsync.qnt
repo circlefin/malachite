@@ -39,7 +39,7 @@ val RoundsOrNil = Rounds.union(Set(-1))
 val Steps = Set("Prevote", "Precommit")
 
 val AllFaultyVotes : Set[VoteMsg_t] = 
-    tuples(Faulty, Heights, Rounds, Values, Steps)
+    tuples(Faulty, Heights, Rounds, Values.union(Set("nil")), Steps)
     .map(t => { src: t._1, height: t._2, round: t._3, id: t._4, step: t._5 })
 
 // val AllFaultyVotes : Set[VoteMsg_t] = 
@@ -159,6 +159,11 @@ action deliverProposal(v: Address_t, p: ProposeMsg_t) : bool = all {
     system' = system.put(v, { ...system.get(v), incomingProposals: system.get(v).incomingProposals.union(Set(p)) }),
     _hist' = _hist,
     voteBuffer' = voteBuffer, 
+}
+
+action deliverSomeProposal(v: Address_t) : bool = any {
+    nondet prop = oneOf(propBuffer.get(v))
+    deliverProposal(v, prop)
 }
 
 action deliverVote(v: Address_t, vote: VoteMsg_t) : bool = all {
