@@ -118,24 +118,24 @@ where
         weight: Weight,
         current_round: Round,
     ) -> Option<Message<ValueId<Ctx>>> {
-        let round = self
+        let per_round = self
             .per_round
             .entry(vote.round())
             .or_insert_with(PerRound::new);
 
-        round.votes.add_vote(
+        per_round.votes.add_vote(
             vote.vote_type(),
             vote.validator_address().clone(),
             vote.value().clone(),
             weight,
         );
 
-        round
+        per_round
             .addresses_weights
             .set_once(vote.validator_address().clone(), weight);
 
         if vote.round() > current_round {
-            let combined_weight = round.addresses_weights.sum();
+            let combined_weight = per_round.addresses_weights.sum();
 
             let skip_round = self
                 .threshold_params
@@ -144,14 +144,14 @@ where
 
             if skip_round {
                 let msg = Message::SkipRound(vote.round());
-                round.emitted_msgs.insert(msg.clone());
+                per_round.emitted_msgs.insert(msg.clone());
                 return Some(msg);
             }
         }
 
         let threshold = compute_threshold(
             vote.vote_type(),
-            round,
+            per_round,
             vote.value(),
             self.threshold_params.quorum,
             self.total_weight,
@@ -160,8 +160,8 @@ where
         let msg = threshold_to_message(vote.vote_type(), vote.round(), threshold);
 
         match msg {
-            Some(msg) if !round.emitted_msgs.contains(&msg) => {
-                round.emitted_msgs.insert(msg.clone());
+            Some(msg) if !per_round.emitted_msgs.contains(&msg) => {
+                per_round.emitted_msgs.insert(msg.clone());
                 Some(msg)
             }
             _ => None,
