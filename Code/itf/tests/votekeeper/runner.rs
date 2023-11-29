@@ -4,7 +4,7 @@ use malachite_common::{Context, Round, Value};
 use malachite_itf::votekeeper::State;
 use malachite_test::{Address, Height, TestContext, Vote};
 use malachite_vote::{
-    keeper::{Message, VoteKeeper},
+    keeper::{Output, VoteKeeper},
     ThresholdParams,
 };
 
@@ -18,7 +18,7 @@ pub struct VoteKeeperRunner {
 
 impl ItfRunner for VoteKeeperRunner {
     type ActualState = VoteKeeper<TestContext>;
-    type Result = Option<Message<<<TestContext as Context>::Value as Value>::Id>>;
+    type Result = Option<Output<<<TestContext as Context>::Value as Value>::Id>>;
     type ExpectedState = State;
     type Error = ();
 
@@ -75,21 +75,21 @@ impl ItfRunner for VoteKeeperRunner {
         // Check result against expected result.
         match result {
             Some(result) => match result {
-                Message::PolkaValue(value) => {
+                Output::PolkaValue(value) => {
                     assert_eq!(expected_result.name, "PolkaValue");
                     assert_eq!(
                         value_from_model(&expected_result.value).as_ref(),
                         Some(value)
                     );
                 }
-                Message::PrecommitValue(value) => {
+                Output::PrecommitValue(value) => {
                     assert_eq!(expected_result.name, "PrecommitValue");
                     assert_eq!(
                         value_from_model(&expected_result.value).as_ref(),
                         Some(value)
                     );
                 }
-                Message::SkipRound(round) => {
+                Output::SkipRound(round) => {
                     assert_eq!(expected_result.name, "Skip");
                     assert_eq!(&Round::new(expected_result.round), round);
                 }
@@ -141,9 +141,9 @@ impl ItfRunner for VoteKeeperRunner {
 
             for event in actual_events {
                 let event_name = match event {
-                    Message::PolkaValue(_) => "PolkaValue".into(),
-                    Message::PrecommitValue(_) => "PrecommitValue".into(),
-                    Message::SkipRound(_) => "Skip".into(),
+                    Output::PolkaValue(_) => "PolkaValue".into(),
+                    Output::PrecommitValue(_) => "PrecommitValue".into(),
+                    Output::SkipRound(_) => "Skip".into(),
                     _ => format!("{event:?}"),
                 };
                 let count = event_count.entry(event_name.clone()).or_insert(0);

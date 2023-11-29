@@ -10,7 +10,7 @@ use crate::{Threshold, ThresholdParam, ThresholdParams, Weight};
 
 /// Messages emitted by the vote keeper
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Message<Value> {
+pub enum Output<Value> {
     PolkaAny,
     PolkaNil,
     PolkaValue(Value),
@@ -25,7 +25,7 @@ where
 {
     votes: RoundVotes<Ctx::Address, ValueId<Ctx>>,
     addresses_weights: RoundWeights<Ctx::Address>,
-    emitted_msgs: BTreeSet<Message<ValueId<Ctx>>>,
+    emitted_msgs: BTreeSet<Output<ValueId<Ctx>>>,
 }
 
 impl<Ctx> PerRound<Ctx>
@@ -48,7 +48,7 @@ where
         &self.addresses_weights
     }
 
-    pub fn emitted_msgs(&self) -> &BTreeSet<Message<ValueId<Ctx>>> {
+    pub fn emitted_msgs(&self) -> &BTreeSet<Output<ValueId<Ctx>>> {
         &self.emitted_msgs
     }
 }
@@ -117,7 +117,7 @@ where
         vote: Ctx::Vote,
         weight: Weight,
         current_round: Round,
-    ) -> Option<Message<ValueId<Ctx>>> {
+    ) -> Option<Output<ValueId<Ctx>>> {
         let round = self
             .per_round
             .entry(vote.round())
@@ -143,7 +143,7 @@ where
                 .is_met(combined_weight, self.total_weight);
 
             if skip_round {
-                let msg = Message::SkipRound(vote.round());
+                let msg = Output::SkipRound(vote.round());
                 round.emitted_msgs.insert(msg.clone());
                 return Some(msg);
             }
@@ -222,18 +222,18 @@ fn threshold_to_message<Value>(
     typ: VoteType,
     round: Round,
     threshold: Threshold<Value>,
-) -> Option<Message<Value>> {
+) -> Option<Output<Value>> {
     match (typ, threshold) {
         (_, Threshold::Unreached) => None,
-        (_, Threshold::Skip) => Some(Message::SkipRound(round)),
+        (_, Threshold::Skip) => Some(Output::SkipRound(round)),
 
-        (VoteType::Prevote, Threshold::Any) => Some(Message::PolkaAny),
-        (VoteType::Prevote, Threshold::Nil) => Some(Message::PolkaNil),
-        (VoteType::Prevote, Threshold::Value(v)) => Some(Message::PolkaValue(v)),
+        (VoteType::Prevote, Threshold::Any) => Some(Output::PolkaAny),
+        (VoteType::Prevote, Threshold::Nil) => Some(Output::PolkaNil),
+        (VoteType::Prevote, Threshold::Value(v)) => Some(Output::PolkaValue(v)),
 
-        (VoteType::Precommit, Threshold::Any) => Some(Message::PrecommitAny),
-        (VoteType::Precommit, Threshold::Nil) => Some(Message::PrecommitAny),
-        (VoteType::Precommit, Threshold::Value(v)) => Some(Message::PrecommitValue(v)),
+        (VoteType::Precommit, Threshold::Any) => Some(Output::PrecommitAny),
+        (VoteType::Precommit, Threshold::Nil) => Some(Output::PrecommitAny),
+        (VoteType::Precommit, Threshold::Value(v)) => Some(Output::PrecommitValue(v)),
     }
 }
 

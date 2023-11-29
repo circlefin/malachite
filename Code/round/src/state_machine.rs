@@ -1,7 +1,7 @@
 use malachite_common::{Context, Proposal, Round, TimeoutStep, Value};
 
 use crate::events::Event;
-use crate::message::Message;
+use crate::output::Output;
 use crate::state::{State, Step};
 use crate::transition::Transition;
 
@@ -48,7 +48,7 @@ where
 /// This function takes the current state and round, and an event,
 /// and returns the next state and an optional message for the driver to act on.
 ///
-/// Valid transitions result in at least a change to the state and/or an output message.
+/// Valid transitions result in at least a change to the state and/or an output.
 ///
 /// Commented numbers refer to line numbers in the spec paper.
 pub fn apply_event<Ctx>(state: State<Ctx>, info: &Info<Ctx>, event: Event<Ctx>) -> Transition<Ctx>
@@ -166,18 +166,17 @@ where
     match &state.valid {
         Some(round_value) => {
             let pol_round = round_value.round;
-            let proposal = Message::proposal(
+            let proposal = Output::proposal(
                 state.height.clone(),
                 state.round,
                 round_value.value.clone(),
                 pol_round,
             );
-            Transition::to(state.with_step(Step::Propose)).with_message(proposal)
+            Transition::to(state.with_step(Step::Propose)).with_output(proposal)
         }
         None => {
-            let timeout =
-                Message::get_value_and_schedule_timeout(state.round, TimeoutStep::Propose);
-            Transition::to(state.with_step(Step::Propose)).with_message(timeout)
+            let timeout = Output::get_value_and_schedule_timeout(state.round, TimeoutStep::Propose);
+            Transition::to(state.with_step(Step::Propose)).with_output(timeout)
         }
     }
 }
@@ -190,8 +189,8 @@ pub fn propose<Ctx>(state: State<Ctx>, value: Ctx::Value) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let proposal = Message::proposal(state.height.clone(), state.round, value, Round::Nil);
-    Transition::to(state.with_step(Step::Propose)).with_message(proposal)
+    let proposal = Output::proposal(state.height.clone(), state.round, value, Round::Nil);
+    Transition::to(state.with_step(Step::Propose)).with_output(proposal)
 }
 
 //---------------------------------------------------------------------
@@ -219,9 +218,9 @@ where
         None => Some(proposed), // not locked, prevote the value
     };
 
-    let message = Message::prevote(state.height.clone(), state.round, value, address.clone());
+    let output = Output::prevote(state.height.clone(), state.round, value, address.clone());
     state.proposal = Some(proposal.clone());
-    Transition::to(state.with_step(Step::Prevote)).with_message(message)
+    Transition::to(state.with_step(Step::Prevote)).with_output(output)
 }
 
 /// Received a complete proposal for an empty or invalid value, or timed out; prevote nil.
@@ -231,8 +230,8 @@ pub fn prevote_nil<Ctx>(state: State<Ctx>, address: &Ctx::Address) -> Transition
 where
     Ctx: Context,
 {
-    let message = Message::prevote(state.height.clone(), state.round, None, address.clone());
-    Transition::to(state.with_step(Step::Prevote)).with_message(message)
+    let output = Output::prevote(state.height.clone(), state.round, None, address.clone());
+    Transition::to(state.with_step(Step::Prevote)).with_output(output)
 }
 
 // ---------------------------------------------------------------------
@@ -258,7 +257,7 @@ where
     }
 
     let value = proposal.value();
-    let message = Message::precommit(
+    let output = Output::precommit(
         state.height.clone(),
         state.round,
         Some(value.id()),
@@ -280,7 +279,7 @@ where
         .set_valid(value.clone())
         .with_step(Step::Precommit);
 
-    Transition::to(next).with_message(message)
+    Transition::to(next).with_output(output)
 }
 
 /// Received a polka for nil or timed out of prevote; precommit nil.
@@ -290,8 +289,8 @@ pub fn precommit_nil<Ctx>(state: State<Ctx>, address: &Ctx::Address) -> Transiti
 where
     Ctx: Context,
 {
-    let message = Message::precommit(state.height.clone(), state.round, None, address.clone());
-    Transition::to(state.with_step(Step::Precommit)).with_message(message)
+    let output = Output::precommit(state.height.clone(), state.round, None, address.clone());
+    Transition::to(state.with_step(Step::Precommit)).with_output(output)
 }
 
 // ---------------------------------------------------------------------
@@ -305,8 +304,8 @@ pub fn schedule_timeout_propose<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let timeout = Message::schedule_timeout(state.round, TimeoutStep::Propose);
-    Transition::to(state.with_step(Step::Propose)).with_message(timeout)
+    let timeout = Output::schedule_timeout(state.round, TimeoutStep::Propose);
+    Transition::to(state.with_step(Step::Propose)).with_output(timeout)
 }
 
 /// We received a polka for any; schedule timeout prevote.
@@ -320,8 +319,8 @@ where
     Ctx: Context,
 {
     if state.step == Step::Prevote {
-        let message = Message::schedule_timeout(state.round, TimeoutStep::Prevote);
-        Transition::to(state).with_message(message)
+        let output = Output::schedule_timeout(state.round, TimeoutStep::Prevote);
+        Transition::to(state).with_output(output)
     } else {
         Transition::to(state)
     }
@@ -334,8 +333,8 @@ pub fn schedule_timeout_precommit<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let message = Message::schedule_timeout(state.round, TimeoutStep::Precommit);
-    Transition::to(state).with_message(message)
+    let output = Output::schedule_timeout(state.round, TimeoutStep::Precommit);
+    Transition::to(state).with_output(output)
 }
 
 //---------------------------------------------------------------------
@@ -374,7 +373,7 @@ where
         ..state
     };
 
-    Transition::to(new_state).with_message(Message::NewRound(round))
+    Transition::to(new_state).with_output(Output::NewRound(round))
 }
 
 /// We received +2/3 precommits for a value - commit and decide that value!
@@ -384,6 +383,6 @@ pub fn commit<Ctx>(state: State<Ctx>, round: Round, proposal: Ctx::Proposal) -> 
 where
     Ctx: Context,
 {
-    let message = Message::decision(round, proposal.value().clone());
-    Transition::to(state.with_step(Step::Commit)).with_message(message)
+    let output = Output::decision(round, proposal.value().clone());
+    Transition::to(state.with_step(Step::Commit)).with_output(output)
 }

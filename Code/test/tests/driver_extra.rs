@@ -1,7 +1,7 @@
 use futures::executor::block_on;
 
 use malachite_common::Round;
-use malachite_driver::{Driver, Event, Message, Validity};
+use malachite_driver::{Driver, Event, Output, Validity};
 use malachite_round::state::State;
 
 use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value};
@@ -12,20 +12,20 @@ use malachite_test::utils::*;
 struct TestStep {
     desc: &'static str,
     input_event: Event<TestContext>,
-    expected_output: Option<Message<TestContext>>,
+    expected_output: Option<Output<TestContext>>,
     expected_round: Round,
     new_state: State<TestContext>,
 }
 
-pub fn msg_to_event(output: Message<TestContext>) -> Option<Event<TestContext>> {
+pub fn msg_to_event(output: Output<TestContext>) -> Option<Event<TestContext>> {
     match output {
-        Message::NewRound(height, round) => Some(Event::NewRound(height, round)),
+        Output::NewRound(height, round) => Some(Event::NewRound(height, round)),
         // Let's consider our own proposal to always be valid
-        Message::Propose(p) => Some(Event::Proposal(p, Validity::Valid)),
-        Message::Vote(v) => Some(Event::Vote(v)),
-        Message::Decide(_, _) => None,
-        Message::ScheduleTimeout(_) => None,
-        Message::GetValueAndScheduleTimeout(_, _) => None,
+        Output::Propose(p) => Some(Event::Proposal(p, Validity::Valid)),
+        Output::Vote(v) => Some(Event::Vote(v)),
+        Output::Decide(_, _) => None,
+        Output::ScheduleTimeout(_) => None,
+        Output::GetValueAndScheduleTimeout(_, _) => None,
     }
 }
 
@@ -58,7 +58,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
         TestStep {
             desc: "Start round 0, we, v2, are not the proposer, start timeout propose",
             input_event: new_round_event(Round::new(0)),
-            expected_output: start_propose_timer_msg(Round::new(0)),
+            expected_output: start_propose_timer_output(Round::new(0)),
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
@@ -72,14 +72,14 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
         TestStep {
             desc: "v2 precommits for same proposal, we get +2/3 precommit, start precommit timer",
             input_event: precommit_event(Round::new(0), value, &v2.address, &sk2),
-            expected_output: start_precommit_timer_msg(Round::new(0)),
+            expected_output: start_precommit_timer_output(Round::new(0)),
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
             desc: "Receive proposal",
             input_event: proposal_event(Round::new(0), value, Round::Nil, Validity::Valid),
-            expected_output: decide_message(Round::new(0), value),
+            expected_output: decide_output(Round::new(0), value),
             expected_round: Round::new(0),
             new_state: decided_state(
                 Round::new(0),
@@ -130,14 +130,14 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
         TestStep {
             desc: "Start round 0, we, v2, are not the proposer, start timeout propose",
             input_event: new_round_event(Round::new(0)),
-            expected_output: start_propose_timer_msg(Round::new(0)),
+            expected_output: start_propose_timer_output(Round::new(0)),
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
             desc: "Timeout propopse, prevote for nil (v2)",
             input_event: timeout_propose_event(Round::new(0)),
-            expected_output: prevote_nil_msg(Round::new(0), &my_addr, &my_sk),
+            expected_output: prevote_nil_output(Round::new(0), &my_addr, &my_sk),
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
@@ -151,7 +151,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
         TestStep {
             desc: "v2 prevotes for same proposal, we get +2/3 prevotes, start prevote timer",
             input_event: prevote_event(&v2.address, &sk2),
-            expected_output: start_prevote_timer_msg(Round::new(0)),
+            expected_output: start_prevote_timer_output(Round::new(0)),
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
@@ -165,21 +165,21 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
         TestStep {
             desc: "v2 precommits for same proposal, we get +2/3 precommit, start precommit timer",
             input_event: precommit_event(Round::new(0), value, &v2.address, &sk2),
-            expected_output: start_precommit_timer_msg(Round::new(0)),
+            expected_output: start_precommit_timer_output(Round::new(0)),
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
         TestStep {
             desc: "Timeout precommit, start new round",
             input_event: timeout_precommit_event(Round::new(0)),
-            expected_output: new_round_msg(Round::new(1)),
+            expected_output: new_round_output(Round::new(1)),
             expected_round: Round::new(1),
             new_state: new_round(Round::new(1)),
         },
         TestStep {
             desc: "Receive proposal",
             input_event: proposal_event(Round::new(0), value, Round::Nil, Validity::Valid),
-            expected_output: decide_message(Round::new(0), value),
+            expected_output: decide_output(Round::new(0), value),
             expected_round: Round::new(1),
             new_state: decided_state(
                 Round::new(1),
@@ -232,14 +232,14 @@ fn driver_steps_polka_previous_with_locked() {
         TestStep {
             desc: "Start round 0, we, v2, are not the proposer, start timeout propose",
             input_event: new_round_event(Round::new(0)),
-            expected_output: start_propose_timer_msg(Round::new(0)),
+            expected_output: start_propose_timer_output(Round::new(0)),
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
             desc: "receive a proposal from v1 - L22 send prevote",
             input_event: proposal_event(Round::new(0), value, Round::Nil, Validity::Valid),
-            expected_output: prevote_msg(Round::new(0), &my_addr, &my_sk),
+            expected_output: prevote_output(Round::new(0), &my_addr, &my_sk),
             expected_round: Round::new(0),
             new_state: prevote_state_with_proposal(
                 Round::new(0),
@@ -259,7 +259,7 @@ fn driver_steps_polka_previous_with_locked() {
         TestStep {
             desc: "v1 prevotes for same proposal, we get +2/3 prevotes, precommit",
             input_event: prevote_event(&v1.address, &sk1),
-            expected_output: precommit_msg(Round::new(0), value, &my_addr, &my_sk),
+            expected_output: precommit_output(Round::new(0), value, &my_addr, &my_sk),
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
                 Round::new(0),
@@ -269,7 +269,7 @@ fn driver_steps_polka_previous_with_locked() {
         TestStep {
             desc: "Receive f+1 vote for round 1 from v3",
             input_event: precommit_event(Round::new(1), Value::new(8888), &v3.address, &sk3),
-            expected_output: new_round_msg(Round::new(1)),
+            expected_output: new_round_output(Round::new(1)),
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_locked_and_valid(
                 Round::new(1),
@@ -279,7 +279,7 @@ fn driver_steps_polka_previous_with_locked() {
         TestStep {
             desc: "start round 1, we are proposer with a valid value, propose it",
             input_event: new_round_event(Round::new(1)),
-            expected_output: proposal_msg(Round::new(1), value, Round::new(0)),
+            expected_output: proposal_output(Round::new(1), value, Round::new(0)),
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
@@ -289,7 +289,7 @@ fn driver_steps_polka_previous_with_locked() {
         TestStep {
             desc: "Receive our own proposal",
             input_event: proposal_event(Round::new(1), value, Round::new(0), Validity::Valid),
-            expected_output: prevote_msg(Round::new(1), &my_addr, &my_sk),
+            expected_output: prevote_output(Round::new(1), &my_addr, &my_sk),
             expected_round: Round::new(1),
             new_state: prevote_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
@@ -318,14 +318,14 @@ fn driver_steps_polka_previous_invalid_proposal_with_locked() {
         TestStep {
             desc: "Start round 0, we, v2, are not the proposer, start timeout propose",
             input_event: new_round_event(Round::new(0)),
-            expected_output: start_propose_timer_msg(Round::new(0)),
+            expected_output: start_propose_timer_output(Round::new(0)),
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
             desc: "receive a proposal from v1 - L22 send prevote",
             input_event: proposal_event(Round::new(0), value, Round::Nil, Validity::Valid),
-            expected_output: prevote_msg(Round::new(0), &my_addr, &my_sk),
+            expected_output: prevote_output(Round::new(0), &my_addr, &my_sk),
             expected_round: Round::new(0),
             new_state: prevote_state_with_proposal(
                 Round::new(0),
@@ -345,7 +345,7 @@ fn driver_steps_polka_previous_invalid_proposal_with_locked() {
         TestStep {
             desc: "v1 prevotes for same proposal, we get +2/3 prevotes, precommit",
             input_event: prevote_event(&v1.address, &sk1),
-            expected_output: precommit_msg(Round::new(0), value, &my_addr, &my_sk),
+            expected_output: precommit_output(Round::new(0), value, &my_addr, &my_sk),
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
                 Round::new(0),
@@ -355,7 +355,7 @@ fn driver_steps_polka_previous_invalid_proposal_with_locked() {
         TestStep {
             desc: "Receive f+1 vote for round 1 from v3",
             input_event: precommit_event(Round::new(1), Value::new(8888), &v3.address, &sk3),
-            expected_output: new_round_msg(Round::new(1)),
+            expected_output: new_round_output(Round::new(1)),
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_locked_and_valid(
                 Round::new(1),
@@ -365,7 +365,7 @@ fn driver_steps_polka_previous_invalid_proposal_with_locked() {
         TestStep {
             desc: "start round 1, we are proposer with a valid value, propose it",
             input_event: new_round_event(Round::new(1)),
-            expected_output: proposal_msg(Round::new(1), value, Round::new(0)),
+            expected_output: proposal_output(Round::new(1), value, Round::new(0)),
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
@@ -375,7 +375,7 @@ fn driver_steps_polka_previous_invalid_proposal_with_locked() {
         TestStep {
             desc: "Receive our own proposal",
             input_event: proposal_event(Round::new(1), value, Round::new(0), Validity::Invalid),
-            expected_output: prevote_nil_msg(Round::new(1), &my_addr, &my_sk),
+            expected_output: prevote_nil_output(Round::new(1), &my_addr, &my_sk),
             expected_round: Round::new(1),
             new_state: prevote_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
@@ -434,14 +434,14 @@ fn driver_steps_polka_previous_with_no_locked() {
         TestStep {
             desc: "Start round 0, we v2 are not the proposer, start timeout propose",
             input_event: new_round_event(Round::new(0)),
-            expected_output: start_propose_timer_msg(Round::new(0)),
+            expected_output: start_propose_timer_output(Round::new(0)),
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
             desc: "Timeout propopse, prevote for nil (v2)",
             input_event: timeout_propose_event(Round::new(0)),
-            expected_output: prevote_nil_msg(Round::new(0), &my_addr, &my_sk),
+            expected_output: prevote_nil_output(Round::new(0), &my_addr, &my_sk),
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
@@ -455,14 +455,14 @@ fn driver_steps_polka_previous_with_no_locked() {
         TestStep {
             desc: "v1 prevotes for same proposal, we get +2/3 prevotes, start timeout prevote",
             input_event: prevote_event(&v1.address, &sk1),
-            expected_output: start_prevote_timer_msg(Round::new(0)),
+            expected_output: start_prevote_timer_output(Round::new(0)),
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
         TestStep {
             desc: "timeout prevote, prevote for nil (v2)",
             input_event: timeout_prevote_event(Round::new(0)),
-            expected_output: precommit_nil_msg(&my_addr, &my_sk),
+            expected_output: precommit_nil_output(&my_addr, &my_sk),
             expected_round: Round::new(0),
             new_state: precommit_state(Round::new(0)),
         },
@@ -480,7 +480,7 @@ fn driver_steps_polka_previous_with_no_locked() {
         TestStep {
             desc: "Receive f+1 vote for round 1 from v3",
             input_event: prevote_event_at(Round::new(1), &v3.address, &sk3),
-            expected_output: new_round_msg(Round::new(1)),
+            expected_output: new_round_output(Round::new(1)),
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_valid(
                 Round::new(1),
@@ -490,7 +490,7 @@ fn driver_steps_polka_previous_with_no_locked() {
         TestStep {
             desc: "start round 1, we are proposer with a valid value from round 0, propose it",
             input_event: new_round_event(Round::new(1)),
-            expected_output: proposal_msg(Round::new(1), value, Round::new(0)),
+            expected_output: proposal_output(Round::new(1), value, Round::new(0)),
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_valid(
                 Round::new(1),
@@ -501,7 +501,7 @@ fn driver_steps_polka_previous_with_no_locked() {
         TestStep {
             desc: "Receive our own proposal, prevote nil as we are not locked on the value",
             input_event: proposal_event(Round::new(1), value, Round::new(0), Validity::Valid),
-            expected_output: prevote_nil_msg(Round::new(1), &my_addr, &my_sk),
+            expected_output: prevote_nil_output(Round::new(1), &my_addr, &my_sk),
             expected_round: Round::new(1),
             new_state: prevote_state_with_proposal_and_valid(
                 Round::new(1),
@@ -519,7 +519,7 @@ fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
         println!("Step: {}", step.desc);
 
         let output = block_on(driver.execute(step.input_event)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output message");
+        assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(
             driver.round_state.round, step.expected_round,

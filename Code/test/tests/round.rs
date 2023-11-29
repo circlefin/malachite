@@ -2,7 +2,7 @@ use malachite_test::{Address, Height, Proposal, TestContext, Value};
 
 use malachite_common::{Round, Timeout, TimeoutStep};
 use malachite_round::events::Event;
-use malachite_round::message::Message;
+use malachite_round::output::Output;
 use malachite_round::state::{State, Step};
 use malachite_round::state_machine::{apply_event, Info};
 
@@ -29,8 +29,8 @@ fn test_propose() {
     state.step = Step::Propose;
     assert_eq!(transition.next_state, state);
     assert_eq!(
-        transition.message.unwrap(),
-        Message::get_value_and_schedule_timeout(round, TimeoutStep::Propose)
+        transition.output.unwrap(),
+        Output::get_value_and_schedule_timeout(round, TimeoutStep::Propose)
     );
 
     let transition = apply_event(transition.next_state, &data, Event::ProposeValue(value));
@@ -38,8 +38,8 @@ fn test_propose() {
     state.step = Step::Propose;
     assert_eq!(transition.next_state, state);
     assert_eq!(
-        transition.message.unwrap(),
-        Message::proposal(Height::new(10), Round::new(0), Value::new(42), Round::Nil)
+        transition.output.unwrap(),
+        Output::proposal(Height::new(10), Round::new(0), Value::new(42), Round::Nil)
     );
 }
 
@@ -62,8 +62,8 @@ fn test_prevote() {
 
     assert_eq!(transition.next_state.step, Step::Propose);
     assert_eq!(
-        transition.message.unwrap(),
-        Message::ScheduleTimeout(Timeout {
+        transition.output.unwrap(),
+        Output::ScheduleTimeout(Timeout {
             round: Round::new(1),
             step: TimeoutStep::Propose
         })
@@ -84,7 +84,7 @@ fn test_prevote() {
 
     assert_eq!(transition.next_state.step, Step::Prevote);
     assert_eq!(
-        transition.message.unwrap(),
-        Message::prevote(Height::new(1), Round::new(1), Some(value.id()), ADDRESS)
+        transition.output.unwrap(),
+        Output::prevote(Height::new(1), Round::new(1), Some(value.id()), ADDRESS)
     );
 }
