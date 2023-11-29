@@ -1,7 +1,7 @@
 use malachite_common::{Context, Round, ValueId};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Event<Ctx>
+pub enum Input<Ctx>
 where
     Ctx: Context,
 {

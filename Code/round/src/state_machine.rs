@@ -1,19 +1,19 @@
 use malachite_common::{Context, Proposal, Round, TimeoutStep, Value};
 
-use crate::events::Event;
+use crate::input::Input;
 use crate::output::Output;
 use crate::state::{State, Step};
 use crate::transition::Transition;
 
-/// Immutable information about the event and our node:
+/// Immutable information about the input and our node:
 /// - Address of our node
 /// - Proposer for the round we are at
-/// - Round for which the event is for, can be different than the round we are at
+/// - Round for which the input is for, can be different than the round we are at
 pub struct Info<'a, Ctx>
 where
     Ctx: Context,
 {
-    pub event_round: Round,
+    pub input_round: Round,
     pub address: &'a Ctx::Address,
     pub proposer: &'a Ctx::Address,
 }
@@ -22,9 +22,9 @@ impl<'a, Ctx> Info<'a, Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(event_round: Round, address: &'a Ctx::Address, proposer: &'a Ctx::Address) -> Self {
+    pub fn new(input_round: Round, address: &'a Ctx::Address, proposer: &'a Ctx::Address) -> Self {
         Self {
-            event_round,
+            input_round,
             address,
             proposer,
         }
@@ -43,38 +43,38 @@ where
     pol_round.is_defined() && pol_round < state.round
 }
 
-/// Apply an event to the current state at the current round.
+/// Apply an input to the current state at the current round.
 ///
-/// This function takes the current state and round, and an event,
+/// This function takes the current state and round, and an input,
 /// and returns the next state and an optional message for the driver to act on.
 ///
 /// Valid transitions result in at least a change to the state and/or an output.
 ///
 /// Commented numbers refer to line numbers in the spec paper.
-pub fn apply_event<Ctx>(state: State<Ctx>, info: &Info<Ctx>, event: Event<Ctx>) -> Transition<Ctx>
+pub fn apply<Ctx>(state: State<Ctx>, info: &Info<Ctx>, input: Input<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let this_round = state.round == info.event_round;
+    let this_round = state.round == info.input_round;
 
-    match (state.step, event) {
-        // From NewRound. Event must be for current round.
+    match (state.step, input) {
+        // From NewRound. Input must be for current round.
 
         // We are the proposer
-        (Step::NewRound, Event::NewRound) if this_round && info.is_proposer() => {
+        (Step::NewRound, Input::NewRound) if this_round && info.is_proposer() => {
             propose_valid_or_get_value(state) // L18
         }
         // We are not the proposer
-        (Step::NewRound, Event::NewRound) if this_round => schedule_timeout_propose(state), // L11/L20
+        (Step::NewRound, Input::NewRound) if this_round => schedule_timeout_propose(state), // L11/L20
 
-        // From Propose. Event must be for current round.
-        (Step::Propose, Event::ProposeValue(value)) if this_round => {
+        // From Propose. Input must be for current round.
+        (Step::Propose, Input::ProposeValue(value)) if this_round => {
             debug_assert!(info.is_proposer());
             propose(state, value) // L11/L14
         }
 
         // L22 with valid proposal
-        (Step::Propose, Event::Proposal(proposal))
+        (Step::Propose, Input::Proposal(proposal))
             if this_round && proposal.pol_round().is_nil() =>
         {
             if state
@@ -89,7 +89,7 @@ where
         }
 
         // L28 with valid proposal
-        (Step::Propose, Event::ProposalAndPolkaPrevious(proposal))
+        (Step::Propose, Input::ProposalAndPolkaPrevious(proposal))
             if this_round && is_valid_pol_round(&state, proposal.pol_round()) =>
         {
             let Some(locked) = state.locked.as_ref() else {
@@ -104,32 +104,32 @@ where
         }
 
         // L28 with invalid proposal
-        (Step::Propose, Event::InvalidProposalAndPolkaPrevious(proposal))
+        (Step::Propose, Input::InvalidProposalAndPolkaPrevious(proposal))
             if this_round && is_valid_pol_round(&state, proposal.pol_round()) =>
         {
             prevote_nil(state, info.address)
         }
 
-        (Step::Propose, Event::InvalidProposal) if this_round => prevote_nil(state, info.address), // L22/L25, L28/L31
+        (Step::Propose, Input::InvalidProposal) if this_round => prevote_nil(state, info.address), // L22/L25, L28/L31
 
         // We are the proposer.
-        (Step::Propose, Event::TimeoutPropose) if this_round && info.is_proposer() => {
+        (Step::Propose, Input::TimeoutPropose) if this_round && info.is_proposer() => {
             // TODO: Do we need to do something else here?
             prevote_nil(state, info.address) // L57
         }
         // We are not the proposer.
-        (Step::Propose, Event::TimeoutPropose) if this_round => prevote_nil(state, info.address), // L57
+        (Step::Propose, Input::TimeoutPropose) if this_round => prevote_nil(state, info.address), // L57
 
-        // From Prevote. Event must be for current round.
-        (Step::Prevote, Event::PolkaAny) if this_round => schedule_timeout_prevote(state), // L34
-        (Step::Prevote, Event::PolkaNil) if this_round => precommit_nil(state, info.address), // L44
-        (Step::Prevote, Event::ProposalAndPolkaCurrent(proposal)) if this_round => {
+        // From Prevote. Input must be for current round.
+        (Step::Prevote, Input::PolkaAny) if this_round => schedule_timeout_prevote(state), // L34
+        (Step::Prevote, Input::PolkaNil) if this_round => precommit_nil(state, info.address), // L44
+        (Step::Prevote, Input::ProposalAndPolkaCurrent(proposal)) if this_round => {
             precommit(state, info.address, proposal) // L36/L37 - NOTE: only once?
         }
-        (Step::Prevote, Event::TimeoutPrevote) if this_round => precommit_nil(state, info.address), // L61
+        (Step::Prevote, Input::TimeoutPrevote) if this_round => precommit_nil(state, info.address), // L61
 
-        // From Precommit. Event must be for current round.
-        (Step::Precommit, Event::ProposalAndPolkaCurrent(proposal)) if this_round => {
+        // From Precommit. Input must be for current round.
+        (Step::Precommit, Input::ProposalAndPolkaCurrent(proposal)) if this_round => {
             set_valid_value(state, &proposal) // L36/L42 - NOTE: only once?
         }
 
@@ -137,13 +137,13 @@ where
         (Step::Commit, _) => Transition::invalid(state),
 
         // From all (except Commit). Various round guards.
-        (_, Event::PrecommitAny) if this_round => schedule_timeout_precommit(state), // L47
-        (_, Event::TimeoutPrecommit) if this_round => {
-            round_skip(state, info.event_round.increment())
+        (_, Input::PrecommitAny) if this_round => schedule_timeout_precommit(state), // L47
+        (_, Input::TimeoutPrecommit) if this_round => {
+            round_skip(state, info.input_round.increment())
         } // L65
-        (_, Event::SkipRound(round)) if state.round < round => round_skip(state, round), // L55
-        (_, Event::ProposalAndPrecommitValue(proposal)) => {
-            commit(state, info.event_round, proposal)
+        (_, Input::SkipRound(round)) if state.round < round => round_skip(state, round), // L55
+        (_, Input::ProposalAndPrecommitValue(proposal)) => {
+            commit(state, info.input_round, proposal)
         } // L49
 
         // Invalid transition.

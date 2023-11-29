@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::events::Event;
+use crate::input::Input;
 use crate::state_machine::Info;
 use crate::transition::Transition;
 
@@ -76,8 +76,8 @@ where
         }
     }
 
-    pub fn apply_event(self, data: &Info<Ctx>, event: Event<Ctx>) -> Transition<Ctx> {
-        crate::state_machine::apply_event(self, data, event)
+    pub fn apply(self, data: &Info<Ctx>, input: Input<Ctx>) -> Transition<Ctx> {
+        crate::state_machine::apply(self, data, input)
     }
 }
 

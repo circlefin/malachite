@@ -14,7 +14,7 @@
 
 extern crate alloc;
 
-pub mod events;
+pub mod input;
 pub mod output;
 pub mod state;
 pub mod state_machine;

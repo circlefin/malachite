@@ -5,7 +5,7 @@ use malachite_common::{
     Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
     Vote, VoteType,
 };
-use malachite_round::events::Event as RoundEvent;
+use malachite_round::input::Input as RoundEvent;
 use malachite_round::output::Output as RoundOutput;
 use malachite_round::state::{State as RoundState, Step};
 use malachite_round::state_machine::Info;
@@ -14,7 +14,7 @@ use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
 use malachite_vote::ThresholdParams;
 
-use crate::event::Event;
+use crate::input::Input;
 use crate::output::Output;
 use crate::Error;
 use crate::ProposerSelector;
@@ -81,7 +81,7 @@ where
         Ok(proposer)
     }
 
-    pub async fn execute(&mut self, msg: Event<Ctx>) -> Result<Option<Output<Ctx>>, Error<Ctx>> {
+    pub async fn execute(&mut self, msg: Input<Ctx>) -> Result<Option<Output<Ctx>>, Error<Ctx>> {
         let round_output = match self.apply(msg).await? {
             Some(msg) => msg,
             None => return Ok(None),
@@ -115,13 +115,13 @@ where
         Ok(Some(output))
     }
 
-    async fn apply(&mut self, event: Event<Ctx>) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        match event {
-            Event::NewRound(height, round) => self.apply_new_round(height, round).await,
-            Event::ProposeValue(round, value) => self.apply_propose_value(round, value).await,
-            Event::Proposal(proposal, validity) => self.apply_proposal(proposal, validity).await,
-            Event::Vote(signed_vote) => self.apply_vote(signed_vote),
-            Event::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
+    async fn apply(&mut self, input: Input<Ctx>) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+        match input {
+            Input::NewRound(height, round) => self.apply_new_round(height, round).await,
+            Input::ProposeValue(round, value) => self.apply_propose_value(round, value).await,
+            Input::Proposal(proposal, validity) => self.apply_proposal(proposal, validity).await,
+            Input::Vote(signed_vote) => self.apply_vote(signed_vote),
+            Input::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
         }
     }
 
@@ -319,7 +319,7 @@ where
         };
 
         // Apply the event to the round state machine
-        let transition = round_state.apply_event(&data, mux_event);
+        let transition = round_state.apply(&data, mux_event);
 
         // Update state
         self.round_state = transition.next_state;

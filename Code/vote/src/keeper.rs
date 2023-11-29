@@ -111,7 +111,7 @@ where
         &self.per_round
     }
 
-    /// Apply a vote with a given weight, potentially triggering an event.
+    /// Apply a vote with a given weight, potentially triggering an output.
     pub fn apply_vote(
         &mut self,
         vote: Ctx::Vote,
@@ -157,7 +157,7 @@ where
             self.total_weight,
         );
 
-        let msg = threshold_to_message(vote.vote_type(), vote.round(), threshold);
+        let msg = threshold_to_output(vote.vote_type(), vote.round(), threshold);
 
         match msg {
             Some(msg) if !round.emitted_msgs.contains(&msg) => {
@@ -217,8 +217,8 @@ where
     }
 }
 
-/// Map a vote type and a threshold to a state machine event.
-fn threshold_to_message<Value>(
+/// Map a vote type and a threshold to a state machine output.
+fn threshold_to_output<Value>(
     typ: VoteType,
     round: Round,
     threshold: Threshold<Value>,
