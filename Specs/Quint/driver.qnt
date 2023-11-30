@@ -22,7 +22,7 @@ type DriverState = {
     executedEvents: List[(Event, Height_t, Round_t)], // We record that to have the information in the trace
     pendingEvents: Set[(Event, Height_t, Round_t)],
     started: bool,
-    applyvotesResult: DriverEvent, //debug TODO
+    voteKeeperOutput: VoteKeeperOutput, //debug TODO
     chain : List[Value_t],
     nextValueToPropose: Value_t,
 }
@@ -37,7 +37,7 @@ pure def initDriver  (v: Address_t, vs: Address_t -> int) : DriverState = {
     executedEvents: List(),
     pendingEvents: Set(),
     started: false,
-    applyvotesResult: toEvent(0, "", {name: "", value: ""}), // debug
+    voteKeeperOutput: toVoteKeeperOutput(0, "", {name: "", value: ""}), // debug
     chain : List(),
     nextValueToPropose: "", 
     }
@@ -163,7 +163,7 @@ pure def callConsensus (es: DriverState, bk: Bookkeeper, ev: Event) : (DriverSta
 
 
 // We do this if the driver receives a Precommit
-pure def Precommit (es: DriverState, input: DriverInput, eev: DriverEvent) : (DriverState, ConsensusOutput) = {
+pure def Precommit (es: DriverState, input: DriverInput, eev: VoteKeeperOutput) : (DriverState, ConsensusOutput) = {
     if (eev.name == "PrecommitValue")
             if (es.proposals.exists(x => eev.round == x.round and eev.value == id(x.proposal))) {
                 callConsensus(es, es.bk, {  name : "ProposalAndCommitAndValid",
@@ -214,7 +214,7 @@ pure def Precommit (es: DriverState, input: DriverInput, eev: DriverEvent) : (Dr
 
 
 // We do this if the driver receives a Prevote
-pure def Prevote (es: DriverState, input: DriverInput,  eev: DriverEvent) : (DriverState, ConsensusOutput) = {
+pure def Prevote (es: DriverState, input: DriverInput,  eev: VoteKeeperOutput) : (DriverState, ConsensusOutput) = {
     // TODO: events do not have heights now.
     // TODO: Polka implications missing.
     if (eev.name == "PolkaValue")
@@ -482,9 +482,9 @@ pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusO
     }
     else if (input.name == "votemessage" and input.vote.step == "Precommit") {
         val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src), es.cs.round)
-        val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
+        val newES = { ...es, bk: res.bookkeeper, voteKeeperOutput: res.output }
         // only a commit event can come here. 
-        val cons_res = Precommit(newES, input, res.event) 
+        val cons_res = Precommit(newES, input, res.output) 
         if (cons_res._2.name == "decided")
             decided (cons_res._1, cons_res._2)
         else if (cons_res._2.name == "skipRound")
@@ -494,9 +494,9 @@ pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusO
     }
     else if (input.name == "votemessage" and input.vote.step == "Prevote") {
         val res = applyVote(es.bk, toVote(input.vote), es.valset.get(input.vote.src), es.cs.round)
-        val newES = { ...es, bk: res.bookkeeper, applyvotesResult: res.event}
+        val newES = { ...es, bk: res.bookkeeper, voteKeeperOutput: res.output}
         // only a commit event can come here. 
-        val cons_res = Prevote(newES, input, res.event) 
+        val cons_res = Prevote(newES, input, res.output) 
         if (cons_res._2.name == "decided")
             // TODO: dead branch. But we should put this after consensus call logic into a function
             decided (cons_res._1, cons_res._2)
