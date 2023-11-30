@@ -123,7 +123,7 @@ impl ItfRunner for VoteKeeperRunner {
 
             let actual_round = actual_state.per_round().get(&Round::new(round)).unwrap();
 
-            let expected_events = &expected_round.emitted_events;
+            let expected_events = &expected_round.emitted_outputs;
             let actual_events = actual_round.emitted_msgs();
 
             assert_eq!(
