@@ -71,7 +71,7 @@ val defaultInput: DriverInput = {
     proposal: { src: "", height: 0, round: 0, proposal: "", validRound: 0 },
     vote: { src: "", height: 0, round: 0, step: "", id: "", },
     timeout: "",
-    csInput: defaultEvent,
+    csInput: defaultConsensusInput,
     nextValueToPropose: ""
 }
 
@@ -80,7 +80,7 @@ val defaultInput: DriverInput = {
 pure def toVote (v: Vote_t) : Vote = 
     { typ: v.step, height: v.height, round: v.round, value: v.id, address: v.src }
 
-val defaultEvent : ConsensusInput = { name : "", height : 0, round: 0, value: "", vr: 0 }    
+val defaultConsensusInput : ConsensusInput = { name : "", height : 0, round: 0, value: "", vr: 0 }    
 
 /*
 encode the following decision tree

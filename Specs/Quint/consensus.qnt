@@ -51,7 +51,7 @@ type Vote_t = {
 
 type ConsensusState = {
     p: Address_t,
-    height : Height_t,
+    height: Height_t,
     round: Round_t,
     step: Step_t, // "newRound", propose, Prevote, Precommit, decided
     lockedRound: Round_t,
