@@ -10,7 +10,7 @@ use crate::{Threshold, ThresholdParam, ThresholdParams, Weight};
 
 /// Messages emitted by the vote keeper
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Message<Value> {
+pub enum Output<Value> {
     PolkaAny,
     PolkaNil,
     PolkaValue(Value),
@@ -25,7 +25,7 @@ where
 {
     votes: RoundVotes<Ctx::Address, ValueId<Ctx>>,
     addresses_weights: RoundWeights<Ctx::Address>,
-    emitted_msgs: BTreeSet<Message<ValueId<Ctx>>>,
+    emitted_outputs: BTreeSet<Output<ValueId<Ctx>>>,
 }
 
 impl<Ctx> PerRound<Ctx>
@@ -36,7 +36,7 @@ where
         Self {
             votes: RoundVotes::new(),
             addresses_weights: RoundWeights::new(),
-            emitted_msgs: BTreeSet::new(),
+            emitted_outputs: BTreeSet::new(),
         }
     }
 
@@ -48,8 +48,8 @@ where
         &self.addresses_weights
     }
 
-    pub fn emitted_outputs(&self) -> &BTreeSet<Message<ValueId<Ctx>>> {
-        &self.emitted_msgs
+    pub fn emitted_outputs(&self) -> &BTreeSet<Output<ValueId<Ctx>>> {
+        &self.emitted_outputs
     }
 }
 
@@ -62,7 +62,7 @@ where
         Self {
             votes: self.votes.clone(),
             addresses_weights: self.addresses_weights.clone(),
-            emitted_msgs: self.emitted_msgs.clone(),
+            emitted_outputs: self.emitted_outputs.clone(),
         }
     }
 }
@@ -76,7 +76,7 @@ where
         f.debug_struct("PerRound")
             .field("votes", &self.votes)
             .field("addresses_weights", &self.addresses_weights)
-            .field("emitted_msgs", &self.emitted_msgs)
+            .field("emitted_outputs", &self.emitted_outputs)
             .finish()
     }
 }
@@ -111,13 +111,13 @@ where
         &self.per_round
     }
 
-    /// Apply a vote with a given weight, potentially triggering an event.
+    /// Apply a vote with a given weight, potentially triggering an output.
     pub fn apply_vote(
         &mut self,
         vote: Ctx::Vote,
         weight: Weight,
         current_round: Round,
-    ) -> Option<Message<ValueId<Ctx>>> {
+    ) -> Option<Output<ValueId<Ctx>>> {
         let round = self
             .per_round
             .entry(vote.round())
@@ -143,8 +143,8 @@ where
                 .is_met(combined_weight, self.total_weight);
 
             if skip_round {
-                let msg = Message::SkipRound(vote.round());
-                round.emitted_msgs.insert(msg.clone());
+                let msg = Output::SkipRound(vote.round());
+                round.emitted_outputs.insert(msg.clone());
                 return Some(msg);
             }
         }
@@ -157,11 +157,11 @@ where
             self.total_weight,
         );
 
-        let msg = threshold_to_message(vote.vote_type(), vote.round(), threshold);
+        let msg = threshold_to_output(vote.vote_type(), vote.round(), threshold);
 
         match msg {
-            Some(msg) if !round.emitted_msgs.contains(&msg) => {
-                round.emitted_msgs.insert(msg.clone());
+            Some(msg) if !round.emitted_outputs.contains(&msg) => {
+                round.emitted_outputs.insert(msg.clone());
                 Some(msg)
             }
             _ => None,
@@ -217,23 +217,23 @@ where
     }
 }
 
-/// Map a vote type and a threshold to a state machine event.
-fn threshold_to_message<Value>(
+/// Map a vote type and a threshold to a state machine output.
+fn threshold_to_output<Value>(
     typ: VoteType,
     round: Round,
     threshold: Threshold<Value>,
-) -> Option<Message<Value>> {
+) -> Option<Output<Value>> {
     match (typ, threshold) {
         (_, Threshold::Unreached) => None,
-        (_, Threshold::Skip) => Some(Message::SkipRound(round)),
+        (_, Threshold::Skip) => Some(Output::SkipRound(round)),
 
-        (VoteType::Prevote, Threshold::Any) => Some(Message::PolkaAny),
-        (VoteType::Prevote, Threshold::Nil) => Some(Message::PolkaNil),
-        (VoteType::Prevote, Threshold::Value(v)) => Some(Message::PolkaValue(v)),
+        (VoteType::Prevote, Threshold::Any) => Some(Output::PolkaAny),
+        (VoteType::Prevote, Threshold::Nil) => Some(Output::PolkaNil),
+        (VoteType::Prevote, Threshold::Value(v)) => Some(Output::PolkaValue(v)),
 
-        (VoteType::Precommit, Threshold::Any) => Some(Message::PrecommitAny),
-        (VoteType::Precommit, Threshold::Nil) => Some(Message::PrecommitAny),
-        (VoteType::Precommit, Threshold::Value(v)) => Some(Message::PrecommitValue(v)),
+        (VoteType::Precommit, Threshold::Any) => Some(Output::PrecommitAny),
+        (VoteType::Precommit, Threshold::Nil) => Some(Output::PrecommitAny),
+        (VoteType::Precommit, Threshold::Value(v)) => Some(Output::PrecommitValue(v)),
     }
 }
 
