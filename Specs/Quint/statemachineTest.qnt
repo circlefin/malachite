@@ -12,7 +12,7 @@
 
 module statemachineTest {
 
-import executor.* from "./executor"
+import driver.* from "./driver"
 import consensus.* from "./consensus"
 import voteBookkeeper.* from "./voteBookkeeper"
 
@@ -20,23 +20,23 @@ val validators = Set("v1", "v2", "v3", "v4")
 val validatorSet = validators.mapBy(x => 1)
 
 var system : Address_t -> NodeState
-var _hist: (str, ExecutorInput, ConsensusOutput)
+var _hist: (str, DriverInput, ConsensusOutput)
 //var _histSimple: (str, str, str)
 
 action init = all {
     system' = validators.mapBy(v => initNode(v, validatorSet)),
-    _hist' = ("INIT", defaultInput, defaultResult)
+    _hist' = ("INIT", defaultInput, defaultOutput)
 //    _histSimple' = ("INIT", "", "")
 }
 
 // Put the proposal into the inbuffers of all validators
-pure def deliverProposal (sys: Address_t -> NodeState, prop: ProposeMsg_t) : Address_t -> NodeState = {
+pure def deliverProposal (sys: Address_t -> NodeState, prop: Proposal_t) : Address_t -> NodeState = {
     sys.keys().mapBy(x => 
      { ...sys.get(x), incomingProposals: sys.get(x).incomingProposals.union(Set(prop)) })
 }
 
 // Put the vote into the inbuffers of all validators
-pure def deliverVote (sys: Address_t -> NodeState, vote: VoteMsg_t) : Address_t -> NodeState = {
+pure def deliverVote (sys: Address_t -> NodeState, vote: Vote_t) : Address_t -> NodeState = {
     sys.keys().mapBy(x => 
      { ...sys.get(x), incomingVotes: sys.get(x).incomingVotes.union(Set(vote)) })
 }
@@ -53,11 +53,11 @@ pure def startTimeout (sys: Address_t -> NodeState, v: Address_t, toName: str) :
 // hardly ever are fired
 action valStep(v: Address_t) : bool = {
     // pick action
-    val input = system.get(v).nextAction() // TODO: nextAction could go within executor boundary
+    val input = system.get(v).nextAction() // TODO: nextAction could go within driver boundary
     // remove action from v
     val sys1 = system.put(v, input._1)
-    // call executor
-    val res = executor(sys1.get(v).es, input._2)
+    // call driver
+    val res = driver(sys1.get(v).es, input._2)
     all {
         // update v's state after the step
         val sys = sys1.put(v, { ...sys1.get(v), es: res._1})
@@ -69,7 +69,7 @@ action valStep(v: Address_t) : bool = {
         else if (res._2.name == "timeout")
             system' = startTimeout(sys, v, res._2.timeout)
         else if (res._2.name == "skipRound")
-            //skipRound should never leave the executor
+            //skipRound should never leave the driver
             system' = sys
         else 
             system' = sys,
@@ -79,7 +79,7 @@ action valStep(v: Address_t) : bool = {
 }
 
 action setNextValueToPropose(v: Address_t, value: Value_t) : bool = all {
-    val res = executor(system.get(v).es, { ...defaultInput, name: "SetNextProposedValue", nextValueToPropose: value})
+    val res = driver(system.get(v).es, { ...defaultInput, name: "SetNextProposedValue", nextValueToPropose: value})
     val newNS = { ...system.get(v), es: res._1}
     system' = system.put(v, newNS),
      _hist' = _hist
@@ -101,8 +101,8 @@ action valStepCommand(v: Address_t, command: str) : bool = {
     val input = system.get(v).nextActionCommand(command) 
     // remove action from v
     val sys1 = system.put(v, input._1)
-    // call executor
-    val res = executor(sys1.get(v).es, input._2)
+    // call driver
+    val res = driver(sys1.get(v).es, input._2)
     all {
         // update v's state after the step
         val sys = sys1.put(v, { ...sys1.get(v), es: res._1})
@@ -114,7 +114,7 @@ action valStepCommand(v: Address_t, command: str) : bool = {
         else if (res._2.name == "timeout")
             system' = startTimeout(sys, v, res._2.timeout)
         else if (res._2.name == "skipRound")
-            //skipRound should never leave the executor
+            //skipRound should never leave the driver
             system' = sys
         else 
             system' = sys,

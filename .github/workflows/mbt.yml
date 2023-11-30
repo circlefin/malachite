@@ -1,0 +1,45 @@
+name: MBT
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - Specs/Quint/**
+      - Code/**
+      - .github/workflows/mbt.yml
+  pull_request:
+    paths:
+      - Specs/Quint/**
+      - Code/**
+      - .github/workflows/mbt.yml
+
+jobs:
+  gen-and-exec-traces:
+    name: Generate and execute random traces
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: 1
+      CARGO_PROFILE_RELEASE_DEBUG: 1
+      RUST_BACKTRACE: short
+      CARGO_NET_RETRY: 10
+      RUSTUP_MAX_RETRIES: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+      - run: npm install -g @informalsystems/quint
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+      - name: Build code
+        working-directory: Code/itf
+        run: cargo nextest run --workspace --all-features --no-run
+      - name: Current time as random seed for Quint
+        run: echo "QUINT_SEED=$(date +%s)" >> $GITHUB_ENV
+      - name: Run tests from traces (with random seed)
+        working-directory: Code/itf
+        run: cargo nextest run --workspace --all-features test_itf

@@ -5,9 +5,13 @@ on:
     branches: main
     paths:
       - Code/**
+      - Specs/Quint/**
+      - .github/workflows/coverage.yml
   pull_request:
     paths:
       - Code/**
+      - Specs/Quint/**
+      - .github/workflows/coverage.yml
 
 jobs:
   coverage:
@@ -20,6 +24,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+      - run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:

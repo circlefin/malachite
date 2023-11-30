@@ -33,4 +33,3 @@ jobs:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
       - run: bash Scripts/quint-forall.sh test Specs/Quint/*Test.qnt
-

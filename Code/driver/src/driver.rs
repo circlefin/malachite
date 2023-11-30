@@ -1,32 +1,32 @@
-use malachite_round::state_machine::Info;
+use alloc::boxed::Box;
+use core::fmt;
 
 use malachite_common::{
     Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
     Vote, VoteType,
 };
-use malachite_round::events::Event as RoundEvent;
-use malachite_round::message::Message as RoundMessage;
-use malachite_round::state::State as RoundState;
-use malachite_vote::keeper::Message as VoteMessage;
+use malachite_round::input::Input as RoundEvent;
+use malachite_round::output::Output as RoundOutput;
+use malachite_round::state::{State as RoundState, Step};
+use malachite_round::state_machine::Info;
+use malachite_vote::keeper::Output as VoteMessage;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
 use malachite_vote::ThresholdParams;
 
-use crate::event::Event;
-use crate::message::Message;
+use crate::input::Input;
+use crate::output::Output;
 use crate::Error;
 use crate::ProposerSelector;
 use crate::Validity;
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
-#[derive(Clone, Debug)]
-pub struct Driver<Ctx, PSel>
+pub struct Driver<Ctx>
 where
     Ctx: Context,
-    PSel: ProposerSelector<Ctx>,
 {
     pub ctx: Ctx,
-    pub proposer_selector: PSel,
+    pub proposer_selector: Box<dyn ProposerSelector<Ctx>>,
 
     pub address: Ctx::Address,
     pub validator_set: Ctx::ValidatorSet,
@@ -35,14 +35,13 @@ where
     pub round_state: RoundState<Ctx>,
 }
 
-impl<Ctx, PSel> Driver<Ctx, PSel>
+impl<Ctx> Driver<Ctx>
 where
     Ctx: Context,
-    PSel: ProposerSelector<Ctx>,
 {
     pub fn new(
         ctx: Ctx,
-        proposer_selector: PSel,
+        proposer_selector: impl ProposerSelector<Ctx> + 'static,
         validator_set: Ctx::ValidatorSet,
         address: Ctx::Address,
     ) -> Self {
@@ -53,7 +52,7 @@ where
 
         Self {
             ctx,
-            proposer_selector,
+            proposer_selector: Box::new(proposer_selector),
             address,
             validator_set,
             votes,
@@ -82,47 +81,47 @@ where
         Ok(proposer)
     }
 
-    pub async fn execute(&mut self, msg: Event<Ctx>) -> Result<Option<Message<Ctx>>, Error<Ctx>> {
-        let round_msg = match self.apply(msg).await? {
+    pub async fn execute(&mut self, msg: Input<Ctx>) -> Result<Option<Output<Ctx>>, Error<Ctx>> {
+        let round_output = match self.apply(msg).await? {
             Some(msg) => msg,
             None => return Ok(None),
         };
 
-        let msg = match round_msg {
-            RoundMessage::NewRound(round) => Message::NewRound(self.height().clone(), round),
+        let output = match round_output {
+            RoundOutput::NewRound(round) => Output::NewRound(self.height().clone(), round),
 
-            RoundMessage::Proposal(proposal) => {
-                // sign the proposal
-                Message::Propose(proposal)
+            RoundOutput::Proposal(proposal) => {
+                // TODO: sign the proposal
+                Output::Propose(proposal)
             }
 
-            RoundMessage::Vote(vote) => {
+            RoundOutput::Vote(vote) => {
                 let signed_vote = self.ctx.sign_vote(vote);
-                Message::Vote(signed_vote)
+                Output::Vote(signed_vote)
             }
 
-            RoundMessage::ScheduleTimeout(timeout) => Message::ScheduleTimeout(timeout),
+            RoundOutput::ScheduleTimeout(timeout) => Output::ScheduleTimeout(timeout),
 
-            RoundMessage::GetValueAndScheduleTimeout(round, timeout) => {
-                Message::GetValueAndScheduleTimeout(round, timeout)
+            RoundOutput::GetValueAndScheduleTimeout(round, timeout) => {
+                Output::GetValueAndScheduleTimeout(round, timeout)
             }
 
-            RoundMessage::Decision(value) => {
+            RoundOutput::Decision(value) => {
                 // TODO: update the state
-                Message::Decide(value.round, value.value)
+                Output::Decide(value.round, value.value)
             }
         };
 
-        Ok(Some(msg))
+        Ok(Some(output))
     }
 
-    async fn apply(&mut self, event: Event<Ctx>) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
-        match event {
-            Event::NewRound(height, round) => self.apply_new_round(height, round).await,
-            Event::ProposeValue(round, value) => self.apply_propose_value(round, value).await,
-            Event::Proposal(proposal, validity) => self.apply_proposal(proposal, validity).await,
-            Event::Vote(signed_vote) => self.apply_vote(signed_vote),
-            Event::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
+    async fn apply(&mut self, input: Input<Ctx>) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+        match input {
+            Input::NewRound(height, round) => self.apply_new_round(height, round).await,
+            Input::ProposeValue(round, value) => self.apply_propose_value(round, value).await,
+            Input::Proposal(proposal, validity) => self.apply_proposal(proposal, validity).await,
+            Input::Vote(signed_vote) => self.apply_vote(signed_vote),
+            Input::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
         }
     }
 
@@ -130,9 +129,13 @@ where
         &mut self,
         height: Ctx::Height,
         round: Round,
-    ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
-        self.round_state = RoundState::new(height, round);
-
+    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+        if self.height() == &height {
+            // If it's a new round for same height, just reset the round, keep the valid and locked values
+            self.round_state.round = round;
+        } else {
+            self.round_state = RoundState::new(height, round);
+        }
         self.apply_event(round, RoundEvent::NewRound)
     }
 
@@ -140,7 +143,7 @@ where
         &mut self,
         round: Round,
         value: Ctx::Value,
-    ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
+    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         self.apply_event(round, RoundEvent::ProposeValue(value))
     }
 
@@ -148,68 +151,97 @@ where
         &mut self,
         proposal: Ctx::Proposal,
         validity: Validity,
-    ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
+    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         // Check that there is an ongoing round
-        if self.round_state.round == Round::NIL {
+        if self.round_state.round == Round::Nil {
             return Ok(None);
         }
 
-        // Only process the proposal if there is no other proposal
-        if self.round_state.proposal.is_some() {
+        // Check that the proposal is for the current height
+        if self.round_state.height != proposal.height() {
             return Ok(None);
         }
 
-        // Check that the proposal is for the current height and round
-        if self.round_state.height != proposal.height()
-            || self.round_state.round != proposal.round()
-        {
-            return Ok(None);
-        }
+        let polka_for_pol = self.votes.is_threshold_met(
+            &proposal.pol_round(),
+            VoteType::Prevote,
+            Threshold::Value(proposal.value().id()),
+        );
+        let polka_previous = proposal.pol_round().is_defined()
+            && polka_for_pol
+            && proposal.pol_round() < self.round_state.round;
 
-        // TODO: Document
-        if proposal.pol_round().is_defined() && proposal.pol_round() >= self.round_state.round {
-            return Ok(None);
-        }
-
-        // TODO: Verify proposal signature (make some of these checks part of message validation)
-
-        match proposal.pol_round() {
-            Round::Nil => {
-                // Is it possible to get +2/3 prevotes before the proposal?
-                // Do we wait for our own prevote to check the threshold?
-                let round = proposal.round();
-                let event = if validity.is_valid() {
-                    RoundEvent::Proposal(proposal)
+        // Handle invalid proposal
+        if !validity.is_valid() {
+            if self.round_state.step == Step::Propose {
+                if proposal.pol_round().is_nil() {
+                    // L26
+                    return self.apply_event(proposal.round(), RoundEvent::InvalidProposal);
+                } else if polka_previous {
+                    // L32
+                    return self.apply_event(
+                        proposal.round(),
+                        RoundEvent::InvalidProposalAndPolkaPrevious(proposal.clone()),
+                    );
                 } else {
-                    RoundEvent::ProposalInvalid
-                };
-
-                self.apply_event(round, event)
+                    return Ok(None);
+                }
+            } else {
+                return Ok(None);
             }
-            Round::Some(_)
-                if self.votes.is_threshold_met(
-                    &proposal.pol_round(),
-                    VoteType::Prevote,
-                    Threshold::Value(proposal.value().id()),
-                ) =>
-            {
-                let round = proposal.round();
-                let event = if validity.is_valid() {
-                    RoundEvent::Proposal(proposal)
-                } else {
-                    RoundEvent::ProposalInvalid
-                };
-
-                self.apply_event(round, event)
-            }
-            _ => Ok(None),
         }
+
+        // We have a valid proposal.
+        // L49
+        // TODO - check if not already decided
+        if self.votes.is_threshold_met(
+            &proposal.round(),
+            VoteType::Precommit,
+            Threshold::Value(proposal.value().id()),
+        ) {
+            return self.apply_event(
+                proposal.round(),
+                RoundEvent::ProposalAndPrecommitValue(proposal.clone()),
+            );
+        }
+
+        // If the proposal is for a different round drop the proposal
+        // TODO - this check is also done in the round state machine, decide where to do it
+        if self.round_state.round != proposal.round() {
+            return Ok(None);
+        }
+
+        let polka_for_current = self.votes.is_threshold_met(
+            &proposal.round(),
+            VoteType::Prevote,
+            Threshold::Value(proposal.value().id()),
+        );
+        let polka_current = polka_for_current && self.round_state.step >= Step::Prevote;
+
+        // L36
+        if polka_current {
+            return self.apply_event(
+                proposal.round(),
+                RoundEvent::ProposalAndPolkaCurrent(proposal.clone()),
+            );
+        }
+
+        // L28
+        if polka_previous {
+            return self.apply_event(
+                proposal.round(),
+                RoundEvent::ProposalAndPolkaPrevious(proposal.clone()),
+            );
+        }
+
+        // TODO - Caller needs to store the proposal (valid or not) as the quorum (polka or commits) may be met later
+        self.apply_event(proposal.round(), RoundEvent::Proposal(proposal.clone()))
     }
 
     fn apply_vote(
         &mut self,
         signed_vote: SignedVote<Ctx>,
-    ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
+    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let validator = self
             .validator_set
             .get_by_address(signed_vote.validator_address())
@@ -247,7 +279,7 @@ where
         self.apply_event(vote_round, round_event)
     }
 
-    fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
+    fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let event = match timeout.step {
             TimeoutStep::Propose => RoundEvent::TimeoutPropose,
             TimeoutStep::Prevote => RoundEvent::TimeoutPrevote,
@@ -262,7 +294,7 @@ where
         &mut self,
         event_round: Round,
         event: RoundEvent<Ctx>,
-    ) -> Result<Option<RoundMessage<Ctx>>, Error<Ctx>> {
+    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let round_state = core::mem::take(&mut self.round_state);
         let proposer = self.get_proposer(round_state.round)?;
 
@@ -287,12 +319,27 @@ where
         };
 
         // Apply the event to the round state machine
-        let transition = round_state.apply_event(&data, mux_event);
+        let transition = round_state.apply(&data, mux_event);
 
         // Update state
         self.round_state = transition.next_state;
 
-        // Return message, if any
-        Ok(transition.message)
+        // Return output, if any
+        Ok(transition.output)
+    }
+}
+
+impl<Ctx> fmt::Debug for Driver<Ctx>
+where
+    Ctx: Context,
+{
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Driver")
+            .field("address", &self.address)
+            .field("validator_set", &self.validator_set)
+            .field("votes", &self.votes)
+            .field("round_state", &self.round_state)
+            .finish()
     }
 }

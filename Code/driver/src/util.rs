@@ -1,4 +1,4 @@
-/// Wether or not a proposal is valid.
+/// Whether or not a proposal is valid.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Validity {
     /// The proposal is valid.
