@@ -41,8 +41,12 @@ run everyoneReceivesProposal (active, valList, valset, h, r, value) = {
     .then(ListTakeAStep(active))    
 }
 
-
-
+run fromPrevoteToPrecommit (prevoteSenders, prevoteReceivers, valList, valset, h, r, value) = {
+    ListDeliverAllVotes("Prevote", prevoteSenders, prevoteReceivers, valset, h, r, value)
+    .then(prevoteSenders.length().reps(_ => ListTakeAStep(prevoteReceivers)))
+    // extra step due to timeoutprevote double step
+    .then(ListTakeAStep(prevoteReceivers))
+}
 
 
 }

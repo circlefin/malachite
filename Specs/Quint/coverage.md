@@ -4,17 +4,17 @@
 
 | line | comment | (C) | test |
 |  -----:| ---- | -----| -----| 
- 16 |  reuse valid value | | 
+ 16 |  reuse valid value | | line28Test.qnt
  18 | new value | X2 
  19 | send proposal | | (A) RoundswitchTest (^1)
  21 | start timeoutPropose | X1, X2b, X2c
  24 | prevote value | X1, X2
  26 | prevote nil (on invalid or locked) | X2c
- 30 | prevote value on old prevotes |
+ 30 | prevote value on old prevotes | | line28Test.qnt
  32 | prevote nil on old prevotes (on invalid or locked)  |
  35 | start timeoutPrevote  | X2
  40 | precommit value  | X1
- 42 without 41  | set valid without locked  |
+ 42 without 41  | set valid without locked  | | line42Test
  45 | precommit nil | X2b
  48 | start timeoutPrecommit  | X2 , X2b
  51 | decide  | X1

@@ -19,10 +19,7 @@ run runToLine28 = {
         everyoneReceivesProposal(correctList, validatorList, validatorSet, 0, 0, "blue")
     })
     // receive all prevotes    
-    .then(ListDeliverAllVotes("Prevote", correctList, correctList, validatorSet, 0, 0, "blue"))
-    .then(correctList.length().reps(_ => ListTakeAStep(correctList)))
-    // extra step due to timeoutprevote double step
-    .then(ListTakeAStep(correctList))
+    .then(fromPrevoteToPrecommit (correctList, correctList, validatorList, validatorSet, 0, 0, "blue"))
     // now the faulty nodes precommit nil
     .then(ListDeliverAllVotes("Precommit", faultyList, correctList, validatorSet, 0, 0, "nil"))
     .then(faultyList.length().reps(_ => ListTakeAStep(correctList)))   
