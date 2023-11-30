@@ -18,6 +18,7 @@ module voteBookkeeper {
     // Height in the Tendermint algorithm
     type Height = int
 
+    // Value proposed and voted to be included in the chain
     // A value is either nil or a string
     type NonNilValue = str
     type Value = Nil | Val(NonNilValue)
@@ -35,7 +36,9 @@ module voteBookkeeper {
         address: Address
     }
 
-    type WeightedVote = (Vote, Weight, Round)
+    type WeightedVote = 
+        | NoVote 
+        | WV((Vote, Weight, Round))
 
     type VoteCount = {
         totalWeight: Weight,
@@ -60,12 +63,12 @@ module voteBookkeeper {
         | ValueThreshold(NonNilValue)
 
     type ExecutorEvent = 
-        | NoEvent(Round)
+        | NoEvent(Round) // HV: do we need the round?
         | PolkaAnyEvent(Round)
         | PolkaNilEvent(Round)
-        | PolkaValueEvent((Round, Value))
+        | PolkaValueEvent((Round, NonNilValue))
         | PrecommitAnyEvent(Round)
-        | PrecommitValueEvent((Round, Value))
+        | PrecommitValueEvent((Round, NonNilValue))
         | SkipEvent(Round)
 
     def isNoEvent(event) = match event { 
@@ -222,8 +225,8 @@ module voteBookkeeper {
                 NoEvent(round)
             | ValueThreshold(value) =>
                 match voteType {
-                    | Prevote => PolkaValueEvent((round, Val(value)))
-                    | Precommit => PrecommitValueEvent((round, Val(value)))
+                    | Prevote => PolkaValueEvent((round, value))
+                    | Precommit => PrecommitValueEvent((round, value))
                 }
             | NilThreshold =>
                 match voteType {
@@ -246,10 +249,10 @@ module voteBookkeeper {
             assert(toEvent(round, Precommit, UnreachedThreshold) == NoEvent(round)),
             assert(toEvent(round, Prevote, AnyThreshold) == PolkaAnyEvent(round)),
             assert(toEvent(round, Prevote, NilThreshold) == PolkaNilEvent(round)),
-            assert(toEvent(round, Prevote, ValueThreshold("v1")) == PolkaValueEvent((round, Val("v1")))),
+            assert(toEvent(round, Prevote, ValueThreshold("v1")) == PolkaValueEvent((round, "v1"))),
             assert(toEvent(round, Precommit, AnyThreshold) == PrecommitAnyEvent(round)),
             assert(toEvent(round, Precommit, NilThreshold) == PrecommitAnyEvent(round)),
-            assert(toEvent(round, Precommit, ValueThreshold("v1")) == PrecommitValueEvent((round, Val("v1")))),
+            assert(toEvent(round, Precommit, ValueThreshold("v1")) == PrecommitValueEvent((round, "v1"))),
             assert(toEvent(round, Prevote, SkipThreshold) == SkipEvent(round)),
             assert(toEvent(round, Precommit, SkipThreshold) == SkipEvent(round)),
         }
@@ -326,7 +329,7 @@ module voteBookkeeper {
             assert(o2.event == NoEvent(0)),
             assert(o3.event == PrecommitAnyEvent(0)),
             assert(o4.event == NoEvent(0)),
-            assert(o5.event == SkipEvent(0)),
+            assert(o5.event == SkipEvent(1)),
         }
 
     // Called by the executor to check if there is a specific threshold for a given round and voteType.
@@ -396,16 +399,17 @@ module voteBookkeeper {
     }
 
     action initWith(initialHeight: Height, initialRound: Round, totalWeight: Weight): bool = all {
-        weightedVote' = ({ typ: Prevote, height: initialHeight, round: -1, value: Nil, address: "" }, -1, -1),
+        weightedVote' = NoVote,
         bookkeeper' = initBookKeeper(10, initialRound, totalWeight),
-        lastEmitted' = NoEvent(-1),
+        lastEmitted' = NoEvent(initialRound),
     }
 
-    // The vote keeper receives a weighted vote and produces an event.
+    // The vote bookkeeper receives a weighted vote for a round, and produces an event.
     action applyVoteAction(vote: Vote, weight: Weight, currentRound: Round): bool =
+        // HV: currentRound should be taken from the bookkeeper?
         val result = applyVote(bookkeeper, vote, weight, currentRound)
         all {
-            weightedVote' = (vote, weight, currentRound),
+            weightedVote' = WV((vote, weight, currentRound)),
             bookkeeper' = result.bookkeeper,
             lastEmitted' = result.event
         }

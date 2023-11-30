@@ -4,7 +4,7 @@ module voteBookkeeperTest {
     export voteBookkeeper.*
 
     // ****************************************************************************
-    // Test traces
+    // Tests
     // ****************************************************************************
 
     // auxiliary action for tests
@@ -19,7 +19,7 @@ module voteBookkeeperTest {
         .then(applyVoteAction({typ: Prevote, height: 1, round: 1, value: Val("v1"), address: "alice"}, 60, 1))
         .then(_assert(lastEmitted == NoEvent(1)))
         .then(applyVoteAction({typ: Prevote, height: 1, round: 1, value: Val("v1"), address: "john"}, 10, 1))
-        .then(_assert(lastEmitted == PolkaValueEvent((1, Val("v1")))))
+        .then(_assert(lastEmitted == PolkaValueEvent((1, "v1"))))
         .then(applyVoteAction({typ: Prevote, height: 1, round: 1, value: Val("v1"), address: "bob"}, 30, 1))
         .then(_assert(lastEmitted == NoEvent(1)))
         .then(applyVoteAction({typ: Precommit, height: 1, round: 1, value: Val("v1"), address: "bob"}, 30, 1))
@@ -27,7 +27,7 @@ module voteBookkeeperTest {
         .then(applyVoteAction({typ: Precommit, height: 1, round: 1, value: Val("v1"), address: "john"}, 10, 1))
         .then(_assert(lastEmitted == NoEvent(1)))
         .then(applyVoteAction({typ: Precommit, height: 1, round: 1, value: Val("v1"), address: "alice"}, 60, 1))
-        .then(_assert(lastEmitted == PrecommitValueEvent((1, Val("v1")))))
+        .then(_assert(lastEmitted == PrecommitValueEvent((1, "v1"))))
 
     // Reaching PolkaAny 
     run polkaAnyTest =
