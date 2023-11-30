@@ -3,14 +3,14 @@
 /*
 TODO: check 
 - whether we have "step" checks in place everywhere
-- "the first time": checks here or in executor
+- "the first time": checks here or in driver
 - check against arXiv
 - tests
 - types (e.g., heights in the messages)
-- discuss "decision tree" in executor
+- discuss "decision tree" in driver
 - Should we think again about the components and the boundaries (especially between
-  voteBookkeeper and executor)
-- Do we need tests for executor and bookkeeping
+  voteBookkeeper and driver)
+- Do we need tests for driver and bookkeeping
 - test id(v): most likely we need to change the type of Value_t as Quint doesn't have
   string operators. Perhaps we make Value_t = int and then id(v) = -v
 */
@@ -187,7 +187,7 @@ pure def NewRound (state: ConsensusState, ev: Event) : ConsResult = {
     if (ev.round > state.round)        
         val newstate = { ...state, round: ev.round, step: "propose" }
         val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPropose"} 
-            // We just report that a timeout should be started. The executor must take care
+            // We just report that a timeout should be started. The driver must take care
             // of figuring out whether it needs to record the round number and height per
             // timeout
             {cs: newstate, out: result} 
@@ -199,7 +199,7 @@ pure def NewRound (state: ConsensusState, ev: Event) : ConsResult = {
 // Here it is assumed that 
 // - the value has been checked to be valid
 // - it is for the current round
-// The executor checks this upon receiving a propose message "ProposalMsg"
+// The driver checks this upon receiving a propose message "ProposalMsg"
 pure def Proposal (state: ConsensusState, ev: Event) : ConsResult = {
     if (state.step == "propose")
         val newstate = { ...state, step: "Prevote" }
@@ -221,7 +221,7 @@ pure def Proposal (state: ConsensusState, ev: Event) : ConsResult = {
             {cs: newstate, out: result}
     else
         {cs: state, out: defaultResult}
-        // This should be dead code as the executor checks the step
+        // This should be dead code as the driver checks the step
 }
 
 // line 26
@@ -262,14 +262,14 @@ pure def ProposalAndPolkaPreviousAndValid (state: ConsensusState, ev: Event) : C
     else
         {cs: state, out: defaultResult}
         // TODO: should we add the event to pending in this case. We would need to
-        // do this in the executor
+        // do this in the driver
 }
 
 // line 34
 pure def PolkaAny (state: ConsensusState, ev: Event) : ConsResult = {
     if (state.step == "Prevote") 
         val result = { ...defaultResult, name: "timeout", timeout: "TimeoutPrevote" }
-            // We just report that a timeout should be started. The executor must take care
+            // We just report that a timeout should be started. The driver must take care
             // of figuring out whether it needs to record the round number and height per
             // timeout
         {cs: state, out: result}
@@ -299,7 +299,7 @@ pure def ProposalAndPolkaAndValid (state: ConsensusState, ev: Event) : ConsResul
     else
         {cs: state, out: defaultResult}
         // TODO: should we add the event to pending in this case. We would need to
-        // do this in the executor
+        // do this in the driver
 }
 
 // line 44

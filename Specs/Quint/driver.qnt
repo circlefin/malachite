@@ -5,7 +5,7 @@
   the event from the bookkeeper
 */ 
 
-module executor {
+module driver {
 
 import consensus.* from "./consensus"
 import voteBookkeeper.* from "./voteBookkeeper"
@@ -14,7 +14,7 @@ pure def initBookKeeper(totalVotingPower: int): Bookkeeper =
     { height: 0, totalWeight: totalVotingPower, rounds: Map() }
 
 
-type ExecutorState = {
+type DriverState = {
     bk : Bookkeeper,
     cs : ConsensusState,
     proposals: Set[ProposeMsg_t],
@@ -22,12 +22,12 @@ type ExecutorState = {
     executedEvents: List[(Event, Height_t, Round_t)], // We record that to have the information in the trace
     pendingEvents: Set[(Event, Height_t, Round_t)],
     started: bool,
-    applyvotesResult: ExecutorEvent, //debug TODO
+    applyvotesResult: DriverEvent, //debug TODO
     chain : List[Value_t],
     nextValueToPropose: Value_t,
 }
 
-pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
+pure def initDriver  (v: Address_t, vs: Address_t -> int) : DriverState = {
     val tvp = vs.keys().fold(0, (sum, key) => sum + vs.get(key))
     {
     bk: initBookKeeper(tvp),
@@ -44,20 +44,20 @@ pure def initExecutor  (v: Address_t, vs: Address_t -> int) : ExecutorState = {
 }
 
 type NodeState = {
-    es: ExecutorState,
+    es: DriverState,
     timeout: Set[(Timeout_t, Height_t, Round_t)],
     incomingVotes: Set[VoteMsg_t],
     incomingProposals: Set[ProposeMsg_t],
 }
 
 pure def initNode  (v: Address_t, vs: Address_t -> int) : NodeState = {
-    es: initExecutor(v,vs),
+    es: initDriver(v,vs),
     timeout: Set(),
     incomingVotes: Set(),
     incomingProposals: Set(),
 }
 
-type ExecutorInput = {
+type DriverInput = {
     name: str, // TODO: make a set of values. 
     proposal: ProposeMsg_t,
     vote: VoteMsg_t,
@@ -66,7 +66,7 @@ type ExecutorInput = {
     nextValueToPropose: Value_t
 }
 
-val defaultInput: ExecutorInput = {
+val defaultInput: DriverInput = {
     name: "",
     proposal: { src: "", height: 0, round: 0, proposal: "", validRound: 0 },
     vote: { src: "", height: 0, round: 0, step: "", id: "", },
@@ -125,7 +125,7 @@ pure def Proposer(valset: Address_t -> int, height: Height_t, round: Round_t) : 
     else "v4"
 }
 
-pure def getValue(es: ExecutorState) : Value_t =  es.nextValueToPropose
+pure def getValue(es: DriverState) : Value_t =  es.nextValueToPropose
 
 pure def valid(p: ProposeMsg_t) :bool = {
     // for simulation, if the value is "invalid", so is the proposal
@@ -139,7 +139,7 @@ pure def id(v) = v
 
 
 type ConsensusCall = {
-    es: ExecutorState,
+    es: DriverState,
     event: Event,
     out: ConsensusOutput
 }
@@ -148,7 +148,7 @@ pure def ListContains(list, value) =
     list.foldl(false, (s,x) => s or x == value)
 
 // check whether the event has been already sent to consensus. If not, do so.
-pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (ExecutorState, ConsensusOutput) = {
+pure def callConsensus (es: DriverState, bk: Bookkeeper, ev: Event) : (DriverState, ConsensusOutput) = {
     // Check whether we already executed the event already
     if (es.executedEvents.ListContains((ev, es.cs.height, es.cs.round)))
         ({ ...es, bk: bk, cs: es.cs }, defaultResult)
@@ -162,8 +162,8 @@ pure def callConsensus (es: ExecutorState, bk: Bookkeeper, ev: Event) : (Executo
 }
 
 
-// We do this if the executor receives a Precommit
-pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent) : (ExecutorState, ConsensusOutput) = {
+// We do this if the driver receives a Precommit
+pure def Precommit (es: DriverState, input: DriverInput, eev: DriverEvent) : (DriverState, ConsensusOutput) = {
     if (eev.name == "PrecommitValue")
             if (es.proposals.exists(x => eev.round == x.round and eev.value == id(x.proposal))) {
                 callConsensus(es, es.bk, {  name : "ProposalAndCommitAndValid",
@@ -213,8 +213,8 @@ pure def Precommit (es: ExecutorState, input: ExecutorInput, eev: ExecutorEvent)
 }
 
 
-// We do this if the executor receives a Prevote
-pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) : (ExecutorState, ConsensusOutput) = {
+// We do this if the driver receives a Prevote
+pure def Prevote (es: DriverState, input: DriverInput,  eev: DriverEvent) : (DriverState, ConsensusOutput) = {
     // TODO: events do not have heights now.
     // TODO: Polka implications missing.
     if (eev.name == "PolkaValue")
@@ -267,8 +267,8 @@ pure def Prevote (es: ExecutorState, input: ExecutorInput,  eev: ExecutorEvent) 
 }
 
 
-// We do this if a timeout expires at the executor
-pure def Timeout (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
+// We do this if a timeout expires at the driver
+pure def Timeout (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
     // TODO: We assume that the timeout event is always for the current round. If this is not
     // the case, we need to encode it in the input to which round the timeout belongs
     val event: Event = {name: input.timeout, 
@@ -280,8 +280,8 @@ pure def Timeout (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Con
 }
 
 
-// We do this if the executor receives a proposal
-pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
+// We do this if the driver receives a proposal
+pure def ProposalMsg (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
     val newES = { ...es, proposals: es.proposals.union(Set(input.proposal))}
     if (input.proposal.src != Proposer(es.valset, input.proposal.height, input.proposal.round))
         // proposer does not match the height/round of the proposal
@@ -407,7 +407,7 @@ pure def ProposalMsg (es: ExecutorState, input: ExecutorInput) : (ExecutorState,
 
 
 // We do this when we need to jump to a new round
-pure def skip (es: ExecutorState, r: int) : (ExecutorState, ConsensusOutput) = {
+pure def skip (es: DriverState, r: int) : (DriverState, ConsensusOutput) = {
     // line 15
     val prop =  if (es.cs.validValue != "nil") es.cs.validValue
                 else getValue(es)
@@ -430,15 +430,15 @@ pure def skip (es: ExecutorState, r: int) : (ExecutorState, ConsensusOutput) = {
 
 
 // We do this when we have decided
-pure def decided (es: ExecutorState, res: ConsensusOutput) : (ExecutorState, ConsensusOutput) = {
+pure def decided (es: DriverState, res: ConsensusOutput) : (DriverState, ConsensusOutput) = {
     // here we call consensus to set a new height, that is, to initialize the state machine
     // and then we call skip to start round 0
 
 /*  // The following can be used to get to the next height. For now this
     // function does nothing
-    // If we choose to move getValue out of the executor logic into the environment (gossip)
+    // If we choose to move getValue out of the driver logic into the environment (gossip)
     // then, we would not do this here, but expect the environment to create a (to be defined) 
-    // ExecutorInput      
+    // DriverInput      
     val s1 = callConsensus(es, es.bk, {name : "NewHeight",
                                     height : es.cs.height + 1,
                                     round: -1,
@@ -451,14 +451,14 @@ pure def decided (es: ExecutorState, res: ConsensusOutput) : (ExecutorState, Con
 
 
 // take input out of pending events and then call consensus with that event
-// We do this when the executor is asked to work on pending events
-pure def PendingEvent (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
+// We do this when the driver is asked to work on pending events
+pure def PendingEvent (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
     val newState = { ...es, pendingEvents: es.pendingEvents.exclude(Set((input.event, es.cs.height, es.cs.round)))}
     callConsensus(newState, es.bk, input.event)
 }
 
 
-pure def setValue(es: ExecutorState, value: Value_t) : (ExecutorState, ConsensusOutput) =
+pure def setValue(es: DriverState, value: Value_t) : (DriverState, ConsensusOutput) =
     ({ ...es, nextValueToPropose: value }, defaultResult)
 
 
@@ -469,7 +469,7 @@ pure def setValue(es: ExecutorState, value: Value_t) : (ExecutorState, Consensus
  * ********************************************************/
 
 // TODO: return ConsensusEvent so that we know from outside what event was fired.
-pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, ConsensusOutput) = {
+pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
     // TODO: shall we check whether the sender actually is in the validator set
     if (input.name == "proposal") {
         val res = ProposalMsg(es, input)
@@ -511,8 +511,8 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Co
         if (res._2.name == "skipRound")
             skip (res._1, res._2.skipRound)
             // skip starts a new round. This may involve getValue. If we choose to move the getValue
-            // logic out of the executor, we wouldn't call skip here but add a (to be defined)
-            // ExecutorInput
+            // logic out of the driver, we wouldn't call skip here but add a (to be defined)
+            // DriverInput
         else
             res
     }
@@ -535,7 +535,7 @@ pure def executor (es: ExecutorState, input: ExecutorInput) : (ExecutorState, Co
 // timeouts, etc.) the node should act.
 // currently this is linked in via the state machine. But we can move it into
 // the functional layer/
-pure def nextAction (state: NodeState) : (NodeState, ExecutorInput) = {
+pure def nextAction (state: NodeState) : (NodeState, DriverInput) = {
     if (not(state.es.started))
         (state, { ...defaultInput, name: "start" })
 
@@ -574,7 +574,7 @@ pure def nextAction (state: NodeState) : (NodeState, ExecutorInput) = {
 }
 
 // This function can be used to control test runs better.
-pure def nextActionCommand (state: NodeState, command: str) : (NodeState, ExecutorInput) = {
+pure def nextActionCommand (state: NodeState, command: str) : (NodeState, DriverInput) = {
     if (command == "start" and not(state.es.started))
         (state, { ...defaultInput, name: "start" })
 

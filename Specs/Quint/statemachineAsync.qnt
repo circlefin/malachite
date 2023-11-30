@@ -16,8 +16,8 @@
 
 module statemachineAsync {
 
-import executor.* from "./executor"
-export executor.* 
+import driver.* from "./driver"
+export driver.* 
 import consensus.* from "./consensus"
 export consensus.* 
 import voteBookkeeper.* from "./voteBookkeeper"
@@ -55,7 +55,7 @@ val AllFaultyProposals : Set[ProposeMsg_t] =
 var system : Address_t -> NodeState
 var propBuffer : Address_t -> Set[ProposeMsg_t]
 var voteBuffer : Address_t -> Set[VoteMsg_t]
-var _hist: { validator: Address_t, input: ExecutorInput, output: ConsensusOutput }
+var _hist: { validator: Address_t, input: DriverInput, output: ConsensusOutput }
 
 val ConsensusOutputInv = consensusOutputs.union(Set(defaultResult.name)).contains(_hist.output.name) 
 
@@ -101,11 +101,11 @@ pure def startTimeout (sys: Address_t -> NodeState, v: Address_t, toName: str) :
 
 action valStep(v: Address_t) : bool = {
     // pick action
-    val input = system.get(v).nextAction() // TODO: nextAction could go within executor boundary
+    val input = system.get(v).nextAction() // TODO: nextAction could go within driver boundary
     // remove action from v
     val sys1 = system.put(v, input._1)
-    // call executor
-    val res = executor(sys1.get(v).es, input._2)
+    // call driver
+    val res = driver(sys1.get(v).es, input._2)
     all {
         // update v's state after the step
         val sys = sys1.put(v, { ...sys1.get(v), es: res._1})
@@ -130,7 +130,7 @@ action valStep(v: Address_t) : bool = {
         else if (res._2.name == "skipRound") all {
             propBuffer' = propBuffer,
             voteBuffer' = voteBuffer,
-            //skipRound should never leave the executor
+            //skipRound should never leave the driver
             system' = sys,
         }
         else all {
@@ -144,7 +144,7 @@ action valStep(v: Address_t) : bool = {
 }
 
 action setNextValueToPropose(v: Address_t, value: Value_t) : bool = all {
-    val res = executor(system.get(v).es, { ...defaultInput, name: "SetNextProposedValue", nextValueToPropose: value})
+    val res = driver(system.get(v).es, { ...defaultInput, name: "SetNextProposedValue", nextValueToPropose: value})
     val newNS = { ...system.get(v), es: res._1}
     system' = system.put(v, newNS),
     _hist' = _hist,

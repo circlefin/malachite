@@ -51,7 +51,7 @@ module voteBookkeeper {
         round: Round,
         prevotes: VoteCount,
         precommits: VoteCount,
-        emittedEvents: Set[ExecutorEvent],
+        emittedEvents: Set[DriverEvent],
         votesAddressesWeights: Address -> Weight
     }
 
@@ -66,7 +66,7 @@ module voteBookkeeper {
     pure def valueThreshold(value) = { name: "Value", value: value }
     pure def isThresholdOnValue(t: Threshold): bool = t.name == "Value"
 
-    type ExecutorEvent = {
+    type DriverEvent = {
         round: Round,
         name: str,
         value: Value
@@ -188,8 +188,8 @@ module voteBookkeeper {
         } else 
             unreachedThreshold
 
-    // Given a round, voteType and threshold, return the corresponding ExecutorEvent
-    pure def toEvent(round: Round, voteType: VoteType, threshold: Threshold): ExecutorEvent =
+    // Given a round, voteType and threshold, return the corresponding DriverEvent
+    pure def toEvent(round: Round, voteType: VoteType, threshold: Threshold): DriverEvent =
         if (threshold == unreachedThreshold) 
             noEvent(round)
         
@@ -234,18 +234,18 @@ module voteBookkeeper {
             assert(toEvent(round, "Error", anyThreshold) == noEvent(round)),
         }
 
-    // Executor interface
-    type BKResult = { bookkeeper: Bookkeeper, event: ExecutorEvent }
+    // Driver interface
+    type BKResult = { bookkeeper: Bookkeeper, event: DriverEvent }
 
-    // Called by the executor when it receives a vote. The function takes the following steps:
+    // Called by the driver when it receives a vote. The function takes the following steps:
     // - It first adds the vote and then computes a threshold.
-    // - If there exist a threshold and has not emitted before, the function returns the corresponding ExecutorEvent.
+    // - If there exist a threshold and has not emitted before, the function returns the corresponding DriverEvent.
     // - Otherwise, the function returns a no-threshold event.
     // - Note that if there is no threshold after adding the vote, the function checks if there is a skip threshold.
     // TO DISCUSS:
     // - There might be a problem if we generalize from single-shot to multi-shot: the keeper only keeps the totalWeight
     //   of the current height; I wonder if we need to keep the totalWeight for every Height that we may receive a vote for.
-    pure def applyVote(keeper: Bookkeeper, vote: Vote, weight: Weight, currentRound: Round): { bookkeeper: Bookkeeper, event: ExecutorEvent } =
+    pure def applyVote(keeper: Bookkeeper, vote: Vote, weight: Weight, currentRound: Round): { bookkeeper: Bookkeeper, event: DriverEvent } =
         val round = vote.round
         val roundVotes = keeper.rounds.getOrElse(round, newRoundVotes(keeper.height, round, keeper.totalWeight))
         
@@ -312,9 +312,9 @@ module voteBookkeeper {
             assert(o5.event.name == "Skip"),
         }
 
-    // Called by the executor to check if there is a specific threshold for a given round and voteType.
+    // Called by the driver to check if there is a specific threshold for a given round and voteType.
     // TO DISCUSS:
-    // - The function does not consider Skip threshold. This because if the executor receives a Skip event
+    // - The function does not consider Skip threshold. This because if the driver receives a Skip event
     //   and do not act on it, this means that it will never do it in the future. We should discuss that this
     //   is the case.
     pure def checkThreshold(keeper: Bookkeeper, round: Round, voteType: VoteType, threshold: Threshold): bool =
@@ -381,7 +381,7 @@ module voteBookkeeper {
     // The state of the Bookkeeper.
     var bookkeeper: Bookkeeper
     // The event resulting from applying a weighted vote to the bookkeeper.
-    var lastEmitted: ExecutorEvent
+    var lastEmitted: DriverEvent
 
     // ************************************************************************
     // Actions
