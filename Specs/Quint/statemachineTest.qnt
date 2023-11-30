@@ -25,7 +25,7 @@ var _hist: (str, DriverInput, ConsensusOutput)
 
 action init = all {
     system' = validators.mapBy(v => initNode(v, validatorSet)),
-    _hist' = ("INIT", defaultInput, defaultResult)
+    _hist' = ("INIT", defaultInput, defaultOutput)
 //    _histSimple' = ("INIT", "", "")
 }
 

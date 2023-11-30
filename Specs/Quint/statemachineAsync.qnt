@@ -57,7 +57,7 @@ var propBuffer : Address_t -> Set[Proposal_t]
 var voteBuffer : Address_t -> Set[Vote_t]
 var _hist: { validator: Address_t, input: DriverInput, output: ConsensusOutput }
 
-val ConsensusOutputInv = consensusOutputs.union(Set(defaultResult.name)).contains(_hist.output.name) 
+val ConsensusOutputInv = consensusOutputs.union(Set(defaultOutput.name)).contains(_hist.output.name) 
 
 
 action unchangedAll = all {
@@ -77,7 +77,7 @@ action init = all {
     system' = Correct.mapBy(v => initNode(v, validatorSet)),
     propBuffer' = Correct.mapBy(v => Set()),
     voteBuffer' = Correct.mapBy(v => Set()),
-    _hist' = { validator: "INIT", input: defaultInput, output: defaultResult }
+    _hist' = { validator: "INIT", input: defaultInput, output: defaultOutput }
 }
 
 // Put the proposal into the buffers of all validators

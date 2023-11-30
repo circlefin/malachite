@@ -1,8 +1,8 @@
 // -*- mode: Bluespec; -*-
 
 /*
-  TODO: round switch upon f+1 messages from the future is not done yet. We need to catch
-  the event from the bookkeeper
+  TODO: round switch upon f+1 messages from the future is not done yet.
+  We need to catch the event from the bookkeeper
 */ 
 
 module driver {
@@ -151,7 +151,7 @@ pure def ListContains(list, value) =
 pure def callConsensus (es: DriverState, bk: Bookkeeper, csInput: ConsensusInput) : (DriverState, ConsensusOutput) = {
     // Check whether we already executed the event already
     if (es.executedInputs.ListContains((csInput, es.cs.height, es.cs.round)))
-        ({ ...es, bk: bk, cs: es.cs }, defaultResult)
+        ({ ...es, bk: bk, cs: es.cs }, defaultOutput)
     else
         // Go to consensus
         val res = consensus(es.cs, csInput)
@@ -191,7 +191,7 @@ pure def Precommit (es: DriverState, input: DriverInput, vkOutput: VoteKeeperOut
                 }  
                 else {
                     // messages from past round -> ignore
-                    (es, defaultResult)
+                    (es, defaultOutput)
                 }    
             }
     else if (vkOutput.name == "PrecommitAny" and vkOutput.round == es.cs.round) {
@@ -209,7 +209,7 @@ pure def Precommit (es: DriverState, input: DriverInput, vkOutput: VoteKeeperOut
                                     vr: -1}) 
     else
         // none of the supported Precommit events. Do nothing
-        (es, defaultResult)  
+        (es, defaultOutput)  
 }
 
 
@@ -238,7 +238,7 @@ pure def Prevote (es: DriverState, input: DriverInput,  vkOutput: VoteKeeperOutp
         else
             // we don't have a matching proposal so we do nothing
             // TODO: we might check whether it is for a future round and jump
-            (es, defaultResult)
+            (es, defaultOutput)
     else if (vkOutput.name == "PolkaAny")
         if (vkOutput.round == es.cs.round)
                 // call consensus and remember that we did it
@@ -249,7 +249,7 @@ pure def Prevote (es: DriverState, input: DriverInput,  vkOutput: VoteKeeperOutp
                                             vr: vkOutput.round})  
         else
             // TODO: we might check whether it is for a future round and jump
-            (es, defaultResult)
+            (es, defaultOutput)
     else if (vkOutput.name == "PolkaNil" and vkOutput.round == es.cs.round)
         callConsensus(es, es.bk,  { name: "PolkaNil",
                                     height: es.cs.height,
@@ -263,7 +263,7 @@ pure def Prevote (es: DriverState, input: DriverInput,  vkOutput: VoteKeeperOutp
                                     value: input.vote.id,
                                     vr: -1}) 
     else
-        (es, defaultResult)
+        (es, defaultOutput)
 }
 
 
@@ -286,7 +286,7 @@ pure def ProposalMsg (es: DriverState, input: DriverInput) : (DriverState, Conse
     if (input.proposal.src != Proposer(es.valset, input.proposal.height, input.proposal.round))
         // proposer does not match the height/round of the proposal
         // keep ES (don't use newES here), that is, drop proposal
-        (es, defaultResult)
+        (es, defaultOutput)
     else if (valid(input.proposal)) 
         val receivedCommit = checkThreshold(    newES.bk, 
                                                 input.proposal.round, 
@@ -307,7 +307,7 @@ pure def ProposalMsg (es: DriverState, input: DriverInput) : (DriverState, Conse
         else if (input.proposal.round != es.cs.round or input.proposal.height != es.cs.height) 
             // the proposal is from the right proposer and valid, but not for this round
             // keep the proposal, do nothing else
-            (newES, defaultResult)
+            (newES, defaultOutput)
         else
             // for current round and q, valid, and from right proposer
             val receivedPolkaValidRoundVal = checkThreshold(newES.bk,   
@@ -352,7 +352,7 @@ pure def ProposalMsg (es: DriverState, input: DriverInput) : (DriverState, Conse
                                         value: id(input.proposal.proposal),
                                         vr: input.proposal.validRound})  
                 else  
-                    (newES, defaultResult)
+                    (newES, defaultOutput)
             else if (newES.cs.step == "Prevote" or newES.cs.step == "Precommit") 
                 if (receivedCommitCurrentVal)
                     // here we need to call both, Commit and Polka. 
@@ -380,9 +380,9 @@ pure def ProposalMsg (es: DriverState, input: DriverInput) : (DriverState, Conse
                                     value: id(input.proposal.proposal),
                                     vr: input.proposal.validRound})  
                 else 
-                    (newES, defaultResult)
+                    (newES, defaultOutput)
             else
-                (newES, defaultResult)
+                (newES, defaultOutput)
     else 
         // (not(valid(input.proposal))) 
         // keep ES (don't use newES here), that is, drop proposal
@@ -402,7 +402,7 @@ pure def ProposalMsg (es: DriverState, input: DriverInput) : (DriverState, Conse
                                     vr: input.proposal.validRound}
                 callConsensus(es, es.bk, csInput)
         else 
-            (es, defaultResult)
+            (es, defaultOutput)
 }
 
 
@@ -459,7 +459,7 @@ pure def PendingInput (es: DriverState, input: DriverInput) : (DriverState, Cons
 
 
 pure def setValue(es: DriverState, value: Value_t) : (DriverState, ConsensusOutput) =
-    ({ ...es, nextValueToPropose: value }, defaultResult)
+    ({ ...es, nextValueToPropose: value }, defaultOutput)
 
 
 
@@ -468,7 +468,7 @@ pure def setValue(es: DriverState, value: Value_t) : (DriverState, ConsensusOutp
  * Main entry point
  * ********************************************************/
 
-// TODO: return ConsensusEvent so that we know from outside what event was fired.
+// TODO: return ConsensusInput so that we know from outside what event was fired.
 pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
     // TODO: shall we check whether the sender actually is in the validator set
     if (input.name == "proposal") {
@@ -527,7 +527,7 @@ pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusO
     else if (input.name == "SetNextProposedValue")
         setValue(es, input.nextValueToPropose)
     else
-        (es, defaultResult)
+        (es, defaultOutput)
 }
 
 
