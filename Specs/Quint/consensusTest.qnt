@@ -8,9 +8,9 @@ import consensus.* from "./consensus"
  * Global state
  * ************************************************************************* */
 
-var system : Address_t -> ConsensusState
-var _Result : ConsensusOutput
-var _Event : Event
+var system: Address_t -> ConsensusState
+var _Result: ConsensusOutput
+var _Event: ConsensusInput
 
 
 pure def initialProcess (name: Address_t) : ConsensusState = {
@@ -45,7 +45,7 @@ action FireEvent(eventName: str, proc: Address_t, h: Height_t, r: Round_t, value
 }
 
 action step = any {
-    nondet name = oneOf(ConsensusEvents)
+    nondet name = oneOf(ConsensusInputNames)
     nondet height = 1//oneOf(1.to(4))
     nondet round = 0//oneOf(1.to(4))
     nondet value = oneOf(Set("block 1", "block 2", "block 3"))

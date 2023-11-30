@@ -19,8 +19,8 @@ type DriverState = {
     cs : ConsensusState,
     proposals: Set[ProposeMsg_t],
     valset: Address_t -> int,
-    executedEvents: List[(Event, Height_t, Round_t)], // We record that to have the information in the trace
-    pendingEvents: Set[(Event, Height_t, Round_t)],
+    executedInputs: List[(ConsensusInput, Height_t, Round_t)], // We record that to have the information in the trace
+    pendingInputs: Set[(ConsensusInput, Height_t, Round_t)],
     started: bool,
     voteKeeperOutput: VoteKeeperOutput, //debug TODO
     chain : List[Value_t],
@@ -34,8 +34,8 @@ pure def initDriver  (v: Address_t, vs: Address_t -> int) : DriverState = {
     cs: initConsensusState(v),
     proposals: Set(),
     valset: vs,
-    executedEvents: List(),
-    pendingEvents: Set(),
+    executedInputs: List(),
+    pendingInputs: Set(),
     started: false,
     voteKeeperOutput: toVoteKeeperOutput(0, "", {name: "", value: ""}), // debug
     chain : List(),
@@ -62,7 +62,7 @@ type DriverInput = {
     proposal: ProposeMsg_t,
     vote: VoteMsg_t,
     timeout: str,
-    event: Event,
+    csInput: ConsensusInput,
     nextValueToPropose: Value_t
 }
 
@@ -71,7 +71,7 @@ val defaultInput: DriverInput = {
     proposal: { src: "", height: 0, round: 0, proposal: "", validRound: 0 },
     vote: { src: "", height: 0, round: 0, step: "", id: "", },
     timeout: "",
-    event: defaultEvent,
+    csInput: defaultEvent,
     nextValueToPropose: ""
 }
 
@@ -80,7 +80,7 @@ val defaultInput: DriverInput = {
 pure def toVote (v: VoteMsg_t) : Vote = 
     { typ: v.step, height: v.height, round: v.round, value: v.id, address: v.src }
 
-val defaultEvent : Event = { name : "", height : 0, round: 0, value: "", vr: 0 }    
+val defaultEvent : ConsensusInput = { name : "", height : 0, round: 0, value: "", vr: 0 }    
 
 /*
 encode the following decision tree
@@ -140,7 +140,7 @@ pure def id(v) = v
 
 type ConsensusCall = {
     es: DriverState,
-    event: Event,
+    csInput: ConsensusInput,
     out: ConsensusOutput
 }
 
@@ -148,24 +148,24 @@ pure def ListContains(list, value) =
     list.foldl(false, (s,x) => s or x == value)
 
 // check whether the event has been already sent to consensus. If not, do so.
-pure def callConsensus (es: DriverState, bk: Bookkeeper, ev: Event) : (DriverState, ConsensusOutput) = {
+pure def callConsensus (es: DriverState, bk: Bookkeeper, csInput: ConsensusInput) : (DriverState, ConsensusOutput) = {
     // Check whether we already executed the event already
-    if (es.executedEvents.ListContains((ev, es.cs.height, es.cs.round)))
+    if (es.executedInputs.ListContains((csInput, es.cs.height, es.cs.round)))
         ({ ...es, bk: bk, cs: es.cs }, defaultResult)
     else
         // Go to consensus
-        val res = consensus(es.cs, ev)
+        val res = consensus(es.cs, csInput)
         // Record that we executed the event
-        val events = es.executedEvents.append((ev, res.cs.height, res.cs.round))
+        val csInputs = es.executedInputs.append((csInput, res.cs.height, res.cs.round))
 
-        ({ ...es, bk: bk, cs: res.cs, executedEvents: events }, res.out)
+        ({ ...es, bk: bk, cs: res.cs, executedInputs: csInputs }, res.out)
 }
 
 
 // We do this if the driver receives a Precommit
-pure def Precommit (es: DriverState, input: DriverInput, eev: VoteKeeperOutput) : (DriverState, ConsensusOutput) = {
-    if (eev.name == "PrecommitValue")
-            if (es.proposals.exists(x => eev.round == x.round and eev.value == id(x.proposal))) {
+pure def Precommit (es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutput) : (DriverState, ConsensusOutput) = {
+    if (vkOutput.name == "PrecommitValue")
+            if (es.proposals.exists(x => vkOutput.round == x.round and vkOutput.value == id(x.proposal))) {
                 callConsensus(es, es.bk, {  name : "ProposalAndCommitAndValid",
                                             height : input.vote.height,
                                             round: input.vote.round,
@@ -173,14 +173,14 @@ pure def Precommit (es: DriverState, input: DriverInput, eev: VoteKeeperOutput) 
                                             vr: -1})
             }
             else {
-                if (eev.round == es.cs.round) {
+                if (vkOutput.round == es.cs.round) {
                     callConsensus(es, es.bk,  { name: "PrecommitAny",
                                                 height: input.vote.height,
                                                 round: input.vote.round,
                                                 value: input.vote.id,
                                                 vr: -1})   
                 }
-                else if (eev.round > es.cs.round) {
+                else if (vkOutput.round > es.cs.round) {
                     // if it is for a future round I can trigger skipround
                     // TODO: should we really do this. It is dead code as the f+1 event already happened
                     callConsensus(es, es.bk,  { name: "RoundSkip",
@@ -194,14 +194,14 @@ pure def Precommit (es: DriverState, input: DriverInput, eev: VoteKeeperOutput) 
                     (es, defaultResult)
                 }    
             }
-    else if (eev.name == "PrecommitAny" and eev.round == es.cs.round) {
+    else if (vkOutput.name == "PrecommitAny" and vkOutput.round == es.cs.round) {
         callConsensus(es, es.bk,  { name: "PrecommitAny",
                                     height: input.vote.height,
                                     round: input.vote.round,
                                     value: input.vote.id,
                                     vr: -1})    
     }
-    else if (eev.name == "Skip" and eev.round > es.cs.round)
+    else if (vkOutput.name == "Skip" and vkOutput.round > es.cs.round)
         callConsensus(es, es.bk,  { name: "RoundSkip",
                                     height: input.vote.height,
                                     round: input.vote.round,
@@ -214,49 +214,49 @@ pure def Precommit (es: DriverState, input: DriverInput, eev: VoteKeeperOutput) 
 
 
 // We do this if the driver receives a Prevote
-pure def Prevote (es: DriverState, input: DriverInput,  eev: VoteKeeperOutput) : (DriverState, ConsensusOutput) = {
+pure def Prevote (es: DriverState, input: DriverInput,  vkOutput: VoteKeeperOutput) : (DriverState, ConsensusOutput) = {
     // TODO: events do not have heights now.
     // TODO: Polka implications missing.
-    if (eev.name == "PolkaValue")
-        if (eev.round < es.cs.round and
+    if (vkOutput.name == "PolkaValue")
+        if (vkOutput.round < es.cs.round and
             es.proposals.exists(p => p.round == es.cs.round and
-            eev.round == p.validRound and id(p.proposal) == eev.value)) 
+            vkOutput.round == p.validRound and id(p.proposal) == vkOutput.value)) 
                 callConsensus(es, es.bk, {  name: "ProposalAndPolkaPreviousAndValid",
                                             height: es.cs.height,
                                             round: es.cs.round,
-                                            value: eev.value,
-                                            vr: eev.round})   
+                                            value: vkOutput.value,
+                                            vr: vkOutput.round})   
                                             // TODO: the value should come from the proposal   
-        else if (eev.round == es.cs.round and
+        else if (vkOutput.round == es.cs.round and
                 es.proposals.exists(p => p.round == es.cs.round and
-                id(p.proposal) == eev.value)) 
+                id(p.proposal) == vkOutput.value)) 
                 callConsensus(es, es.bk, {  name: "ProposalAndPolkaAndValid",
                                             height: es.cs.height,
                                             round: es.cs.round,
-                                            value: eev.value,
-                                            vr: eev.round})   
+                                            value: vkOutput.value,
+                                            vr: vkOutput.round})   
         else
             // we don't have a matching proposal so we do nothing
             // TODO: we might check whether it is for a future round and jump
             (es, defaultResult)
-    else if (eev.name == "PolkaAny")
-        if (eev.round == es.cs.round)
+    else if (vkOutput.name == "PolkaAny")
+        if (vkOutput.round == es.cs.round)
                 // call consensus and remember that we did it
                 callConsensus(es, es.bk, {  name: "PolkaAny",
                                             height: es.cs.height,
                                             round: es.cs.round,
-                                            value: eev.value,
-                                            vr: eev.round})  
+                                            value: vkOutput.value,
+                                            vr: vkOutput.round})  
         else
             // TODO: we might check whether it is for a future round and jump
             (es, defaultResult)
-    else if (eev.name == "PolkaNil" and eev.round == es.cs.round)
+    else if (vkOutput.name == "PolkaNil" and vkOutput.round == es.cs.round)
         callConsensus(es, es.bk,  { name: "PolkaNil",
                                     height: es.cs.height,
                                     round: es.cs.round,
-                                    value: eev.value,
-                                    vr: eev.round})  
-    else if (eev.name == "Skip" and eev.round > es.cs.round)
+                                    value: vkOutput.value,
+                                    vr: vkOutput.round})  
+    else if (vkOutput.name == "Skip" and vkOutput.round > es.cs.round)
         callConsensus(es, es.bk,  { name: "RoundSkip",
                                     height: input.vote.height,
                                     round: input.vote.round,
@@ -271,12 +271,12 @@ pure def Prevote (es: DriverState, input: DriverInput,  eev: VoteKeeperOutput) :
 pure def Timeout (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
     // TODO: We assume that the timeout event is always for the current round. If this is not
     // the case, we need to encode it in the input to which round the timeout belongs
-    val event: Event = {name: input.timeout, 
+    val csInput: ConsensusInput = {name: input.timeout, 
                         height: es.cs.height,
                         round: es.cs.round, 
                         value: "", 
                         vr: 0}
-    callConsensus(es, es.bk, event)
+    callConsensus(es, es.bk, csInput)
 }
 
 
@@ -364,7 +364,7 @@ pure def ProposalMsg (es: DriverState, input: DriverInput) : (DriverState, Conse
                                     vr: input.proposal.validRound},
                                 newES.cs.height,
                                 newES.cs.round)
-                    callConsensus(  { ...newES, pendingEvents: newES.pendingEvents.union(Set(pend))}, 
+                    callConsensus(  { ...newES, pendingInputs: newES.pendingInputs.union(Set(pend))}, 
                                     newES.bk,  
                                     {   name: "ProposalAndCommitAndValid",
                                         height: newES.cs.height,
@@ -388,19 +388,19 @@ pure def ProposalMsg (es: DriverState, input: DriverInput) : (DriverState, Conse
         // keep ES (don't use newES here), that is, drop proposal
         if (es.cs.step == "propose" and es.cs.round == input.proposal.round and es.cs.height == input.proposal.height)
             if (checkThreshold(es.bk, es.cs.round, "Prevote", {name: "Value", value: id(input.proposal.proposal)}))
-                val event: Event = {name: "ProposalAndPolkaAndInValid", 
+                val csInput: ConsensusInput = {name: "ProposalAndPolkaAndInValid", 
                                     height: es.cs.height,
                                     round: es.cs.round, 
                                     value: id(input.proposal.proposal), 
                                     vr: input.proposal.validRound}
-                callConsensus(es, es.bk, event)
+                callConsensus(es, es.bk, csInput)
             else 
-                val event: Event = {name: "ProposalInvalid", 
+                val csInput: ConsensusInput = {name: "ProposalInvalid", 
                                     height: es.cs.height,
                                     round: es.cs.round, 
                                     value: id(input.proposal.proposal), 
                                     vr: input.proposal.validRound}
-                callConsensus(es, es.bk, event)
+                callConsensus(es, es.bk, csInput)
         else 
             (es, defaultResult)
 }
@@ -453,8 +453,8 @@ pure def decided (es: DriverState, res: ConsensusOutput) : (DriverState, Consens
 // take input out of pending events and then call consensus with that event
 // We do this when the driver is asked to work on pending events
 pure def PendingEvent (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
-    val newState = { ...es, pendingEvents: es.pendingEvents.exclude(Set((input.event, es.cs.height, es.cs.round)))}
-    callConsensus(newState, es.bk, input.event)
+    val newState = { ...es, pendingInputs: es.pendingInputs.exclude(Set((input.csInput, es.cs.height, es.cs.round)))}
+    callConsensus(newState, es.bk, input.csInput)
 }
 
 
@@ -563,7 +563,7 @@ pure def nextAction (state: NodeState) : (NodeState, DriverInput) = {
         val newstate = { ...state, timeout: state.timeout.exclude(Set(timeout))}
         (newstate, { ...defaultInput, name: "timeout", timeout: timeout._1})
 
-    else if (state.es.pendingEvents != Set())
+    else if (state.es.pendingInputs != Set())
         // this might be cheating as we look into the "es"
         (state, { ...defaultInput, name: "pending" })
         // TODO: In the "starkBFT Spec" Google doc, it is written that pending events
@@ -602,7 +602,7 @@ pure def nextActionCommand (state: NodeState, command: str) : (NodeState, Driver
         val newstate = { ...state, timeout: state.timeout.exclude(Set(timeout))}
         (newstate, { ...defaultInput, name: "timeout", timeout: timeout._1})
 
-    else if (command == "pending" and state.es.pendingEvents != Set())
+    else if (command == "pending" and state.es.pendingInputs != Set())
         // this might be cheating as we look into the "es"
         (state, { ...defaultInput, name: "pending" })
 
