@@ -32,7 +32,7 @@ module consensus {
   type Timeout_t = str
 
 // the type of propose messages
-type ProposeMsg_t = {
+type Proposal_t = {
     src: Address_t,
     height: Height_t,
     round: Round_t,
@@ -41,7 +41,7 @@ type ProposeMsg_t = {
 }
 
 // the type of Prevote and Precommit messages
-type VoteMsg_t = {
+type Vote_t = {
     src: Address_t,
     height: Height_t,
     round: Round_t,
@@ -83,8 +83,8 @@ type ConsensusInput = {
 // what is a good way to encode optionals? I do with default values
 type ConsensusOutput = {
     name: str,    
-    proposal: ProposeMsg_t,
-    voteMessage: VoteMsg_t,
+    proposal: Proposal_t,
+    voteMessage: Vote_t,
     timeout: Timeout_t,
     decided: Value_t,
     skipRound: Round_t
@@ -129,8 +129,8 @@ val ConsensusInputNames = Set(
     "PrecommitValue(ValueId)", // Receive +2/3 Precommits for Value.
 */
 
-val noProp : ProposeMsg_t = {src: "", height: -1, round: -1, proposal: "", validRound: -1}
-val noVote : VoteMsg_t = {src: "", height: -1, round: -1, step: "", id: ""}
+val noProp : Proposal_t = {src: "", height: -1, round: -1, proposal: "", validRound: -1}
+val noVote : Vote_t = {src: "", height: -1, round: -1, step: "", id: ""}
 val noTimeout : Timeout_t = ""
 val noDecided = ""
 val noSkipRound : Round_t = -1

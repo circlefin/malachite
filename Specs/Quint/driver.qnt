@@ -17,7 +17,7 @@ pure def initBookKeeper(totalVotingPower: int): Bookkeeper =
 type DriverState = {
     bk : Bookkeeper,
     cs : ConsensusState,
-    proposals: Set[ProposeMsg_t],
+    proposals: Set[Proposal_t],
     valset: Address_t -> int,
     executedInputs: List[(ConsensusInput, Height_t, Round_t)], // We record that to have the information in the trace
     pendingInputs: Set[(ConsensusInput, Height_t, Round_t)],
@@ -46,8 +46,8 @@ pure def initDriver  (v: Address_t, vs: Address_t -> int) : DriverState = {
 type NodeState = {
     es: DriverState,
     timeout: Set[(Timeout_t, Height_t, Round_t)],
-    incomingVotes: Set[VoteMsg_t],
-    incomingProposals: Set[ProposeMsg_t],
+    incomingVotes: Set[Vote_t],
+    incomingProposals: Set[Proposal_t],
 }
 
 pure def initNode  (v: Address_t, vs: Address_t -> int) : NodeState = {
@@ -59,8 +59,8 @@ pure def initNode  (v: Address_t, vs: Address_t -> int) : NodeState = {
 
 type DriverInput = {
     name: str, // TODO: make a set of values. 
-    proposal: ProposeMsg_t,
-    vote: VoteMsg_t,
+    proposal: Proposal_t,
+    vote: Vote_t,
     timeout: str,
     csInput: ConsensusInput,
     nextValueToPropose: Value_t
@@ -77,7 +77,7 @@ val defaultInput: DriverInput = {
 
 // this is to match the type from the bookkeeper. When we add heights there we should
 // unify
-pure def toVote (v: VoteMsg_t) : Vote = 
+pure def toVote (v: Vote_t) : Vote = 
     { typ: v.step, height: v.height, round: v.round, value: v.id, address: v.src }
 
 val defaultEvent : ConsensusInput = { name : "", height : 0, round: 0, value: "", vr: 0 }    
@@ -104,7 +104,7 @@ Prevote
     -> feed all events to Consensus
 */
 
-val emptyProposal : ProposeMsg_t=
+val emptyProposal : Proposal_t=
     { src: "none", height: 0, round: 0, proposal: "none", validRound: 0 }
 
 val emptyVote = 
@@ -127,7 +127,7 @@ pure def Proposer(valset: Address_t -> int, height: Height_t, round: Round_t) : 
 
 pure def getValue(es: DriverState) : Value_t =  es.nextValueToPropose
 
-pure def valid(p: ProposeMsg_t) :bool = {
+pure def valid(p: Proposal_t) :bool = {
     // for simulation, if the value is "invalid", so is the proposal
     // if this is to become "non-deterministic", we must push it
     // and its use into the state machine

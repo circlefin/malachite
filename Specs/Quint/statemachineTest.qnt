@@ -30,13 +30,13 @@ action init = all {
 }
 
 // Put the proposal into the inbuffers of all validators
-pure def deliverProposal (sys: Address_t -> NodeState, prop: ProposeMsg_t) : Address_t -> NodeState = {
+pure def deliverProposal (sys: Address_t -> NodeState, prop: Proposal_t) : Address_t -> NodeState = {
     sys.keys().mapBy(x => 
      { ...sys.get(x), incomingProposals: sys.get(x).incomingProposals.union(Set(prop)) })
 }
 
 // Put the vote into the inbuffers of all validators
-pure def deliverVote (sys: Address_t -> NodeState, vote: VoteMsg_t) : Address_t -> NodeState = {
+pure def deliverVote (sys: Address_t -> NodeState, vote: Vote_t) : Address_t -> NodeState = {
     sys.keys().mapBy(x => 
      { ...sys.get(x), incomingVotes: sys.get(x).incomingVotes.union(Set(vote)) })
 }
