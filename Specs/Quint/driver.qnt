@@ -452,7 +452,7 @@ pure def decided (es: DriverState, res: ConsensusOutput) : (DriverState, Consens
 
 // take input out of pending events and then call consensus with that event
 // We do this when the driver is asked to work on pending events
-pure def PendingEvent (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
+pure def PendingInput (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
     val newState = { ...es, pendingInputs: es.pendingInputs.exclude(Set((input.csInput, es.cs.height, es.cs.round)))}
     callConsensus(newState, es.bk, input.csInput)
 }
@@ -522,7 +522,7 @@ pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusO
         skip (new, 0)
     }
     else if (input.name == "pending") {
-        PendingEvent(es, input)
+        PendingInput(es, input)
     }
     else if (input.name == "SetNextProposedValue")
         setValue(es, input.nextValueToPropose)
