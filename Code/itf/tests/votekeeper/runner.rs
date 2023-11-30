@@ -123,23 +123,23 @@ impl ItfRunner for VoteKeeperRunner {
 
             let actual_round = actual_state.per_round().get(&Round::new(round)).unwrap();
 
-            let expected_events = &expected_round.emitted_outputs;
-            let actual_events = actual_round.emitted_msgs();
+            let expected_outputs = &expected_round.emitted_outputs;
+            let actual_outputs = actual_round.emitted_outputs();
 
             assert_eq!(
-                actual_events.len(),
-                expected_events.len(),
+                actual_outputs.len(),
+                expected_outputs.len(),
                 "number of emitted events"
             );
 
             let mut event_count = HashMap::new();
 
-            for event in expected_events {
+            for event in expected_outputs {
                 let count = event_count.entry(event.name.clone()).or_insert(0);
                 *count += 1;
             }
 
-            for event in actual_events {
+            for event in actual_outputs {
                 let event_name = match event {
                     Message::PolkaValue(_) => "PolkaValue".into(),
                     Message::PrecommitValue(_) => "PrecommitValue".into(),

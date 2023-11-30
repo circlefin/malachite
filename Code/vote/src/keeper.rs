@@ -48,7 +48,7 @@ where
         &self.addresses_weights
     }
 
-    pub fn emitted_msgs(&self) -> &BTreeSet<Message<ValueId<Ctx>>> {
+    pub fn emitted_outputs(&self) -> &BTreeSet<Message<ValueId<Ctx>>> {
         &self.emitted_msgs
     }
 }
