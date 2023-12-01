@@ -1,6 +1,10 @@
 codecov:
   require_ci_to_pass: yes
 
+ignore:
+  - "Code/itf"
+  - "Code/test"
+
 coverage:
   precision: 2
   round: nearest
