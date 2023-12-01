@@ -11,7 +11,7 @@ use malachite_common::{
     Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
     Vote, VoteType,
 };
-use malachite_round::input::Input as RoundEvent;
+use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
 use malachite_round::state::{State as RoundState, Step};
 use malachite_round::state_machine::Info;
@@ -75,7 +75,7 @@ where
     pub votes: VoteKeeper<Ctx>,
     pub round_state: RoundState<Ctx>,
 
-    pub pending_inputs: VecDeque<(Round, RoundEvent<Ctx>)>,
+    pub pending_inputs: VecDeque<(Round, RoundInput<Ctx>)>,
 
     rx_input: Receiver<Input<Ctx>>,
     // tx_input: Sender<Input<Ctx>>,
@@ -143,7 +143,7 @@ where
         loop {
             if let Some((round, input)) = self.pending_inputs.pop_front() {
                 let output = self
-                    .apply_event(round, input)
+                    .apply_input(round, input)
                     .map(|opt| opt.map(|out| self.convert(out)));
 
                 self.emit(output);
@@ -229,7 +229,7 @@ where
         } else {
             self.round_state = RoundState::new(height, round);
         }
-        self.apply_event(round, RoundEvent::NewRound)
+        self.apply_input(round, RoundInput::NewRound)
     }
 
     async fn apply_propose_value(
@@ -237,7 +237,7 @@ where
         round: Round,
         value: Ctx::Value,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        self.apply_event(round, RoundEvent::ProposeValue(value))
+        self.apply_input(round, RoundInput::ProposeValue(value))
     }
 
     async fn apply_proposal(
@@ -269,12 +269,12 @@ where
             if self.round_state.step == Step::Propose {
                 if proposal.pol_round().is_nil() {
                     // L26
-                    return self.apply_event(proposal.round(), RoundEvent::InvalidProposal);
+                    return self.apply_input(proposal.round(), RoundInput::InvalidProposal);
                 } else if polka_previous {
                     // L32
-                    return self.apply_event(
+                    return self.apply_input(
                         proposal.round(),
-                        RoundEvent::InvalidProposalAndPolkaPrevious(proposal.clone()),
+                        RoundInput::InvalidProposalAndPolkaPrevious(proposal.clone()),
                     );
                 } else {
                     return Ok(None);
@@ -292,9 +292,9 @@ where
             VoteType::Precommit,
             Threshold::Value(proposal.value().id()),
         ) {
-            return self.apply_event(
+            return self.apply_input(
                 proposal.round(),
-                RoundEvent::ProposalAndPrecommitValue(proposal.clone()),
+                RoundInput::ProposalAndPrecommitValue(proposal.clone()),
             );
         }
 
@@ -313,22 +313,22 @@ where
 
         // L36
         if polka_current {
-            return self.apply_event(
+            return self.apply_input(
                 proposal.round(),
-                RoundEvent::ProposalAndPolkaCurrent(proposal.clone()),
+                RoundInput::ProposalAndPolkaCurrent(proposal.clone()),
             );
         }
 
         // L28
         if polka_previous {
-            return self.apply_event(
+            return self.apply_input(
                 proposal.round(),
-                RoundEvent::ProposalAndPolkaPrevious(proposal.clone()),
+                RoundInput::ProposalAndPolkaPrevious(proposal.clone()),
             );
         }
 
         // TODO - Caller needs to store the proposal (valid or not) as the quorum (polka or commits) may be met later
-        self.apply_event(proposal.round(), RoundEvent::Proposal(proposal.clone()))
+        self.apply_input(proposal.round(), RoundInput::Proposal(proposal.clone()))
     }
 
     fn apply_vote(
@@ -360,68 +360,68 @@ where
             return Ok(None);
         };
 
-        let round_event = match vote_output {
-            VoteKeeperOutput::PolkaAny => RoundEvent::PolkaAny,
-            VoteKeeperOutput::PolkaNil => RoundEvent::PolkaNil,
-            VoteKeeperOutput::PolkaValue(v) => RoundEvent::PolkaValue(v),
-            VoteKeeperOutput::PrecommitAny => RoundEvent::PrecommitAny,
-            VoteKeeperOutput::PrecommitValue(v) => RoundEvent::PrecommitValue(v),
-            VoteKeeperOutput::SkipRound(r) => RoundEvent::SkipRound(r),
+        let round_input = match vote_output {
+            VoteKeeperOutput::PolkaAny => RoundInput::PolkaAny,
+            VoteKeeperOutput::PolkaNil => RoundInput::PolkaNil,
+            VoteKeeperOutput::PolkaValue(v) => RoundInput::PolkaValue(v),
+            VoteKeeperOutput::PrecommitAny => RoundInput::PrecommitAny,
+            VoteKeeperOutput::PrecommitValue(v) => RoundInput::PrecommitValue(v),
+            VoteKeeperOutput::SkipRound(r) => RoundInput::SkipRound(r),
         };
 
-        self.apply_event(vote_round, round_event)
+        self.apply_input(vote_round, round_input)
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        let event = match timeout.step {
-            TimeoutStep::Propose => RoundEvent::TimeoutPropose,
-            TimeoutStep::Prevote => RoundEvent::TimeoutPrevote,
-            TimeoutStep::Precommit => RoundEvent::TimeoutPrecommit,
+        let input = match timeout.step {
+            TimeoutStep::Propose => RoundInput::TimeoutPropose,
+            TimeoutStep::Prevote => RoundInput::TimeoutPrevote,
+            TimeoutStep::Precommit => RoundInput::TimeoutPrecommit,
         };
 
-        self.apply_event(timeout.round, event)
+        self.apply_input(timeout.round, input)
     }
 
-    /// Apply the event, update the state.
-    pub fn apply_event(
+    /// Apply the input, update the state.
+    pub fn apply_input(
         &mut self,
-        event_round: Round,
-        event: RoundEvent<Ctx>,
+        input_round: Round,
+        input: RoundInput<Ctx>,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let round_state = core::mem::take(&mut self.round_state);
 
         // Multiplex the event with the round state.
-        let mux_event = match event {
-            RoundEvent::PolkaValue(value_id) => {
+        let mux_event = match input {
+            RoundInput::PolkaValue(value_id) => {
                 if let Some(proposal) = &round_state.proposal {
                     if proposal.value().id() == value_id {
                         self.pending_inputs.push_back((
-                            event_round,
-                            RoundEvent::ProposalAndPolkaCurrent(proposal.clone()),
+                            input_round,
+                            RoundInput::ProposalAndPolkaCurrent(proposal.clone()),
                         ));
                     }
                 }
 
-                RoundEvent::PolkaAny
+                RoundInput::PolkaAny
             }
-            RoundEvent::PrecommitValue(value_id) => {
+            RoundInput::PrecommitValue(value_id) => {
                 if let Some(proposal) = &round_state.proposal {
                     if proposal.value().id() == value_id {
                         self.pending_inputs.push_back((
-                            event_round,
-                            RoundEvent::ProposalAndPrecommitValue(proposal.clone()),
+                            input_round,
+                            RoundInput::ProposalAndPrecommitValue(proposal.clone()),
                         ));
                     }
                 }
 
-                RoundEvent::PrecommitAny
+                RoundInput::PrecommitAny
             }
 
-            _ => event,
+            _ => input,
         };
 
         let proposer = self.get_proposer(round_state.round)?;
-        let data = Info::new(event_round, &self.address, proposer.address());
+        let data = Info::new(input_round, &self.address, proposer.address());
 
         // Apply the event to the round state machine
         let transition = round_state.apply(&data, mux_event);

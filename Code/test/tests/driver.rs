@@ -1168,7 +1168,7 @@ fn run_steps(mut driver: Driver<TestContext>, _handle: Handle<TestContext>, step
 
         while let Some((round, pending)) = driver.pending_inputs.pop_back() {
             let round_output = driver
-                .apply_event(round, pending)
+                .apply_input(round, pending)
                 .expect("pending succeeded");
 
             output = round_output.map(|o| driver.convert(o));
