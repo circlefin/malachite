@@ -227,16 +227,31 @@ pure def Prevote (es: DriverState, input: DriverInput,  vkOutput: VoteKeeperOutp
                                             value: vkOutput.value,
                                             vr: vkOutput.round})   
                                             // TODO: the value should come from the proposal   
-        else if (vkOutput.round == es.cs.round and
-                es.proposals.exists(p => p.round == es.cs.round and
+        else if (vkOutput.round == es.cs.round)
+            if (es.proposals.exists(p => p.round == es.cs.round and
                 id(p.proposal) == vkOutput.value)) 
-                callConsensus(es, es.bk, {  name: "ProposalAndPolkaAndValid",
+                val pend = (  {  name: "ProposalAndPolkaAndValid",
+                                            height: es.cs.height,
+                                            round: es.cs.round,
+                                            value: vkOutput.value,
+                                            vr: vkOutput.round}, es.cs.height, es.cs.round)   
+                callConsensus( { ...es,  pendingInputs: es.pendingInputs.union(Set(pend)) },
+                                es.bk, 
+                                {   name: "PolkaAny",
+                                    height: es.cs.height,
+                                    round: es.cs.round,
+                                    value: vkOutput.value,
+                                    vr: vkOutput.round})   
+            else
+                // there is no matching proposal
+                callConsensus(es, es.bk, {  name: "PolkaAny",
                                             height: es.cs.height,
                                             round: es.cs.round,
                                             value: vkOutput.value,
                                             vr: vkOutput.round})   
+
         else
-            // we don't have a matching proposal so we do nothing
+            // It is for a future round
             // TODO: we might check whether it is for a future round and jump
             (es, defaultOutput)
     else if (vkOutput.name == "PolkaAny")
@@ -356,7 +371,7 @@ pure def ProposalMsg (es: DriverState, input: DriverInput) : (DriverState, Conse
             else if (newES.cs.step == "Prevote" or newES.cs.step == "Precommit") 
                 if (receivedCommitCurrentVal)
                     // here we need to call both, Commit and Polka. 
-                    // We do commit and append pola to pending
+                    // We do commit and append polka to pending
                     val pend = ( {  name: "ProposalAndPolkaAndValid",
                                     height: newES.cs.height,
                                     round: newES.cs.round,
@@ -450,11 +465,15 @@ pure def decided (es: DriverState, res: ConsensusOutput) : (DriverState, Consens
 }
 
 
-// take input out of pending events and then call consensus with that event
+// take input out of pending inputs and then call consensus with that input
 // We do this when the driver is asked to work on pending events
-pure def PendingInput (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
-    val newState = { ...es, pendingInputs: es.pendingInputs.exclude(Set((input.csInput, es.cs.height, es.cs.round)))}
-    callConsensus(newState, es.bk, input.csInput)
+pure def PendingInput (es: DriverState): (DriverState, ConsensusOutput) = {
+    val ev = es.pendingInputs.fold((defaultConsensusInput, -1, -1), (sum, y) => y)
+    val newState = { ...es, pendingInputs: es.pendingInputs.exclude(Set(ev))}
+     if (ev._2 == es.cs.height and ev._3 == es.cs.round)
+        callConsensus(newState, es.bk, ev._1)
+    else
+       (newState, defaultOutput)
 }
 
 
@@ -522,7 +541,7 @@ pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusO
         skip (new, 0)
     }
     else if (input.name == "pending") {
-        PendingInput(es, input)
+        PendingInput(es)
     }
     else if (input.name == "SetNextProposedValue")
         setValue(es, input.nextValueToPropose)
@@ -539,6 +558,12 @@ pure def nextAction (state: NodeState) : (NodeState, DriverInput) = {
     if (not(state.es.started))
         (state, { ...defaultInput, name: "start" })
 
+    else if (state.es.pendingInputs != Set())
+        // this might be cheating as we look into the "es"
+        (state, { ...defaultInput, name: "pending" })
+        // I DID IT. TODO: In the "starkBFT Spec" Google doc, it is written that pending events
+        // should be executed before new messages, which would requir to push this
+        // branch up.
     else if (state.incomingProposals != Set())
         // pick proposal, remove it from incoming
         // val prop = state.incomingProposals.chooseSome()
@@ -562,13 +587,6 @@ pure def nextAction (state: NodeState) : (NodeState, DriverInput) = {
         val timeout = timeouts.fold(("", 0, 0), (sum, y) => y)
         val newstate = { ...state, timeout: state.timeout.exclude(Set(timeout))}
         (newstate, { ...defaultInput, name: "timeout", timeout: timeout._1})
-
-    else if (state.es.pendingInputs != Set())
-        // this might be cheating as we look into the "es"
-        (state, { ...defaultInput, name: "pending" })
-        // TODO: In the "starkBFT Spec" Google doc, it is written that pending events
-        // should be executed before new messages, which would requir to push this
-        // branch up.
     else
         (state, defaultInput)
 }
@@ -577,6 +595,10 @@ pure def nextAction (state: NodeState) : (NodeState, DriverInput) = {
 pure def nextActionCommand (state: NodeState, command: str) : (NodeState, DriverInput) = {
     if (command == "start" and not(state.es.started))
         (state, { ...defaultInput, name: "start" })
+
+    else if (command == "pending" and state.es.pendingInputs != Set())
+        // this might be cheating as we look into the "es"
+        (state, { ...defaultInput, name: "pending" })
 
     else if (command == "proposal" and state.incomingProposals != Set())
         // pick proposal, remove it from incoming
@@ -601,10 +623,6 @@ pure def nextActionCommand (state: NodeState, command: str) : (NodeState, Driver
         val timeout = timeouts.fold(("", 0, 0), (sum, y) => y)
         val newstate = { ...state, timeout: state.timeout.exclude(Set(timeout))}
         (newstate, { ...defaultInput, name: "timeout", timeout: timeout._1})
-
-    else if (command == "pending" and state.es.pendingInputs != Set())
-        // this might be cheating as we look into the "es"
-        (state, { ...defaultInput, name: "pending" })
 
     else
         (state, defaultInput)

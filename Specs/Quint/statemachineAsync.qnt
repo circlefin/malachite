@@ -39,7 +39,7 @@ val RoundsOrNil = Rounds.union(Set(-1))
 val Steps = Set("Prevote", "Precommit")
 
 val AllFaultyVotes : Set[Vote_t] = 
-    tuples(Faulty, Heights, Rounds, Values, Steps)
+    tuples(Faulty, Heights, Rounds, Values.union(Set("nil")), Steps)
     .map(t => { src: t._1, height: t._2, round: t._3, id: t._4, step: t._5 })
 
 // val AllFaultyVotes : Set[Vote_t] = 
@@ -93,6 +93,7 @@ pure def sendVote (sys: Address_t -> Set[Vote_t], vote: Vote_t) : Address_t -> S
 }
 
 // Record that a timeout has started at node v
+// As we do set union here, there is no need to check whether this happens the first time
 pure def startTimeout (sys: Address_t -> NodeState, v: Address_t, toName: str) : Address_t -> NodeState = {
     sys.put(v, { ...sys.get(v), timeout: sys.get(v).timeout.union(Set(
         {(toName, sys.get(v).es.cs.height, sys.get(v).es.cs.round)}
@@ -158,6 +159,11 @@ action deliverProposal(v: Address_t, p: Proposal_t) : bool = all {
     system' = system.put(v, { ...system.get(v), incomingProposals: system.get(v).incomingProposals.union(Set(p)) }),
     _hist' = _hist,
     voteBuffer' = voteBuffer, 
+}
+
+action deliverSomeProposal(v: Address_t) : bool = any {
+    nondet prop = oneOf(propBuffer.get(v))
+    deliverProposal(v, prop)
 }
 
 action deliverVote(v: Address_t, vote: Vote_t) : bool = all {
