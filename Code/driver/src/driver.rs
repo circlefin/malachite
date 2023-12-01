@@ -75,6 +75,8 @@ where
     pub votes: VoteKeeper<Ctx>,
     pub round_state: RoundState<Ctx>,
 
+    pub pending_inputs: VecDeque<(Round, RoundEvent<Ctx>)>,
+
     rx_input: Receiver<Input<Ctx>>,
     // tx_input: Sender<Input<Ctx>>,
     tx_output: Sender<Result<Output<Ctx>, Error<Ctx>>>,
@@ -107,6 +109,7 @@ where
             validator_set,
             votes,
             round_state: RoundState::default(),
+            pending_inputs: VecDeque::new(),
             rx_input,
             // tx_input,
             tx_output,
@@ -138,6 +141,14 @@ where
 
     pub async fn run(mut self) {
         loop {
+            if let Some((round, input)) = self.pending_inputs.pop_front() {
+                let output = self
+                    .apply_event(round, input)
+                    .map(|opt| opt.map(|out| self.convert(out)));
+
+                self.emit(output);
+            }
+
             let msg = match self.rx_input.recv().await {
                 Some(msg) => msg,
                 None => break,
@@ -381,18 +392,30 @@ where
 
         // Multiplex the event with the round state.
         let mux_event = match event {
-            RoundEvent::PolkaValue(value_id) => match round_state.proposal {
-                Some(ref proposal) if proposal.value().id() == value_id => {
-                    RoundEvent::ProposalAndPolkaCurrent(proposal.clone())
+            RoundEvent::PolkaValue(value_id) => {
+                if let Some(proposal) = &round_state.proposal {
+                    if proposal.value().id() == value_id {
+                        self.pending_inputs.push_back((
+                            event_round,
+                            RoundEvent::ProposalAndPolkaCurrent(proposal.clone()),
+                        ));
+                    }
                 }
-                _ => RoundEvent::PolkaAny,
-            },
-            RoundEvent::PrecommitValue(value_id) => match round_state.proposal {
-                Some(ref proposal) if proposal.value().id() == value_id => {
-                    RoundEvent::ProposalAndPrecommitValue(proposal.clone())
+
+                RoundEvent::PolkaAny
+            }
+            RoundEvent::PrecommitValue(value_id) => {
+                if let Some(proposal) = &round_state.proposal {
+                    if proposal.value().id() == value_id {
+                        self.pending_inputs.push_back((
+                            event_round,
+                            RoundEvent::ProposalAndPrecommitValue(proposal.clone()),
+                        ));
+                    }
                 }
-                _ => RoundEvent::PrecommitAny,
-            },
+
+                RoundEvent::PrecommitAny
+            }
 
             _ => event,
         };
