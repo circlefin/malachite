@@ -67,7 +67,7 @@ where
     Ctx: Context,
 {
     pub ctx: Ctx,
-    pub proposer_selector: Box<dyn ProposerSelector<Ctx>>,
+    pub proposer_selector: Box<dyn ProposerSelector<Ctx> + Send + Sync>,
 
     pub address: Ctx::Address,
     pub validator_set: Ctx::ValidatorSet,
@@ -88,7 +88,7 @@ where
 {
     pub fn new(
         ctx: Ctx,
-        proposer_selector: impl ProposerSelector<Ctx> + 'static,
+        proposer_selector: impl ProposerSelector<Ctx> + Send + Sync + 'static,
         validator_set: Ctx::ValidatorSet,
         address: Ctx::Address,
     ) -> (Self, Handle<Ctx>) {
@@ -169,7 +169,7 @@ where
         Ok(Some(output))
     }
 
-    fn emit(&self, output: Result<Option<Output<Ctx>>, Error<Ctx>>) {
+    pub fn emit(&self, output: Result<Option<Output<Ctx>>, Error<Ctx>>) {
         match output {
             Ok(None) => (),
             Ok(Some(output)) => {
@@ -181,7 +181,7 @@ where
         }
     }
 
-    fn convert(&self, round_output: RoundOutput<Ctx>) -> Output<Ctx> {
+    pub fn convert(&self, round_output: RoundOutput<Ctx>) -> Output<Ctx> {
         match round_output {
             RoundOutput::NewRound(round) => Output::NewRound(self.height().clone(), round),
 
@@ -383,7 +383,7 @@ where
     }
 
     /// Apply the event, update the state.
-    fn apply_event(
+    pub fn apply_event(
         &mut self,
         event_round: Round,
         event: RoundEvent<Ctx>,

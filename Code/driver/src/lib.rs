@@ -21,7 +21,7 @@ mod output;
 mod proposer;
 mod util;
 
-pub use driver::Driver;
+pub use driver::{Driver, Handle};
 pub use error::Error;
 pub use input::Input;
 pub use output::Output;

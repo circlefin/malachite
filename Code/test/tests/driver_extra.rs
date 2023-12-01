@@ -1,7 +1,7 @@
 use futures::executor::block_on;
 
 use malachite_common::Round;
-use malachite_driver::{Driver, Input, Output, Validity};
+use malachite_driver::{Driver, Handle, Input, Output, Validity};
 use malachite_round::state::State;
 
 use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value};
@@ -52,7 +52,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let (driver, handle) = Driver::new(ctx, sel, vs, my_addr);
 
     let steps = vec![
         TestStep {
@@ -89,7 +89,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
         },
     ];
 
-    run_steps(&mut driver, steps)
+    run_steps(driver, handle, steps)
 }
 
 // Arrive at L49 with commits from previous rounds, no locked value, no valid value
@@ -124,7 +124,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let (driver, handle) = Driver::new(ctx, sel, vs, my_addr);
 
     let steps = vec![
         TestStep {
@@ -189,7 +189,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
         },
     ];
 
-    run_steps(&mut driver, steps);
+    run_steps(driver, handle, steps);
 }
 
 // Arrive at L36 in round 0, with step prevote and then L28 in round 1, with locked value v.
@@ -226,7 +226,7 @@ fn driver_steps_polka_previous_with_locked() {
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let (driver, handle) = Driver::new(ctx, sel, vs, my_addr);
 
     let steps = vec![
         TestStep {
@@ -298,7 +298,7 @@ fn driver_steps_polka_previous_with_locked() {
         },
     ];
 
-    run_steps(&mut driver, steps)
+    run_steps(driver, handle, steps)
 }
 
 #[test]
@@ -312,7 +312,7 @@ fn driver_steps_polka_previous_invalid_proposal_with_locked() {
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let (driver, handle) = Driver::new(ctx, sel, vs, my_addr);
 
     let steps = vec![
         TestStep {
@@ -384,7 +384,7 @@ fn driver_steps_polka_previous_invalid_proposal_with_locked() {
         },
     ];
 
-    run_steps(&mut driver, steps);
+    run_steps(driver, handle, steps);
 }
 
 // Arrive at L36 in round 0, with step precommit and then L28 in round 1 with no locked value.
@@ -428,7 +428,7 @@ fn driver_steps_polka_previous_with_no_locked() {
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let (driver, handle) = Driver::new(ctx, sel, vs, my_addr);
 
     let steps = vec![
         TestStep {
@@ -511,14 +511,15 @@ fn driver_steps_polka_previous_with_no_locked() {
         },
     ];
 
-    run_steps(&mut driver, steps);
+    run_steps(driver, handle, steps);
 }
 
-fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
+fn run_steps(mut driver: Driver<TestContext>, _handle: Handle<TestContext>, steps: Vec<TestStep>) {
     for step in steps {
         println!("Step: {}", step.desc);
 
         let output = block_on(driver.process(step.input)).expect("execute succeeded");
+
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(
