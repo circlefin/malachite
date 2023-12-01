@@ -81,7 +81,7 @@ where
         Ok(proposer)
     }
 
-    pub async fn execute(&mut self, msg: Input<Ctx>) -> Result<Option<Output<Ctx>>, Error<Ctx>> {
+    pub async fn process(&mut self, msg: Input<Ctx>) -> Result<Option<Output<Ctx>>, Error<Ctx>> {
         let round_output = match self.apply(msg).await? {
             Some(msg) => msg,
             None => return Ok(None),

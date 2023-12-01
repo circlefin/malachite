@@ -224,7 +224,7 @@ fn driver_steps_proposer() {
             .input
             .unwrap_or_else(|| output_from_prev_input.unwrap());
 
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
+        let output = block_on(driver.process(input)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(
@@ -294,7 +294,7 @@ fn driver_steps_proposer_timeout_get_value() {
             .input
             .unwrap_or_else(|| output_from_prev_input.unwrap());
 
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
+        let output = block_on(driver.process(input)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(
@@ -491,7 +491,7 @@ fn driver_steps_not_proposer_valid() {
             .input
             .unwrap_or_else(|| output_from_prev_input.unwrap());
 
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
+        let output = block_on(driver.process(input)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(
@@ -626,7 +626,7 @@ fn driver_steps_not_proposer_invalid() {
             .input
             .unwrap_or_else(|| output_from_prev_input.unwrap());
 
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
+        let output = block_on(driver.process(input)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(
@@ -698,7 +698,7 @@ fn driver_steps_not_proposer_other_height() {
             .input
             .unwrap_or_else(|| output_from_prev_input.unwrap());
 
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
+        let output = block_on(driver.process(input)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(
@@ -770,7 +770,7 @@ fn driver_steps_not_proposer_other_round() {
             .input
             .unwrap_or_else(|| output_from_prev_input.unwrap());
 
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
+        let output = block_on(driver.process(input)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(
@@ -974,7 +974,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             .input
             .unwrap_or_else(|| output_from_prev_input.unwrap());
 
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
+        let output = block_on(driver.process(input)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(driver.round_state, step.new_state, "new state");
@@ -996,7 +996,7 @@ fn driver_steps_no_value_to_propose() {
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
-    let output = block_on(driver.execute(Input::NewRound(Height::new(1), Round::new(0))))
+    let output = block_on(driver.process(Input::NewRound(Height::new(1), Round::new(0))))
         .expect("execute succeeded");
 
     assert_eq!(
@@ -1022,7 +1022,7 @@ fn driver_steps_proposer_not_found() {
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
-    let output = block_on(driver.execute(Input::NewRound(Height::new(1), Round::new(0))));
+    let output = block_on(driver.process(Input::NewRound(Height::new(1), Round::new(0))));
     assert_eq!(output, Err(Error::ProposerNotFound(v1.address)));
 }
 
@@ -1043,11 +1043,11 @@ fn driver_steps_validator_not_found() {
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
     // Start new height
-    block_on(driver.execute(Input::NewRound(Height::new(1), Round::new(0))))
+    block_on(driver.process(Input::NewRound(Height::new(1), Round::new(0))))
         .expect("execute succeeded");
 
     // v2 prevotes for some proposal, we cannot find it in the validator set => error
-    let output = block_on(driver.execute(Input::Vote(
+    let output = block_on(driver.process(Input::Vote(
         Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v2.address).signed(&sk2),
     )));
 
@@ -1069,12 +1069,12 @@ fn driver_steps_invalid_signature() {
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
     // Start new round
-    block_on(driver.execute(Input::NewRound(Height::new(1), Round::new(0))))
+    block_on(driver.process(Input::NewRound(Height::new(1), Round::new(0))))
         .expect("execute succeeded");
 
     // v2 prevotes for some proposal, with an invalid signature,
     // ie. signed by v1 instead of v2, just a way of forging an invalid signature
-    let output = block_on(driver.execute(Input::Vote(
+    let output = block_on(driver.process(Input::Vote(
         Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v2.address).signed(&sk1),
     )));
 
@@ -1191,7 +1191,7 @@ fn driver_steps_skip_round_skip_threshold() {
             .input
             .unwrap_or_else(|| output_from_prev_input.unwrap());
 
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
+        let output = block_on(driver.process(input)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(driver.round(), step.expected_round, "expected round");
@@ -1311,7 +1311,7 @@ fn driver_steps_skip_round_quorum_threshold() {
             .input
             .unwrap_or_else(|| input_from_prev_output.unwrap());
 
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
+        let output = block_on(driver.process(input)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(driver.round(), step.expected_round, "expected round");

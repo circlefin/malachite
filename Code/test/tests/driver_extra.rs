@@ -518,7 +518,7 @@ fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let output = block_on(driver.execute(step.input)).expect("execute succeeded");
+        let output = block_on(driver.process(step.input)).expect("execute succeeded");
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(
