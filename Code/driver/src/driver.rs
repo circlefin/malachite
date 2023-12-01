@@ -1,5 +1,11 @@
 use alloc::boxed::Box;
+use alloc::collections::VecDeque;
 use core::fmt;
+use tokio::sync::mpsc::error::SendError;
+
+use tokio::sync::mpsc::{
+    unbounded_channel, UnboundedReceiver as Receiver, UnboundedSender as Sender,
+};
 
 use malachite_common::{
     Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
@@ -20,6 +26,41 @@ use crate::Error;
 use crate::ProposerSelector;
 use crate::Validity;
 
+pub struct Handle<Ctx>
+where
+    Ctx: Context,
+{
+    tx_input: Sender<Input<Ctx>>,
+    rx_output: Receiver<Result<Output<Ctx>, Error<Ctx>>>,
+}
+
+impl<Ctx> Handle<Ctx>
+where
+    Ctx: Context,
+{
+    pub fn new(
+        tx_input: Sender<Input<Ctx>>,
+        rx_output: Receiver<Result<Output<Ctx>, Error<Ctx>>>,
+    ) -> Self {
+        Self {
+            tx_input,
+            rx_output,
+        }
+    }
+
+    pub fn send(&self, msg: Input<Ctx>) -> Result<(), SendError<Input<Ctx>>> {
+        self.tx_input.send(msg)
+    }
+
+    pub async fn recv(&mut self) -> Result<Output<Ctx>, Error<Ctx>> {
+        match self.rx_output.recv().await {
+            Some(Ok(output)) => Ok(output),
+            Some(Err(err)) => Err(err),
+            None => Err(Error::RecvError),
+        }
+    }
+}
+
 /// Driver for the state machine of the Malachite consensus engine at a given height.
 pub struct Driver<Ctx>
 where
@@ -33,6 +74,10 @@ where
 
     pub votes: VoteKeeper<Ctx>,
     pub round_state: RoundState<Ctx>,
+
+    rx_input: Receiver<Input<Ctx>>,
+    // tx_input: Sender<Input<Ctx>>,
+    tx_output: Sender<Result<Output<Ctx>, Error<Ctx>>>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -44,20 +89,30 @@ where
         proposer_selector: impl ProposerSelector<Ctx> + 'static,
         validator_set: Ctx::ValidatorSet,
         address: Ctx::Address,
-    ) -> Self {
+    ) -> (Self, Handle<Ctx>) {
+        let (tx_output, rx_output) = unbounded_channel();
+        let (tx_input, rx_input) = unbounded_channel();
+
+        let handle = Handle::new(tx_input.clone(), rx_output);
+
         let votes = VoteKeeper::new(
             validator_set.total_voting_power(),
             ThresholdParams::default(), // TODO: Make this configurable
         );
 
-        Self {
+        let driver = Self {
             ctx,
             proposer_selector: Box::new(proposer_selector),
             address,
             validator_set,
             votes,
             round_state: RoundState::default(),
-        }
+            rx_input,
+            // tx_input,
+            tx_output,
+        };
+
+        (driver, handle)
     }
 
     pub fn height(&self) -> &Ctx::Height {
@@ -81,13 +136,42 @@ where
         Ok(proposer)
     }
 
+    pub async fn run(mut self) {
+        loop {
+            let msg = match self.rx_input.recv().await {
+                Some(msg) => msg,
+                None => break,
+            };
+
+            let output = self.process(msg).await;
+            self.emit(output);
+        }
+    }
+
     pub async fn process(&mut self, msg: Input<Ctx>) -> Result<Option<Output<Ctx>>, Error<Ctx>> {
         let round_output = match self.apply(msg).await? {
             Some(msg) => msg,
             None => return Ok(None),
         };
 
-        let output = match round_output {
+        let output = self.convert(round_output);
+        Ok(Some(output))
+    }
+
+    fn emit(&self, output: Result<Option<Output<Ctx>>, Error<Ctx>>) {
+        match output {
+            Ok(None) => (),
+            Ok(Some(output)) => {
+                let _ = self.tx_output.send(Ok(output));
+            }
+            Err(err) => {
+                let _ = self.tx_output.send(Err(err));
+            }
+        }
+    }
+
+    fn convert(&self, round_output: RoundOutput<Ctx>) -> Output<Ctx> {
+        match round_output {
             RoundOutput::NewRound(round) => Output::NewRound(self.height().clone(), round),
 
             RoundOutput::Proposal(proposal) => {
@@ -110,9 +194,7 @@ where
                 // TODO: update the state
                 Output::Decide(value.round, value.value)
             }
-        };
-
-        Ok(Some(output))
+        }
     }
 
     async fn apply(&mut self, input: Input<Ctx>) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
@@ -296,9 +378,6 @@ where
         event: RoundEvent<Ctx>,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let round_state = core::mem::take(&mut self.round_state);
-        let proposer = self.get_proposer(round_state.round)?;
-
-        let data = Info::new(event_round, &self.address, proposer.address());
 
         // Multiplex the event with the round state.
         let mux_event = match event {
@@ -317,6 +396,9 @@ where
 
             _ => event,
         };
+
+        let proposer = self.get_proposer(round_state.round)?;
+        let data = Info::new(event_round, &self.address, proposer.address());
 
         // Apply the event to the round state machine
         let transition = round_state.apply(&data, mux_event);

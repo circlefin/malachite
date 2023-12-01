@@ -15,6 +15,9 @@ where
 
     /// Invalid vote signature
     InvalidVoteSignature(SignedVote<Ctx>, Ctx::Validator),
+
+    /// Failed to receive output from driver
+    RecvError,
 }
 
 impl<Ctx> fmt::Display for Error<Ctx>
@@ -31,6 +34,7 @@ where
                 "Invalid vote signature by {} on vote {vote:?}",
                 validator.address()
             ),
+            Error::RecvError => write!(f, "Failed to receive output from driver"),
         }
     }
 }
