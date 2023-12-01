@@ -1,0 +1,2 @@
+[alias]
+mbt = "nextest run -p malachite-itf --all-features"
