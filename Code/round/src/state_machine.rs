@@ -300,7 +300,7 @@ where
     Ctx: Context,
 {
     if state.step != Step::Prevote {
-        return Transition::to(state.clone());
+        return Transition::to(state);
     }
 
     let value = proposal.value();
