@@ -414,12 +414,7 @@ pub fn round_skip<Ctx>(state: State<Ctx>, round: Round) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let new_state = State {
-        round,
-        step: Step::NewRound,
-        ..state
-    };
-
+    let new_state = state.with_round(round).with_step(Step::NewRound);
     Transition::to(new_state).with_output(Output::NewRound(round))
 }
 

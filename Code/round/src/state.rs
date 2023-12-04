@@ -58,6 +58,10 @@ where
         }
     }
 
+    pub fn with_round(self, round: Round) -> Self {
+        Self { round, ..self }
+    }
+
     pub fn with_step(self, step: Step) -> Self {
         Self { step, ..self }
     }
