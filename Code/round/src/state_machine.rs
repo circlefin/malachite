@@ -319,7 +319,7 @@ where
         }
     };
 
-    assert_eq!(current_value.id(), value.id());
+    debug_assert_eq!(current_value.id(), value.id());
 
     let next = state
         .set_locked(value.clone())
