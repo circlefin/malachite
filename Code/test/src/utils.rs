@@ -364,3 +364,22 @@ pub fn decided_state(round: Round, _value: Value) -> State<TestContext> {
         locked: None,
     }
 }
+
+pub fn decided_state_with_proposal_and_locked_and_valid(
+    round: Round,
+    proposal: Proposal,
+) -> State<TestContext> {
+    State {
+        height: Height::new(1),
+        round,
+        step: Step::Commit,
+        valid: Some(RoundValue {
+            value: proposal.value,
+            round: Round::new(0),
+        }),
+        locked: Some(RoundValue {
+            value: proposal.value,
+            round: Round::new(0),
+        }),
+    }
+}
