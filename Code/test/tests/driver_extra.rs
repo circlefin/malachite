@@ -7,7 +7,25 @@ use malachite_round::state::State;
 use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value};
 
 use malachite_test::utils::*;
-
+// The following tests are performed:
+// - L49 with commits from current rounds, no locked value, no valid value:
+//    `driver_steps_decide_current_with_no_locked_no_valid()`
+//
+// - L49 with commits from previous rounds, no locked value, no valid value:
+//    `driver_steps_decide_previous_with_no_locked_no_valid()`
+//
+// - L49 with commits from previous round, with locked and valid values
+//    `driver_steps_decide_previous_with_locked_and_valid()`
+//
+// - L28 in round 1, via L36 in round 0, with locked invalid value v.
+//     `driver_steps_polka_previous_invalid_proposal()`'
+//
+// - L28 in round 1 with no locked value, via L36 in round 0 with step precommit.
+//     `driver_steps_polka_previous_with_no_locked()`
+//
+// - L28 in round 1 with locked value, via L36 in round 0 with step prevote.
+//      `driver_steps_polka_previous_with_locked()
+//
 // TODO - move all below to utils?
 struct TestStep {
     desc: &'static str,
@@ -114,7 +132,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
 // L21 - v3 receives new round, is not the proposer, starts propose timer
 // L49 - v3 receives proposal(v, round=0) and has already +2/3 precommit(id(v), round=0) (step decided)
 #[test]
-fn driver_steps_decide_previous_with_no_locked_no_valid_proposal_last() {
+fn driver_steps_decide_previous_with_no_locked_no_valid() {
     let value = Value::new(9999);
 
     let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
@@ -214,7 +232,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid_proposal_last() {
 // L49 - v3 gets +2/3 precommits (from v1 and v2) for round 0, it has the proposal, decide
 //
 #[test]
-fn driver_steps_decide_previous_with_no_locked_no_valid_quorum_last() {
+fn driver_steps_decide_previous_with_locked_and_valid() {
     let value = Value::new(9999);
 
     let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
@@ -442,7 +460,7 @@ fn driver_steps_polka_previous_with_locked() {
 //   L29 - with invalid proposal
 //     L32 - v2 sends prevote(nil, round=1) (step prevote)
 #[test]
-fn driver_steps_polka_previous_invalid_proposal_with_locked() {
+fn driver_steps_polka_previous_invalid_proposal() {
     let value = Value::new(9999);
 
     let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
