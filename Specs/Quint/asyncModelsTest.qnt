@@ -94,6 +94,9 @@ run ThreeDecideInRound1V4stillinZeroTest = {
     .then(N4F0::valStep("v1"))
     .then(N4F0::valStep("v2"))
     .then(N4F0::valStep("v3"))
+    .then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v2"))
+    .then(N4F0::valStep("v3"))    
     .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
     .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v2", step: "Precommit" }))
     .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v3", step: "Precommit" }))
@@ -112,6 +115,10 @@ run ThreeDecideInRound1V4stillinZeroTest = {
     .then(N4F0::valStep("v1"))
     .then(N4F0::valStep("v2"))
     .then(N4F0::valStep("v3"))
+    .then(all {
+        assert(N4F0::system.get("v3").es.chain.head() == "another block"),
+        N4F0::unchangedAll
+    })       
 }
 
 run DecideForFutureRoundTest = {
@@ -156,10 +163,10 @@ run RoundswitchTest = {
     ThreeDecideInRound1V4stillinZeroTest
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v2", step: "Prevote" }))
-    .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v3", step: "Precommit" })) 
     .then(N4F0::valStep("v4"))
-    .then(N4F0::valStep("v4"))
-    .then(N4F0::valStep("v4"))
+    .then(all {
+        assert(N4F0::system.get("v4").es.cs.round == 0),
+        N4F0::valStep("v4")})
     .then(all {
         assert(N4F0::system.get("v4").es.cs.round == 1),
         N4F0::unchangedAll
@@ -200,7 +207,7 @@ run DisagreementTest = {
     .then(N4F2::valStep("v3"))
     .then(N4F2::valStep("v4"))
     .then(all{
-        // they voted diN4F2N4F2erently
+        // they voted differently
         assert(N4F2::voteBuffer == Map(
             "v3" -> Set({ height: 0, id: "a", round: 0, src: "v4", step: "Prevote" },  
                         { height: 0, id: "b", round: 0, src: "v3", step: "Prevote" }),
@@ -216,6 +223,8 @@ run DisagreementTest = {
     .then(N4F2::valStep("v3"))  
     .then(N4F2::valStep("v3"))   
     .then(N4F2::valStep("v3"))
+    .then(N4F2::valStep("v3"))
+    .then(N4F2::valStep("v4"))
     .then(N4F2::valStep("v4"))
     .then(N4F2::valStep("v4"))
     .then(N4F2::valStep("v4"))

@@ -1,6 +1,6 @@
 use malachite_common::Context;
 
-use crate::message::Message;
+use crate::output::Output;
 use crate::state::State;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -9,7 +9,7 @@ where
     Ctx: Context,
 {
     pub next_state: State<Ctx>,
-    pub message: Option<Message<Ctx>>,
+    pub output: Option<Output<Ctx>>,
     pub valid: bool,
 }
 
@@ -20,7 +20,7 @@ where
     pub fn to(next_state: State<Ctx>) -> Self {
         Self {
             next_state,
-            message: None,
+            output: None,
             valid: true,
         }
     }
@@ -28,13 +28,13 @@ where
     pub fn invalid(next_state: State<Ctx>) -> Self {
         Self {
             next_state,
-            message: None,
+            output: None,
             valid: false,
         }
     }
 
-    pub fn with_message(mut self, message: Message<Ctx>) -> Self {
-        self.message = Some(message);
+    pub fn with_output(mut self, output: Output<Ctx>) -> Self {
+        self.output = Some(output);
         self
     }
 }

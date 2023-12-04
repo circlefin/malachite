@@ -15,6 +15,7 @@ on:
 
 jobs:
   coverage:
+    name: Integration
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -38,7 +39,7 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov nextest --all-features --workspace --lcov --output-path lcov.info
+        run: cargo llvm-cov nextest --workspace --exclude malachite-itf --all-features --lcov --output-path lcov.info
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage to Codecov
@@ -46,4 +47,41 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: Code/lcov.info
+          flags: integration
+          fail_ci_if_error: true
+
+  mbt-coverage:
+    name: MBT
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Code
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+      - run: npm install -g @informalsystems/quint
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly
+          components: llvm-tools-preview
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Generate code coverage
+        run: cargo llvm-cov nextest -p malachite-itf --all-features --lcov --output-path lcov.info
+      - name: Generate text report
+        run: cargo llvm-cov report
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: Code/lcov.info
+          flags: mbt
           fail_ci_if_error: true

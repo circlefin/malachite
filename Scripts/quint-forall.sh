@@ -32,7 +32,7 @@ failed_files=()
 
 for file in "${files[@]}"; do
   info "Running: quint $cmd ${UNDERLINE}$file"
-  if ! npx @informalsystems/quint "$cmd" "$file"; then
+  if ! npx @informalsystems/quint $cmd "$file"; then
     failed_files+=("$file")
     failed=$((failed + 1))
   fi

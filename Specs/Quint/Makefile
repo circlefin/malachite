@@ -1,7 +1,7 @@
 parse:
 	npx @informalsystems/quint parse asyncModelsTest.qnt
 	npx @informalsystems/quint parse consensusTest.qnt
-	npx @informalsystems/quint parse executor.qnt
+	npx @informalsystems/quint parse driver.qnt
 	npx @informalsystems/quint parse statemachineTest.qnt
 	npx @informalsystems/quint parse voteBookkeeperTest.qnt
 .PHONY: parse

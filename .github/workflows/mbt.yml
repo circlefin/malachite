@@ -42,4 +42,4 @@ jobs:
         run: echo "QUINT_SEED=$(date +%s)" >> $GITHUB_ENV
       - name: Run tests from traces (with random seed)
         working-directory: Code/itf
-        run: cargo nextest run --workspace --all-features test_itf
+        run: cargo nextest run -p malachite-itf --all-features

@@ -2,7 +2,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use malachite_common::{Round, Timeout, VotingPower};
-use malachite_driver::{Event, Message, ProposerSelector, Validity};
+use malachite_driver::{Input, Output, ProposerSelector, Validity};
 use malachite_round::state::{RoundValue, State, Step};
 
 use crate::{
@@ -52,117 +52,121 @@ pub fn make_validators<const N: usize>(
     validators.try_into().expect("N validators")
 }
 
-pub fn new_round_event(round: Round) -> Event<TestContext> {
-    Event::NewRound(Height::new(1), round)
+pub fn new_round_input(round: Round) -> Input<TestContext> {
+    Input::NewRound(Height::new(1), round)
 }
 
-pub fn new_round_msg(round: Round) -> Option<Message<TestContext>> {
-    Some(Message::NewRound(Height::new(1), round))
+pub fn new_round_output(round: Round) -> Option<Output<TestContext>> {
+    Some(Output::NewRound(Height::new(1), round))
 }
 
-pub fn proposal_msg(
+pub fn proposal_output(
     round: Round,
     value: Value,
     locked_round: Round,
-) -> Option<Message<TestContext>> {
+) -> Option<Output<TestContext>> {
     let proposal = Proposal::new(Height::new(1), round, value, locked_round);
-    Some(Message::Propose(proposal))
+    Some(Output::Propose(proposal))
 }
 
-pub fn proposal_event(
+pub fn proposal_input(
     round: Round,
     value: Value,
     locked_round: Round,
     validity: Validity,
-) -> Event<TestContext> {
+) -> Input<TestContext> {
     let proposal = Proposal::new(Height::new(1), round, value, locked_round);
-    Event::Proposal(proposal, validity)
+    Input::Proposal(proposal, validity)
 }
 
-pub fn prevote_msg(round: Round, addr: &Address, sk: &PrivateKey) -> Option<Message<TestContext>> {
+pub fn prevote_output(
+    round: Round,
+    addr: &Address,
+    sk: &PrivateKey,
+) -> Option<Output<TestContext>> {
     let value = Value::new(9999);
 
-    Some(Message::Vote(
+    Some(Output::Vote(
         Vote::new_prevote(Height::new(1), round, Some(value.id()), *addr).signed(sk),
     ))
 }
 
-pub fn prevote_nil_msg(
+pub fn prevote_nil_output(
     round: Round,
     addr: &Address,
     sk: &PrivateKey,
-) -> Option<Message<TestContext>> {
-    Some(Message::Vote(
+) -> Option<Output<TestContext>> {
+    Some(Output::Vote(
         Vote::new_prevote(Height::new(1), round, None, *addr).signed(sk),
     ))
 }
 
-pub fn prevote_event(addr: &Address, sk: &PrivateKey) -> Event<TestContext> {
+pub fn prevote_input(addr: &Address, sk: &PrivateKey) -> Input<TestContext> {
     let value = Value::new(9999);
 
-    Event::Vote(
+    Input::Vote(
         Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), *addr).signed(sk),
     )
 }
 
-pub fn prevote_event_at(round: Round, addr: &Address, sk: &PrivateKey) -> Event<TestContext> {
+pub fn prevote_input_at(round: Round, addr: &Address, sk: &PrivateKey) -> Input<TestContext> {
     let value = Value::new(9999);
 
-    Event::Vote(Vote::new_prevote(Height::new(1), round, Some(value.id()), *addr).signed(sk))
+    Input::Vote(Vote::new_prevote(Height::new(1), round, Some(value.id()), *addr).signed(sk))
 }
 
-pub fn precommit_msg(
+pub fn precommit_output(
     round: Round,
     value: Value,
     addr: &Address,
     sk: &PrivateKey,
-) -> Option<Message<TestContext>> {
-    Some(Message::Vote(
+) -> Option<Output<TestContext>> {
+    Some(Output::Vote(
         Vote::new_precommit(Height::new(1), round, Some(value.id()), *addr).signed(sk),
     ))
 }
 
-pub fn precommit_nil_msg(addr: &Address, sk: &PrivateKey) -> Option<Message<TestContext>> {
-    Some(Message::Vote(
+pub fn precommit_nil_output(addr: &Address, sk: &PrivateKey) -> Option<Output<TestContext>> {
+    Some(Output::Vote(
         Vote::new_precommit(Height::new(1), Round::new(0), None, *addr).signed(sk),
     ))
 }
 
-pub fn precommit_event(
+pub fn precommit_input(
     round: Round,
     value: Value,
     addr: &Address,
     sk: &PrivateKey,
-) -> Event<TestContext> {
-    Event::Vote(Vote::new_precommit(Height::new(1), round, Some(value.id()), *addr).signed(sk))
+) -> Input<TestContext> {
+    Input::Vote(Vote::new_precommit(Height::new(1), round, Some(value.id()), *addr).signed(sk))
 }
 
-pub fn decide_message(round: Round, value: Value) -> Option<Message<TestContext>> {
-    Some(Message::Decide(round, value))
+pub fn decide_output(round: Round, value: Value) -> Option<Output<TestContext>> {
+    Some(Output::Decide(round, value))
 }
 
-pub fn start_propose_timer_msg(round: Round) -> Option<Message<TestContext>> {
-    Some(Message::ScheduleTimeout(Timeout::propose(round)))
+pub fn start_propose_timer_output(round: Round) -> Option<Output<TestContext>> {
+    Some(Output::ScheduleTimeout(Timeout::propose(round)))
 }
 
-pub fn timeout_propose_event(round: Round) -> Event<TestContext> {
-    Event::TimeoutElapsed(Timeout::propose(round))
+pub fn timeout_propose_input(round: Round) -> Input<TestContext> {
+    Input::TimeoutElapsed(Timeout::propose(round))
 }
 
-pub fn start_prevote_timer_msg(round: Round) -> Option<Message<TestContext>> {
-    Some(Message::ScheduleTimeout(Timeout::prevote(round)))
+pub fn start_prevote_timer_output(round: Round) -> Option<Output<TestContext>> {
+    Some(Output::ScheduleTimeout(Timeout::prevote(round)))
 }
 
-pub fn timeout_prevote_event(round: Round) -> Event<TestContext> {
-    Event::TimeoutElapsed(Timeout::prevote(round))
+pub fn timeout_prevote_input(round: Round) -> Input<TestContext> {
+    Input::TimeoutElapsed(Timeout::prevote(round))
 }
 
-pub fn start_precommit_timer_msg(round: Round) -> Option<Message<TestContext>> {
-    Some(Message::ScheduleTimeout(Timeout::precommit(round)))
+pub fn start_precommit_timer_output(round: Round) -> Option<Output<TestContext>> {
+    Some(Output::ScheduleTimeout(Timeout::precommit(round)))
 }
 
-pub fn timeout_precommit_event(round: Round) -> Event<TestContext> {
-    Event::TimeoutElapsed(Timeout::precommit(round))
+pub fn timeout_precommit_input(round: Round) -> Input<TestContext> {
+    Input::TimeoutElapsed(Timeout::precommit(round))
 }
 
 pub fn propose_state(round: Round) -> State<TestContext> {
