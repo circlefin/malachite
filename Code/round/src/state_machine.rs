@@ -263,16 +263,6 @@ where
         address.clone(),
     );
 
-    // let current_value = match state.proposal {
-    //     Some(ref proposal) => proposal.value().clone(),
-    //     None => {
-    //         state.proposal = Some(proposal.clone());
-    //         proposal.value().clone()
-    //     }
-    // };
-    //
-    // assert_eq!(current_value.id(), value.id());
-
     let next = state
         .set_locked(value.clone())
         .set_valid(value.clone())
@@ -350,7 +340,6 @@ pub fn set_valid_value<Ctx>(state: State<Ctx>, proposal: &Ctx::Proposal) -> Tran
 where
     Ctx: Context,
 {
-    // state.proposal = Some(proposal.clone());
     Transition::to(state.set_valid(proposal.value().clone()))
 }
 
