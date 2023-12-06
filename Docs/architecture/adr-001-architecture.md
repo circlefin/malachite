@@ -29,10 +29,18 @@ TODO: Do we need to describe the code layout and Rust crates, or is the descript
 
 ### Overview of the Tendermint Consensus Implementation 
 
-The consensus implementation comprises three components:
+The consensus implementation consists of the following components:
+- Builder and Proposer Modules
+- Gossip Module
+- Host System
 - Consensus Driver
+- Multiplexer
 - Vote Keeper
 - Round State Machine
+  It interacts with the external environment via the Context trait, which is described in more detail below.
+
+This specification describes the components used by the consensus algorithm and does not cover the Builder/Proposer and the Gossip moduels.
+
 
 ![Consensus SM Architecture Diagram](assets/sm_arch.jpeg)
 
@@ -41,7 +49,7 @@ The components of the consensus implementation as well as the associated abstrac
 ### Data Types & Abstractions
 
 #### Context
-
+TODO: This section is still under discussion.
 The Tendermint consensus implementation will satisfy the `Context` interface, detailed below.
 The data types used by the consensus algorithm are abstracted to allow for different implementations.
 
@@ -119,8 +127,6 @@ pub struct Driver<Ctx, Env, PSel>
 }
 
 ```
-Note:
-- TBD: Multiple rounds are currently maintained, and it is still under discussion if this is necessary.
 
 ##### Input Events (External APIs)
 
@@ -140,7 +146,7 @@ pub enum Event<Ctx>
 ```
 Notes:
 - Round `0` is always started by an external module. Subsequent rounds are started by the driver when the Round State Machine indicates it via the `NewRound` message.
-- A proposal event must include a proposal and a `valid` flag indicating if the proposal is valid. The proposal must be complete, i.e. it must contain a complete value or an identifier of the value (`id(v)`). If the value is sent by the proposer in multiple parts, it is the responsibility of the consensus environment to collect and verify all the parts and the proposal message in order to create a complete proposal and the validity flag.
+- A proposal event must include a proposal and a `valid` flag indicating if the proposal is valid. The proposal must be complete, i.e. it must contain a complete value or an identifier of the value (`id(v)`). If the value is sent by the proposer in multiple parts, it is the responsibility of the Builder/Proposal modules to collect and verify all the parts and the proposal message in order to create a complete proposal and the validity flag.
 - `Vote` can be a `Prevote` or `Precommit` vote.
 - The driver interacts with the host system to start timers and expects to receive timeout events for the timers that it started and have fired. The timeouts can be:
 ```
@@ -151,18 +157,15 @@ Notes:
 
 ##### Operation
 
-The Driver sends votes to the Vote Keeper module. The Driver expects that whenever the Keeper observes any threshold of votes for the first time it returns that to the Driver.
+The Driver sends votes to the Multiplexer module. The Driver expects that, whenever the Muliplexer (via the Vote Keeper) observes any threshold of votes for the first time and based on its state, it returns the multiplexed event to the Driver.
 
-Based on its state and the results received from the Vote Keeper, the Driver sends events to the Round State Machine which, once it processes the Driver events, returns consensus-related messages back to the Driver. The Driver then processes these messages and sends them to the consensus environment, the host system, or in some cases processes them internally (e.g. `NewRound(round)` message).
+The Driver sends the multiplexed events to the Round State Machine which, once it processes the Driver events, returns consensus-related messages back to the Driver. The Driver then processes these messages and sends them to the Gossip module, the consensus environment, the Host System, or in some cases processes them internally (e.g. `NewRound(round)` message).
 
 Notes:
 - Proposals and vote messages must be signed by the sender and validated by the receiver. Signer must be the proposer for `Proposal` and a validator for `Vote`.
-  - TBD: Should the driver perform any signature verification of the messages it receives from the consensus environment (see `verify_signed_vote()` in `Context` trait? Or are we assuming that the consensus environment performs this validation?
+  - The driver performs signature verification of the messages it receives from the consensus environment via methods provided by the Context (see `verify_signed_vote()`)
 - On `StartRound(round)` event, the Driver must determine if it is the proposer for the given round. For this it needs access to a `validator_set.get_proposer(round)` method or similar.
-- TBD: When skipping to a new round, it may be beneficial to mutate the validator set such that the proposer for the new round is different from the proposer of the previous round, i.e. access to `validator_set.update_proposer()` method (or similar) may be required.
-- When building a proposal the driver will use the `get_value()` method of the environment context to retrieve the value to propose. It will block until a value is available or a (propose) timeout occurs.
-  - It is TBD which Rust constructs will be used to implement this behavior.
-  - TBD how the Round SM could start the propose timer if we block on `get_value()` in the driver.
+- When building a proposal the driver will use the `get_value()` method of the Builder/ Proposer module to retrieve the value to propose. 
 
 ##### Output Messages (External Dependencies)
 
@@ -178,22 +181,14 @@ pub enum Message<Ctx>
   NewRound(Ctx::Height, Round),
 }
 ```
-Notes:
-- Should the driver sign the messages before sending them to the consensus context (see `sign_vote()` in `Context` trait)? Or are we assuming that the consensus environment does this?
-  - @romac: See simlar note below in the "Driver Context" section.
 
 ### Driver Context
 
-The driver is passed a instance of the `Context` trait which defines all the data types used by this instance of the consensus engine,
-and also provides synchronous, stateless methods for creating and signing votes.
-
-Notes:
-- Should these methods rather live in the driver environment, ie. in the `Env` trait?
-  For example, signing can require I/O and/or asynchrony, eg. in the case where one use a hardware keypair.
+The driver is passed a instance of the `Context` trait which defines all the data types used by this instance of the consensus engine, and also provides synchronous, stateless methods for creating and signing votes.
 
 ### Driver Environment
 
-The driver can make use of an environment to get a value to propose.
+The driver can make use of an environment (or Builder/Proposer module) to get a value to propose.
 This environment is defined as an async interface to be implemented by the code downstream of the `Driver`.
 
 ```rust
@@ -206,11 +201,31 @@ where
     async fn get_value(&self) -> Ctx::Value;
 }
 ```
+#### Multiplexer
+The Multiplexer is responsible for multiplexing the input data and returning the appropriate event to the Round State Machine.
 
-Notes:
-- Should we build in the notion of fallability and timeouts for assembling a value?
-  i.e. change the signature of `get_value` to `async fn get_value(&self) -> Result<Ctx::Value, Error>`,
-  for some error type `Error` that can model timeouts and failures.
+The table below describes the input to the Multiplexer and the output events to the Round State Machine.
+The input data is:
+- The step change from the Round State Machine.
+- The output events from the Vote Keeper.
+- Proposals and votes from the Driver.
+
+
+| step changed to | vote keeperthreshold | proposal        | Multiplexed Input to Round SM   | new step  | algo condition | output                         |
+|---------| -------------------- | --------------- |---------------------------------| --------- | -------------- | ------------------------------ |
+| new(??) | -                    | -               | NewRound                        | propose   | L11            | …                              |
+| any     | PrecommitValue(v)    | Proposal(v)     | PropAndPrecommitValue           | commit    | L49            | decide(v)                      |
+| any     | PrecommitAny         | \*              | PrecommitAny                    | any (unchanged) | L47            | sch\_precommit\_timer          |
+| propose | none                 | InvalidProposal | InvalidProposal                 | prevote   | L22, L26       | prevote\_nil                   |
+| propose | none                 | Proposal        | Proposal                        | prevote   | L22, L24       | prevote(v)                     |
+| propose | PolkaPrevious(v, vr) | InvalidProposal | InvalidProposalAndPolkaPrevious | prevote   | L28, L33       | prevote\_nil                   |
+| propose | PolkaPrevious(v, vr) | Proposal(v,vr)  | ProposalAndPolkaPrevious        | prevote   | L28, L30       | prevote(v)                     |
+| prevote | PolkaNil             | \*              | PolkaNil                        | precommit | L44            | precommit\_nil                 |
+| prevote | PolkaValue(v)        | Proposal(v)     | ProposalAndPolkaCurrent         | precommit | L36, L37       | (set locked and valid)precommit(v) |
+| prevote | PolkaAny             | \*              | PolkaAny                        | prevote   | L34            | prevote timer                  |
+| precommit | PolkaValue(v)        | Proposal(v)     | ProposalAndPolkaCurrent         | precommit | L36, L42       | (set valid)                    |
+                    |
+
 
 #### Vote Keeper
 
@@ -281,7 +296,7 @@ where
 
 ##### Data Structures
 
-The Consensus State Machine is concerned with the internal state of the consensus algorithm for a given round. It is initialized with the height and round. When moving to a new round, the driver creates a new round state machine and may or may not destroy the other round SMs.
+The Consensus State Machine is concerned with the internal state of the consensus algorithm for a given round. It is initialized with the height and round. When moving to a new round, the driver creates a new round state machine while retaining information from previous round (e.g. valid and locked values).
 
 ```rust
 pub struct State<C>
@@ -326,7 +341,6 @@ where
     PolkaAny,                             // Received quorum prevotes for anything. L34
     PolkaNil,                             // Received quorum prevotes for nil. L44
     ProposalAndPolkaCurrent(C::Value),    // Received quorum prevotes for Value in current round. L36
-    PrecommitAny,                         // Received quorum precommits for anything. L47
     ProposalAndPrecommitValue(C::Value),  // Received quorum precommits for Value. L49
     PrecommitValue(ValueId<C>),           // Received quorum precommits for ValueId. L51
     ThresholdCorrectProcessInHigherRound, // Received messages from a number of honest processes in a higher round. aka RoundSkip, L55
