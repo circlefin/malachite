@@ -213,27 +213,7 @@ fn driver_steps_proposer() {
         },
     ];
 
-    let mut output_from_prev_input = None;
-
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let input = step
-            .input
-            .unwrap_or_else(|| output_from_prev_input.unwrap());
-
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output");
-
-        assert_eq!(
-            driver.round_state.round, step.expected_round,
-            "expected round"
-        );
-
-        assert_eq!(driver.round_state, step.new_state, "expected state");
-
-        output_from_prev_input = output.and_then(output_to_input);
-    }
+    run_steps(&mut driver, steps);
 }
 
 #[test]
@@ -281,27 +261,7 @@ fn driver_steps_proposer_timeout_get_value() {
         },
     ];
 
-    let mut output_from_prev_input = None;
-
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let input = step
-            .input
-            .unwrap_or_else(|| output_from_prev_input.unwrap());
-
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output");
-
-        assert_eq!(
-            driver.round_state.round, step.expected_round,
-            "expected round"
-        );
-
-        assert_eq!(driver.round_state, step.new_state, "expected state");
-
-        output_from_prev_input = output.and_then(output_to_input);
-    }
+    run_steps(&mut driver, steps);
 }
 
 #[test]
@@ -477,27 +437,7 @@ fn driver_steps_not_proposer_valid() {
         },
     ];
 
-    let mut output_from_prev_input = None;
-
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let input = step
-            .input
-            .unwrap_or_else(|| output_from_prev_input.unwrap());
-
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output");
-
-        assert_eq!(
-            driver.round_state.round, step.expected_round,
-            "expected round"
-        );
-
-        assert_eq!(driver.round_state, step.new_state, "expected state");
-
-        output_from_prev_input = output.and_then(output_to_input);
-    }
+    run_steps(&mut driver, steps);
 }
 
 #[test]
@@ -606,27 +546,7 @@ fn driver_steps_not_proposer_invalid() {
         },
     ];
 
-    let mut output_from_prev_input = None;
-
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let input = step
-            .input
-            .unwrap_or_else(|| output_from_prev_input.unwrap());
-
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output");
-
-        assert_eq!(
-            driver.round_state.round, step.expected_round,
-            "expected round"
-        );
-
-        assert_eq!(driver.round_state, step.new_state, "expected state");
-
-        output_from_prev_input = output.and_then(output_to_input);
-    }
+    run_steps(&mut driver, steps);
 }
 
 #[test]
@@ -676,27 +596,7 @@ fn driver_steps_not_proposer_other_height() {
         },
     ];
 
-    let mut output_from_prev_input = None;
-
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let input = step
-            .input
-            .unwrap_or_else(|| output_from_prev_input.unwrap());
-
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output");
-
-        assert_eq!(
-            driver.round_state.round, step.expected_round,
-            "expected round"
-        );
-
-        assert_eq!(driver.round_state, step.new_state, "expected state");
-
-        output_from_prev_input = output.and_then(output_to_input);
-    }
+    run_steps(&mut driver, steps);
 }
 
 #[test]
@@ -746,27 +646,7 @@ fn driver_steps_not_proposer_other_round() {
         },
     ];
 
-    let mut output_from_prev_input = None;
-
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let input = step
-            .input
-            .unwrap_or_else(|| output_from_prev_input.unwrap());
-
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output");
-
-        assert_eq!(
-            driver.round_state.round, step.expected_round,
-            "expected round"
-        );
-
-        assert_eq!(driver.round_state, step.new_state, "expected state");
-
-        output_from_prev_input = output.and_then(output_to_input);
-    }
+    run_steps(&mut driver, steps);
 }
 
 #[test]
@@ -916,7 +796,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             desc: "we receive a precommit timeout, start a new round",
             input: Some(Input::TimeoutElapsed(Timeout::precommit(Round::new(0)))),
             expected_output: Some(Output::NewRound(Height::new(1), Round::new(1))),
-            expected_round: Round::new(0),
+            expected_round: Round::new(1),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(1),
@@ -940,22 +820,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         },
     ];
 
-    let mut output_from_prev_input = None;
-
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let input = step
-            .input
-            .unwrap_or_else(|| output_from_prev_input.unwrap());
-
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output");
-
-        assert_eq!(driver.round_state, step.new_state, "new state");
-
-        output_from_prev_input = output.and_then(output_to_input);
-    }
+    run_steps(&mut driver, steps);
 }
 
 // No value to propose
@@ -971,8 +836,10 @@ fn driver_steps_no_value_to_propose() {
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
-    let output = block_on(driver.execute(Input::NewRound(Height::new(1), Round::new(0))))
+    let mut outputs = block_on(driver.process(Input::NewRound(Height::new(1), Round::new(0))))
         .expect("execute succeeded");
+
+    let output = outputs.pop();
 
     assert_eq!(
         output,
@@ -997,7 +864,7 @@ fn driver_steps_proposer_not_found() {
 
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
-    let output = block_on(driver.execute(Input::NewRound(Height::new(1), Round::new(0))));
+    let output = block_on(driver.process(Input::NewRound(Height::new(1), Round::new(0))));
     assert_eq!(output, Err(Error::ProposerNotFound(v1.address)));
 }
 
@@ -1018,11 +885,11 @@ fn driver_steps_validator_not_found() {
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
     // Start new height
-    block_on(driver.execute(Input::NewRound(Height::new(1), Round::new(0))))
+    block_on(driver.process(Input::NewRound(Height::new(1), Round::new(0))))
         .expect("execute succeeded");
 
     // v2 prevotes for some proposal, we cannot find it in the validator set => error
-    let output = block_on(driver.execute(Input::Vote(
+    let output = block_on(driver.process(Input::Vote(
         Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v2.address).signed(&sk2),
     )));
 
@@ -1044,12 +911,12 @@ fn driver_steps_invalid_signature() {
     let mut driver = Driver::new(ctx, sel, vs, my_addr);
 
     // Start new round
-    block_on(driver.execute(Input::NewRound(Height::new(1), Round::new(0))))
+    block_on(driver.process(Input::NewRound(Height::new(1), Round::new(0))))
         .expect("execute succeeded");
 
     // v2 prevotes for some proposal, with an invalid signature,
     // ie. signed by v1 instead of v2, just a way of forging an invalid signature
-    let output = block_on(driver.execute(Input::Vote(
+    let output = block_on(driver.process(Input::Vote(
         Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), v2.address).signed(&sk1),
     )));
 
@@ -1152,23 +1019,7 @@ fn driver_steps_skip_round_skip_threshold() {
         },
     ];
 
-    let mut output_from_prev_input = None;
-
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let input = step
-            .input
-            .unwrap_or_else(|| output_from_prev_input.unwrap());
-
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
-        assert_eq!(output, step.expected_output, "expected output");
-
-        assert_eq!(driver.round(), step.expected_round, "expected round");
-        assert_eq!(driver.round_state, step.new_state, "new state");
-
-        output_from_prev_input = output.and_then(output_to_input);
-    }
+    run_steps(&mut driver, steps);
 }
 
 #[test]
@@ -1267,6 +1118,10 @@ fn driver_steps_skip_round_quorum_threshold() {
         },
     ];
 
+    run_steps(&mut driver, steps);
+}
+
+fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
     let mut input_from_prev_output = None;
 
     for step in steps {
@@ -1276,11 +1131,11 @@ fn driver_steps_skip_round_quorum_threshold() {
             .input
             .unwrap_or_else(|| input_from_prev_output.unwrap());
 
-        let output = block_on(driver.execute(input)).expect("execute succeeded");
+        let mut outputs = block_on(driver.process(input)).expect("execute succeeded");
+        let output = outputs.pop();
+
         assert_eq!(output, step.expected_output, "expected output");
-
         assert_eq!(driver.round(), step.expected_round, "expected round");
-
         assert_eq!(driver.round_state, step.new_state, "new state");
 
         input_from_prev_output = output.and_then(output_to_input);

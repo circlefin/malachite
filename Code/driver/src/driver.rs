@@ -87,20 +87,21 @@ where
         Ok(proposer)
     }
 
-    // TODO: Rename to `process`
-    pub async fn execute(&mut self, msg: Input<Ctx>) -> Result<Option<Output<Ctx>>, Error<Ctx>> {
+    pub async fn process(&mut self, msg: Input<Ctx>) -> Result<Vec<Output<Ctx>>, Error<Ctx>> {
         let round_output = match self.apply(msg).await? {
             Some(msg) => msg,
-            None => return Ok(None),
+            None => return Ok(Vec::new()),
         };
 
         let output = self.round_output_to_output(round_output);
-        Ok(Some(output))
+        let mut outputs = vec![output];
+
+        self.process_pending(&mut outputs)?;
+
+        Ok(outputs)
     }
 
-    pub fn process_pending(&mut self) -> Result<Vec<Output<Ctx>>, Error<Ctx>> {
-        let mut outputs = Vec::new();
-
+    fn process_pending(&mut self, outputs: &mut Vec<Output<Ctx>>) -> Result<(), Error<Ctx>> {
         while let Some((round, input)) = self.pending_input.take() {
             if let Some(round_output) = self.apply_input(round, input)? {
                 let output = self.round_output_to_output(round_output);
@@ -108,7 +109,7 @@ where
             };
         }
 
-        Ok(outputs)
+        Ok(())
     }
 
     fn round_output_to_output(&mut self, round_output: RoundOutput<Ctx>) -> Output<Ctx> {

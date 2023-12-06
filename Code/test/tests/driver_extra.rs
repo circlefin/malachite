@@ -840,11 +840,8 @@ fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
     for step in steps {
         println!("Step: {}", step.desc);
 
-        let output = block_on(driver.execute(step.input)).expect("execute succeeded");
-        let pending_outputs = driver.process_pending().expect("process_pending succeeded");
-
-        // Use the last pending output if any
-        let output = pending_outputs.last().cloned().or(output);
+        let mut outputs = block_on(driver.process(step.input)).expect("execute succeeded");
+        let output = outputs.pop();
 
         assert_eq!(output, step.expected_output, "expected output");
 
