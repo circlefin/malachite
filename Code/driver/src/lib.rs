@@ -16,15 +16,15 @@ extern crate alloc;
 
 mod driver;
 mod error;
-mod event;
-mod message;
+mod input;
+mod output;
 mod proposer;
 mod util;
 
 pub use driver::Driver;
 pub use error::Error;
-pub use event::Event;
-pub use message::Message;
+pub use input::Input;
+pub use output::Output;
 pub use proposer::ProposerSelector;
 pub use util::Validity;
 

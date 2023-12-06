@@ -41,7 +41,7 @@ pub struct RoundVotes {
     pub round: Round,
     pub prevotes: VoteCount,
     pub precommits: VoteCount,
-    pub emitted_events: HashSet<ExecutorEvent>,
+    pub emitted_outputs: HashSet<VoteKeeperOutput>,
     #[serde(with = "As::<HashMap<Same, Integer>>")]
     pub votes_addresses_weights: HashMap<Address, Weight>,
 }
@@ -57,7 +57,7 @@ pub struct VoteCount {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Hash)]
-pub struct ExecutorEvent {
+pub struct VoteKeeperOutput {
     #[serde(with = "As::<Integer>")]
     pub round: Round,
     pub name: String,
@@ -69,7 +69,7 @@ pub struct State {
     #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::bookkeeper")]
     pub bookkeeper: Bookkeeper,
     #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::lastEmitted")]
-    pub last_emitted: ExecutorEvent,
+    pub last_emitted: VoteKeeperOutput,
     #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::weightedVote")]
     #[serde(with = "As::<(Same, Integer, Integer)>")]
     pub weighted_vote: (Vote, Weight, Round),

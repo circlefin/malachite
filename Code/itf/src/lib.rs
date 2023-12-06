@@ -1,5 +1,2 @@
-pub mod consensus;
-pub mod votekeeper;
-
-mod deserializers;
 pub mod utils;
+pub mod votekeeper;

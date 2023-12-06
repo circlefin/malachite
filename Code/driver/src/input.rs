@@ -4,7 +4,7 @@ use crate::Validity;
 
 /// Events that can be received by the [`Driver`](crate::Driver).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Event<Ctx>
+pub enum Input<Ctx>
 where
     Ctx: Context,
 {

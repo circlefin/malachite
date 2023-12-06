@@ -25,7 +25,7 @@ module voteBookkeeper {
         round: Round,
         prevotes: VoteCount,
         precommits: VoteCount,
-        emittedEvents: Set[ExecutorEvent],
+        emittedOutputs: Set[VoteKeeperOutput],
         votesAddressesWeights: Address -> Weight
     }
 
@@ -36,14 +36,14 @@ module voteBookkeeper {
         | SkipThreshold
         | ValueThreshold(NonNilValue)
 
-    type ExecutorEvent = 
-        | NoExecEvent
-        | PolkaAnyExecEvent(Round)
-        | PolkaNilExecEvent(Round)
-        | PolkaValueExecEvent((Round, NonNilValue))
-        | PrecommitAnyExecEvent(Round)
-        | PrecommitValueExecEvent((Round, NonNilValue))
-        | SkipExecEvent(Round)
+    type VoteKeeperOutput = 
+        | NoVKOutput
+        | PolkaAnyVKOutput(Round)
+        | PolkaNilVKOutput(Round)
+        | PolkaValueVKOutput((Round, NonNilValue))
+        | PrecommitAnyVKOutput(Round)
+        | PrecommitValueVKOutput((Round, NonNilValue))
+        | SkipVKOutput(Round)
 
     type Bookkeeper = {
         height: Height,
@@ -68,7 +68,7 @@ module voteBookkeeper {
         round: round,
         prevotes: newVoteCount(totalWeight),
         precommits: newVoteCount(totalWeight),
-        emittedEvents: Set(),
+        emittedOutputs: Set(),
         votesAddressesWeights: Map()
     }
 
@@ -175,54 +175,54 @@ module voteBookkeeper {
             assert(computeThreshold(voteCount.with("valuesWeights", mapNoneReached), Nil) == UnreachedThreshold),
         }
 
-    // Given a round, voteType and threshold, return the corresponding ExecutorEvent
-    pure def toEvent(round: Round, voteType: VoteType, threshold: Threshold): ExecutorEvent =
+    // Given a round, voteType and threshold, return the corresponding VoteKeeperOutput
+    pure def toVoteKeeperOutput(round: Round, voteType: VoteType, threshold: Threshold): VoteKeeperOutput =
         match threshold {
             | UnreachedThreshold => 
-                NoExecEvent
+                NoVKOutput
             | ValueThreshold(value) =>
                 match voteType {
-                    | Prevote => PolkaValueExecEvent((round, value))
-                    | Precommit => PrecommitValueExecEvent((round, value))
+                    | Prevote => PolkaValueVKOutput((round, value))
+                    | Precommit => PrecommitValueVKOutput((round, value))
                 }
             | NilThreshold =>
                 match voteType {
-                    | Prevote => PolkaNilExecEvent(round)
-                    | Precommit => PrecommitAnyExecEvent(round)
+                    | Prevote => PolkaNilVKOutput(round)
+                    | Precommit => PrecommitAnyVKOutput(round)
                 }
             | AnyThreshold =>
                 match voteType {
-                    | Prevote => PolkaAnyExecEvent(round)
-                    | Precommit => PrecommitAnyExecEvent(round)
+                    | Prevote => PolkaAnyVKOutput(round)
+                    | Precommit => PrecommitAnyVKOutput(round)
                 }
             | SkipThreshold => 
-                SkipExecEvent(round)
+                SkipVKOutput(round)
         }
 
-    run toEventTest =
+    run toVoteKeeperOutputTest =
         val round = 10
         all {
-            assert(toEvent(round, Prevote, UnreachedThreshold) == NoExecEvent),
-            assert(toEvent(round, Precommit, UnreachedThreshold) == NoExecEvent),
-            assert(toEvent(round, Prevote, AnyThreshold) == PolkaAnyExecEvent(round)),
-            assert(toEvent(round, Prevote, NilThreshold) == PolkaNilExecEvent(round)),
-            assert(toEvent(round, Prevote, ValueThreshold("v1")) == PolkaValueExecEvent((round, "v1"))),
-            assert(toEvent(round, Precommit, AnyThreshold) == PrecommitAnyExecEvent(round)),
-            assert(toEvent(round, Precommit, NilThreshold) == PrecommitAnyExecEvent(round)),
-            assert(toEvent(round, Precommit, ValueThreshold("v1")) == PrecommitValueExecEvent((round, "v1"))),
-            assert(toEvent(round, Prevote, SkipThreshold) == SkipExecEvent(round)),
-            assert(toEvent(round, Precommit, SkipThreshold) == SkipExecEvent(round)),
+            assert(toVoteKeeperOutput(round, Prevote, UnreachedThreshold) == NoVKOutput),
+            assert(toVoteKeeperOutput(round, Precommit, UnreachedThreshold) == NoVKOutput),
+            assert(toVoteKeeperOutput(round, Prevote, AnyThreshold) == PolkaAnyVKOutput(round)),
+            assert(toVoteKeeperOutput(round, Prevote, NilThreshold) == PolkaNilVKOutput(round)),
+            assert(toVoteKeeperOutput(round, Prevote, ValueThreshold("v1")) == PolkaValueVKOutput((round, "v1"))),
+            assert(toVoteKeeperOutput(round, Precommit, AnyThreshold) == PrecommitAnyVKOutput(round)),
+            assert(toVoteKeeperOutput(round, Precommit, NilThreshold) == PrecommitAnyVKOutput(round)),
+            assert(toVoteKeeperOutput(round, Precommit, ValueThreshold("v1")) == PrecommitValueVKOutput((round, "v1"))),
+            assert(toVoteKeeperOutput(round, Prevote, SkipThreshold) == SkipVKOutput(round)),
+            assert(toVoteKeeperOutput(round, Precommit, SkipThreshold) == SkipVKOutput(round)),
         }
 
     // Called by the executor when it receives a vote. The function takes the following steps:
     // - It first adds the vote and then computes a threshold.
-    // - If there exist a threshold and has not emitted before, the function returns the corresponding ExecutorEvent.
-    // - Otherwise, the function returns a no-threshold event.
+    // - If there exist a threshold and has not emitted before, the function returns the corresponding VoteKeeperOutput.
+    // - Otherwise, the function returns a no-threshold output.
     // - Note that if there is no threshold after adding the vote, the function checks if there is a skip threshold.
     // TO DISCUSS:
     // - There might be a problem if we generalize from single-shot to multi-shot: the keeper only keeps the totalWeight
     //   of the current height; I wonder if we need to keep the totalWeight for every Height that we may receive a vote for.
-    pure def applyVote(keeper: Bookkeeper, vote: VoteMsg, weight: Weight, currentRound: Round): { bookkeeper: Bookkeeper, event: ExecutorEvent } =
+    pure def applyVote(keeper: Bookkeeper, vote: VoteMsg, weight: Weight, currentRound: Round): { bookkeeper: Bookkeeper, output: VoteKeeperOutput } =
         val round = vote.round
         val roundVotes = keeper.rounds.getOrElse(round, newRoundVotes(keeper.height, round, keeper.totalWeight))
         
@@ -241,16 +241,16 @@ module voteBookkeeper {
         // Combined weight of all validators at this height
         val combinedWeight = updatedVotesAddressesWeights.mapSumValues()
 
-        val finalEvent =
+        val finalOutput =
             if (vote.round > currentRound and isSkip(combinedWeight, keeper.totalWeight))
-                SkipExecEvent(vote.round)
+                SkipVKOutput(vote.round)
             else
                 val threshold = computeThreshold(updatedVoteCount, vote.valueId)
-                val event = toEvent(vote.round, vote.voteType, threshold)
-                if (not(event.in(roundVotes.emittedEvents))) 
-                    event
+                val output = toVoteKeeperOutput(vote.round, vote.voteType, threshold)
+                if (not(output.in(roundVotes.emittedOutputs))) 
+                    output
                 else 
-                    NoExecEvent
+                    NoVKOutput
 
         val updatedRoundVotes = 
             match vote.voteType {
@@ -259,12 +259,12 @@ module voteBookkeeper {
             }
         val updatedRoundVotes2 = updatedRoundVotes
             .with("votesAddressesWeights", updatedVotesAddressesWeights)
-            .with("emittedEvents", roundVotes.emittedEvents.setAddIf(finalEvent, finalEvent != NoExecEvent))
+            .with("emittedOutputs", roundVotes.emittedOutputs.setAddIf(finalOutput, finalOutput != NoVKOutput))
 
         val updatedBookkeeper = keeper
             .with("rounds", keeper.rounds.mapSafeSet(vote.round, updatedRoundVotes2))
 
-        { bookkeeper: updatedBookkeeper, event: finalEvent }
+        { bookkeeper: updatedBookkeeper, output: finalOutput }
 
     run applyVoteTest =
         val roundVotes: RoundVotes = {
@@ -272,7 +272,7 @@ module voteBookkeeper {
             round: 0,
             prevotes: { totalWeight: 4, votesAddresses: Set(), valuesWeights: Map(Val("v1") -> 1, Nil -> 3) },
             precommits: { totalWeight: 4, votesAddresses: Set(), valuesWeights: Map() },
-            emittedEvents: Set(),
+            emittedOutputs: Set(),
             votesAddressesWeights: Map(),
         }
         val vk: Bookkeeper = { height: 0, totalWeight: 4, rounds: Map(0 -> roundVotes) }
@@ -282,16 +282,16 @@ module voteBookkeeper {
         val o4 = applyVote(o3.bookkeeper, { height: 0, round: 0, srcAddress: "a3", voteType: Precommit, valueId: Nil }, 1, 0)
         val o5 = applyVote(o4.bookkeeper, { height: 0, round: 1, srcAddress: "a4", voteType: Precommit, valueId: Nil }, 3, 0)
         all {
-            assert(o1.event == NoExecEvent),
-            assert(o2.event == NoExecEvent),
-            assert(o3.event == PrecommitAnyExecEvent(0)),
-            assert(o4.event == NoExecEvent),
-            assert(o5.event == SkipExecEvent(1)),
+            assert(o1.output == NoVKOutput),
+            assert(o2.output == NoVKOutput),
+            assert(o3.output == PrecommitAnyVKOutput(0)),
+            assert(o4.output == NoVKOutput),
+            assert(o5.output == SkipVKOutput(1)),
         }
 
-    // Called by the executor to check if there is a specific threshold for a given round and voteType.
+    // Called by the driver to check if there is a specific threshold for a given round and voteType.
     // TO DISCUSS:
-    // - The function does not consider Skip threshold. This because if the executor receives a Skip event
+    // - The function does not consider Skip threshold. This because if the driver receives a Skip output
     //   and do not act on it, this means that it will never do it in the future. We should discuss that this
     //   is the case.
     pure def checkThreshold(keeper: Bookkeeper, round: Round, voteType: VoteType, threshold: Threshold): bool =
@@ -341,8 +341,8 @@ module voteBookkeeper {
     var weightedVote: WeightedVote
     // The state of the Bookkeeper.
     var bookkeeper: Bookkeeper
-    // The event resulting from applying a weighted vote to the bookkeeper.
-    var lastEmitted: ExecutorEvent
+    // The output outputing from applying a weighted vote to the bookkeeper.
+    var lastEmitted: VoteKeeperOutput
 
     // ************************************************************************
     // Actions
@@ -357,17 +357,17 @@ module voteBookkeeper {
     action initWith(initialHeight: Height, initialRound: Round, totalWeight: Weight): bool = all {
         weightedVote' = NoWeightedVote,
         bookkeeper' = initBookKeeper(10, initialRound, totalWeight),
-        lastEmitted' = NoExecEvent,
+        lastEmitted' = NoVKOutput,
     }
 
-    // The vote bookkeeper receives a weighted vote for a round, and produces an event.
+    // The vote bookkeeper receives a weighted vote for a round, and produces an output.
     action applyVoteAction(vote: VoteMsg, weight: Weight, currentRound: Round): bool =
         // HV: currentRound should be taken from the bookkeeper?
-        val result = applyVote(bookkeeper, vote, weight, currentRound)
+        val output = applyVote(bookkeeper, vote, weight, currentRound)
         all {
             weightedVote' = WV((vote, weight, currentRound)),
-            bookkeeper' = result.bookkeeper,
-            lastEmitted' = result.event
+            bookkeeper' = output.bookkeeper,
+            lastEmitted' = output.output
         }
 
 }
