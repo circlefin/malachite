@@ -829,7 +829,7 @@ fn driver_steps_polka_any_then_proposal_other() {
             input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
             expected_output: start_prevote_timer_output(Round::new(0)),
             expected_round: Round::new(0),
-            new_state: propose_state(Round::new(0)),
+            new_state: prevote_state(Round::new(0)),
         },
     ];
 
@@ -841,6 +841,11 @@ fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
         println!("Step: {}", step.desc);
 
         let output = block_on(driver.execute(step.input)).expect("execute succeeded");
+        let pending_outputs = driver.process_pending().expect("process_pending succeeded");
+
+        // Use the last pending output if any
+        let output = pending_outputs.last().cloned().or(output);
+
         assert_eq!(output, step.expected_output, "expected output");
 
         assert_eq!(

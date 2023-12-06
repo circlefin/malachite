@@ -36,6 +36,7 @@ where
     pub votes: VoteKeeper<Ctx>,
     pub round_state: RoundState<Ctx>,
     pub proposals: Proposals<Ctx>,
+    pub pending_input: Option<(Round, RoundInput<Ctx>)>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -61,6 +62,7 @@ where
             votes,
             round_state: RoundState::default(),
             proposals: Proposals::new(),
+            pending_input: None,
         }
     }
 
@@ -85,6 +87,7 @@ where
         Ok(proposer)
     }
 
+    // TODO: Rename to `process`
     pub async fn execute(&mut self, msg: Input<Ctx>) -> Result<Option<Output<Ctx>>, Error<Ctx>> {
         let round_output = match self.apply(msg).await? {
             Some(msg) => msg,
@@ -93,6 +96,19 @@ where
 
         let output = self.round_output_to_output(round_output);
         Ok(Some(output))
+    }
+
+    pub fn process_pending(&mut self) -> Result<Vec<Output<Ctx>>, Error<Ctx>> {
+        let mut outputs = Vec::new();
+
+        while let Some((round, input)) = self.pending_input.take() {
+            if let Some(round_output) = self.apply_input(round, input)? {
+                let output = self.round_output_to_output(round_output);
+                outputs.push(output);
+            };
+        }
+
+        Ok(outputs)
     }
 
     fn round_output_to_output(&mut self, round_output: RoundOutput<Ctx>) -> Output<Ctx> {
@@ -307,15 +323,31 @@ where
         input: RoundInput<Ctx>,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let round_state = core::mem::take(&mut self.round_state);
+        let current_step = round_state.step;
+
         let proposer = self.get_proposer(round_state.round)?;
+        let info = Info::new(input_round, &self.address, proposer.address());
 
-        let data = Info::new(input_round, &self.address, proposer.address());
-
-        // Multiplex the event with the round state.
-        let mux_input = mixer::multiplex_event(input, input_round, &self.proposals);
+        // Multiplex the proposal if we have one already for the input round
+        let mux_input = mixer::multiplex_proposal(input, input_round, &self.proposals);
 
         // Apply the input to the round state machine
-        let transition = round_state.apply(&data, mux_input);
+        let transition = round_state.apply(&info, mux_input);
+
+        let pending_step = transition.next_state.step;
+
+        if current_step != pending_step {
+            let pending_input = mixer::multiplex_on_step_change(
+                pending_step,
+                input_round,
+                &self.votes,
+                &self.proposals,
+            );
+
+            dbg!(&pending_input);
+
+            self.pending_input = pending_input.map(|input| (input_round, input));
+        }
 
         // Update state
         self.round_state = transition.next_state;
