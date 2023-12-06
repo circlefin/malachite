@@ -19,7 +19,7 @@ type DriverState = {
     cs : ConsensusState,
     proposals: Set[Proposal_t],
     valset: Address_t -> int,
-    executedInputs: List[(ConsensusInput, Height_t, Round_t)], // We record that to have the information in the trace
+    executedInputs: List[(ConsensusInput, Height_t, Round_t, Step_t)], // We record that to have the information in the trace
     pendingInputs: Set[(ConsensusInput, Height_t, Round_t)],
     pendingStepChange: Step_t, // "" if last consensus call did not change the step
     started: bool,
@@ -134,13 +134,15 @@ pure def ListContains(list, value) =
 // check whether the event has been already sent to consensus. If not, do so.
 pure def callConsensus (es: DriverState, bk: Bookkeeper, csInput: ConsensusInput) : (DriverState, ConsensusOutput) = {
     // Check whether we already executed the event already
-    if (es.executedInputs.ListContains((csInput, es.cs.height, es.cs.round)))
+    // TODO: Perhaps this check should be more fine-grained. Perhaps some inputs should only be acted on once per
+    //          round, independent of the step.
+    if (es.executedInputs.ListContains((csInput, es.cs.height, es.cs.round, es.cs.step)))
         ({ ...es, bk: bk, cs: es.cs }, defaultOutput)
     else
         // Go to consensus
         val res = consensus(es.cs, csInput)
         // Record that we executed the event
-        val csInputs = es.executedInputs.append((csInput, res.cs.height, res.cs.round))
+        val csInputs = es.executedInputs.append((csInput, es.cs.height, es.cs.round, es.cs.step))
 
         ({ ...es, bk: bk, cs: res.cs, executedInputs: csInputs }, res.out)
 }
@@ -420,15 +422,27 @@ pure def StepChange (es: DriverState) : (DriverState, ConsensusOutput) = {
 
     else if (es.pendingStepChange == "propose")
         val proposer = Proposer(es.valset, es.cs.height, es.cs.round)
-        val propSet = es.proposals.filter(x => x.src == proposer and x.height = es.cs.height and x.round = es.cs.round)
-            if (propSet == Set())
-                (es, defaultOutput)
-            else    
+        val propSet = es.proposals.filter(x => x.src == proposer and x.height == es.cs.height and x.round == es.cs.round)
+            if (propSet != Set())
                 val proposal = propSet.fold(emptyProposal, (sum, y) => y) 
                     // TODO:    If the proposer is faulty there might be multiple
                     //          figure out what to do
-                // TODO: Should we just call ProposeMsg here?
-                (es, defaultOutput)
+                val input = { ...defaultInput, name: "proposal", proposal: proposal}
+                ProposalMsg(es, input) 
+            else    
+                // Rules that might apply if step is not restricted, and we don't have a proposal:
+                // - 47, 55.
+                // 55 would have executed before. 47 is unclear. 
+                // TODO: I can just check for anyThreshold
+                if (checkThreshold(es.bk, es.cs.round, "Precommit", anyThreshold))
+                    callConsensus(es, es.bk,  { name: "PrecommitAny",
+                                                height: es.cs.height,
+                                                round: es.cs.round,
+                                                value: "",
+                                                vr: -1})                        
+                else
+                    (es, defaultOutput)
+
     else if (es.pendingStepChange == "Prevote")
         // TODO
         (es, defaultOutput)
@@ -489,7 +503,7 @@ pure def decided (es: DriverState, res: ConsensusOutput) : (DriverState, Consens
 // take input out of pending inputs and then call consensus with that input
 // We do this when the driver is asked to work on pending events
 pure def PendingInput (es: DriverState): (DriverState, ConsensusOutput) = {
-    val ev = es.pendingInputs.((defaultConsensusInput, -1, -1), (sum, y) => y)fold
+    val ev = es.pendingInputs.fold((defaultConsensusInput, -1, -1), (sum, y) => y)
     val newState = { ...es, pendingInputs: es.pendingInputs.exclude(Set(ev))}
      if (ev._2 == es.cs.height and ev._3 == es.cs.round)
         callConsensus(newState, es.bk, ev._1)
