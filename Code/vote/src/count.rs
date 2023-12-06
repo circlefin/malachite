@@ -49,6 +49,7 @@ impl<Address, Value> VoteCount<Address, Value> {
         self.values_weights.sum()
     }
 
+    /// Return whether or not the threshold is met, ie. if we have a quorum for that threshold.
     pub fn is_threshold_met(
         &self,
         threshold: Threshold<Value>,
