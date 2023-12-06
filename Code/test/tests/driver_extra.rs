@@ -437,7 +437,6 @@ fn driver_steps_polka_previous_with_locked() {
     run_steps(&mut driver, steps)
 }
 
-
 // Arrive at L36 in round 0, with step precommit and then L28 in round 1 with invalid value.
 //
 // Ev:             NewRound(0)           Timeout(propose)        <polka>                <honest precommit(round=1)>
