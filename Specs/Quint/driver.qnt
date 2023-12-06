@@ -21,6 +21,7 @@ type DriverState = {
     valset: Address_t -> int,
     executedInputs: List[(ConsensusInput, Height_t, Round_t)], // We record that to have the information in the trace
     pendingInputs: Set[(ConsensusInput, Height_t, Round_t)],
+    pendingStepChange: Step_t, // "" if last consensus call did not change the step
     started: bool,
     voteKeeperOutput: VoteKeeperOutput, //debug TODO
     chain : List[Value_t],
@@ -36,6 +37,7 @@ pure def initDriver  (v: Address_t, vs: Address_t -> int) : DriverState = {
     valset: vs,
     executedInputs: List(),
     pendingInputs: Set(),
+    pendingStepChange: "",
     started: false,
     voteKeeperOutput: toVoteKeeperOutput(0, "", {name: "", value: ""}), // debug
     chain : List(),
@@ -63,7 +65,8 @@ type DriverInput = {
     vote: Vote_t,
     timeout: str,
     csInput: ConsensusInput,
-    nextValueToPropose: Value_t
+    nextValueToPropose: Value_t,
+    step: Step_t
 }
 
 val defaultInput: DriverInput = {
@@ -72,7 +75,8 @@ val defaultInput: DriverInput = {
     vote: { src: "", height: 0, round: 0, step: "", id: "", },
     timeout: "",
     csInput: defaultConsensusInput,
-    nextValueToPropose: ""
+    nextValueToPropose: "",
+    step: ""
 }
 
 // this is to match the type from the bookkeeper. When we add heights there we should
@@ -82,27 +86,7 @@ pure def toVote (v: Vote_t) : Vote =
 
 val defaultConsensusInput : ConsensusInput = { name : "", height : 0, round: 0, value: "", vr: 0 }    
 
-/*
-encode the following decision tree
 
-proposal
-    invalid -> consensus event
-    valid:  BK list of events 
-            generate all Consensus events C
-            feed all events to Consensus
-
-Precommit
-    BK applyVote
-    (see whether we can make (A) 2f+1 Any for current or 
-                             (B) 2f+1 plus proposal for current)
-    -> feed all events to Consensus
-
-Prevote
-    BK applyVote 
-    For current round PolkaVal -> PolkaAny and PolkaNil -> PolkaAny: list of Events
-    check proposal: list of Consensus evens (considering line 28)
-    -> feed all events to Consensus
-*/
 
 val emptyProposal : Proposal_t=
     { src: "none", height: 0, round: 0, proposal: "none", validRound: 0 }
@@ -420,6 +404,34 @@ pure def ProposalMsg (es: DriverState, input: DriverInput) : (DriverState, Conse
             (es, defaultOutput)
 }
 
+// We do this after calling consensus to remember whether the step has changed
+pure def recordStepChange (old: DriverState, new: DriverState) : DriverState = {
+    if (old.cs.step == new.cs.step)
+        { ...new, pendingStepChange: "" }
+    else
+        { ...new, pendingStepChange: new.cs.step}
+}
+
+// We do this if a step change of the consensus state machine was recorded
+pure def StepChange (es: DriverState) : (DriverState, ConsensusOutput) = {
+    if (es.pendingStepChange == "newRound")
+        // TODO
+        (es, defaultOutput)
+    else if (es.pendingStepChange == "propose")
+        // TODO
+        (es, defaultOutput)
+    else if (es.pendingStepChange == "Prevote")
+        // TODO
+        (es, defaultOutput)
+    else if (es.pendingStepChange == "Precommit")
+        // TODO    
+        (es, defaultOutput)    
+    else
+        // TODO
+        (es, defaultOutput)
+}
+
+
 
 // We do this when we need to jump to a new round
 pure def skip (es: DriverState, r: int) : (DriverState, ConsensusOutput) = {
@@ -482,13 +494,13 @@ pure def setValue(es: DriverState, value: Value_t) : (DriverState, ConsensusOutp
 
 
 
-
 /* *********************************************************
  * Main entry point
  * ********************************************************/
 
+
 // TODO: return ConsensusInput so that we know from outside what event was fired.
-pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
+pure def driverLogic (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
     // TODO: shall we check whether the sender actually is in the validator set
     if (input.name == "proposal") {
         val res = ProposalMsg(es, input)
@@ -543,10 +555,19 @@ pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusO
     else if (input.name == "pending") {
         PendingInput(es)
     }
+    else if (input.name == "StepChange") {
+        StepChange(es)
+    }
     else if (input.name == "SetNextProposedValue")
         setValue(es, input.nextValueToPropose)
     else
         (es, defaultOutput)
+}
+
+// To address step change
+pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
+    val res = driverLogic(es, input)
+    (recordStepChange(es, res._1), res._2)
 }
 
 
@@ -557,6 +578,9 @@ pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusO
 pure def nextAction (state: NodeState) : (NodeState, DriverInput) = {
     if (not(state.es.started))
         (state, { ...defaultInput, name: "start" })
+
+    else if (state.es.pendingStepChange != "")
+        (state, { ...defaultInput, name: "StepChange" })
 
     else if (state.es.pendingInputs != Set())
         // this might be cheating as we look into the "es"
