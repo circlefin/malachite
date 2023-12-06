@@ -17,6 +17,7 @@ extern crate alloc;
 mod driver;
 mod error;
 mod input;
+mod mixer;
 mod output;
 mod proposals;
 mod proposer;

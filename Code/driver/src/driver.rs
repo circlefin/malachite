@@ -15,6 +15,7 @@ use malachite_vote::Threshold;
 use malachite_vote::ThresholdParams;
 
 use crate::input::Input;
+use crate::mixer;
 use crate::output::Output;
 use crate::proposals::Proposals;
 use crate::Error;
@@ -308,31 +309,7 @@ where
         let data = Info::new(input_round, &self.address, proposer.address());
 
         // Multiplex the event with the round state.
-        let mux_input = match input {
-            RoundInput::PolkaValue(value_id) => {
-                let proposal = self.proposals.find(&value_id, |p| p.round() == input_round);
-
-                if let Some(proposal) = proposal {
-                    assert_eq!(proposal.value().id(), value_id);
-                    RoundInput::ProposalAndPolkaCurrent(proposal.clone())
-                } else {
-                    RoundInput::PolkaAny
-                }
-            }
-
-            RoundInput::PrecommitValue(value_id) => {
-                let proposal = self.proposals.find(&value_id, |p| p.round() == input_round);
-
-                if let Some(proposal) = proposal {
-                    assert_eq!(proposal.value().id(), value_id);
-                    RoundInput::ProposalAndPrecommitValue(proposal.clone())
-                } else {
-                    RoundInput::PrecommitAny
-                }
-            }
-
-            _ => input,
-        };
+        let mux_input = mixer::multiplex_event(input, input_round, &self.proposals);
 
         // Apply the input to the round state machine
         let transition = round_state.apply(&data, mux_input);
