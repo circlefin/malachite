@@ -21,7 +21,7 @@ short, at round `(h, r)`.
 
 Messages with heights `h'` with either `h' < h` (past) or `h' > h` (future).
 
-The pseudo-code description of the algorithm ignores messages from different
+The pseudocode description of the algorithm ignores messages from different
 heights.
 If we take the same approach in this specification, we have to specify
 separately modules responsible to handle those messages.
@@ -69,7 +69,7 @@ Messages from rounds `(h, r')` with `r' > r`: same height `h` but future round `
 
 The consensus state machine requires receiving and processing messages from
 future rounds for enabling the _round skipping_ mechanism, defined as follows
-in the pseudo-code:
+in the pseudocode:
 
 ```
 55: upon f + 1 ⟨∗, hp, round, ∗, ∗⟩ with round > roundp do
@@ -108,15 +108,13 @@ There are two options, which can in particular be combined:
 Messages matching the current round `(h, r)` of a process produce most of the
 relevant events for the consensus state machine.
 
-TODO:
-
 ## Counting votes
 
 Messages `⟨PREVOTE, h, r, *⟩` and `⟨PRECOMMIT, h, r, *⟩` are generically called votes.
 They refer to a round step `(h, r, s)` of consensus, where `s` is defined by
 the vote type, either `PREVOTE` or `PRECOMMIT`.
 
-The processing of _individual_ vote messages don't produce events relevant for
+The processing of _individual_ vote messages doesn't produce events relevant for
 the consensus state machine.
 But when the number of unique vote messages referring to a given round step
 `(h, r, s)` reaches a given _threshold_, relevant events are produced;
@@ -127,7 +125,7 @@ General assumptions regarding vote messages:
 - Vote messages are produced, signed and broadcast by a validator, which is its
   *sender*
   - To define whether a vote message for round step `(h, r, s)` is valid, the
-    validator set for height `h` must to be known.
+    validator set for height `h` must be known.
     The validator set can change over heights, but it is the same within a height.
 - To each validator in the validator set of a height `h` is associated a *voting power*
   - Thresholds are computed from the voting power associated to the
