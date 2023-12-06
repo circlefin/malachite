@@ -4,6 +4,7 @@
 
 module voteBookkeeperSM  {
 
+    import types.* from "./types"
     import voteBookkeeper.* from "./voteBookkeeper"
     export voteBookkeeper.*
 
@@ -31,7 +32,7 @@ module voteBookkeeperSM  {
         nondet value = oneOf(VALUES.map(v => Val(v)).union(Set(Nil)))
         nondet address = oneOf(ADDRESS_WEIGHTS.keys())
         val height = INITIAL_HEIGHT
-        val vote: Vote = { typ: voteType, height: height, round: round, value: value, address: address }
+        val vote: VoteMsg = mkVoteMsg(voteType, address, height, round, id(value))
         applyVoteAction(vote, ADDRESS_WEIGHTS.get(address), round)
 
     // ****************************************************************************
@@ -41,22 +42,22 @@ module voteBookkeeperSM  {
     val emitPrecommitValueState = 
         nondet round = oneOf(ROUNDS)
         nondet value = oneOf(VALUES)
-        lastEmitted == PrecommitValueEvent((round, value))
+        lastEmitted == PrecommitValueExecEvent((round, value))
     val emitPrecommitValue = not(emitPrecommitValueState)
 
     val emitPolkaAnyState = 
         nondet round = oneOf(ROUNDS)
-        lastEmitted == PolkaAnyEvent(round)
+        lastEmitted == PolkaAnyExecEvent(round)
     val emitPolkaAny = not(emitPolkaAnyState)
 
     val emitPolkaNilState = 
         nondet round = oneOf(ROUNDS)
-        lastEmitted == PolkaNilEvent(round)
+        lastEmitted == PolkaNilExecEvent(round)
     val emitPolkaNil = not(emitPolkaNilState)
 
     val emitSkipState = 
         nondet round = oneOf(ROUNDS)
-        lastEmitted == SkipEvent(round)
+        lastEmitted == SkipExecEvent(round)
     val emitSkip = not(emitSkipState)
 
 }
