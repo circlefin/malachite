@@ -54,9 +54,11 @@ The Tendermint consensus implementation will satisfy the `Context` interface, de
 The data types used by the consensus algorithm are abstracted to allow for different implementations.
 
 ```rust
+/// This trait allows to abstract over the various datatypes
+/// that are used in the consensus engine.
 pub trait Context
-where
-    Self: Sized,
+    where
+        Self: Sized,
 {
     type Address: Address;
     type Height: Height;
@@ -67,13 +69,16 @@ where
     type Vote: Vote<Self>;
     type SigningScheme: SigningScheme; // TODO: Do we need to support multiple signing schemes?
 
-    /// Sign the given vote using the given private key.
-    /// TODO: Maybe move this as concrete methods in `SignedVote`?
-    fn sign_vote(vote: &Self::Vote, private_key: &PrivateKey<Self>) -> Signature<Self>;
+    /// Sign the given vote our private key.
+    fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self>;
 
     /// Verify the given vote's signature using the given public key.
     /// TODO: Maybe move this as concrete methods in `SignedVote`?
-    fn verify_signed_vote(signed_vote: &SignedVote<Self>, public_key: &PublicKey<Self>) -> bool;
+    fn verify_signed_vote(
+        &self,
+        signed_vote: &SignedVote<Self>,
+        public_key: &PublicKey<Self>,
+    ) -> bool;
 
     /// Build a new proposal for the given value at the given height, round and POL round.
     fn new_proposal(
@@ -85,11 +90,21 @@ where
 
     /// Build a new prevote vote by the validator with the given address,
     /// for the value identified by the given value id, at the given round.
-    fn new_prevote(round: Round, value_id: Option<ValueId<Self>>) -> Self::Vote;
+    fn new_prevote(
+        height: Self::Height,
+        round: Round,
+        value_id: Option<ValueId<Self>>,
+        address: Self::Address,
+    ) -> Self::Vote;
 
     /// Build a new precommit vote by the validator with the given address,
     /// for the value identified by the given value id, at the given round.
-    fn new_precommit(round: Round, value_id: Option<ValueId<Self>>) -> Self::Vote;
+    fn new_precommit(
+        height: Self::Height,
+        round: Round,
+        value_id: Option<ValueId<Self>>,
+        address: Self::Address,
+    ) -> Self::Vote;
 }
 ```
 
@@ -107,40 +122,46 @@ The Consensus Driver is concerned with running the consensus algorithm for a sin
 It is therefore initialized with the height once and the instance is destroyed once a value for that height has been decided. Other parameters are required during initialization and operation as described below.
 
 ```rust
-pub struct Driver<Ctx, Env, PSel>
-  where
-          Ctx: Context,
-          Env: DriverEnv<Ctx>,
-          PSel: ProposerSelector<Ctx>,
+pub struct Driver<Ctx>
+    where
+        Ctx: Context,
 {
-  pub ctx: Ctx,
-  pub env: Env,
-  pub proposer_selector: PSel,
+    pub ctx: Ctx,
+    pub proposer_selector: Box<dyn ProposerSelector<Ctx>>,
 
-  pub height: Ctx::Height,
-  pub address: Ctx::Address,
-  pub validator_set: Ctx::ValidatorSet,
+    pub address: Ctx::Address,
+    pub validator_set: Ctx::ValidatorSet,
 
-  pub round: Round,
-  pub votes: VoteKeeper<Ctx>,
-  pub round_states: BTreeMap<Round, RoundState<Ctx>>,
+    pub votes: VoteKeeper<Ctx>,
+    pub round_state: RoundState<Ctx>,
+    pub proposals: Proposals<Ctx>,
 }
 
 ```
 
 ##### Input Events (External APIs)
 
-The Consensus Driver receives events from the peer-to-peer layer and other external modules it interacts with. 
+The Consensus Driver receives input events from the peer-to-peer layer and other external modules it interacts with. 
 
 ```rust
-pub enum Event<Ctx>
-  where
-          Ctx: Context,
+pub enum Input<Ctx>
+    where
+        Ctx: Context,
 {
-  NewRound(Ctx::Height, Round),
-  Proposal(Ctx::Proposal, bool), // (proposal, valid)
-  Vote(SignedVote<Ctx>),
-  TimeoutElapsed(Timeout),
+    /// Start a new round
+    NewRound(Ctx::Height, Round),
+
+    /// Propose a value for the given round
+    ProposeValue(Round, Ctx::Value),
+
+    /// Receive a proposal, of the given validity
+    Proposal(Ctx::Proposal, Validity),
+
+    /// Receive a signed vote
+    Vote(SignedVote<Ctx>),
+
+    /// Receive a timeout
+    TimeoutElapsed(Timeout),
 }
 
 ```
@@ -167,18 +188,30 @@ Notes:
 - On `StartRound(round)` event, the Driver must determine if it is the proposer for the given round. For this it needs access to a `validator_set.get_proposer(round)` method or similar.
 - When building a proposal the driver will use the `get_value()` method of the Builder/ Proposer module to retrieve the value to propose. 
 
-##### Output Messages (External Dependencies)
+##### Output Messages
 
 ```rust
-pub enum Message<Ctx>
-  where
-          Ctx: Context,
+pub enum Output<Ctx>
+    where
+        Ctx: Context,
 {
-  Propose(Ctx::Proposal),
-  Vote(SignedVote<Ctx>),
-  Decide(Round, Ctx::Value),
-  ScheduleTimeout(Timeout),
-  NewRound(Ctx::Height, Round),
+    /// Start a new round
+    NewRound(Ctx::Height, Round),
+
+    /// Broadcast a proposal
+    Propose(Ctx::Proposal),
+
+    /// Broadcast a vote for a value
+    Vote(SignedVote<Ctx>),
+
+    /// Decide on a value
+    Decide(Round, Ctx::Value),
+
+    /// Schedule a timeout
+    ScheduleTimeout(Timeout),
+
+    /// Ask for a value to propose and schedule a timeout
+    GetValueAndScheduleTimeout(Round, Timeout),
 }
 ```
 
@@ -191,6 +224,7 @@ The driver is passed a instance of the `Context` trait which defines all the dat
 The driver can make use of an environment (or Builder/Proposer module) to get a value to propose.
 This environment is defined as an async interface to be implemented by the code downstream of the `Driver`.
 
+TODO - updated with the new async interface:
 ```rust
 #[async_trait]
 pub trait Env<Ctx>
@@ -235,28 +269,26 @@ The Vote Keeper is concerned with keeping track of the votes received and the th
 To this end, it maintains some state per each round:
 
 ```rust
-struct PerRound<Ctx>
-where
-    Ctx: Context,
+pub struct PerRound<Ctx>
+    where
+        Ctx: Context,
 {
     votes: RoundVotes<Ctx::Address, ValueId<Ctx>>,
     addresses_weights: RoundWeights<Ctx::Address>,
-    emitted_msgs: BTreeSet<Message<ValueId<Ctx>>>,
+    emitted_outputs: BTreeSet<Output<ValueId<Ctx>>>,
 }
 ```
 
 ```rust
-pub struct VoteKeeper<C>
-where
-    C: Context,
+pub struct VoteKeeper<Ctx>
+    where
+        Ctx: Context,
 {
-    height: C::Height,
-    validator_set: C::ValidatorSet,
-    quorum_threshold: ThresholdParameter,
-    honest_threshold: ThresholdParameter,
     total_weight: Weight,
-    per_round: BTreeMap<Round, PerRound<C>>,
+    threshold_params: ThresholdParams,
+    per_round: BTreeMap<Round, PerRound<Ctx>>,
 }
+
 ```
 
 - The quorum and minimum correct validator thresholds are passed in as parameters during initialization. These are used for the different threshold calculations.
@@ -267,7 +299,12 @@ where
 The Vote Keeper receives votes from the Consensus Driver via:
 
 ```rust
-pub fn apply_vote(&mut self, vote: C::Vote, weight: Weight) -> Option<Message<ValueId<C>>>
+pub fn apply_vote(
+    &mut self,
+    vote: Ctx::Vote,
+    weight: Weight,
+    current_round: Round,
+) -> Option<Output<ValueId<Ctx>>> 
 ```
 
 ##### Operation
@@ -282,13 +319,13 @@ The Driver receives these output messages from the Vote Keeper.
 pub enum Message<C>
 where 
     C: Context
-{
-    PolkaAny,                               // Received quorum prevotes for anything. L34
-    PolkaNil,                               // Received quorum prevotes for nil. L44
-    PolkaValue(ValueId<C>),                 // Received quorum prevotes for Value. L44
-    PrecommitAny,                           // Received quorum precommits for anything. L47
-    PrecommitValue(ValueId<C>),             // Received quorum precommits for Value. L51
-    ThresholdCorrectProcessInHigherRound,   // Received messages from minimum of honest validators and for a higher round (as defined by honest_threshold). See L55
+pub enum Output<Value> {
+    PolkaAny,
+    PolkaNil,
+    PolkaValue(Value),
+    PrecommitAny,
+    PrecommitValue(Value),
+    SkipRound(Round),
 }
 ```
 
@@ -299,16 +336,16 @@ where
 The Consensus State Machine is concerned with the internal state of the consensus algorithm for a given round. It is initialized with the height and round. When moving to a new round, the driver creates a new round state machine while retaining information from previous round (e.g. valid and locked values).
 
 ```rust
-pub struct State<C>
-where 
-    C: Context
+pub struct State<Ctx>
+    where
+        Ctx: Context,
 {
-    pub height: C::Height,
+    pub height: Ctx::Height,
     pub round: Round,
+
     pub step: Step,
-    pub proposal: Option<C::Proposal>,
-    pub locked: Option<RoundValue<C::Value>>,
-    pub valid: Option<RoundValue<C::Value>>,
+    pub locked: Option<RoundValue<Ctx::Value>>,
+    pub valid: Option<RoundValue<Ctx::Value>>,
 }
 ```
 
@@ -317,9 +354,7 @@ where
 The Round state machine receives events from the Consensus Driver via:
 
 ```rust
-pub fn apply_event<C>(mut state: State<C>, round: Round, event: Event<C>) -> Transition<C>
-where
-    C: Context
+pub fn apply(self, data: &Info<Ctx>, input: Input<Ctx>) -> Transition<Ctx> {
 ```
 
 The events passed to the Round state machine are very close to the preconditions for the transition functions in the BFT paper, i.e., the `upon` clauses.
@@ -328,25 +363,73 @@ In addition:
 - There are two `Poposal` events, for valid and invalid values respectively. Therefore, the `valid(v)` check is not performed in the round SM but by the Driver
 
 ```rust
-pub enum Event<C> 
-where 
-    C: Context
+pub enum Input<Ctx>
+    where
+        Ctx: Context,
 {
-    StartRound,                           // Start a new round, not as proposer.L20
-    StartRoundProposer(C::Value),         // Start a new round and propose the Value.L14
-    Proposal(C::Proposal),                // Received a proposal. L22 + L23 (valid)
-    ProposalAndPolkaPrevious(C::Value),   // Received a proposal and a polka value from a previous round. L28 + L29 (valid)
-    ProposalInvalid,                      // Received an invalid proposal. L26 + L32 (invalid)
-    PolkaValue(ValueId<C>),               // Received quorum prevotes for valueId. L44
-    PolkaAny,                             // Received quorum prevotes for anything. L34
-    PolkaNil,                             // Received quorum prevotes for nil. L44
-    ProposalAndPolkaCurrent(C::Value),    // Received quorum prevotes for Value in current round. L36
-    ProposalAndPrecommitValue(C::Value),  // Received quorum precommits for Value. L49
-    PrecommitValue(ValueId<C>),           // Received quorum precommits for ValueId. L51
-    ThresholdCorrectProcessInHigherRound, // Received messages from a number of honest processes in a higher round. aka RoundSkip, L55
-    TimeoutPropose,                       // Timeout waiting for proposal. L57
-    TimeoutPrevote,                       // Timeout waiting for prevotes. L61
-    TimeoutPrecommit,                     // Timeout waiting for precommits. L65
+    /// Start a new round, either as proposer or not.
+    /// L14/L20
+    NewRound,
+
+    /// Propose a value.
+    /// L14
+    ProposeValue(Ctx::Value),
+
+    /// Receive a proposal.
+    /// L22 + L23 (valid)
+    Proposal(Ctx::Proposal),
+
+    /// Receive an invalid proposal.
+    /// L26 + L32 (invalid)
+    InvalidProposal,
+
+    /// Received a proposal and a polka value from a previous round.
+    /// L28 + L29 (valid)
+    ProposalAndPolkaPrevious(Ctx::Proposal),
+
+    /// Received a proposal and a polka value from a previous round.
+    /// L28 + L29 (invalid)
+    InvalidProposalAndPolkaPrevious(Ctx::Proposal),
+
+    /// Receive +2/3 prevotes for a value.
+    /// L44
+    PolkaValue(ValueId<Ctx>),
+
+    /// Receive +2/3 prevotes for anything.
+    /// L34
+    PolkaAny,
+
+    /// Receive +2/3 prevotes for nil.
+    /// L44
+    PolkaNil,
+
+    /// Receive +2/3 prevotes for a value in current round.
+    /// L36
+    ProposalAndPolkaCurrent(Ctx::Proposal),
+
+    /// Receive +2/3 precommits for anything.
+    /// L47
+    PrecommitAny,
+
+    /// Receive +2/3 precommits for a value.
+    /// L49
+    ProposalAndPrecommitValue(Ctx::Proposal),
+
+    /// Receive +1/3 messages from a higher round. OneCorrectProcessInHigherRound.
+    /// L55
+    SkipRound(Round),
+
+    /// Timeout waiting for proposal.
+    /// L57
+    TimeoutPropose,
+
+    /// Timeout waiting for prevotes.
+    /// L61
+    TimeoutPrevote,
+
+    /// Timeout waiting for precommits.
+    /// L65
+    TimeoutPrecommit,
 }
 ```
 
@@ -359,15 +442,16 @@ The Round State Machine keeps track of the internal state of consensus for a giv
 The Round state machine returns the following messages to the Driver:
 
 ```rust
-pub enum Message<C>
-where 
-    C: Context
+pub enum Output<Ctx>
+    where
+        Ctx: Context,
 {
-    NewRound(Round),                // Move to a new round, could be next or skipped round.
-    Proposal(C::Proposal),          // Broadcast a proposal.
-    Vote(C::Vote),                  // Broadcast a vote.
-    Timeout(Timeout),               // Schedule a timeout.
-    Decision(RoundValue<C::Value>), // Decided on a value.
+    NewRound(Round),                            // Move to the new round.
+Proposal(Ctx::Proposal),                    // Broadcast the proposal.
+Vote(Ctx::Vote),                            // Broadcast the vote.
+ScheduleTimeout(Timeout),                   // Schedule the timeout.
+GetValueAndScheduleTimeout(Round, Timeout), // Ask for a value and schedule a timeout.
+Decision(RoundValue<Ctx::Value>),           // Decide the value.
 }
 ```
 
