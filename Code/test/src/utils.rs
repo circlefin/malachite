@@ -109,6 +109,10 @@ pub fn prevote_input(addr: &Address, sk: &PrivateKey) -> Input<TestContext> {
     )
 }
 
+pub fn prevote_nil_input(addr: &Address, sk: &PrivateKey) -> Input<TestContext> {
+    Input::Vote(Vote::new_prevote(Height::new(1), Round::new(0), None, *addr).signed(sk))
+}
+
 pub fn prevote_input_at(round: Round, addr: &Address, sk: &PrivateKey) -> Input<TestContext> {
     let value = Value::new(9999);
 
@@ -126,9 +130,13 @@ pub fn precommit_output(
     ))
 }
 
-pub fn precommit_nil_output(addr: &Address, sk: &PrivateKey) -> Option<Output<TestContext>> {
+pub fn precommit_nil_output(
+    round: Round,
+    addr: &Address,
+    sk: &PrivateKey,
+) -> Option<Output<TestContext>> {
     Some(Output::Vote(
-        Vote::new_precommit(Height::new(1), Round::new(0), None, *addr).signed(sk),
+        Vote::new_precommit(Height::new(1), round, None, *addr).signed(sk),
     ))
 }
 

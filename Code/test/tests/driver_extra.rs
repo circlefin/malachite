@@ -74,7 +74,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
 
     let steps = vec![
         TestStep {
-            desc: "Start round 0, we, v2, are not the proposer, start timeout propose",
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
             input: new_round_input(Round::new(0)),
             expected_output: start_propose_timer_output(Round::new(0)),
             expected_round: Round::new(0),
@@ -146,14 +146,14 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
 
     let steps = vec![
         TestStep {
-            desc: "Start round 0, we, v2, are not the proposer, start timeout propose",
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
             input: new_round_input(Round::new(0)),
             expected_output: start_propose_timer_output(Round::new(0)),
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
-            desc: "Timeout propopse, prevote for nil (v2)",
+            desc: "Timeout propopse, prevote for nil (v3)",
             input: timeout_propose_input(Round::new(0)),
             expected_output: prevote_nil_output(Round::new(0), &my_addr, &my_sk),
             expected_round: Round::new(0),
@@ -571,7 +571,7 @@ fn driver_steps_polka_previous_with_no_locked() {
 
     let steps = vec![
         TestStep {
-            desc: "Start round 0, we v2 are not the proposer, start timeout propose",
+            desc: "Start round 0, we, v2, are not the proposer, start timeout propose",
             input: new_round_input(Round::new(0)),
             expected_output: start_propose_timer_output(Round::new(0)),
             expected_round: Round::new(0),
@@ -601,7 +601,7 @@ fn driver_steps_polka_previous_with_no_locked() {
         TestStep {
             desc: "timeout prevote, prevote for nil (v2)",
             input: timeout_prevote_input(Round::new(0)),
-            expected_output: precommit_nil_output(&my_addr, &my_sk),
+            expected_output: precommit_nil_output(Round::new(0), &my_addr, &my_sk),
             expected_round: Round::new(0),
             new_state: precommit_state(Round::new(0)),
         },
@@ -647,6 +647,189 @@ fn driver_steps_polka_previous_with_no_locked() {
                 Round::new(0),
                 Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
             ),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+// Recieve polka while in propose step, then timeout propose, prevote nil,
+// then stuck in Prevote step since we missed the polka.
+//
+// Ev:             NewRound(0)          <polkaNil>         Timeout(propose)        + replay <polkaNil>
+// State: NewRound ------------> Propose --------> Propose --------------> Prevote ------------------> Precommit
+// Msg:            propose_timer         None              prevote_nil              precommit_nil
+// Alg:            L21                                     L34                      L44
+//
+//
+// v1=2, v2=3, v3=2, we are v3
+// L21 - v3 is not proposer starts propose timer (step propose)
+// L34 - v3 gets +2/3 prevotes for nil (from v1 and v2), event ignored (step propose)
+// L57 - v3 receives timeout propose, prevotes for nil (step prevote)
+//  + L44 - polkaNil is replayed and v3 precommits for nil (step precommit)
+#[test]
+fn driver_steps_polka_nil_and_timout_propose() {
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let ctx = TestContext::new(my_sk.clone());
+    let sel = RotateProposer;
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0)),
+            expected_output: start_propose_timer_output(Round::new(0)),
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v1 prevotes nil",
+            input: prevote_nil_input(&v1.address, &sk1),
+            expected_output: None,
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v2 prevotes for for nil, we get polkaNil, but we are in Propose step",
+            input: prevote_nil_input(&v2.address, &sk2),
+            expected_output: None,
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Timeout propose, prevote for nil then precommit for nil",
+            input: timeout_propose_input(Round::new(0)),
+            expected_output: precommit_nil_output(Round::new(0), &my_addr, &my_sk),
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+// Receive polka while in propose step, then proposal, prevote for value,
+// then stuck in Prevote step since we missed the polka.
+//
+// Ev:             NewRound(0)           <polkaValue>          Proposal           + replay <polkaAny>
+// State: NewRound ------------> Propose ------------> Propose ---------> Prevote ------------------> Precommit
+// Msg:            propose_timer         None                  prevote(v)         precommit(v)
+// Alg:            L21                                         L24                L37, L37-L43
+//
+//
+// v1=2, v2=3, v3=2, we are v3
+// L21 - v3 is not proposer starts propose timer (step propose)
+// L34 - v3 gets +2/3 prevotes (from v1 and v2), events ignored (step propose)
+// L57 - v3 receives proposal, prevotes for value  (step prevote)
+//  + L37 - polka is replayed and v3 precommits for value (step precommit)
+#[test]
+fn driver_steps_polka_any_then_proposal() {
+    let value = Value::new(9999);
+
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let ctx = TestContext::new(my_sk.clone());
+    let sel = RotateProposer;
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0)),
+            expected_output: start_propose_timer_output(Round::new(0)),
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v1 prevotes a proposal",
+            input: prevote_input(&v1.address, &sk1),
+            expected_output: None,
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v2 prevotes for same proposal, we get +2/3 prevotes, but we are in Propose step",
+            input: prevote_input(&v2.address, &sk2),
+            expected_output: None,
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "receive a proposal from v1 - L22 send prevote",
+            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
+            expected_output: precommit_output(Round::new(0), value, &my_addr, &my_sk),
+            expected_round: Round::new(0),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(0),
+                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+            ),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+// Receive polkaAny while in propose step, then proposal, start prevote timer, move to prevote step
+//
+// Ev:             NewRound(0)           <polkaAny(v)>    Proposal(v')         + replay <polkaAny>
+// State: NewRound ------------> Propose -------> Propose -----------> Prevote ----------------> Prevote
+// Msg:            propose_timer         None             prevote(v)           schedule_timeout(prevote)
+// Alg:            L21                                    L24                  L34
+//
+//
+// v1=2, v2=3, v3=2, we are v3
+// L21 - v3 is not proposer starts propose timer (step propose)
+// L34 - v3 gets +2/3 prevotes for v (from v1 and v2), events ignored (step propose)
+// L57 - v3 receives proposal for v', prevotes for v'  (step prevote)
+//  + L37 - polka any is replayed and prevote timer is started (step prevote)
+#[test]
+fn driver_steps_polka_any_then_proposal_other() {
+    let value = Value::new(9999);
+
+    let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let ctx = TestContext::new(my_sk.clone());
+    let sel = RotateProposer;
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0)),
+            expected_output: start_propose_timer_output(Round::new(0)),
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v1 prevotes for nil",
+            input: prevote_nil_input(&v1.address, &sk1),
+            expected_output: None,
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v2 prevotes for same proposal, we get polkaAny, but we are in Propose step",
+            input: prevote_input(&v2.address, &sk2),
+            expected_output: None,
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "receive a proposal from v1 - L22 send prevote, replay polkaAny, start timeout prevote",
+            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
+            expected_output: start_prevote_timer_output(Round::new(0)),
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
         },
     ];
 
