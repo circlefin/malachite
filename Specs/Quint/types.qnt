@@ -44,7 +44,7 @@ module types {
     type ValueId = Value
     
     // efficient hashing function
-    pure def id(value: Value): ValueId = value
+    // pure def id(value: Value): ValueId = value
 
     // *************************************************************************
     // Messages
