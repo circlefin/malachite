@@ -18,7 +18,9 @@ where
         // to the state machine.
         RoundInput::PolkaValue(value_id) => {
             if let Some(proposal) = proposal {
+                assert_eq!(proposal.round(), input_round);
                 assert_eq!(proposal.value().id(), value_id);
+
                 RoundInput::ProposalAndPolkaCurrent(proposal.clone())
             } else {
                 RoundInput::PolkaAny
@@ -29,7 +31,9 @@ where
         // if so, send `ProposalAndPrecommitValue` instead of `PrecommitAny`.
         RoundInput::PrecommitValue(value_id) => {
             if let Some(proposal) = proposal {
+                assert_eq!(proposal.round(), input_round);
                 assert_eq!(proposal.value().id(), value_id);
+
                 RoundInput::ProposalAndPrecommitValue(proposal.clone())
             } else {
                 RoundInput::PrecommitAny
