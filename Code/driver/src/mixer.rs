@@ -50,7 +50,7 @@ pub fn multiplex_on_step_change<Ctx>(
     pending_step: Step,
     round: Round,
     votekeeper: &VoteKeeper<Ctx>,
-    _proposals: &Proposals<Ctx>,
+    proposals: &Proposals<Ctx>,
 ) -> Option<RoundInput<Ctx>>
 where
     Ctx: Context,
@@ -59,13 +59,29 @@ where
         Step::NewRound => None, // Some(RoundInput::NewRound),
 
         Step::Prevote => {
+            // TODO: What to do if multiple proposals?
+            let proposal = proposals.all().next();
+            dbg!(&proposal);
+
+            // TODO: Cleanup
+            let has_polka_value = || {
+                proposal.and_then(|p| {
+                    if votekeeper.is_threshold_met(
+                        &round,
+                        VoteType::Prevote,
+                        Threshold::Value(p.value().id()),
+                    ) {
+                        Some(p)
+                    } else {
+                        None
+                    }
+                })
+            };
+
             if votekeeper.is_threshold_met(&round, VoteType::Prevote, Threshold::Nil) {
                 Some(RoundInput::PolkaNil)
-            } else if false
-            /* votekeeper.is_threshold_met(&input_round, VoteType::Prevote, Threshold::Value(v)) */
-            {
-                // Some(RoundInput::ProposalAndPolkaCurrent(proposal))
-                todo!()
+            } else if let Some(proposal) = has_polka_value() {
+                Some(RoundInput::ProposalAndPolkaCurrent(proposal.clone()))
             } else if votekeeper.is_threshold_met(&round, VoteType::Prevote, Threshold::Any) {
                 Some(RoundInput::PolkaAny)
             } else {

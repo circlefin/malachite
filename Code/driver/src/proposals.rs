@@ -27,6 +27,10 @@ where
         self.proposals.entry(value_id).or_default().push(proposal);
     }
 
+    pub fn all(&self) -> impl Iterator<Item = &Ctx::Proposal> {
+        self.proposals.values().flatten()
+    }
+
     pub fn find(
         &self,
         value_id: &ValueId<Ctx>,
