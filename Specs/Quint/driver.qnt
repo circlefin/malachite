@@ -415,11 +415,20 @@ pure def recordStepChange (old: DriverState, new: DriverState) : DriverState = {
 // We do this if a step change of the consensus state machine was recorded
 pure def StepChange (es: DriverState) : (DriverState, ConsensusOutput) = {
     if (es.pendingStepChange == "newRound")
-        // TODO
-        (es, defaultOutput)
+
+            (es, defaultOutput)
+
     else if (es.pendingStepChange == "propose")
-        // TODO
-        (es, defaultOutput)
+        val proposer = Proposer(es.valset, es.cs.height, es.cs.round)
+        val propSet = es.proposals.filter(x => x.src == proposer and x.height = es.cs.height and x.round = es.cs.round)
+            if (propSet == Set())
+                (es, defaultOutput)
+            else    
+                val proposal = propSet.fold(emptyProposal, (sum, y) => y) 
+                    // TODO:    If the proposer is faulty there might be multiple
+                    //          figure out what to do
+                // TODO: Should we just call ProposeMsg here?
+                (es, defaultOutput)
     else if (es.pendingStepChange == "Prevote")
         // TODO
         (es, defaultOutput)
@@ -480,7 +489,7 @@ pure def decided (es: DriverState, res: ConsensusOutput) : (DriverState, Consens
 // take input out of pending inputs and then call consensus with that input
 // We do this when the driver is asked to work on pending events
 pure def PendingInput (es: DriverState): (DriverState, ConsensusOutput) = {
-    val ev = es.pendingInputs.fold((defaultConsensusInput, -1, -1), (sum, y) => y)
+    val ev = es.pendingInputs.((defaultConsensusInput, -1, -1), (sum, y) => y)fold
     val newState = { ...es, pendingInputs: es.pendingInputs.exclude(Set(ev))}
      if (ev._2 == es.cs.height and ev._3 == es.cs.round)
         callConsensus(newState, es.bk, ev._1)
