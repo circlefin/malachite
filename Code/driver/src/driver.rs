@@ -91,7 +91,12 @@ where
             None => return Ok(None),
         };
 
-        let output = match round_output {
+        let output = self.round_output_to_output(round_output);
+        Ok(Some(output))
+    }
+
+    fn round_output_to_output(&mut self, round_output: RoundOutput<Ctx>) -> Output<Ctx> {
+        match round_output {
             RoundOutput::NewRound(round) => Output::NewRound(self.height().clone(), round),
 
             RoundOutput::Proposal(proposal) => {
@@ -114,9 +119,7 @@ where
                 // TODO: update the state
                 Output::Decide(value.round, value.value)
             }
-        };
-
-        Ok(Some(output))
+        }
     }
 
     async fn apply(&mut self, input: Input<Ctx>) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
