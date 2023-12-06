@@ -17,7 +17,7 @@ use malachite_vote::ThresholdParams;
 use crate::input::Input;
 use crate::mux;
 use crate::output::Output;
-use crate::proposals::Proposals;
+// use crate::proposals::Proposals;
 use crate::Error;
 use crate::ProposerSelector;
 use crate::Validity;
@@ -35,7 +35,7 @@ where
 
     pub votes: VoteKeeper<Ctx>,
     pub round_state: RoundState<Ctx>,
-    pub proposals: Proposals<Ctx>,
+    pub proposal: Option<Ctx::Proposal>,
     pub pending_input: Option<(Round, RoundInput<Ctx>)>,
 }
 
@@ -61,7 +61,7 @@ where
             validator_set,
             votes,
             round_state: RoundState::default(),
-            proposals: Proposals::new(),
+            proposal: None,
             pending_input: None,
         }
     }
@@ -186,7 +186,10 @@ where
             return Ok(None);
         }
 
-        self.proposals.insert(proposal.clone());
+        // Store proposal if none so far
+        if self.proposal.is_none() {
+            self.proposal = Some(proposal.clone());
+        }
 
         let polka_for_pol = self.votes.is_threshold_met(
             &proposal.pol_round(),
@@ -330,7 +333,7 @@ where
         let info = Info::new(input_round, &self.address, proposer.address());
 
         // Multiplex the proposal if we have one already for the input round
-        let mux_input = mux::multiplex_proposal(input, input_round, &self.proposals);
+        let mux_input = mux::multiplex_proposal(input, input_round, self.proposal.as_ref());
 
         // Apply the input to the round state machine
         let transition = round_state.apply(&info, mux_input);
@@ -342,7 +345,7 @@ where
                 pending_step,
                 input_round,
                 &self.votes,
-                &self.proposals,
+                self.proposal.as_ref(),
             );
 
             dbg!(&pending_input);
@@ -368,7 +371,7 @@ where
             .field("address", &self.address)
             .field("validator_set", &self.validator_set)
             .field("votes", &self.votes)
-            .field("proposals", &self.proposals.proposals)
+            .field("proposal", &self.proposal)
             .field("round_state", &self.round_state)
             .finish()
     }

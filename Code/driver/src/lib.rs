@@ -19,7 +19,7 @@ mod error;
 mod input;
 mod mux;
 mod output;
-mod proposals;
+// mod proposals;
 mod proposer;
 mod util;
 

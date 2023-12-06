@@ -4,12 +4,10 @@ use malachite_round::state::Step;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
 
-use crate::proposals::Proposals;
-
 pub fn multiplex_proposal<Ctx>(
     input: RoundInput<Ctx>,
     input_round: Round,
-    proposals: &Proposals<Ctx>,
+    proposal: Option<&Ctx::Proposal>,
 ) -> RoundInput<Ctx>
 where
     Ctx: Context,
@@ -19,8 +17,6 @@ where
         // if so, send `ProposalAndPolkaCurrent` instead of `PolkaAny`
         // to the state machine.
         RoundInput::PolkaValue(value_id) => {
-            let proposal = proposals.find(&value_id, |p| p.round() == input_round);
-
             if let Some(proposal) = proposal {
                 assert_eq!(proposal.value().id(), value_id);
                 RoundInput::ProposalAndPolkaCurrent(proposal.clone())
@@ -32,8 +28,6 @@ where
         // Check if we have a proposal for the input round,
         // if so, send `ProposalAndPrecommitValue` instead of `PrecommitAny`.
         RoundInput::PrecommitValue(value_id) => {
-            let proposal = proposals.find(&value_id, |p| p.round() == input_round);
-
             if let Some(proposal) = proposal {
                 assert_eq!(proposal.value().id(), value_id);
                 RoundInput::ProposalAndPrecommitValue(proposal.clone())
@@ -50,7 +44,7 @@ pub fn multiplex_on_step_change<Ctx>(
     pending_step: Step,
     round: Round,
     votekeeper: &VoteKeeper<Ctx>,
-    proposals: &Proposals<Ctx>,
+    proposal: Option<&Ctx::Proposal>,
 ) -> Option<RoundInput<Ctx>>
 where
     Ctx: Context,
@@ -59,10 +53,6 @@ where
         Step::NewRound => None, // Some(RoundInput::NewRound),
 
         Step::Prevote => {
-            // TODO: What to do if multiple proposals?
-            let proposal = proposals.all().next();
-            dbg!(&proposal);
-
             if has_polka_nil(votekeeper, round) {
                 Some(RoundInput::PolkaNil)
             } else if let Some(proposal) = has_polka_value(proposal, votekeeper, round) {
