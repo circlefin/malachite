@@ -37,6 +37,7 @@ where
 /// A validator set is a collection of validators.
 pub trait ValidatorSet<Ctx>
 where
+    Self: Clone + Debug,
     Ctx: Context,
 {
     /// The total voting power of the validator set.

@@ -70,6 +70,7 @@ impl malachite_common::Validator<TestContext> for Validator {
 }
 
 /// A validator set contains a list of validators sorted by address.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidatorSet {
     pub validators: Vec<Validator>,
 }

@@ -1,7 +1,7 @@
 use core::fmt;
 
-use crate::events::Event;
-use crate::state_machine::RoundData;
+use crate::input::Input;
+use crate::state_machine::Info;
 use crate::transition::Transition;
 
 use malachite_common::{Context, Round};
@@ -34,9 +34,10 @@ pub struct State<Ctx>
 where
     Ctx: Context,
 {
+    pub height: Ctx::Height,
     pub round: Round,
+
     pub step: Step,
-    pub proposal: Option<Ctx::Proposal>,
     pub locked: Option<RoundValue<Ctx::Value>>,
     pub valid: Option<RoundValue<Ctx::Value>>,
 }
@@ -45,23 +46,20 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new() -> Self {
+    pub fn new(height: Ctx::Height, round: Round) -> Self {
         Self {
-            round: Round::INITIAL,
+            height,
+            round,
             step: Step::NewRound,
-            proposal: None,
             locked: None,
             valid: None,
         }
     }
 
-    pub fn new_round(self, round: Round) -> Self {
-        Self {
-            round,
-            step: Step::NewRound,
-            ..self
-        }
+    pub fn with_round(self, round: Round) -> Self {
+        Self { round, ..self }
     }
+
     pub fn with_step(self, step: Step) -> Self {
         Self { step, ..self }
     }
@@ -80,8 +78,8 @@ where
         }
     }
 
-    pub fn apply_event(self, data: &RoundData<Ctx>, event: Event<Ctx>) -> Transition<Ctx> {
-        crate::state_machine::apply_event(self, data, event)
+    pub fn apply(self, data: &Info<Ctx>, input: Input<Ctx>) -> Transition<Ctx> {
+        crate::state_machine::apply(self, data, input)
     }
 }
 
@@ -94,7 +92,7 @@ where
     Ctx: Context,
 {
     fn default() -> Self {
-        Self::new()
+        Self::new(Ctx::Height::default(), Round::Nil)
     }
 }
 
@@ -105,9 +103,9 @@ where
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         Self {
+            height: self.height.clone(),
             round: self.round,
             step: self.step,
-            proposal: self.proposal.clone(),
             locked: self.locked.clone(),
             valid: self.valid.clone(),
         }
@@ -121,9 +119,9 @@ where
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("State")
+            .field("height", &self.round)
             .field("round", &self.round)
             .field("step", &self.step)
-            .field("proposal", &self.proposal)
             .field("locked", &self.locked)
             .field("valid", &self.valid)
             .finish()
@@ -136,9 +134,9 @@ where
 {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn eq(&self, other: &Self) -> bool {
-        self.round == other.round
+        self.height == other.height
+            && self.round == other.round
             && self.step == other.step
-            && self.proposal == other.proposal
             && self.locked == other.locked
             && self.valid == other.valid
     }

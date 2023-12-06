@@ -14,6 +14,10 @@ impl<Address> RoundWeights<Address> {
         }
     }
 
+    pub fn get_inner(&self) -> &BTreeMap<Address, Weight> {
+        &self.map
+    }
+
     pub fn set_once(&mut self, address: Address, weight: Weight)
     where
         Address: Ord,

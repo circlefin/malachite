@@ -18,9 +18,6 @@ where
     type Vote: Vote<Self>;
     type SigningScheme: SigningScheme; // TODO: Do we need to support multiple signing schemes?
 
-    // FIXME: Remove altogether
-    const DUMMY_VALUE: Self::Value;
-
     /// Sign the given vote our private key.
     fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self>;
 
@@ -43,6 +40,7 @@ where
     /// Build a new prevote vote by the validator with the given address,
     /// for the value identified by the given value id, at the given round.
     fn new_prevote(
+        height: Self::Height,
         round: Round,
         value_id: Option<ValueId<Self>>,
         address: Self::Address,
@@ -51,6 +49,7 @@ where
     /// Build a new precommit vote by the validator with the given address,
     /// for the value identified by the given value id, at the given round.
     fn new_precommit(
+        height: Self::Height,
         round: Round,
         value_id: Option<ValueId<Self>>,
         address: Self::Address,
