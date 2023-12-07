@@ -176,7 +176,13 @@ where
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let round = proposal.round();
 
-        match mux::multiplex_proposal(&self.round_state, &self.votes, proposal, validity) {
+        match mux::multiplex_proposal(
+            &self.round_state,
+            &self.votes,
+            &mut self.proposals,
+            proposal,
+            validity,
+        ) {
             Some(round_input) => self.apply_input(round, round_input),
             None => Ok(None),
         }

@@ -13,6 +13,7 @@ use crate::Validity;
 pub fn multiplex_proposal<Ctx>(
     round_state: &RoundState<Ctx>,
     votekeeper: &VoteKeeper<Ctx>,
+    proposals: &mut Proposals<Ctx>,
     proposal: Ctx::Proposal,
     validity: Validity,
 ) -> Option<RoundInput<Ctx>>
@@ -28,6 +29,9 @@ where
     if round_state.height != proposal.height() {
         return None;
     }
+
+    // Store the proposal
+    proposals.insert(proposal.clone());
 
     let polka_for_pol = votekeeper.is_threshold_met(
         &proposal.pol_round(),
