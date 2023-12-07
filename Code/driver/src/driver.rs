@@ -93,7 +93,7 @@ where
             None => return Ok(Vec::new()),
         };
 
-        let output = self.round_output_to_output(round_output);
+        let output = self.lift_output(round_output);
         let mut outputs = vec![output];
 
         self.process_pending(&mut outputs)?;
@@ -104,7 +104,7 @@ where
     fn process_pending(&mut self, outputs: &mut Vec<Output<Ctx>>) -> Result<(), Error<Ctx>> {
         while let Some((round, input)) = self.pending_input.take() {
             if let Some(round_output) = self.apply_input(round, input)? {
-                let output = self.round_output_to_output(round_output);
+                let output = self.lift_output(round_output);
                 outputs.push(output);
             };
         }
@@ -112,7 +112,7 @@ where
         Ok(())
     }
 
-    fn round_output_to_output(&mut self, round_output: RoundOutput<Ctx>) -> Output<Ctx> {
+    fn lift_output(&mut self, round_output: RoundOutput<Ctx>) -> Output<Ctx> {
         match round_output {
             RoundOutput::NewRound(round) => Output::NewRound(self.height().clone(), round),
 
