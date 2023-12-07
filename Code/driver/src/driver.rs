@@ -2,16 +2,13 @@ use alloc::boxed::Box;
 use core::fmt;
 
 use malachite_common::{
-    Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value,
-    Vote, VoteType,
+    Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Vote,
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
-use malachite_round::state::{State as RoundState, Step};
+use malachite_round::state::State as RoundState;
 use malachite_round::state_machine::Info;
-use malachite_vote::keeper::Output as VoteKeeperOutput;
 use malachite_vote::keeper::VoteKeeper;
-use malachite_vote::Threshold;
 use malachite_vote::ThresholdParams;
 
 use crate::input::Input;
@@ -160,6 +157,7 @@ where
         } else {
             self.round_state = RoundState::new(height, round);
         }
+
         self.apply_input(round, RoundInput::NewRound)
     }
 
@@ -176,94 +174,18 @@ where
         proposal: Ctx::Proposal,
         validity: Validity,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        // Check that there is an ongoing round
-        if self.round_state.round == Round::Nil {
-            return Ok(None);
-        }
+        let round = proposal.round();
 
-        // Check that the proposal is for the current height
-        if self.round_state.height != proposal.height() {
-            return Ok(None);
-        }
-
-        self.proposals.insert(proposal.clone());
-
-        let polka_for_pol = self.votes.is_threshold_met(
-            &proposal.pol_round(),
-            VoteType::Prevote,
-            Threshold::Value(proposal.value().id()),
-        );
-
-        let polka_previous = proposal.pol_round().is_defined()
-            && polka_for_pol
-            && proposal.pol_round() < self.round_state.round;
-
-        // Handle invalid proposal
-        if !validity.is_valid() {
-            if self.round_state.step == Step::Propose {
-                if proposal.pol_round().is_nil() {
-                    // L26
-                    return self.apply_input(proposal.round(), RoundInput::InvalidProposal);
-                } else if polka_previous {
-                    // L32
-                    return self.apply_input(
-                        proposal.round(),
-                        RoundInput::InvalidProposalAndPolkaPrevious(proposal),
-                    );
-                } else {
-                    return Ok(None);
-                }
-            } else {
-                return Ok(None);
-            }
-        }
-
-        // We have a valid proposal.
-        // L49
-        // TODO - check if not already decided
-        if self.votes.is_threshold_met(
-            &proposal.round(),
-            VoteType::Precommit,
-            Threshold::Value(proposal.value().id()),
+        match mux::multiplex_proposal(
+            &self.round_state,
+            &self.votes,
+            &mut self.proposals,
+            proposal,
+            validity,
         ) {
-            return self.apply_input(
-                proposal.round(),
-                RoundInput::ProposalAndPrecommitValue(proposal),
-            );
+            Some(round_input) => self.apply_input(round, round_input),
+            None => Ok(None),
         }
-
-        // If the proposal is for a different round, drop the proposal
-        if self.round() != proposal.round() {
-            return Ok(None);
-        }
-
-        let polka_for_current = self.votes.is_threshold_met(
-            &proposal.round(),
-            VoteType::Prevote,
-            Threshold::Value(proposal.value().id()),
-        );
-
-        let polka_current = polka_for_current && self.round_state.step >= Step::Prevote;
-
-        // L36
-        if polka_current {
-            return self.apply_input(
-                proposal.round(),
-                RoundInput::ProposalAndPolkaCurrent(proposal),
-            );
-        }
-
-        // L28
-        if self.round_state.step == Step::Propose && polka_previous {
-            // TODO: Check proposal vr is equal to threshold vr
-            return self.apply_input(
-                proposal.round(),
-                RoundInput::ProposalAndPolkaPrevious(proposal),
-            );
-        }
-
-        // TODO - Caller needs to store the proposal (valid or not) as the quorum (polka or commits) may be met later
-        self.apply_input(proposal.round(), RoundInput::Proposal(proposal))
     }
 
     fn apply_vote(
@@ -288,23 +210,20 @@ where
         let vote_round = signed_vote.vote.round();
         let current_round = self.round();
 
-        let Some(vote_output) =
+        let vote_output =
             self.votes
-                .apply_vote(signed_vote.vote, validator.voting_power(), current_round)
-        else {
+                .apply_vote(signed_vote.vote, validator.voting_power(), current_round);
+
+        let Some(vote_output) = vote_output else {
             return Ok(None);
         };
 
-        let round_input = match vote_output {
-            VoteKeeperOutput::PolkaAny => RoundInput::PolkaAny,
-            VoteKeeperOutput::PolkaNil => RoundInput::PolkaNil,
-            VoteKeeperOutput::PolkaValue(v) => RoundInput::PolkaValue(v),
-            VoteKeeperOutput::PrecommitAny => RoundInput::PrecommitAny,
-            VoteKeeperOutput::PrecommitValue(v) => RoundInput::PrecommitValue(v),
-            VoteKeeperOutput::SkipRound(r) => RoundInput::SkipRound(r),
-        };
+        let round_input = mux::multiplex_on_vote_threshold(vote_output, &self.proposals);
 
-        self.apply_input(vote_round, round_input)
+        match round_input {
+            Some(input) => self.apply_input(vote_round, input),
+            None => Ok(None),
+        }
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
@@ -329,11 +248,8 @@ where
         let proposer = self.get_proposer(round_state.round)?;
         let info = Info::new(input_round, &self.address, proposer.address());
 
-        // Multiplex the proposal if we have one already for the input round
-        let mux_input = mux::multiplex_proposal(input, input_round, &self.proposals);
-
         // Apply the input to the round state machine
-        let transition = round_state.apply(&info, mux_input);
+        let transition = round_state.apply(&info, input);
 
         let pending_step = transition.next_state.step;
 
@@ -345,7 +261,7 @@ where
                 &self.proposals,
             );
 
-            dbg!(&pending_input);
+            println!("multiplex_on_step_change: {pending_input:?}");
 
             self.pending_input = pending_input.map(|input| (input_round, input));
         }
