@@ -76,6 +76,7 @@ where
 }
 
 impl<Ctx: Context> Clone for Input<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         match self {
             Input::NewRound => Input::NewRound,
@@ -108,6 +109,7 @@ impl<Ctx: Context> Clone for Input<Ctx> {
 }
 
 impl<Ctx: Context> PartialEq for Input<Ctx> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Input::NewRound, Input::NewRound) => true,
@@ -158,6 +160,7 @@ where
     Ctx::Value: fmt::Debug,
     Ctx::Proposal: fmt::Debug,
 {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Input::NewRound => write!(f, "NewRound"),
