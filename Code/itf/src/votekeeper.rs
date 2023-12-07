@@ -3,14 +3,17 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
 
-use crate::types::{Weight, Round, EmptyObject, VoteType, Height, Value, Address, NonNilValue, SerdeValue, SerdeVoteType};
+use crate::types::{
+    Address, EmptyObject, Height, NonNilValue, Round, SerdeValue, SerdeVoteType, Value, VoteType,
+    Weight,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(untagged)]
 pub enum WeightedVoteValues {
     #[serde(with = "As::<(Same, Integer, Integer)>")]
     WV((Vote, Weight, Round)),
-    NoWeightedVote(EmptyObject)
+    NoWeightedVote(EmptyObject),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -31,9 +34,9 @@ impl TryFrom<WeightedVoteTag> for WeightedVote {
         match v.tag.as_str() {
             "NoWeightedVote" => Ok(WeightedVote::NoWeightedVote),
             "WV" => match v.value {
-                WeightedVoteValues::WV((v, w, r)) => Ok(WeightedVote::WV(v,w,r)),
+                WeightedVoteValues::WV((v, w, r)) => Ok(WeightedVote::WV(v, w, r)),
                 WeightedVoteValues::NoWeightedVote(_) => todo!(),
-            }
+            },
             _ => todo!(), // error
         }
     }
@@ -59,7 +62,7 @@ pub struct VoteKeeperOutputTag {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum VoteKeeperOutput {
-    NoVKOutput, 
+    NoVKOutput,
     PolkaAnyVKOutput(Round),
     PolkaNilVKOutput(Round),
     PolkaValueVKOutput(Round, NonNilValue),
@@ -76,27 +79,31 @@ impl TryFrom<VoteKeeperOutputTag> for VoteKeeperOutput {
             "PolkaAnyVKOutput" => match v.value {
                 VoteKeeperOutputValues::Round(r) => Ok(VoteKeeperOutput::PolkaAnyVKOutput(r)),
                 _ => todo!(), // error
-            }
+            },
             "PolkaNilVKOutput" => match v.value {
                 VoteKeeperOutputValues::Round(r) => Ok(VoteKeeperOutput::PolkaNilVKOutput(r)),
                 _ => todo!(), // error
-            }
+            },
             "PolkaValueVKOutput" => match v.value {
-                VoteKeeperOutputValues::RoundValue((r,v)) => Ok(VoteKeeperOutput::PolkaValueVKOutput(r,v)),
+                VoteKeeperOutputValues::RoundValue((r, v)) => {
+                    Ok(VoteKeeperOutput::PolkaValueVKOutput(r, v))
+                }
                 _ => todo!(), // error
-            }
+            },
             "PrecommitAnyVKOutput" => match v.value {
                 VoteKeeperOutputValues::Round(r) => Ok(VoteKeeperOutput::PrecommitAnyVKOutput(r)),
                 _ => todo!(), // error
-            }
+            },
             "PrecommitValueVKOutput" => match v.value {
-                VoteKeeperOutputValues::RoundValue((r,v)) => Ok(VoteKeeperOutput::PrecommitValueVKOutput(r,v)),
+                VoteKeeperOutputValues::RoundValue((r, v)) => {
+                    Ok(VoteKeeperOutput::PrecommitValueVKOutput(r, v))
+                }
                 _ => todo!(), // error
-            }
+            },
             "SkipVKOutput" => match v.value {
                 VoteKeeperOutputValues::Round(r) => Ok(VoteKeeperOutput::SkipVKOutput(r)),
                 _ => todo!(), // error
-            }
+            },
             _ => todo!(), // error
         }
     }

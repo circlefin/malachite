@@ -9,7 +9,6 @@ pub type Round = i64;
 pub type Address = String;
 pub type NonNilValue = String;
 
-
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VoteTypeTag {
@@ -20,7 +19,7 @@ pub struct VoteTypeTag {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VoteType {
     Prevote,
-    Precommit, 
+    Precommit,
 }
 
 impl TryFrom<VoteTypeTag> for VoteType {
@@ -40,7 +39,7 @@ pub type SerdeVoteType = serde_with::TryFromInto<VoteTypeTag>;
 #[serde(untagged)]
 pub enum ValueValues {
     Val(NonNilValue),
-    Nil(EmptyObject)
+    Nil(EmptyObject),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Hash)]
@@ -64,7 +63,7 @@ impl TryFrom<ValueTag> for Value {
             "Val" => match v.value {
                 ValueValues::Val(v) => Ok(Value::Val(v)),
                 ValueValues::Nil(_) => todo!(), // error
-            }
+            },
             _ => todo!(), // error
         }
     }
