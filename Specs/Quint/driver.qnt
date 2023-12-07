@@ -416,31 +416,39 @@ pure def recordStepChange (old: DriverState, new: DriverState) : DriverState = {
 
 // We do this if a step change of the consensus state machine was recorded
 pure def StepChange (es: DriverState) : (DriverState, ConsensusOutput) = {
-    if (es.pendingStepChange == "newRound")
+    // TODO: First add to pending precommitany if it exists
+    val newES = 
+        if (checkThreshold(es.bk, es.cs.round, "Precommit", anyThreshold)) 
+            val pend = ( {  name: "PolkaAny",
+                height: es.cs.height,
+                                    round: es.cs.round,
+                                    value: "",
+                                    vr: -1},
+                                es.cs.height,
+                                es.cs.round) 
+            { ...es, pendingInputs: es.pendingInputs.union(Set(pend))}
+        else es
+
+    // Then check proposal
+    val proposer = Proposer(es.valset, es.cs.height, es.cs.round)
+    val propSet = es.proposals.filter(x => x.src == proposer and x.height == es.cs.height and x.round == es.cs.round)
+    if (propSet != Set())
+        val proposal = propSet.fold(emptyProposal, (sum, y) => y) 
+                    // TODO:    If the proposer is faulty there might be multiple
+                    //          figure out what to do
+        val input = { ...defaultInput, name: "proposal", proposal: proposal}
+        ProposalMsg(es, input) 
+
+
+    // then go into step distinction but only consider rules without proposals
+
+    else if (es.pendingStepChange == "newRound")
 
             (es, defaultOutput)
 
     else if (es.pendingStepChange == "propose")
-        val proposer = Proposer(es.valset, es.cs.height, es.cs.round)
-        val propSet = es.proposals.filter(x => x.src == proposer and x.height == es.cs.height and x.round == es.cs.round)
-            if (propSet != Set())
-                val proposal = propSet.fold(emptyProposal, (sum, y) => y) 
-                    // TODO:    If the proposer is faulty there might be multiple
-                    //          figure out what to do
-                val input = { ...defaultInput, name: "proposal", proposal: proposal}
-                ProposalMsg(es, input) 
-            else    
-                // Rules that might apply if step is not restricted, and we don't have a proposal:
-                // - 47, 55.
-                // 55 would have executed before. 47 is unclear. 
-                // TODO: I can just check for anyThreshold
-                if (checkThreshold(es.bk, es.cs.round, "Precommit", anyThreshold))
-                    callConsensus(es, es.bk,  { name: "PrecommitAny",
-                                                height: es.cs.height,
-                                                round: es.cs.round,
-                                                value: "",
-                                                vr: -1})                        
-                else
+
+
                     (es, defaultOutput)
 
     else if (es.pendingStepChange == "Prevote")
