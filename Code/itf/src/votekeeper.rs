@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
 
-use crate::types::{Address, Height, NonNilValue, Round, Value, VoteType, Weight};
+use crate::types::{Address, Height, NonNilValue, Round, Value, Vote, Weight};
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(tag = "tag", content = "value")]
@@ -41,18 +41,6 @@ pub struct Bookkeeper {
     pub total_weight: Weight,
     #[serde(with = "As::<HashMap<Integer, Same>>")]
     pub rounds: HashMap<Round, RoundVotes>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Vote {
-    pub vote_type: VoteType,
-    #[serde(with = "As::<Integer>")]
-    pub height: Height,
-    #[serde(with = "As::<Integer>")]
-    pub round: Round,
-    pub value_id: Value,
-    pub src_address: Address,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
