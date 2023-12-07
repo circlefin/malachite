@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use malachite_common::{Context, Round, Value};
-use malachite_itf::votekeeper::State;
+use malachite_itf::types::{Value as ModelValue, VoteType};
+use malachite_itf::votekeeper::VoteKeeperOutput::*;
+use malachite_itf::votekeeper::{State, WeightedVote};
 use malachite_test::{Address, Height, TestContext, Vote};
 use malachite_vote::{
     keeper::{Output, VoteKeeper},
@@ -23,12 +25,11 @@ impl ItfRunner for VoteKeeperRunner {
     type Error = ();
 
     fn init(&mut self, expected: &Self::ExpectedState) -> Result<Self::ActualState, Self::Error> {
-        // Initialize VoteKeeper from the initial total_weight from the first state in the model.
-        let (input_vote, weight, current_round) = &expected.weighted_vote;
-        let round = Round::new(input_vote.round);
+        let height = expected.bookkeeper.height as u64;
+        let total_weight = expected.bookkeeper.total_weight as u64;
         println!(
-            "🔵 init: vote={:?}, round={:?}, value={:?}, address={:?}, weight={:?}, current_round={:?}",
-            input_vote.typ, round, input_vote.value, input_vote.address, weight, current_round
+            "🔵 init: height={:?}, total_weight={:?}",
+            height, total_weight
         );
         Ok(VoteKeeper::new(
             expected.bookkeeper.total_weight as u64,
@@ -41,24 +42,30 @@ impl ItfRunner for VoteKeeperRunner {
         actual: &mut Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
-        // Build step to execute.
-        let (input_vote, weight, current_round) = &expected.weighted_vote;
-        let round = Round::new(input_vote.round);
-        let height = Height::new(input_vote.height as u64);
-        let value = value_from_model(&input_vote.value);
-        let address = self.address_map.get(input_vote.address.as_str()).unwrap();
-        let vote = match input_vote.typ.as_str() {
-            "Prevote" => Vote::new_prevote(height, round, value, *address),
-            "Precommit" => Vote::new_precommit(height, round, value, *address),
-            _ => unreachable!(),
-        };
-        println!(
-            "🔵 step: vote={:?}, round={:?}, value={:?}, address={:?}, weight={:?}, current_round={:?}",
-            input_vote.typ, round, value, input_vote.address, weight, current_round
-        );
+        match &expected.weighted_vote {
+            WeightedVote::NoWeightedVote => Err(()),
+            WeightedVote::WV(input_vote, weight, current_round) => {
+                // Build step to execute.
+                let round = Round::new(input_vote.round);
+                let height = Height::new(input_vote.height as u64);
+                let value = value_from_model(&input_vote.value_id);
+                let address = self
+                    .address_map
+                    .get(input_vote.src_address.as_str())
+                    .unwrap();
+                let vote = match &input_vote.vote_type {
+                    VoteType::Prevote => Vote::new_prevote(height, round, value, *address),
+                    VoteType::Precommit => Vote::new_precommit(height, round, value, *address),
+                };
+                println!(
+                    "🔵 step: vote={:?}, round={:?}, value={:?}, address={:?}, weight={:?}, current_round={:?}",
+                    input_vote.vote_type, round, value, input_vote.src_address, weight, current_round
+                );
 
-        // Execute step.
-        Ok(actual.apply_vote(vote, *weight as u64, Round::new(*current_round)))
+                // Execute step.
+                Ok(actual.apply_vote(vote, *weight as u64, Round::new(*current_round)))
+            }
+        }
     }
 
     fn result_invariant(
@@ -66,36 +73,39 @@ impl ItfRunner for VoteKeeperRunner {
         result: &Self::Result,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
-        // Get expected result.
         let expected_result = &expected.last_emitted;
-        println!(
-            "🟣 result: model={:?}({:?},{:?}), code={:?}",
-            expected_result.name, expected_result.value, expected_result.round, result
-        );
-        // Check result against expected result.
         match result {
-            Some(result) => match result {
-                Output::PolkaValue(value) => {
-                    assert_eq!(expected_result.name, "PolkaValue");
+            Some(result) => match (result, expected_result) {
+                // TODO: check expected_round
+                (Output::PolkaNil, PolkaNilVKOutput(_expected_round)) => (),
+                (Output::PolkaAny, PolkaAnyVKOutput(_expected_round)) => (),
+                (
+                    Output::PolkaValue(value),
+                    PolkaValueVKOutput(_expected_round, expected_value),
+                ) => {
                     assert_eq!(
-                        value_from_model(&expected_result.value).as_ref(),
-                        Some(value)
+                        Some(value),
+                        value_from_model(&ModelValue::Val(expected_value.to_string())).as_ref()
                     );
                 }
-                Output::PrecommitValue(value) => {
-                    assert_eq!(expected_result.name, "PrecommitValue");
+                (Output::PrecommitAny, PrecommitAnyVKOutput(_expected_round)) => (),
+                (
+                    Output::PrecommitValue(value),
+                    PrecommitValueVKOutput(_expected_round, expected_value),
+                ) => {
                     assert_eq!(
-                        value_from_model(&expected_result.value).as_ref(),
-                        Some(value)
+                        Some(value),
+                        value_from_model(&ModelValue::Val(expected_value.to_string())).as_ref()
                     );
                 }
-                Output::SkipRound(round) => {
-                    assert_eq!(expected_result.name, "Skip");
-                    assert_eq!(&Round::new(expected_result.round), round);
+                (Output::SkipRound(round), SkipVKOutput(expected_round)) => {
+                    assert_eq!(round, &Round::new(*expected_round));
                 }
-                msg => assert_eq!(expected_result.name, format!("{msg:?}")),
+                (actual, expected) => {
+                    assert!(false, "actual: {:?}, expected: {:?}", actual, expected)
+                }
             },
-            None => assert_eq!(expected_result.name, "None"),
+            None => assert_eq!(*expected_result, NoVKOutput),
         }
         Ok(true)
     }
@@ -135,7 +145,16 @@ impl ItfRunner for VoteKeeperRunner {
             let mut event_count = HashMap::new();
 
             for event in expected_outputs {
-                let count = event_count.entry(event.name.clone()).or_insert(0);
+                let event_name = match event {
+                    PolkaAnyVKOutput(_) => "PolkaAny".into(),
+                    PolkaNilVKOutput(_) => "PolkaNil".into(),
+                    PolkaValueVKOutput(_, _) => "PolkaValue".into(),
+                    PrecommitAnyVKOutput(_) => "PrecommitAny".into(),
+                    PrecommitValueVKOutput(_, _) => "PrecommitValue".into(),
+                    SkipVKOutput(_) => "Skip".into(),
+                    _ => format!("{event:?}"),
+                };
+                let count = event_count.entry(event_name.clone()).or_insert(0);
                 *count += 1;
             }
 
