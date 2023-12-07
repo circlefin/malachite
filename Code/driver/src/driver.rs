@@ -17,7 +17,6 @@ use malachite_vote::ThresholdParams;
 use crate::input::Input;
 use crate::mux;
 use crate::output::Output;
-// use crate::proposals::Proposals;
 use crate::Error;
 use crate::ProposerSelector;
 use crate::Validity;
