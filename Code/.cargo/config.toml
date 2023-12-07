@@ -1,3 +1,3 @@
 [alias]
-mbt         = "nextest run -p malachite-itf --all-features"
-integration = "nextest run --workspace --exclude malachite-itf"
+mbt         = "nextest run -p malachite-itf --all-features --no-fail-fast"
+integration = "nextest run --workspace --exclude malachite-itf --no-fail-fast"
