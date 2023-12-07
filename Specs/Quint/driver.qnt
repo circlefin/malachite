@@ -75,7 +75,7 @@ val defaultInput: DriverInput = {
 
 // this is to match the type from the bookkeeper. When we add heights there we should
 // unify
-pure def toVote(v: Vote_t): VoteMsg = 
+pure def toVote(v: Vote_t): Vote = 
     val voteType = if (v.step == "Precommit") Precommit else Prevote
     val value = if (v.id == "nil") Nil else Val(v.id)
     { voteType: voteType, height: v.height, round: v.round, valueId: value, srcAddress: v.src }
@@ -267,7 +267,7 @@ pure def timeout(es: DriverState, input: DriverInput): (DriverState, ConsensusOu
     callConsensus(es, es.bk, csInput)
 
 // We do this if the driver receives a proposal
-pure def proposalMsg(es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) =
+pure def proposal(es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) =
     val newES = { ...es, proposals: es.proposals.union(Set(input.proposal))}
     if (input.proposal.src != Proposer(es.valset, input.proposal.height, input.proposal.round))
         // proposer does not match the height/round of the proposal
@@ -454,7 +454,7 @@ pure def setValue(es: DriverState, value: Value_t) : (DriverState, ConsensusOutp
 pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
     // TODO: shall we check whether the sender actually is in the validator set
     if (input.name == "proposal") {
-        val res = proposalMsg(es, input)
+        val res = proposal(es, input)
         if (res._2.name == "decided")
             decided (res._1, res._2)
         else if (res._2.name == "skipRound")

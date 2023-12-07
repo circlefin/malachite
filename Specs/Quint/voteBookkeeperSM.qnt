@@ -31,7 +31,7 @@ module voteBookkeeperSM  {
         nondet value = oneOf(VALUES.map(v => Val(v)).union(Set(Nil)))
         nondet address = oneOf(ADDRESS_WEIGHTS.keys())
         val height = INITIAL_HEIGHT
-        val vote: VoteMsg = mkVoteMsg(voteType, address, height, round, id(value))
+        val vote: Vote = mkVote(voteType, address, height, round, id(value))
         applyVoteAction(vote, ADDRESS_WEIGHTS.get(address), round)
 
     // ****************************************************************************

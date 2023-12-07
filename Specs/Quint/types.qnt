@@ -51,7 +51,7 @@ module types {
     // Messages
     // *************************************************************************
 
-    type ProposeMsg = {
+    type Proposal = {
         srcAddress: Address,
         height: Height,
         round: Round,
@@ -59,18 +59,18 @@ module types {
         validRound: Round,
     }
     
-    def mkProposeMsg(src, height, round, value, validRound) = 
+    def mkProposal(src, height, round, value, validRound) = 
         { srcAddress: src, height: height, round: round, proposal: value, validRound: validRound }
 
     type VoteType = Prevote | Precommit
-    type VoteMsg = {
+    type Vote = {
         voteType: VoteType,
         srcAddress: Address,
         height: Height,
         round: Round,
         valueId: ValueId,
     }
-    pure def mkVoteMsg(voteType, srcAddress, height, round, valueId) = 
+    pure def mkVote(voteType, srcAddress, height, round, valueId) = 
         { voteType: voteType, srcAddress: srcAddress, height: height, round: round, valueId: valueId }
 
 }

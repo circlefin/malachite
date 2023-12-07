@@ -12,7 +12,7 @@ module voteBookkeeper {
 
     type WeightedVote = 
         | NoWeightedVote 
-        | WV((VoteMsg, Weight, Round))
+        | WV((Vote, Weight, Round))
 
     type VoteCount = {
         totalWeight: Weight,
@@ -110,7 +110,7 @@ module voteBookkeeper {
     }
 
     // Adds a weighted vote to a voteCount if there is no vote registered for the voter.
-    pure def addVote(voteCount: VoteCount, vote: VoteMsg, weight: Weight): VoteCount =
+    pure def addVote(voteCount: VoteCount, vote: Vote, weight: Weight): VoteCount =
         if (vote.srcAddress.in(voteCount.votesAddresses))
             // Do not count vote if address has already voted.
             voteCount
@@ -222,7 +222,7 @@ module voteBookkeeper {
     // TO DISCUSS:
     // - There might be a problem if we generalize from single-shot to multi-shot: the keeper only keeps the totalWeight
     //   of the current height; I wonder if we need to keep the totalWeight for every Height that we may receive a vote for.
-    pure def applyVote(keeper: Bookkeeper, vote: VoteMsg, weight: Weight, currentRound: Round): { bookkeeper: Bookkeeper, output: VoteKeeperOutput } =
+    pure def applyVote(keeper: Bookkeeper, vote: Vote, weight: Weight, currentRound: Round): { bookkeeper: Bookkeeper, output: VoteKeeperOutput } =
         val round = vote.round
         val roundVotes = keeper.rounds.getOrElse(round, newRoundVotes(keeper.height, round, keeper.totalWeight))
         
@@ -361,7 +361,7 @@ module voteBookkeeper {
     }
 
     // The vote bookkeeper receives a weighted vote for a round, and produces an output.
-    action applyVoteAction(vote: VoteMsg, weight: Weight, currentRound: Round): bool =
+    action applyVoteAction(vote: Vote, weight: Weight, currentRound: Round): bool =
         // HV: currentRound should be taken from the bookkeeper?
         val output = applyVote(bookkeeper, vote, weight, currentRound)
         all {
