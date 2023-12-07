@@ -1,5 +1,3 @@
-use crate::proposals::Proposals;
-use crate::Validity;
 use malachite_common::ValueId;
 use malachite_common::{Context, Proposal, Round, Value, VoteType};
 use malachite_round::input::Input as RoundInput;
@@ -8,6 +6,9 @@ use malachite_round::state::Step;
 use malachite_vote::keeper::Output as VoteKeeperOutput;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
+
+use crate::proposals::Proposals;
+use crate::Validity;
 
 pub fn multiplex_proposal<Ctx>(
     round_state: &RoundState<Ctx>,
@@ -94,6 +95,42 @@ where
 
     Some(RoundInput::Proposal(proposal))
 }
+
+pub fn multiplex_on_vote_threshold<Ctx>(
+    new_threshold: VoteKeeperOutput<ValueId<Ctx>>,
+    proposals: &Proposals<Ctx>,
+) -> Option<RoundInput<Ctx>>
+where
+    Ctx: Context,
+{
+    let proposal = proposals.all().next();
+
+    if let Some(proposal) = proposal {
+        match new_threshold {
+            VoteKeeperOutput::PolkaAny => Some(RoundInput::PolkaAny),
+            VoteKeeperOutput::PolkaNil => Some(RoundInput::PolkaNil),
+            VoteKeeperOutput::PolkaValue(v) => {
+                if v == proposal.value().id() {
+                    Some(RoundInput::ProposalAndPolkaCurrent(proposal.clone()))
+                } else {
+                    Some(RoundInput::PolkaAny)
+                }
+            }
+            VoteKeeperOutput::PrecommitAny => Some(RoundInput::PrecommitAny),
+            VoteKeeperOutput::PrecommitValue(v) => {
+                if v == proposal.value().id() {
+                    Some(RoundInput::ProposalAndPrecommitValue(proposal.clone()))
+                } else {
+                    Some(RoundInput::PrecommitAny)
+                }
+            }
+            VoteKeeperOutput::SkipRound(r) => Some(RoundInput::SkipRound(r)),
+        }
+    } else {
+        None
+    }
+}
+
 pub fn multiplex_on_step_change<Ctx>(
     pending_step: Step,
     round: Round,
@@ -109,7 +146,6 @@ where
         Step::Prevote => {
             // TODO: What to do if multiple proposals?
             let proposal = proposals.all().next();
-            dbg!(&proposal);
 
             if has_polka_nil(votekeeper, round) {
                 Some(RoundInput::PolkaNil)
@@ -159,39 +195,4 @@ where
     Ctx: Context,
 {
     votekeeper.is_threshold_met(&round, VoteType::Prevote, Threshold::Any)
-}
-
-pub fn multiplex_on_vote_threshold<Ctx>(
-    new_threshold: VoteKeeperOutput<ValueId<Ctx>>,
-    proposals: &Proposals<Ctx>,
-) -> Option<RoundInput<Ctx>>
-where
-    Ctx: Context,
-{
-    let proposal = proposals.all().next();
-
-    if let Some(proposal) = proposal {
-        match new_threshold {
-            VoteKeeperOutput::PolkaAny => Some(RoundInput::PolkaAny),
-            VoteKeeperOutput::PolkaNil => Some(RoundInput::PolkaNil),
-            VoteKeeperOutput::PolkaValue(v) => {
-                if v == proposal.value().id() {
-                    Some(RoundInput::ProposalAndPolkaCurrent(proposal.clone()))
-                } else {
-                    Some(RoundInput::PolkaAny)
-                }
-            }
-            VoteKeeperOutput::PrecommitAny => Some(RoundInput::PrecommitAny),
-            VoteKeeperOutput::PrecommitValue(v) => {
-                if v == proposal.value().id() {
-                    Some(RoundInput::ProposalAndPrecommitValue(proposal.clone()))
-                } else {
-                    Some(RoundInput::PrecommitAny)
-                }
-            }
-            VoteKeeperOutput::SkipRound(r) => Some(RoundInput::SkipRound(r)),
-        }
-    } else {
-        None
-    }
 }

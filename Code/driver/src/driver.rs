@@ -157,6 +157,7 @@ where
         } else {
             self.round_state = RoundState::new(height, round);
         }
+
         self.apply_input(round, RoundInput::NewRound)
     }
 
@@ -203,10 +204,11 @@ where
         let vote_round = signed_vote.vote.round();
         let current_round = self.round();
 
-        let Some(vote_output) =
+        let vote_output =
             self.votes
-                .apply_vote(signed_vote.vote, validator.voting_power(), current_round)
-        else {
+                .apply_vote(signed_vote.vote, validator.voting_power(), current_round);
+
+        let Some(vote_output) = vote_output else {
             return Ok(None);
         };
 
