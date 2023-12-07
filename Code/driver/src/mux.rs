@@ -63,26 +63,11 @@ where
             let proposal = proposals.all().next();
             dbg!(&proposal);
 
-            // TODO: Cleanup
-            let has_polka_value = || {
-                proposal.and_then(|p| {
-                    if votekeeper.is_threshold_met(
-                        &round,
-                        VoteType::Prevote,
-                        Threshold::Value(p.value().id()),
-                    ) {
-                        Some(p)
-                    } else {
-                        None
-                    }
-                })
-            };
-
-            if votekeeper.is_threshold_met(&round, VoteType::Prevote, Threshold::Nil) {
+            if has_polka_nil(votekeeper, round) {
                 Some(RoundInput::PolkaNil)
-            } else if let Some(proposal) = has_polka_value() {
+            } else if let Some(proposal) = has_polka_value(proposal, votekeeper, round) {
                 Some(RoundInput::ProposalAndPolkaCurrent(proposal.clone()))
-            } else if votekeeper.is_threshold_met(&round, VoteType::Prevote, Threshold::Any) {
+            } else if has_polka_any(votekeeper, round) {
                 Some(RoundInput::PolkaAny)
             } else {
                 None
@@ -93,4 +78,37 @@ where
         Step::Precommit => None,
         Step::Commit => None,
     }
+}
+
+fn has_polka_nil<Ctx>(votekeeper: &VoteKeeper<Ctx>, round: Round) -> bool
+where
+    Ctx: Context,
+{
+    votekeeper.is_threshold_met(&round, VoteType::Prevote, Threshold::Nil)
+}
+
+fn has_polka_value<'p, Ctx>(
+    proposal: Option<&'p Ctx::Proposal>,
+    votekeeper: &VoteKeeper<Ctx>,
+    round: Round,
+) -> Option<&'p Ctx::Proposal>
+where
+    Ctx: Context,
+{
+    let proposal = proposal?;
+
+    votekeeper
+        .is_threshold_met(
+            &round,
+            VoteType::Prevote,
+            Threshold::Value(proposal.value().id()),
+        )
+        .then_some(proposal)
+}
+
+fn has_polka_any<Ctx>(votekeeper: &VoteKeeper<Ctx>, round: Round) -> bool
+where
+    Ctx: Context,
+{
+    votekeeper.is_threshold_met(&round, VoteType::Prevote, Threshold::Any)
 }

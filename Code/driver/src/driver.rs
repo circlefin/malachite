@@ -15,7 +15,7 @@ use malachite_vote::Threshold;
 use malachite_vote::ThresholdParams;
 
 use crate::input::Input;
-use crate::mixer;
+use crate::mux;
 use crate::output::Output;
 use crate::proposals::Proposals;
 use crate::Error;
@@ -330,7 +330,7 @@ where
         let info = Info::new(input_round, &self.address, proposer.address());
 
         // Multiplex the proposal if we have one already for the input round
-        let mux_input = mixer::multiplex_proposal(input, input_round, &self.proposals);
+        let mux_input = mux::multiplex_proposal(input, input_round, &self.proposals);
 
         // Apply the input to the round state machine
         let transition = round_state.apply(&info, mux_input);
@@ -338,7 +338,7 @@ where
         let pending_step = transition.next_state.step;
 
         if current_step != pending_step {
-            let pending_input = mixer::multiplex_on_step_change(
+            let pending_input = mux::multiplex_on_step_change(
                 pending_step,
                 input_round,
                 &self.votes,
