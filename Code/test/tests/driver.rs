@@ -83,7 +83,6 @@ fn driver_steps_proposer() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                // proposal: Some(proposal.clone()),
                 locked: None,
                 valid: None,
             },
@@ -97,7 +96,6 @@ fn driver_steps_proposer() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                // proposal: Some(proposal.clone()),
                 locked: None,
                 valid: None,
             },
@@ -114,7 +112,6 @@ fn driver_steps_proposer() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                // proposal: Some(proposal.clone()),
                 locked: None,
                 valid: None,
             },
@@ -134,7 +131,6 @@ fn driver_steps_proposer() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
-                // proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
                     value,
                     round: Round::new(0),
@@ -154,7 +150,6 @@ fn driver_steps_proposer() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
-                // proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
                     value,
                     round: Round::new(0),
@@ -177,7 +172,6 @@ fn driver_steps_proposer() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
-                // proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
                     value,
                     round: Round::new(0),
@@ -200,7 +194,6 @@ fn driver_steps_proposer() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Commit,
-                // proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
                     value,
                     round: Round::new(0),
@@ -307,7 +300,6 @@ fn driver_steps_not_proposer_valid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                // proposal: Some(proposal.clone()),
                 locked: None,
                 valid: None,
             },
@@ -321,7 +313,6 @@ fn driver_steps_not_proposer_valid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                // proposal: Some(proposal.clone()),
                 locked: None,
                 valid: None,
             },
@@ -338,7 +329,6 @@ fn driver_steps_not_proposer_valid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                // proposal: Some(proposal.clone()),
                 locked: None,
                 valid: None,
             },
@@ -358,7 +348,6 @@ fn driver_steps_not_proposer_valid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
-                // proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
                     value,
                     round: Round::new(0),
@@ -378,7 +367,6 @@ fn driver_steps_not_proposer_valid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
-                // proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
                     value,
                     round: Round::new(0),
@@ -401,7 +389,6 @@ fn driver_steps_not_proposer_valid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
-                // proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
                     value,
                     round: Round::new(0),
@@ -424,7 +411,6 @@ fn driver_steps_not_proposer_valid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Commit,
-                // proposal: Some(proposal.clone()),
                 locked: Some(RoundValue {
                     value,
                     round: Round::new(0),
