@@ -16,6 +16,7 @@ use malachite_vote::ThresholdParams;
 
 use crate::input::Input;
 use crate::output::Output;
+use crate::proposals::Proposals;
 use crate::Error;
 use crate::ProposerSelector;
 use crate::Validity;
@@ -33,6 +34,7 @@ where
 
     pub votes: VoteKeeper<Ctx>,
     pub round_state: RoundState<Ctx>,
+    pub proposals: Proposals<Ctx>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -57,6 +59,7 @@ where
             validator_set,
             votes,
             round_state: RoundState::default(),
+            proposals: Proposals::new(),
         }
     }
 
@@ -162,11 +165,14 @@ where
             return Ok(None);
         }
 
+        self.proposals.insert(proposal.clone());
+
         let polka_for_pol = self.votes.is_threshold_met(
             &proposal.pol_round(),
             VoteType::Prevote,
             Threshold::Value(proposal.value().id()),
         );
+
         let polka_previous = proposal.pol_round().is_defined()
             && polka_for_pol
             && proposal.pol_round() < self.round_state.round;
@@ -181,7 +187,7 @@ where
                     // L32
                     return self.apply_input(
                         proposal.round(),
-                        RoundInput::InvalidProposalAndPolkaPrevious(proposal.clone()),
+                        RoundInput::InvalidProposalAndPolkaPrevious(proposal),
                     );
                 } else {
                     return Ok(None);
@@ -201,13 +207,12 @@ where
         ) {
             return self.apply_input(
                 proposal.round(),
-                RoundInput::ProposalAndPrecommitValue(proposal.clone()),
+                RoundInput::ProposalAndPrecommitValue(proposal),
             );
         }
 
-        // If the proposal is for a different round drop the proposal
-        // TODO - this check is also done in the round state machine, decide where to do it
-        if self.round_state.round != proposal.round() {
+        // If the proposal is for a different round, drop the proposal
+        if self.round() != proposal.round() {
             return Ok(None);
         }
 
@@ -216,26 +221,28 @@ where
             VoteType::Prevote,
             Threshold::Value(proposal.value().id()),
         );
+
         let polka_current = polka_for_current && self.round_state.step >= Step::Prevote;
 
         // L36
         if polka_current {
             return self.apply_input(
                 proposal.round(),
-                RoundInput::ProposalAndPolkaCurrent(proposal.clone()),
+                RoundInput::ProposalAndPolkaCurrent(proposal),
             );
         }
 
         // L28
-        if polka_previous {
+        if self.round_state.step == Step::Propose && polka_previous {
+            // TODO: Check proposal vr is equal to threshold vr
             return self.apply_input(
                 proposal.round(),
-                RoundInput::ProposalAndPolkaPrevious(proposal.clone()),
+                RoundInput::ProposalAndPolkaPrevious(proposal),
             );
         }
 
         // TODO - Caller needs to store the proposal (valid or not) as the quorum (polka or commits) may be met later
-        self.apply_input(proposal.round(), RoundInput::Proposal(proposal.clone()))
+        self.apply_input(proposal.round(), RoundInput::Proposal(proposal))
     }
 
     fn apply_vote(
@@ -300,20 +307,29 @@ where
 
         let data = Info::new(input_round, &self.address, proposer.address());
 
-        // Multiplex the input with the round state.
+        // Multiplex the event with the round state.
         let mux_input = match input {
-            RoundInput::PolkaValue(value_id) => match round_state.proposal {
-                Some(ref proposal) if proposal.value().id() == value_id => {
+            RoundInput::PolkaValue(value_id) => {
+                let proposal = self.proposals.find(&value_id, |p| p.round() == input_round);
+
+                if let Some(proposal) = proposal {
+                    assert_eq!(proposal.value().id(), value_id);
                     RoundInput::ProposalAndPolkaCurrent(proposal.clone())
+                } else {
+                    RoundInput::PolkaAny
                 }
-                _ => RoundInput::PolkaAny,
-            },
-            RoundInput::PrecommitValue(value_id) => match round_state.proposal {
-                Some(ref proposal) if proposal.value().id() == value_id => {
+            }
+
+            RoundInput::PrecommitValue(value_id) => {
+                let proposal = self.proposals.find(&value_id, |p| p.round() == input_round);
+
+                if let Some(proposal) = proposal {
+                    assert_eq!(proposal.value().id(), value_id);
                     RoundInput::ProposalAndPrecommitValue(proposal.clone())
+                } else {
+                    RoundInput::PrecommitAny
                 }
-                _ => RoundInput::PrecommitAny,
-            },
+            }
 
             _ => input,
         };
@@ -339,6 +355,7 @@ where
             .field("address", &self.address)
             .field("validator_set", &self.validator_set)
             .field("votes", &self.votes)
+            .field("proposals", &self.proposals.proposals)
             .field("round_state", &self.round_state)
             .finish()
     }

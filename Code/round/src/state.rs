@@ -38,7 +38,6 @@ where
     pub round: Round,
 
     pub step: Step,
-    pub proposal: Option<Ctx::Proposal>,
     pub locked: Option<RoundValue<Ctx::Value>>,
     pub valid: Option<RoundValue<Ctx::Value>>,
 }
@@ -52,7 +51,6 @@ where
             height,
             round,
             step: Step::NewRound,
-            proposal: None,
             locked: None,
             valid: None,
         }
@@ -108,7 +106,6 @@ where
             height: self.height.clone(),
             round: self.round,
             step: self.step,
-            proposal: self.proposal.clone(),
             locked: self.locked.clone(),
             valid: self.valid.clone(),
         }
@@ -125,7 +122,6 @@ where
             .field("height", &self.round)
             .field("round", &self.round)
             .field("step", &self.step)
-            .field("proposal", &self.proposal)
             .field("locked", &self.locked)
             .field("valid", &self.valid)
             .finish()
@@ -141,7 +137,6 @@ where
         self.height == other.height
             && self.round == other.round
             && self.step == other.step
-            && self.proposal == other.proposal
             && self.locked == other.locked
             && self.valid == other.valid
     }

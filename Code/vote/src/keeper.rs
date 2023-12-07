@@ -118,24 +118,24 @@ where
         weight: Weight,
         current_round: Round,
     ) -> Option<Output<ValueId<Ctx>>> {
-        let round = self
+        let per_round = self
             .per_round
             .entry(vote.round())
             .or_insert_with(PerRound::new);
 
-        round.votes.add_vote(
+        per_round.votes.add_vote(
             vote.vote_type(),
             vote.validator_address().clone(),
             vote.value().clone(),
             weight,
         );
 
-        round
+        per_round
             .addresses_weights
             .set_once(vote.validator_address().clone(), weight);
 
         if vote.round() > current_round {
-            let combined_weight = round.addresses_weights.sum();
+            let combined_weight = per_round.addresses_weights.sum();
 
             let skip_round = self
                 .threshold_params
@@ -143,26 +143,26 @@ where
                 .is_met(combined_weight, self.total_weight);
 
             if skip_round {
-                let msg = Output::SkipRound(vote.round());
-                round.emitted_outputs.insert(msg.clone());
-                return Some(msg);
+                let output = Output::SkipRound(vote.round());
+                per_round.emitted_outputs.insert(output.clone());
+                return Some(output);
             }
         }
 
         let threshold = compute_threshold(
             vote.vote_type(),
-            round,
+            per_round,
             vote.value(),
             self.threshold_params.quorum,
             self.total_weight,
         );
 
-        let msg = threshold_to_output(vote.vote_type(), vote.round(), threshold);
+        let output = threshold_to_output(vote.vote_type(), vote.round(), threshold);
 
-        match msg {
-            Some(msg) if !round.emitted_outputs.contains(&msg) => {
-                round.emitted_outputs.insert(msg.clone());
-                Some(msg)
+        match output {
+            Some(output) if !per_round.emitted_outputs.contains(&output) => {
+                per_round.emitted_outputs.insert(output.clone());
+                Some(output)
             }
             _ => None,
         }

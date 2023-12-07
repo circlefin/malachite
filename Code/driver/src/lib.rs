@@ -18,6 +18,7 @@ mod driver;
 mod error;
 mod input;
 mod output;
+mod proposals;
 mod proposer;
 mod util;
 
