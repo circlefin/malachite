@@ -10,7 +10,6 @@ module driver {
 import types.* from "./types"
 import consensus.* from "./consensus"
 import voteBookkeeper.* from "./voteBookkeeper"
-export voteBookkeeper.*
 
 type DriverState = {
     bk : Bookkeeper,
@@ -35,7 +34,7 @@ pure def initDriver  (v: Address_t, vs: Address_t -> int) : DriverState = {
     executedInputs: List(),
     pendingInputs: Set(),
     started: false,
-    voteKeeperOutput: toVoteKeeperOutput(0, Prevote, UnreachedThreshold), // debug
+    voteKeeperOutput: NoVKOutput, // debug
     chain : List(),
     nextValueToPropose: "", 
     }
@@ -144,7 +143,7 @@ pure def ListContains(list, value) =
     list.foldl(false, (s,x) => s or x == value)
 
 // check whether the event has been already sent to consensus. If not, do so.
-pure def callConsensus(es: DriverState, bk: Bookkeeper, csInput: ConsensusInput) : (DriverState, ConsensusOutput) =
+pure def callConsensus (es: DriverState, bk: Bookkeeper, csInput: ConsensusInput) : (DriverState, ConsensusOutput) = {
     // Check whether we already executed the event already
     if (es.executedInputs.ListContains((csInput, es.cs.height, es.cs.round)))
         ({ ...es, bk: bk, cs: es.cs }, defaultOutput)
@@ -155,20 +154,21 @@ pure def callConsensus(es: DriverState, bk: Bookkeeper, csInput: ConsensusInput)
         val csInputs = es.executedInputs.append((csInput, res.cs.height, res.cs.round))
 
         ({ ...es, bk: bk, cs: res.cs, executedInputs: csInputs }, res.out)
+}
 
-// We do this if the executor receives a Precommit
+
+// We do this if the driver receives a Precommit
 pure def precommit(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutput): (DriverState, ConsensusOutput) =
     match vkOutput {
         | PrecommitValueVKOutput(round_value) =>
             val round = round_value._1
             val value = round_value._2
             if (es.proposals.exists(x => round == x.round and value == id(x.proposal)))
-                val csInput: ConsensusInput = { name : "ProposalAndCommitAndValid",
+                callConsensus(es, es.bk, {  name : "ProposalAndCommitAndValid",
                                             height : input.vote.height,
                                             round: input.vote.round,
                                             value: input.vote.id,
-                                            vr: -1}
-                callConsensus(es, es.bk, csInput)
+                                            vr: -1})
             else if (round == es.cs.round)
                 callConsensus(es, es.bk,  { name: "PrecommitAny",
                                             height: input.vote.height,
@@ -187,20 +187,18 @@ pure def precommit(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutp
             else (es, defaultOutput)
         | PrecommitAnyVKOutput(round) =>
             if (round == es.cs.round)
-                val csInput: ConsensusInput = { name: "PrecommitAny",
+                callConsensus(es, es.bk,  { name: "PrecommitAny",
                                             height: input.vote.height,
                                             round: input.vote.round,
                                             value: input.vote.id,
-                                            vr: -1}
-                callConsensus(es, es.bk, csInput)
+                                            vr: -1})
             else (es, defaultOutput)
 
         // none of the supported Precommit events. Do nothing
-        // TODO: catch skip round event
         | _ => (es, defaultOutput)
     }
 
-// We do this if the executor receives a Prevote
+// We do this if the driver receives a Prevote
 pure def prevote(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutput): (DriverState, ConsensusOutput) =
     // TODO: events do not have heights now.
     // TODO: Polka implications missing.
@@ -217,41 +215,62 @@ pure def prevote(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutput
                                                 value: value,
                                                 vr: round})   
                                                 // TODO: the value should come from the proposal   
-            else if (round == es.cs.round and
-                    es.proposals.exists(p => p.round == es.cs.round and
+            else if (round == es.cs.round)
+                if (es.proposals.exists(p => p.round == es.cs.round and
                     id(p.proposal) == value)) 
-                    callConsensus(es, es.bk, {  name: "ProposalAndPolkaAndValid",
+                    val pend = (  {  name: "ProposalAndPolkaAndValid",
+                                                height: es.cs.height,
+                                                round: es.cs.round,
+                                                value: value,
+                                                vr: round}, es.cs.height, es.cs.round)   
+                    callConsensus( { ...es,  pendingInputs: es.pendingInputs.union(Set(pend)) },
+                                    es.bk, 
+                                    {   name: "PolkaAny",
+                                        height: es.cs.height,
+                                        round: es.cs.round,
+                                        value: value,
+                                        vr: round})   
+                else
+                    // there is no matching proposal
+                    callConsensus(es, es.bk, {  name: "PolkaAny",
                                                 height: es.cs.height,
                                                 round: es.cs.round,
                                                 value: value,
                                                 vr: round})   
-            else
-                // we don't have a matching proposal so we do nothing
-                // TODO: we might check whether it is for a future round and jump
-                (es, defaultOutput)
+
+            // It is for a future round
+            // TODO: we might check whether it is for a future round and jump
+            else (es, defaultOutput)
+
         | PolkaAnyVKOutput(round) =>
             if (round == es.cs.round)
                     // call consensus and remember that we did it
                     callConsensus(es, es.bk, {  name: "PolkaAny",
                                                 height: es.cs.height,
                                                 round: es.cs.round,
-                                                value: "", // CHECK: what value?
+                                                value: "nil", // CHECK: what value to use here?
                                                 vr: round})  
-            else
-                // TODO: we might check whether it is for a future round and jump
-                (es, defaultOutput)
+            // TODO: we might check whether it is for a future round and jump
+            else (es, defaultOutput)
+                
         | PolkaNilVKOutput(round) => 
             if (round == es.cs.round)
                 callConsensus(es, es.bk,  { name: "PolkaNil",
                                             height: es.cs.height,
                                             round: es.cs.round,
                                             value: "nil",
-                                            vr: round})  
-            else
-                (es, defaultOutput)
+                                            vr: round})
+            else (es, defaultOutput)
+
+        | SkipVKOutput(round) => 
+            if (round > es.cs.round)
+                callConsensus(es, es.bk,  { name: "RoundSkip",
+                                            height: input.vote.height,
+                                            round: input.vote.round,
+                                            value: input.vote.id,
+                                            vr: -1}) 
+            else (es, defaultOutput)
         
-        // TODO: catch skip round event
-        | SkipVKOutput(_) => (es, defaultOutput)
         | _ => (es, defaultOutput)
     }
 
