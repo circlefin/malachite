@@ -51,13 +51,17 @@ where
 /// Valid transitions result in at least a change to the state and/or an output.
 ///
 /// Commented numbers refer to line numbers in the spec paper.
+#[tracing::instrument(skip_all)]
 pub fn apply<Ctx>(state: State<Ctx>, info: &Info<Ctx>, input: Input<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
     let this_round = state.round == info.input_round;
 
-    match (state.step, input) {
+    tracing::debug!("<== step: {:?}, round: {}", state.step, state.round,);
+    tracing::debug!("<== input: {input:?}, round: {}", info.input_round);
+
+    let transition = match (state.step, input) {
         //
         // From NewRound. Input must be for current round.
         //
@@ -195,7 +199,11 @@ where
 
         // Invalid transition.
         _ => Transition::invalid(state),
-    }
+    };
+
+    tracing::debug!("==> transitioning to: {:?}", transition.next_state.step);
+
+    transition
 }
 
 //---------------------------------------------------------------------

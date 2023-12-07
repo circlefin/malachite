@@ -84,11 +84,16 @@ where
         Ok(proposer)
     }
 
-    pub async fn execute(&mut self, msg: Input<Ctx>) -> Result<Option<Output<Ctx>>, Error<Ctx>> {
-        let round_output = match self.apply(msg).await? {
+    #[tracing::instrument(skip_all)]
+    pub async fn execute(&mut self, input: Input<Ctx>) -> Result<Option<Output<Ctx>>, Error<Ctx>> {
+        tracing::debug!("executing input");
+
+        let round_output = match self.apply(input).await? {
             Some(msg) => msg,
             None => return Ok(None),
         };
+
+        tracing::debug!("post-processing output");
 
         let output = match round_output {
             RoundOutput::NewRound(round) => Output::NewRound(self.height().clone(), round),
@@ -128,6 +133,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn apply_new_round(
         &mut self,
         height: Ctx::Height,
@@ -142,6 +148,7 @@ where
         self.apply_input(round, RoundInput::NewRound)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn apply_propose_value(
         &mut self,
         round: Round,
@@ -150,6 +157,7 @@ where
         self.apply_input(round, RoundInput::ProposeValue(value))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn apply_proposal(
         &mut self,
         proposal: Ctx::Proposal,
@@ -245,6 +253,7 @@ where
         self.apply_input(proposal.round(), RoundInput::Proposal(proposal))
     }
 
+    #[tracing::instrument(skip_all)]
     fn apply_vote(
         &mut self,
         signed_vote: SignedVote<Ctx>,
@@ -286,6 +295,7 @@ where
         self.apply_input(vote_round, round_input)
     }
 
+    #[tracing::instrument(skip_all)]
     fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let input = match timeout.step {
             TimeoutStep::Propose => RoundInput::TimeoutPropose,
@@ -297,6 +307,7 @@ where
     }
 
     /// Apply the input, update the state.
+    #[tracing::instrument(skip_all)]
     fn apply_input(
         &mut self,
         input_round: Round,

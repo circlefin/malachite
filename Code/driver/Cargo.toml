@@ -14,3 +14,4 @@ malachite-round  = { version = "0.1.0", path = "../round" }
 malachite-vote   = { version = "0.1.0", path = "../vote" }
 
 async-trait.workspace = true
+tracing.workspace     = true

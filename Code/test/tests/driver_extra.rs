@@ -1,4 +1,5 @@
 use futures::executor::block_on;
+use test_log::test;
 
 use malachite_common::Round;
 use malachite_driver::{Driver, Input, Output, Validity};

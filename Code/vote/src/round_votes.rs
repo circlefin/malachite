@@ -1,3 +1,5 @@
+use core::fmt::Debug;
+
 use malachite_common::VoteType;
 
 use crate::count::VoteCount;
@@ -26,6 +28,7 @@ impl<Address, Value> RoundVotes<Address, Value> {
         &self.precommits
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn add_vote(
         &mut self,
         vote_type: VoteType,
@@ -34,8 +37,8 @@ impl<Address, Value> RoundVotes<Address, Value> {
         weight: Weight,
     ) -> Weight
     where
-        Address: Clone + Ord,
-        Value: Clone + Ord,
+        Address: Clone + Debug + Ord,
+        Value: Clone + Debug + Ord,
     {
         match vote_type {
             VoteType::Prevote => self.prevotes.add(address, value, weight),

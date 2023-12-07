@@ -112,12 +112,18 @@ where
     }
 
     /// Apply a vote with a given weight, potentially triggering an output.
+    #[tracing::instrument(skip_all)]
     pub fn apply_vote(
         &mut self,
         vote: Ctx::Vote,
         weight: Weight,
         current_round: Round,
     ) -> Option<Output<ValueId<Ctx>>> {
+        tracing::debug!(
+            "applying vote {:?} with weight {weight} in round {current_round}",
+            vote.vote_type(),
+        );
+
         let per_round = self
             .per_round
             .entry(vote.round())
@@ -135,6 +141,12 @@ where
             .set_once(vote.validator_address().clone(), weight);
 
         if vote.round() > current_round {
+            tracing::debug!(
+                "vote is for a higher round {} > {}",
+                vote.round(),
+                current_round
+            );
+
             let combined_weight = per_round.addresses_weights.sum();
 
             let skip_round = self
@@ -143,6 +155,8 @@ where
                 .is_met(combined_weight, self.total_weight);
 
             if skip_round {
+                tracing::debug!("skipping round because of f+1 threshold");
+
                 let output = Output::SkipRound(vote.round());
                 per_round.emitted_outputs.insert(output.clone());
                 return Some(output);
@@ -156,6 +170,8 @@ where
             self.threshold_params.quorum,
             self.total_weight,
         );
+
+        tracing::debug!("threshold: {threshold:?}");
 
         let output = threshold_to_output(vote.vote_type(), vote.round(), threshold);
 

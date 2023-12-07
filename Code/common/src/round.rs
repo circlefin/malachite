@@ -1,4 +1,4 @@
-use core::cmp;
+use core::{cmp, fmt};
 
 /// A round number.
 ///
@@ -72,6 +72,15 @@ impl PartialOrd for Round {
 impl Ord for Round {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.as_i64().cmp(&other.as_i64())
+    }
+}
+
+impl fmt::Display for Round {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Round::Nil => write!(f, "nil"),
+            Round::Some(r) => write!(f, "{r}"),
+        }
     }
 }
 

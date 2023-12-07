@@ -1,4 +1,6 @@
 use futures::executor::block_on;
+use test_log::test;
+
 use malachite_test::utils::{make_validators, FixedProposer, RotateProposer};
 
 use malachite_common::{Round, Timeout, TimeoutStep};

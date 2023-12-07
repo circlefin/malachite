@@ -1,4 +1,5 @@
 use alloc::collections::BTreeSet;
+use core::fmt::Debug;
 
 use crate::value_weights::ValuesWeights;
 use crate::{Threshold, ThresholdParam, Weight};
@@ -26,16 +27,24 @@ impl<Address, Value> VoteCount<Address, Value> {
     /// a vote from that particular validator yet.
     pub fn add(&mut self, address: Address, value: Option<Value>, weight: Weight) -> Weight
     where
-        Address: Clone + Ord,
-        Value: Clone + Ord,
+        Address: Clone + Debug + Ord,
+        Value: Clone + Debug + Ord,
     {
+        tracing::debug!("adding vote");
+
         let already_voted = !self.validator_addresses.insert(address);
 
-        if !already_voted {
+        let new_weight = if !already_voted {
+            tracing::debug!("validator has not voted yet");
             self.values_weights.add(value, weight)
         } else {
+            tracing::debug!("validator has already voted");
             self.values_weights.get(&value)
-        }
+        };
+
+        tracing::debug!("new weight: {new_weight}");
+
+        new_weight
     }
 
     pub fn get(&self, value: &Option<Value>) -> Weight
