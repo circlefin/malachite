@@ -13,7 +13,6 @@ module voteBookkeeperSM  {
     // ************************************************************************
 
     const INITIAL_HEIGHT: Height
-    const INITIAL_ROUND: Round
     const INITIAL_TOTAL_WEIGHT: Weight
     const ADDRESS_WEIGHTS: Address -> Weight // an address has a constant weight during a height
     const ROUNDS: Set[Round]
@@ -24,7 +23,7 @@ module voteBookkeeperSM  {
     // ************************************************************************
 
     action init = 
-        initWith(INITIAL_HEIGHT, INITIAL_ROUND, INITIAL_TOTAL_WEIGHT)
+        initWith(INITIAL_HEIGHT, INITIAL_TOTAL_WEIGHT)
     
     action step = 
         nondet voteType = oneOf(Set(Prevote, Precommit))
@@ -66,7 +65,6 @@ module voteBookkeeperModels {
     
     import voteBookkeeperSM(
         INITIAL_HEIGHT = 1,
-        INITIAL_ROUND = 0,
         INITIAL_TOTAL_WEIGHT = 100,
         ADDRESS_WEIGHTS = Map("alice" -> 10, "bob" -> 30, "john" -> 60),
         ROUNDS = 0.to(2),

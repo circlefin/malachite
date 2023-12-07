@@ -16,7 +16,7 @@ module voteBookkeeperTest {
     // all messages are received in order. We assume three validators in the validator set with 60%, 30% and 10%
     // each of the total voting power
     run synchronousConsensusTest =
-        initWith(1, 1, 100)
+        initWith(1, 100)
         .then(applyVoteAction(mkVoteMsg(Prevote, "alice", 1, 1, Val("v1")), 60, 1))
         .then(_assert(lastEmitted == NoVKOutput))
         .then(applyVoteAction(mkVoteMsg(Prevote, "john", 1, 1, Val("v1")), 10, 1))
@@ -32,7 +32,7 @@ module voteBookkeeperTest {
 
     // Reaching PolkaAny 
     run polkaAnyTest =
-        initWith(1, 1, 100)
+        initWith(1, 100)
         .then(applyVoteAction(mkVoteMsg(Prevote, "alice", 1, 1, Val("v1")), 60, 1))
         .then(_assert(lastEmitted == NoVKOutput))
         .then(applyVoteAction(mkVoteMsg(Prevote, "john", 1, 1, Nil), 10, 1))
@@ -40,7 +40,7 @@ module voteBookkeeperTest {
 
     // Reaching PolkaNil
     run polkaNilTest =
-        initWith(1, 1, 100)
+        initWith(1, 100)
         .then(applyVoteAction(mkVoteMsg(Prevote, "alice", 1, 1, Nil), 60, 1))
         .then(_assert(lastEmitted == NoVKOutput))
         .then(applyVoteAction(mkVoteMsg(Prevote, "john", 1, 1, Nil), 10, 1))
@@ -48,7 +48,7 @@ module voteBookkeeperTest {
 
     // Reaching Skip via n+1 threshold with prevotes from two validators at a future round
     run skipSmallQuorumAllPrevotesTest =
-        initWith(1, 1, 100)
+        initWith(1, 100)
         .then(applyVoteAction(mkVoteMsg(Prevote, "alice", 1, 1, Val("v1")), 60, 1))
         .then(_assert(lastEmitted == NoVKOutput))
         .then(applyVoteAction(mkVoteMsg(Prevote, "john", 1, 2, Val("v1")), 10, 1))
@@ -58,7 +58,7 @@ module voteBookkeeperTest {
 
     // Cannot reach Skip via f+1 threshold with one prevote and one precommit from the same validator at a future round
     run noSkipSmallQuorumMixedVotesSameValTest =
-        initWith(1, 1, 90)
+        initWith(1, 90)
         .then(applyVoteAction(mkVoteMsg(Prevote, "alice", 1, 1, Val("v1")), 10, 1))
         .then(_assert(lastEmitted == NoVKOutput))
         .then(applyVoteAction(mkVoteMsg(Prevote, "john", 1, 2, Val("v1")), 20, 1))
@@ -68,7 +68,7 @@ module voteBookkeeperTest {
 
     // Reaching Skip via f+1 threshold with one prevote and one precommit from two validators at a future round
     run skipSmallQuorumMixedVotesTwoValsTest =
-        initWith(1, 1, 80)
+        initWith(1, 80)
         .then(applyVoteAction(mkVoteMsg(Prevote, "alice", 1, 1, Val("v1")), 50, 1))
         .then(_assert(lastEmitted == NoVKOutput))
         .then(applyVoteAction(mkVoteMsg(Prevote, "john", 1, 2, Val("v1")), 10, 1))
@@ -78,7 +78,7 @@ module voteBookkeeperTest {
         
     // Reaching Skip via 2f+1 threshold with a single prevote from a single validator at a future round
     run skipQuorumSinglePrevoteTest =
-        initWith(1, 1, 100)
+        initWith(1, 100)
         .then(applyVoteAction(mkVoteMsg(Prevote, "alice", 1, 1, Val("v1")), 10, 1))
         .then(_assert(lastEmitted == NoVKOutput))
         .then(applyVoteAction(mkVoteMsg(Prevote, "john", 1, 2, Val("v1")), 60, 1))
@@ -86,7 +86,7 @@ module voteBookkeeperTest {
 
     // Reaching Skip via 2f+1 threshold with a single precommit from a single validator at a future round
     run skipQuorumSinglePrecommitTest =
-        initWith(1, 1, 100)
+        initWith(1, 100)
         .then(applyVoteAction(mkVoteMsg(Prevote, "alice", 1, 1, Val("v1")), 10, 1))
         .then(_assert(lastEmitted == NoVKOutput))
         .then(applyVoteAction(mkVoteMsg(Precommit, "john", 1, 2, Val("v1")), 60, 1))
@@ -94,7 +94,7 @@ module voteBookkeeperTest {
 
     // Cannot reach Skip via 2f+1 threshold with one prevote and one precommit from the same validator at a future round
     run noSkipQuorumMixedVotesSameValTest =
-        initWith(1, 1, 100)
+        initWith(1, 100)
         .then(applyVoteAction(mkVoteMsg(Prevote, "alice", 1, 1, Val("v1")), 10, 1))
         .then(_assert(lastEmitted == NoVKOutput))
         .then(applyVoteAction(mkVoteMsg(Prevote, "john", 1, 2, Val("v1")), 30, 1))
@@ -104,7 +104,7 @@ module voteBookkeeperTest {
 
     // Reaching Skip via 2f+1 threshold with one prevote and one precommit from two validators at a future round
     run skipQuorumMixedVotesTwoValsTest =
-        initWith(1, 1, 80)
+        initWith(1, 80)
         .then(applyVoteAction(mkVoteMsg(Prevote, "alice", 1, 1, Val("v1")), 20, 1))
         .then(_assert(lastEmitted == NoVKOutput))
         .then(applyVoteAction(mkVoteMsg(Prevote, "john", 1, 2, Val("v1")), 10, 1))

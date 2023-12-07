@@ -28,7 +28,7 @@ type DriverState = {
 pure def initDriver  (v: Address_t, vs: Address_t -> int) : DriverState = {
     val tvp = vs.keys().fold(0, (sum, key) => sum + vs.get(key))
     {
-    bk: initBookKeeper(0, 0, tvp),
+    bk: initBookKeeper(0, tvp),
     cs: initConsensusState(v),
     proposals: Set(),
     valset: vs,

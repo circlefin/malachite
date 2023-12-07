@@ -51,7 +51,7 @@ module voteBookkeeper {
         rounds: Round -> RoundVotes
     }
 
-    pure def initBookKeeper(initialHeight: Height, initialRound: Round, totalVotingPower: Weight): Bookkeeper = { 
+    pure def initBookKeeper(initialHeight: Height, totalVotingPower: Weight): Bookkeeper = { 
         height: initialHeight, 
         totalWeight: totalVotingPower, 
         rounds: Map()
@@ -354,9 +354,9 @@ module voteBookkeeper {
         lastEmitted' = lastEmitted,
     }
 
-    action initWith(initialHeight: Height, initialRound: Round, totalWeight: Weight): bool = all {
+    action initWith(initialHeight: Height, initialTotalWeight: Weight): bool = all {
         weightedVote' = NoWeightedVote,
-        bookkeeper' = initBookKeeper(10, initialRound, totalWeight),
+        bookkeeper' = initBookKeeper(initialHeight, initialTotalWeight),
         lastEmitted' = NoVKOutput,
     }
 
