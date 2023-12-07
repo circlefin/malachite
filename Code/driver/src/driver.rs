@@ -255,7 +255,7 @@ where
                 &self.proposals,
             );
 
-            dbg!(&pending_input);
+            println!("multiplex_on_step_change: {pending_input:?}");
 
             self.pending_input = pending_input.map(|input| (input_round, input));
         }

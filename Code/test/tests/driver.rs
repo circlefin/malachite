@@ -1132,6 +1132,11 @@ fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
             .unwrap_or_else(|| input_from_prev_output.unwrap());
 
         let mut outputs = block_on(driver.process(input)).expect("execute succeeded");
+
+        if outputs.len() > 1 {
+            dbg!(&outputs);
+        }
+
         let output = outputs.pop();
 
         assert_eq!(output, step.expected_output, "expected output");
