@@ -127,7 +127,14 @@ where
             VoteKeeperOutput::SkipRound(r) => Some(RoundInput::SkipRound(r)),
         }
     } else {
-        None
+        match new_threshold {
+            VoteKeeperOutput::PolkaAny => Some(RoundInput::PolkaAny),
+            VoteKeeperOutput::PolkaNil => Some(RoundInput::PolkaNil),
+            VoteKeeperOutput::PolkaValue(_) => None,
+            VoteKeeperOutput::PrecommitAny => Some(RoundInput::PrecommitAny),
+            VoteKeeperOutput::PrecommitValue(_) => None,
+            VoteKeeperOutput::SkipRound(r) => Some(RoundInput::SkipRound(r)),
+        }
     }
 }
 
