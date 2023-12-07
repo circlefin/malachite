@@ -48,7 +48,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: Code/lcov.info
           flags: integration
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
   mbt-coverage:
     name: MBT
@@ -84,4 +84,4 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: Code/lcov.info
           flags: mbt
-          fail_ci_if_error: true
+          fail_ci_if_error: false
