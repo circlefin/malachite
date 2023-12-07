@@ -1,5 +1,5 @@
 // ****************************************************************************
-// Vote Bookkeeper State machine
+// Vote Bookkeeper State Machine
 // **************************************************************************** 
 
 module voteBookkeeperSM  {
@@ -60,6 +60,10 @@ module voteBookkeeperSM  {
     val emitSkip = not(emitSkipState)
 
 }
+
+// ****************************************************************************
+// Vote Bookkeeper Models
+// **************************************************************************** 
 
 module voteBookkeeperModels {
     

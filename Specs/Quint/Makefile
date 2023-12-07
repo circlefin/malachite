@@ -25,7 +25,7 @@ verify:
 	npx @informalsystems/quint verify --max-steps 10 \
 		--main voteBookkeeperModels --init=VK1::init --step=VK1::step \
 		--invariant VK1::Inv \
-		voteBookkeeperSM.qnt
+		voteBookkeeperModels.qnt
 .PHONY: verify
 
 # Generate traces by random simulation from properties describing the last desired state.

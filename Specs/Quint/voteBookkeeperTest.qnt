@@ -2,7 +2,6 @@ module voteBookkeeperTest {
 
     import types.* from "./types"
     import voteBookkeeper.* from "./voteBookkeeper"
-    export voteBookkeeper.*
 
     // ****************************************************************************
     // Tests
