@@ -194,11 +194,23 @@ pure def precommit(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutp
                                             vr: -1})
             else (es, defaultOutput)
 
+        | SkipVKOutput(round) => 
+            if (round > es.cs.round)
+                callConsensus(es, es.bk,  { name: "RoundSkip",
+                                            height: input.vote.height,
+                                            round: input.vote.round,
+                                            value: input.vote.id,
+                                            vr: -1}) 
+                else (es, defaultOutput)
+
         // none of the supported Precommit events. Do nothing
         | _ => (es, defaultOutput)
     }
 
 // We do this if the driver receives a Prevote
+// TODO: input is only used for the Skip case. We could just use the round provided in
+// SkipVKOutput(round), which is equal to input.vote.id. The height should probably also be 
+// recorded in the VoteKeeper output.
 pure def prevote(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutput): (DriverState, ConsensusOutput) =
     // TODO: events do not have heights now.
     // TODO: Polka implications missing.
@@ -248,7 +260,7 @@ pure def prevote(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutput
                     callConsensus(es, es.bk, {  name: "PolkaAny",
                                                 height: es.cs.height,
                                                 round: es.cs.round,
-                                                value: "nil", // CHECK: what value to use here?
+                                                value: "???", // CHECK: what value to use here?
                                                 vr: round})  
             // TODO: we might check whether it is for a future round and jump
             else (es, defaultOutput)
