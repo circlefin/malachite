@@ -130,9 +130,9 @@ where
         match new_threshold {
             VoteKeeperOutput::PolkaAny => Some(RoundInput::PolkaAny),
             VoteKeeperOutput::PolkaNil => Some(RoundInput::PolkaNil),
-            VoteKeeperOutput::PolkaValue(_) => None,
+            VoteKeeperOutput::PolkaValue(_) => Some(RoundInput::PolkaAny),
             VoteKeeperOutput::PrecommitAny => Some(RoundInput::PrecommitAny),
-            VoteKeeperOutput::PrecommitValue(_) => None,
+            VoteKeeperOutput::PrecommitValue(_) => Some(RoundInput::PrecommitAny),
             VoteKeeperOutput::SkipRound(r) => Some(RoundInput::SkipRound(r)),
         }
     }
