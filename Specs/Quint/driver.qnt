@@ -82,9 +82,6 @@ pure def toVote(v: Vote_t): VoteMsg =
 
 val defaultConsensusInput : ConsensusInput = { name : "", height : 0, round: 0, value: "", vr: 0 }    
 
-// efficient hashing function
-pure def id(v) = v
-
 /*
 encode the following decision tree
 
