@@ -59,6 +59,17 @@ pure def initNode  (v: Address, vs: Address -> int) : NodeState = {
     incomingProposals: Set(),
 }
 
+pure def existsTimeout(state: NodeState): bool =
+    state.timeout.exists(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
+
+// Pick an outstanding timeout and remove it from the incoming list.
+pure def pickTimeout(state: NodeState): (NodeState, DriverInput) =
+    val timeouts = state.timeout.filter(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
+    // val someTimeout = timeouts.chooseSome()
+    val someTimeout: Timeout = timeouts.fold(("", 0, 0), (sum, y) => y)
+    val newstate = { ...state, timeout: state.timeout.exclude(Set(someTimeout))}
+    (newstate, TimeoutDInput(someTimeout._1))
+
 type DriverInput = 
     | NoDInput
     | ProposalDInput(Proposal)
@@ -420,15 +431,8 @@ pure def nextAction(state: NodeState): (NodeState, DriverInput) =
         val newstate = { ...state, incomingVotes: state.incomingVotes.exclude(Set(vote))}
         (newstate, VoteDInput(vote))
 
-    else if (state.timeout.exists(x => x._2 == state.es.cs.height and 
-        x._3 == state.es.cs.round))
-        // pick timeout, remove it from incoming
-        val timeouts = state.timeout.filter(x => x._2 == state.es.cs.height and 
-            x._3 == state.es.cs.round)
-        // val timeout = timeouts.chooseSome()
-        val someTimeout = timeouts.fold(("", 0, 0), (sum, y) => y)
-        val newstate = { ...state, timeout: state.timeout.exclude(Set(someTimeout))}
-        (newstate, TimeoutDInput(someTimeout._1))
+    else if (state.existsTimeout())
+        state.pickTimeout()
 
     else
         (state, NoDInput)
@@ -457,15 +461,8 @@ pure def nextActionCommand (state: NodeState, command: str) : (NodeState, Driver
         val newstate = { ...state, incomingVotes: state.incomingVotes.exclude(Set(vote))}
         (newstate, VoteDInput(vote))
 
-    else if (command == "timeout" and state.timeout.exists(x => x._2 == state.es.cs.height and 
-        x._3 == state.es.cs.round))
-        // pick timeout, remove it from incoming
-        val timeouts = state.timeout.filter(x => x._2 == state.es.cs.height and 
-            x._3 == state.es.cs.round)
-        // val timeout = timeouts.chooseSome()
-        val someTimeout = timeouts.fold(("", 0, 0), (sum, y) => y)
-        val newstate = { ...state, timeout: state.timeout.exclude(Set(someTimeout))}
-        (newstate, { ...NoDInput, name: "timeout", timeout: someTimeout._1})
+    else if (command == "timeout" and state.existsTimeout())
+        state.pickTimeout()
 
     else
         (state, NoDInput)
