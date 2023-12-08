@@ -97,7 +97,7 @@ where
         Some(RoundInput::Proposal(proposal))
     }
 
-    pub fn multiplex_on_vote_threshold(
+    pub fn multiplex_vote_threshold(
         &self,
         new_threshold: VoteKeeperOutput<ValueId<Ctx>>,
     ) -> Option<RoundInput<Ctx>> {
@@ -134,7 +134,7 @@ where
         }
     }
 
-    pub fn multiplex_on_step_change(
+    pub fn multiplex_step_change(
         &self,
         pending_step: Step,
         round: Round,

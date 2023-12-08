@@ -210,7 +210,7 @@ where
             return Ok(None);
         };
 
-        let round_input = self.multiplex_on_vote_threshold(vote_output);
+        let round_input = self.multiplex_vote_threshold(vote_output);
 
         match round_input {
             Some(input) => self.apply_input(vote_round, input),
@@ -246,7 +246,7 @@ where
         let pending_step = transition.next_state.step;
 
         if current_step != pending_step {
-            let pending_input = self.multiplex_on_step_change(pending_step, input_round);
+            let pending_input = self.multiplex_step_change(pending_step, input_round);
 
             self.pending_input = pending_input.map(|input| (input_round, input));
         }
