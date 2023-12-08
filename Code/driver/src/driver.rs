@@ -1,4 +1,6 @@
 use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
 use core::fmt;
 
 use malachite_common::{

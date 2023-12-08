@@ -1,6 +1,6 @@
 //! Driver for the state machine of the Malachite consensus engine
 
-// #![no_std]
+#![no_std]
 #![forbid(unsafe_code)]
 #![deny(unused_crate_dependencies, trivial_casts, trivial_numeric_casts)]
 #![warn(
