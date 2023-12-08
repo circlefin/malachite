@@ -34,7 +34,7 @@ pure def initDriver  (v: Address_t, vs: Address_t -> int) : DriverState = {
     executedInputs: List(),
     pendingInputs: Set(),
     started: false,
-    voteKeeperOutput: NoVKOutput, // debug
+    voteKeeperOutput: NoVOputput, // debug
     chain : List(),
     nextValueToPropose: "", 
     }
@@ -160,7 +160,7 @@ pure def callConsensus (es: DriverState, bk: Bookkeeper, csInput: ConsensusInput
 // We do this if the driver receives a Precommit
 pure def precommit(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutput): (DriverState, ConsensusOutput) =
     match vkOutput {
-        | PrecommitValueVKOutput(round_value) =>
+        | PrecommitValueVOputput(round_value) =>
             val round = round_value._1
             val value = round_value._2
             if (es.proposals.exists(x => round == x.round and value == id(x.proposal)))
@@ -185,7 +185,7 @@ pure def precommit(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutp
                                             vr: -1})     
             // ignore messages from past rounds
             else (es, defaultOutput)
-        | PrecommitAnyVKOutput(round) =>
+        | PrecommitAnyVOputput(round) =>
             if (round == es.cs.round)
                 callConsensus(es, es.bk,  { name: "PrecommitAny",
                                             height: input.vote.height,
@@ -194,7 +194,7 @@ pure def precommit(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutp
                                             vr: -1})
             else (es, defaultOutput)
 
-        | SkipVKOutput(round) => 
+        | SkipVOputput(round) => 
             if (round > es.cs.round)
                 callConsensus(es, es.bk,  { name: "RoundSkip",
                                             height: input.vote.height,
@@ -209,13 +209,13 @@ pure def precommit(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutp
 
 // We do this if the driver receives a Prevote
 // TODO: input is only used for the Skip case. We could just use the round provided in
-// SkipVKOutput(round), which is equal to input.vote.id. The height should probably also be 
+// SkipVOputput(round), which is equal to input.vote.id. The height should probably also be 
 // recorded in the VoteKeeper output.
 pure def prevote(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutput): (DriverState, ConsensusOutput) =
     // TODO: events do not have heights now.
     // TODO: Polka implications missing.
     match vkOutput {
-        | PolkaValueVKOutput(round_value) =>
+        | PolkaValueVOputput(round_value) =>
             val round = round_value._1
             val value = round_value._2
             if (round < es.cs.round and
@@ -254,7 +254,7 @@ pure def prevote(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutput
             // TODO: we might check whether it is for a future round and jump
             else (es, defaultOutput)
 
-        | PolkaAnyVKOutput(round) =>
+        | PolkaAnyVOputput(round) =>
             if (round == es.cs.round)
                     // call consensus and remember that we did it
                     callConsensus(es, es.bk, {  name: "PolkaAny",
@@ -265,7 +265,7 @@ pure def prevote(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutput
             // TODO: we might check whether it is for a future round and jump
             else (es, defaultOutput)
                 
-        | PolkaNilVKOutput(round) => 
+        | PolkaNilVOputput(round) => 
             if (round == es.cs.round)
                 callConsensus(es, es.bk,  { name: "PolkaNil",
                                             height: es.cs.height,
@@ -274,7 +274,7 @@ pure def prevote(es: DriverState, input: DriverInput, vkOutput: VoteKeeperOutput
                                             vr: round})
             else (es, defaultOutput)
 
-        | SkipVKOutput(round) => 
+        | SkipVOputput(round) => 
             if (round > es.cs.round)
                 callConsensus(es, es.bk,  { name: "RoundSkip",
                                             height: input.vote.height,

@@ -17,19 +17,19 @@ pub enum WeightedVote {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize)]
 #[serde(tag = "tag", content = "value")]
 pub enum VoteKeeperOutput {
-    NoVKOutput,
+    NoVOputput,
     #[serde(with = "As::<Integer>")]
-    PolkaAnyVKOutput(Round),
+    PolkaAnyVOputput(Round),
     #[serde(with = "As::<Integer>")]
-    PolkaNilVKOutput(Round),
+    PolkaNilVOputput(Round),
     #[serde(with = "As::<(Integer, Same)>")]
-    PolkaValueVKOutput(Round, NonNilValue),
+    PolkaValueVOputput(Round, NonNilValue),
     #[serde(with = "As::<Integer>")]
-    PrecommitAnyVKOutput(Round),
+    PrecommitAnyVOputput(Round),
     #[serde(with = "As::<(Integer, Same)>")]
-    PrecommitValueVKOutput(Round, NonNilValue),
+    PrecommitValueVOputput(Round, NonNilValue),
     #[serde(with = "As::<Integer>")]
-    SkipVKOutput(Round),
+    SkipVOputput(Round),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]

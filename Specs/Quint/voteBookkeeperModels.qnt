@@ -43,22 +43,22 @@ module voteBookkeeperSM  {
     val emitPrecommitValueState = 
         nondet round = oneOf(ROUNDS)
         nondet value = oneOf(VALUES)
-        lastEmitted == PrecommitValueVKOutput((round, value))
+        lastEmitted == PrecommitValueVOputput((round, value))
     val emitPrecommitValue = not(emitPrecommitValueState)
 
     val emitPolkaAnyState = 
         nondet round = oneOf(ROUNDS)
-        lastEmitted == PolkaAnyVKOutput(round)
+        lastEmitted == PolkaAnyVOputput(round)
     val emitPolkaAny = not(emitPolkaAnyState)
 
     val emitPolkaNilState = 
         nondet round = oneOf(ROUNDS)
-        lastEmitted == PolkaNilVKOutput(round)
+        lastEmitted == PolkaNilVOputput(round)
     val emitPolkaNil = not(emitPolkaNilState)
 
     val emitSkipState = 
         nondet round = oneOf(ROUNDS)
-        lastEmitted == SkipVKOutput(round)
+        lastEmitted == SkipVOputput(round)
     val emitSkip = not(emitSkipState)
 
 }
