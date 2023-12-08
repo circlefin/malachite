@@ -77,35 +77,35 @@ impl ItfRunner for VoteKeeperRunner {
         match result {
             Some(result) => match (result, expected_result) {
                 // TODO: check expected_round
-                (Output::PolkaNil, PolkaNilVOputput(_expected_round)) => (),
-                (Output::PolkaAny, PolkaAnyVOputput(_expected_round)) => (),
+                (Output::PolkaNil, PolkaNilVKOutput(_expected_round)) => (),
+                (Output::PolkaAny, PolkaAnyVKOutput(_expected_round)) => (),
                 (
                     Output::PolkaValue(value),
-                    PolkaValueVOputput(_expected_round, expected_value),
+                    PolkaValueVKOutput(_expected_round, expected_value),
                 ) => {
                     assert_eq!(
                         Some(value),
                         value_from_model(&ModelValue::Val(expected_value.to_string())).as_ref()
                     );
                 }
-                (Output::PrecommitAny, PrecommitAnyVOputput(_expected_round)) => (),
+                (Output::PrecommitAny, PrecommitAnyVKOutput(_expected_round)) => (),
                 (
                     Output::PrecommitValue(value),
-                    PrecommitValueVOputput(_expected_round, expected_value),
+                    PrecommitValueVKOutput(_expected_round, expected_value),
                 ) => {
                     assert_eq!(
                         Some(value),
                         value_from_model(&ModelValue::Val(expected_value.to_string())).as_ref()
                     );
                 }
-                (Output::SkipRound(round), SkipVOputput(expected_round)) => {
+                (Output::SkipRound(round), SkipVKOutput(expected_round)) => {
                     assert_eq!(round, &Round::new(*expected_round));
                 }
                 (actual, expected) => {
                     panic!("actual: {:?}, expected: {:?}", actual, expected)
                 }
             },
-            None => assert_eq!(*expected_result, NoVOputput),
+            None => assert_eq!(*expected_result, NoVKOutput),
         }
         Ok(true)
     }
@@ -146,12 +146,12 @@ impl ItfRunner for VoteKeeperRunner {
 
             for event in expected_outputs {
                 let event_name = match event {
-                    PolkaAnyVOputput(_) => "PolkaAny".to_string(),
-                    PolkaNilVOputput(_) => "PolkaNil".to_string(),
-                    PolkaValueVOputput(_, _) => "PolkaValue".to_string(),
-                    PrecommitAnyVOputput(_) => "PrecommitAny".to_string(),
-                    PrecommitValueVOputput(_, _) => "PrecommitValue".to_string(),
-                    SkipVOputput(_) => "Skip".to_string(),
+                    PolkaAnyVKOutput(_) => "PolkaAny".to_string(),
+                    PolkaNilVKOutput(_) => "PolkaNil".to_string(),
+                    PolkaValueVKOutput(_, _) => "PolkaValue".to_string(),
+                    PrecommitAnyVKOutput(_) => "PrecommitAny".to_string(),
+                    PrecommitValueVKOutput(_, _) => "PrecommitValue".to_string(),
+                    SkipVKOutput(_) => "Skip".to_string(),
                     _ => format!("{event:?}"),
                 };
 

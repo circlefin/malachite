@@ -37,13 +37,13 @@ module voteBookkeeper {
         | ValueThreshold(NonNilValue)
 
     type VoteKeeperOutput = 
-        | NoVOputput
-        | PolkaAnyVOputput(Round)
-        | PolkaNilVOputput(Round)
-        | PolkaValueVOputput((Round, NonNilValue))
-        | PrecommitAnyVOputput(Round)
-        | PrecommitValueVOputput((Round, NonNilValue))
-        | SkipVOputput(Round)
+        | NoVKOutput
+        | PolkaAnyVKOutput(Round)
+        | PolkaNilVKOutput(Round)
+        | PolkaValueVKOutput((Round, NonNilValue))
+        | PrecommitAnyVKOutput(Round)
+        | PrecommitValueVKOutput((Round, NonNilValue))
+        | SkipVKOutput(Round)
 
     type Bookkeeper = {
         height: Height,
@@ -179,39 +179,39 @@ module voteBookkeeper {
     pure def toVoteKeeperOutput(round: Round, voteType: VoteType, threshold: Threshold): VoteKeeperOutput =
         match threshold {
             | UnreachedThreshold => 
-                NoVOputput
+                NoVKOutput
             | ValueThreshold(value) =>
                 match voteType {
-                    | Prevote => PolkaValueVOputput((round, value))
-                    | Precommit => PrecommitValueVOputput((round, value))
+                    | Prevote => PolkaValueVKOutput((round, value))
+                    | Precommit => PrecommitValueVKOutput((round, value))
                 }
             | NilThreshold =>
                 match voteType {
-                    | Prevote => PolkaNilVOputput(round)
-                    | Precommit => PrecommitAnyVOputput(round)
+                    | Prevote => PolkaNilVKOutput(round)
+                    | Precommit => PrecommitAnyVKOutput(round)
                 }
             | AnyThreshold =>
                 match voteType {
-                    | Prevote => PolkaAnyVOputput(round)
-                    | Precommit => PrecommitAnyVOputput(round)
+                    | Prevote => PolkaAnyVKOutput(round)
+                    | Precommit => PrecommitAnyVKOutput(round)
                 }
             | SkipThreshold => 
-                SkipVOputput(round)
+                SkipVKOutput(round)
         }
 
     run toVoteKeeperOutputTest =
         val round = 10
         all {
-            assert(toVoteKeeperOutput(round, Prevote, UnreachedThreshold) == NoVOputput),
-            assert(toVoteKeeperOutput(round, Precommit, UnreachedThreshold) == NoVOputput),
-            assert(toVoteKeeperOutput(round, Prevote, AnyThreshold) == PolkaAnyVOputput(round)),
-            assert(toVoteKeeperOutput(round, Prevote, NilThreshold) == PolkaNilVOputput(round)),
-            assert(toVoteKeeperOutput(round, Prevote, ValueThreshold("v1")) == PolkaValueVOputput((round, "v1"))),
-            assert(toVoteKeeperOutput(round, Precommit, AnyThreshold) == PrecommitAnyVOputput(round)),
-            assert(toVoteKeeperOutput(round, Precommit, NilThreshold) == PrecommitAnyVOputput(round)),
-            assert(toVoteKeeperOutput(round, Precommit, ValueThreshold("v1")) == PrecommitValueVOputput((round, "v1"))),
-            assert(toVoteKeeperOutput(round, Prevote, SkipThreshold) == SkipVOputput(round)),
-            assert(toVoteKeeperOutput(round, Precommit, SkipThreshold) == SkipVOputput(round)),
+            assert(toVoteKeeperOutput(round, Prevote, UnreachedThreshold) == NoVKOutput),
+            assert(toVoteKeeperOutput(round, Precommit, UnreachedThreshold) == NoVKOutput),
+            assert(toVoteKeeperOutput(round, Prevote, AnyThreshold) == PolkaAnyVKOutput(round)),
+            assert(toVoteKeeperOutput(round, Prevote, NilThreshold) == PolkaNilVKOutput(round)),
+            assert(toVoteKeeperOutput(round, Prevote, ValueThreshold("v1")) == PolkaValueVKOutput((round, "v1"))),
+            assert(toVoteKeeperOutput(round, Precommit, AnyThreshold) == PrecommitAnyVKOutput(round)),
+            assert(toVoteKeeperOutput(round, Precommit, NilThreshold) == PrecommitAnyVKOutput(round)),
+            assert(toVoteKeeperOutput(round, Precommit, ValueThreshold("v1")) == PrecommitValueVKOutput((round, "v1"))),
+            assert(toVoteKeeperOutput(round, Prevote, SkipThreshold) == SkipVKOutput(round)),
+            assert(toVoteKeeperOutput(round, Precommit, SkipThreshold) == SkipVKOutput(round)),
         }
 
     // Called by the executor when it receives a vote. The function takes the following steps:
@@ -243,14 +243,14 @@ module voteBookkeeper {
 
         val finalOutput =
             if (vote.round > currentRound and isSkip(combinedWeight, keeper.totalWeight))
-                SkipVOputput(vote.round)
+                SkipVKOutput(vote.round)
             else
                 val threshold = computeThreshold(updatedVoteCount, vote.valueId)
                 val output = toVoteKeeperOutput(vote.round, vote.voteType, threshold)
                 if (not(output.in(roundVotes.emittedOutputs))) 
                     output
                 else 
-                    NoVOputput
+                    NoVKOutput
 
         val updatedRoundVotes = 
             match vote.voteType {
@@ -259,7 +259,7 @@ module voteBookkeeper {
             }
         val updatedRoundVotes2 = updatedRoundVotes
             .with("votesAddressesWeights", updatedVotesAddressesWeights)
-            .with("emittedOutputs", roundVotes.emittedOutputs.setAddIf(finalOutput, finalOutput != NoVOputput))
+            .with("emittedOutputs", roundVotes.emittedOutputs.setAddIf(finalOutput, finalOutput != NoVKOutput))
 
         val updatedBookkeeper = keeper
             .with("rounds", keeper.rounds.mapSafeSet(vote.round, updatedRoundVotes2))
@@ -282,11 +282,11 @@ module voteBookkeeper {
         val o4 = applyVote(o3.bookkeeper, { height: 0, round: 0, srcAddress: "a3", voteType: Precommit, valueId: Nil }, 1, 0)
         val o5 = applyVote(o4.bookkeeper, { height: 0, round: 1, srcAddress: "a4", voteType: Precommit, valueId: Nil }, 3, 0)
         all {
-            assert(o1.output == NoVOputput),
-            assert(o2.output == NoVOputput),
-            assert(o3.output == PrecommitAnyVOputput(0)),
-            assert(o4.output == NoVOputput),
-            assert(o5.output == SkipVOputput(1)),
+            assert(o1.output == NoVKOutput),
+            assert(o2.output == NoVKOutput),
+            assert(o3.output == PrecommitAnyVKOutput(0)),
+            assert(o4.output == NoVKOutput),
+            assert(o5.output == SkipVKOutput(1)),
         }
 
     // Called by the driver to check if there is a specific threshold for a given round and voteType.
@@ -357,7 +357,7 @@ module voteBookkeeper {
     action initWith(initialHeight: Height, initialTotalWeight: Weight): bool = all {
         weightedVote' = NoWeightedVote,
         bookkeeper' = initBookKeeper(initialHeight, initialTotalWeight),
-        lastEmitted' = NoVOputput,
+        lastEmitted' = NoVKOutput,
     }
 
     // The vote bookkeeper receives a weighted vote for a round, and produces an output.
