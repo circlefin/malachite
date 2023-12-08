@@ -12,9 +12,7 @@ use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::ThresholdParams;
 
 use crate::input::Input;
-use crate::mux;
 use crate::output::Output;
-use crate::proposals::Proposals;
 use crate::Error;
 use crate::ProposerSelector;
 use crate::Validity;
@@ -30,9 +28,9 @@ where
     pub address: Ctx::Address,
     pub validator_set: Ctx::ValidatorSet,
 
-    pub votes: VoteKeeper<Ctx>,
+    pub vote_keeper: VoteKeeper<Ctx>,
     pub round_state: RoundState<Ctx>,
-    pub proposals: Proposals<Ctx>,
+    pub proposal: Option<Ctx::Proposal>,
     pub pending_input: Option<(Round, RoundInput<Ctx>)>,
 }
 
@@ -56,9 +54,9 @@ where
             proposer_selector: Box::new(proposer_selector),
             address,
             validator_set,
-            votes,
+            vote_keeper: votes,
             round_state: RoundState::default(),
-            proposals: Proposals::new(),
+            proposal: None,
             pending_input: None,
         }
     }
@@ -176,13 +174,7 @@ where
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let round = proposal.round();
 
-        match mux::multiplex_proposal(
-            &self.round_state,
-            &self.votes,
-            &mut self.proposals,
-            proposal,
-            validity,
-        ) {
+        match self.multiplex_proposal(proposal, validity) {
             Some(round_input) => self.apply_input(round, round_input),
             None => Ok(None),
         }
@@ -211,14 +203,14 @@ where
         let current_round = self.round();
 
         let vote_output =
-            self.votes
+            self.vote_keeper
                 .apply_vote(signed_vote.vote, validator.voting_power(), current_round);
 
         let Some(vote_output) = vote_output else {
             return Ok(None);
         };
 
-        let round_input = mux::multiplex_on_vote_threshold(vote_output, &self.proposals);
+        let round_input = self.multiplex_on_vote_threshold(vote_output);
 
         match round_input {
             Some(input) => self.apply_input(vote_round, input),
@@ -254,14 +246,7 @@ where
         let pending_step = transition.next_state.step;
 
         if current_step != pending_step {
-            let pending_input = mux::multiplex_on_step_change(
-                pending_step,
-                input_round,
-                &self.votes,
-                &self.proposals,
-            );
-
-            println!("multiplex_on_step_change: {pending_input:?}");
+            let pending_input = self.multiplex_on_step_change(pending_step, input_round);
 
             self.pending_input = pending_input.map(|input| (input_round, input));
         }
@@ -283,8 +268,8 @@ where
         f.debug_struct("Driver")
             .field("address", &self.address)
             .field("validator_set", &self.validator_set)
-            .field("votes", &self.votes)
-            .field("proposals", &self.proposals.proposals)
+            .field("votes", &self.vote_keeper)
+            .field("proposal", &self.proposal)
             .field("round_state", &self.round_state)
             .finish()
     }
