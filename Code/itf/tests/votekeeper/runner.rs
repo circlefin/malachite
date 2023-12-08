@@ -146,26 +146,28 @@ impl ItfRunner for VoteKeeperRunner {
 
             for event in expected_outputs {
                 let event_name = match event {
-                    PolkaAnyVKOutput(_) => "PolkaAny".into(),
-                    PolkaNilVKOutput(_) => "PolkaNil".into(),
-                    PolkaValueVKOutput(_, _) => "PolkaValue".into(),
-                    PrecommitAnyVKOutput(_) => "PrecommitAny".into(),
-                    PrecommitValueVKOutput(_, _) => "PrecommitValue".into(),
-                    SkipVKOutput(_) => "Skip".into(),
+                    PolkaAnyVKOutput(_) => "PolkaAny".to_string(),
+                    PolkaNilVKOutput(_) => "PolkaNil".to_string(),
+                    PolkaValueVKOutput(_, _) => "PolkaValue".to_string(),
+                    PrecommitAnyVKOutput(_) => "PrecommitAny".to_string(),
+                    PrecommitValueVKOutput(_, _) => "PrecommitValue".to_string(),
+                    SkipVKOutput(_) => "Skip".to_string(),
                     _ => format!("{event:?}"),
                 };
-                let count = event_count.entry(event_name.clone()).or_insert(0);
+
+                let count = event_count.entry(event_name).or_insert(0);
                 *count += 1;
             }
 
             for event in actual_outputs {
                 let event_name = match event {
-                    Output::PolkaValue(_) => "PolkaValue".into(),
-                    Output::PrecommitValue(_) => "PrecommitValue".into(),
-                    Output::SkipRound(_) => "Skip".into(),
+                    Output::PolkaValue(_) => "PolkaValue".to_string(),
+                    Output::PrecommitValue(_) => "PrecommitValue".to_string(),
+                    Output::SkipRound(_) => "Skip".to_string(),
                     _ => format!("{event:?}"),
                 };
-                let count = event_count.entry(event_name.clone()).or_insert(0);
+
+                let count = event_count.entry(event_name).or_insert(0);
                 *count -= 1;
             }
 
@@ -175,13 +177,10 @@ impl ItfRunner for VoteKeeperRunner {
 
             let expected_addresses_weights = &expected_round.votes_addresses_weights;
             let actual_addresses_weights = &actual_round.addresses_weights().get_inner();
-            for address in expected_addresses_weights.keys() {
+            for (address, expected_weight) in expected_addresses_weights {
                 assert_eq!(
                     actual_addresses_weights.get(self.address_map.get(address).unwrap()),
-                    expected_addresses_weights
-                        .get(address)
-                        .map(|&w| w as u64)
-                        .as_ref(),
+                    Some(&(*expected_weight as u64)),
                     "weight for address {address:?}"
                 );
             }
