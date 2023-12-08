@@ -8,28 +8,43 @@ use crate::types::{Address, Height, NonNilValue, Round, Value, Vote, Weight};
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(tag = "tag", content = "value")]
 pub enum WeightedVote {
-    NoWeightedVote,
+    #[serde(rename = "NoWeightedVote")]
+    NoVote,
 
+    #[serde(rename = "WV")]
     #[serde(with = "As::<(Same, Integer, Integer)>")]
-    WV(Vote, Weight, Round),
+    Vote(Vote, Weight, Round),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize)]
 #[serde(tag = "tag", content = "value")]
 pub enum VoteKeeperOutput {
-    NoVKOutput,
+    #[serde(rename = "NoVKOutput")]
+    NoOutput,
+
+    #[serde(rename = "PolkaAnyVKOutput")]
     #[serde(with = "As::<Integer>")]
-    PolkaAnyVKOutput(Round),
+    PolkaAny(Round),
+
+    #[serde(rename = "PolkaNilVKOutput")]
     #[serde(with = "As::<Integer>")]
-    PolkaNilVKOutput(Round),
+    PolkaNil(Round),
+
+    #[serde(rename = "PolkaValueVKOutput")]
     #[serde(with = "As::<(Integer, Same)>")]
-    PolkaValueVKOutput(Round, NonNilValue),
+    PolkaValue(Round, NonNilValue),
+
+    #[serde(rename = "PrevoteAnyVKOutput")]
     #[serde(with = "As::<Integer>")]
-    PrecommitAnyVKOutput(Round),
+    PrecommitAny(Round),
+
+    #[serde(rename = "PrevoteNilVKOutput")]
     #[serde(with = "As::<(Integer, Same)>")]
-    PrecommitValueVKOutput(Round, NonNilValue),
+    PrecommitValue(Round, NonNilValue),
+
+    #[serde(rename = "SkipVKOutput")]
     #[serde(with = "As::<Integer>")]
-    SkipVKOutput(Round),
+    Skip(Round),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]

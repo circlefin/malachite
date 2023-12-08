@@ -328,10 +328,8 @@ pure def handlePendingInput(es: DriverState): (DriverState, ConsensusOutput) =
     else
         (newState, NoConsensusOutput)
 
-
 pure def setValue(es: DriverState, value: Value) : (DriverState, ConsensusOutput) =
     ({ ...es, nextValueToPropose: value }, NoConsensusOutput)
-
 
 /* *********************************************************
  * Main entry point

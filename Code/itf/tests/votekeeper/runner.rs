@@ -43,8 +43,9 @@ impl ItfRunner for VoteKeeperRunner {
         expected: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
         match &expected.weighted_vote {
-            WeightedVote::NoWeightedVote => Err(()),
-            WeightedVote::WV(input_vote, weight, current_round) => {
+            WeightedVote::NoVote => Err(()),
+
+            WeightedVote::Vote(input_vote, weight, current_round) => {
                 // Build step to execute.
                 let round = Round::new(input_vote.round);
                 let height = Height::new(input_vote.height as u64);
@@ -77,35 +78,32 @@ impl ItfRunner for VoteKeeperRunner {
         match result {
             Some(result) => match (result, expected_result) {
                 // TODO: check expected_round
-                (Output::PolkaNil, PolkaNilVKOutput(_expected_round)) => (),
-                (Output::PolkaAny, PolkaAnyVKOutput(_expected_round)) => (),
-                (
-                    Output::PolkaValue(value),
-                    PolkaValueVKOutput(_expected_round, expected_value),
-                ) => {
+                (Output::PolkaNil, PolkaNil(_expected_round)) => (),
+                (Output::PolkaAny, PolkaAny(_expected_round)) => (),
+                (Output::PolkaValue(value), PolkaValue(_expected_round, expected_value)) => {
                     assert_eq!(
                         Some(value),
                         value_from_model(&ModelValue::Val(expected_value.to_string())).as_ref()
                     );
                 }
-                (Output::PrecommitAny, PrecommitAnyVKOutput(_expected_round)) => (),
+                (Output::PrecommitAny, PrecommitAny(_expected_round)) => (),
                 (
                     Output::PrecommitValue(value),
-                    PrecommitValueVKOutput(_expected_round, expected_value),
+                    PrecommitValue(_expected_round, expected_value),
                 ) => {
                     assert_eq!(
                         Some(value),
                         value_from_model(&ModelValue::Val(expected_value.to_string())).as_ref()
                     );
                 }
-                (Output::SkipRound(round), SkipVKOutput(expected_round)) => {
+                (Output::SkipRound(round), Skip(expected_round)) => {
                     assert_eq!(round, &Round::new(*expected_round));
                 }
                 (actual, expected) => {
                     panic!("actual: {:?}, expected: {:?}", actual, expected)
                 }
             },
-            None => assert_eq!(*expected_result, NoVKOutput),
+            None => assert_eq!(*expected_result, NoOutput),
         }
         Ok(true)
     }
@@ -146,26 +144,28 @@ impl ItfRunner for VoteKeeperRunner {
 
             for event in expected_outputs {
                 let event_name = match event {
-                    PolkaAnyVKOutput(_) => "PolkaAny".into(),
-                    PolkaNilVKOutput(_) => "PolkaNil".into(),
-                    PolkaValueVKOutput(_, _) => "PolkaValue".into(),
-                    PrecommitAnyVKOutput(_) => "PrecommitAny".into(),
-                    PrecommitValueVKOutput(_, _) => "PrecommitValue".into(),
-                    SkipVKOutput(_) => "Skip".into(),
+                    PolkaAny(_) => "PolkaAny".to_string(),
+                    PolkaNil(_) => "PolkaNil".to_string(),
+                    PolkaValue(_, _) => "PolkaValue".to_string(),
+                    PrecommitAny(_) => "PrecommitAny".to_string(),
+                    PrecommitValue(_, _) => "PrecommitValue".to_string(),
+                    Skip(_) => "Skip".to_string(),
                     _ => format!("{event:?}"),
                 };
-                let count = event_count.entry(event_name.clone()).or_insert(0);
+
+                let count = event_count.entry(event_name).or_insert(0);
                 *count += 1;
             }
 
             for event in actual_outputs {
                 let event_name = match event {
-                    Output::PolkaValue(_) => "PolkaValue".into(),
-                    Output::PrecommitValue(_) => "PrecommitValue".into(),
-                    Output::SkipRound(_) => "Skip".into(),
+                    Output::PolkaValue(_) => "PolkaValue".to_string(),
+                    Output::PrecommitValue(_) => "PrecommitValue".to_string(),
+                    Output::SkipRound(_) => "Skip".to_string(),
                     _ => format!("{event:?}"),
                 };
-                let count = event_count.entry(event_name.clone()).or_insert(0);
+
+                let count = event_count.entry(event_name).or_insert(0);
                 *count -= 1;
             }
 
@@ -175,13 +175,10 @@ impl ItfRunner for VoteKeeperRunner {
 
             let expected_addresses_weights = &expected_round.votes_addresses_weights;
             let actual_addresses_weights = &actual_round.addresses_weights().get_inner();
-            for address in expected_addresses_weights.keys() {
+            for (address, expected_weight) in expected_addresses_weights {
                 assert_eq!(
                     actual_addresses_weights.get(self.address_map.get(address).unwrap()),
-                    expected_addresses_weights
-                        .get(address)
-                        .map(|&w| w as u64)
-                        .as_ref(),
+                    Some(&(*expected_weight as u64)),
                     "weight for address {address:?}"
                 );
             }
