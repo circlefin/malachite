@@ -1,7 +1,7 @@
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use malachite_common::{Round, Timeout, VotingPower};
+use malachite_common::{NilOrVal, Round, Timeout, VotingPower};
 use malachite_driver::{Input, Output, ProposerSelector, Validity};
 use malachite_round::state::{RoundValue, State, Step};
 
@@ -87,7 +87,7 @@ pub fn prevote_output(
     let value = Value::new(9999);
 
     Some(Output::Vote(
-        Vote::new_prevote(Height::new(1), round, Some(value.id()), *addr).signed(sk),
+        Vote::new_prevote(Height::new(1), round, NilOrVal::Val(value.id()), *addr).signed(sk),
     ))
 }
 
@@ -97,7 +97,7 @@ pub fn prevote_nil_output(
     sk: &PrivateKey,
 ) -> Option<Output<TestContext>> {
     Some(Output::Vote(
-        Vote::new_prevote(Height::new(1), round, None, *addr).signed(sk),
+        Vote::new_prevote(Height::new(1), round, NilOrVal::Nil, *addr).signed(sk),
     ))
 }
 
@@ -105,18 +105,26 @@ pub fn prevote_input(addr: &Address, sk: &PrivateKey) -> Input<TestContext> {
     let value = Value::new(9999);
 
     Input::Vote(
-        Vote::new_prevote(Height::new(1), Round::new(0), Some(value.id()), *addr).signed(sk),
+        Vote::new_prevote(
+            Height::new(1),
+            Round::new(0),
+            NilOrVal::Val(value.id()),
+            *addr,
+        )
+        .signed(sk),
     )
 }
 
 pub fn prevote_nil_input(addr: &Address, sk: &PrivateKey) -> Input<TestContext> {
-    Input::Vote(Vote::new_prevote(Height::new(1), Round::new(0), None, *addr).signed(sk))
+    Input::Vote(Vote::new_prevote(Height::new(1), Round::new(0), NilOrVal::Nil, *addr).signed(sk))
 }
 
 pub fn prevote_input_at(round: Round, addr: &Address, sk: &PrivateKey) -> Input<TestContext> {
     let value = Value::new(9999);
 
-    Input::Vote(Vote::new_prevote(Height::new(1), round, Some(value.id()), *addr).signed(sk))
+    Input::Vote(
+        Vote::new_prevote(Height::new(1), round, NilOrVal::Val(value.id()), *addr).signed(sk),
+    )
 }
 
 pub fn precommit_output(
@@ -126,7 +134,7 @@ pub fn precommit_output(
     sk: &PrivateKey,
 ) -> Option<Output<TestContext>> {
     Some(Output::Vote(
-        Vote::new_precommit(Height::new(1), round, Some(value.id()), *addr).signed(sk),
+        Vote::new_precommit(Height::new(1), round, NilOrVal::Val(value.id()), *addr).signed(sk),
     ))
 }
 
@@ -136,7 +144,7 @@ pub fn precommit_nil_output(
     sk: &PrivateKey,
 ) -> Option<Output<TestContext>> {
     Some(Output::Vote(
-        Vote::new_precommit(Height::new(1), round, None, *addr).signed(sk),
+        Vote::new_precommit(Height::new(1), round, NilOrVal::Nil, *addr).signed(sk),
     ))
 }
 
@@ -146,7 +154,9 @@ pub fn precommit_input(
     addr: &Address,
     sk: &PrivateKey,
 ) -> Input<TestContext> {
-    Input::Vote(Vote::new_precommit(Height::new(1), round, Some(value.id()), *addr).signed(sk))
+    Input::Vote(
+        Vote::new_precommit(Height::new(1), round, NilOrVal::Val(value.id()), *addr).signed(sk),
+    )
 }
 
 pub fn decide_output(round: Round, value: Value) -> Option<Output<TestContext>> {

@@ -1,6 +1,6 @@
 use core::fmt;
 
-use malachite_common::{Context, Round, Timeout, TimeoutStep, ValueId};
+use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValueId};
 
 use crate::state::RoundValue;
 
@@ -29,7 +29,7 @@ impl<Ctx: Context> Output<Ctx> {
     pub fn prevote(
         height: Ctx::Height,
         round: Round,
-        value_id: Option<ValueId<Ctx>>,
+        value_id: NilOrVal<ValueId<Ctx>>,
         address: Ctx::Address,
     ) -> Self {
         Output::Vote(Ctx::new_prevote(height, round, value_id, address))
@@ -38,7 +38,7 @@ impl<Ctx: Context> Output<Ctx> {
     pub fn precommit(
         height: Ctx::Height,
         round: Round,
-        value_id: Option<ValueId<Ctx>>,
+        value_id: NilOrVal<ValueId<Ctx>>,
         address: Ctx::Address,
     ) -> Self {
         Output::Vote(Ctx::new_precommit(height, round, value_id, address))

@@ -40,5 +40,5 @@ pub use signed_vote::SignedVote;
 pub use signing::SigningScheme;
 pub use timeout::{Timeout, TimeoutStep};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
-pub use value::Value;
+pub use value::{NilOrVal, Value};
 pub use vote::{Vote, VoteType};

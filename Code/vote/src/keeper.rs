@@ -2,7 +2,7 @@ use core::fmt;
 
 use alloc::collections::{BTreeMap, BTreeSet};
 
-use malachite_common::{Context, Round, ValueId, Vote, VoteType};
+use malachite_common::{Context, NilOrVal, Round, ValueId, Vote, VoteType};
 
 use crate::round_votes::RoundVotes;
 use crate::round_weights::RoundWeights;
@@ -191,7 +191,7 @@ where
 fn compute_threshold<Ctx>(
     vote_type: VoteType,
     round: &PerRound<Ctx>,
-    value: &Option<ValueId<Ctx>>,
+    value: &NilOrVal<ValueId<Ctx>>,
     quorum: ThresholdParam,
     total_weight: Weight,
 ) -> Threshold<ValueId<Ctx>>
@@ -201,9 +201,11 @@ where
     let weight = round.votes.get_weight(vote_type, value);
 
     match value {
-        Some(value) if quorum.is_met(weight, total_weight) => Threshold::Value(value.clone()),
+        NilOrVal::Val(value) if quorum.is_met(weight, total_weight) => {
+            Threshold::Value(value.clone())
+        }
 
-        None if quorum.is_met(weight, total_weight) => Threshold::Nil,
+        NilOrVal::Nil if quorum.is_met(weight, total_weight) => Threshold::Nil,
 
         _ => {
             let weight_sum = round.votes.weight_sum(vote_type);

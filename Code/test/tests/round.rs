@@ -1,6 +1,6 @@
 use malachite_test::{Address, Height, Proposal, TestContext, Value};
 
-use malachite_common::{Round, Timeout, TimeoutStep};
+use malachite_common::{NilOrVal, Round, Timeout, TimeoutStep};
 use malachite_round::input::Input;
 use malachite_round::output::Output;
 use malachite_round::state::{State, Step};
@@ -85,6 +85,11 @@ fn test_prevote() {
     assert_eq!(transition.next_state.step, Step::Prevote);
     assert_eq!(
         transition.output.unwrap(),
-        Output::prevote(Height::new(1), Round::new(1), Some(value.id()), ADDRESS)
+        Output::prevote(
+            Height::new(1),
+            Round::new(1),
+            NilOrVal::Val(value.id()),
+            ADDRESS
+        )
     );
 }

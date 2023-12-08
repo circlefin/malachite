@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use malachite_common::{Context, Round, Value};
+use malachite_common::{Context, NilOrVal, Round, Value};
 use malachite_itf::types::{Value as ModelValue, VoteType};
 use malachite_itf::votekeeper::VoteKeeperOutput::*;
 use malachite_itf::votekeeper::{State, WeightedVote};
@@ -82,7 +82,7 @@ impl ItfRunner for VoteKeeperRunner {
                 (Output::PolkaAny, PolkaAny(_expected_round)) => (),
                 (Output::PolkaValue(value), PolkaValue(_expected_round, expected_value)) => {
                     assert_eq!(
-                        Some(value),
+                        NilOrVal::Val(value),
                         value_from_model(&ModelValue::Val(expected_value.to_string())).as_ref()
                     );
                 }
@@ -92,7 +92,7 @@ impl ItfRunner for VoteKeeperRunner {
                     PrecommitValue(_expected_round, expected_value),
                 ) => {
                     assert_eq!(
-                        Some(value),
+                        NilOrVal::Val(value),
                         value_from_model(&ModelValue::Val(expected_value.to_string())).as_ref()
                     );
                 }

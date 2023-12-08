@@ -1,4 +1,5 @@
 use malachite_common::Context;
+use malachite_common::NilOrVal;
 use malachite_common::Round;
 use malachite_common::SignedVote;
 
@@ -50,7 +51,7 @@ impl Context for TestContext {
     fn new_prevote(
         height: Height,
         round: Round,
-        value_id: Option<ValueId>,
+        value_id: NilOrVal<ValueId>,
         address: Address,
     ) -> Vote {
         Vote::new_prevote(height, round, value_id, address)
@@ -59,7 +60,7 @@ impl Context for TestContext {
     fn new_precommit(
         height: Height,
         round: Round,
-        value_id: Option<ValueId>,
+        value_id: NilOrVal<ValueId>,
         address: Address,
     ) -> Vote {
         Vote::new_precommit(height, round, value_id, address)

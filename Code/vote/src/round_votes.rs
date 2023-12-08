@@ -1,4 +1,4 @@
-use malachite_common::VoteType;
+use malachite_common::{NilOrVal, VoteType};
 
 use crate::count::VoteCount;
 use crate::{Threshold, ThresholdParam, Weight};
@@ -30,7 +30,7 @@ impl<Address, Value> RoundVotes<Address, Value> {
         &mut self,
         vote_type: VoteType,
         address: Address,
-        value: Option<Value>,
+        value: NilOrVal<Value>,
         weight: Weight,
     ) -> Weight
     where
@@ -43,7 +43,7 @@ impl<Address, Value> RoundVotes<Address, Value> {
         }
     }
 
-    pub fn get_weight(&self, vote_type: VoteType, value: &Option<Value>) -> Weight
+    pub fn get_weight(&self, vote_type: VoteType, value: &NilOrVal<Value>) -> Weight
     where
         Value: Ord,
     {
@@ -60,7 +60,7 @@ impl<Address, Value> RoundVotes<Address, Value> {
         }
     }
 
-    pub fn combined_weight(&self, value: &Option<Value>) -> Weight
+    pub fn combined_weight(&self, value: &NilOrVal<Value>) -> Weight
     where
         Value: Ord,
     {

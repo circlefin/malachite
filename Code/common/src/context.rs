@@ -1,5 +1,5 @@
 use crate::{
-    Address, Height, Proposal, PublicKey, Round, SignedVote, SigningScheme, Validator,
+    Address, Height, NilOrVal, Proposal, PublicKey, Round, SignedVote, SigningScheme, Validator,
     ValidatorSet, Value, ValueId, Vote,
 };
 
@@ -42,7 +42,7 @@ where
     fn new_prevote(
         height: Self::Height,
         round: Round,
-        value_id: Option<ValueId<Self>>,
+        value_id: NilOrVal<ValueId<Self>>,
         address: Self::Address,
     ) -> Self::Vote;
 
@@ -51,7 +51,7 @@ where
     fn new_precommit(
         height: Self::Height,
         round: Round,
-        value_id: Option<ValueId<Self>>,
+        value_id: NilOrVal<ValueId<Self>>,
         address: Self::Address,
     ) -> Self::Vote;
 }
