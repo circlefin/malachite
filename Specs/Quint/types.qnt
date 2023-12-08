@@ -44,8 +44,7 @@ module types {
     type ValueId = Value
     
     // efficient hashing function
-    // pure def id(value: Value): ValueId = value
-    pure def id(value) = value
+    pure def id(value: Value): ValueId = value
 
     // *************************************************************************
     // Messages
@@ -59,7 +58,7 @@ module types {
         validRound: Round,
     }
     
-    def mkProposal(src, height, round, value, validRound) = 
+    pure def mkProposal(src, height, round, value, validRound) = 
         { srcAddress: src, height: height, round: round, proposal: value, validRound: validRound }
 
     type VoteType = Prevote | Precommit
