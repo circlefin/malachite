@@ -1,3 +1,5 @@
+// -*- mode: Bluespec; -*-
+
 module voteBookkeeperTest {
 
     import types.* from "./types"
