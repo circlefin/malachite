@@ -184,7 +184,7 @@ pure def prevote(es: DriverState, vkOutput: VoteKeeperOutput): (DriverState, Con
                 callConsensus(es, es.bk, ProposalAndPolkaPreviousAndValidConInput((value, round)))
             else if (round == es.cs.round)
                 if (es.existsProposal(es.cs.round, value))
-                    val pending = (ProposalAndPolkaAndValidConInput(value), es.cs.height, es.cs.round)
+                    val pending = (ProposalAndPolkaAndValidConInput(Val(value)), es.cs.height, es.cs.round)
                     val newES = { ...es,  pendingInputs: es.pendingInputs.union(Set(pending)) }
                     callConsensus(newES, es.bk, PolkaAnyConInput)   
                 else
