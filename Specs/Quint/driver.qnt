@@ -16,7 +16,7 @@ type DriverState = {
     bk: Bookkeeper,
     cs: ConsensusState,
     proposals: Set[Proposal],
-    valset: Address -> int,
+    valset: Address -> Weight,
     executedInputs: List[(ConsensusInput, Height, Round)], // We record that to have the information in the trace
     pendingInputs: Set[(ConsensusInput, Height, Round)],
     started: bool,
@@ -25,7 +25,7 @@ type DriverState = {
     nextValueToPropose: Value,
 }
 
-pure def initDriver(v: Address, vs: Address -> int): DriverState = {
+pure def initDriver(v: Address, vs: Address -> Weight): DriverState = {
     bk: initBookKeeper(0, vs.mapSumValues()),
     cs: initConsensusState(v, 0),
     proposals: Set(),
@@ -47,12 +47,12 @@ pure def existsProposalValid(state, round, value, validRound) =
 
 type NodeState = {
     es: DriverState,
-    timeout: Set[(Timeout, Height, Round)],
+    timeout: Set[(Timeout, Height, Round)], // TODO: rename to `timeouts`
     incomingVotes: Set[Vote],
     incomingProposals: Set[Proposal],
 }
 
-pure def initNode(v: Address, vs: Address -> int) : NodeState = {
+pure def initNode(v: Address, vs: Address -> Weight) : NodeState = {
     es: initDriver(v,vs),
     timeout: Set(),
     incomingVotes: Set(),
@@ -63,10 +63,11 @@ pure def existsTimeout(state: NodeState): bool =
     state.timeout.exists(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
 
 // Pick an outstanding timeout and remove it from the incoming list.
+// Assumes that state.timeout is not empty.
 pure def pickTimeout(state: NodeState): (NodeState, DriverInput) =
     val timeouts = state.timeout.filter(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
     // val someTimeout = timeouts.chooseSome()
-    val someTimeout: Timeout = timeouts.fold(("", 0, 0), (sum, y) => y)
+    val someTimeout: (Timeout, Height, Round) = timeouts.fold((ProposeTimeout, 0, 0), (sum, y) => y)
     val newstate = { ...state, timeout: state.timeout.exclude(Set(someTimeout))}
     (newstate, TimeoutDInput(someTimeout._1))
 
@@ -110,7 +111,7 @@ val emptyVote = mkVote(Prevote, noAddress, 0, 0, Nil)
 
 // In the implementation this could be a callback to the application. But it needs to be
 // a function, that is, any two validators need to agree on this
-pure def Proposer(valset: Address -> int, height: Height, round: Round) : Address = {
+pure def Proposer(valset: Address -> Weight, height: Height, round: Round) : Address = {
     // Here: rotating coordinator. We can do something more clever actually using the valset
     val prop = (round + 1) % 4
     if (prop == 0) "v1"
@@ -263,7 +264,7 @@ pure def handleProposal(es: DriverState, proposal: Proposal): (DriverState, Cons
                     callConsensus(newES, newES.bk, ProposalAndPolkaAndValidConInput(propId))
                 else (newES, NoConsensusOutput)
             match newES.cs.step { 
-                | Propose =>
+                | ProposeStep =>
                     if (proposal.validRound == -1)
                         if (receivedPolkaCurrentVal)
                             callConsensus(newES, newES.bk, ProposalAndPolkaAndValidConInput(propId))
@@ -273,8 +274,8 @@ pure def handleProposal(es: DriverState, proposal: Proposal): (DriverState, Cons
                         callConsensus(newES, newES.bk, ProposalAndPolkaPreviousAndValidConInput((propId, proposal.validRound)))
                     else  
                         (newES, NoConsensusOutput)
-                | Prevote => prevoteAndprecommitOutput
-                | Precommit => prevoteAndprecommitOutput
+                | PrevoteStep => prevoteAndprecommitOutput
+                | PrecommitStep => prevoteAndprecommitOutput
                 | _ => (newES, NoConsensusOutput)
             }
     else // (not(isValid(proposal))) 
@@ -350,45 +351,46 @@ pure def driver(es: DriverState, input: DriverInput) : (DriverState, ConsensusOu
                 | _ => res
             }
         | VoteDInput(vote) => 
-            match vote.step {
-                | PrecommitStep =>
+            match vote.voteType {
+                | Precommit =>
                     val res = applyVote(es.bk, vote, es.valset.get(vote.srcAddress), es.cs.round)
-                    val newES = { ...es, bk: res.bookkeeper, voteKeeperOutput: res.event}
+                    val newES = { ...es, bk: res.bookkeeper, voteKeeperOutput: res.output}
                     // only a commit event can come here. 
-                    val cons_res = precommit(newES, vote, res.event) 
+                    val cons_res = precommit(newES, vote, res.output) 
                     match cons_res._2 {
-                        | DecidedOutput(value) => decided(cons_res._1, res._2, value)
+                        | DecidedOutput(value) => decided(cons_res._1, cons_res._2, value) // CHECK: second argument to `decided` was `res._2` of type VoteKeeperOutput
                         | SkipRoundOutput(round) => skip(cons_res._1, round)
-                        | _ => res
+                        | _ => cons_res // CHECK: this was `res` of type VoteKeeperOutput
                     }
-                | PrevoteStep =>
-                    val res = applyVote(es.bk, vote, es.valset.get(vote.src), es.cs.round)
-                    val newES = { ...es, bk: res.bookkeeper, voteKeeperOutput: res.event}
+                | Prevote =>
+                    val res = applyVote(es.bk, vote, es.valset.get(vote.srcAddress), es.cs.round)
+                    val newES = { ...es, bk: res.bookkeeper, voteKeeperOutput: res.output}
                     // only a commit event can come here. 
-                    val cons_res = prevote(newES, res.event) 
+                    val cons_res = prevote(newES, res.output) 
                     match cons_res._2 {
                         // TODO: dead branch. But we should put this after consensus call logic into a function
-                        | DecidedOutput(value) => decided(cons_res._1, res._2, value) 
+                        | DecidedOutput(value) => decided(cons_res._1, cons_res._2, value) // CHECK: second argument to `decided` was `res._2` of type VoteKeeperOutput
                         | SkipRoundOutput(round) => skip(cons_res._1, round)
-                        | _ => res
+                        | _ => cons_res // CHECK: this was `res` of type VoteKeeperOutput
                     }
             }
         | TimeoutDInput(timeout) =>
             val res = handleTimeout(es, timeout)
             // result should be vote or skip
-            if (res._2.name == "skipRound")
-                skip (res._1, res._2.skipRound)
-                // skip starts a new round. This may involve getValue. If we choose to move the getValue
-                // logic out of the driver, we wouldn't call skip here but add a (to be defined)
-                // DriverInput
-            else
-                res
+            match res._2 {
+                | SkipRoundOutput(round) =>
+                    skip(res._1, round)
+                    // skip starts a new round. This may involve getValue. If we choose to move the getValue
+                    // logic out of the driver, we wouldn't call skip here but add a (to be defined)
+                    // DriverInput
+                | _ => res
+            }
         | StartDInput =>
             skip ({ ...es, started: true}, 0)
         | PendingDInput(_) =>
             handlePendingInput(es) // CHECK: input not used?
         | SetNextProposedValueDInput(value) =>
-            setValue(es, value)
+            es.setValue(Val(value))
         | _ =>
             (es, NoConsensusOutput)
     }
