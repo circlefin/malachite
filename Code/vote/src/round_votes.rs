@@ -1,3 +1,5 @@
+//! For tallying all the votes for a single round
+
 use malachite_common::{NilOrVal, VoteType};
 
 use crate::count::VoteCount;
@@ -6,11 +8,14 @@ use crate::{Threshold, ThresholdParam, Weight};
 /// Tracks all the votes for a single round
 #[derive(Clone, Debug)]
 pub struct RoundVotes<Address, Value> {
+    /// The prevotes for this round.
     prevotes: VoteCount<Address, Value>,
+    /// The precommits for this round.
     precommits: VoteCount<Address, Value>,
 }
 
 impl<Address, Value> RoundVotes<Address, Value> {
+    /// Create a new `RoundVotes` instance.
     pub fn new() -> Self {
         RoundVotes {
             prevotes: VoteCount::new(),
@@ -18,14 +23,18 @@ impl<Address, Value> RoundVotes<Address, Value> {
         }
     }
 
+    /// Return the prevotes for this round.
     pub fn prevotes(&self) -> &VoteCount<Address, Value> {
         &self.prevotes
     }
 
+    /// Return the precommits for this round.
     pub fn precommits(&self) -> &VoteCount<Address, Value> {
         &self.precommits
     }
 
+    /// Add a vote to the round, of the given type, from the given address,
+    /// with the given value and weight.
     pub fn add_vote(
         &mut self,
         vote_type: VoteType,
@@ -43,6 +52,9 @@ impl<Address, Value> RoundVotes<Address, Value> {
         }
     }
 
+    /// Get the weight of the vote of the given type for the given value.
+    ///
+    /// If there is no vote for that value, return 0.
     pub fn get_weight(&self, vote_type: VoteType, value: &NilOrVal<Value>) -> Weight
     where
         Value: Ord,
@@ -53,6 +65,7 @@ impl<Address, Value> RoundVotes<Address, Value> {
         }
     }
 
+    /// Get the sum of the weights of the votes of the given type.
     pub fn weight_sum(&self, vote_type: VoteType) -> Weight {
         match vote_type {
             VoteType::Prevote => self.prevotes.sum(),
@@ -60,6 +73,7 @@ impl<Address, Value> RoundVotes<Address, Value> {
         }
     }
 
+    /// Get the sum of the weights of all votes, regardless of type, for the given value.
     pub fn combined_weight(&self, value: &NilOrVal<Value>) -> Weight
     where
         Value: Ord,

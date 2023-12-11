@@ -1,3 +1,5 @@
+//! For tallying votes and emitting messages when certain thresholds are reached.
+
 use core::fmt;
 
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -11,20 +13,35 @@ use crate::{Threshold, ThresholdParam, ThresholdParams, Weight};
 /// Messages emitted by the vote keeper
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Output<Value> {
+    /// We have a quorum of prevotes for some value or nil
     PolkaAny,
+
+    /// We have a quorum of prevotes for nil
     PolkaNil,
+
+    /// We have a quorum of prevotes for specific value
     PolkaValue(Value),
+
+    /// We have a quorum of precommits for some value or nil
     PrecommitAny,
+
+    /// We have a quorum of precommits for a specific value
     PrecommitValue(Value),
+
+    /// We have f+1 honest votes for a value at a higher round
     SkipRound(Round),
 }
 
+/// Keeps track of votes and emitted outputs for a given round.
 pub struct PerRound<Ctx>
 where
     Ctx: Context,
 {
+    /// The votes for this round.
     votes: RoundVotes<Ctx::Address, ValueId<Ctx>>,
+    /// The addresses and their weights for this round.
     addresses_weights: RoundWeights<Ctx::Address>,
+    /// The emitted outputs for this round.
     emitted_outputs: BTreeSet<Output<ValueId<Ctx>>>,
 }
 
@@ -32,6 +49,7 @@ impl<Ctx> PerRound<Ctx>
 where
     Ctx: Context,
 {
+    /// Create a new `PerRound` instance.
     fn new() -> Self {
         Self {
             votes: RoundVotes::new(),
@@ -40,14 +58,17 @@ where
         }
     }
 
+    /// Return the votes for this round.
     pub fn votes(&self) -> &RoundVotes<Ctx::Address, ValueId<Ctx>> {
         &self.votes
     }
 
+    /// Return the addresses and their weights for this round.
     pub fn addresses_weights(&self) -> &RoundWeights<Ctx::Address> {
         &self.addresses_weights
     }
 
+    /// Return the emitted outputs for this round.
     pub fn emitted_outputs(&self) -> &BTreeSet<Output<ValueId<Ctx>>> {
         &self.emitted_outputs
     }
@@ -86,8 +107,11 @@ pub struct VoteKeeper<Ctx>
 where
     Ctx: Context,
 {
+    /// The total weight (ie. voting power) of the network.
     total_weight: Weight,
+    /// The threshold parameters.
     threshold_params: ThresholdParams,
+    /// The votes and emitted outputs for each round.
     per_round: BTreeMap<Round, PerRound<Ctx>>,
 }
 
@@ -95,6 +119,8 @@ impl<Ctx> VoteKeeper<Ctx>
 where
     Ctx: Context,
 {
+    /// Create a new `VoteKeeper` instance, for the given
+    /// total network weight (ie. voting power) and threshold parameters.
     pub fn new(total_weight: Weight, threshold_params: ThresholdParams) -> Self {
         VoteKeeper {
             total_weight,
@@ -103,10 +129,12 @@ where
         }
     }
 
+    /// Return the total weight (ie. voting power) of the network.
     pub fn total_weight(&self) -> &Weight {
         &self.total_weight
     }
 
+    /// Return the threshold parameters.
     pub fn per_round(&self) -> &BTreeMap<Round, PerRound<Ctx>> {
         &self.per_round
     }

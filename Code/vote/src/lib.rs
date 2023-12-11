@@ -1,16 +1,18 @@
-//! Tally votes of the same type (eg. prevote or precommit)
+//! Infrastructre for tallying votes within the consensus engine.
 
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(unused_crate_dependencies, trivial_casts, trivial_numeric_casts)]
 #![warn(
-    // missing_docs,
+    missing_docs,
     rustdoc::broken_intra_doc_links,
     rustdoc::private_intra_doc_links,
     variant_size_differences
 )]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+
+use malachite_common::VotingPower;
 
 extern crate alloc;
 
@@ -21,8 +23,9 @@ pub mod round_weights;
 pub mod value_weights;
 
 // TODO: Introduce newtype
-// QUESTION: Over what type? i64?
-pub type Weight = u64;
+/// Represents the weight of a vote,
+/// ie. the voting power of the validator that cast the vote.
+pub type Weight = VotingPower;
 
 /// Represents the different quorum thresholds.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -44,6 +47,11 @@ pub enum Threshold<ValueId> {
     Value(ValueId),
 }
 
+/// Represents the different quorum thresholds.
+///
+/// There are two thresholds:
+/// - The quorum threshold, which is the minimum number of votes required for a quorum.
+/// - The honest threshold, which is the minimum number of votes required for a quorum of honest nodes.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct ThresholdParams {
     /// Threshold for a quorum (default: 2f+1)
@@ -62,22 +70,24 @@ impl Default for ThresholdParams {
     }
 }
 
+// TODO: Distinguish between quorum and honest thresholds at the type-level
 /// Represents the different quorum thresholds.
-///
-/// TODO: Distinguish between quorum and honest thresholds at the type-level
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct ThresholdParam {
+    /// Numerator of the threshold
     pub numerator: u64,
+    /// Denominator of the threshold
     pub denominator: u64,
 }
 
 impl ThresholdParam {
-    /// 2f+1
+    /// 2f+1, ie. more than two thirds of the total weight
     pub const TWO_F_PLUS_ONE: Self = Self::new(2, 3);
 
-    /// f+1
+    /// f+1, ie. more than one third of the total weight
     pub const F_PLUS_ONE: Self = Self::new(1, 3);
 
+    /// Create a new threshold parameter with the given numerator and denominator.
     pub const fn new(numerator: u64, denominator: u64) -> Self {
         Self {
             numerator,

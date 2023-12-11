@@ -1,3 +1,5 @@
+//! For tallying votes of the same type.
+
 use alloc::collections::BTreeSet;
 use malachite_common::NilOrVal;
 
@@ -5,6 +7,7 @@ use crate::value_weights::ValuesWeights;
 use crate::{Threshold, ThresholdParam, Weight};
 
 /// VoteCount tallys votes of the same type.
+///
 /// Votes are for nil or for some value.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct VoteCount<Address, Value> {
@@ -16,6 +19,7 @@ pub struct VoteCount<Address, Value> {
 }
 
 impl<Address, Value> VoteCount<Address, Value> {
+    /// Create a new `VoteCount`.
     pub fn new() -> Self {
         VoteCount {
             values_weights: ValuesWeights::new(),
@@ -39,6 +43,7 @@ impl<Address, Value> VoteCount<Address, Value> {
         }
     }
 
+    /// Return the weight of votes for the given value (or nil).
     pub fn get(&self, value: &NilOrVal<Value>) -> Weight
     where
         Value: Ord,
@@ -46,6 +51,7 @@ impl<Address, Value> VoteCount<Address, Value> {
         self.values_weights.get(value)
     }
 
+    /// Return the sum of weights of votes for all values.
     pub fn sum(&self) -> Weight {
         self.values_weights.sum()
     }
