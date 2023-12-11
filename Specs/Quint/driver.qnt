@@ -148,8 +148,8 @@ pure def callConsensus(es: DriverState, bk: Bookkeeper, csInput: ConsensusInput)
 pure def precommit(es: DriverState, vote: Vote, vkOutput: VoteKeeperOutput): (DriverState, ConsensusOutput) =
     match vkOutput {
         | PrecommitValueVKOutput(round_value) =>
-            val r = round_value._1
-            val v = round_value._2
+            val r: Round = round_value._1
+            val v: NonNilValue = round_value._2
             if (es.existsProposal(r, v))
                 callConsensus(es, es.bk, ProposalAndCommitAndValidCInput(vote.valueId))
             else if (r == es.cs.round)
@@ -179,10 +179,10 @@ pure def prevote(es: DriverState, vkOutput: VoteKeeperOutput): (DriverState, Con
     match vkOutput {
         | PolkaValueVKOutput(round_value) =>
             val r = round_value._1
-            val v = round_value._2
+            val v: NonNilValue = round_value._2
             if (r < es.cs.round and es.existsProposalValid(es.cs.round, v, r))
                 // TODO: the value should come from the proposal   
-                callConsensus(es, es.bk, ProposalAndPolkaPreviousAndValidCInput((v, r)))
+                callConsensus(es, es.bk, ProposalAndPolkaPreviousAndValidCInput((Val(v), r)))
             else if (r == es.cs.round)
                 if (es.existsProposal(es.cs.round, v))
                     val pending = (ProposalAndPolkaAndValidCInput(Val(v)), es.cs.height, es.cs.round)

@@ -181,8 +181,8 @@ module consensus {
         // - it is for the current round
         // The executor checks this upon receiving a propose message "ProposalMsg"
         | ProposalCInput(round_value) =>
-            val r = round_value._1
-            val v = round_value._2
+            val r: Round = round_value._1
+            val v: Value = round_value._2
             if (state.step == ProposeStep)
                 if (state.lockedRound == -1 or state.lockedValue == v) // line 23
                     state
@@ -204,8 +204,8 @@ module consensus {
 
         // line 28
         | ProposalAndPolkaPreviousAndValidCInput(value_vr) =>
-            val v = value_vr._1
-            val vr = value_vr._2
+            val v: Value = value_vr._1
+            val vr: Round = value_vr._2
             if (state.step == ProposeStep and vr >= 0 and vr < state.round) // line 28
                 if (state.lockedRound <= vr or state.lockedValue == v) // line 29
                     state
