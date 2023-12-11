@@ -435,7 +435,7 @@ pure def StepChange (es: DriverState) : (DriverState, ConsensusOutput) = {
 
     // Then check proposal
     val proposer = Proposer(newES.valset, newES.cs.height, newES.cs.round)
-    val propSet = newES.proposals.filter(x => x.src == proposer and x.height == newESes.cs.height and x.round == newES.cs.round)
+    val propSet = newES.proposals.filter(x => x.src == proposer and x.height == newES.cs.height and x.round == newES.cs.round)
     if (propSet != Set())
         val proposal = propSet.fold(emptyProposal, (sum, y) => y) 
                     // TODO:    If the proposer is faulty there might be multiple
