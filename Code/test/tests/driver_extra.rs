@@ -35,7 +35,6 @@ use malachite_test::utils::*;
 // - L34 with previously received polkaAny and entering prevote (due to received poposal)
 //      `driver_steps_polka_any_then_proposal_other()`
 
-// TODO - move all below to utils?
 struct TestStep {
     desc: &'static str,
     input: Input<TestContext>,
@@ -75,11 +74,12 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
     let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
 
+    let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
@@ -147,11 +147,12 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
     let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
 
+    let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
@@ -247,11 +248,12 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
     let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
 
+    let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
@@ -367,11 +369,12 @@ fn driver_steps_polka_previous_with_locked() {
     let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 2, 3]);
     let (my_sk, my_addr) = (sk2, v2.address);
 
+    let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
@@ -474,11 +477,12 @@ fn driver_steps_polka_previous_invalid_proposal() {
     let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3, v3.address);
 
+    let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
@@ -572,11 +576,12 @@ fn driver_steps_polka_previous_with_no_locked() {
     let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 2, 3]);
     let (my_sk, my_addr) = (sk2, v2.address);
 
+    let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
@@ -680,11 +685,12 @@ fn driver_steps_polka_nil_and_timout_propose() {
     let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
 
+    let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
@@ -740,11 +746,12 @@ fn driver_steps_polka_value_then_proposal() {
     let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
 
+    let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
@@ -803,11 +810,12 @@ fn driver_steps_polka_any_then_proposal_other() {
     let [(v1, sk1), (v2, sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
 
+    let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
     let sel = RotateProposer;
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, sel, vs, my_addr);
+    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {

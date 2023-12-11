@@ -1,3 +1,5 @@
+//! Multiplex inputs to the round state machine based on the current state.
+
 use malachite_common::ValueId;
 use malachite_common::{Context, Proposal, Round, Value, VoteType};
 use malachite_round::input::Input as RoundInput;
@@ -12,6 +14,47 @@ impl<Ctx> Driver<Ctx>
 where
     Ctx: Context,
 {
+    /// Process a received proposal relative to the current state of the round, considering
+    /// its validity and performing various checks to determine the appropriate round input action.
+    ///
+    /// This is needed because, depending on the step we are at when we receive the proposal,
+    /// and the amount of votes we received for various values (or nil), we need to feed
+    /// different inputs to the round state machine, instead of a plain proposal.
+    ///
+    /// For example, if we have a proposal for a value, and we have a quorum of precommits
+    /// for that value, then we need to feed the round state machine a `ProposalAndPrecommitValue`
+    /// input instead of a plain `Proposal` input.
+    ///
+    /// The method follows these steps:
+    ///
+    /// 1. Check that there is an ongoing round, otherwise return `None`
+    ///
+    /// 2. Check that the proposal's height matches the current height, otherwise return `None`.
+    ///
+    /// 3. If the proposal is invalid, the method follows these steps:
+    ///    a. If we are at propose step and the proposal's proof-of-lock (POL) round is `Nil`, return
+    ///       `RoundInput::InvalidProposal`.
+    ///    b. If we are at propose step and there is a polka for a prior-round proof-of-lock (POL),
+    ///       return `RoundInput::InvalidProposalAndPolkaPrevious`.
+    ///    c. For other steps or if there is no prior-round POL, return `None`.
+    ///
+    /// 4. Checks that the proposed value has already not already been decided, after storing the
+    ///    proposal, but before further processing.
+    ///
+    /// 5. If a quorum of precommit votes is met for the proposal's value,
+    ///    return `RoundInput::ProposalAndPrecommitValue` including the proposal.
+    ///
+    /// 6. If the proposal is for a different round than the current one, return `None`.
+    ///
+    /// 7. If a POL is present for the current round and we are beyond the prevote step,
+    ///    return `RoundInput::ProposalAndPolkaCurrent`, including the proposal.
+    ///
+    /// 8. If we are at the propose step, and a prior round POL exists,
+    ///    check if the proposal's valid round is equal to the threshold's valid round,
+    ///    and then returns `RoundInput::ProposalAndPolkaPrevious`, including the proposal.
+    ///
+    /// 9. If none of the above conditions are met, simply wrap the proposal in
+    ///    `RoundInput::Proposal` and return it.
     pub fn multiplex_proposal(
         &mut self,
         proposal: Ctx::Proposal,
@@ -48,9 +91,7 @@ where
                     return Some(RoundInput::InvalidProposal);
                 } else if polka_previous {
                     // L32
-                    return Some(RoundInput::InvalidProposalAndPolkaPrevious(
-                        proposal.clone(),
-                    ));
+                    return Some(RoundInput::InvalidProposalAndPolkaPrevious(proposal));
                 } else {
                     return None;
                 }
@@ -67,7 +108,7 @@ where
             VoteType::Precommit,
             Threshold::Value(proposal.value().id()),
         ) {
-            return Some(RoundInput::ProposalAndPrecommitValue(proposal.clone()));
+            return Some(RoundInput::ProposalAndPrecommitValue(proposal));
         }
 
         // If the proposal is for a different round, drop the proposal
@@ -97,43 +138,47 @@ where
         Some(RoundInput::Proposal(proposal))
     }
 
+    /// After a vote threshold change, check if we have a polka for nil, some value or any,
+    /// based on the type of threshold and the current proposal.
     pub fn multiplex_vote_threshold(
         &self,
         new_threshold: VoteKeeperOutput<ValueId<Ctx>>,
-    ) -> Option<RoundInput<Ctx>> {
+    ) -> RoundInput<Ctx> {
         if let Some(proposal) = &self.proposal {
             match new_threshold {
-                VoteKeeperOutput::PolkaAny => Some(RoundInput::PolkaAny),
-                VoteKeeperOutput::PolkaNil => Some(RoundInput::PolkaNil),
+                VoteKeeperOutput::PolkaAny => RoundInput::PolkaAny,
+                VoteKeeperOutput::PolkaNil => RoundInput::PolkaNil,
                 VoteKeeperOutput::PolkaValue(v) => {
                     if v == proposal.value().id() {
-                        Some(RoundInput::ProposalAndPolkaCurrent(proposal.clone()))
+                        RoundInput::ProposalAndPolkaCurrent(proposal.clone())
                     } else {
-                        Some(RoundInput::PolkaAny)
+                        RoundInput::PolkaAny
                     }
                 }
-                VoteKeeperOutput::PrecommitAny => Some(RoundInput::PrecommitAny),
+                VoteKeeperOutput::PrecommitAny => RoundInput::PrecommitAny,
                 VoteKeeperOutput::PrecommitValue(v) => {
                     if v == proposal.value().id() {
-                        Some(RoundInput::ProposalAndPrecommitValue(proposal.clone()))
+                        RoundInput::ProposalAndPrecommitValue(proposal.clone())
                     } else {
-                        Some(RoundInput::PrecommitAny)
+                        RoundInput::PrecommitAny
                     }
                 }
-                VoteKeeperOutput::SkipRound(r) => Some(RoundInput::SkipRound(r)),
+                VoteKeeperOutput::SkipRound(r) => RoundInput::SkipRound(r),
             }
         } else {
             match new_threshold {
-                VoteKeeperOutput::PolkaAny => Some(RoundInput::PolkaAny),
-                VoteKeeperOutput::PolkaNil => Some(RoundInput::PolkaNil),
-                VoteKeeperOutput::PolkaValue(_) => Some(RoundInput::PolkaAny),
-                VoteKeeperOutput::PrecommitAny => Some(RoundInput::PrecommitAny),
-                VoteKeeperOutput::PrecommitValue(_) => Some(RoundInput::PrecommitAny),
-                VoteKeeperOutput::SkipRound(r) => Some(RoundInput::SkipRound(r)),
+                VoteKeeperOutput::PolkaAny => RoundInput::PolkaAny,
+                VoteKeeperOutput::PolkaNil => RoundInput::PolkaNil,
+                VoteKeeperOutput::PolkaValue(_) => RoundInput::PolkaAny,
+                VoteKeeperOutput::PrecommitAny => RoundInput::PrecommitAny,
+                VoteKeeperOutput::PrecommitValue(_) => RoundInput::PrecommitAny,
+                VoteKeeperOutput::SkipRound(r) => RoundInput::SkipRound(r),
             }
         }
     }
 
+    /// After a step change, check if we have a polka for nil, some value or any,
+    /// and return the corresponding input for the round state machine.
     pub fn multiplex_step_change(
         &self,
         pending_step: Step,
@@ -163,6 +208,7 @@ where
     }
 }
 
+/// Check if we have a polka for nil
 fn has_polka_nil<Ctx>(votekeeper: &VoteKeeper<Ctx>, round: Round) -> bool
 where
     Ctx: Context,
@@ -170,6 +216,7 @@ where
     votekeeper.is_threshold_met(&round, VoteType::Prevote, Threshold::Nil)
 }
 
+/// Check if we have a polka for a value
 fn has_polka_value<'p, Ctx>(
     votekeeper: &VoteKeeper<Ctx>,
     round: Round,
@@ -189,6 +236,7 @@ where
         .then_some(proposal)
 }
 
+/// Check if we have a polka for any
 fn has_polka_any<Ctx>(votekeeper: &VoteKeeper<Ctx>, round: Round) -> bool
 where
     Ctx: Context,
