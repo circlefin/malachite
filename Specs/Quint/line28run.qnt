@@ -5,10 +5,10 @@ module line28run {
 import TendermintDSL.* from "./TendermintDSL"
 export TendermintDSL.*
 
-const otherSet : Set[Address_t]
+const otherSet: Set[Address]
 val others = otherSet.fold(List(), (s, x) => s.append(x)) 
 
-run runToLine28 = {
+run runToLine28 =
     val nextProposer = Proposer (validatorSet, 0, 1)
     init
     .then(all {
@@ -19,22 +19,21 @@ run runToLine28 = {
         everyoneReceivesProposal(correctList, validatorList, validatorSet, 0, 0, "blue")
     })
     // receive all prevotes    
-    .then(fromPrevoteToPrecommit (correctList, correctList, validatorList, validatorSet, 0, 0, "blue"))
+    .then(fromPrevoteToPrecommit(correctList, correctList, validatorList, validatorSet, 0, 0, Val("blue")))
     // now the faulty nodes precommit nil
-    .then(ListDeliverAllVotes("Precommit", faultyList, correctList, validatorSet, 0, 0, "nil"))
+    .then(ListDeliverAllVotes(Precommit, faultyList, correctList, validatorSet, 0, 0, Nil))
     .then(faultyList.length().reps(_ => ListTakeAStep(correctList)))   
     // now the other precommits are delivered, so that timeoutPrecommit is started
-    .then(ListDeliverAllVotes("Precommit", others, correctList, validatorSet, 0, 0, "blue"))
+    .then(ListDeliverAllVotes(Precommit, others, correctList, validatorSet, 0, 0, Val("blue")))
     .then(others.length().reps(_ => ListTakeAStep(correctList)))
     // TimeoutPrecommit is there an can fire and bring is to the next round.
     .then(all{
-        assert(system.get(nextProposer).timeout.contains(("TimeoutPrecommit", 0, 0))),
+        assert(system.get(nextProposer).timeout.contains((PrecommitTimeout, 0, 0))),
         everyoneReceivesProposal(correctList, validatorList, validatorSet, 0, 0, "red")
     })
     .then(all{
-        assert(voteBuffer.get(nextProposer).contains( { height: 0, id: "blue", round: 1, src: nextProposer, step: "Prevote" })),
+        assert(voteBuffer.get(nextProposer).contains(mkVote(Prevote, nextProposer, 0, 1, Val("blue")))),
         unchangedAll
     })
-}
 
 }

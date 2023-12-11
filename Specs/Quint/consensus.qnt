@@ -96,7 +96,7 @@ module consensus {
     type ConsensusOutput =
         | NoConsensusOutput
         | ProposalOutput(Proposal)
-        | VoteMessageOutput(Vote)
+        | VoteOutput(Vote)
         | TimeoutOutput(Timeout)
         | DecidedOutput(Value)
         | SkipRoundOutput(Round)
@@ -107,9 +107,9 @@ module consensus {
     pure def toProposalOutput(state, src, height, round, value, validRound) = 
         { cs: state, out: ProposalOutput(mkProposal(src, height, round, value, validRound)) }
     pure def toPrevoteOutput(state, src, height, round, valueId) = 
-        { cs: state, out: VoteMessageOutput(mkVote(Prevote, src, height, round, valueId)) }
+        { cs: state, out: VoteOutput(mkVote(Prevote, src, height, round, valueId)) }
     pure def toPrecommitOutput(state, src, height, round, valueId) = 
-        { cs: state, out: VoteMessageOutput(mkVote(Precommit, src, height, round, valueId)) }
+        { cs: state, out: VoteOutput(mkVote(Precommit, src, height, round, valueId)) }
     pure def toTimeoutOutput(state, timeout) = 
         { cs: state, out: TimeoutOutput(timeout) }
     pure def toDecidedOutput(state, value) = 
@@ -122,7 +122,7 @@ module consensus {
     // for testing
     pure def isVoteMsgWith(output, voteType, valueId) =
         match output {
-            | VoteMessageOutput(msg) => msg.voteType == voteType and msg.valueId == valueId
+            | VoteOutput(msg) => msg.voteType == voteType and msg.valueId == valueId
             | _ => false
         }
 

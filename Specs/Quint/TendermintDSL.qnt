@@ -2,6 +2,8 @@
 
 module TendermintDSL {
 
+import types.* from "./types"
+export types.*
 import statemachineAsync.* from "./statemachineAsync"
 export statemachineAsync.*
 
@@ -21,14 +23,11 @@ run ListDeliverSomeProposal (active) = {
     active.length().reps(i => deliverSomeProposal(active[i]))
 }
 
-run ProcessDeliverAllVotes  (cstep, recepient, fromList, valset, h, r, value) = {
-    fromList.length().reps(i => deliverVote(recepient, { src: fromList[i], height: h, round: r, step: cstep, id: value }))
-}
+run ProcessDeliverAllVotes(cstep, recepient, fromList, valset, h, r, value) =
+    fromList.length().reps(i => deliverVote(recepient, mkVote(cstep, fromList[i], h, r, value)))
 
-run ListDeliverAllVotes (cstep, fromList, toList, valset, h, r, value) = {
-    toList.length().reps(i => ProcessDeliverAllVotes (cstep, toList[i], fromList, valset, h, r, value))
-}
-
+run ListDeliverAllVotes(cstep, fromList, toList, valset, h, r, value) =
+    toList.length().reps(i => ProcessDeliverAllVotes(cstep, toList[i], fromList, valset, h, r, value))
 
 run everyoneReceivesProposal (active, valList, valset, h, r, value) = {
     val p = Proposer (valset, h, r)
@@ -41,12 +40,10 @@ run everyoneReceivesProposal (active, valList, valset, h, r, value) = {
     .then(ListTakeAStep(active))    
 }
 
-run fromPrevoteToPrecommit (prevoteSenders, prevoteReceivers, valList, valset, h, r, value) = {
-    ListDeliverAllVotes("Prevote", prevoteSenders, prevoteReceivers, valset, h, r, value)
-    .then(prevoteSenders.length().reps(_ => ListTakeAStep(prevoteReceivers)))
-    // extra step due to timeoutprevote double step
-    .then(ListTakeAStep(prevoteReceivers))
-}
-
+run fromPrevoteToPrecommit(prevoteSenders, prevoteReceivers, valList, valset, h, r, value) =
+    ListDeliverAllVotes(Prevote, prevoteSenders, prevoteReceivers, valset, h, r, value)
+        .then(prevoteSenders.length().reps(_ => ListTakeAStep(prevoteReceivers)))
+        // extra step due to timeoutprevote double step
+        .then(ListTakeAStep(prevoteReceivers))
 
 }
