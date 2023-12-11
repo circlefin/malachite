@@ -30,7 +30,7 @@ run ListDeliverAllVotes(cstep, fromList, toList, valset, h, r, value) =
     toList.length().reps(i => ProcessDeliverAllVotes(cstep, toList[i], fromList, valset, h, r, value))
 
 run everyoneReceivesProposal (active, valList, valset, h, r, value) = {
-    val p = Proposer (valset, h, r)
+    val p = proposer(valset, h, r)
     setNextValueToPropose(p, value)
     .then(ListTakeAStep(active))
     .then(all {

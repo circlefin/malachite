@@ -9,7 +9,7 @@ const otherSet: Set[Address]
 val others = otherSet.fold(List(), (s, x) => s.append(x)) 
 
 run runToLine28 =
-    val nextProposer = Proposer (validatorSet, 0, 1)
+    val nextProposer = proposer(validatorSet, 0, 1)
     init
     .then(all {
         // others should be at most 2/3.

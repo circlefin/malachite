@@ -39,7 +39,7 @@ run everyoneDeliversPrecommit(prop, r, proposer, nonprop) =
         oneDeliversPrecommit(validatorList[i], prop, r, proposer, nonprop))
 
 run UnSuccessfulRound(prop: NonNilValue, r: Round): bool =
-    val proposer = N4F0::Proposer(N4F0::validatorSet, 0, r)
+    val proposer = N4F0::proposer(N4F0::validatorSet, 0, r)
     val nonprop = validatorList.select(x => x != proposer)
     // everyone is in round r and proposer sent a proposal
     all {
@@ -63,7 +63,7 @@ run UnSuccessfulRound(prop: NonNilValue, r: Round): bool =
     })
 
 run UnSuccessfulRoundWithSetup (prop: NonNilValue, r: Round): bool =
-    N4F0::setNextValueToPropose(N4F0::Proposer(N4F0::validatorSet, 0, r), prop)
+    N4F0::setNextValueToPropose(N4F0::proposer(N4F0::validatorSet, 0, r), prop)
     .then(everyoneTakesAStep)
     .then(all {
         assert(N4F0::system.forallValues(state => state.es.cs.round == r)),
