@@ -11,12 +11,11 @@ import statemachineAsync(
     Heights = Set(0) // , 1, 2, 3)
 ) as N4F0 from "./statemachineAsync"
 
-// TODO: transfer into DSL type tests
 
-run ThreeDecideInRound1V4stillinZeroTest = {
+run ThreeDecideInRound1V4stillinZeroOld = {
     N4F0::init
     .then(N4F0::setNextValueToPropose("v2", "block"))
-.then(N4F0::valStep("v1"))
+    .then(N4F0::valStep("v1"))
     .then(N4F0::valStep("v2"))
     .then(N4F0::valStep("v3"))
     .then(N4F0::valStep("v4"))
@@ -24,6 +23,9 @@ run ThreeDecideInRound1V4stillinZeroTest = {
     .then(N4F0::deliverProposal("v2", { height: 0, proposal: "block", round: 0, src: "v2", validRound: -1 }))
     .then(N4F0::valStep("v2"))
     .then(N4F0::valStep("v3")) 
+    // Timeoutpropose fired on 1, 3, proposer 2 received proposal
+    // they all moved to prevote (with step change we need extra step)
+    // now deliver to 1, 2, 3: nil from 1 and 3, value from proposer 
     .then(N4F0::deliverVote("v1", { height: 0, id: "nil", round: 0, src: "v1", step: "Prevote" }))
     .then(N4F0::deliverVote("v1", { height: 0, id: "block", round: 0, src: "v2", step: "Prevote" }))
     .then(N4F0::deliverVote("v1", { height: 0, id: "nil", round: 0, src: "v3", step: "Prevote" }))
@@ -49,6 +51,7 @@ run ThreeDecideInRound1V4stillinZeroTest = {
     .then(N4F0::valStep("v1"))
     .then(N4F0::valStep("v2"))
     .then(N4F0::valStep("v3")) 
+    // 1, 2, 3 receive precommit nil from 1, 2, 3
     .then(N4F0::deliverVote("v1", { height: 0, id: "nil", round: 0, src: "v1", step: "Precommit" }))
     .then(N4F0::deliverVote("v1", { height: 0, id: "nil", round: 0, src: "v2", step: "Precommit" }))
     .then(N4F0::deliverVote("v1", { height: 0, id: "nil", round: 0, src: "v3", step: "Precommit" }))
@@ -67,6 +70,7 @@ run ThreeDecideInRound1V4stillinZeroTest = {
     .then(N4F0::valStep("v1"))
     .then(N4F0::valStep("v2"))
     .then(N4F0::valStep("v3"))   
+    // timeoutprecommit started
     .then(N4F0::setNextValueToPropose("v3", "another block")) 
     .then(N4F0::valStep("v1"))
     .then(N4F0::valStep("v2"))
@@ -77,6 +81,8 @@ run ThreeDecideInRound1V4stillinZeroTest = {
     .then(N4F0::valStep("v1"))
     .then(N4F0::valStep("v2"))
     .then(N4F0::valStep("v3")) 
+    // ^ everyone receives proosal
+    // v from prevote to precommit
     .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v1", step: "Prevote" }))
     .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v2", step: "Prevote" }))
     .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v3", step: "Prevote" }))
@@ -98,6 +104,7 @@ run ThreeDecideInRound1V4stillinZeroTest = {
     .then(N4F0::valStep("v1"))
     .then(N4F0::valStep("v2"))
     .then(N4F0::valStep("v3"))    
+    // v 1, 2, 3 receives precommit
     .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
     .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v2", step: "Precommit" }))
     .then(N4F0::deliverVote("v1", { height: 0, id: "another block", round: 1, src: "v3", step: "Precommit" }))
@@ -123,7 +130,7 @@ run ThreeDecideInRound1V4stillinZeroTest = {
 }
 
 run DecideForFutureRoundTest = {
-    ThreeDecideInRound1V4stillinZeroTest
+    ThreeDecideInRound1V4stillinZeroOld
     .then(N4F0::deliverProposal("v4",  { height: 0, proposal: "another block", round: 1, src: "v3", validRound: -1 }))
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v2", step: "Precommit" }))
@@ -141,8 +148,8 @@ run DecideForFutureRoundTest = {
            
 }
 
-run DecideOnProposalTest = {
-    ThreeDecideInRound1V4stillinZeroTest
+run DecideOnProposalOld = {
+    ThreeDecideInRound1V4stillinZeroOld
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v2", step: "Precommit" }))
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v3", step: "Precommit" })) 
@@ -160,8 +167,8 @@ run DecideOnProposalTest = {
     })   
 }    
 
-run RoundswitchTest = {
-    ThreeDecideInRound1V4stillinZeroTest
+run RoundswitchOld = {
+    ThreeDecideInRound1V4stillinZeroOld
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v2", step: "Prevote" }))
     .then(N4F0::valStep("v4"))
@@ -199,7 +206,7 @@ import statemachineAsync(
 
 // v3 and v4 are correct. v2 is a faulty proposal and proposes differently to v3 and v4
 // this run leads to disagreement
-run DisagreementTest = {
+run DisagreementOld = {
     N4F2::init
     .then(N4F2::valStep("v3"))
     .then(N4F2::valStep("v4"))

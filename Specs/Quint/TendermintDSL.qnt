@@ -34,13 +34,28 @@ run ListDeliverAllVotes (cstep, fromList, toList, valset, h, r, value) = {
     toList.length().reps(i => ProcessDeliverAllVotes (cstep, toList[i], fromList, valset, h, r, value))
 }
 
+run onlyProposerReceivesProposal (active, valList, valset, h, r, value) = {
+    val p = Proposer (valset, h, r)
+    setNextValueToPropose(p, value)
+    .then(ListTakeAStep(active))
+    .then(all{ // after new round an empty step to clean step "propose"
+        assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == "propose")),
+        ListTakeAStep(active)
+    })
+    .then(deliverSomeProposal(p))
+    .then(ListTakeAStep(active))
+    .then(all{ 
+        assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == "Prevote")),
+        ListTakeAStep(active)
+    })            
+}
 
 run everyoneReceivesProposal (active, valList, valset, h, r, value) = {
     val p = Proposer (valset, h, r)
     setNextValueToPropose(p, value)
     .then(ListTakeAStep(active))
     .then(all{ // after new round an empty step to clean step "propose"
-        assert(system.keys().forall(proc => system.get(proc).es.pendingStepChange == "propose")),
+        assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == "propose")),
         ListTakeAStep(active)
     })
     .then(all {
