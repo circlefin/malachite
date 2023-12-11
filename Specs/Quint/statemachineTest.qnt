@@ -81,7 +81,7 @@ action valStep(v: Address): bool =
 //         _histSimple' = (v, input._2.name, res._2.name)
     }
 
-action setNextValueToPropose(v: Address, value: NonNilValue) : bool = all {
+action setNextValueToPropose(v: Address, value: NonNilValue): bool = all {
     val res = driver(system.get(v).es, SetNextProposedValueDInput(value))
     val newNS = { ...system.get(v), es: res._1}
     system' = system.put(v, newNS),
@@ -96,7 +96,7 @@ action step =
         setNextValueToPropose(v, value),
     }
 
-action valStepCommand(v: Address, command: str) : bool =
+action valStepCommand(v: Address, command: Command): bool =
     // pick action
     val input = system.get(v).nextActionCommand(command) 
     // remove action from v
@@ -129,39 +129,39 @@ action valStepCommand(v: Address, command: str) : bool =
 run DecidingRunTest =
     init
     .then(setNextValueToPropose("v2", "a block"))
-    .then(valStepCommand("v1", "start"))
-    .then(valStepCommand("v2", "start"))
-    .then(valStepCommand("v3", "start"))
-    .then(valStepCommand("v4", "start"))
-    .then(valStepCommand("v1", "proposal"))
-    .then(valStepCommand("v2", "proposal"))
-    .then(valStepCommand("v3", "proposal"))
-    .then(valStepCommand("v4", "proposal"))  
-    .then(valStepCommand("v1", "vote"))
-    .then(valStepCommand("v1", "vote"))
-    .then(valStepCommand("v1", "vote"))
-    .then(valStepCommand("v1", "pending"))
+    .then(valStepCommand("v1", StartCmd))
+    .then(valStepCommand("v2", StartCmd))
+    .then(valStepCommand("v3", StartCmd))
+    .then(valStepCommand("v4", StartCmd))
+    .then(valStepCommand("v1", ProposalCmd))
+    .then(valStepCommand("v2", ProposalCmd))
+    .then(valStepCommand("v3", ProposalCmd))
+    .then(valStepCommand("v4", ProposalCmd))  
+    .then(valStepCommand("v1", VoteCmd))
+    .then(valStepCommand("v1", VoteCmd))
+    .then(valStepCommand("v1", VoteCmd))
+    .then(valStepCommand("v1", PendingCmd))
     .then(all{
         assert(system.get("v1").incomingVotes.contains(mkVote(Precommit, "v1", 0, 0, Val("a block")))),
-        valStepCommand("v2", "vote")
+        valStepCommand("v2", VoteCmd)
         })
-    .then(valStepCommand("v2", "vote"))
-    .then(valStepCommand("v2", "vote"))
-    .then(valStepCommand("v2", "vote"))
-    .then(valStepCommand("v2", "pending"))
+    .then(valStepCommand("v2", VoteCmd))
+    .then(valStepCommand("v2", VoteCmd))
+    .then(valStepCommand("v2", VoteCmd))
+    .then(valStepCommand("v2", PendingCmd))
     .then(all{
         assert(system.get("v2").incomingVotes.contains(mkVote(Precommit, "v2", 0, 0, Val("a block")))),
-        valStepCommand("v3", "vote")
+        valStepCommand("v3", VoteCmd)
         })
-    .then(valStepCommand("v3", "vote"))
-    .then(valStepCommand("v3", "vote"))
-    .then(valStepCommand("v3", "vote"))
-    .then(valStepCommand("v3", "vote"))
-    .then(valStepCommand("v3", "pending"))
+    .then(valStepCommand("v3", VoteCmd))
+    .then(valStepCommand("v3", VoteCmd))
+    .then(valStepCommand("v3", VoteCmd))
+    .then(valStepCommand("v3", VoteCmd))
+    .then(valStepCommand("v3", PendingCmd))
     .then(all{
         assert(system.get("v3").incomingVotes.contains(mkVote(Precommit, "v3", 0, 0, Val("a block")))),
         assert(system.get("v3").es.chain == List()),
-        valStepCommand("v3", "vote")
+        valStepCommand("v3", VoteCmd)
         })
     .then(all{
         // validator 3 decided on "a block"
@@ -173,42 +173,42 @@ run DecidingRunTest =
 run TimeoutRunTest = {
     init
     .then(setNextValueToPropose("v2", "a block"))
-    .then(valStepCommand("v1", "start"))
-    .then(valStepCommand("v2", "start"))
-    .then(valStepCommand("v3", "start"))
-    .then(valStepCommand("v4", "start"))
-    .then(valStepCommand("v1", "timeout"))
-    .then(valStepCommand("v2", "proposal"))
-    .then(valStepCommand("v3", "timeout"))
-    .then(valStepCommand("v4", "timeout"))
-    .then(valStepCommand("v4", "vote"))
-    .then(valStepCommand("v4", "vote"))
-    .then(valStepCommand("v4", "vote"))
-    .then(valStepCommand("v4", "vote"))    
-    .then(valStepCommand("v3", "vote"))
-    .then(valStepCommand("v3", "vote"))
-    .then(valStepCommand("v3", "vote"))
-    .then(valStepCommand("v3", "vote"))
-    .then(valStepCommand("v3", "vote"))     
-    .then(valStepCommand("v2", "vote"))    
-    .then(valStepCommand("v2", "vote"))
-    .then(valStepCommand("v2", "vote"))
-    .then(valStepCommand("v2", "vote"))
-    .then(valStepCommand("v2", "vote"))
-    .then(valStepCommand("v2", "vote"))    
-    .then(valStepCommand("v1", "vote"))     
-    .then(valStepCommand("v1", "vote"))    
-    .then(valStepCommand("v1", "vote"))
-    .then(valStepCommand("v1", "vote"))
-    .then(valStepCommand("v1", "vote"))
-    .then(valStepCommand("v1", "vote"))
-    .then(valStepCommand("v1", "vote"))
-    .then(valStepCommand("v4", "vote"))
-    .then(valStepCommand("v4", "vote"))
-    .then(valStepCommand("v4", "vote"))
-    .then(valStepCommand("v4", "vote"))
-    .then(valStepCommand("v4", "vote"))
-    .then(valStepCommand("v4", "timeout"))
+    .then(valStepCommand("v1", StartCmd))
+    .then(valStepCommand("v2", StartCmd))
+    .then(valStepCommand("v3", StartCmd))
+    .then(valStepCommand("v4", StartCmd))
+    .then(valStepCommand("v1", TimeoutCmd))
+    .then(valStepCommand("v2", ProposalCmd))
+    .then(valStepCommand("v3", TimeoutCmd))
+    .then(valStepCommand("v4", TimeoutCmd))
+    .then(valStepCommand("v4", VoteCmd))
+    .then(valStepCommand("v4", VoteCmd))
+    .then(valStepCommand("v4", VoteCmd))
+    .then(valStepCommand("v4", VoteCmd))    
+    .then(valStepCommand("v3", VoteCmd))
+    .then(valStepCommand("v3", VoteCmd))
+    .then(valStepCommand("v3", VoteCmd))
+    .then(valStepCommand("v3", VoteCmd))
+    .then(valStepCommand("v3", VoteCmd))     
+    .then(valStepCommand("v2", VoteCmd))    
+    .then(valStepCommand("v2", VoteCmd))
+    .then(valStepCommand("v2", VoteCmd))
+    .then(valStepCommand("v2", VoteCmd))
+    .then(valStepCommand("v2", VoteCmd))
+    .then(valStepCommand("v2", VoteCmd))    
+    .then(valStepCommand("v1", VoteCmd))     
+    .then(valStepCommand("v1", VoteCmd))    
+    .then(valStepCommand("v1", VoteCmd))
+    .then(valStepCommand("v1", VoteCmd))
+    .then(valStepCommand("v1", VoteCmd))
+    .then(valStepCommand("v1", VoteCmd))
+    .then(valStepCommand("v1", VoteCmd))
+    .then(valStepCommand("v4", VoteCmd))
+    .then(valStepCommand("v4", VoteCmd))
+    .then(valStepCommand("v4", VoteCmd))
+    .then(valStepCommand("v4", VoteCmd))
+    .then(valStepCommand("v4", VoteCmd))
+    .then(valStepCommand("v4", TimeoutCmd))
     .then(all {
         // validator 4 timed out and went to round 1
         assert(system.get("v4").es.cs.round == 1),

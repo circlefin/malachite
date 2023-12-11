@@ -6,7 +6,7 @@ module consensusTest {
     import consensus.* from "./consensus"
 
     // *************************************************************************
-    // Consensus state
+    // Consensus state machine
     // *************************************************************************
 
     var system: Address -> ConsensusState
