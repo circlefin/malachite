@@ -4,7 +4,7 @@
 #![forbid(unsafe_code)]
 #![deny(unused_crate_dependencies, trivial_casts, trivial_numeric_casts)]
 #![warn(
-    // missing_docs,
+    missing_docs,
     rustdoc::broken_intra_doc_links,
     rustdoc::private_intra_doc_links,
     variant_size_differences
@@ -28,8 +28,14 @@ pub use ::signature;
 
 /// Type alias to make it easier to refer the `ValueId` type of a given `Consensus` engine.
 pub type ValueId<Ctx> = <<Ctx as Context>::Value as Value>::Id;
+
+/// Type alias to make it easier to refer the `PublicKey` type of a given `Consensus` engine.
 pub type PublicKey<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::PublicKey;
+
+/// Type alias to make it easier to refer the `PrivateKey` type of a given `Consensus` engine.
 pub type PrivateKey<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::PrivateKey;
+
+/// Type alias to make it easier to refer the `Signature` type of a given `Consensus` engine.
 pub type Signature<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::Signature;
 
 pub use context::Context;

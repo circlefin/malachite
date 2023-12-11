@@ -9,20 +9,35 @@ pub trait Context
 where
     Self: Sized,
 {
+    /// The type of address of a validator.
     type Address: Address;
+
+    /// The type of the height of a block.
     type Height: Height;
+
+    /// The interface provided by the proposal type.
     type Proposal: Proposal<Self>;
+
+    /// The interface provided by the validator type.
     type Validator: Validator<Self>;
+
+    /// The interface provided by the validator set type.
     type ValidatorSet: ValidatorSet<Self>;
+
+    /// The type of values that can be proposed.
     type Value: Value;
+
+    /// The type of votes that can be cast.
     type Vote: Vote<Self>;
-    type SigningScheme: SigningScheme; // TODO: Do we need to support multiple signing schemes?
+
+    // TODO: Do we need to support multiple signing schemes?
+    /// The signing scheme used to sign votes.
+    type SigningScheme: SigningScheme;
 
     /// Sign the given vote our private key.
     fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self>;
 
     /// Verify the given vote's signature using the given public key.
-    /// TODO: Maybe move this as concrete methods in `SignedVote`?
     fn verify_signed_vote(
         &self,
         signed_vote: &SignedVote<Self>,
