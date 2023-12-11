@@ -126,7 +126,7 @@ action valStepCommand(v: Address, command: str) : bool =
 //         _histSimple' = (v, input._2.name, res._2.name)
     }
 
-run DecidingRunTest = {
+run DecidingRunTest =
     init
     .then(setNextValueToPropose("v2", "a block"))
     .then(valStepCommand("v1", "start"))
@@ -168,9 +168,7 @@ run DecidingRunTest = {
         assert(system.get("v3").es.chain.head() == Val("a block")),
         system' = system,
         _hist' = _hist
-    })    
-}
-
+    })
 
 run TimeoutRunTest = {
     init

@@ -144,28 +144,29 @@ pure def callConsensus(es: DriverState, bk: Bookkeeper, csInput: ConsensusInput)
         ({ ...es, bk: bk, cs: res.cs, executedInputs: csInputs }, res.out)
 
 // We do this if the driver receives a Precommit
+// TODO: vote can be removed because the vote data is already in vkOutput.
 pure def precommit(es: DriverState, vote: Vote, vkOutput: VoteKeeperOutput): (DriverState, ConsensusOutput) =
     match vkOutput {
         | PrecommitValueVKOutput(round_value) =>
-            val round = round_value._1
-            val value = round_value._2
-            if (es.existsProposal(round, value))
-                callConsensus(es, es.bk, ProposalAndCommitAndValidConInput(vote.valueId))
-            else if (round == es.cs.round)
-                callConsensus(es, es.bk, PrecommitAnyConInput)
-            else if (round > es.cs.round)
+            val r = round_value._1
+            val v = round_value._2
+            if (es.existsProposal(r, v))
+                callConsensus(es, es.bk, ProposalAndCommitAndValidCInput(vote.valueId))
+            else if (r == es.cs.round)
+                callConsensus(es, es.bk, PrecommitAnyCInput)
+            else if (r > es.cs.round)
                 // if it is for a future round I can trigger skipround
                 // TODO: should we really do this. It is dead code as the f+1 event already happened
-                callConsensus(es, es.bk, RoundSkipConInput(vote.round))
+                callConsensus(es, es.bk, RoundSkipCInput(vote.round))
             // ignore messages from past rounds
             else (es, NoConsensusOutput)
-        | PrecommitAnyVKOutput(round) =>
-            if (round == es.cs.round)
-                callConsensus(es, es.bk, PrecommitAnyConInput)
+        | PrecommitAnyVKOutput(r) =>
+            if (r == es.cs.round)
+                callConsensus(es, es.bk, PrecommitAnyCInput)
             else (es, NoConsensusOutput)
-        | SkipVKOutput(round) => 
-            if (round > es.cs.round)
-                callConsensus(es, es.bk, RoundSkipConInput(vote.round)) 
+        | SkipVKOutput(r) => 
+            if (r > es.cs.round)
+                callConsensus(es, es.bk, RoundSkipCInput(vote.round)) 
             else (es, NoConsensusOutput)
         // none of the supported Precommit events. Do nothing
         | _ => (es, NoConsensusOutput)
@@ -177,39 +178,39 @@ pure def prevote(es: DriverState, vkOutput: VoteKeeperOutput): (DriverState, Con
     // TODO: Polka implications missing.
     match vkOutput {
         | PolkaValueVKOutput(round_value) =>
-            val round = round_value._1
-            val value = round_value._2
-            if (round < es.cs.round and es.existsProposalValid(es.cs.round, value, round))
+            val r = round_value._1
+            val v = round_value._2
+            if (r < es.cs.round and es.existsProposalValid(es.cs.round, v, r))
                 // TODO: the value should come from the proposal   
-                callConsensus(es, es.bk, ProposalAndPolkaPreviousAndValidConInput((value, round)))
-            else if (round == es.cs.round)
-                if (es.existsProposal(es.cs.round, value))
-                    val pending = (ProposalAndPolkaAndValidConInput(Val(value)), es.cs.height, es.cs.round)
+                callConsensus(es, es.bk, ProposalAndPolkaPreviousAndValidCInput((v, r)))
+            else if (r == es.cs.round)
+                if (es.existsProposal(es.cs.round, v))
+                    val pending = (ProposalAndPolkaAndValidCInput(Val(v)), es.cs.height, es.cs.round)
                     val newES = { ...es,  pendingInputs: es.pendingInputs.union(Set(pending)) }
-                    callConsensus(newES, es.bk, PolkaAnyConInput)   
+                    callConsensus(newES, es.bk, PolkaAnyCInput)   
                 else
                     // there is no matching proposal
-                    callConsensus(es, es.bk, PolkaAnyConInput)
+                    callConsensus(es, es.bk, PolkaAnyCInput)
 
             // It is for a future round
             // TODO: we might check whether it is for a future round and jump
             else (es, NoConsensusOutput)
 
-        | PolkaAnyVKOutput(round) =>
-            if (round == es.cs.round)
+        | PolkaAnyVKOutput(r) =>
+            if (r == es.cs.round)
                 // call consensus and remember that we did it
-                callConsensus(es, es.bk, PolkaAnyConInput)  
+                callConsensus(es, es.bk, PolkaAnyCInput)  
             // TODO: we might check whether it is for a future round and jump
             else (es, NoConsensusOutput)
                 
-        | PolkaNilVKOutput(round) => 
-            if (round == es.cs.round)
-                callConsensus(es, es.bk, PolkaNilConInput)
+        | PolkaNilVKOutput(r) => 
+            if (r == es.cs.round)
+                callConsensus(es, es.bk, PolkaNilCInput)
             else (es, NoConsensusOutput)
 
-        | SkipVKOutput(round) => 
-            if (round > es.cs.round)
-                callConsensus(es, es.bk, RoundSkipConInput(round))
+        | SkipVKOutput(r) => 
+            if (r > es.cs.round)
+                callConsensus(es, es.bk, RoundSkipCInput(r))
             else (es, NoConsensusOutput)
         
         | _ => (es, NoConsensusOutput)
@@ -220,9 +221,9 @@ pure def handleTimeout(es: DriverState, t: Timeout): (DriverState, ConsensusOutp
     // TODO: We assume that the timeout event is always for the current round. If this is not
     // the case, we need to encode it in the input to which round the timeout belongs
     match t {
-        | ProposeTimeout => callConsensus(es, es.bk, TimeoutProposeConInput((es.cs.height, es.cs.round)))
-        | PrevoteTimeout => callConsensus(es, es.bk, TimeoutPrevoteConInput((es.cs.height, es.cs.round)))
-        | PrecommitTimeout => callConsensus(es, es.bk, TimeoutPrecommitConInput((es.cs.height, es.cs.round)))
+        | ProposeTimeout => callConsensus(es, es.bk, TimeoutProposeCInput((es.cs.height, es.cs.round)))
+        | PrevoteTimeout => callConsensus(es, es.bk, TimeoutPrevoteCInput((es.cs.height, es.cs.round)))
+        | PrecommitTimeout => callConsensus(es, es.bk, TimeoutPrecommitCInput((es.cs.height, es.cs.round)))
     }
 
 // We do this if the driver receives a proposal
@@ -241,7 +242,7 @@ pure def handleProposal(es: DriverState, proposal: Proposal): (DriverState, Cons
             // we have a commit that matches the proposal. We don't need to compare against
             // es.cs.round
             // TODO: check heights in bookkeeper
-            callConsensus(newES, newES.bk, ProposalAndCommitAndValidConInput(Val(proposal.proposal)))
+            callConsensus(newES, newES.bk, ProposalAndCommitAndValidCInput(Val(proposal.proposal)))
         else if (proposal.round != es.cs.round or proposal.height != es.cs.height) 
             // the proposal is from the right proposer and valid, but not for this round
             // keep the proposal, do nothing else
@@ -253,25 +254,28 @@ pure def handleProposal(es: DriverState, proposal: Proposal): (DriverState, Cons
             val receivedPolkaCurrentVal = checkThreshold(newES.bk, newES.cs.round, Prevote, th)
             val receivedCommitCurrentVal = checkThreshold(newES.bk, newES.cs.round, Precommit, th)
             val propId: ValueId = id(Val(proposal.proposal))
+            
+            // TODO: remove this definition when Quint supports multiple cases in one branch of the match statement.
             val prevoteAndprecommitOutput: (DriverState, ConsensusOutput) = 
                 if (receivedCommitCurrentVal)
                     // here we need to call both, Commit and Polka. 
                     // We do commit and append polka to pending
-                    val pending = (ProposalAndPolkaAndValidConInput(propId), newES.cs.height, newES.cs.round)
+                    val pending = (ProposalAndPolkaAndValidCInput(propId), newES.cs.height, newES.cs.round)
                     val newES2 = { ...newES, pendingInputs: newES.pendingInputs.union(Set(pending))}
-                    callConsensus(newES2, newES.bk, ProposalAndCommitAndValidConInput(propId))
+                    callConsensus(newES2, newES.bk, ProposalAndCommitAndValidCInput(propId))
                 else if (receivedPolkaCurrentVal)
-                    callConsensus(newES, newES.bk, ProposalAndPolkaAndValidConInput(propId))
+                    callConsensus(newES, newES.bk, ProposalAndPolkaAndValidCInput(propId))
                 else (newES, NoConsensusOutput)
+
             match newES.cs.step { 
                 | ProposeStep =>
                     if (proposal.validRound == -1)
                         if (receivedPolkaCurrentVal)
-                            callConsensus(newES, newES.bk, ProposalAndPolkaAndValidConInput(propId))
+                            callConsensus(newES, newES.bk, ProposalAndPolkaAndValidCInput(propId))
                         else
-                            callConsensus(newES, newES.bk, ProposalConInput((proposal.round, propId)))
+                            callConsensus(newES, newES.bk, ProposalCInput((proposal.round, propId)))
                     else if (receivedPolkaValidRoundVal)
-                        callConsensus(newES, newES.bk, ProposalAndPolkaPreviousAndValidConInput((propId, proposal.validRound)))
+                        callConsensus(newES, newES.bk, ProposalAndPolkaPreviousAndValidCInput((propId, proposal.validRound)))
                     else  
                         (newES, NoConsensusOutput)
                 | PrevoteStep => prevoteAndprecommitOutput
@@ -284,9 +288,9 @@ pure def handleProposal(es: DriverState, proposal: Proposal): (DriverState, Cons
             | ProposeStep => 
                 if (es.cs.round == proposal.round and es.cs.height == proposal.height)
                     if (checkThreshold(es.bk, es.cs.round, Prevote, ValueThreshold(proposal.proposal)))
-                        callConsensus(es, es.bk, ProposalAndPolkaAndInvalidConInput((es.cs.height, es.cs.round, id(Val(proposal.proposal)))))
+                        callConsensus(es, es.bk, ProposalAndPolkaAndInvalidCInput((es.cs.height, es.cs.round, id(Val(proposal.proposal)))))
                     else 
-                        callConsensus(es, es.bk, ProposalInvalidConInput)
+                        callConsensus(es, es.bk, ProposalInvalidCInput)
                 else (es, NoConsensusOutput)
             | _ => (es, NoConsensusOutput)
         }
@@ -296,9 +300,9 @@ pure def skip(es: DriverState, r: Round): (DriverState, ConsensusOutput) =
     // line 15
     val prop = if (es.cs.validValue != Nil) es.cs.validValue else es.getValue()
     if (Proposer(es.valset, es.cs.height, es.cs.round + 1) == es.cs.p)
-        callConsensus(es, es.bk, NewRoundProposerConInput((r, prop.getVal())))
+        callConsensus(es, es.bk, NewRoundProposerCInput((r, prop.getVal())))
     else 
-        callConsensus(es, es.bk, NewRoundConInput(r)) 
+        callConsensus(es, es.bk, NewRoundCInput(r)) 
     // what do we do now in the new round? Shouldn't we look whether we can build an event.
     // TODO: compute pending events.
 
@@ -345,10 +349,12 @@ pure def driver(es: DriverState, input: DriverInput) : (DriverState, ConsensusOu
     match input {
         | ProposalDInput(proposal) =>
             val res = handleProposal(es, proposal)
+            val newState = res._1
+            val conOut = res._2
             match res._2 {
-                | DecidedOutput(value) => decided(res._1, res._2, value)
-                | SkipRoundOutput(round) => skip(res._1, round)
-                | _ => res
+                | DecidedOutput(v) => decided(newState, conOut, v)
+                | SkipRoundOutput(r) => skip(newState, r)
+                | _ => (newState, conOut)
             }
         | VoteDInput(vote) => 
             match vote.voteType {
@@ -357,40 +363,46 @@ pure def driver(es: DriverState, input: DriverInput) : (DriverState, ConsensusOu
                     val newES = { ...es, bk: res.bookkeeper, voteKeeperOutput: res.output}
                     // only a commit event can come here. 
                     val cons_res = precommit(newES, vote, res.output) 
-                    match cons_res._2 {
-                        | DecidedOutput(value) => decided(cons_res._1, cons_res._2, value) // CHECK: second argument to `decided` was `res._2` of type VoteKeeperOutput
-                        | SkipRoundOutput(round) => skip(cons_res._1, round)
-                        | _ => cons_res // CHECK: this was `res` of type VoteKeeperOutput
+                    val newState = cons_res._1
+                    val conOut = cons_res._2
+                    match conOut {
+                        | DecidedOutput(v) => decided(newState, conOut, v) // CHECK: second argument to `decided` was `res._2` of type VoteKeeperOutput
+                        | SkipRoundOutput(r) => skip(newState, r)
+                        | _ => (newState, conOut) // CHECK: originally this was `res` of type VoteKeeperOutput
                     }
                 | Prevote =>
                     val res = applyVote(es.bk, vote, es.valset.get(vote.srcAddress), es.cs.round)
                     val newES = { ...es, bk: res.bookkeeper, voteKeeperOutput: res.output}
                     // only a commit event can come here. 
                     val cons_res = prevote(newES, res.output) 
+                    val newState = cons_res._1
+                    val conOut = cons_res._2
                     match cons_res._2 {
                         // TODO: dead branch. But we should put this after consensus call logic into a function
-                        | DecidedOutput(value) => decided(cons_res._1, cons_res._2, value) // CHECK: second argument to `decided` was `res._2` of type VoteKeeperOutput
-                        | SkipRoundOutput(round) => skip(cons_res._1, round)
-                        | _ => cons_res // CHECK: this was `res` of type VoteKeeperOutput
+                        | DecidedOutput(v) => decided(newState, conOut, v) // CHECK: second argument to `decided` was `res._2` of type VoteKeeperOutput
+                        | SkipRoundOutput(r) => skip(newState, r)
+                        | _ => (newState, conOut) // CHECK: originally this was `res` of type VoteKeeperOutput
                     }
             }
         | TimeoutDInput(timeout) =>
             val res = handleTimeout(es, timeout)
+            val newState = res._1
+            val conOut = res._2
             // result should be vote or skip
-            match res._2 {
+            match conOut {
                 | SkipRoundOutput(round) =>
-                    skip(res._1, round)
+                    skip(newState, round)
                     // skip starts a new round. This may involve getValue. If we choose to move the getValue
                     // logic out of the driver, we wouldn't call skip here but add a (to be defined)
                     // DriverInput
-                | _ => res
+                | _ => (newState, conOut)
             }
         | StartDInput =>
-            skip ({ ...es, started: true}, 0)
-        | PendingDInput(_) =>
-            handlePendingInput(es) // CHECK: input not used?
-        | SetNextProposedValueDInput(value) =>
-            es.setValue(Val(value))
+            skip ({ ...es, started: true }, 0)
+        | PendingDInput(_) => // CHECK: why input is not used?
+            handlePendingInput(es)
+        | SetNextProposedValueDInput(v) =>
+            es.setValue(Val(v))
         | _ =>
             (es, NoConsensusOutput)
     }

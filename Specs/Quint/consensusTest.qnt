@@ -36,22 +36,22 @@ module consensusTest {
         nondet v = oneOf(Set("A", "B", "C"))
         nondet vr = oneOf(Set(-1, 1, 2, 3, 4))
         any {
-            fireInput("Josef", NewHeightConInput(h)),
-            fireInput("Josef", NewRoundConInput(r)),
-            fireInput("Josef", NewRoundProposerConInput((r, v))),
-            fireInput("Josef", ProposalConInput((r, Val(v)))),
-            fireInput("Josef", ProposalAndPolkaPreviousAndValidConInput((Val(v), r))),
-            fireInput("Josef", ProposalInvalidConInput),
-            fireInput("Josef", PolkaNilConInput),
-            fireInput("Josef", PolkaAnyConInput),
-            fireInput("Josef", ProposalAndPolkaAndValidConInput(Val(v))),
-            fireInput("Josef", PrecommitAnyConInput),
-            fireInput("Josef", ProposalAndCommitAndValidConInput(Val(v))),
-            fireInput("Josef", RoundSkipConInput(r)),
-            fireInput("Josef", TimeoutProposeConInput((h, r))),
-            fireInput("Josef", TimeoutPrevoteConInput((h, r))),
-            fireInput("Josef", TimeoutPrecommitConInput((h, r))),
-            fireInput("Josef", ProposalAndPolkaAndInvalidConInput((h, r, Val(v)))),
+            fireInput("Josef", NewHeightCInput(h)),
+            fireInput("Josef", NewRoundCInput(r)),
+            fireInput("Josef", NewRoundProposerCInput((r, v))),
+            fireInput("Josef", ProposalCInput((r, Val(v)))),
+            fireInput("Josef", ProposalAndPolkaPreviousAndValidCInput((Val(v), r))),
+            fireInput("Josef", ProposalInvalidCInput),
+            fireInput("Josef", PolkaNilCInput),
+            fireInput("Josef", PolkaAnyCInput),
+            fireInput("Josef", ProposalAndPolkaAndValidCInput(Val(v))),
+            fireInput("Josef", PrecommitAnyCInput),
+            fireInput("Josef", ProposalAndCommitAndValidCInput(Val(v))),
+            fireInput("Josef", RoundSkipCInput(r)),
+            fireInput("Josef", TimeoutProposeCInput((h, r))),
+            fireInput("Josef", TimeoutPrevoteCInput((h, r))),
+            fireInput("Josef", TimeoutPrecommitCInput((h, r))),
+            fireInput("Josef", ProposalAndPolkaAndInvalidCInput((h, r, Val(v)))),
         }
 
     action unchangedAll = all {
@@ -71,58 +71,58 @@ module consensusTest {
     // This test should call each input type at least once
     run DecideNonProposerTest =
         initFor(Set("Josef"))
-        .then(fireInput("Josef", NewRoundConInput(0)))
+        .then(fireInput("Josef", NewRoundCInput(0)))
         .then(_assert(_output == TimeoutOutput(ProposeTimeout)))
         
-        .then(fireInput("Josef", ProposalConInput((0, Val("block")))))
+        .then(fireInput("Josef", ProposalCInput((0, Val("block")))))
         .then(_assert(_output.isVoteMsgWith(Prevote, Val("block"))))
         
-        .then(fireInput("Josef", ProposalAndPolkaAndValidConInput(Val("block"))))
+        .then(fireInput("Josef", ProposalAndPolkaAndValidCInput(Val("block"))))
         .then(_assert(_output.isVoteMsgWith(Precommit, Val("block"))))
         
-        .then(fireInput("Josef", ProposalAndCommitAndValidConInput(Val("block"))))
+        .then(fireInput("Josef", ProposalAndCommitAndValidCInput(Val("block"))))
         .then(_assert(_output == DecidedOutput(Val("block"))))
         
-        .then(fireInput("Josef", NewHeightConInput(system.get("Josef").height + 1)))
+        .then(fireInput("Josef", NewHeightCInput(system.get("Josef").height + 1)))
         .then(_assert(system.get("Josef").height == 2))
         
-        .then(fireInput("Josef", NewRoundProposerConInput((0, "nextBlock"))))
+        .then(fireInput("Josef", NewRoundProposerCInput((0, "nextBlock"))))
         .then(_assert(_output == ProposalOutput(mkProposal("Josef", 2, 0, "nextBlock", -1))))
         
-        .then(fireInput("Josef", ProposalConInput((0, Val("nextBlock"))))) // it is assumed that the proposer receives its own message
+        .then(fireInput("Josef", ProposalCInput((0, Val("nextBlock"))))) // it is assumed that the proposer receives its own message
         .then(_assert(_output.isVoteMsgWith(Prevote, Val("nextBlock")) and system.get("Josef").step == PrevoteStep))
         
-        .then(fireInput("Josef", PolkaAnyConInput))
+        .then(fireInput("Josef", PolkaAnyCInput))
         .then(_assert(_output == TimeoutOutput(PrevoteTimeout)))
         
-        .then(fireInput("Josef", TimeoutPrevoteConInput((2, 0))))
+        .then(fireInput("Josef", TimeoutPrevoteCInput((2, 0))))
         .then(_assert(_output.isVoteMsgWith(Precommit, Nil) and system.get("Josef").step == PrecommitStep))
         
-        .then(fireInput("Josef", PrecommitAnyConInput))
+        .then(fireInput("Josef", PrecommitAnyCInput))
         .then(_assert(_output == TimeoutOutput(PrecommitTimeout)))
 
-        .then(fireInput("Josef", TimeoutPrecommitConInput((2, 0))))
+        .then(fireInput("Josef", TimeoutPrecommitCInput((2, 0))))
         .then(_assert(_output == SkipRoundOutput(1)))
         
-        .then(fireInput("Josef", NewRoundConInput(1)))
+        .then(fireInput("Josef", NewRoundCInput(1)))
         .then(_assert(_output == TimeoutOutput(ProposeTimeout)))
 
-        .then(fireInput("Josef", TimeoutProposeConInput((2, 1))))
+        .then(fireInput("Josef", TimeoutProposeCInput((2, 1))))
         .then(_assert(_output.isVoteMsgWith(Prevote, Nil) and system.get("Josef").step == PrevoteStep))
         
-        .then(fireInput("Josef", PolkaNilConInput))
+        .then(fireInput("Josef", PolkaNilCInput))
         .then(_assert(_output.isVoteMsgWith(Precommit, Nil) and system.get("Josef").step == PrecommitStep))
         
-        .then(fireInput("Josef", PrecommitAnyConInput))
+        .then(fireInput("Josef", PrecommitAnyCInput))
         .then(_assert(_output == TimeoutOutput(PrecommitTimeout)))
         
-        .then(fireInput("Josef", TimeoutPrecommitConInput((2, 1))))
+        .then(fireInput("Josef", TimeoutPrecommitCInput((2, 1))))
         .then(_assert(_output == SkipRoundOutput(2)))
         
-        .then(fireInput("Josef", NewRoundConInput(2)))
+        .then(fireInput("Josef", NewRoundCInput(2)))
         .then(_assert(_output == TimeoutOutput(ProposeTimeout)))
         
-        .then(fireInput("Josef", ProposalInvalidConInput))
+        .then(fireInput("Josef", ProposalInvalidCInput))
         .then(_assert(_output.isVoteMsgWith(Prevote, Nil) and system.get("Josef").step == PrevoteStep))
 
 }

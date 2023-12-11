@@ -25,7 +25,7 @@ module consensus {
 
     type ConsensusState = {
         p: Address,
-        height : Height,
+        height: Height,
         round: Round,
         step: Step, // NewRound, Propose, Prevote, Precommit, decided
         lockedRound: Round,
@@ -56,38 +56,38 @@ module consensus {
         // For the initial state
         | NoConsensusInput
         // Setup the state-machine for a single-height execution
-        | NewHeightConInput(Height)
+        | NewHeightCInput(Height)
         // Start a new round, not as proposer.
-        | NewRoundConInput(Round)
+        | NewRoundCInput(Round)
         // Start a new round as proposer with the proposed Value.
-        | NewRoundProposerConInput((Round, NonNilValue))
+        | NewRoundProposerCInput((Round, NonNilValue))
         // Receive a proposal without associated valid round.
-        | ProposalConInput((Round, Value))
+        | ProposalCInput((Round, Value))
         // Receive a valid proposal with an associated valid round, attested by a a Polka(vr).
-        | ProposalAndPolkaPreviousAndValidConInput((Value, Round))
+        | ProposalAndPolkaPreviousAndValidCInput((Value, Round))
         // Receive an invalid proposal: L26 and L32 when isValid(v) == false
-        | ProposalInvalidConInput
+        | ProposalInvalidCInput
         // Receive +2/3 prevotes for nil.
-        | PolkaNilConInput
+        | PolkaNilCInput
         // Receive +2/3 prevotes from different validators, not for the same value or nil.
-        | PolkaAnyConInput
+        | PolkaAnyCInput
         // Proposal and 2/3+ prevotes for the proposal: L36 when valid and step >= prevote
-        | ProposalAndPolkaAndValidConInput(Value)
+        | ProposalAndPolkaAndValidCInput(Value)
         // Receive +2/3 precommits from different validators, not for the same value or nil.
-        | PrecommitAnyConInput
+        | PrecommitAnyCInput
         // Proposal and 2/3+ commits for the proposal => decision
-        | ProposalAndCommitAndValidConInput(Value)
+        | ProposalAndCommitAndValidCInput(Value)
         // Receive +1/3 messages from different validators for a higher round.
-        | RoundSkipConInput(Round)
+        | RoundSkipCInput(Round)
         // Timeout waiting for proposal.
-        | TimeoutProposeConInput((Height, Round))
+        | TimeoutProposeCInput((Height, Round))
         // Timeout waiting for prevotes for a value.
-        | TimeoutPrevoteConInput((Height, Round))
+        | TimeoutPrevoteCInput((Height, Round))
         // Timeout waiting for precommits for a value.
-        | TimeoutPrecommitConInput((Height, Round))
+        | TimeoutPrecommitCInput((Height, Round))
         // found after Montebello
         // TODO: Discuss what to do about it
-        | ProposalAndPolkaAndInvalidConInput((Height, Round, Value))
+        | ProposalAndPolkaAndInvalidCInput((Height, Round, Value))
 
     // *************************************************************************
     // Consensus output
@@ -145,13 +145,13 @@ module consensus {
         | NoConsensusInput => 
             state.toErrorOutput("NoConsensusInput is not a valid consensus input")
         
-        | NewHeightConInput(h) => 
+        | NewHeightCInput(h) => 
             if (h > state.height)
                 initConsensusState(state.p, h).toNoConsensusOutput()
             else state.toNoConsensusOutput()
         
         // line 11.14
-        | NewRoundProposerConInput(round_value) =>
+        | NewRoundProposerCInput(round_value) =>
             val r = round_value._1
             val v = round_value._2
             if (r > state.round)
@@ -164,7 +164,7 @@ module consensus {
 
         // line 11.20
         // TODO: discuss comment "ev.round must match state.round"
-        | NewRoundConInput(r) =>
+        | NewRoundCInput(r) =>
             if (r > state.round)
                 // We just report that a timeout should be started. The executor must take care
                 // of figuring out whether it needs to record the round number and height per
@@ -180,7 +180,7 @@ module consensus {
         // - the value has been checked to be valid
         // - it is for the current round
         // The executor checks this upon receiving a propose message "ProposalMsg"
-        | ProposalConInput(round_value) =>
+        | ProposalCInput(round_value) =>
             val r = round_value._1
             val v = round_value._2
             if (state.step == ProposeStep)
@@ -192,18 +192,18 @@ module consensus {
                     state
                         .with("step", PrevoteStep)
                         .toPrevoteOutput(state.p, state.height, state.round, Nil) // line 26
-            else state.toErrorOutput("ProposalConInput when not in ProposeStep")
+            else state.toErrorOutput("ProposalCInput when not in ProposeStep")
 
         // line 26
-        | ProposalInvalidConInput =>
+        | ProposalInvalidCInput =>
             if (state.step == ProposeStep) 
                 state
                     .with("step", PrevoteStep)
                     .toPrevoteOutput(state.p, state.height, state.round, Nil)
-            else state.toErrorOutput("ProposalConInput when not in ProposeStep")
+            else state.toErrorOutput("ProposalCInput when not in ProposeStep")
 
         // line 28
-        | ProposalAndPolkaPreviousAndValidConInput(value_vr) =>
+        | ProposalAndPolkaPreviousAndValidCInput(value_vr) =>
             val v = value_vr._1
             val vr = value_vr._2
             if (state.step == ProposeStep and vr >= 0 and vr < state.round) // line 28
@@ -215,21 +215,21 @@ module consensus {
                     state
                         .with("step", PrevoteStep) // line 33
                         .toPrevoteOutput(state.p, state.height, state.round, Nil) // line 32
-            else state.toErrorOutput("ProposalAndPolkaPreviousAndValidConInput")
+            else state.toErrorOutput("ProposalAndPolkaPreviousAndValidCInput")
                 // TODO: should we add the event to pending in this case. We would need to
                 // do this in the executor
 
         // line 34
-        | PolkaAnyConInput =>
+        | PolkaAnyCInput =>
             if (state.step == PrevoteStep)
                 // We just report that a timeout should be started. The executor must take care
                 // of figuring out whether it needs to record the round number and height per
                 // timeout
                 state.toTimeoutOutput(PrevoteTimeout)
-            else state.toErrorOutput("PolkaAnyConInput when not in PrevoteStep")
+            else state.toErrorOutput("PolkaAnyCInput when not in PrevoteStep")
 
         // line 36
-        | ProposalAndPolkaAndValidConInput(v) =>
+        | ProposalAndPolkaAndValidCInput(v) =>
             match state.step {
                 | PrevoteStep =>
                     state
@@ -247,51 +247,51 @@ module consensus {
                         .with("validValue", v) // line 42
                         .with("validRound", state.round) // line 43
                         .toNoConsensusOutput()
-                | _ => state.toErrorOutput("ProposalAndPolkaAndValidConInput when not in PrevoteStep or PrecommitStep")
+                | _ => state.toErrorOutput("ProposalAndPolkaAndValidCInput when not in PrevoteStep or PrecommitStep")
             }
 
         // line 44
-        | PolkaNilConInput => 
+        | PolkaNilCInput => 
             if (state.step == PrevoteStep)
                 state
                     .with("step", PrecommitStep)
                     .toPrecommitOutput(state.p, state.height, state.round, Nil)
-            else state.toErrorOutput("PolkaNilConInput when not in PrevoteStep")
+            else state.toErrorOutput("PolkaNilCInput when not in PrevoteStep")
 
         // line 47
-        | PrecommitAnyConInput =>
+        | PrecommitAnyCInput =>
             state.toTimeoutOutput(PrecommitTimeout)
 
         // line 49
-        | ProposalAndCommitAndValidConInput(v) => 
+        | ProposalAndCommitAndValidCInput(v) => 
             if (state.step != DecidedStep)
                 state
                     .with("step", DecidedStep)
                     .toDecidedOutput(v)
-            else state.toErrorOutput("ProposalAndCommitAndValidConInput when in DecidedStep")
+            else state.toErrorOutput("ProposalAndCommitAndValidCInput when in DecidedStep")
 
-        | ProposalAndPolkaAndInvalidConInput =>
+        | ProposalAndPolkaAndInvalidCInput =>
             // TODO
             state.toNoConsensusOutput()
 
         // line 55
-        | RoundSkipConInput(r) => 
+        | RoundSkipCInput(r) => 
             if (r > state.round)
                 state.toSkipRoundOutput(r)
-            else state.toErrorOutput("RoundSkipConInput for round not bigger than current round")
+            else state.toErrorOutput("RoundSkipCInput for round not bigger than current round")
 
         // line 57
-        | TimeoutProposeConInput(height_round) => 
+        | TimeoutProposeCInput(height_round) => 
             val h = height_round._1
             val r = height_round._2
             if (h == state.height and r == state.round and state.step == ProposeStep)
                 state
                     .with("step", PrevoteStep)
                     .toPrevoteOutput(state.p, state.height, state.round, Nil)
-            else state.toErrorOutput("TimeoutProposeConInput")
+            else state.toErrorOutput("TimeoutProposeCInput")
 
         // line 61
-        | TimeoutPrevoteConInput(height_round) => 
+        | TimeoutPrevoteCInput(height_round) => 
             val h = height_round._1
             val r = height_round._2
             if (h == state.height and r == state.round and state.step == PrevoteStep)
@@ -299,17 +299,17 @@ module consensus {
                 state
                     .with("step", PrecommitStep)
                     .toPrecommitOutput(state.p, state.height, state.round, Nil)
-            else state.toErrorOutput("TimeoutPrevoteConInput")
+            else state.toErrorOutput("TimeoutPrevoteCInput")
 
         // line 65
-        | TimeoutPrecommitConInput(height_round) => 
+        | TimeoutPrecommitCInput(height_round) => 
             val h = height_round._1
             val r = height_round._2
             if (h == state.height and r == state.round)
                 // TODO: here we should call newRound. For this we would need to know whether
                 // we are proposer for next round.
                 state.toSkipRoundOutput(state.round + 1)
-            else state.toErrorOutput("TimeoutPrecommitConInput")
+            else state.toErrorOutput("TimeoutPrecommitCInput")
 
         }
 
