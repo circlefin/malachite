@@ -16,7 +16,16 @@ run AllButOneTest = {
     N4F0::AllButOneDecideInR1WhileSlowInR0
 }
 
+run DecideFutureRoundTest = {
+    N4F0::DecideForFutureRoundRun
+}
 
+run DecideForFutureRoundPrecommitFirstTest = {
+    N4F0::DecideForFutureRoundPrecommitFirstRun
+}
 
+run RoundswitchTest = {
+    N4F0::RoundswitchRun
+}
 
 }

@@ -129,7 +129,7 @@ run ThreeDecideInRound1V4stillinZeroOld = {
     })       
 }
 
-run DecideForFutureRoundTest = {
+run DecideForFutureRoundOld = {
     ThreeDecideInRound1V4stillinZeroOld
     .then(N4F0::deliverProposal("v4",  { height: 0, proposal: "another block", round: 1, src: "v3", validRound: -1 }))
     .then(N4F0::deliverVote("v4", { height: 0, id: "another block", round: 1, src: "v1", step: "Precommit" }))

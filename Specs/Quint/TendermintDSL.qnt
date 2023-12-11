@@ -50,8 +50,10 @@ run onlyProposerReceivesProposal (active, valList, valset, h, r, value) = {
     })            
 }
 
+// TODO: add valid round
 run everyoneReceivesProposal (active, valList, valset, h, r, value) = {
     val p = Proposer (valset, h, r)
+    val propMsg = { height: h, proposal: value, round: r, src: p, validRound: -1 }
     setNextValueToPropose(p, value)
     .then(ListTakeAStep(active))
     .then(all{ // after new round an empty step to clean step "propose"
@@ -60,7 +62,7 @@ run everyoneReceivesProposal (active, valList, valset, h, r, value) = {
     })
     .then(all {
         assert(true),
-        ListDeliverSomeProposal(active)
+        ListDeliverProposal(active, propMsg)
     })
     .then(ListTakeAStep(active))
     .then(all{ 
