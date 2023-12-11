@@ -136,6 +136,7 @@ pure def callConsensus (es: DriverState, bk: Bookkeeper, csInput: ConsensusInput
     // Check whether we already executed the event already
     // TODO: Perhaps this check should be more fine-grained. Perhaps some inputs should only be acted on once per
     //          round, independent of the step.
+    // TODO: get rid of bk parameter
     if (es.executedInputs.ListContains((csInput, es.cs.height, es.cs.round, es.cs.step)))
         ({ ...es, bk: bk, cs: es.cs }, defaultOutput)
     else
@@ -280,9 +281,12 @@ pure def Timeout (es: DriverState, input: DriverInput) : (DriverState, Consensus
     callConsensus(es, es.bk, csInput)
 }
 
+type MuxResult = {es: DriverState, ci: ConsensusInput}
 
 // We do this if the driver receives a proposal
 pure def ProposalMsg (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
+// TODO: result should be 
+
     val newES = { ...es, proposals: es.proposals.union(Set(input.proposal))}
     if (input.proposal.src != Proposer(es.valset, input.proposal.height, input.proposal.round))
         // proposer does not match the height/round of the proposal
@@ -419,46 +423,45 @@ pure def StepChange (es: DriverState) : (DriverState, ConsensusOutput) = {
     // TODO: First add to pending precommitany if it exists
     val newES = 
         if (checkThreshold(es.bk, es.cs.round, "Precommit", anyThreshold)) 
-            val pend = ( {  name: "PolkaAny",
-                height: es.cs.height,
-                                    round: es.cs.round,
-                                    value: "",
-                                    vr: -1},
-                                es.cs.height,
-                                es.cs.round) 
+            val pend = (    {   name: "PrecommitAny",
+                                height: es.cs.height,
+                                round: es.cs.round,
+                                value: "",
+                                vr: -1},
+                            es.cs.height,
+                            es.cs.round) 
             { ...es, pendingInputs: es.pendingInputs.union(Set(pend))}
         else es
 
     // Then check proposal
-    val proposer = Proposer(es.valset, es.cs.height, es.cs.round)
-    val propSet = es.proposals.filter(x => x.src == proposer and x.height == es.cs.height and x.round == es.cs.round)
+    val proposer = Proposer(newES.valset, newES.cs.height, newES.cs.round)
+    val propSet = newES.proposals.filter(x => x.src == proposer and x.height == newESes.cs.height and x.round == newES.cs.round)
     if (propSet != Set())
         val proposal = propSet.fold(emptyProposal, (sum, y) => y) 
                     // TODO:    If the proposer is faulty there might be multiple
                     //          figure out what to do
         val input = { ...defaultInput, name: "proposal", proposal: proposal}
-        ProposalMsg(es, input) 
-
+        ProposalMsg(newES, input) 
 
     // then go into step distinction but only consider rules without proposals
-
-    else if (es.pendingStepChange == "newRound")
-
-            (es, defaultOutput)
-
-    else if (es.pendingStepChange == "propose")
-
-
-                    (es, defaultOutput)
-
     else if (es.pendingStepChange == "Prevote")
-        // TODO
-        (es, defaultOutput)
-    else if (es.pendingStepChange == "Precommit")
-        // TODO    
-        (es, defaultOutput)    
+        // If we have PolkaNil we don't start the timeout
+        if (checkThreshold(newES.bk, newES.cs.round, "Prevote", nilThreshold)) 
+            callConsensus(es, es.bk, {  name: "PolkaNil",
+                                        height: newES.cs.height,
+                                        round: newES.cs.round,
+                                        value: "nil",
+                                        vr: -1})  
+        else if (checkThreshold(newES.bk, newES.cs.round, "Prevote", anyThreshold)) 
+            callConsensus(es, es.bk, {  name: "PolkaAny",
+                                        height: newES.cs.height,
+                                        round: newES.cs.round,
+                                        value: "",
+                                        vr: -1})  
+        else
+            (es, defaultOutput)
     else
-        // TODO
+        // For steps "newRound", "propose", "Precommit", there are no specific rules to check
         (es, defaultOutput)
 }
 
