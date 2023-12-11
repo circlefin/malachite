@@ -1,22 +1,37 @@
+//! Outputs of the round state machine.
+
 use core::fmt;
 
 use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValueId};
 
 use crate::state::RoundValue;
 
+/// Output of the round state machine.
 pub enum Output<Ctx>
 where
     Ctx: Context,
 {
-    NewRound(Round),                            // Move to the new round.
-    Proposal(Ctx::Proposal),                    // Broadcast the proposal.
-    Vote(Ctx::Vote),                            // Broadcast the vote.
-    ScheduleTimeout(Timeout),                   // Schedule the timeout.
-    GetValueAndScheduleTimeout(Round, Timeout), // Ask for a value and schedule a timeout.
-    Decision(RoundValue<Ctx::Value>),           // Decide the value.
+    /// Move to the new round.
+    NewRound(Round),
+
+    /// Broadcast the proposal.
+    Proposal(Ctx::Proposal),
+
+    /// Broadcast the vote.
+    Vote(Ctx::Vote),
+
+    /// Schedule the timeout.
+    ScheduleTimeout(Timeout),
+
+    /// Ask for a value and schedule a timeout.
+    GetValueAndScheduleTimeout(Round, Timeout),
+
+    /// Decide the value.
+    Decision(RoundValue<Ctx::Value>),
 }
 
 impl<Ctx: Context> Output<Ctx> {
+    /// Build a `Proposal` output.
     pub fn proposal(
         height: Ctx::Height,
         round: Round,
@@ -26,6 +41,7 @@ impl<Ctx: Context> Output<Ctx> {
         Output::Proposal(Ctx::new_proposal(height, round, value, pol_round))
     }
 
+    /// Build a `Vote` output for a prevote.
     pub fn prevote(
         height: Ctx::Height,
         round: Round,
@@ -35,6 +51,7 @@ impl<Ctx: Context> Output<Ctx> {
         Output::Vote(Ctx::new_prevote(height, round, value_id, address))
     }
 
+    /// Build a `Vote` output for a precommit.
     pub fn precommit(
         height: Ctx::Height,
         round: Round,
@@ -44,14 +61,17 @@ impl<Ctx: Context> Output<Ctx> {
         Output::Vote(Ctx::new_precommit(height, round, value_id, address))
     }
 
+    /// Build a `ScheduleTimeout` output.
     pub fn schedule_timeout(round: Round, step: TimeoutStep) -> Self {
         Output::ScheduleTimeout(Timeout { round, step })
     }
 
+    /// Build a `GetValueAndScheduleTimeout` output.
     pub fn get_value_and_schedule_timeout(round: Round, step: TimeoutStep) -> Self {
         Output::GetValueAndScheduleTimeout(round, Timeout { round, step })
     }
 
+    /// Build a `Decision` output.
     pub fn decision(round: Round, value: Ctx::Value) -> Self {
         Output::Decision(RoundValue { round, value })
     }

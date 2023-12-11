@@ -1,7 +1,10 @@
+//! Inputs to the round state machine.
+
 use core::fmt;
 
 use malachite_common::{Context, Round, ValueId};
 
+/// Input to the round state machine.
 pub enum Input<Ctx>
 where
     Ctx: Context,

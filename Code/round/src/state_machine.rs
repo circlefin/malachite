@@ -1,3 +1,5 @@
+//! The consensus state machine.
+
 use malachite_common::{Context, NilOrVal, Proposal, Round, TimeoutStep, Value};
 
 use crate::input::Input;
@@ -13,8 +15,11 @@ pub struct Info<'a, Ctx>
 where
     Ctx: Context,
 {
+    /// The round for which the input is for, can be different than the round we are at
     pub input_round: Round,
+    /// Address of our node
     pub address: &'a Ctx::Address,
+    /// Proposer for the round we are at
     pub proposer: &'a Ctx::Address,
 }
 
@@ -22,6 +27,7 @@ impl<'a, Ctx> Info<'a, Ctx>
 where
     Ctx: Context,
 {
+    /// Create a new `Info` instance.
     pub fn new(input_round: Round, address: &'a Ctx::Address, proposer: &'a Ctx::Address) -> Self {
         Self {
             input_round,
@@ -30,6 +36,7 @@ where
         }
     }
 
+    /// Check if we are the proposer for the round we are at.
     pub fn is_proposer(&self) -> bool {
         self.address == self.proposer
     }
