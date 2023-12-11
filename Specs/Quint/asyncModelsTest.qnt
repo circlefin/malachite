@@ -11,6 +11,7 @@ import statemachineAsync(
     Heights = Set(0) // , 1, 2, 3)
 ) as N4F0 from "./statemachineAsync"
 
+// TODO: transfer into DSL type tests
 
 run ThreeDecideInRound1V4stillinZeroTest = {
     N4F0::init

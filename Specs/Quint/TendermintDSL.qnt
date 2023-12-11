@@ -9,6 +9,11 @@ val validatorList = validators.fold(List(), (s, x) => s.append(x))
 val correctList = Correct.fold(List(), (s, x) => s.append(x))
 val faultyList = Faulty.fold(List(), (s, x) => s.append(x))
 
+def SetFromList(L) = {
+    L.foldl(Set(), (s, x) => s.union(Set(x)))
+}
+
+
 run ListTakeAStep (active) = {
     active.length().reps(i => valStep(active[i]))
 }
@@ -34,11 +39,19 @@ run everyoneReceivesProposal (active, valList, valset, h, r, value) = {
     val p = Proposer (valset, h, r)
     setNextValueToPropose(p, value)
     .then(ListTakeAStep(active))
+    .then(all{ // after new round an empty step to clean step "propose"
+        assert(system.keys().forall(proc => system.get(proc).es.pendingStepChange == "propose")),
+        ListTakeAStep(active)
+    })
     .then(all {
         assert(true),
         ListDeliverSomeProposal(active)
     })
-    .then(ListTakeAStep(active))    
+    .then(ListTakeAStep(active))
+    .then(all{ 
+        assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == "Prevote")),
+        ListTakeAStep(active)
+    })        
 }
 
 run fromPrevoteToPrecommit (prevoteSenders, prevoteReceivers, valList, valset, h, r, value) = {
@@ -46,6 +59,10 @@ run fromPrevoteToPrecommit (prevoteSenders, prevoteReceivers, valList, valset, h
     .then(prevoteSenders.length().reps(_ => ListTakeAStep(prevoteReceivers)))
     // extra step due to timeoutprevote double step
     .then(ListTakeAStep(prevoteReceivers))
+    .then(all{ 
+        assert(SetFromList(prevoteReceivers).forall(proc => system.get(proc).es.pendingStepChange == "Precommit")),
+        ListTakeAStep(prevoteReceivers)
+    })            
 }
 
 
