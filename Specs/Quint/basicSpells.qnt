@@ -1,4 +1,5 @@
 // -*- mode: Bluespec; -*-
+
 /**
  * This module collects definitions that are ubiquitous.
  * One day they will become the standard library of Quint.

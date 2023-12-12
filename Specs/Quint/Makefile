@@ -22,7 +22,10 @@ test: test-con test-sm test-vk
 .PHONY: test
 
 verify:
-	npx @informalsystems/quint verify --max-steps 10 --invariant Inv voteBookkeeperTest.qnt
+	npx @informalsystems/quint verify --max-steps 10 \
+		--main voteBookkeeperModels --init=VK1::init --step=VK1::step \
+		--invariant VK1::Inv \
+		voteBookkeeperModels.qnt
 .PHONY: verify
 
 # Generate traces by random simulation from properties describing the last desired state.

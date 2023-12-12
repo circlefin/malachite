@@ -9,14 +9,16 @@ license.workspace      = true
 publish.workspace      = true
 
 [dependencies]
-itf              = { workspace = true }
-rand             = { workspace = true }
 malachite-common = { version = "0.1.0", path = "../common" }
 malachite-vote   = { version = "0.1.0", path = "../vote" }
 malachite-test   = { version = "0.1.0", path = "../test" }
+
+itf              = { workspace = true }
+rand             = { workspace = true }
 num-bigint       = { workspace = true, features = ["serde"] }
 serde            = { workspace = true, features = ["derive"] }
 serde_json       = { workspace = true }
+serde_with       = { workspace = true }
 glob             = { workspace = true }
 
 [dev-dependencies]

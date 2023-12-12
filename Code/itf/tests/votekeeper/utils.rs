@@ -1,19 +1,20 @@
 use std::collections::HashMap;
 
-use malachite_itf::votekeeper::Value;
+use malachite_common::NilOrVal;
+use malachite_itf::types::Value;
 use malachite_test::{Address, ValueId};
 
 pub const ADDRESSES: [&str; 3] = ["alice", "bob", "john"];
-pub const NIL_VALUE: &str = "nil";
 
-pub fn value_from_model(value: &Value) -> Option<ValueId> {
-    match value.as_str() {
-        NIL_VALUE => None,
-        "proposal" => Some(0.into()),
-        "val1" => Some(1.into()),
-        "val2" => Some(2.into()),
-        "val3" => Some(3.into()),
-        _ => unimplemented!("unknown value {value:?}"),
+pub fn value_from_model(value: &Value) -> NilOrVal<ValueId> {
+    match value {
+        Value::Nil => NilOrVal::Nil,
+        Value::Val(v) => match v.as_str() {
+            "v1" => NilOrVal::Val(1.into()),
+            "v2" => NilOrVal::Val(2.into()),
+            "v3" => NilOrVal::Val(3.into()),
+            _ => unimplemented!("unknown value {value:?}"),
+        },
     }
 }
 
