@@ -18,8 +18,8 @@ run ListTakeAStep (active) = {
     active.length().reps(i => valStep(active[i]))
 }
 
-run ListDeliverProposal (active, proposalMsg) = {
-    active.length().reps(i => deliverProposal(active[i], proposalMsg))
+run ListDeliverProposal (active, propMsg) = {
+    active.length().reps(i => deliverProposal(active[i], propMsg))
 }
 
 run ListDeliverSomeProposal (active) = {
