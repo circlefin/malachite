@@ -30,6 +30,7 @@ TODO: Do we need to describe the code layout and Rust crates, or is the descript
 ### Overview of the Tendermint Consensus Implementation 
 
 The consensus implementation consists of the following components:
+
 - Builder and Proposer Modules
 - Gossip Module
 - Host System
@@ -37,10 +38,10 @@ The consensus implementation consists of the following components:
 - Multiplexer
 - Vote Keeper
 - Round State Machine
-  It interacts with the external environment via the Context trait, which is described in more detail below.
 
-This specification describes the components used by the consensus algorithm and does not cover the Builder/Proposer and the Gossip moduels.
+It interacts with the external environment via the Context trait, which is described in more detail below.
 
+This specification describes the components used by the consensus algorithm and does not cover the Builder/Proposer and the Gossip modules.
 
 ![Consensus SM Architecture Diagram](assets/sm_arch.jpeg)
 
@@ -49,7 +50,7 @@ The components of the consensus implementation as well as the associated abstrac
 ### Data Types & Abstractions
 
 #### Context
-TODO: This section is still under discussion.
+
 The Tendermint consensus implementation will satisfy the `Context` interface, detailed below.
 The data types used by the consensus algorithm are abstracted to allow for different implementations.
 
@@ -57,23 +58,38 @@ The data types used by the consensus algorithm are abstracted to allow for diffe
 /// This trait allows to abstract over the various datatypes
 /// that are used in the consensus engine.
 pub trait Context
-    where
-        Self: Sized,
+where
+    Self: Sized,
 {
+    /// The type of address of a validator.
     type Address: Address;
+
+    /// The type of the height of a block.
     type Height: Height;
+
+    /// The interface provided by the proposal type.
     type Proposal: Proposal<Self>;
+
+    /// The interface provided by the validator type.
     type Validator: Validator<Self>;
+
+    /// The interface provided by the validator set type.
     type ValidatorSet: ValidatorSet<Self>;
+
+    /// The type of values that can be proposed.
     type Value: Value;
+
+    /// The type of votes that can be cast.
     type Vote: Vote<Self>;
-    type SigningScheme: SigningScheme; // TODO: Do we need to support multiple signing schemes?
+
+    // TODO: Do we need to support multiple signing schemes?
+    /// The signing scheme used to sign votes.
+    type SigningScheme: SigningScheme;
 
     /// Sign the given vote our private key.
     fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self>;
 
     /// Verify the given vote's signature using the given public key.
-    /// TODO: Maybe move this as concrete methods in `SignedVote`?
     fn verify_signed_vote(
         &self,
         signed_vote: &SignedVote<Self>,
@@ -93,7 +109,7 @@ pub trait Context
     fn new_prevote(
         height: Self::Height,
         round: Round,
-        value_id: Option<ValueId<Self>>,
+        value_id: NilOrVal<ValueId<Self>>,
         address: Self::Address,
     ) -> Self::Vote;
 
@@ -102,16 +118,11 @@ pub trait Context
     fn new_precommit(
         height: Self::Height,
         round: Round,
-        value_id: Option<ValueId<Self>>,
+        value_id: NilOrVal<ValueId<Self>>,
         address: Self::Address,
     ) -> Self::Vote;
 }
 ```
-
-Note:
-- TBD: we should figure out where to put `broadcast_message(), start_timer()`
-    - @romac: Likely outside of the `Driver`, so left up to the runtime which drives the driver.
-
 
 #### Consensus Driver
 
@@ -126,15 +137,30 @@ pub struct Driver<Ctx>
     where
         Ctx: Context,
 {
+    /// The context of the consensus engine,
+    /// for defining the concrete data types and signature scheme.
     pub ctx: Ctx,
+
+    /// The proposer selector.
     pub proposer_selector: Box<dyn ProposerSelector<Ctx>>,
 
+    /// The address of the node.
     pub address: Ctx::Address,
+
+    /// The validator set at the current height
     pub validator_set: Ctx::ValidatorSet,
 
-    pub votes: VoteKeeper<Ctx>,
+    /// The vote keeper.
+    pub vote_keeper: VoteKeeper<Ctx>,
+
+    /// The state of the round state machine.
     pub round_state: RoundState<Ctx>,
-    pub proposals: Proposals<Ctx>,
+
+    /// The proposal to decide on, if any.
+    pub proposal: Option<Ctx::Proposal>,
+
+    /// The pending input to be processed next, if any.
+    pub pending_input: Option<(Round, RoundInput<Ctx>)>,
 }
 
 ```
@@ -170,11 +196,9 @@ Notes:
 - A proposal event must include a proposal and a `valid` flag indicating if the proposal is valid. The proposal must be complete, i.e. it must contain a complete value or an identifier of the value (`id(v)`). If the value is sent by the proposer in multiple parts, it is the responsibility of the Builder/Proposal modules to collect and verify all the parts and the proposal message in order to create a complete proposal and the validity flag.
 - `Vote` can be a `Prevote` or `Precommit` vote.
 - The driver interacts with the host system to start timers and expects to receive timeout events for the timers that it started and have fired. The timeouts can be:
-```
-    Propose,
-    Prevote,
-    Precommit,
-```
+  * `Propose`
+  * `Prevote`
+  * `Precommit`
 
 ##### Operation
 
@@ -186,7 +210,7 @@ Notes:
 - Proposals and vote messages must be signed by the sender and validated by the receiver. Signer must be the proposer for `Proposal` and a validator for `Vote`.
   - The driver performs signature verification of the messages it receives from the consensus environment via methods provided by the Context (see `verify_signed_vote()`)
 - On `StartRound(round)` event, the Driver must determine if it is the proposer for the given round. For this it needs access to a `validator_set.get_proposer(round)` method or similar.
-- When building a proposal the driver will use the `get_value()` method of the Builder/ Proposer module to retrieve the value to propose. 
+- When building a proposal the driver will use the `get_value()` method of the Builder/Proposer module to retrieve the value to propose. 
 
 ##### Output Messages
 
@@ -219,23 +243,8 @@ pub enum Output<Ctx>
 
 The driver is passed a instance of the `Context` trait which defines all the data types used by this instance of the consensus engine, and also provides synchronous, stateless methods for creating and signing votes.
 
-### Driver Environment
-
-The driver can make use of an environment (or Builder/Proposer module) to get a value to propose.
-This environment is defined as an async interface to be implemented by the code downstream of the `Driver`.
-
-TODO - updated with the new async interface:
-```rust
-#[async_trait]
-pub trait Env<Ctx>
-where
-    Ctx: Context,
-{
-    /// Get the value to propose.
-    async fn get_value(&self) -> Ctx::Value;
-}
-```
 #### Multiplexer
+
 The Multiplexer is responsible for multiplexing the input data and returning the appropriate event to the Round State Machine.
 
 The table below describes the input to the Multiplexer and the output events to the Round State Machine.
@@ -245,20 +254,19 @@ The input data is:
 - Proposals and votes from the Driver.
 
 
-| step changed to | vote keeperthreshold | proposal        | Multiplexed Input to Round SM   | new step  | algo condition | output                         |
-|---------| -------------------- | --------------- |---------------------------------| --------- | -------------- | ------------------------------ |
-| new(??) | -                    | -               | NewRound                        | propose   | L11            | …                              |
-| any     | PrecommitValue(v)    | Proposal(v)     | PropAndPrecommitValue           | commit    | L49            | decide(v)                      |
-| any     | PrecommitAny         | \*              | PrecommitAny                    | any (unchanged) | L47            | sch\_precommit\_timer          |
-| propose | none                 | InvalidProposal | InvalidProposal                 | prevote   | L22, L26       | prevote\_nil                   |
-| propose | none                 | Proposal        | Proposal                        | prevote   | L22, L24       | prevote(v)                     |
-| propose | PolkaPrevious(v, vr) | InvalidProposal | InvalidProposalAndPolkaPrevious | prevote   | L28, L33       | prevote\_nil                   |
-| propose | PolkaPrevious(v, vr) | Proposal(v,vr)  | ProposalAndPolkaPrevious        | prevote   | L28, L30       | prevote(v)                     |
-| prevote | PolkaNil             | \*              | PolkaNil                        | precommit | L44            | precommit\_nil                 |
-| prevote | PolkaValue(v)        | Proposal(v)     | ProposalAndPolkaCurrent         | precommit | L36, L37       | (set locked and valid)precommit(v) |
-| prevote | PolkaAny             | \*              | PolkaAny                        | prevote   | L34            | prevote timer                  |
-| precommit | PolkaValue(v)        | Proposal(v)     | ProposalAndPolkaCurrent         | precommit | L36, L42       | (set valid)                    |
-                    |
+| Step Changed To | Vote Keeper Rhreshold | Proposal        | Multiplexed Input to Round SM   | New Step        | Algo Condition | Output                             |
+|---------------- | --------------------- | --------------- |---------------------------------| ---------       | -------------- | ---------------------------------- |
+| new(??)         | -                     | -               | NewRound                        | propose         | L11            | …                                  |
+| any             | PrecommitValue(v)     | Proposal(v)     | PropAndPrecommitValue           | commit          | L49            | decide(v)                          |
+| any             | PrecommitAny          | \*              | PrecommitAny                    | any (unchanged) | L47            | sch\_precommit\_timer              |
+| propose         | none                  | InvalidProposal | InvalidProposal                 | prevote         | L22, L26       | prevote\_nil                       |
+| propose         | none                  | Proposal        | Proposal                        | prevote         | L22, L24       | prevote(v)                         |
+| propose         | PolkaPrevious(v, vr)  | InvalidProposal | InvalidProposalAndPolkaPrevious | prevote         | L28, L33       | prevote\_nil                       |
+| propose         | PolkaPrevious(v, vr)  | Proposal(v,vr)  | ProposalAndPolkaPrevious        | prevote         | L28, L30       | prevote(v)                         |
+| prevote         | PolkaNil              | \*              | PolkaNil                        | precommit       | L44            | precommit\_nil                     |
+| prevote         | PolkaValue(v)         | Proposal(v)     | ProposalAndPolkaCurrent         | precommit       | L36, L37       | (set locked and valid)precommit(v) |
+| prevote         | PolkaAny              | \*              | PolkaAny                        | prevote         | L34            | prevote timer                      |
+| precommit       | PolkaValue(v)         | Proposal(v)     | ProposalAndPolkaCurrent         | precommit       | L36, L42       | (set valid)                        |
 
 
 #### Vote Keeper
@@ -269,26 +277,33 @@ The Vote Keeper is concerned with keeping track of the votes received and the th
 To this end, it maintains some state per each round:
 
 ```rust
+/// Keeps track of votes and emitted outputs for a given round.
 pub struct PerRound<Ctx>
-    where
-        Ctx: Context,
+where
+    Ctx: Context,
 {
+    /// The votes for this round.
     votes: RoundVotes<Ctx::Address, ValueId<Ctx>>,
+    /// The addresses and their weights for this round.
     addresses_weights: RoundWeights<Ctx::Address>,
+    /// The emitted outputs for this round.
     emitted_outputs: BTreeSet<Output<ValueId<Ctx>>>,
 }
 ```
 
 ```rust
+/// Keeps track of votes and emits messages when thresholds are reached.
 pub struct VoteKeeper<Ctx>
-    where
-        Ctx: Context,
+where
+    Ctx: Context,
 {
+    /// The total weight (ie. voting power) of the network.
     total_weight: Weight,
+    /// The threshold parameters.
     threshold_params: ThresholdParams,
+    /// The votes and emitted outputs for each round.
     per_round: BTreeMap<Round, PerRound<Ctx>>,
 }
-
 ```
 
 - The quorum and minimum correct validator thresholds are passed in as parameters during initialization. These are used for the different threshold calculations.
@@ -316,15 +331,25 @@ The Vote Keeper keeps track of the votes received for each round and the total w
 The Driver receives these output messages from the Vote Keeper.
 
 ```rust
-pub enum Message<C>
-where 
-    C: Context
+/// Messages emitted by the vote keeper
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Output<Value> {
+    /// We have a quorum of prevotes for some value or nil
     PolkaAny,
+
+    /// We have a quorum of prevotes for nil
     PolkaNil,
+
+    /// We have a quorum of prevotes for specific value
     PolkaValue(Value),
+
+    /// We have a quorum of precommits for some value or nil
     PrecommitAny,
+
+    /// We have a quorum of precommits for a specific value
     PrecommitValue(Value),
+
+    /// We have f+1 honest votes for a value at a higher round
     SkipRound(Round),
 }
 ```
@@ -336,15 +361,24 @@ pub enum Output<Value> {
 The Consensus State Machine is concerned with the internal state of the consensus algorithm for a given round. It is initialized with the height and round. When moving to a new round, the driver creates a new round state machine while retaining information from previous round (e.g. valid and locked values).
 
 ```rust
+/// The state of the consensus state machine
 pub struct State<Ctx>
-    where
-        Ctx: Context,
+where
+    Ctx: Context,
 {
+    /// The height of the consensus
     pub height: Ctx::Height,
+
+    /// The round we are at within a height
     pub round: Round,
 
+    /// The step we are at within a round
     pub step: Step,
+
+    /// The value we are locked on, ie. we have received a polka for before we precommitted
     pub locked: Option<RoundValue<Ctx::Value>>,
+
+    /// The value for which we received a polka for after we already precommitted
     pub valid: Option<RoundValue<Ctx::Value>>,
 }
 ```
@@ -439,19 +473,31 @@ The Round State Machine keeps track of the internal state of consensus for a giv
 
 ##### Output Messages
 
-The Round state machine returns the following messages to the Driver:
+The Round state machine returns the following output messages to the Driver:
 
 ```rust
+/// Output of the round state machine.
 pub enum Output<Ctx>
-    where
-        Ctx: Context,
+where
+    Ctx: Context,
 {
-    NewRound(Round),                            // Move to the new round.
-Proposal(Ctx::Proposal),                    // Broadcast the proposal.
-Vote(Ctx::Vote),                            // Broadcast the vote.
-ScheduleTimeout(Timeout),                   // Schedule the timeout.
-GetValueAndScheduleTimeout(Round, Timeout), // Ask for a value and schedule a timeout.
-Decision(RoundValue<Ctx::Value>),           // Decide the value.
+    /// Move to the new round.
+    NewRound(Round),
+
+    /// Broadcast the proposal.
+    Proposal(Ctx::Proposal),
+
+    /// Broadcast the vote.
+    Vote(Ctx::Vote),
+
+    /// Schedule the timeout.
+    ScheduleTimeout(Timeout),
+
+    /// Ask for a value and schedule a timeout.
+    GetValueAndScheduleTimeout(Round, Timeout),
+
+    /// Decide the value.
+    Decision(RoundValue<Ctx::Value>),
 }
 ```
 
@@ -463,7 +509,7 @@ Accepted
 
 ### Positive
 
-- The abstraction offered by `enum Event` encapsulates all the complexity of `upon` clauses, it simplifies reasoning about the pure state machine logic within the Round State Machine.
+- The abstraction offered by `enum Input` state machine input encapsulates all the complexity of `upon` clauses, it simplifies reasoning about the pure state machine logic within the Round State Machine.
 - The semantics of counting votes and reasoning about thresholds is grouped into the Vote Keeper module and clearly separates that concern from the state machine logic.
 - Functionality is offloaded to the host system wherever possible: The concerns of scheduling, managing, and firing timeouts.
 - All sources of non-determinism have been excluded outside the boundaries of the consensus implementation, e.g. `valid` method, timeouts, I/O triggers, thus simplifying testing and reasoning about this system. 
@@ -471,7 +517,7 @@ Accepted
 
 ### Negative
 
-- The `enum Event` has numerous variants and comprises many nuances, thus may be difficult to understand.
+- The `enum Input` has numerous variants and comprises many nuances, thus may be difficult to understand.
 
 ### Neutral
 

@@ -1,4 +1,26 @@
-//! Multiplex inputs to the round state machine based on the current state.
+//! The Multiplexer is responsible for multiplexing the input data and returning the appropriate event to the Round State Machine.
+//!
+//! The table below describes the input to the Multiplexer and the output events to the Round State Machine.
+//!
+//! The input data is:
+//! - The step change from the Round State Machine.
+//! - The output events from the Vote Keeper.
+//! - Proposals and votes from the Driver.
+//!
+//!
+//! | Step Changed To | Vote Keeper Rhreshold | Proposal        | Multiplexed Input to Round SM   | New Step        | Algo Condition | Output                             |
+//! |---------------- | --------------------- | --------------- |---------------------------------| ---------       | -------------- | ---------------------------------- |
+//! | new(??)         | -                     | -               | NewRound                        | propose         | L11            | …                                  |
+//! | any             | PrecommitValue(v)     | Proposal(v)     | PropAndPrecommitValue           | commit          | L49            | decide(v)                          |
+//! | any             | PrecommitAny          | \*              | PrecommitAny                    | any (unchanged) | L47            | sch\_precommit\_timer              |
+//! | propose         | none                  | InvalidProposal | InvalidProposal                 | prevote         | L22, L26       | prevote\_nil                       |
+//! | propose         | none                  | Proposal        | Proposal                        | prevote         | L22, L24       | prevote(v)                         |
+//! | propose         | PolkaPrevious(v, vr)  | InvalidProposal | InvalidProposalAndPolkaPrevious | prevote         | L28, L33       | prevote\_nil                       |
+//! | propose         | PolkaPrevious(v, vr)  | Proposal(v,vr)  | ProposalAndPolkaPrevious        | prevote         | L28, L30       | prevote(v)                         |
+//! | prevote         | PolkaNil              | \*              | PolkaNil                        | precommit       | L44            | precommit\_nil                     |
+//! | prevote         | PolkaValue(v)         | Proposal(v)     | ProposalAndPolkaCurrent         | precommit       | L36, L37       | (set locked and valid)precommit(v) |
+//! | prevote         | PolkaAny              | \*              | PolkaAny                        | prevote         | L34            | prevote timer                      |
+//! | precommit       | PolkaValue(v)         | Proposal(v)     | ProposalAndPolkaCurrent         | precommit       | L36, L42       | (set valid)                        |
 
 use malachite_common::ValueId;
 use malachite_common::{Context, Proposal, Round, Value, VoteType};
