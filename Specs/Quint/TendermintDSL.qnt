@@ -50,7 +50,27 @@ run onlyProposerReceivesProposal (active, valList, valset, h, r, value) = {
     })            
 }
 
-// TODO: add valid round
+// TODO: add valid round more cleanly on one run for all cases
+run everyoneReceivesProposalVR (active, valList, valset, h, r, value, vr) = {
+    val p = Proposer (valset, h, r)
+    val propMsg = { height: h, proposal: value, round: r, src: p, validRound: vr }
+    setNextValueToPropose(p, value)
+    .then(ListTakeAStep(active))
+    .then(all{ // after new round an empty step to clean step "propose"
+        assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == "propose")),
+        ListTakeAStep(active)
+    })
+    .then(all {
+        assert(true),
+        ListDeliverProposal(active, propMsg)
+    })
+    .then(ListTakeAStep(active))
+    .then(all{ 
+        assert(SetFromList(active).forall(proc => system.get(proc).es.pendingStepChange == "Prevote")),
+        ListTakeAStep(active)
+    })        
+}
+
 run everyoneReceivesProposal (active, valList, valset, h, r, value) = {
     val p = Proposer (valset, h, r)
     val propMsg = { height: h, proposal: value, round: r, src: p, validRound: -1 }
@@ -76,10 +96,10 @@ run fromPrevoteToPrecommit (prevoteSenders, prevoteReceivers, valList, valset, h
     .then(prevoteSenders.length().reps(_ => ListTakeAStep(prevoteReceivers)))
     // extra step due to timeoutprevote double step
     .then(ListTakeAStep(prevoteReceivers))
-    .then(all{ 
-        assert(SetFromList(prevoteReceivers).forall(proc => system.get(proc).es.pendingStepChange == "Precommit")),
-        ListTakeAStep(prevoteReceivers)
-    })            
+   .then(all{ 
+       assert(SetFromList(prevoteReceivers).forall(proc => system.get(proc).es.pendingStepChange == "Precommit")),
+       ListTakeAStep(prevoteReceivers)
+   })            
 }
 
 

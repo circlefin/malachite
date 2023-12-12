@@ -29,7 +29,7 @@ run runToLine28 = {
     // TimeoutPrecommit is there an can fire and bring is to the next round.
     .then(all{
         assert(system.get(nextProposer).timeout.contains(("TimeoutPrecommit", 0, 0))),
-        everyoneReceivesProposal(correctList, validatorList, validatorSet, 0, 0, "red")
+        everyoneReceivesProposalVR(correctList, validatorList, validatorSet, 0, 1, "blue", 0)
     })
     .then(all{
         assert(voteBuffer.get(nextProposer).contains( { height: 0, id: "blue", round: 1, src: nextProposer, step: "Prevote" })),
