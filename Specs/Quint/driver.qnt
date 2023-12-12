@@ -17,8 +17,9 @@ type DriverState = {
     cs: ConsensusState,
     proposals: Set[Proposal],
     valset: Address -> Weight,
-    executedInputs: List[(ConsensusInput, Height, Round)], // We record that to have the information in the trace
+    executedInputs: List[(ConsensusInput, Height, Round, Step)], // We record that to have the information in the trace
     pendingInputs: Set[(ConsensusInput, Height, Round)],
+    pendingStepChange: Step, // NoStep if last consensus call did not change the step
     started: bool,
     voteKeeperOutput: VoteKeeperOutput, //debug TODO
     chain : List[Value],
@@ -32,6 +33,7 @@ pure def initDriver(v: Address, vs: Address -> Weight): DriverState = {
     valset: vs,
     executedInputs: List(),
     pendingInputs: Set(),
+    pendingStepChange: NoStep,
     started: false,
     voteKeeperOutput: NoVKOutput, // debug
     chain : List(),
@@ -81,28 +83,8 @@ type DriverInput =
     | StartDInput
     | PendingDInput(ConsensusInput)
     | SetNextProposedValueDInput(NonNilValue)
-
-/*
-encode the following decision tree
-
-proposal
-    invalid -> consensus event
-    valid:  BK list of events 
-            generate all Consensus events C
-            feed all events to Consensus
-
-Precommit
-    BK applyVote
-    (see whether we can make (A) 2f+1 Any for current or 
-                             (B) 2f+1 plus proposal for current)
-    -> feed all events to Consensus
-
-Prevote
-    BK applyVote 
-    For current round PolkaVal -> PolkaAny and PolkaNil -> PolkaAny: list of Events
-    check proposal: list of Consensus evens (considering line 28)
-    -> feed all events to Consensus
-*/
+    | StepChangeDInput
+    // TODO: add step: Step_t
 
 val emptyProposal = mkProposal(noAddress, 0, 0, "", 0)
 val emptyVote = mkVote(Prevote, noAddress, 0, 0, Nil)
@@ -136,13 +118,16 @@ pure def ListContains(list, value) =
 // check whether the event has been already sent to consensus. If not, do so.
 pure def callConsensus(es: DriverState, bk: Bookkeeper, csInput: ConsensusInput): (DriverState, ConsensusOutput) =
     // Check whether we already executed the event already
-    if (es.executedInputs.ListContains((csInput, es.cs.height, es.cs.round)))
+    // TODO: Perhaps this check should be more fine-grained. Perhaps some inputs should only be acted on once per
+    //          round, independent of the step.
+    // TODO: get rid of bk parameter
+    if (es.executedInputs.ListContains((csInput, es.cs.height, es.cs.round, es.cs.step)))
         ({ ...es, bk: bk, cs: es.cs }, NoConsensusOutput)
     else
         // Go to consensus
         val res = consensus(es.cs, csInput)
         // Record that we executed the event
-        val csInputs = es.executedInputs.append((csInput, res.cs.height, res.cs.round))
+        val csInputs = es.executedInputs.append((csInput, res.cs.height, res.cs.round, es.cs.step))
         ({ ...es, bk: bk, cs: res.cs, executedInputs: csInputs }, res.out)
 
 // We do this if the driver receives a Precommit
@@ -228,6 +213,9 @@ pure def handleTimeout(es: DriverState, t: Timeout): (DriverState, ConsensusOutp
         | PrecommitTimeout => callConsensus(es, es.bk, TimeoutPrecommitCInput((es.cs.height, es.cs.round)))
     }
 
+// TODO: change result type of proposal (an other similar functions to this so that consensus can be called at one point in the driver
+// type MuxResult = {es: DriverState, ci: ConsensusInput}
+
 // We do this if the driver receives a proposal
 pure def handleProposal(es: DriverState, prop: Proposal): (DriverState, ConsensusOutput) =
     val th = ValueThreshold(prop.proposal)
@@ -283,6 +271,44 @@ pure def handleProposal(es: DriverState, prop: Proposal): (DriverState, Consensu
                 callConsensus(es, es.bk, ProposalInvalidCInput)
         else (es, NoConsensusOutput)
 
+// We do this after calling consensus to remember whether the step has changed
+pure def recordStepChange(old: DriverState, new: DriverState) : DriverState =
+    if (old.cs.step == new.cs.step)
+        { ...new, pendingStepChange: NoStep }
+    else
+        { ...new, pendingStepChange: new.cs.step}
+
+// We do this if a step change of the consensus state machine was recorded
+pure def handleStepChange(es: DriverState) : (DriverState, ConsensusOutput) =
+    // TODO: First add to pending precommitany if it exists
+    val newES = 
+        if (checkThreshold(es.bk, es.cs.round, Precommit, AnyThreshold)) 
+            val pend = (PrecommitAnyCInput, es.cs.height, es.cs.round) 
+            { ...es, pendingInputs: es.pendingInputs.union(Set(pend))}
+        else es
+
+    // Then check proposal
+    val proposer_ = proposer(newES.valset, newES.cs.height, newES.cs.round)
+    val propSet = newES.proposals.filter(x => x.srcAddress == proposer_ and x.height == newES.cs.height and x.round == newES.cs.round)
+    if (propSet != Set())
+        val proposal: Proposal = propSet.fold(emptyProposal, (sum, y) => y) 
+                    // TODO:    If the proposer is faulty there might be multiple
+                    //          figure out what to do
+        handleProposal(newES, proposal)
+
+    // then go into step distinction but only consider rules without proposals
+    else if (es.pendingStepChange == PrevoteStep)
+        // If we have PolkaNil we don't start the timeout
+        if (checkThreshold(newES.bk, newES.cs.round, Prevote, NilThreshold)) 
+            callConsensus(es, es.bk, PolkaNilCInput)
+        else if (checkThreshold(newES.bk, newES.cs.round, Prevote, AnyThreshold)) 
+            callConsensus(es, es.bk, PolkaAnyCInput)
+        else
+            (es, NoConsensusOutput)
+    
+    // For steps "newRound", "propose", "Precommit", there are no specific rules to check
+    else (es, NoConsensusOutput)
+
 // We do this when we need to jump to a new round
 pure def handleSkip(es: DriverState, r: Round): (DriverState, ConsensusOutput) =
     // line 15
@@ -320,12 +346,14 @@ pure def handlePendingInput(es: DriverState): (DriverState, ConsensusOutput) =
     else
         (newState, NoConsensusOutput)
 
+
 /* *********************************************************
  * Main entry point
  * ********************************************************/
 
+
 // TODO: return ConsensusInput so that we know from outside what event was fired.
-pure def driver(state: DriverState, input: DriverInput): (DriverState, ConsensusOutput) =
+pure def driverLogic(state: DriverState, input: DriverInput): (DriverState, ConsensusOutput) =
     // TODO: shall we check whether the sender actually is in the validator set
     match input {
         | ProposalDInput(proposal) =>
@@ -382,11 +410,19 @@ pure def driver(state: DriverState, input: DriverInput): (DriverState, Consensus
             handleSkip({ ...state, started: true }, 0)
         | PendingDInput(_) => // CHECK: why input is not used?
             handlePendingInput(state)
+        | StepChangeDInput =>
+            handleStepChange(state)
         | SetNextProposedValueDInput(v) =>
             (state.setValue(Val(v)), NoConsensusOutput)
         | _ =>
             (state, NoConsensusOutput)
     }
+
+// To address step change
+pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
+    val res = driverLogic(es, input)
+    (recordStepChange(es, res._1), res._2)
+}
 
 // This is a simple function that figures out in what external events (messages,
 // timeouts, etc.) the node should act.
@@ -395,6 +431,9 @@ pure def driver(state: DriverState, input: DriverInput): (DriverState, Consensus
 pure def nextAction(state: NodeState): (NodeState, DriverInput) =
     if (not(state.es.started))
         (state, StartDInput)
+
+    else if (state.es.pendingStepChange != NoStep)
+        (state, StepChangeDInput)
 
     else if (state.es.pendingInputs != Set())
         val input_height_round = state.es.pendingInputs.fold((NoConsensusInput, -1, -1), (sum, y) => y)
