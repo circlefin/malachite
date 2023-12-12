@@ -3,12 +3,49 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
 
-pub type Height = i64;
-pub type Weight = i64;
-pub type Round = i64;
-pub type Address = String;
-pub type Value = String;
-pub type VoteType = String;
+use crate::types::{Address, Height, NonNilValue, Round, Value, Vote, Weight};
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(tag = "tag", content = "value")]
+pub enum WeightedVote {
+    #[serde(rename = "NoWeightedVote")]
+    NoVote,
+
+    #[serde(rename = "WV")]
+    #[serde(with = "As::<(Same, Integer, Integer)>")]
+    Vote(Vote, Weight, Round),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize)]
+#[serde(tag = "tag", content = "value")]
+pub enum VoteKeeperOutput {
+    #[serde(rename = "NoVKOutput")]
+    NoOutput,
+
+    #[serde(rename = "PolkaAnyVKOutput")]
+    #[serde(with = "As::<Integer>")]
+    PolkaAny(Round),
+
+    #[serde(rename = "PolkaNilVKOutput")]
+    #[serde(with = "As::<Integer>")]
+    PolkaNil(Round),
+
+    #[serde(rename = "PolkaValueVKOutput")]
+    #[serde(with = "As::<(Integer, Same)>")]
+    PolkaValue(Round, NonNilValue),
+
+    #[serde(rename = "PrevoteAnyVKOutput")]
+    #[serde(with = "As::<Integer>")]
+    PrecommitAny(Round),
+
+    #[serde(rename = "PrevoteNilVKOutput")]
+    #[serde(with = "As::<(Integer, Same)>")]
+    PrecommitValue(Round, NonNilValue),
+
+    #[serde(rename = "SkipVKOutput")]
+    #[serde(with = "As::<Integer>")]
+    Skip(Round),
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,17 +56,6 @@ pub struct Bookkeeper {
     pub total_weight: Weight,
     #[serde(with = "As::<HashMap<Integer, Same>>")]
     pub rounds: HashMap<Round, RoundVotes>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-pub struct Vote {
-    pub typ: VoteType,
-    #[serde(with = "As::<Integer>")]
-    pub height: Height,
-    #[serde(with = "As::<Integer>")]
-    pub round: Round,
-    pub value: Value,
-    pub address: Address,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -56,21 +82,10 @@ pub struct VoteCount {
     pub votes_addresses: HashSet<Address>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Hash)]
-pub struct VoteKeeperOutput {
-    #[serde(with = "As::<Integer>")]
-    pub round: Round,
-    pub name: String,
-    pub value: Value,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct State {
-    #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::bookkeeper")]
     pub bookkeeper: Bookkeeper,
-    #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::lastEmitted")]
     pub last_emitted: VoteKeeperOutput,
-    #[serde(rename = "voteBookkeeperTest::voteBookkeeperSM::weightedVote")]
-    #[serde(with = "As::<(Same, Integer, Integer)>")]
-    pub weighted_vote: (Vote, Weight, Round),
+    pub weighted_vote: WeightedVote,
 }

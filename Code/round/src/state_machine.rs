@@ -1,4 +1,6 @@
-use malachite_common::{Context, Proposal, Round, TimeoutStep, Value};
+//! The consensus state machine.
+
+use malachite_common::{Context, NilOrVal, Proposal, Round, TimeoutStep, Value};
 
 use crate::input::Input;
 use crate::output::Output;
@@ -13,8 +15,11 @@ pub struct Info<'a, Ctx>
 where
     Ctx: Context,
 {
+    /// The round for which the input is for, can be different than the round we are at
     pub input_round: Round,
+    /// Address of our node
     pub address: &'a Ctx::Address,
+    /// Proposer for the round we are at
     pub proposer: &'a Ctx::Address,
 }
 
@@ -22,6 +27,7 @@ impl<'a, Ctx> Info<'a, Ctx>
 where
     Ctx: Context,
 {
+    /// Create a new `Info` instance.
     pub fn new(input_round: Round, address: &'a Ctx::Address, proposer: &'a Ctx::Address) -> Self {
         Self {
             input_round,
@@ -30,6 +36,7 @@ where
         }
     }
 
+    /// Check if we are the proposer for the round we are at.
     pub fn is_proposer(&self) -> bool {
         self.address == self.proposer
     }
@@ -259,10 +266,10 @@ where
     let vr = proposal.round();
     let proposed = proposal.value().id();
     let value = match &state.locked {
-        Some(locked) if locked.round <= vr => Some(proposed), // unlock and prevote
-        Some(locked) if locked.value.id() == proposed => Some(proposed), // already locked on value
-        Some(_) => None, // we're locked on a higher round with a different value, prevote nil
-        None => Some(proposed), // not locked, prevote the value
+        Some(locked) if locked.round <= vr => NilOrVal::Val(proposed), // unlock and prevote
+        Some(locked) if locked.value.id() == proposed => NilOrVal::Val(proposed), // already locked on value
+        Some(_) => NilOrVal::Nil, // we're locked on a higher round with a different value, prevote nil
+        None => NilOrVal::Val(proposed), // not locked, prevote the value
     };
 
     let output = Output::prevote(state.height.clone(), state.round, value, address.clone());
@@ -276,7 +283,13 @@ pub fn prevote_nil<Ctx>(state: State<Ctx>, address: &Ctx::Address) -> Transition
 where
     Ctx: Context,
 {
-    let output = Output::prevote(state.height.clone(), state.round, None, address.clone());
+    let output = Output::prevote(
+        state.height.clone(),
+        state.round,
+        NilOrVal::Nil,
+        address.clone(),
+    );
+
     Transition::to(state.with_step(Step::Prevote)).with_output(output)
 }
 
@@ -306,7 +319,7 @@ where
     let output = Output::precommit(
         state.height.clone(),
         state.round,
-        Some(value.id()),
+        NilOrVal::Val(value.id()),
         address.clone(),
     );
 
@@ -325,7 +338,12 @@ pub fn precommit_nil<Ctx>(state: State<Ctx>, address: &Ctx::Address) -> Transiti
 where
     Ctx: Context,
 {
-    let output = Output::precommit(state.height.clone(), state.round, None, address.clone());
+    let output = Output::precommit(
+        state.height.clone(),
+        state.round,
+        NilOrVal::Nil,
+        address.clone(),
+    );
     Transition::to(state.with_step(Step::Precommit)).with_output(output)
 }
 

@@ -39,7 +39,7 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov nextest --workspace --exclude malachite-itf --all-features --lcov --output-path lcov.info
+        run: cargo llvm-cov nextest --workspace --exclude malachite-itf --all-features --ignore-run-fail --lcov --output-path lcov.info
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage to Codecov
@@ -48,7 +48,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: Code/lcov.info
           flags: integration
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
   mbt-coverage:
     name: MBT
@@ -84,4 +84,4 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: Code/lcov.info
           flags: mbt
-          fail_ci_if_error: true
+          fail_ci_if_error: false

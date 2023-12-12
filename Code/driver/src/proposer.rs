@@ -1,5 +1,6 @@
 use malachite_common::{Context, Round};
 
+/// Defines how to select a proposer amongst a validator set for a given round.
 pub trait ProposerSelector<Ctx>
 where
     Ctx: Context,
