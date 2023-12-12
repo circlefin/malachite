@@ -229,36 +229,41 @@ pure def handleTimeout(es: DriverState, t: Timeout): (DriverState, ConsensusOutp
     }
 
 // We do this if the driver receives a proposal
-pure def handleProposal(es: DriverState, proposal: Proposal): (DriverState, ConsensusOutput) =
-    val newES: DriverState = { ...es, proposals: es.proposals.union(Set(proposal))}
-    if (proposal.srcAddress != proposer(es.valset, proposal.height, proposal.round))
+pure def handleProposal(es: DriverState, prop: Proposal): (DriverState, ConsensusOutput) =
+    val th = ValueThreshold(prop.proposal)
+    if (prop.srcAddress != proposer(es.valset, prop.height, prop.round))
         // proposer does not match the height/round of the proposal
         // keep ES (don't use newES here), that is, drop proposal
         (es, NoConsensusOutput)
-    else if (proposal.proposal.isValid())
-        val receivedCommit = checkThreshold(    newES.bk, 
-                                                proposal.round, 
-                                                Precommit, 
-                                                ValueThreshold(proposal.proposal))
+    else if (prop.proposal.isValid())
+        val newES: DriverState = { ...es, proposals: es.proposals.union(Set(prop))}
+        val receivedCommit = checkThreshold(newES.bk, prop.round, Precommit, th)
         if (receivedCommit)
             // we have a commit that matches the proposal. We don't need to compare against
             // es.cs.round
             // TODO: check heights in bookkeeper
-            callConsensus(newES, newES.bk, ProposalAndCommitAndValidCInput(Val(proposal.proposal)))
-        else if (proposal.round != es.cs.round or proposal.height != es.cs.height) 
+            callConsensus(newES, newES.bk, ProposalAndCommitAndValidCInput(Val(prop.proposal)))
+        else if (es.cs.round != prop.round or es.cs.height != prop.height) 
             // the proposal is from the right proposer and valid, but not for this round
             // keep the proposal, do nothing else
             (newES, NoConsensusOutput)
         else
             // for current round and q, valid, and from right proposer
-            val th = ValueThreshold(proposal.proposal)
-            val receivedPolkaValidRoundVal = checkThreshold(newES.bk, proposal.validRound, Prevote, th)
             val receivedPolkaCurrentVal = checkThreshold(newES.bk, newES.cs.round, Prevote, th)
-            val receivedCommitCurrentVal = checkThreshold(newES.bk, newES.cs.round, Precommit, th)
-            val propId: ValueId = id(Val(proposal.proposal))
-            
-            // TODO: remove this definition when Quint supports multiple cases in one branch of the match statement.
-            val prevoteAndprecommitOutput: (DriverState, ConsensusOutput) = 
+            val propId: ValueId = id(Val(prop.proposal))
+            if (newES.cs.step == ProposeStep)
+                val receivedPolkaValidRoundVal = checkThreshold(newES.bk, prop.validRound, Prevote, th)
+                if (prop.validRound == -1)
+                    if (receivedPolkaCurrentVal)
+                        callConsensus(newES, newES.bk, ProposalAndPolkaAndValidCInput(propId))
+                    else
+                        callConsensus(newES, newES.bk, ProposalCInput((prop.round, propId)))
+                else if (receivedPolkaValidRoundVal)
+                    callConsensus(newES, newES.bk, ProposalAndPolkaPreviousAndValidCInput((propId, prop.validRound)))
+                else  
+                    (newES, NoConsensusOutput)
+            else if (newES.cs.step == PrevoteStep or PrevoteStep == PrecommitStep)
+                val receivedCommitCurrentVal = checkThreshold(newES.bk, newES.cs.round, Precommit, th)
                 if (receivedCommitCurrentVal)
                     // here we need to call both, Commit and Polka. 
                     // We do commit and append polka to pending
@@ -268,34 +273,15 @@ pure def handleProposal(es: DriverState, proposal: Proposal): (DriverState, Cons
                 else if (receivedPolkaCurrentVal)
                     callConsensus(newES, newES.bk, ProposalAndPolkaAndValidCInput(propId))
                 else (newES, NoConsensusOutput)
-
-            match newES.cs.step { 
-                | ProposeStep =>
-                    if (proposal.validRound == -1)
-                        if (receivedPolkaCurrentVal)
-                            callConsensus(newES, newES.bk, ProposalAndPolkaAndValidCInput(propId))
-                        else
-                            callConsensus(newES, newES.bk, ProposalCInput((proposal.round, propId)))
-                    else if (receivedPolkaValidRoundVal)
-                        callConsensus(newES, newES.bk, ProposalAndPolkaPreviousAndValidCInput((propId, proposal.validRound)))
-                    else  
-                        (newES, NoConsensusOutput)
-                | PrevoteStep => prevoteAndprecommitOutput
-                | PrecommitStep => prevoteAndprecommitOutput
-                | _ => (newES, NoConsensusOutput)
-            }
-    else // (not(isValid(proposal))) 
+            else (newES, NoConsensusOutput)
+    else // not(isValid(proposal))
         // keep ES (don't use newES here), that is, drop proposal
-        match es.cs.step {
-            | ProposeStep => 
-                if (es.cs.round == proposal.round and es.cs.height == proposal.height)
-                    if (checkThreshold(es.bk, es.cs.round, Prevote, ValueThreshold(proposal.proposal)))
-                        callConsensus(es, es.bk, ProposalAndPolkaAndInvalidCInput((es.cs.height, es.cs.round, id(Val(proposal.proposal)))))
-                    else 
-                        callConsensus(es, es.bk, ProposalInvalidCInput)
-                else (es, NoConsensusOutput)
-            | _ => (es, NoConsensusOutput)
-        }
+        if (es.cs.step == ProposeStep and es.cs.round == prop.round and es.cs.height == prop.height)
+            if (checkThreshold(es.bk, es.cs.round, Prevote, th))
+                callConsensus(es, es.bk, ProposalAndPolkaAndInvalidCInput((es.cs.height, es.cs.round, id(Val(prop.proposal)))))
+            else 
+                callConsensus(es, es.bk, ProposalInvalidCInput)
+        else (es, NoConsensusOutput)
 
 // We do this when we need to jump to a new round
 pure def handleSkip(es: DriverState, r: Round): (DriverState, ConsensusOutput) =
