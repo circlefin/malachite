@@ -40,7 +40,7 @@ module consensus {
         // round must be -1, as nothing should be done before a NewRound
         // function is called
         round: -1, 
-        step: NewRoundStep, 
+        step: NoStep, 
         height: h,
         lockedRound: -1, 
         lockedValue: Nil, 
