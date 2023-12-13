@@ -1,4 +1,4 @@
-use malachite_common::{Context, Round, SignedVote, Timeout};
+use malachite_common::{Context, Round, Timeout};
 
 use crate::Validity;
 
@@ -17,8 +17,8 @@ where
     /// Receive a proposal, of the given validity
     Proposal(Ctx::Proposal, Validity),
 
-    /// Receive a signed vote
-    Vote(SignedVote<Ctx>),
+    /// Receive a vote
+    Vote(Ctx::Vote),
 
     /// Receive a timeout
     TimeoutElapsed(Timeout),

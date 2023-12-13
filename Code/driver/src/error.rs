@@ -1,6 +1,6 @@
 use core::fmt;
 
-use malachite_common::{Context, SignedVote, Validator};
+use malachite_common::Context;
 
 /// The type of errors that can be yielded by the `Driver`.
 #[derive(Clone, Debug)]
@@ -13,9 +13,6 @@ where
 
     /// Validator not found in validator set
     ValidatorNotFound(Ctx::Address),
-
-    /// Invalid vote signature
-    InvalidVoteSignature(SignedVote<Ctx>, Ctx::Validator),
 }
 
 impl<Ctx> fmt::Display for Error<Ctx>
@@ -27,11 +24,6 @@ where
         match self {
             Error::ProposerNotFound(addr) => write!(f, "Proposer not found: {addr}"),
             Error::ValidatorNotFound(addr) => write!(f, "Validator not found: {addr}"),
-            Error::InvalidVoteSignature(vote, validator) => write!(
-                f,
-                "Invalid vote signature by {} on vote {vote:?}",
-                validator.address()
-            ),
         }
     }
 }
@@ -45,10 +37,6 @@ where
         match (self, other) {
             (Error::ProposerNotFound(addr1), Error::ProposerNotFound(addr2)) => addr1 == addr2,
             (Error::ValidatorNotFound(addr1), Error::ValidatorNotFound(addr2)) => addr1 == addr2,
-            (
-                Error::InvalidVoteSignature(vote1, validator1),
-                Error::InvalidVoteSignature(vote2, validator2),
-            ) => vote1 == vote2 && validator1 == validator2,
             _ => false,
         }
     }
