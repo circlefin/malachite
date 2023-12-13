@@ -48,6 +48,10 @@ run UnSuccessfulRound(prop: NonNilValue, r: Round): bool =
     }
     .then(N4F0::deliverProposal(proposer, mkProposal(proposer, 0, r, prop, -1)))
     .then(everyoneTakesAStep)
+    .then(all{
+        assert(N4F0::system.keys().forall(p => N4F0::system.get(p).es.pendingStepChange == PrevoteStep)),
+        everyoneTakesAStep
+    })
     .then(everyoneDeliversPrevote(prop, r, proposer, nonprop))  
     .then(3.reps(i => everyoneTakesAStep))
     .then(all {
@@ -55,6 +59,10 @@ run UnSuccessfulRound(prop: NonNilValue, r: Round): bool =
         N4F0::unchangedAll
     })
     .then(everyoneTakesAStep)
+    .then(all{
+        assert(N4F0::system.keys().forall(p => N4F0::system.get(p).es.pendingStepChange == PrecommitStep)),
+        everyoneTakesAStep
+    })
     .then(everyoneDeliversPrecommit(prop, r, proposer, nonprop))
     .then(4.reps(i => everyoneTakesAStep))
     .then(all {
@@ -65,10 +73,19 @@ run UnSuccessfulRound(prop: NonNilValue, r: Round): bool =
 run UnSuccessfulRoundWithSetup (prop: NonNilValue, r: Round): bool =
     N4F0::setNextValueToPropose(N4F0::proposer(N4F0::validatorSet, 0, r), prop)
     .then(everyoneTakesAStep)
+    .then(all{ // after new round an empty step to clean step "propose"
+        assert(N4F0::system.keys().forall(p => N4F0::system.get(p).es.pendingStepChange == ProposeStep)),
+        everyoneTakesAStep
+    })
     .then(all {
         assert(N4F0::system.forallValues(state => state.es.cs.round == r)),
         UnSuccessfulRound (prop, r)
     })
+
+run oneOneRoundTest = {
+    N4F0::init    
+    .then(UnSuccessfulRoundWithSetup("blue", 0))
+}
 
 run multiRoundTest = {
     val proposals = ["blue", "red", "green", "yellow"]

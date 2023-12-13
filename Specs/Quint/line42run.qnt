@@ -17,16 +17,28 @@ run runToLine42 =
     .then(fromPrevoteToPrecommit(othersList, othersList, validatorList, validatorSet, 0, 0, Val(value)))
     // At this point we have set up the environment for "testedVal" to reach line 42 without
     // any other process taking any steps
+    .then(all{ 
+        assert(system.get(testedVal).es.pendingStepChange == ProposeStep),
+        valStep(testedVal)
+    })     
     .then(all{
         assert(system.get(testedVal).timeout.contains((ProposeTimeout, 0, 0))),
         valStep(testedVal)
     })
+    .then(all{ 
+        assert(system.get(testedVal).es.pendingStepChange == PrevoteStep),
+        valStep(testedVal)
+    })   
     .then(ProcessDeliverAllVotes(Prevote, testedVal, othersList, validatorSet, 0, 0, Val(value)))
     .then(othersList.length().reps(_ => valStep(testedVal)))
     .then(all{
         assert(system.get(testedVal).timeout.contains((PrevoteTimeout, 0, 0))),
         valStep(testedVal) 
     })
+    .then(all{ 
+        assert(system.get(testedVal).es.pendingStepChange == PrecommitStep),
+        valStep(testedVal)
+    })      
     .then(all{
         assert(system.get(testedVal).es.cs.step == PrecommitStep),
         deliverSomeProposal(testedVal)
@@ -38,9 +50,9 @@ run runToLine42 =
             cstate.lockedRound == -1,
             cstate.lockedValue == Nil,
             cstate.validRound == 0,
-            cstate.validValue == Val(value)
-            }),
+            cstate.validValue == Val(value),
+        }),
         unchangedAll
-    }) 
+    })
 
 }

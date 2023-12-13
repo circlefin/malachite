@@ -30,9 +30,9 @@ module types {
     // The stake of an address
     type Weight = int
 
-    // Names of round steps
+    // Steps in a round
     type Step =
-        | NewRoundStep
+        | NoStep
         | ProposeStep
         | PrevoteStep
         | PrecommitStep
