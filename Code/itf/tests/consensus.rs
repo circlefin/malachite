@@ -7,8 +7,8 @@ use glob::glob;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use malachite_itf::utils::generate_traces;
 use malachite_itf::consensus::State;
+use malachite_itf::utils::generate_traces;
 use malachite_test::{Address, PrivateKey};
 
 use runner::ConsensusRunner;

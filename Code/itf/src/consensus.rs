@@ -2,8 +2,8 @@ use itf::de::{As, Integer, Same};
 use serde::Deserialize;
 use std::collections::HashMap;
 
-use crate::types::{Address, Height, Round, Timeout, Value, Proposal, Vote, NonNilValue, Step};
 use crate::deserializers as de;
+use crate::types::{Address, Height, NonNilValue, Proposal, Round, Step, Timeout, Value, Vote};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct State {
