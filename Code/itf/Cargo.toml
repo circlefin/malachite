@@ -17,6 +17,7 @@ malachite-test   = { version = "0.1.0", path = "../test" }
 itf              = { workspace = true }
 rand             = { workspace = true }
 num-bigint       = { workspace = true, features = ["serde"] }
+num-traits       = { version = "0.2.16"}
 serde            = { workspace = true, features = ["derive"] }
 serde_json       = { workspace = true }
 serde_with       = { workspace = true }
