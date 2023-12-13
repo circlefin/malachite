@@ -10,12 +10,6 @@ the protocol.
 It is assume that a process is at round `r` of height `h` of consensus, or in
 short, at round `(h, r)`.
 
-## Pending
-
-- [ ] How to handle messages from [different heights](#different-heights) in general
-- [ ] Definitions and details regarding the [round skipping](#round-skipping) mechanism
-- [ ] How to limit the amount of messages from [future rounds](#future-rounds) stored
-- [ ] Full mapping between messages of the [current round](#current-round) and the produced events
 
 ## Different heights
 
