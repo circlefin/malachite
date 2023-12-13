@@ -29,6 +29,7 @@ impl ItfRunner for ConsensusRunner {
             .map(|(address, state)| {
                 let height = state.height;
                 let round = state.round as i64;
+                let round = if round < 0 { 0 } else { round }; // this is a hack: spec starts with round = -1
                 println!(
                     "🔵 init: address={:?} height={:?}, round={:?}",
                     address, height, round
