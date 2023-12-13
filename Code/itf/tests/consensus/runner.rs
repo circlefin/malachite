@@ -52,7 +52,7 @@ impl ItfRunner for ConsensusRunner {
         let current_state = actual.get(input_address).unwrap();
         let transition = match &input_event {
             ModelInput::NoInput => unreachable!(),
-            ModelInput::NewHeight(height) => todo!(),
+            // ModelInput::NewHeight(height) => unreachable!(),
             ModelInput::NewRound(round) => {
                 let input_round = Round::new(*round as i64);
                 let data = Info::new(input_round, address, proposer);

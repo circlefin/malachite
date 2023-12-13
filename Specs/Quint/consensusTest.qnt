@@ -13,8 +13,8 @@ module consensusTest {
     var _input: (Address, ConsensusInput)
     var _output: ConsensusOutput
 
-    action initFor(processes: Set[Address]): bool = all {
-        system' = processes.mapBy(p => initConsensusState(p, 1)),
+    action initFor(processes: Set[Address], height: Height): bool = all {
+        system' = processes.mapBy(p => initConsensusState(p, height)),
         _input' = (noAddress, NoConsensusInput),
         _output' = NoConsensusOutput,
     }
@@ -36,7 +36,7 @@ module consensusTest {
         nondet v = oneOf(Set("A", "B", "C"))
         nondet vr = oneOf(Set(-1, 1, 2, 3, 4))
         any {
-            fireInput("Josef", NewHeightCInput(h)),
+            // fireInput("J", NewHeightCInput(h)),
             fireInput("Josef", NewRoundCInput(r)),
             fireInput("Josef", NewRoundProposerCInput((r, v))),
             fireInput("Josef", ProposalCInput((r, Val(v)))),
@@ -70,7 +70,7 @@ module consensusTest {
 
     // This test should call each input type at least once
     run DecideNonProposerTest =
-        initFor(Set("Josef"))
+        initFor(Set("Josef"), 1)
         .then(fireInput("Josef", NewRoundCInput(0)))
         .then(_assert(_output == TimeoutOutput(ProposeTimeout)))
         
@@ -83,9 +83,12 @@ module consensusTest {
         .then(fireInput("Josef", ProposalAndCommitAndValidCInput(Val("block"))))
         .then(_assert(_output == DecidedOutput(Val("block"))))
         
-        .then(fireInput("Josef", NewHeightCInput(system.get("Josef").height + 1)))
-        .then(_assert(system.get("Josef").height == 2))
-        
+        // TODO: if NewHeightCInput is no longer a valid input, we split the test in two runs.
+        // .then(fireInput("Josef", NewHeightCInput(system.get("Josef").height + 1)))
+        // .then(_assert(system.get("Josef").height == 2))
+
+    run DecideNonProposer2Test =
+        initFor(Set("Josef"), 2)     
         .then(fireInput("Josef", NewRoundProposerCInput((0, "nextBlock"))))
         .then(_assert(_output == ProposalOutput(mkProposal("Josef", 2, 0, "nextBlock", -1))))
         

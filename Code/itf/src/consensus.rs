@@ -25,9 +25,9 @@ pub struct System(pub HashMap<Address, ConsensusState>);
 pub enum Input {
     #[serde(rename = "NoConsensusInput")]
     NoInput,
-    #[serde(rename = "NewHeightCInput")]
-    #[serde(with = "As::<Integer>")]
-    NewHeight(Height),
+    // #[serde(rename = "NewHeightCInput")]
+    // #[serde(with = "As::<Integer>")]
+    // NewHeight(Height),
     #[serde(rename = "NewRoundCInput")]
     #[serde(with = "As::<Integer>")]
     NewRound(Round),

@@ -56,7 +56,7 @@ module consensus {
         // For the initial state
         | NoConsensusInput
         // Setup the state-machine for a single-height execution
-        | NewHeightCInput(Height)
+        // | NewHeightCInput(Height) // TODO: not supported in the code; reconsider what to do with this.
         // Start a new round, not as proposer.
         | NewRoundCInput(Round)
         // Start a new round as proposer with the proposed Value.
@@ -137,10 +137,10 @@ module consensus {
         | NoConsensusInput => 
             state.toErrorOutput("NoConsensusInput is not a valid consensus input")
         
-        | NewHeightCInput(h) => 
-            if (h > state.height)
-                initConsensusState(state.p, h).toNoConsensusOutput()
-            else state.toNoConsensusOutput()
+        // | NewHeightCInput(h) => 
+        //     if (h > state.height)
+        //         initConsensusState(state.p, h).toNoConsensusOutput()
+        //     else state.toNoConsensusOutput()
         
         // line 11.14
         | NewRoundProposerCInput(round_value) =>
