@@ -1,20 +1,5 @@
 // -*- mode: Bluespec; -*-
 
-/*
-TODO: check 
-- whether we have "step" checks in place everywhere
-- "the first time": checks here or in driver
-- check against arXiv
-- tests
-- types (e.g., heights in the messages)
-- discuss "decision tree" in driver
-- Should we think again about the components and the boundaries (especially between
-  voteBookkeeper and driver)
-- Do we need tests for driver and bookkeeping
-- test id(v): most likely we need to change the type of Value as Quint doesn't have
-  string operators. Perhaps we make Value = int and then id(v) = -v
-*/
-
 module consensus {
 
     import types.* from "./types"
@@ -27,7 +12,7 @@ module consensus {
         p: Address,
         height: Height,
         round: Round,
-        step: Step, // NewRound, Propose, Prevote, Precommit, decided
+        step: Step,
         lockedRound: Round,
         lockedValue: ValueId,
         validRound: Round,

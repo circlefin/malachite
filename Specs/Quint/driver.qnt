@@ -310,15 +310,13 @@ pure def handleStepChange(es: DriverState) : (DriverState, ConsensusOutput) =
 
 // We do this when we need to jump to a new round
 pure def handleSkip(es: DriverState, r: Round): (DriverState, ConsensusOutput) =
-    // line 15
-    val prop = if (es.cs.validValue != Nil) es.cs.validValue else es.getValue()
-    if (proposer(es.valset, es.cs.height, es.cs.round + 1) == es.cs.p)
+    if (proposer(es.valset, es.cs.height, es.cs.round + 1) == es.cs.p) // line 14
+        val prop = if (es.cs.validValue != Nil) es.cs.validValue else es.getValue() // line 15
         callConsensus(es, es.bk, NewRoundProposerCInput((r, prop.getVal())))
     else 
         callConsensus(es, es.bk, NewRoundCInput(r)) 
     // what do we do now in the new round? Shouldn't we look whether we can build an event.
     // TODO: compute pending events.
-
 
 // We do this when we have decided
 pure def handleDecided(es: DriverState, res: ConsensusOutput, value: Value): (DriverState, ConsensusOutput) =
@@ -345,16 +343,18 @@ pure def handlePendingInput(es: DriverState): (DriverState, ConsensusOutput) =
     else
         (newState, NoConsensusOutput)
 
-
 /* *********************************************************
  * Main entry point
  * ********************************************************/
-
 
 // TODO: return ConsensusInput so that we know from outside what event was fired.
 pure def driverLogic(state: DriverState, input: DriverInput): (DriverState, ConsensusOutput) =
     // TODO: shall we check whether the sender actually is in the validator set
     match input {
+        | SetNextProposedValueDInput(v) =>
+            (state.setValue(Val(v)), NoConsensusOutput)
+        | StartDInput =>
+            handleSkip({ ...state, started: true }, 0)
         | ProposalDInput(proposal) =>
             val res = handleProposal(state, proposal)
             val newState = res._1
@@ -374,9 +374,9 @@ pure def driverLogic(state: DriverState, input: DriverInput): (DriverState, Cons
                     val newState2 = cons_res._1
                     val conOut = cons_res._2
                     match conOut {
-                        | DecidedOutput(v) => handleDecided(newState2, conOut, v) // CHECK: second argument to `decided` was `res._2` of type VoteKeeperOutput
+                        | DecidedOutput(v) => handleDecided(newState2, conOut, v)
                         | SkipRoundOutput(r) => handleSkip(newState2, r)
-                        | _ => (newState2, conOut) // CHECK: originally this was `res` of type VoteKeeperOutput
+                        | _ => (newState2, conOut)
                     }
                 | Prevote =>
                     val res = applyVote(state.bk, vote, state.valset.get(vote.srcAddress), state.cs.round)
@@ -387,9 +387,9 @@ pure def driverLogic(state: DriverState, input: DriverInput): (DriverState, Cons
                     val conOut = cons_res._2
                     match cons_res._2 {
                         // TODO: dead branch. But we should put this after consensus call logic into a function
-                        | DecidedOutput(v) => handleDecided(newState2, conOut, v) // CHECK: second argument to `decided` was `res._2` of type VoteKeeperOutput
+                        | DecidedOutput(v) => handleDecided(newState2, conOut, v)
                         | SkipRoundOutput(r) => handleSkip(newState2, r)
-                        | _ => (newState2, conOut) // CHECK: originally this was `res` of type VoteKeeperOutput
+                        | _ => (newState2, conOut)
                     }
             }
         | TimeoutDInput(timeout) =>
@@ -405,14 +405,10 @@ pure def driverLogic(state: DriverState, input: DriverInput): (DriverState, Cons
                     // DriverInput
                 | _ => (newState, conOut)
             }
-        | StartDInput =>
-            handleSkip({ ...state, started: true }, 0)
         | PendingDInput(_) => // CHECK: why input is not used?
             handlePendingInput(state)
         | StepChangeDInput =>
             handleStepChange(state)
-        | SetNextProposedValueDInput(v) =>
-            (state.setValue(Val(v)), NoConsensusOutput)
         | _ =>
             (state, NoConsensusOutput)
     }
