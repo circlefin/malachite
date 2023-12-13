@@ -37,9 +37,7 @@ module consensus {
 
     pure def initConsensusState(p: Address, h: Height) : ConsensusState = {
         p: p, 
-        // round must be -1, as nothing should be done before a NewRound
-        // function is called
-        round: -1, 
+        round: 0, // line 3
         step: NoStep, 
         height: h,
         lockedRound: -1, 
