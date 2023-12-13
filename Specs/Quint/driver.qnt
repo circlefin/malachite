@@ -250,7 +250,7 @@ pure def handleProposal(es: DriverState, prop: Proposal): (DriverState, Consensu
                     callConsensus(newES, newES.bk, ProposalAndPolkaPreviousAndValidCInput((propId, prop.validRound)))
                 else  
                     (newES, NoConsensusOutput)
-            else if (newES.cs.step == PrevoteStep or PrevoteStep == PrecommitStep)
+            else if (newES.cs.step == PrevoteStep or newES.cs.step == PrecommitStep)
                 val receivedCommitCurrentVal = checkThreshold(newES.bk, newES.cs.round, Precommit, th)
                 if (receivedCommitCurrentVal)
                     // here we need to call both, Commit and Polka. 
