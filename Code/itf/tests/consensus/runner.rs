@@ -33,10 +33,8 @@ impl ItfRunner for ConsensusRunner {
                     "🔵 init: address={:?} height={:?}, round={:?}",
                     address, height, round
                 );
-                (
-                    address.clone(),
-                    RoundState::new(Height::new(height as u64), Round::new(round)),
-                )
+                let init_state = RoundState::new(Height::new(height as u64), Round::new(round));
+                (address.clone(), init_state)
             })
             .collect();
         Ok(states_map)
@@ -50,106 +48,114 @@ impl ItfRunner for ConsensusRunner {
     ) -> Result<Self::Result, Self::Error> {
         let (input_address, input_event) = &expected.input;
         let address = self.address_map.get(input_address.as_str()).unwrap();
-        let proposer = &address.clone(); // FIXME
-        let height = &(1 as i64); // FIXME
-        let round = &(0 as i64); // FIXME
+        let proposer = self.address_map.get("Other").unwrap(); // FIXME
+        let current_state = actual.get(input_address).unwrap();
         let transition = match &input_event {
             ModelInput::NoInput => unreachable!(),
             ModelInput::NewHeight(height) => todo!(),
             ModelInput::NewRound(round) => {
                 let input_round = Round::new(*round as i64);
                 let data = Info::new(input_round, address, proposer);
-                actual
-                    .get_mut(input_address)
-                    .unwrap()
-                    .clone()
-                    .apply(&data, Input::NewRound)
+                let round_state = actual.get_mut(input_address).unwrap();
+                let round_state = core::mem::take(round_state);
+                round_state.apply(&data, Input::NewRound)
             }
             ModelInput::NewRoundProposer(round, value) => {
                 let input_round = Round::new(*round as i64);
-                let data = Info::new(input_round, address, proposer);
-                actual
-                    .get_mut(input_address)
-                    .unwrap()
-                    .clone()
-                    .apply(&data, Input::NewRound)
+                let data = Info::new(input_round, address, address);
+                let round_state = actual.get_mut(input_address).unwrap();
+                let round_state = core::mem::take(round_state);
+                round_state.apply(&data, Input::NewRound)
             }
             ModelInput::Proposal(round, value) => {
-                let input_height = Height::new(*height as u64);
                 let input_round = Round::new(*round as i64);
                 let data = Info::new(input_round, address, proposer);
                 let proposal = TestContext::new_proposal(
-                    input_height,
+                    current_state.height,
                     input_round,
                     value_from_model(&value).unwrap(),
-                    Round::new(0), // FIXME
+                    Round::Nil,
                 );
-                actual
-                    .get_mut(input_address)
-                    .unwrap()
-                    .clone()
-                    .apply(&data, Input::Proposal(proposal))
+                let round_state = actual.get_mut(input_address).unwrap();
+                let round_state = core::mem::take(round_state);
+                round_state.apply(&data, Input::Proposal(proposal))
             }
-            ModelInput::ProposalAndPolkaPreviousAndValid(round, value) => {
-                let input_height = Height::new(*height as u64);
-                let input_round = Round::new(*round as i64);
+            ModelInput::ProposalAndPolkaPreviousAndValid(value, valid_round) => {
+                let input_round = Round::new(*valid_round as i64);
                 let data = Info::new(input_round, address, proposer);
                 let proposal = TestContext::new_proposal(
-                    input_height,
+                    current_state.height,
                     input_round,
                     value_from_model(&value).unwrap(),
                     Round::new(0), // FIXME
                 );
-                actual
-                    .get_mut(input_address)
-                    .unwrap()
-                    .clone()
-                    .apply(&data, Input::ProposalAndPolkaPrevious(proposal))
+                let round_state = actual.get_mut(input_address).unwrap();
+                let round_state = core::mem::take(round_state);
+                round_state.apply(&data, Input::ProposalAndPolkaPrevious(proposal))
             }
             ModelInput::ProposalAndPolkaAndValid(value) => {
-                let input_height = Height::new(*height as u64);
-                let input_round = Round::new(*round as i64);
-                let data = Info::new(input_round, address, proposer);
+                let data = Info::new(current_state.round, address, proposer);
                 let proposal = TestContext::new_proposal(
-                    input_height,
-                    input_round,
+                    current_state.height,
+                    current_state.round,
                     value_from_model(&value).unwrap(),
                     Round::new(0), // FIXME
                 );
-                actual
-                    .get_mut(input_address)
-                    .unwrap()
-                    .clone()
-                    .apply(&data, Input::ProposalAndPolkaCurrent(proposal))
+                let round_state = actual.get_mut(input_address).unwrap();
+                let round_state = core::mem::take(round_state);
+                round_state.apply(&data, Input::ProposalAndPolkaCurrent(proposal))
             }
-            ModelInput::ProposalAndCommitAndValid(value) => todo!(),
+            ModelInput::ProposalAndCommitAndValid(value) => {
+                let data = Info::new(current_state.round, address, proposer);
+                let proposal = TestContext::new_proposal(
+                    current_state.height,
+                    current_state.round,
+                    value_from_model(&value).unwrap(),
+                    Round::new(0), // FIXME
+                );
+                let round_state = actual.get_mut(input_address).unwrap();
+                let round_state = core::mem::take(round_state);
+                round_state.apply(&data, Input::ProposalAndPrecommitValue(proposal))
+            }
             ModelInput::PolkaNil => {
-                let data = Info::new(Round::new(*round as i64), address, proposer);
-                actual
-                    .get_mut(input_address)
-                    .unwrap()
-                    .clone()
-                    .apply(&data, Input::PolkaNil)
+                let data = Info::new(current_state.round, address, proposer);
+                let round_state = actual.get_mut(input_address).unwrap();
+                let round_state = core::mem::take(round_state);
+                round_state.apply(&data, Input::PolkaNil)
             }
             ModelInput::PolkaAny => {
-                let data = Info::new(Round::new(*round as i64), address, proposer);
-                actual
-                    .get_mut(input_address)
-                    .unwrap()
-                    .clone()
-                    .apply(&data, Input::PolkaAny)
+                let data = Info::new(current_state.round, address, proposer);
+                let round_state = actual.get_mut(input_address).unwrap();
+                let round_state = core::mem::take(round_state);
+                round_state.apply(&data, Input::PolkaAny)
             }
             ModelInput::PrecommitAny => {
-                let data = Info::new(Round::new(*round as i64), address, proposer);
-                actual
-                    .get_mut(input_address)
-                    .unwrap()
-                    .clone()
-                    .apply(&data, Input::PrecommitAny)
+                let data = Info::new(current_state.round, address, proposer);
+                let round_state = actual.get_mut(input_address).unwrap();
+                let round_state = core::mem::take(round_state);
+                round_state.apply(&data, Input::PrecommitAny)
             }
-            ModelInput::TimeoutPrevote(height, round) => todo!(),
-            ModelInput::TimeoutPrecommit(height, round) => todo!(),
-            ModelInput::TimeoutPropose(height, round) => todo!(),
+            ModelInput::TimeoutPropose(_height, round) => {
+                let input_round = Round::new(*round as i64);
+                let data = Info::new(input_round, address, proposer);
+                let round_state = actual.get_mut(input_address).unwrap();
+                let round_state = core::mem::take(round_state);
+                round_state.apply(&data, Input::TimeoutPropose)
+            }
+            ModelInput::TimeoutPrevote(_height, round) => {
+                let input_round = Round::new(*round as i64);
+                let data = Info::new(input_round, address, proposer);
+                let round_state = actual.get_mut(input_address).unwrap();
+                let round_state = core::mem::take(round_state);
+                round_state.apply(&data, Input::TimeoutPrevote)
+            }
+            ModelInput::TimeoutPrecommit(_height, round) => {
+                let input_round = Round::new(*round as i64);
+                let data = Info::new(input_round, address, proposer);
+                let round_state = actual.get_mut(input_address).unwrap();
+                let round_state = core::mem::take(round_state);
+                round_state.apply(&data, Input::TimeoutPrecommit)
+            }
             ModelInput::ProposalInvalid => todo!(),
             ModelInput::RoundSkip(round) => todo!(),
             ModelInput::ProposalAndPolkaAndInvalidCInput(height, round, value) => todo!(),

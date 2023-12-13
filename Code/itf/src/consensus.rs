@@ -38,8 +38,8 @@ pub enum Input {
     #[serde(with = "As::<(Integer, Same)>")]
     Proposal(Round, Value),
     #[serde(rename = "ProposalAndPolkaPreviousAndValidCInput")]
-    #[serde(with = "As::<(Integer, Same)>")]
-    ProposalAndPolkaPreviousAndValid(Round, Value),
+    #[serde(with = "As::<(Same, Integer)>")]
+    ProposalAndPolkaPreviousAndValid(Value, Round),
     #[serde(rename = "ProposalInvalidCInput")]
     ProposalInvalid,
     #[serde(rename = "PolkaNilCInput")]
