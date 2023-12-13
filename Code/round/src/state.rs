@@ -148,7 +148,7 @@ where
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("State")
-            .field("height", &self.round)
+            .field("height", &self.height)
             .field("round", &self.round)
             .field("step", &self.step)
             .field("locked", &self.locked)
