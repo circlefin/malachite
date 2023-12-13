@@ -37,9 +37,17 @@ traces-sim:
 .PHONY: traces-sim
 
 # Generate traces from `run` statements.
-traces-run:
+traces-run-vk:
 	mkdir -p traces/votekeeper
 	npx @informalsystems/quint test --output traces/votekeeper/{}.itf.json voteBookkeeperTest.qnt
+.PHONY: traces-run-vk
+
+traces-run-con:
+	mkdir -p traces/consensus
+	npx @informalsystems/quint test --output traces/consensus/{}.itf.json consensusTest.qnt
+.PHONY: traces-run-con
+
+traces-run: traces-run-vk traces-run-con
 .PHONY: traces-run
 
 traces: traces-sim traces-run

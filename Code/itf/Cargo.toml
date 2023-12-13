@@ -11,6 +11,7 @@ publish.workspace      = true
 [dependencies]
 malachite-common = { version = "0.1.0", path = "../common" }
 malachite-vote   = { version = "0.1.0", path = "../vote" }
+malachite-round  = { version = "0.1.0", path = "../round" }
 malachite-test   = { version = "0.1.0", path = "../test" }
 
 itf              = { workspace = true }
