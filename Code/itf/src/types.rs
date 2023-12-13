@@ -50,8 +50,7 @@ pub struct Vote {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(tag = "tag", content = "value")]
 pub enum Step {
-    #[serde(rename = "NewRoundStep")]
-    NewRound,
+    NoStep,
     #[serde(rename = "ProposeStep")]
     Propose,
     #[serde(rename = "PrevoteStep")]
@@ -65,7 +64,7 @@ pub enum Step {
 impl Step {
     pub fn to_round_step(&self) -> RoundStep {
         match self {
-            Step::NewRound => RoundStep::NewRound,
+            Step::NoStep => RoundStep::NewRound,
             Step::Propose => RoundStep::Propose,
             Step::Prevote => RoundStep::Prevote,
             Step::Precommit => RoundStep::Precommit,
