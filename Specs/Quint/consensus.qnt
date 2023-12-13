@@ -73,6 +73,9 @@ module consensus {
         | PolkaAnyCInput
         // Proposal and 2/3+ prevotes for the proposal: L36 when valid and step >= prevote
         | ProposalAndPolkaAndValidCInput(Value)
+        // found after Montebello
+        // TODO: Discuss what to do about it
+        | ProposalAndPolkaAndInvalidCInput((Height, Round, Value))
         // Receive +2/3 precommits from different validators, not for the same value or nil.
         | PrecommitAnyCInput
         // Proposal and 2/3+ commits for the proposal => decision
@@ -85,9 +88,6 @@ module consensus {
         | TimeoutPrevoteCInput((Height, Round))
         // Timeout waiting for precommits for a value.
         | TimeoutPrecommitCInput((Height, Round))
-        // found after Montebello
-        // TODO: Discuss what to do about it
-        | ProposalAndPolkaAndInvalidCInput((Height, Round, Value))
 
     type ConsensusOutput =
         | NoConsensusOutput

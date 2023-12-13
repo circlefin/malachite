@@ -35,7 +35,7 @@ pure def initDriver(v: Address, vs: Address -> Weight): DriverState = {
     pendingInputs: Set(),
     pendingStepChange: NoStep,
     started: false,
-    voteKeeperOutput: NoVKOutput, // debug
+    voteKeeperOutput: NoVKOutput,
     chain : List(),
     nextValueToPropose: Nil, 
 }
@@ -84,7 +84,6 @@ type DriverInput =
     | PendingDInput(ConsensusInput)
     | SetNextProposedValueDInput(NonNilValue)
     | StepChangeDInput
-    // TODO: add step: Step_t
 
 val emptyProposal = mkProposal(noAddress, 0, 0, "", 0)
 val emptyVote = mkVote(Prevote, noAddress, 0, 0, Nil)
