@@ -164,5 +164,3 @@ cannot exceed `f`, so that the subset of considered vote messages that must
 have been produced by correct validators have a cumulative voting power of at
 least `f + 1`, which is strictly greater than `f`.
 
-> TODO: this also means that the majority of the voting power hold by correct
-> validators is represented in the considered set of vote messages.
