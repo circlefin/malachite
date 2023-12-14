@@ -33,6 +33,7 @@ module types {
     // Steps in a round
     type Step =
         | NoStep
+        | NewRoundStep
         | ProposeStep
         | PrevoteStep
         | PrecommitStep

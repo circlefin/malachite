@@ -35,6 +35,15 @@ pub enum VoteType {
     Precommit,
 }
 
+impl VoteType {
+    pub fn to_common(&self) -> malachite_common::VoteType {
+        match self {
+            VoteType::Prevote => malachite_common::VoteType::Prevote,
+            VoteType::Precommit => malachite_common::VoteType::Precommit,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Vote {
@@ -50,7 +59,10 @@ pub struct Vote {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(tag = "tag", content = "value")]
 pub enum Step {
-    NoStep,
+    #[serde(rename = "NoStep")]
+    None,
+    #[serde(rename = "NewRoundStep")]
+    NewRound,
     #[serde(rename = "ProposeStep")]
     Propose,
     #[serde(rename = "PrevoteStep")]
@@ -62,13 +74,14 @@ pub enum Step {
 }
 
 impl Step {
-    pub fn to_round_step(&self) -> RoundStep {
+    pub fn to_round_step(&self) -> Option<RoundStep> {
         match self {
-            Step::NoStep => RoundStep::NewRound,
-            Step::Propose => RoundStep::Propose,
-            Step::Prevote => RoundStep::Prevote,
-            Step::Precommit => RoundStep::Precommit,
-            Step::Decided => RoundStep::Commit,
+            Step::None => None,
+            Step::NewRound => Some(RoundStep::NewRound),
+            Step::Propose => Some(RoundStep::Propose),
+            Step::Prevote => Some(RoundStep::Prevote),
+            Step::Precommit => Some(RoundStep::Precommit),
+            Step::Decided => Some(RoundStep::Commit),
         }
     }
 }
@@ -84,4 +97,14 @@ pub enum Timeout {
 
     #[serde(rename = "PrecommitTimeout")]
     Precommit,
+}
+
+impl Timeout {
+    pub fn to_common(&self) -> malachite_common::TimeoutStep {
+        match self {
+            Timeout::Propose => malachite_common::TimeoutStep::Propose,
+            Timeout::Prevote => malachite_common::TimeoutStep::Prevote,
+            Timeout::Precommit => malachite_common::TimeoutStep::Precommit,
+        }
+    }
 }

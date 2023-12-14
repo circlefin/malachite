@@ -285,7 +285,11 @@ module consensus {
             if (h == state.height and r == state.round)
                 // TODO: here we should call newRound. For this we would need to know whether
                 // we are proposer for next round.
-                state.toSkipRoundOutput(state.round + 1)
+                state
+                    // CHECK: the following two lines were added to match the code behavior
+                    .with("step", NewRoundStep)
+                    .with("round", state.round + 1)
+                    .toSkipRoundOutput(state.round + 1)
             else state.toErrorOutput("TimeoutPrecommitCInput")
 
         }
