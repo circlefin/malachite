@@ -85,7 +85,7 @@ pure def sendVote(sys: Address -> Set[Vote], vote: Vote): Address -> Set[Vote] =
 // As we do set union here, there is no need to check whether this happens the first time
 pure def startTimeout(sys: Address -> NodeState, v: Address, timeout: Timeout) : Address -> NodeState =
     val newTimeout = (timeout, sys.get(v).es.cs.height, sys.get(v).es.cs.round)
-    sys.put(v, { ...sys.get(v), timeout: sys.get(v).timeout.union(Set(newTimeout)) })
+    sys.put(v, { ...sys.get(v), timeouts: sys.get(v).timeouts.union(Set(newTimeout)) })
 
 action valStep(v: Address) : bool = {
     // pick action

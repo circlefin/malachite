@@ -11,6 +11,10 @@ module driver {
     import consensus.* from "./consensus"
     import voteBookkeeper.* from "./voteBookkeeper"
 
+    // *************************************************************************
+    // State
+    // *************************************************************************
+
     type DriverState = {
         bk: Bookkeeper,
         cs: ConsensusState,
@@ -20,7 +24,7 @@ module driver {
         pendingInputs: Set[(ConsensusInput, Height, Round)],
         pendingStepChange: Step, // NoStep if last consensus call did not change the step
         started: bool,
-        voteKeeperOutput: VoteKeeperOutput, //debug TODO
+        voteKeeperOutput: VoteKeeperOutput,
         chain : List[Value],
         nextValueToPropose: Value,
     }
@@ -48,31 +52,9 @@ module driver {
     pure def setValue(es: DriverState, value: Value): DriverState =
         { ...es, nextValueToPropose: value }
 
-    type NodeState = {
-        es: DriverState,
-        timeout: Set[(Timeout, Height, Round)], // TODO: rename to `timeouts`
-        incomingVotes: Set[Vote],
-        incomingProposals: Set[Proposal],
-    }
-
-    pure def initNode(v: Address, vs: Address -> Weight): NodeState = {
-        es: initDriver(v,vs),
-        timeout: Set(),
-        incomingVotes: Set(),
-        incomingProposals: Set(),
-    }
-
-    pure def existsTimeout(state: NodeState): bool =
-        state.timeout.exists(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
-
-    // Pick an outstanding timeout and remove it from the incoming list.
-    // Assumes that state.timeout is not empty.
-    pure def pickTimeout(state: NodeState): (NodeState, DriverInput) =
-        val timeouts = state.timeout.filter(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
-        // val someTimeout = timeouts.chooseSome()
-        val someTimeout: (Timeout, Height, Round) = timeouts.fold((ProposeTimeout, 0, 0), (sum, y) => y)
-        val newstate = { ...state, timeout: state.timeout.exclude(Set(someTimeout))}
-        (newstate, TimeoutDInput(someTimeout._1))
+    // *************************************************************************
+    // Input
+    // *************************************************************************
 
     type DriverInput = 
         | NoDInput
@@ -87,9 +69,9 @@ module driver {
     val emptyProposal = mkProposal(noAddress, 0, 0, "", 0)
     val emptyVote = mkVote(Prevote, noAddress, 0, 0, Nil)
 
-    //
+    // *************************************************************************
     // Interface to app and/or mempool (Proposer, getValue, valid)
-    // 
+    // *************************************************************************
 
     // In the implementation this could be a callback to the application. But it needs to be
     // a function, that is, any two validators need to agree on this
@@ -102,7 +84,7 @@ module driver {
         else "v4"
     }
 
-    pure def getValue(es: DriverState) : Value =  es.nextValueToPropose
+    pure def getValue(state: DriverState): Value = state.nextValueToPropose
 
     type ConsensusCall = {
         es: DriverState,
@@ -309,15 +291,13 @@ module driver {
 
     // We do this when we need to jump to a new round
     pure def handleSkip(es: DriverState, r: Round): (DriverState, ConsensusOutput) =
-        // line 15
-        val prop = if (es.cs.validValue != Nil) es.cs.validValue else es.getValue()
-        if (proposer(es.valset, es.cs.height, es.cs.round + 1) == es.cs.p)
+        if (proposer(es.valset, es.cs.height, es.cs.round + 1) == es.cs.p) // line 14
+            val prop = if (es.cs.validValue != Nil) es.cs.validValue else es.getValue() // line 15
             callConsensus(es, es.bk, NewRoundProposerCInput((r, prop.getVal())))
         else 
             callConsensus(es, es.bk, NewRoundCInput(r)) 
         // what do we do now in the new round? Shouldn't we look whether we can build an event.
         // TODO: compute pending events.
-
 
     // We do this when we have decided
     pure def handleDecided(es: DriverState, res: ConsensusOutput, value: Value): (DriverState, ConsensusOutput) =
@@ -344,16 +324,18 @@ module driver {
         else
             (newState, NoConsensusOutput)
 
-
-    /* *********************************************************
-    * Main entry point
-    * ********************************************************/
-
+    // *************************************************************************
+    // Main entry point
+    // *************************************************************************
 
     // TODO: return ConsensusInput so that we know from outside what event was fired.
     pure def driverLogic(state: DriverState, input: DriverInput): (DriverState, ConsensusOutput) =
         // TODO: shall we check whether the sender actually is in the validator set
         match input {
+            | SetNextProposedValueDInput(v) =>
+                (state.setValue(Val(v)), NoConsensusOutput)
+            | StartDInput =>
+                handleSkip({ ...state, started: true }, 0)
             | ProposalDInput(proposal) =>
                 val res = handleProposal(state, proposal)
                 val newState = res._1
@@ -373,9 +355,9 @@ module driver {
                         val newState2 = cons_res._1
                         val conOut = cons_res._2
                         match conOut {
-                            | DecidedOutput(v) => handleDecided(newState2, conOut, v) // CHECK: second argument to `decided` was `res._2` of type VoteKeeperOutput
+                            | DecidedOutput(v) => handleDecided(newState2, conOut, v)
                             | SkipRoundOutput(r) => handleSkip(newState2, r)
-                            | _ => (newState2, conOut) // CHECK: originally this was `res` of type VoteKeeperOutput
+                            | _ => (newState2, conOut)
                         }
                     | Prevote =>
                         val res = applyVote(state.bk, vote, state.valset.get(vote.srcAddress), state.cs.round)
@@ -386,9 +368,9 @@ module driver {
                         val conOut = cons_res._2
                         match cons_res._2 {
                             // TODO: dead branch. But we should put this after consensus call logic into a function
-                            | DecidedOutput(v) => handleDecided(newState2, conOut, v) // CHECK: second argument to `decided` was `res._2` of type VoteKeeperOutput
+                            | DecidedOutput(v) => handleDecided(newState2, conOut, v)
                             | SkipRoundOutput(r) => handleSkip(newState2, r)
-                            | _ => (newState2, conOut) // CHECK: originally this was `res` of type VoteKeeperOutput
+                            | _ => (newState2, conOut)
                         }
                 }
             | TimeoutDInput(timeout) =>
@@ -404,23 +386,49 @@ module driver {
                         // DriverInput
                     | _ => (newState, conOut)
                 }
-            | StartDInput =>
-                handleSkip({ ...state, started: true }, 0)
             | PendingDInput(_) => // CHECK: why input is not used?
                 handlePendingInput(state)
             | StepChangeDInput =>
                 handleStepChange(state)
-            | SetNextProposedValueDInput(v) =>
-                (state.setValue(Val(v)), NoConsensusOutput)
             | _ =>
                 (state, NoConsensusOutput)
         }
 
     // To address step change
-    pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
-        val res = driverLogic(es, input)
-        (recordStepChange(es, res._1), res._2)
+    pure def driver (state: DriverState, input: DriverInput): (DriverState, ConsensusOutput) =
+        val res = driverLogic(state, input)
+        (recordStepChange(state, res._1), res._2)
+
+    // *************************************************************************
+    // Node State
+    // *************************************************************************
+
+    type NodeState = {
+        es: DriverState,
+        timeouts: Set[(Timeout, Height, Round)],
+        incomingVotes: Set[Vote],
+        incomingProposals: Set[Proposal],
     }
+
+    pure def initNode(v: Address, vs: Address -> Weight): NodeState = {
+        es: initDriver(v,vs),
+        timeouts: Set(),
+        incomingVotes: Set(),
+        incomingProposals: Set(),
+    }
+
+    pure def existsTimeout(state: NodeState): bool =
+        state.timeouts.exists(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
+
+    // Pick an outstanding timeout and remove it from the incoming list.
+    // Assumes that state.timeouts is not empty.
+    pure def pickTimeout(state: NodeState): (NodeState, DriverInput) =
+        val timeouts = state.timeouts.filter(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
+        // TODO: check that timeouts is not empty
+        // val someTimeout = timeouts.chooseSome()
+        val someTimeout: (Timeout, Height, Round) = timeouts.fold((ProposeTimeout, 0, 0), (sum, y) => y)
+        val newstate = { ...state, timeouts: state.timeouts.exclude(Set(someTimeout))}
+        (newstate, TimeoutDInput(someTimeout._1))
 
     // This is a simple function that figures out in what external events (messages,
     // timeouts, etc.) the node should act.

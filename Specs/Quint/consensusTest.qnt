@@ -36,7 +36,7 @@ module consensusTest {
         nondet v = oneOf(Set("A", "B", "C"))
         nondet vr = oneOf(Set(-1, 1, 2, 3, 4))
         any {
-            // fireInput("J", NewHeightCInput(h)),
+            // fireInput("Josef", NewHeightCInput(h)),
             fireInput("Josef", NewRoundCInput(r)),
             fireInput("Josef", NewRoundProposerCInput((r, v))),
             fireInput("Josef", ProposalCInput((r, Val(v)))),

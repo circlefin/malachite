@@ -4,7 +4,7 @@ use malachite_common::ValueId;
 use malachite_common::{Context, Proposal, Round, Value, VoteType};
 use malachite_round::input::Input as RoundInput;
 use malachite_round::state::Step;
-use malachite_vote::keeper::Output as VoteKeeperOutput;
+use malachite_vote::keeper::Output as VKOutput;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
 
@@ -142,43 +142,43 @@ where
     /// based on the type of threshold and the current proposal.
     pub fn multiplex_vote_threshold(
         &self,
-        new_threshold: VoteKeeperOutput<ValueId<Ctx>>,
+        new_threshold: VKOutput<ValueId<Ctx>>,
     ) -> RoundInput<Ctx> {
         if let Some(proposal) = &self.proposal {
             match new_threshold {
-                VoteKeeperOutput::PolkaAny => RoundInput::PolkaAny,
-                VoteKeeperOutput::PolkaNil => RoundInput::PolkaNil,
-                VoteKeeperOutput::PolkaValue(v) => {
+                VKOutput::PolkaAny => RoundInput::PolkaAny,
+                VKOutput::PolkaNil => RoundInput::PolkaNil,
+                VKOutput::PolkaValue(v) => {
                     if v == proposal.value().id() {
                         RoundInput::ProposalAndPolkaCurrent(proposal.clone())
                     } else {
                         RoundInput::PolkaAny
                     }
                 }
-                VoteKeeperOutput::PrecommitAny => RoundInput::PrecommitAny,
-                VoteKeeperOutput::PrecommitValue(v) => {
+                VKOutput::PrecommitAny => RoundInput::PrecommitAny,
+                VKOutput::PrecommitValue(v) => {
                     if v == proposal.value().id() {
                         RoundInput::ProposalAndPrecommitValue(proposal.clone())
                     } else {
                         RoundInput::PrecommitAny
                     }
                 }
-                VoteKeeperOutput::SkipRound(r) => RoundInput::SkipRound(r),
+                VKOutput::SkipRound(r) => RoundInput::SkipRound(r),
             }
         } else {
             match new_threshold {
-                VoteKeeperOutput::PolkaAny => RoundInput::PolkaAny,
-                VoteKeeperOutput::PolkaNil => RoundInput::PolkaNil,
-                VoteKeeperOutput::PolkaValue(_) => RoundInput::PolkaAny,
-                VoteKeeperOutput::PrecommitAny => RoundInput::PrecommitAny,
-                VoteKeeperOutput::PrecommitValue(_) => RoundInput::PrecommitAny,
-                VoteKeeperOutput::SkipRound(r) => RoundInput::SkipRound(r),
+                VKOutput::PolkaAny => RoundInput::PolkaAny,
+                VKOutput::PolkaNil => RoundInput::PolkaNil,
+                VKOutput::PolkaValue(_) => RoundInput::PolkaAny,
+                VKOutput::PrecommitAny => RoundInput::PrecommitAny,
+                VKOutput::PrecommitValue(_) => RoundInput::PrecommitAny,
+                VKOutput::SkipRound(r) => RoundInput::SkipRound(r),
             }
         }
     }
 
-    /// After a step change, check if we have a polka for nil, some value or any,
-    /// and return the corresponding input for the round state machine.
+    /// After a step change, see if there is an input to be
+    /// sent implictly to the round state machine.
     pub fn multiplex_step_change(
         &self,
         pending_step: Step,
@@ -187,6 +187,10 @@ where
         match pending_step {
             Step::NewRound => None, // Some(RoundInput::NewRound),
 
+            Step::Propose => None,
+
+            // After a step change to prevote, check if we have a polka for nil, some value or any,
+            // and return the corresponding input for the round state machine.
             Step::Prevote => {
                 if has_polka_nil(&self.vote_keeper, round) {
                     Some(RoundInput::PolkaNil)
@@ -201,8 +205,8 @@ where
                 }
             }
 
-            Step::Propose => None,
             Step::Precommit => None,
+
             Step::Commit => None,
         }
     }
