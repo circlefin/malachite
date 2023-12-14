@@ -36,7 +36,6 @@ module consensusTest {
         nondet v = oneOf(Set("A", "B", "C"))
         nondet vr = oneOf(Set(-1, 1, 2, 3, 4))
         any {
-            // fireInput("Josef", NewHeightCInput(h)),
             fireInput("Josef", NewRoundCInput(r)),
             fireInput("Josef", NewRoundProposerCInput((r, v))),
             fireInput("Josef", ProposalCInput((r, Val(v)))),
@@ -82,12 +81,8 @@ module consensusTest {
         
         .then(fireInput("Josef", ProposalAndCommitAndValidCInput(Val("block"))))
         .then(_assert(_output == DecidedOutput(Val("block"))))
-        
-        // TODO: if NewHeightCInput is no longer a valid input, we split the test in two runs.
-        // .then(fireInput("Josef", NewHeightCInput(system.get("Josef").height + 1)))
-        // .then(_assert(system.get("Josef").height == 2))
 
-    // TODO: maybe rename
+    // TODO: rename test?
     run DecideNonProposerAtHeight2Test =
         initFor(Set("Josef"), 2)     
         .then(fireInput("Josef", NewRoundProposerCInput((0, "nextBlock"))))
@@ -106,7 +101,7 @@ module consensusTest {
         .then(_assert(_output == TimeoutOutput(PrecommitTimeout)))
 
         .then(fireInput("Josef", TimeoutPrecommitCInput((2, 0))))
-        .then(_assert(_output == SkipRoundOutput(1)))
+        .then(_assert(_output == SkipRoundOutput(1) and system.get("Josef").step == NewRoundStep))
         
         .then(fireInput("Josef", NewRoundCInput(1)))
         .then(_assert(_output == TimeoutOutput(ProposeTimeout)))

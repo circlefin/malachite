@@ -259,7 +259,12 @@ impl ItfRunner for ConsensusRunner {
                 assert_eq!(actual.round.as_i64(), 0);
             } else {
                 assert_eq!(Some(actual.step), expected.step.to_round_step());
-                assert_eq!(actual.round.as_i64(), expected.round);
+                if expected.step == Step::NewRound {
+                    // In the spec, the new round comes from the input, it's not in the state.
+                    assert_eq!(actual.round.as_i64(), expected.round + 1);
+                } else {
+                    assert_eq!(actual.round.as_i64(), expected.round);
+                }
             }
             assert_eq!(
                 actual.valid.as_ref().map(|v| v.round.as_i64()),
