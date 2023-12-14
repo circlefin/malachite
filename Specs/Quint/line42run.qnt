@@ -22,7 +22,7 @@ run runToLine42 =
         valStep(testedVal)
     })     
     .then(all{
-        assert(system.get(testedVal).timeout.contains((ProposeTimeout, 0, 0))),
+        assert(system.get(testedVal).timeouts.contains((ProposeTimeout, 0, 0))),
         valStep(testedVal)
     })
     .then(all{ 
@@ -32,7 +32,7 @@ run runToLine42 =
     .then(ProcessDeliverAllVotes(Prevote, testedVal, othersList, validatorSet, 0, 0, Val(value)))
     .then(othersList.length().reps(_ => valStep(testedVal)))
     .then(all{
-        assert(system.get(testedVal).timeout.contains((PrevoteTimeout, 0, 0))),
+        assert(system.get(testedVal).timeouts.contains((PrevoteTimeout, 0, 0))),
         valStep(testedVal) 
     })
     .then(all{ 

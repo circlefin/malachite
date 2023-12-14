@@ -406,29 +406,29 @@ module driver {
 
     type NodeState = {
         es: DriverState,
-        timeout: Set[(Timeout, Height, Round)], // TODO: rename to `timeouts`
+        timeouts: Set[(Timeout, Height, Round)],
         incomingVotes: Set[Vote],
         incomingProposals: Set[Proposal],
     }
 
     pure def initNode(v: Address, vs: Address -> Weight): NodeState = {
         es: initDriver(v,vs),
-        timeout: Set(),
+        timeouts: Set(),
         incomingVotes: Set(),
         incomingProposals: Set(),
     }
 
     pure def existsTimeout(state: NodeState): bool =
-        state.timeout.exists(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
+        state.timeouts.exists(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
 
     // Pick an outstanding timeout and remove it from the incoming list.
-    // Assumes that state.timeout is not empty.
+    // Assumes that state.timeouts is not empty.
     pure def pickTimeout(state: NodeState): (NodeState, DriverInput) =
-        val timeouts = state.timeout.filter(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
+        val timeouts = state.timeouts.filter(x => x._2 == state.es.cs.height and x._3 == state.es.cs.round)
         // TODO: check that timeouts is not empty
         // val someTimeout = timeouts.chooseSome()
         val someTimeout: (Timeout, Height, Round) = timeouts.fold((ProposeTimeout, 0, 0), (sum, y) => y)
-        val newstate = { ...state, timeout: state.timeout.exclude(Set(someTimeout))}
+        val newstate = { ...state, timeouts: state.timeouts.exclude(Set(someTimeout))}
         (newstate, TimeoutDInput(someTimeout._1))
 
     // This is a simple function that figures out in what external events (messages,

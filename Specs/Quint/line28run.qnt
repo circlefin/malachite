@@ -28,7 +28,7 @@ run runToLine28 =
     .then(others.length().reps(_ => ListTakeAStep(correctList)))
     // TimeoutPrecommit is there an can fire and bring is to the next round.
     .then(all{
-        assert(system.get(nextProposer).timeout.contains((PrecommitTimeout, 0, 0))),
+        assert(system.get(nextProposer).timeouts.contains((PrecommitTimeout, 0, 0))),
         everyoneReceivesProposalVR(correctList, validatorList, validatorSet, 0, 1, "blue", 0)
     })
     .then(all{

@@ -44,7 +44,7 @@ pure def deliverVote(sys: Address -> NodeState, vote: Vote): Address -> NodeStat
 // Record that a timeout has started at node v
 pure def startTimeout(sys: Address -> NodeState, v: Address, timeout: Timeout): Address -> NodeState =
     val newTimeout = (timeout, sys.get(v).es.cs.height, sys.get(v).es.cs.round)
-    sys.put(v, { ...sys.get(v), timeout: sys.get(v).timeout.union(Set(newTimeout))})
+    sys.put(v, { ...sys.get(v), timeouts: sys.get(v).timeouts.union(Set(newTimeout))})
 
 // this is a simple semantics that puts messages that are sent immediately in the
 // inbuffer of the receivers. By the way nextAction() is implemented timeouts

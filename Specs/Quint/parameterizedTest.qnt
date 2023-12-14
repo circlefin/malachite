@@ -55,7 +55,7 @@ run UnSuccessfulRound(prop: NonNilValue, r: Round): bool =
     .then(everyoneDeliversPrevote(prop, r, proposer, nonprop))  
     .then(3.reps(i => everyoneTakesAStep))
     .then(all {
-        assert(N4F0::system.forallValues(state => state.timeout.contains((PrevoteTimeout, 0, r)))),
+        assert(N4F0::system.forallValues(state => state.timeouts.contains((PrevoteTimeout, 0, r)))),
         N4F0::unchangedAll
     })
     .then(everyoneTakesAStep)
@@ -66,7 +66,7 @@ run UnSuccessfulRound(prop: NonNilValue, r: Round): bool =
     .then(everyoneDeliversPrecommit(prop, r, proposer, nonprop))
     .then(4.reps(i => everyoneTakesAStep))
     .then(all {
-        assert(N4F0::system.forallValues(state => state.timeout.contains((PrecommitTimeout, 0, r)))),
+        assert(N4F0::system.forallValues(state => state.timeouts.contains((PrecommitTimeout, 0, r)))),
         N4F0::unchangedAll
     })
 
