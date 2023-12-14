@@ -146,10 +146,7 @@ where
                 Output::GetValueAndScheduleTimeout(round, timeout)
             }
 
-            RoundOutput::Decision(value) => {
-                // TODO: update the state
-                Output::Decide(value.round, value.value)
-            }
+            RoundOutput::Decision(value) => Output::Decide(value.round, value.value),
         }
     }
 
