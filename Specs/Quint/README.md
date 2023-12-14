@@ -17,7 +17,7 @@ This specification is separated into
 
 ## State machine
 
-- [State machine](./statemachineAsync)
+- [State machine](./statemachineAsync.qnt)
 
 ## Runs
 
