@@ -84,7 +84,7 @@ module driver {
         else "v4"
     }
 
-    pure def getValue(es: DriverState) : Value =  es.nextValueToPropose
+    pure def getValue(state: DriverState): Value = state.nextValueToPropose
 
     type ConsensusCall = {
         es: DriverState,
@@ -395,10 +395,9 @@ module driver {
         }
 
     // To address step change
-    pure def driver (es: DriverState, input: DriverInput) : (DriverState, ConsensusOutput) = {
-        val res = driverLogic(es, input)
-        (recordStepChange(es, res._1), res._2)
-    }
+    pure def driver (state: DriverState, input: DriverInput): (DriverState, ConsensusOutput) =
+        val res = driverLogic(state, input)
+        (recordStepChange(state, res._1), res._2)
 
     // *************************************************************************
     // Node State
