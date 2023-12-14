@@ -43,14 +43,16 @@ impl ItfRunner for ConsensusRunner {
         let some_other_node = self.address_map.get("Other").unwrap(); // FIXME
         let (data, input) = match &expected.input {
             ModelInput::NoInput => unreachable!(),
-            ModelInput::NewRound(round) => {
-                let input_round = Round::new(*round as i64);
-                (Info::new(input_round, address, some_other_node), Input::NewRound)
-            }
+            ModelInput::NewRound(round) => (
+                Info::new(Round::new(*round as i64), address, some_other_node),
+                Input::NewRound,
+            ),
             ModelInput::NewRoundProposer(round, _value) => {
                 // TODO: proposal value not used?
-                let input_round = Round::new(*round as i64);
-                (Info::new(input_round, address, address), Input::NewRound)
+                (
+                    Info::new(Round::new(*round as i64), address, address),
+                    Input::NewRound,
+                )
             }
             ModelInput::Proposal(round, value) => {
                 let input_round = Round::new(*round as i64);
@@ -96,28 +98,31 @@ impl ItfRunner for ConsensusRunner {
                 (data, Input::ProposalAndPrecommitValue(proposal))
             }
             ModelInput::ProposalInvalid => todo!(),
-            ModelInput::PolkaNil => {
-                (Info::new(actual.round, address, some_other_node), Input::PolkaNil)
-            }
-            ModelInput::PolkaAny => {
-                (Info::new(actual.round, address, some_other_node), Input::PolkaAny)
-            }
-            ModelInput::PrecommitAny => {
-                (Info::new(actual.round, address, some_other_node), Input::PrecommitAny)
-            }
+            ModelInput::PolkaNil => (
+                Info::new(actual.round, address, some_other_node),
+                Input::PolkaNil,
+            ),
+            ModelInput::PolkaAny => (
+                Info::new(actual.round, address, some_other_node),
+                Input::PolkaAny,
+            ),
+            ModelInput::PrecommitAny => (
+                Info::new(actual.round, address, some_other_node),
+                Input::PrecommitAny,
+            ),
             ModelInput::RoundSkip(_round) => todo!(),
-            ModelInput::TimeoutPropose(_height, round) => {
-                let input_round = Round::new(*round as i64);
-                (Info::new(input_round, address, some_other_node), Input::TimeoutPropose)
-            }
-            ModelInput::TimeoutPrevote(_height, round) => {
-                let input_round = Round::new(*round as i64);
-                (Info::new(input_round, address, some_other_node), Input::TimeoutPrevote)
-            }
-            ModelInput::TimeoutPrecommit(_height, round) => {
-                let input_round = Round::new(*round as i64);
-                (Info::new(input_round, address, some_other_node), Input::TimeoutPrecommit)
-            }
+            ModelInput::TimeoutPropose(_height, round) => (
+                Info::new(Round::new(*round as i64), address, some_other_node),
+                Input::TimeoutPropose,
+            ),
+            ModelInput::TimeoutPrevote(_height, round) => (
+                Info::new(Round::new(*round as i64), address, some_other_node),
+                Input::TimeoutPrevote,
+            ),
+            ModelInput::TimeoutPrecommit(_height, round) => (
+                Info::new(Round::new(*round as i64), address, some_other_node),
+                Input::TimeoutPrecommit,
+            ),
         };
         let round_state = core::mem::take(actual);
         let transition = round_state.apply(&data, input);
@@ -192,12 +197,11 @@ impl ItfRunner for ConsensusRunner {
         actual: &Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
-        // doesn't check for current Height and Round
+        // TODO: What to do with actual.height? There is no height in the spec.
 
         println!("🟢 state_invariant: actual state={:?}", actual);
         println!("🟢 state_invariant: expected state={:?}", expected.state);
 
-        // TODO: What to do with actual.height? There is no height in the spec.
         if expected.state.step == Step::None {
             // This is the initial state.
             // The round in the spec's initial state is -1, while in the code, it's 0.
