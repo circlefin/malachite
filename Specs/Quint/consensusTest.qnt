@@ -19,7 +19,7 @@ module consensusTest {
         _output' = NoConsensusOutput,
     }
 
-    action init = initFor(Set("Josef"))
+    action init = initFor(Set("Josef"), 1)
 
     // For testing.
     action fireInput(proc: Address, input: ConsensusInput): bool =
@@ -87,7 +87,8 @@ module consensusTest {
         // .then(fireInput("Josef", NewHeightCInput(system.get("Josef").height + 1)))
         // .then(_assert(system.get("Josef").height == 2))
 
-    run DecideNonProposer2Test =
+    // TODO: maybe rename
+    run DecideNonProposerAtHeight2Test =
         initFor(Set("Josef"), 2)     
         .then(fireInput("Josef", NewRoundProposerCInput((0, "nextBlock"))))
         .then(_assert(_output == ProposalOutput(mkProposal("Josef", 2, 0, "nextBlock", -1))))
