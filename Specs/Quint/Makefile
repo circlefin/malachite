@@ -6,19 +6,8 @@ parse:
 	npx @informalsystems/quint parse voteBookkeeperTest.qnt
 .PHONY: parse
 
-test-con:
-	npx @informalsystems/quint run consensusTest.qnt
-.PHONY: test-con
-
-test-sm:
-	npx @informalsystems/quint test statemachineTest.qnt
-.PHONY: test-sm
-
-test-vk:
-	npx @informalsystems/quint test voteBookkeeperTest.qnt
-.PHONY: test-vk
-
-test: test-con test-sm test-vk
+test:
+	find *Test.qnt -maxdepth 1 -type f -exec time quint test {} \; 
 .PHONY: test
 
 verify:
