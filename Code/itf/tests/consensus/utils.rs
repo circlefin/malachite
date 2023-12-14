@@ -1,15 +1,12 @@
 use malachite_itf::types::{NonNilValue, Value as ModelValue};
 use malachite_test::{Value, ValueId};
 
-pub const ADDRESSES: [&str; 5] = ["Alice", "Bob", "Josef", "J", "Other"];
+pub const ADDRESSES: [&str; 2] = ["Josef", "Other"];
 
 pub fn value_from_string(v: &NonNilValue) -> Option<Value> {
     match v.as_str() {
-        "val1" => Some(Value::new(0)),
-        "val2" => Some(Value::new(1)),
-        "val3" => Some(Value::new(2)),
-        "block" => Some(Value::new(3)),
-        "nextBlock" => Some(Value::new(4)),
+        "block" => Some(Value::new(1)),
+        "nextBlock" => Some(Value::new(2)),
         _ => unimplemented!("unknown value {v:?}"),
     }
 }
