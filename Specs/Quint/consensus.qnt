@@ -21,7 +21,8 @@ module consensus {
     }  
 
     pure def initConsensusState(p: Address, h: Height) : ConsensusState = {
-        p: p, 
+        // The node address is only needed or setting the source of the Proposal and Vote messages.
+        p: p,
         // round must be -1, as nothing should be done before a NewRound
         // function is called
         round: -1, 

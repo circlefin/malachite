@@ -1,23 +1,15 @@
 use itf::de::{As, Integer, Same};
 use serde::Deserialize;
-use std::collections::HashMap;
 
 use crate::deserializers as de;
 use crate::types::{Address, Height, NonNilValue, Proposal, Round, Step, Timeout, Value, Vote};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct State {
-    pub system: System,
-
-    #[serde(rename = "_input")]
-    pub input: (Address, Input),
-
-    #[serde(rename = "_output")]
+    pub state: ConsensusState,
+    pub input: Input,
     pub output: Output,
 }
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct System(pub HashMap<Address, ConsensusState>);
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename = "ConsensusInput")]
@@ -25,9 +17,6 @@ pub struct System(pub HashMap<Address, ConsensusState>);
 pub enum Input {
     #[serde(rename = "NoConsensusInput")]
     NoInput,
-    // #[serde(rename = "NewHeightCInput")]
-    // #[serde(with = "As::<Integer>")]
-    // NewHeight(Height),
     #[serde(rename = "NewRoundCInput")]
     #[serde(with = "As::<Integer>")]
     NewRound(Round),
