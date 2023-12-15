@@ -218,12 +218,12 @@ The transactions from state `InProgress` consider that node can be at any of
 the `Propose`, `Prevote`, `Precommit` states.
 The `Ref` column refers to the line of the pseudocode where the events can be found.
 
-| From       | To         | Ev Name                      | Event  Details                                                      | Action                    | Ref |
-| ------------ |------------|------------------------------| --------------------------------------------------------------------- | --------------------------- | ----- |
+| From       | To         | Ev Name                      | Event  Details                                                    | Action                            | Ref |
+| ---------- |------------|------------------------------|-------------------------------------------------------------------|-----------------------------------| --- |
 | InProgress | InProgress | PrecommitAny                 | `2f + 1 ⟨PRECOMMIT, h, r, *⟩` <br> for the first time             | schedule `TimeoutPrecommit(h, r)` | L47 |
-| InProgress | NewRound   | TimeoutPrecommit             | `TimeoutPrecommit(h, r)`                                            | `next_round(r+1)`         | L65 |
-| InProgress | NewRound   | SkipRound(r')                | `f + 1 ⟨*, h, r', *, *⟩` with `r' > r`                      | `next_round(r')`          | L55 |
-| InProgress | Commit     | ProposalAndPrecommitValue(v) | `⟨PROPOSAL, h, r, v, *⟩` <br> `2f + 1 ⟨PRECOMMIT, h, r, id(v)⟩` | `commit(v)`               | L49 |
+| InProgress | NewRound   | TimeoutPrecommit             | `TimeoutPrecommit(h, r)`                                          | `next_round(r+1)`                 | L65 |
+| InProgress | NewRound   | SkipRound(r')                | `f + 1 ⟨*, h, r', *, *⟩` with `r' > r`                            | `next_round(r')`                  | L55 |
+| InProgress | Commit     | ProposalAndPrecommitValue(v) | `⟨PROPOSAL, h, r', v, *⟩` <br> `2f + 1 ⟨PRECOMMIT, h, r', id(v)⟩` | `commit(v)`                       | L49 |
 
 #### InProgress round
 
@@ -234,10 +234,11 @@ The `Ref` column refers to the line of the pseudocode where the events can be fo
 
 | From      | To        | Event                                  | Details                                                                                | Actions and Return                                                                                    | Ref |
 |-----------|-----------|----------------------------------------|----------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|-----|
-| NewRound | Propose   | NewRound(proposer)                     | `StartRound` with `proposer(h, r) = p` and `v = getValue()`                            | broadcast `⟨PROPOSAL, h, r, v, validRound⟩`                                                           | L19 |
-| NewRound | Propose   | NewRound(non-proposer)                 | `StartRound` with `proposer(h, r) != p` (optional restriction)                              | schedule `TimeoutPropose(h, r)`                                                                       | L21 |
+| NewRound  | Propose   | NewRound(proposer)                     | `StartRound` with `proposer(h, r) = p`                                                 | async `getValue()` and schedule `TimeoutPropose(h, r)`                                                | L19 |
+| NewRound  | Propose   | NewRound(non-proposer)                 | `StartRound` with `proposer(h, r) != p` (optional restriction)                         | schedule `TimeoutPropose(h, r)`                                                                       | L21 |
+| **Propose**   | **Propose**   | **ProposeValue(v)**                        | `getValue()` returned                                                                  | broadcast `⟨PROPOSAL, h, r, v, validRound⟩`                                               | L19 |
 | Propose   | Prevote   | Proposal(v, -1)                        | `⟨PROPOSAL, h, r, v, −1⟩`                                                              | broadcast `⟨PREVOTE, h, r, {id(v), nil}⟩`                                                             | L23 |
-| Propose   | Prevote   | InvalidProposal(v, -1)                 | `⟨PROPOSAL, h, r, v, −1⟩`                                                              | broadcast `⟨PREVOTE, h, r, nil⟩`                                                             | L32 |
+| Propose   | Prevote   | InvalidProposal(v, -1)                 | `⟨PROPOSAL, h, r, v, −1⟩`                                                              | broadcast `⟨PREVOTE, h, r, nil⟩`                                                                      | L32 |
 | Propose   | Prevote   | ProposalAndPolkaPrevious(v, vr)        | `⟨PROPOSAL, h, r, v, vr⟩` <br> `2f + 1 ⟨PREVOTE, h, vr, id(v)⟩` with `vr < r`          | broadcast `⟨PREVOTE, h, r, {id(v), nil}⟩`                                                             | L30 |
 | Propose   | Prevote   | InvalidProposalAndPolkaPrevious(v, vr) | `⟨PROPOSAL, h, r, v, vr⟩` <br> `2f + 1 ⟨PREVOTE, h, vr, id(v)⟩` with `vr < r`          | broadcast `⟨PREVOTE, h, r, nil⟩`                                                                      | L32 |
 | Propose   | Prevote   | TimeoutPropose                         | `TimeoutPropose(h, r)`                                                                 | broadcast `⟨PREVOTE, h, r, nil⟩`                                                                      | L57 |
@@ -250,15 +251,124 @@ The `Ref` column refers to the line of the pseudocode where the events can be fo
 The ordinary operation of a round of consensus consists on the sequence of
 round steps `Propose`, `Prevote`, and `Precommit`, represented in the table.
 The conditions for concluding a round of consensus, therefore for leaving the
-`InProgress` state, are presented in the next subsection.
+`InProgress` state, are presented in the previous subsection.
 
-All the state transitions represented in the table consider message and
+##### Validity Checks
+The pseudocode of the algorithm includes validity checks for the messages. These checks have been moved out of the state machine and are now performed by the `driver` module.
+For this reason:
+- `L22` is covered by `Proposal(v, -1) and `InvalidProposal(v, -1)`
+- `L28` is covered by `ProposalAndPolkaPrevious(v, vr)` and `InvalidProposalAndPolkaPrevious(v, vr)`
+- `L36` and `L49` are only called with valid proposal
+
+TODO - show the full algorithm with all the changes
+
+##### Asynchronous getValue() and ProposeValue(v)
+The original algorithm is modified to allow for asynchronous `getValue()`. The details are described below.
+
+<table>
+<tr>
+<th>arXiv paper</th>
+<th>Async getValue()</th>
+</tr>
+
+<tr >
+<td>
+
+```
+function StartRound(round) {
+ round_p ← round
+ step_p ← propose
+ if proposer(h_p, round_p) = p {
+  if validValue_p != nil {
+   proposal ← validValue_p
+
+
+
+  } else {
+   proposal ← getValue()
+
+  }
+
+
+  broadcast ⟨PROPOSAL, h_p, round_p, proposal, validRound_p⟩
+ } else {
+  schedule OnTimeoutPropose(h_p,round_p) to
+   be executed after timeoutPropose(round_p)
+ }
+}
+```
+
+</td>
+
+<td>
+
+```
+function StartRound(round) {
+ round_p ← round
+ step_p ← propose
+ if proposer(h_p, round_p) = p {
+  if validValue_p != nil {
+   proposal ← validValue_p
+
+   broadcast ⟨PROPOSAL, h_p, round_p, proposal, validRound_p⟩
+
+  } else {
+   getValue() // async
+   schedule OnTimeoutPropose(h_p,round_p) to
+     be executed after timeoutPropose(round_p)
+  }
+
+
+ } else {
+  schedule OnTimeoutPropose(h_p,round_p) to
+   be executed after timeoutPropose(round_p)
+ }
+}
+```
+
+</td>
+</tr>
+</table>
+
+- New Rule added
+
+<table>
+<tr>
+<th>arXiv paper</th>
+<th>Async getValue()</th>
+</tr>
+
+<tr>
+<td>
+
+```
+```
+
+</td>
+
+<td>
+
+```
+upon PROPOSEVALUE (h_p, round_p, v) {
+   proposal ← v
+   broadcast ⟨PROPOSAL, h_p, round_p, proposal, -1⟩
+}
+```
+
+</td>
+</tr>
+</table>
+
+
+#### Notes
+Most of the state transitions represented in the previous tables consider message and
 events referring to the node's current round `r`.
 In the pseudocode this current round of a node is referred as `round_p`.
 
-There is, however, an exception: the transition `L28` requires the node to have
-access to `PREVOTE` messages from a previous round `r' < r`.
-This transition constitutes an exception that have to be handled in a proper way.
+There are however exceptions that have to be handled properly:
+- the transition `L28` requires the node to have access to `PREVOTE` messages from a previous round `r' < r`.
+- the transition `L49` requires the node to have access to `PRECOMMIT` messages from different round `r' != r`.
+- the transition `L55` requires the node to have access to all messages from a future round `r' > r`.
 
 ## References
 
