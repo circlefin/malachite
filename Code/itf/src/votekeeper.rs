@@ -1,49 +1,91 @@
-use itf::{ItfBigInt, ItfMap, ItfSet};
+use itf::de::{As, Integer, Same};
+use std::collections::{HashMap, HashSet};
+
 use serde::Deserialize;
 
-pub type Height = ItfBigInt;
-pub type Weight = ItfBigInt;
-pub type Round = ItfBigInt;
-pub type Address = String;
-pub type Value = String;
+use crate::types::{Address, Height, NonNilValue, Round, Value, Vote, Weight};
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(tag = "tag", content = "value")]
+pub enum WeightedVote {
+    #[serde(rename = "NoWeightedVote")]
+    NoVote,
+
+    #[serde(rename = "WV")]
+    #[serde(with = "As::<(Same, Integer, Integer)>")]
+    Vote(Vote, Weight, Round),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize)]
+#[serde(tag = "tag", content = "value")]
+pub enum VoteKeeperOutput {
+    #[serde(rename = "NoVKOutput")]
+    NoOutput,
+
+    #[serde(rename = "PolkaAnyVKOutput")]
+    #[serde(with = "As::<Integer>")]
+    PolkaAny(Round),
+
+    #[serde(rename = "PolkaNilVKOutput")]
+    #[serde(with = "As::<Integer>")]
+    PolkaNil(Round),
+
+    #[serde(rename = "PolkaValueVKOutput")]
+    #[serde(with = "As::<(Integer, Same)>")]
+    PolkaValue(Round, NonNilValue),
+
+    #[serde(rename = "PrevoteAnyVKOutput")]
+    #[serde(with = "As::<Integer>")]
+    PrecommitAny(Round),
+
+    #[serde(rename = "PrevoteNilVKOutput")]
+    #[serde(with = "As::<(Integer, Same)>")]
+    PrecommitValue(Round, NonNilValue),
+
+    #[serde(rename = "SkipVKOutput")]
+    #[serde(with = "As::<Integer>")]
+    Skip(Round),
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Bookkeeper {
+    #[serde(with = "As::<Integer>")]
     pub height: Height,
+    #[serde(with = "As::<Integer>")]
     pub total_weight: Weight,
-    pub rounds: ItfMap<Round, RoundVotes>,
+    #[serde(with = "As::<HashMap<Integer, Same>>")]
+    pub rounds: HashMap<Round, RoundVotes>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoundVotes {
+    #[serde(with = "As::<Integer>")]
     pub height: Height,
+    #[serde(with = "As::<Integer>")]
     pub round: Round,
     pub prevotes: VoteCount,
     pub precommits: VoteCount,
-    pub emitted_events: ItfSet<ExecutorEvent>,
-    pub votes_addresses_weights: ItfMap<Address, Weight>,
+    pub emitted_outputs: HashSet<VoteKeeperOutput>,
+    #[serde(with = "As::<HashMap<Same, Integer>>")]
+    pub votes_addresses_weights: HashMap<Address, Weight>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VoteCount {
+    #[serde(with = "As::<Integer>")]
     pub total_weight: Weight,
-    pub values_weights: ItfMap<Value, Weight>,
-    pub votes_addresses: ItfSet<Address>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Hash)]
-pub struct ExecutorEvent {
-    pub round: Round,
-    pub name: String,
-    pub value: Value,
+    #[serde(with = "As::<HashMap<Same, Integer>>")]
+    pub values_weights: HashMap<Value, Weight>,
+    pub votes_addresses: HashSet<Address>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct State {
     pub bookkeeper: Bookkeeper,
-    pub last_emitted: ExecutorEvent,
+    pub last_emitted: VoteKeeperOutput,
+    pub weighted_vote: WeightedVote,
 }

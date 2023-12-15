@@ -3,8 +3,6 @@ use core::fmt::{Debug, Display};
 use crate::{Context, PublicKey};
 
 /// Voting power held by a validator.
-///
-/// TODO: Do we need to abstract over this as well?
 pub type VotingPower = u64;
 
 /// Defines the requirements for an address.
@@ -37,6 +35,7 @@ where
 /// A validator set is a collection of validators.
 pub trait ValidatorSet<Ctx>
 where
+    Self: Clone + Debug,
     Ctx: Context,
 {
     /// The total voting power of the validator set.

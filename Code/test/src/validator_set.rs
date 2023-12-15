@@ -70,6 +70,7 @@ impl malachite_common::Validator<TestContext> for Validator {
 }
 
 /// A validator set contains a list of validators sorted by address.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidatorSet {
     pub validators: Vec<Validator>,
 }
@@ -86,7 +87,6 @@ impl ValidatorSet {
 
     /// The total voting power of the validator set
     pub fn total_voting_power(&self) -> VotingPower {
-        // TODO: Cache this?
         self.validators.iter().map(|v| v.voting_power).sum()
     }
 
@@ -114,7 +114,7 @@ impl ValidatorSet {
     pub fn remove(&mut self, address: &Address) {
         self.validators.retain(|v| &v.address != address);
 
-        Self::sort_validators(&mut self.validators); // TODO: Not needed
+        Self::sort_validators(&mut self.validators);
     }
 
     /// Get a validator by its address

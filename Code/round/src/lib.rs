@@ -4,7 +4,7 @@
 #![forbid(unsafe_code)]
 #![deny(unused_crate_dependencies, trivial_casts, trivial_numeric_casts)]
 #![warn(
-    // missing_docs,
+    missing_docs,
     rustdoc::broken_intra_doc_links,
     rustdoc::private_intra_doc_links,
     variant_size_differences
@@ -14,8 +14,8 @@
 
 extern crate alloc;
 
-pub mod events;
-pub mod message;
+pub mod input;
+pub mod output;
 pub mod state;
 pub mod state_machine;
 pub mod transition;

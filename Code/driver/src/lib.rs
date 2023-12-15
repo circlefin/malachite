@@ -4,7 +4,7 @@
 #![forbid(unsafe_code)]
 #![deny(unused_crate_dependencies, trivial_casts, trivial_numeric_casts)]
 #![warn(
-    // missing_docs,
+    missing_docs,
     rustdoc::broken_intra_doc_links,
     rustdoc::private_intra_doc_links,
     variant_size_differences
@@ -16,15 +16,16 @@ extern crate alloc;
 
 mod driver;
 mod error;
-mod event;
-mod message;
+mod input;
+mod mux;
+mod output;
 mod proposer;
 mod util;
 
 pub use driver::Driver;
 pub use error::Error;
-pub use event::Event;
-pub use message::Message;
+pub use input::Input;
+pub use output::Output;
 pub use proposer::ProposerSelector;
 pub use util::Validity;
 

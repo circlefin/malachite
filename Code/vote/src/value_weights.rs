@@ -1,3 +1,5 @@
+//! A value and the weight of votes for it.
+
 use alloc::collections::BTreeMap;
 
 use crate::Weight;
@@ -9,6 +11,7 @@ pub struct ValuesWeights<Value> {
 }
 
 impl<Value> ValuesWeights<Value> {
+    /// Create a new `ValuesWeights` instance.
     pub fn new() -> ValuesWeights<Value> {
         ValuesWeights {
             value_weights: BTreeMap::new(),

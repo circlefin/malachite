@@ -5,9 +5,13 @@ on:
     branches: main
     paths:
       - Code/**
+      - Specs/Quint/**
+      - .github/workflows/rust.yml
   pull_request:
     paths:
       - Code/**
+      - Specs/Quint/**
+      - .github/workflows/rust.yml
 
 env:
   CARGO_INCREMENTAL: 0
@@ -27,6 +31,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+      - run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Install cargo-nextest
@@ -51,7 +59,7 @@ jobs:
         with:
           token: ${{secrets.GITHUB_TOKEN}}
           args: --all-features --all-targets --manifest-path Code/Cargo.toml
- 
+
   fmt:
     name: Formatting
     runs-on: ubuntu-latest

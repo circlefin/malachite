@@ -2,6 +2,7 @@ use core::fmt;
 
 use malachite_common::{Context, SignedVote, Validator};
 
+/// The type of errors that can be yielded by the `Driver`.
 #[derive(Clone, Debug)]
 pub enum Error<Ctx>
 where

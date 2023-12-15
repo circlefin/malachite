@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 
-use crate::{Context, Round, Value};
+use crate::{Context, NilOrVal, Round, Value};
 
 /// A type of vote.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -28,10 +28,10 @@ where
     fn round(&self) -> Round;
 
     /// Get a reference to the value being voted for.
-    fn value(&self) -> &Option<<Ctx::Value as Value>::Id>;
+    fn value(&self) -> &NilOrVal<<Ctx::Value as Value>::Id>;
 
     /// Take ownership of the value being voted for.
-    fn take_value(self) -> Option<<Ctx::Value as Value>::Id>;
+    fn take_value(self) -> NilOrVal<<Ctx::Value as Value>::Id>;
 
     /// The type of vote.
     fn vote_type(&self) -> VoteType;

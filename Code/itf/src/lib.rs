@@ -1,4 +1,3 @@
-pub mod consensus;
+pub mod types;
+pub mod utils;
 pub mod votekeeper;
-
-mod deserializers;
