@@ -77,13 +77,12 @@ impl ItfRunner for ConsensusRunner {
             }
 
             ModelInput::ProposalAndPolkaPreviousAndValid(value, valid_round) => {
-                let input_round = Round::new(*valid_round);
-                let data = Info::new(input_round, address, some_other_node);
+                let data = Info::new(actual.round, address, some_other_node);
                 let proposal = TestContext::new_proposal(
                     actual.height,
-                    input_round,
+                    actual.round,
                     value_from_model(value).unwrap(),
-                    Round::new(0), // FIXME
+                    Round::new(*valid_round),
                 );
                 (data, Input::ProposalAndPolkaPrevious(proposal))
             }
@@ -94,7 +93,7 @@ impl ItfRunner for ConsensusRunner {
                     actual.height,
                     actual.round,
                     value_from_model(value).unwrap(),
-                    Round::new(0), // FIXME
+                    Round::Nil,
                 );
                 (data, Input::ProposalAndPolkaCurrent(proposal))
             }
@@ -106,9 +105,9 @@ impl ItfRunner for ConsensusRunner {
                     Height::new(*height as u64),
                     input_round,
                     value_from_model(value).unwrap(),
-                    Round::new(0), // FIXME
+                    Round::Nil,
                 );
-                (data, Input::InvalidProposalAndPolkaPrevious(proposal)) // CHECK: is this input correct?
+                (data, Input::InvalidProposalAndPolkaPrevious(proposal))
             }
 
             ModelInput::ProposalAndCommitAndValid(value) => {
@@ -117,7 +116,7 @@ impl ItfRunner for ConsensusRunner {
                     actual.height,
                     actual.round,
                     value_from_model(value).unwrap(),
-                    Round::new(0), // FIXME
+                    Round::Nil,
                 );
                 (data, Input::ProposalAndPrecommitValue(proposal))
             }
