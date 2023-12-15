@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use pretty_assertions::assert_eq;
 
-use malachite_common::{Context, NilOrVal, Round};
+use malachite_common::{Context, NilOrVal, Round, TimeoutStep};
 use malachite_itf::consensus::{Input as ModelInput, Output as ModelOutput, State};
 use malachite_itf::types::Step;
 use malachite_round::input::Input;
@@ -32,7 +32,7 @@ impl ItfRunner for ConsensusRunner {
         let height = Height::new(expected.state.height as u64);
         let round = expected.state.round;
 
-        // CHECK: this is a hack, needed because spec starts with round = -1, and code starts with 0.
+        // FIXME: this is a hack, needed because spec starts with round = -1, and code starts with 0.
         let round = Round::new(if round < 0 { 0 } else { round });
         let init_state = RoundState::new(height, round);
 
@@ -233,10 +233,14 @@ impl ItfRunner for ConsensusRunner {
                 }
 
                 (
-                    Output::GetValueAndScheduleTimeout(_round, _timeout),
-                    ModelOutput::Proposal(_),
+                    Output::GetValueAndScheduleTimeout(round, timeout),
+                    ModelOutput::Proposal(proposal),
                 ) => {
-                    // TODO: Check this case (GetValueAndScheduleTimeout is the output of NewProposal)
+                    assert_eq!(round.as_i64(), proposal.round);
+                    assert_eq!(timeout.step, TimeoutStep::Propose);
+
+                    // TODO: We need to manually feed `ProposeValue` to the round state
+                    //       machine here, and then check the emitted proposal.
                 }
 
                 (Output::Decision(decision), ModelOutput::Decided(expected_decided_value)) => {
