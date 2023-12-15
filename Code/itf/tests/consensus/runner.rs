@@ -224,9 +224,12 @@ impl ItfRunner for ConsensusRunner {
                     assert_eq!(vote.value, expected_value);
                 }
 
-                (Output::ScheduleTimeout(timeout), ModelOutput::Timeout(expected_timeout)) => {
+                (
+                    Output::ScheduleTimeout(timeout),
+                    ModelOutput::Timeout(expected_round, expected_timeout),
+                ) => {
+                    assert_eq!(timeout.round.as_i64(), *expected_round);
                     assert_eq!(timeout.step, expected_timeout.to_common());
-                    // CHECK: spec does not have round in timeout
                 }
 
                 (
@@ -244,10 +247,10 @@ impl ItfRunner for ConsensusRunner {
                     );
                 }
 
-                _ => panic!("actual: {:?}\nexpected: {:?}", result, expected_result),
+                _ => panic!("actual: {result:?}\nexpected: {expected:?}"),
             },
 
-            None => panic!("no actual result; expected result: {:?}", expected_result),
+            None => panic!("no actual result; expected result: {expected_result:?}"),
         }
 
         Ok(true)

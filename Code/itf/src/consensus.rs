@@ -69,7 +69,8 @@ pub enum Output {
     #[serde(rename = "VoteOutput")]
     Vote(Vote),
     #[serde(rename = "TimeoutOutput")]
-    Timeout(Timeout),
+    #[serde(with = "As::<(Integer, Same)>")]
+    Timeout(Round, Timeout),
     #[serde(rename = "DecidedOutput")]
     Decided(Value),
     #[serde(rename = "SkipRoundOutput")]

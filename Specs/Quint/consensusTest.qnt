@@ -71,7 +71,7 @@ module consensusTest {
     run DecideNonProposerTest =
         initFor("Josef", 1)
         .then(fireInput(NewRoundCInput(0)))
-        .then(_assert(output == TimeoutOutput(ProposeTimeout)))
+        .then(_assert(output == TimeoutOutput((0, ProposeTimeout))))
         
         .then(fireInput(ProposalCInput((0, Val("block")))))
         .then(_assert(output.isVoteMsgWith(Prevote, Val("block"))))
@@ -92,19 +92,19 @@ module consensusTest {
         .then(_assert(output.isVoteMsgWith(Prevote, Val("nextBlock")) and state.step == PrevoteStep))
         
         .then(fireInput(PolkaAnyCInput))
-        .then(_assert(output == TimeoutOutput(PrevoteTimeout)))
+        .then(_assert(output == TimeoutOutput((0, PrevoteTimeout))))
         
         .then(fireInput(TimeoutPrevoteCInput((2, 0))))
         .then(_assert(output.isVoteMsgWith(Precommit, Nil) and state.step == PrecommitStep))
         
         .then(fireInput(PrecommitAnyCInput))
-        .then(_assert(output == TimeoutOutput(PrecommitTimeout)))
+        .then(_assert(output == TimeoutOutput((0, PrecommitTimeout))))
 
         .then(fireInput(TimeoutPrecommitCInput((2, 0))))
         .then(_assert(output == SkipRoundOutput(1) and state.step == NewRoundStep))
         
         .then(fireInput(NewRoundCInput(1)))
-        .then(_assert(output == TimeoutOutput(ProposeTimeout)))
+        .then(_assert(output == TimeoutOutput((1, ProposeTimeout))))
 
         .then(fireInput(TimeoutProposeCInput((2, 1))))
         .then(_assert(output.isVoteMsgWith(Prevote, Nil) and state.step == PrevoteStep))
@@ -113,13 +113,13 @@ module consensusTest {
         .then(_assert(output.isVoteMsgWith(Precommit, Nil) and state.step == PrecommitStep))
         
         .then(fireInput(PrecommitAnyCInput))
-        .then(_assert(output == TimeoutOutput(PrecommitTimeout)))
+        .then(_assert(output == TimeoutOutput((1, PrecommitTimeout))))
         
         .then(fireInput(TimeoutPrecommitCInput((2, 1))))
         .then(_assert(output == SkipRoundOutput(2)))
         
         .then(fireInput(NewRoundCInput(2)))
-        .then(_assert(output == TimeoutOutput(ProposeTimeout)))
+        .then(_assert(output == TimeoutOutput((2, ProposeTimeout))))
         
         .then(fireInput(ProposalInvalidCInput))
         .then(_assert(output.isVoteMsgWith(Prevote, Nil) and state.step == PrevoteStep))

@@ -70,7 +70,7 @@ action valStep(v: Address): bool =
             | VoteOutput(vote) =>
                 system' = deliverVote(sys, vote) // TODO: this is immediate
             | TimeoutOutput(timeout) =>
-                system' = startTimeout(sys, v, timeout)
+                system' = startTimeout(sys, v, timeout._2)
             | SkipRoundOutput(round) => // CHECK: round is not used
                 //skipRound should never leave the driver
                 system' = sys
@@ -115,7 +115,7 @@ action valStepCommand(v: Address, command: Command): bool =
             | VoteOutput(vote) =>
                 system' = deliverVote(sys, vote) // TODO: this is immediate
             | TimeoutOutput(timeout) =>
-                system' = startTimeout(sys, v, timeout)
+                system' = startTimeout(sys, v, timeout._2)
             | SkipRoundOutput(round) => // CHECK: round is not used
                 //skipRound should never leave the driver
                 system' = sys

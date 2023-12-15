@@ -77,7 +77,7 @@ module consensus {
         | NoConsensusOutput
         | ProposalOutput(Proposal)
         | VoteOutput(Vote)
-        | TimeoutOutput(Timeout)
+        | TimeoutOutput((Round, Timeout))
         | DecidedOutput(Value)
         | SkipRoundOutput(Round)
         | ErrorOutput(str)
@@ -91,7 +91,7 @@ module consensus {
     pure def toPrecommitOutput(state, src, height, round, valueId) = 
         { cs: state, out: VoteOutput(mkVote(Precommit, src, height, round, valueId)) }
     pure def toTimeoutOutput(state, timeout) = 
-        { cs: state, out: TimeoutOutput(timeout) }
+        { cs: state, out: TimeoutOutput((state.round, timeout)) }
     pure def toDecidedOutput(state, value) = 
         { cs: state, out: DecidedOutput(value) }
     pure def toSkipRoundOutput(state, round) = 
