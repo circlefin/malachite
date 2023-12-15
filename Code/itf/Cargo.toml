@@ -14,14 +14,15 @@ malachite-vote   = { version = "0.1.0", path = "../vote" }
 malachite-round  = { version = "0.1.0", path = "../round" }
 malachite-test   = { version = "0.1.0", path = "../test" }
 
-itf              = { workspace = true }
-rand             = { workspace = true }
-num-bigint       = { workspace = true, features = ["serde"] }
-num-traits       = { workspace = true }
-serde            = { workspace = true, features = ["derive"] }
-serde_json       = { workspace = true }
-serde_with       = { workspace = true }
-glob             = { workspace = true }
+itf               = { workspace = true }
+rand              = { workspace = true }
+num-bigint        = { workspace = true, features = ["serde"] }
+num-traits        = { workspace = true }
+serde             = { workspace = true, features = ["derive"] }
+serde_json        = { workspace = true }
+serde_with        = { workspace = true }
+glob              = { workspace = true }
+pretty_assertions = { workspace = true }
 
 [dev-dependencies]
 tempfile         = { version = "3.8.1" }
