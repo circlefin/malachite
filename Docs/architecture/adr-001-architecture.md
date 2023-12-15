@@ -30,8 +30,6 @@ TODO: Do we need to describe the code layout and Rust crates, or is the descript
 ### Overview of the Tendermint Consensus Implementation 
 
 The consensus implementation consists of the following components:
-
-- Builder and Proposer Modules
 - Gossip Module
 - Host System
 - Consensus Driver
@@ -39,7 +37,14 @@ The consensus implementation consists of the following components:
 - Vote Keeper
 - Round State Machine
 
-It interacts with the external environment via the Context trait, which is described in more detail below.
+The Gossip module is not described in this document. It ensures that all messages sent by correct processes are eventually delivered to all correct processes.
+This is required by the progress and termination of consensus.
+It is likely that the Gossip module will be implemented as a separate crate. Its specification will be described in a separate document.
+
+The diagram shows the interactions between the consensus components and the external environment via the Context trait.
+The precise external APIs and interactions are still work in progress.
+It is likely that there exists a Builder/Proposer module that is responsible for building proposals that include transactions, state diffs and proofs.
+This module is also responsible for validating the proposals received by consensus.
 
 This specification describes the components used by the consensus algorithm and does not cover the Builder/Proposer and the Gossip modules.
 
@@ -424,10 +429,6 @@ pub enum Input<Ctx>
     /// Received a proposal and a polka value from a previous round.
     /// L28 + L29 (invalid)
     InvalidProposalAndPolkaPrevious(Ctx::Proposal),
-
-    /// Receive +2/3 prevotes for a value.
-    /// L44
-    PolkaValue(ValueId<Ctx>),
 
     /// Receive +2/3 prevotes for anything.
     /// L34

@@ -33,10 +33,6 @@ where
     /// L28 + L29 (invalid)
     InvalidProposalAndPolkaPrevious(Ctx::Proposal),
 
-    /// Receive +2/3 prevotes for a value.
-    /// L44
-    PolkaValue(ValueId<Ctx>),
-
     /// Receive +2/3 prevotes for anything.
     /// L34
     PolkaAny,
@@ -92,7 +88,6 @@ impl<Ctx: Context> Clone for Input<Ctx> {
             Input::InvalidProposalAndPolkaPrevious(proposal) => {
                 Input::InvalidProposalAndPolkaPrevious(proposal.clone())
             }
-            Input::PolkaValue(value_id) => Input::PolkaValue(value_id.clone()),
             Input::PolkaAny => Input::PolkaAny,
             Input::PolkaNil => Input::PolkaNil,
             Input::ProposalAndPolkaCurrent(proposal) => {
@@ -129,9 +124,6 @@ impl<Ctx: Context> PartialEq for Input<Ctx> {
                 Input::InvalidProposalAndPolkaPrevious(proposal),
                 Input::InvalidProposalAndPolkaPrevious(other_proposal),
             ) => proposal == other_proposal,
-            (Input::PolkaValue(value_id), Input::PolkaValue(other_value_id)) => {
-                value_id == other_value_id
-            }
             (Input::PolkaAny, Input::PolkaAny) => true,
             (Input::PolkaNil, Input::PolkaNil) => true,
             (
@@ -176,7 +168,6 @@ where
             Input::InvalidProposalAndPolkaPrevious(proposal) => {
                 write!(f, "InvalidProposalAndPolkaPrevious({:?})", proposal)
             }
-            Input::PolkaValue(value_id) => write!(f, "PolkaValue({:?})", value_id),
             Input::PolkaAny => write!(f, "PolkaAny"),
             Input::PolkaNil => write!(f, "PolkaNil"),
             Input::ProposalAndPolkaCurrent(proposal) => {
