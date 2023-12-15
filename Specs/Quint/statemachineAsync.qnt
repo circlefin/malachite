@@ -115,11 +115,14 @@ action valStep(v: Address) : bool = {
                 voteBuffer' = sendVote(voteBuffer, vote), 
                 system' = sys,
             }
-            | TimeoutOutput(timeout) => all {
-                propBuffer' = propBuffer,
-                voteBuffer' = voteBuffer,
-                system' = startTimeout(sys, v, timeout),
-            }
+            | TimeoutOutput(round_timeout) => 
+                val round = round_timeout._1 // not used
+                val timeout = round_timeout._2
+                all {
+                    propBuffer' = propBuffer,
+                    voteBuffer' = voteBuffer,
+                    system' = startTimeout(sys, v, timeout),
+                }
             | SkipRoundOutput(round) => all { // CHECK: round is not used
                 propBuffer' = propBuffer,
                 voteBuffer' = voteBuffer,
