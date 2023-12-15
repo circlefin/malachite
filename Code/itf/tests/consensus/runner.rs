@@ -23,12 +23,15 @@ impl ItfRunner for ConsensusRunner {
     type Error = ();
 
     fn init(&mut self, expected: &Self::ExpectedState) -> Result<Self::ActualState, Self::Error> {
-        println!("🔵 init: expected_state: {:?}", expected.state);
+        println!("🔵 init: expected_state={:?}", expected.state);
+
         let height = Height::new(expected.state.height as u64);
         let round = expected.state.round;
+
         // CHECK: this is a hack, needed because spec starts with round = -1, and code starts with 0.
         let round = Round::new(if round < 0 { 0 } else { round });
         let init_state = RoundState::new(height, round);
+
         Ok(init_state)
     }
 
@@ -37,90 +40,103 @@ impl ItfRunner for ConsensusRunner {
         actual: &mut Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
-        println!("🔸 step: actual state={:?}", actual);
-        println!("🔸 step: model input={:?}", expected);
-        let address = self.address_map.get(expected.state.p.as_str()).unwrap();
+        println!("🔸 step: actual state={actual:?}");
+        println!("🔸 step: model input={expected:?}");
+
+        let address = self.address_map.get(&expected.state.process).unwrap();
         let some_other_node = self.address_map.get("Other").unwrap(); // FIXME
+                                                                      //
         let (data, input) = match &expected.input {
             ModelInput::NoInput => unreachable!(),
             ModelInput::NewRound(round) => (
                 Info::new(Round::new(*round), address, some_other_node),
                 Input::NewRound,
             ),
+
             // TODO: proposal value not used?
             ModelInput::NewRoundProposer(round, _value) => (
                 Info::new(Round::new(*round), address, address),
                 Input::NewRound,
             ),
+
             ModelInput::Proposal(round, value) => {
                 let input_round = Round::new(*round);
                 let data = Info::new(input_round, address, some_other_node);
                 let proposal = TestContext::new_proposal(
                     actual.height,
                     input_round,
-                    value_from_model(&value).unwrap(),
+                    value_from_model(value).unwrap(),
                     Round::Nil,
                 );
                 (data, Input::Proposal(proposal))
             }
+
             ModelInput::ProposalAndPolkaPreviousAndValid(value, valid_round) => {
                 let input_round = Round::new(*valid_round);
                 let data = Info::new(input_round, address, some_other_node);
                 let proposal = TestContext::new_proposal(
                     actual.height,
                     input_round,
-                    value_from_model(&value).unwrap(),
+                    value_from_model(value).unwrap(),
                     Round::new(0), // FIXME
                 );
                 (data, Input::ProposalAndPolkaPrevious(proposal))
             }
+
             ModelInput::ProposalAndPolkaAndValid(value) => {
                 let data = Info::new(actual.round, address, some_other_node);
                 let proposal = TestContext::new_proposal(
                     actual.height,
                     actual.round,
-                    value_from_model(&value).unwrap(),
+                    value_from_model(value).unwrap(),
                     Round::new(0), // FIXME
                 );
                 (data, Input::ProposalAndPolkaCurrent(proposal))
             }
+
             ModelInput::ProposalAndPolkaAndInvalidCInput(height, round, value) => {
                 let input_round = Round::new(*round);
                 let data = Info::new(input_round, address, some_other_node);
                 let proposal = TestContext::new_proposal(
                     Height::new(*height as u64),
                     input_round,
-                    value_from_model(&value).unwrap(),
+                    value_from_model(value).unwrap(),
                     Round::new(0), // FIXME
                 );
                 (data, Input::InvalidProposalAndPolkaPrevious(proposal)) // CHECK: is this input correct?
             }
+
             ModelInput::ProposalAndCommitAndValid(value) => {
                 let data = Info::new(actual.round, address, some_other_node);
                 let proposal = TestContext::new_proposal(
                     actual.height,
                     actual.round,
-                    value_from_model(&value).unwrap(),
+                    value_from_model(value).unwrap(),
                     Round::new(0), // FIXME
                 );
                 (data, Input::ProposalAndPrecommitValue(proposal))
             }
+
             ModelInput::ProposalInvalid => (
                 Info::new(actual.round, address, some_other_node),
                 Input::InvalidProposal,
             ),
+
             ModelInput::PolkaNil => (
                 Info::new(actual.round, address, some_other_node),
                 Input::PolkaNil,
             ),
+
             ModelInput::PolkaAny => (
                 Info::new(actual.round, address, some_other_node),
                 Input::PolkaAny,
             ),
+
             ModelInput::PrecommitAny => (
                 Info::new(actual.round, address, some_other_node),
                 Input::PrecommitAny,
             ),
+
             ModelInput::RoundSkip(round) => {
                 let input_round = Round::new(*round);
                 (
@@ -128,24 +144,31 @@ impl ItfRunner for ConsensusRunner {
                     Input::SkipRound(input_round),
                 )
             }
+
             ModelInput::TimeoutPropose(_height, round) => (
                 Info::new(Round::new(*round), address, some_other_node),
                 Input::TimeoutPropose,
             ),
+
             ModelInput::TimeoutPrevote(_height, round) => (
                 Info::new(Round::new(*round), address, some_other_node),
                 Input::TimeoutPrevote,
             ),
+
             ModelInput::TimeoutPrecommit(_height, round) => (
                 Info::new(Round::new(*round), address, some_other_node),
                 Input::TimeoutPrecommit,
             ),
         };
+
         let round_state = core::mem::take(actual);
         let transition = round_state.apply(&data, input);
+
         println!("🔹 transition: next_state={:?}", transition.next_state);
         println!("🔹 transition: output={:?}", transition.output);
+
         *actual = transition.next_state;
+
         Ok(transition.output)
     }
 
@@ -156,14 +179,17 @@ impl ItfRunner for ConsensusRunner {
     ) -> Result<bool, Self::Error> {
         // Get expected result.
         let expected_result = &expected.output;
+
         println!("🟣 result_invariant: actual output={:?}", result);
         println!("🟣 result_invariant: expected output={:?}", expected_result);
+
         // Check result against expected result.
         match result {
             Some(result) => match (result, expected_result) {
                 (Output::NewRound(round), ModelOutput::SkipRound(expected_round)) => {
                     assert_eq!(round.as_i64(), *expected_round);
                 }
+
                 (Output::Proposal(proposal), ModelOutput::Proposal(expected_proposal)) => {
                     // TODO: check expected_proposal.src_address
                     assert_eq!(proposal.height.as_u64() as i64, expected_proposal.height);
@@ -171,41 +197,50 @@ impl ItfRunner for ConsensusRunner {
                     assert_eq!(proposal.pol_round.as_i64(), expected_proposal.valid_round);
                     assert_eq!(
                         Some(proposal.value),
-                        value_from_string(&expected_proposal.proposal)
+                        value_from_string(&expected_proposal.proposal),
+                        "unexpected proposal value"
                     );
                 }
+
                 (Output::Vote(vote), ModelOutput::Vote(expected_vote)) => {
                     let expected_src_address = self
                         .address_map
                         .get(expected_vote.src_address.as_str())
                         .unwrap();
+
                     assert_eq!(vote.validator_address, *expected_src_address);
                     assert_eq!(vote.typ, expected_vote.vote_type.to_common());
                     assert_eq!(vote.height.as_u64() as i64, expected_vote.height);
                     assert_eq!(vote.round.as_i64(), expected_vote.round);
                     // assert_eq!(vote.value, value_id_from_model(&expected_vote.value_id));
                 }
+
                 (Output::ScheduleTimeout(timeout), ModelOutput::Timeout(expected_timeout)) => {
                     assert_eq!(timeout.step, expected_timeout.to_common());
                     // CHECK: spec does not have round in timeout
                 }
+
                 (
                     Output::GetValueAndScheduleTimeout(_round, _timeout),
                     ModelOutput::Proposal(_),
                 ) => {
                     // TODO: Check this case (GetValueAndScheduleTimeout is the output of NewProposal)
-                    ()
                 }
+
                 (Output::Decision(decision), ModelOutput::Decided(expected_decided_value)) => {
                     assert_eq!(
                         Some(decision.value),
-                        value_from_model(&expected_decided_value)
+                        value_from_model(expected_decided_value),
+                        "unexpected decided value"
                     );
                 }
+
                 _ => panic!("actual: {:?}\nexpected: {:?}", result, expected_result),
             },
+
             None => panic!("no actual result; expected result: {:?}", expected_result),
         }
+
         Ok(true)
     }
 
@@ -222,32 +257,45 @@ impl ItfRunner for ConsensusRunner {
         if expected.state.step == Step::None {
             // This is the initial state.
             // The round in the spec's initial state is -1, while in the code, it's 0.
-            assert_eq!(actual.round.as_i64(), 0);
+            assert_eq!(actual.round.as_i64(), 0, "unexpected round");
         } else {
             assert_eq!(Some(actual.step), expected.state.step.to_round_step());
             if expected.state.step == Step::NewRound {
                 // In the spec, the new round comes from the input, it's not in the state.
-                assert_eq!(actual.round.as_i64(), expected.state.round + 1);
+                assert_eq!(
+                    actual.round.as_i64(),
+                    expected.state.round + 1,
+                    "unexpected round"
+                );
             } else {
-                assert_eq!(actual.round.as_i64(), expected.state.round);
+                assert_eq!(
+                    actual.round.as_i64(),
+                    expected.state.round,
+                    "unexpected round"
+                );
             }
         }
         assert_eq!(
             actual.valid.as_ref().map(|v| v.round.as_i64()),
-            expected.state.valid_round.map(|vr| vr as i64),
+            expected.state.valid_round,
+            "unexpected valid round"
         );
         assert_eq!(
             actual.valid.as_ref().map(|v| v.value.id()),
             value_id_from_model(&expected.state.valid_value),
+            "unexpected valid value"
         );
         assert_eq!(
             actual.locked.as_ref().map(|v| v.round.as_i64()),
-            expected.state.locked_round.map(|vr| vr as i64),
+            expected.state.locked_round,
+            "unexpected locked round"
         );
         assert_eq!(
             actual.locked.as_ref().map(|v| v.value.id()),
             value_id_from_model(&expected.state.locked_value),
+            "unexpected locked value"
         );
+
         Ok(true)
     }
 }

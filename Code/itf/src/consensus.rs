@@ -82,7 +82,8 @@ pub enum Output {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConsensusState {
-    pub p: Address,
+    #[serde(rename = "p")]
+    pub process: Address,
     #[serde(with = "As::<Integer>")]
     pub height: Height,
     #[serde(with = "As::<Integer>")]

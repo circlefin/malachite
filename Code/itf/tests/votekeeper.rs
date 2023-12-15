@@ -41,7 +41,7 @@ fn test_itf() {
         .expect("Failed to read glob pattern")
         .flatten()
     {
-        println!("Parsing {json_fixture:?}");
+        println!("🚀 Running trace {json_fixture:?}");
 
         let json = std::fs::read_to_string(&json_fixture).unwrap();
         let trace = itf::trace_from_str::<State>(&json).unwrap();
