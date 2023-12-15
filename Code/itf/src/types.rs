@@ -69,8 +69,8 @@ pub enum Step {
     Prevote,
     #[serde(rename = "PrecommitStep")]
     Precommit,
-    #[serde(rename = "DecidedStep")]
-    Decided,
+    #[serde(rename = "CommitStep")]
+    Commit,
 }
 
 impl Step {
@@ -81,7 +81,7 @@ impl Step {
             Step::Propose => Some(RoundStep::Propose),
             Step::Prevote => Some(RoundStep::Prevote),
             Step::Precommit => Some(RoundStep::Precommit),
-            Step::Decided => Some(RoundStep::Commit),
+            Step::Commit => Some(RoundStep::Commit),
         }
     }
 }

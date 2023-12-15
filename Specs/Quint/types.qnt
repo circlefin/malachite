@@ -37,7 +37,7 @@ module types {
         | ProposeStep
         | PrevoteStep
         | PrecommitStep
-        | DecidedStep
+        | CommitStep
 
     type Timeout =
         | ProposeTimeout // Timeout waiting for proposal.

@@ -241,11 +241,11 @@ module consensus {
 
         // line 49
         | ProposalAndCommitAndValidCInput(v) => 
-            if (state.step != DecidedStep)
+            if (state.step != CommitStep)
                 state
-                    .with("step", DecidedStep)
+                    .with("step", CommitStep)
                     .toDecidedOutput(v)
-            else state.toErrorOutput("ProposalAndCommitAndValidCInput when in DecidedStep")
+            else state.toErrorOutput("ProposalAndCommitAndValidCInput when in CommitStep")
 
         | ProposalAndPolkaAndInvalidCInput =>
             // TODO
