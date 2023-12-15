@@ -142,6 +142,7 @@ where
             }
 
             RoundOutput::Vote(vote) => {
+                // TODO: Move this outside of the driver
                 let signed_vote = self.ctx.sign_vote(vote);
                 Output::Vote(signed_vote)
             }
@@ -215,6 +216,7 @@ where
             .get_by_address(signed_vote.validator_address())
             .ok_or_else(|| Error::ValidatorNotFound(signed_vote.validator_address().clone()))?;
 
+        // TODO: Move this outside of the driver
         if !self
             .ctx
             .verify_signed_vote(&signed_vote, validator.public_key())

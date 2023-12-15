@@ -126,7 +126,7 @@ module voteBookkeeper {
             valuesWeights: Map(Val("val1") -> 30, Val("val2") -> 20), 
             votesAddresses: Set("alice", "bob")
         }
-        val vote = { voteType: Precommit, height: 1, round: 10, valueId: Val("val3"), srcAddress: "john" }
+        val vote = mkVote(Precommit, "john", 1, 10, Val("val3"))
         all {
             // new voter, new value
             assert(addVote(voteCount, vote, 10) == { 
@@ -276,11 +276,11 @@ module voteBookkeeper {
             votesAddressesWeights: Map(),
         }
         val vk: Bookkeeper = { height: 0, totalWeight: 4, rounds: Map(0 -> roundVotes) }
-        val o1 = applyVote(vk, { height: 0, round: 0, srcAddress: "a0", voteType: Precommit, valueId: Nil }, 1, 0)
-        val o2 = applyVote(o1.bookkeeper, { height: 0, round: 0, srcAddress: "a1", voteType: Precommit, valueId: Nil }, 1, 0)
-        val o3 = applyVote(o2.bookkeeper, { height: 0, round: 0, srcAddress: "a2", voteType: Precommit, valueId: Nil }, 1, 0)
-        val o4 = applyVote(o3.bookkeeper, { height: 0, round: 0, srcAddress: "a3", voteType: Precommit, valueId: Nil }, 1, 0)
-        val o5 = applyVote(o4.bookkeeper, { height: 0, round: 1, srcAddress: "a4", voteType: Precommit, valueId: Nil }, 3, 0)
+        val o1 = applyVote(vk, mkVote(Precommit, "a0", 0, 0, Nil), 1, 0)
+        val o2 = applyVote(o1.bookkeeper, mkVote(Precommit, "a1", 0, 0, Nil), 1, 0)
+        val o3 = applyVote(o2.bookkeeper, mkVote(Precommit, "a2", 0, 0, Nil), 1, 0)
+        val o4 = applyVote(o3.bookkeeper, mkVote(Precommit, "a3", 0, 0, Nil), 1, 0)
+        val o5 = applyVote(o4.bookkeeper, mkVote(Precommit, "a4", 0, 1, Nil), 3, 0)
         all {
             assert(o1.output == NoVKOutput),
             assert(o2.output == NoVKOutput),
