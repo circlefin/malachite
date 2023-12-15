@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use malachite_common::{Context, Round};
+use malachite_common::{Context, NilOrVal, Round};
 use malachite_itf::consensus::{Input as ModelInput, Output as ModelOutput, State};
 use malachite_itf::types::Step;
 use malachite_round::input::Input;
@@ -10,7 +10,9 @@ use malachite_test::{Address, Height, TestContext};
 
 use itf::Runner as ItfRunner;
 
-use crate::utils::{value_from_model, value_from_string, value_id_from_model};
+use crate::utils::{
+    value_from_model, value_from_string, value_id_from_model, value_id_from_string,
+};
 
 pub struct ConsensusRunner {
     pub address_map: HashMap<String, Address>,
@@ -48,6 +50,7 @@ impl ItfRunner for ConsensusRunner {
                                                                       //
         let (data, input) = match &expected.input {
             ModelInput::NoInput => unreachable!(),
+
             ModelInput::NewRound(round) => (
                 Info::new(Round::new(*round), address, some_other_node),
                 Input::NewRound,
@@ -212,7 +215,11 @@ impl ItfRunner for ConsensusRunner {
                     assert_eq!(vote.typ, expected_vote.vote_type.to_common());
                     assert_eq!(vote.height.as_u64() as i64, expected_vote.height);
                     assert_eq!(vote.round.as_i64(), expected_vote.round);
-                    // assert_eq!(vote.value, value_id_from_model(&expected_vote.value_id));
+
+                    let expected_value = expected_vote.value_id.fold(NilOrVal::Nil, |value| {
+                        NilOrVal::Val(value_id_from_string(value).unwrap())
+                    });
+                    assert_eq!(vote.value, expected_value);
                 }
 
                 (Output::ScheduleTimeout(timeout), ModelOutput::Timeout(expected_timeout)) => {

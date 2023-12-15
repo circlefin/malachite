@@ -15,6 +15,15 @@ pub enum Value {
     Val(NonNilValue),
 }
 
+impl Value {
+    pub fn fold<A>(&self, nil: A, val: impl FnOnce(&NonNilValue) -> A) -> A {
+        match self {
+            Value::Nil => nil,
+            Value::Val(value) => val(value),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Proposal {
