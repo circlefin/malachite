@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use core::fmt;
 
 use malachite_common::{
-    Context, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Vote,
+    Context, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Vote,
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
@@ -136,16 +136,9 @@ where
         match round_output {
             RoundOutput::NewRound(round) => Output::NewRound(self.height().clone(), round),
 
-            RoundOutput::Proposal(proposal) => {
-                // TODO: sign the proposal
-                Output::Propose(proposal)
-            }
+            RoundOutput::Proposal(proposal) => Output::Propose(proposal),
 
-            RoundOutput::Vote(vote) => {
-                // TODO: Move this outside of the driver
-                let signed_vote = self.ctx.sign_vote(vote);
-                Output::Vote(signed_vote)
-            }
+            RoundOutput::Vote(vote) => Output::Vote(vote),
 
             RoundOutput::ScheduleTimeout(timeout) => Output::ScheduleTimeout(timeout),
 
@@ -153,10 +146,7 @@ where
                 Output::GetValueAndScheduleTimeout(round, timeout)
             }
 
-            RoundOutput::Decision(value) => {
-                // TODO: update the state
-                Output::Decide(value.round, value.value)
-            }
+            RoundOutput::Decision(value) => Output::Decide(value.round, value.value),
         }
     }
 
@@ -166,7 +156,7 @@ where
             Input::NewRound(height, round) => self.apply_new_round(height, round).await,
             Input::ProposeValue(round, value) => self.apply_propose_value(round, value).await,
             Input::Proposal(proposal, validity) => self.apply_proposal(proposal, validity).await,
-            Input::Vote(signed_vote) => self.apply_vote(signed_vote),
+            Input::Vote(vote) => self.apply_vote(vote),
             Input::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
         }
     }
@@ -207,32 +197,18 @@ where
         }
     }
 
-    fn apply_vote(
-        &mut self,
-        signed_vote: SignedVote<Ctx>,
-    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+    fn apply_vote(&mut self, vote: Ctx::Vote) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let validator = self
             .validator_set
-            .get_by_address(signed_vote.validator_address())
-            .ok_or_else(|| Error::ValidatorNotFound(signed_vote.validator_address().clone()))?;
+            .get_by_address(vote.validator_address())
+            .ok_or_else(|| Error::ValidatorNotFound(vote.validator_address().clone()))?;
 
-        // TODO: Move this outside of the driver
-        if !self
-            .ctx
-            .verify_signed_vote(&signed_vote, validator.public_key())
-        {
-            return Err(Error::InvalidVoteSignature(
-                signed_vote.clone(),
-                validator.clone(),
-            ));
-        }
-
-        let vote_round = signed_vote.vote.round();
+        let vote_round = vote.round();
         let current_round = self.round();
 
         let vote_output =
             self.vote_keeper
-                .apply_vote(signed_vote.vote, validator.voting_power(), current_round);
+                .apply_vote(vote, validator.voting_power(), current_round);
 
         let Some(vote_output) = vote_output else {
             return Ok(None);

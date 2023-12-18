@@ -79,84 +79,82 @@ pub fn proposal_input(
     Input::Proposal(proposal, validity)
 }
 
-pub fn prevote_output(
-    round: Round,
-    addr: &Address,
-    sk: &PrivateKey,
-) -> Option<Output<TestContext>> {
+pub fn prevote_output(round: Round, addr: &Address) -> Option<Output<TestContext>> {
     let value = Value::new(9999);
 
-    Some(Output::Vote(
-        Vote::new_prevote(Height::new(1), round, NilOrVal::Val(value.id()), *addr).signed(sk),
-    ))
+    Some(Output::Vote(Vote::new_prevote(
+        Height::new(1),
+        round,
+        NilOrVal::Val(value.id()),
+        *addr,
+    )))
 }
 
-pub fn prevote_nil_output(
-    round: Round,
-    addr: &Address,
-    sk: &PrivateKey,
-) -> Option<Output<TestContext>> {
-    Some(Output::Vote(
-        Vote::new_prevote(Height::new(1), round, NilOrVal::Nil, *addr).signed(sk),
-    ))
+pub fn prevote_nil_output(round: Round, addr: &Address) -> Option<Output<TestContext>> {
+    Some(Output::Vote(Vote::new_prevote(
+        Height::new(1),
+        round,
+        NilOrVal::Nil,
+        *addr,
+    )))
 }
 
-pub fn prevote_input(addr: &Address, sk: &PrivateKey) -> Input<TestContext> {
+pub fn prevote_input(addr: &Address) -> Input<TestContext> {
     let value = Value::new(9999);
 
-    Input::Vote(
-        Vote::new_prevote(
-            Height::new(1),
-            Round::new(0),
-            NilOrVal::Val(value.id()),
-            *addr,
-        )
-        .signed(sk),
-    )
+    Input::Vote(Vote::new_prevote(
+        Height::new(1),
+        Round::new(0),
+        NilOrVal::Val(value.id()),
+        *addr,
+    ))
 }
 
-pub fn prevote_nil_input(addr: &Address, sk: &PrivateKey) -> Input<TestContext> {
-    Input::Vote(Vote::new_prevote(Height::new(1), Round::new(0), NilOrVal::Nil, *addr).signed(sk))
+pub fn prevote_nil_input(addr: &Address) -> Input<TestContext> {
+    Input::Vote(Vote::new_prevote(
+        Height::new(1),
+        Round::new(0),
+        NilOrVal::Nil,
+        *addr,
+    ))
 }
 
-pub fn prevote_input_at(round: Round, addr: &Address, sk: &PrivateKey) -> Input<TestContext> {
+pub fn prevote_input_at(round: Round, addr: &Address) -> Input<TestContext> {
     let value = Value::new(9999);
 
-    Input::Vote(
-        Vote::new_prevote(Height::new(1), round, NilOrVal::Val(value.id()), *addr).signed(sk),
-    )
-}
-
-pub fn precommit_output(
-    round: Round,
-    value: Value,
-    addr: &Address,
-    sk: &PrivateKey,
-) -> Option<Output<TestContext>> {
-    Some(Output::Vote(
-        Vote::new_precommit(Height::new(1), round, NilOrVal::Val(value.id()), *addr).signed(sk),
+    Input::Vote(Vote::new_prevote(
+        Height::new(1),
+        round,
+        NilOrVal::Val(value.id()),
+        *addr,
     ))
 }
 
-pub fn precommit_nil_output(
-    round: Round,
-    addr: &Address,
-    sk: &PrivateKey,
-) -> Option<Output<TestContext>> {
-    Some(Output::Vote(
-        Vote::new_precommit(Height::new(1), round, NilOrVal::Nil, *addr).signed(sk),
-    ))
+pub fn precommit_output(round: Round, value: Value, addr: &Address) -> Option<Output<TestContext>> {
+    Some(Output::Vote(Vote::new_precommit(
+        Height::new(1),
+        round,
+        NilOrVal::Val(value.id()),
+        *addr,
+    )))
 }
 
-pub fn precommit_input(
-    round: Round,
-    value: Value,
-    addr: &Address,
-    sk: &PrivateKey,
-) -> Input<TestContext> {
-    Input::Vote(
-        Vote::new_precommit(Height::new(1), round, NilOrVal::Val(value.id()), *addr).signed(sk),
-    )
+pub fn precommit_nil_output(round: Round, addr: &Address) -> Option<Output<TestContext>> {
+    Some(Output::Vote(Vote::new_precommit(
+        Height::new(1),
+        round,
+        NilOrVal::Nil,
+        *addr,
+    )))
+}
+
+pub fn precommit_input(round: Round, value: Value, addr: &Address) -> Input<TestContext> {
+    Input::Vote(Vote::new_precommit(
+        Height::new(1),
+        round,
+        NilOrVal::Val(value.id()),
+        *addr,
+    ))
 }
 
 pub fn decide_output(round: Round, value: Value) -> Option<Output<TestContext>> {

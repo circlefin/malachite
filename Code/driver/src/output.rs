@@ -1,6 +1,6 @@
 use core::fmt;
 
-use malachite_common::{Context, Round, SignedVote, Timeout};
+use malachite_common::{Context, Round, Timeout};
 
 /// Messages emitted by the [`Driver`](crate::Driver)
 pub enum Output<Ctx>
@@ -14,7 +14,7 @@ where
     Propose(Ctx::Proposal),
 
     /// Broadcast a vote for a value
-    Vote(SignedVote<Ctx>),
+    Vote(Ctx::Vote),
 
     /// Decide on a value
     Decide(Round, Ctx::Value),
