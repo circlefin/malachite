@@ -70,7 +70,7 @@ where
         //
 
         // L18
-        (Step::NewRound, Input::NewRound(round)) if info.is_proposer() => {
+        (Step::Unstarted, Input::NewRound(round)) if info.is_proposer() => {
             // Update the round
             state.round = round;
 
@@ -79,7 +79,7 @@ where
         }
 
         // L11/L20
-        (Step::NewRound, Input::NewRound(round)) => {
+        (Step::Unstarted, Input::NewRound(round)) => {
             // Update the round
             state.round = round;
 
@@ -426,7 +426,7 @@ pub fn round_skip<Ctx>(state: State<Ctx>, round: Round) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let new_state = state.with_round(round).with_step(Step::NewRound);
+    let new_state = state.with_round(round).with_step(Step::Unstarted);
     Transition::to(new_state).with_output(Output::NewRound(round))
 }
 
