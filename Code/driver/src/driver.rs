@@ -74,7 +74,7 @@ where
             address,
             validator_set,
             vote_keeper: votes,
-            round_state: RoundState::new(height, Round::new(0)),
+            round_state: RoundState::new(height, Round::Nil),
             proposal: None,
             pending_input: None,
         }

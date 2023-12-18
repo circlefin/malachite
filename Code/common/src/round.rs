@@ -15,9 +15,6 @@ pub enum Round {
 }
 
 impl Round {
-    /// The initial, zero round.
-    pub const INITIAL: Round = Round::new(0);
-
     /// Create a new round.
     ///
     /// If `round < 0`, then `Round::Nil` is returned.

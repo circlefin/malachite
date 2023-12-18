@@ -32,8 +32,7 @@ impl ItfRunner for ConsensusRunner {
         let height = Height::new(expected.state.height as u64);
         let round = expected.state.round;
 
-        // FIXME: this is a hack, needed because spec starts with round = -1, and code starts with 0.
-        let round = Round::new(if round < 0 { 0 } else { round });
+        let round = Round::new(round);
         let init_state = RoundState::new(height, round);
 
         Ok(init_state)
@@ -267,15 +266,15 @@ impl ItfRunner for ConsensusRunner {
     ) -> Result<bool, Self::Error> {
         // TODO: What to do with actual.height? There is no height in the spec.
 
-        println!("🟢 state_invariant: actual state={:?}", actual);
-        println!("🟢 state_invariant: expected state={:?}", expected.state);
+        println!("🟢 state invariant: actual state={:?}", actual);
+        println!("🟢 state invariant: expected state={:?}", expected.state);
 
         if expected.state.step == Step::None {
             // This is the initial state.
-            // The round in the spec's initial state is -1, while in the code, it's 0.
-            assert_eq!(actual.round.as_i64(), 0, "unexpected round");
+            assert_eq!(actual.round, Round::Nil, "unexpected round");
         } else {
             assert_eq!(Some(actual.step), expected.state.step.to_round_step());
+
             if expected.state.step == Step::NewRound {
                 // In the spec, the new round comes from the input, it's not in the state.
                 assert_eq!(
