@@ -868,7 +868,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(1),
-                step: Step::NewRound,
+                step: Step::Unstarted,
                 locked: None,
                 valid: None,
             },
@@ -1105,7 +1105,7 @@ fn driver_steps_skip_round_skip_threshold() {
             new_state: State {
                 height,
                 round: Round::new(1),
-                step: Step::NewRound,
+                step: Step::Unstarted,
                 locked: None,
                 valid: None,
             },
@@ -1206,7 +1206,7 @@ fn driver_steps_skip_round_quorum_threshold() {
             new_state: State {
                 height,
                 round: Round::new(1),
-                step: Step::NewRound,
+                step: Step::Unstarted,
                 locked: None,
                 valid: None,
             },

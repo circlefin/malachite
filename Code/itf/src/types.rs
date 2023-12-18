@@ -86,7 +86,7 @@ impl Step {
     pub fn to_round_step(&self) -> Option<RoundStep> {
         match self {
             Step::None => None,
-            Step::NewRound => Some(RoundStep::NewRound),
+            Step::NewRound => Some(RoundStep::Unstarted),
             Step::Propose => Some(RoundStep::Propose),
             Step::Prevote => Some(RoundStep::Prevote),
             Step::Precommit => Some(RoundStep::Precommit),

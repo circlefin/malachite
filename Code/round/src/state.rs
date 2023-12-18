@@ -27,10 +27,10 @@ impl<Value> RoundValue<Value> {
 /// The step of consensus in this round
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Step {
-    /// The round has just started
-    NewRound,
+    /// The round has not started yet
+    Unstarted,
 
-    /// We are at the propose step.
+    /// Propose step.
     /// Either we are the proposer or we are waiting for a proposal.
     Propose,
 
@@ -74,7 +74,7 @@ where
         Self {
             height,
             round,
-            step: Step::NewRound,
+            step: Step::Unstarted,
             locked: None,
             valid: None,
         }

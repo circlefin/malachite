@@ -329,7 +329,7 @@ pub fn new_round(round: Round) -> State<TestContext> {
     State {
         height: Height::new(1),
         round,
-        step: Step::NewRound,
+        step: Step::Unstarted,
         valid: None,
         locked: None,
     }
@@ -339,7 +339,7 @@ pub fn new_round_with_proposal_and_valid(round: Round, proposal: Proposal) -> St
     State {
         height: Height::new(1),
         round,
-        step: Step::NewRound,
+        step: Step::Unstarted,
         valid: Some(RoundValue {
             value: proposal.value,
             round: Round::new(0),
@@ -355,7 +355,7 @@ pub fn new_round_with_proposal_and_locked_and_valid(
     State {
         height: Height::new(1),
         round,
-        step: Step::NewRound,
+        step: Step::Unstarted,
         valid: Some(RoundValue {
             value: proposal.value,
             round: Round::new(0),

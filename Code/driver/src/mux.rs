@@ -185,7 +185,7 @@ where
         round: Round,
     ) -> Option<RoundInput<Ctx>> {
         match pending_step {
-            Step::NewRound => None, // Some(RoundInput::NewRound),
+            Step::Unstarted => None,
 
             Step::Propose => None,
 
