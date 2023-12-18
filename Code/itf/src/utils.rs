@@ -3,6 +3,8 @@ use std::path::Path;
 
 // TODO(rano): simplify this function once quint is fixed
 pub fn generate_traces(spec_rel_path: &str, gen_dir: &str, quint_seed: u64) {
+    println!("🪄 Generating traces for {spec_rel_path:?}...");
+
     let spec_abs_path = format!(
         "{}/../../Specs/Quint/{}",
         env!("CARGO_MANIFEST_DIR"),

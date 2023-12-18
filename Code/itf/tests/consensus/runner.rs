@@ -27,7 +27,7 @@ impl ItfRunner for ConsensusRunner {
     type Error = ();
 
     fn init(&mut self, expected: &Self::ExpectedState) -> Result<Self::ActualState, Self::Error> {
-        println!("🔵 init: expected_state={:?}", expected.state);
+        println!("🔵 init: expected state={:?}", expected.state);
 
         let height = Height::new(expected.state.height as u64);
         let round = expected.state.round;
@@ -44,12 +44,13 @@ impl ItfRunner for ConsensusRunner {
         actual: &mut Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
-        println!("🔸 step: actual state={actual:?}");
-        println!("🔸 step: model input={expected:?}");
+        println!("🔸 step: actual state={:?}", actual);
+        println!("🔸 step: model input={:?}", expected.input);
+        println!("🔸 step: model state={:?}", expected.state);
 
         let address = self.address_map.get(&expected.state.process).unwrap();
         let some_other_node = self.address_map.get("Other").unwrap(); // FIXME
-                                                                      //
+
         let (data, input) = match &expected.input {
             ModelInput::NoInput => unreachable!(),
 
@@ -168,7 +169,7 @@ impl ItfRunner for ConsensusRunner {
         let round_state = core::mem::take(actual);
         let transition = round_state.apply(&data, input);
 
-        println!("🔹 transition: next_state={:?}", transition.next_state);
+        println!("🔹 transition: next state={:?}", transition.next_state);
         println!("🔹 transition: output={:?}", transition.output);
 
         *actual = transition.next_state;
@@ -184,8 +185,8 @@ impl ItfRunner for ConsensusRunner {
         // Get expected result.
         let expected_result = &expected.output;
 
-        println!("🟣 result_invariant: actual output={:?}", result);
-        println!("🟣 result_invariant: expected output={:?}", expected_result);
+        println!("🟣 result invariant:   actual output={:?}", result);
+        println!("🟣 result invariant: expected output={:?}", expected_result);
 
         // Check result against expected result.
         match result {
