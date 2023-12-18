@@ -24,7 +24,7 @@ fn test_propose() {
     // We are the proposer
     let data = Info::new(round, &ADDRESS, &ADDRESS);
 
-    let transition = apply(state.clone(), &data, Input::NewRound);
+    let transition = apply(state.clone(), &data, Input::NewRound(round));
 
     state.step = Step::Propose;
     assert_eq!(transition.next_state, state);
@@ -56,9 +56,9 @@ fn test_prevote() {
     };
 
     // We are not the proposer
-    let data = Info::new(Round::new(1), &ADDRESS, &OTHER_ADDRESS);
+    let data = Info::new(round, &ADDRESS, &OTHER_ADDRESS);
 
-    let transition = apply(state, &data, Input::NewRound);
+    let transition = apply(state, &data, Input::NewRound(round));
 
     assert_eq!(transition.next_state.step, Step::Propose);
     assert_eq!(

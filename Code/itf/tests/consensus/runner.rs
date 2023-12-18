@@ -53,16 +53,20 @@ impl ItfRunner for ConsensusRunner {
         let (data, input) = match &expected.input {
             ModelInput::NoInput => unreachable!(),
 
-            ModelInput::NewRound(round) => (
-                Info::new(Round::new(*round), address, some_other_node),
-                Input::NewRound,
-            ),
+            ModelInput::NewRound(round) => {
+                let round = Round::new(*round);
+
+                (
+                    Info::new(round, address, some_other_node),
+                    Input::NewRound(round),
+                )
+            }
 
             // TODO: proposal value not used?
-            ModelInput::NewRoundProposer(round, _value) => (
-                Info::new(Round::new(*round), address, address),
-                Input::NewRound,
-            ),
+            ModelInput::NewRoundProposer(round, _value) => {
+                let round = Round::new(*round);
+                (Info::new(round, address, address), Input::NewRound(round))
+            }
 
             ModelInput::Proposal(round, value) => {
                 let input_round = Round::new(*round);
