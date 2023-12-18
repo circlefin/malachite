@@ -11,7 +11,7 @@ where
 {
     /// Start a new round, either as proposer or not.
     /// L14/L20
-    NewRound,
+    NewRound(Round),
 
     /// Propose a value.
     /// L14
@@ -82,7 +82,7 @@ impl<Ctx: Context> Clone for Input<Ctx> {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         match self {
-            Input::NewRound => Input::NewRound,
+            Input::NewRound(round) => Input::NewRound(*round),
             Input::ProposeValue(value) => Input::ProposeValue(value.clone()),
             Input::Proposal(proposal) => Input::Proposal(proposal.clone()),
             Input::InvalidProposal => Input::InvalidProposal,
@@ -115,7 +115,7 @@ impl<Ctx: Context> PartialEq for Input<Ctx> {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Input::NewRound, Input::NewRound) => true,
+            (Input::NewRound(round), Input::NewRound(other_round)) => round == other_round,
             (Input::ProposeValue(value), Input::ProposeValue(other_value)) => value == other_value,
             (Input::Proposal(proposal), Input::Proposal(other_proposal)) => {
                 proposal == other_proposal
@@ -166,7 +166,7 @@ where
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Input::NewRound => write!(f, "NewRound"),
+            Input::NewRound(round) => write!(f, "NewRound({:?})", round),
             Input::ProposeValue(value) => write!(f, "ProposeValue({:?})", value),
             Input::Proposal(proposal) => write!(f, "Proposal({:?})", proposal),
             Input::InvalidProposal => write!(f, "InvalidProposal"),

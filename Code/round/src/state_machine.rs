@@ -58,7 +58,7 @@ where
 /// Valid transitions result in at least a change to the state and/or an output.
 ///
 /// Commented numbers refer to line numbers in the spec paper.
-pub fn apply<Ctx>(state: State<Ctx>, info: &Info<Ctx>, input: Input<Ctx>) -> Transition<Ctx>
+pub fn apply<Ctx>(mut state: State<Ctx>, info: &Info<Ctx>, input: Input<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
@@ -66,17 +66,23 @@ where
 
     match (state.step, input) {
         //
-        // From NewRound. Input must be for current round.
+        // From NewRound.
         //
 
         // L18
-        (Step::NewRound, Input::NewRound) if this_round && info.is_proposer() => {
+        (Step::NewRound, Input::NewRound(round)) if info.is_proposer() => {
+            // Update the round
+            state.round = round;
+
             // We are the proposer
             propose_valid_or_get_value(state)
         }
 
         // L11/L20
-        (Step::NewRound, Input::NewRound) if this_round => {
+        (Step::NewRound, Input::NewRound(round)) => {
+            // Update the round
+            state.round = round;
+
             // We are not the proposer
             schedule_timeout_propose(state)
         }

@@ -183,7 +183,7 @@ where
             self.round_state = RoundState::new(height, round);
         }
 
-        self.apply_input(round, RoundInput::NewRound)
+        self.apply_input(round, RoundInput::NewRound(round))
     }
 
     async fn apply_propose_value(
