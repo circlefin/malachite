@@ -70,8 +70,8 @@ pub struct Vote {
 pub enum Step {
     #[serde(rename = "NoStep")]
     None,
-    #[serde(rename = "NewRoundStep")]
-    NewRound,
+    #[serde(rename = "UnstartedStep")]
+    Unstarted,
     #[serde(rename = "ProposeStep")]
     Propose,
     #[serde(rename = "PrevoteStep")]
@@ -86,7 +86,7 @@ impl Step {
     pub fn to_round_step(&self) -> Option<RoundStep> {
         match self {
             Step::None => None,
-            Step::NewRound => Some(RoundStep::Unstarted),
+            Step::Unstarted => Some(RoundStep::Unstarted),
             Step::Propose => Some(RoundStep::Propose),
             Step::Prevote => Some(RoundStep::Prevote),
             Step::Precommit => Some(RoundStep::Precommit),

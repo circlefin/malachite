@@ -279,7 +279,7 @@ impl ItfRunner for ConsensusRunner {
         } else {
             assert_eq!(Some(actual.step), expected.state.step.to_round_step());
 
-            if expected.state.step == Step::NewRound {
+            if expected.state.step == Step::Unstarted {
                 // In the spec, the new round comes from the input, it's not in the state.
                 assert_eq!(
                     actual.round.as_i64(),

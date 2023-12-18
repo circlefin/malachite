@@ -125,8 +125,8 @@ module consensus {
         | NewRoundProposerCInput(round_value) =>
             val r = round_value._1
             val v = round_value._2
-            if (not(state.step.in(Set(NewRoundStep, NoStep))))
-                state.toErrorOutput("state is not NewRoundStep or initial step")
+            if (not(state.step.in(Set(UnstartedStep, NoStep))))
+                state.toErrorOutput("state is not Unstarted or initial step")
             else if (r <= state.round)
                 state.toErrorOutput("new round is not bigger than current round")
             else
@@ -139,8 +139,8 @@ module consensus {
         // line 11.20
         // TODO: discuss comment "ev.round must match state.round"
         | NewRoundCInput(r) =>
-            if (not(state.step.in(Set(NewRoundStep, NoStep))))
-                state.toErrorOutput("state is not NewRoundStep or initial step")
+            if (not(state.step.in(Set(UnstartedStep, NoStep))))
+                state.toErrorOutput("state is not Unstarted or initial step")
             else if (r <= state.round)
                 state.toErrorOutput("new round is not bigger than current round")
             else
@@ -255,7 +255,7 @@ module consensus {
         | RoundSkipCInput(r) => 
             if (r > state.round)
                 state
-                    .with("step", NewRoundStep)
+                    .with("step", UnstartedStep)
                     .toSkipRoundOutput(r)
             else state.toErrorOutput("RoundSkipCInput for round not bigger than current round")
 
@@ -288,8 +288,8 @@ module consensus {
                 // TODO: here we should call newRound. For this we would need to know whether
                 // we are proposer for next round.
                 state
-                    // CHECK: setting the step to NewRound was added to match the code behavior
-                    .with("step", NewRoundStep)
+                    // CHECK: setting the step to UnstartedStep was added to match the code behavior
+                    .with("step", UnstartedStep)
                     .toSkipRoundOutput(state.round + 1)
             else state.toErrorOutput("TimeoutPrecommitCInput")
 

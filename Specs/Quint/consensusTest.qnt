@@ -101,7 +101,7 @@ module consensusTest {
         .then(_assert(output == TimeoutOutput((0, PrecommitTimeout))))
 
         .then(fireInput(TimeoutPrecommitCInput((2, 0))))
-        .then(_assert(output == SkipRoundOutput(1) and state.step == NewRoundStep))
+        .then(_assert(output == SkipRoundOutput(1) and state.step == UnstartedStep))
         
         .then(fireInput(NewRoundCInput(1)))
         .then(_assert(output == TimeoutOutput((1, ProposeTimeout))))
