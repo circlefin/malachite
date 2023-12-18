@@ -23,10 +23,6 @@ The repository is split in three areas, each covering one of the important areas
 2. [Docs](../../Docs): Comprises Architectural Decision Records (ADRs) such as the present file and other documentation.
 3. [Specs](../../Specs): English and Quint specifications.
 
-TODO: We should consider renaming Code into something else.
-TODO: Consider using lower-case naming of the top-level folders, e.g., `specs` instead of `Specs`.
-TODO: Do we need to describe the code layout and Rust crates, or is the description of the implementation below enough?
-
 ### Overview of the Tendermint Consensus Implementation 
 
 The consensus implementation consists of the following components:
@@ -87,7 +83,6 @@ where
     /// The type of votes that can be cast.
     type Vote: Vote<Self>;
 
-    // TODO: Do we need to support multiple signing schemes?
     /// The signing scheme used to sign votes.
     type SigningScheme: SigningScheme;
 
@@ -133,7 +128,7 @@ where
 
 ##### Data Structures
 
-The Consensus Driver is concerned with running the consensus algorithm for a single height, ie. it drives the state machine across multiple rounds.
+The Consensus Driver is concerned with running the consensus algorithm for a single height, i.e. it drives the state machine across multiple rounds.
 
 It is therefore initialized with the height once and the instance is destroyed once a value for that height has been decided. Other parameters are required during initialization and operation as described below.
 
@@ -512,9 +507,8 @@ Accepted
 
 - The abstraction offered by `enum Input` state machine input encapsulates all the complexity of `upon` clauses, it simplifies reasoning about the pure state machine logic within the Round State Machine.
 - The semantics of counting votes and reasoning about thresholds is grouped into the Vote Keeper module and clearly separates that concern from the state machine logic.
-- Functionality is offloaded to the host system wherever possible: The concerns of scheduling, managing, and firing timeouts.
-- All sources of non-determinism have been excluded outside the boundaries of the consensus implementation, e.g. `valid` method, timeouts, I/O triggers, thus simplifying testing and reasoning about this system. 
-- TODO: Events vs. Messages positive consequences.
+- Functionality is offloaded to the host system wherever possible: the concerns of scheduling, managing, and firing timeouts.
+- All sources of non-determinism are outside the boundaries of the consensus implementation, e.g. `valid` method, timeouts, I/O triggers, thus simplifying testing and reasoning about this system.
 
 ### Negative
 
