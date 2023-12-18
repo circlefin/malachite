@@ -188,8 +188,8 @@ pub enum Input<Ctx>
     /// Receive a proposal, of the given validity
     Proposal(Ctx::Proposal, Validity),
 
-    /// Receive a signed vote
-    Vote(SignedVote<Ctx>),
+    /// Receive a vote
+    Vote(Vote<Ctx>),
 
     /// Receive a timeout
     TimeoutElapsed(Timeout),
@@ -231,7 +231,7 @@ pub enum Output<Ctx>
     Propose(Ctx::Proposal),
 
     /// Broadcast a vote for a value
-    Vote(SignedVote<Ctx>),
+    Vote(Vote<Ctx>),
 
     /// Decide on a value
     Decide(Round, Ctx::Value),
