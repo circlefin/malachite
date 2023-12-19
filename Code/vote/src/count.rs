@@ -82,7 +82,7 @@ impl<Address, Value> VoteCount<Address, Value> {
                 param.is_met(sum_weight, total_weight)
             }
 
-            Threshold::Skip | Threshold::Unreached => false,
+            Threshold::Unreached => false,
         }
     }
 }

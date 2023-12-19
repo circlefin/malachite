@@ -185,7 +185,7 @@ where
             self.total_weight,
         );
 
-        let output = threshold_to_output(vote.vote_type(), vote.round(), threshold);
+        let output = threshold_to_output(vote.vote_type(), threshold);
 
         match output {
             Some(output) if !per_round.emitted_outputs.contains(&output) => {
@@ -248,14 +248,9 @@ where
 }
 
 /// Map a vote type and a threshold to a state machine output.
-fn threshold_to_output<Value>(
-    typ: VoteType,
-    round: Round,
-    threshold: Threshold<Value>,
-) -> Option<Output<Value>> {
+fn threshold_to_output<Value>(typ: VoteType, threshold: Threshold<Value>) -> Option<Output<Value>> {
     match (typ, threshold) {
         (_, Threshold::Unreached) => None,
-        (_, Threshold::Skip) => Some(Output::SkipRound(round)),
 
         (VoteType::Prevote, Threshold::Any) => Some(Output::PolkaAny),
         (VoteType::Prevote, Threshold::Nil) => Some(Output::PolkaNil),

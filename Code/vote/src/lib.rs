@@ -33,10 +33,6 @@ pub enum Threshold<ValueId> {
     /// No quorum has been reached yet
     Unreached,
 
-    /// Minimum number of votes correct processes,
-    /// if at a round higher than current then skip to that round.
-    Skip,
-
     /// Quorum of votes but not for the same value
     Any,
 
