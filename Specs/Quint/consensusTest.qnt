@@ -71,57 +71,57 @@ module consensusTest {
     run DecideNonProposerTest =
         initFor("Josef", 1)
         .then(fireInput(NewRoundCInput(0)))
-        .then(_assert(output == TimeoutOutput((0, ProposeTimeout))))
+        .expect(output == TimeoutOutput((0, ProposeTimeout)))
         
         .then(fireInput(ProposalCInput((0, Val("block")))))
-        .then(_assert(output.isVoteMsgWith(Prevote, Val("block"))))
+        .expect(output.isVoteMsgWith(Prevote, Val("block")))
         
         .then(fireInput(ProposalAndPolkaAndValidCInput(Val("block"))))
-        .then(_assert(output.isVoteMsgWith(Precommit, Val("block"))))
+        .expect(output.isVoteMsgWith(Precommit, Val("block")))
         
         .then(fireInput(ProposalAndCommitAndValidCInput(Val("block"))))
-        .then(_assert(output == DecidedOutput(Val("block"))))
+        .expect(output == DecidedOutput(Val("block")))
 
     // TODO: rename test?
     run DecideNonProposerAtHeight2Test =
         initFor("Josef", 2)     
         .then(fireInput(NewRoundProposerCInput((0, "nextBlock"))))
-        .then(_assert(output == ProposalOutput(mkProposal("Josef", 2, 0, "nextBlock", -1))))
+        .expect(output == ProposalOutput(mkProposal("Josef", 2, 0, "nextBlock", -1)))
         
         .then(fireInput(ProposalCInput((0, Val("nextBlock"))))) // it is assumed that the proposer receives its own message
-        .then(_assert(output.isVoteMsgWith(Prevote, Val("nextBlock")) and state.step == PrevoteStep))
+        .expect(output.isVoteMsgWith(Prevote, Val("nextBlock")) and state.step == PrevoteStep)
         
         .then(fireInput(PolkaAnyCInput))
-        .then(_assert(output == TimeoutOutput((0, PrevoteTimeout))))
+        .expect(output == TimeoutOutput((0, PrevoteTimeout)))
         
         .then(fireInput(TimeoutPrevoteCInput((2, 0))))
-        .then(_assert(output.isVoteMsgWith(Precommit, Nil) and state.step == PrecommitStep))
+        .expect(output.isVoteMsgWith(Precommit, Nil) and state.step == PrecommitStep)
         
         .then(fireInput(PrecommitAnyCInput))
-        .then(_assert(output == TimeoutOutput((0, PrecommitTimeout))))
+        .expect(output == TimeoutOutput((0, PrecommitTimeout)))
 
         .then(fireInput(TimeoutPrecommitCInput((2, 0))))
-        .then(_assert(output == SkipRoundOutput(1) and state.step == UnstartedStep))
+        .expect(output == SkipRoundOutput(1) and state.step == UnstartedStep)
         
         .then(fireInput(NewRoundCInput(1)))
-        .then(_assert(output == TimeoutOutput((1, ProposeTimeout))))
+        .expect(output == TimeoutOutput((1, ProposeTimeout)))
 
         .then(fireInput(TimeoutProposeCInput((2, 1))))
-        .then(_assert(output.isVoteMsgWith(Prevote, Nil) and state.step == PrevoteStep))
+        .expect(output.isVoteMsgWith(Prevote, Nil) and state.step == PrevoteStep)
         
         .then(fireInput(PolkaNilCInput))
-        .then(_assert(output.isVoteMsgWith(Precommit, Nil) and state.step == PrecommitStep))
+        .expect(output.isVoteMsgWith(Precommit, Nil) and state.step == PrecommitStep)
         
         .then(fireInput(PrecommitAnyCInput))
-        .then(_assert(output == TimeoutOutput((1, PrecommitTimeout))))
+        .expect(output == TimeoutOutput((1, PrecommitTimeout)))
         
         .then(fireInput(TimeoutPrecommitCInput((2, 1))))
-        .then(_assert(output == SkipRoundOutput(2)))
+        .expect(output == SkipRoundOutput(2))
         
         .then(fireInput(NewRoundCInput(2)))
-        .then(_assert(output == TimeoutOutput((2, ProposeTimeout))))
+        .expect(output == TimeoutOutput((2, ProposeTimeout)))
         
         .then(fireInput(ProposalInvalidCInput))
-        .then(_assert(output.isVoteMsgWith(Prevote, Nil) and state.step == PrevoteStep))
+        .expect(output.isVoteMsgWith(Prevote, Nil) and state.step == PrevoteStep)
 
 }
