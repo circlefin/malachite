@@ -43,7 +43,7 @@ The precise external APIs and interactions are still work in progress.
 The Proposer Builder module is responsible for building proposals that include transactions, state diffs and proofs. Its purpose is to build complete proposals. When run by a proposer this may mean collecting batches of transactions from the mempool and the required proofs from a prover, and disseminating them to all other validators. When run by any validator it is responsible for validating transactions and proofs, receiving the consensus proposal and building a complete proposal, validating the state diffs, and making the proposal available to consensus engine:
 - via the `get_value()` method when the validator is the proposer for the given round
 - via the `proposal()` method when the validator is non-proposer
-The Proposer Builder module and the other is not described in this document. It will be implemented as a separate crate. Its specification will be described in a separate document.
+The Proposer Builder module is not described in this document. It will be implemented as a separate crate. Its specification will be described in a separate document.
 
 ![Consensus SM Architecture Diagram](assets/sm_arch.jpeg)
 
