@@ -26,23 +26,24 @@ The repository is split in three areas, each covering one of the important areas
 ### Overview of the Tendermint Consensus Implementation 
 
 The consensus implementation consists of the following components:
-- Gossip Module
+- Networking Module
 - Host System
 - Consensus Driver
 - Multiplexer
 - Vote Keeper
 - Round State Machine
 
-The Gossip module is not described in this document. It ensures that all messages sent by correct processes are eventually delivered to all correct processes.
-This is required by the progress and termination of consensus.
-It is likely that the Gossip module will be implemented as a separate crate. Its specification will be described in a separate document.
+This Specification Document describes the architecture of the Consensus Driver, Multiplexer, Vote Keeper and Round State Machine.
+
+The Networking module ensures that all messages sent by correct processes are eventually delivered to all correct processes.
+It is likely that it will be implemented as a separate crate. Its specification will be described in a separate document.
 
 The diagram shows the interactions between the consensus components and the external environment via the Context trait.
 The precise external APIs and interactions are still work in progress.
-It is likely that there exists a Builder/Proposer module that is responsible for building proposals that include transactions, state diffs and proofs.
-This module is also responsible for validating the proposals received by consensus.
-
-This specification describes the components used by the consensus algorithm and does not cover the Builder/Proposer and the Gossip modules.
+The Proposer Builder module is responsible for building proposals that include transactions, state diffs and proofs. Its purpose is to build complete proposals. When run by a proposer this may mean collecting batches of transactions from the mempool and the required proofs from a prover, and disseminating them to all other validators. When run by any validator it is responsible for validating transactions and proofs, receiving the consensus proposal and building a complete proposal, validating the state diffs, and making the proposal available to consensus engine:
+- via the `get_value()` method when the validator is the proposer for the given round
+- via the `proposal()` method when the validator is non-proposer
+The Proposer Builder module is not described in this document. It will be implemented as a separate crate. Its specification will be described in a separate document.
 
 ![Consensus SM Architecture Diagram](assets/sm_arch.jpeg)
 
@@ -204,11 +205,12 @@ Notes:
 
 The Driver sends votes to the Multiplexer module. The Driver expects that, whenever the Muliplexer (via the Vote Keeper) observes any threshold of votes for the first time and based on its state, it returns the multiplexed event to the Driver.
 
-The Driver sends the multiplexed events to the Round State Machine which, once it processes the Driver events, returns consensus-related messages back to the Driver. The Driver then processes these messages and sends them to the Gossip module, the consensus environment, the Host System, or in some cases processes them internally (e.g. `NewRound(round)` message).
+The Driver sends the multiplexed events to the Round State Machine which, once it processes the Driver inputs, returns consensus-related messages back to the Driver. The Driver then processes these messages and sends them to the Networking module, the External environment (e.g. the block to finalize is sent to the Blockchain module via the `finalize_block()`) , the Host System, or in some cases processes them internally (e.g. `NewRound(round)` message).
 
 Notes:
 - Proposals and vote messages must be signed by the sender and validated by the receiver. Signer must be the proposer for `Proposal` and a validator for `Vote`.
   - The driver performs signature verification of the messages it receives from the consensus environment via methods provided by the Context (see `verify_signed_vote()`)
+  - Note: Future investigations may require asynchronous signature verification.
 - On `StartRound(round)` event, the Driver must determine if it is the proposer for the given round. For this it needs access to a `validator_set.get_proposer(round)` method or similar.
 - When building a proposal the driver will use the `get_value()` method of the Builder/Proposer module to retrieve the value to propose. 
 
