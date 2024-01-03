@@ -341,7 +341,7 @@ module voteBookkeeper {
     var weightedVote: WeightedVote
     // The state of the Bookkeeper.
     var bookkeeper: Bookkeeper
-    // The output outputing from applying a weighted vote to the bookkeeper.
+    // The output outputting from applying a weighted vote to the bookkeeper.
     var lastEmitted: VoteKeeperOutput
 
     // ************************************************************************

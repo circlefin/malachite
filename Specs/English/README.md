@@ -197,7 +197,7 @@ interaction with other modules.
 ### Round state-machine
 
 The state machine represents the operation of consensus at a single `Height(h)` and `Round(r)`.
-The diagram below offers a visual representation of the state machine. It shows the input events, using green for simple inputs (e.g. timeouts, porposal)
+The diagram below offers a visual representation of the state machine. It shows the input events, using green for simple inputs (e.g. timeouts, proposal)
 and red for the complex events (e.g. `ProposalAndPolkaCurrent` is sent to the state machine when a valid proposal and a polka of prevotes have been received).
 The actions are shown in italics (blue) and the output messages are shown in blue.
 

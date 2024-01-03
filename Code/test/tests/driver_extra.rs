@@ -30,7 +30,7 @@ use malachite_test::utils::*;
 // - L36 with previoustly received polkaValue and proposal, and entering prevote (due to received proposal)
 //      `driver_steps_polka_value_then_proposal()`
 //
-// - L34 with previously received polkaAny and entering prevote (due to received poposal)
+// - L34 with previously received polkaAny and entering prevote (due to received proposal)
 //      `driver_steps_polka_any_then_proposal_other()`
 
 struct TestStep {
@@ -788,7 +788,7 @@ fn driver_steps_polka_value_then_proposal() {
     run_steps(&mut driver, steps);
 }
 
-// Arrive at L34 with previously received polkaAny and entering prevote (due to received poposal)
+// Arrive at L34 with previously received polkaAny and entering prevote (due to received proposal)
 //
 // Ev:             NewRound(0)           <polkaAny(v)>          Proposal(v')         + replay <polkaAny>
 // State: NewRound ------------> Propose -------------> Propose -----------> Prevote -------------------------> Prevote

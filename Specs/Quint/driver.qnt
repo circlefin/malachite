@@ -446,7 +446,7 @@ module driver {
             // this might be cheating as we look into the "es"
             (state, PendingDInput(input_height_round._1))
             // I DID IT. TODO: In the "starkBFT Spec" Google doc, it is written that pending events
-            // should be executed before new messages, which would requir to push this
+            // should be executed before new messages, which would require to push this
             // branch up.
 
         else if (state.incomingProposals != Set())

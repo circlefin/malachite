@@ -200,7 +200,7 @@ where
     }
 
     /// After a step change, see if there is an input to be
-    /// sent implictly to the round state machine.
+    /// sent implicitly to the round state machine.
     pub fn multiplex_step_change(
         &self,
         pending_step: Step,

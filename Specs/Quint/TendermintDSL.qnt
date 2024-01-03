@@ -27,8 +27,8 @@ run ListDeliverSomeProposal (active) = {
     active.length().reps(i => deliverSomeProposal(active[i]))
 }
 
-run ProcessDeliverAllVotes(voteType, recepient, fromList, valset, h, r, value) =
-    fromList.length().reps(i => deliverVote(recepient, mkVote(voteType, fromList[i], h, r, value)))
+run ProcessDeliverAllVotes(voteType, recipient, fromList, valset, h, r, value) =
+    fromList.length().reps(i => deliverVote(recipient, mkVote(voteType, fromList[i], h, r, value)))
 
 run ListDeliverAllVotes(voteType, fromList, toList, valset, h, r, value) =
     toList.length().reps(i => ProcessDeliverAllVotes(voteType, toList[i], fromList, valset, h, r, value))
