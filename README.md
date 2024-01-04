@@ -7,6 +7,7 @@
 [![Apache 2.0 Licensed][license-image]][license-link]
 ![Rust Stable][rustc-image]
 ![Rust 1.74+][rustc-version]
+[![Quint 0.18][quint-version]][quint-repo]
 
 Tendermint consensus in Rust
 
@@ -18,7 +19,10 @@ The repository is split in three areas, each covering one of the important areas
 2. [Docs](./Docs): Comprises Architectural Decision Records (ADRs) and other documentation, such as the 2018 paper describing the core consensus algorithm.
 3. [Specs](./Specs): English and [Quint][quint-repo] specifications.
 
-[quint-repo]: https://github.com/informalsystems/quint
+## Requirements
+
+- Rust v1.74+ ([rustup.rs](https://rustup.rs))
+- Quint v0.18+ ([github.com](https://github.com/informalsystems/quint))
 
 ## License
 
@@ -41,5 +45,7 @@ Unless required by applicable law or agreed to in writing, software distributed 
 [coverage-link]: https://codecov.io/gh/informalsystems/malachite
 [license-image]: https://img.shields.io/badge/license-Apache_2.0-blue.svg
 [license-link]: https://github.com/informalsystems/hermes/blob/master/LICENSE
-[rustc-image]: https://img.shields.io/badge/rustc-stable-orange.svg
-[rustc-version]: https://img.shields.io/badge/rustc-1.74+-orange.svg
+[rustc-image]: https://img.shields.io/badge/Rust-stable-orange.svg
+[rustc-version]: https://img.shields.io/badge/Rust-1.74+-orange.svg
+[quint-version]: https://img.shields.io/badge/Quint-0.18-purple.svg
+[quint-repo]: https://github.com/informalsystems/quint
