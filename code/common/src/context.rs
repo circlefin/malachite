@@ -30,7 +30,6 @@ where
     /// The type of votes that can be cast.
     type Vote: Vote<Self>;
 
-    // TODO: Do we need to support multiple signing schemes?
     /// The signing scheme used to sign votes.
     type SigningScheme: SigningScheme;
 

@@ -144,7 +144,6 @@ where
         // L57
         // We are the proposer.
         (Step::Propose, Input::TimeoutPropose) if this_round && info.is_proposer() => {
-            // TODO: Do we need to do something else here?
             prevote_nil(state, info.address)
         }
 
