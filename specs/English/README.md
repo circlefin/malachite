@@ -188,7 +188,7 @@ least `f + 1`, which is strictly greater than `f`.
 
 ## Consensus protocol - round state machine
 
-This document provides an overview of the Tendermint consensus protocol and follows ["The latest gossip on BFT consensus"](#References) and the English and Quint specifications located in the [Specs](../../Specs) directory.
+This document provides an overview of the Tendermint consensus protocol and follows ["The latest gossip on BFT consensus"](#References) and the English and Quint specifications located in the [specs](../../specs) directory.
 
 The consensus state-machine operates on complex `Event`s that reflect the
 reception of one or multiple `Message`s, combined with state elements and the

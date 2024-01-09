@@ -5,7 +5,7 @@
 
 ## Context
 
-This ADR provides architecture and design recommendations for the implementation of the Tendermint consensus protocol in Rust. The implementation follows the article ["The latest gossip on BFT consensus"](#References) and the English and Quint specifications located in the [Specs](../../Specs) directory.
+This ADR provides architecture and design recommendations for the implementation of the Tendermint consensus protocol in Rust. The implementation follows the article ["The latest gossip on BFT consensus"](#References) and the English and Quint specifications located in the [specs](../../specs) directory.
 
 ### Terminology
 
@@ -19,9 +19,9 @@ We use terminology in line with [prior art on Tendermint and BFT consensus](http
 ### Repository Overview
 
 The repository is split in three areas, each covering one of the important areas of this project:
-1. [Code](../../Code): Comprises the Rust implementation of the Tendermint consensus algorithm, split across multiple Rust crates.
-2. [Docs](../../Docs): Comprises Architectural Decision Records (ADRs) such as the present file and other documentation.
-3. [Specs](../../Specs): English and Quint specifications.
+1. [code](../../code): Comprises the Rust implementation of the Tendermint consensus algorithm, split across multiple Rust crates.
+2. [docs](../../docs): Comprises Architectural Decision Records (ADRs) such as the present file and other documentation.
+3. [specs](../../specs): English and Quint specifications.
 
 ### Overview of the Tendermint Consensus Implementation 
 

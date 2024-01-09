@@ -2,8 +2,8 @@ codecov:
   require_ci_to_pass: yes
 
 # ignore:
-#   - "Code/itf"
-#   - "Code/test"
+#   - "code/itf"
+#   - "code/test"
 
 coverage:
   precision: 2
@@ -17,13 +17,13 @@ coverage:
         threshold: 5%
         removed_code_behavior: adjust_base
         paths:
-          - "Code"
+          - "code"
     patch:
       default:
         target: auto
         threshold: 5%
         paths:
-          - "Code"
+          - "code"
 
     changes:
       default:
