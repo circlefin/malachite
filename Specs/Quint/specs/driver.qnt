@@ -9,7 +9,7 @@ module driver {
     import extraSpells.* from "../spells/extra"
     import types.* from "./types"
     import consensus.* from "./consensus"
-    import voteBookkeeper.* from "./votekeeper"
+    import votekeeper.* from "./votekeeper"
 
     // *************************************************************************
     // State

@@ -21,7 +21,7 @@ import driver.* from "./driver"
 export driver.* 
 import consensus.* from "./consensus"
 export consensus.* 
-import voteBookkeeper.* from "./votekeeper"
+import votekeeper.* from "./votekeeper"
 
 const validators: Set[Address]
 const validatorSet: Address -> Weight

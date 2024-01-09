@@ -1,9 +1,9 @@
 // -*- mode: Bluespec; -*-
 
-module voteBookkeeperTest {
+module votekeeperTest {
 
     import types.* from "../../specs/types"
-    import voteBookkeeper.* from "../../specs/votekeeper"
+    import votekeeper.* from "../../specs/votekeeper"
 
     // ****************************************************************************
     // Tests

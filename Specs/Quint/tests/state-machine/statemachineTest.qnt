@@ -16,7 +16,7 @@ import types.* from "../../specs/types"
 import extraSpells.* from "../../spells/extra"
 import driver.* from "../../specs/driver"
 import consensus.* from "../../specs/consensus"
-import voteBookkeeper.* from "../../specs/votekeeper"
+import votekeeper.* from "../../specs/votekeeper"
 
 val validators = Set("v1", "v2", "v3", "v4")
 val validatorSet = validators.mapBy(x => 1)

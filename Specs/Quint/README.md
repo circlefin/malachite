@@ -12,7 +12,7 @@ This specification is separated into
 ## Functional layer
 
 - [Consensus state machine](./consensus.qnt)
-- [Vote book keeper](./voteBookkeeper.qnt)
+- [Vote book keeper](./votekeeper.qnt)
 - [Driver](./driver.qnt)
 
 ## State machine
