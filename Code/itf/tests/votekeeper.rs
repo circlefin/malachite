@@ -32,7 +32,7 @@ fn test_itf() {
         .expect("invalid random seed for quint");
 
     generate_traces(
-        "voteBookkeeperTest.qnt",
+        "tests/votekeeper/votekeeperTest.qnt",
         &temp_dir.path().to_string_lossy(),
         quint_seed,
     );
