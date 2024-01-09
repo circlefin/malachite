@@ -7,7 +7,6 @@ use core::fmt::Debug;
 /// A height of 0 represents a chain which has not yet produced a block.
 pub trait Height
 where
-    // TODO: Require Copy as well?
-    Self: Default + Clone + Debug + PartialEq + Eq + PartialOrd + Ord,
+    Self: Default + Copy + Clone + Debug + PartialEq + Eq + PartialOrd + Ord,
 {
 }

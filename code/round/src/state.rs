@@ -132,7 +132,7 @@ where
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         Self {
-            height: self.height.clone(),
+            height: self.height,
             round: self.round,
             step: self.step,
             locked: self.locked.clone(),
