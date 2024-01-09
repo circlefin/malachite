@@ -16,7 +16,6 @@ malachite-vote   = { version = "0.1.0", path = "../vote" }
 
 futures = { workspace = true, features = ["executor"] }
 
-async-trait.workspace       = true
 ed25519-consensus.workspace = true
 signature.workspace         = true
 rand.workspace              = true

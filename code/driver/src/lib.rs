@@ -28,6 +28,3 @@ pub use input::Input;
 pub use output::Output;
 pub use proposer::ProposerSelector;
 pub use util::Validity;
-
-// Re-export `#[async_trait]` macro for convenience.
-pub use async_trait::async_trait;
