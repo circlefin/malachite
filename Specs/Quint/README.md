@@ -11,15 +11,15 @@ This specification is separated into
 
 ## Functional layer
 
-- [Consensus state machine](./consensus.qnt)
-- [Vote book keeper](./votekeeper.qnt)
-- [Driver](./driver.qnt)
+- [Consensus state machine](./specs/consensus.qnt)
+- [Vote keeper](./specs/votekeeper.qnt)
+- [Driver](./specs/driver.qnt)
 
 ## State machine
 
-- [State machine](./statemachineAsync.qnt)
+- [State machine](./specs/statemachineAsync.qnt)
 
 ## Runs
 
-- [A domain-specific language](./TendermintDSL.qnt) to compose runs
-- Files `*Test.qnt` contain tests for different scenarios and parts of the specification 
+- [A domain-specific language](./specs/TendermintDSL.qnt) to compose runs
+- Files in the [`tests/`](./tests/) folder contain tests for different scenarios and parts of the specification 
