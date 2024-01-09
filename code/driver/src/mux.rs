@@ -124,7 +124,7 @@ where
 
         // We have a valid proposal.
         // L49
-        // TODO - check if not already decided
+        // TODO: check if not already decided
         if self.vote_keeper.is_threshold_met(
             &proposal.round(),
             VoteType::Precommit,
