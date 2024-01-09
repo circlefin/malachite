@@ -3,6 +3,8 @@ use core::fmt::{Debug, Display};
 use crate::{Context, PublicKey};
 
 /// Voting power held by a validator.
+///
+/// TODO: Introduce newtype
 pub type VotingPower = u64;
 
 /// Defines the requirements for an address.
