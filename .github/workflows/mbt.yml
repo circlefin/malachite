@@ -4,12 +4,12 @@ on:
     branches:
       - main
     paths:
-      - specs/Quint/**
+      - specs/quint/**
       - code/**
       - .github/workflows/mbt.yml
   pull_request:
     paths:
-      - specs/Quint/**
+      - specs/quint/**
       - code/**
       - .github/workflows/mbt.yml
 

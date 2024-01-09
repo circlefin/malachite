@@ -5,12 +5,12 @@ on:
     branches: main
     paths:
       - code/**
-      - specs/Quint/**
+      - specs/quint/**
       - .github/workflows/rust.yml
   pull_request:
     paths:
       - code/**
-      - specs/Quint/**
+      - specs/quint/**
       - .github/workflows/rust.yml
 
 env:

@@ -5,12 +5,12 @@ on:
     branches: main
     paths:
       - code/**
-      - specs/Quint/**
+      - specs/quint/**
       - .github/workflows/coverage.yml
   pull_request:
     paths:
       - code/**
-      - specs/Quint/**
+      - specs/quint/**
       - .github/workflows/coverage.yml
 
 jobs:
