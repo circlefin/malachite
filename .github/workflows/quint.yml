@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
-      - run: bash Scripts/quint-forall.sh typecheck Specs/Quint/*.qnt
+      - run: bash Scripts/quint-forall.sh typecheck Specs/Quint/**/*.qnt
 
   quint-test:
     name: Test
@@ -34,4 +34,4 @@ jobs:
         with:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
-      - run: bash Scripts/quint-forall.sh "test --max-samples $MAX_SAMPLES" Specs/Quint/*Test.qnt
+      - run: bash Scripts/quint-forall.sh "test --max-samples $MAX_SAMPLES" Specs/Quint/tests/**/*Test.qnt
