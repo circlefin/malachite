@@ -8,7 +8,7 @@
  */
 module extraSpells {
 
-  import basicSpells.* from "./basicSpells"
+  import basicSpells.* from "./basic"
 
   pure def printVariable(name: str, variable: a): bool = true
 

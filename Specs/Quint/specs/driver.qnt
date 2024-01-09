@@ -6,10 +6,10 @@
 */ 
 
 module driver {
-    import extraSpells.* from "./extraSpells"
+    import extraSpells.* from "../spells/extra"
     import types.* from "./types"
     import consensus.* from "./consensus"
-    import voteBookkeeper.* from "./voteBookkeeper"
+    import voteBookkeeper.* from "./votekeeper"
 
     // *************************************************************************
     // State

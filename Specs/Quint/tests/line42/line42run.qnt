@@ -2,7 +2,7 @@
 
 module line42run {
 
-import TendermintDSL.* from "./TendermintDSL"
+import TendermintDSL.* from "../../specs/TendermintDSL"
 export TendermintDSL.*
 
 const testedVal : Address
