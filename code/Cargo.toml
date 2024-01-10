@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+
+members = [
+  "common",
+  "driver",
+  "itf",
+  "round",
+  "test",
+  "vote",
+]
+
+[workspace.package]
+version      = "0.1.0"
+edition      = "2021"
+repository   = "https://github.com/informalsystems/malachite"
+license      = "Apache-2.0"
+publish      = false
+
+[workspace.dependencies]
+ed25519-consensus = "2.1.0"
+futures           = "0.3"
+glob              = "0.3.0"
+itf               = "0.2.2"
+num-bigint        = "0.4.4"
+num-traits        = "0.2.17"
+pretty_assertions = "1.4"
+rand              = { version = "0.8.5", features = ["std_rng"] }
+serde             = "1.0"
+serde_json        = "1.0"
+serde_with        = "3.4"
+sha2              = "0.10.8"
+signature         = "2.1.0"

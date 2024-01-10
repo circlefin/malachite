@@ -4,13 +4,13 @@ on:
   push:
     branches: main
     paths:
-      - Code/**
-      - Specs/Quint/**
+      - code/**
+      - specs/quint/**
       - .github/workflows/rust.yml
   pull_request:
     paths:
-      - Code/**
-      - Specs/Quint/**
+      - code/**
+      - specs/quint/**
       - .github/workflows/rust.yml
 
 env:
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Code
+        working-directory: code
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -58,7 +58,7 @@ jobs:
         uses: actions-rs/clippy@master
         with:
           token: ${{secrets.GITHUB_TOKEN}}
-          args: --all-features --all-targets --manifest-path Code/Cargo.toml
+          args: --all-features --all-targets --manifest-path code/Cargo.toml
 
   fmt:
     name: Formatting
@@ -73,4 +73,4 @@ jobs:
       - name: Check formatting
         uses: actions-rust-lang/rustfmt@v1
         with:
-          manifest-path: Code/Cargo.toml
+          manifest-path: code/Cargo.toml

@@ -4,13 +4,13 @@ on:
     branches:
       - main
     paths:
-      - Specs/Quint/**
-      - Code/**
+      - specs/quint/**
+      - code/**
       - .github/workflows/mbt.yml
   pull_request:
     paths:
-      - Specs/Quint/**
-      - Code/**
+      - specs/quint/**
+      - code/**
       - .github/workflows/mbt.yml
 
 jobs:
@@ -36,10 +36,10 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
       - name: Build code
-        working-directory: Code/itf
+        working-directory: code/itf
         run: cargo nextest run --workspace --all-features --no-run
       - name: Current time as random seed for Quint
         run: echo "QUINT_SEED=$(date +%s)" >> $GITHUB_ENV
       - name: Run tests from traces (with random seed)
-        working-directory: Code/itf
+        working-directory: code/itf
         run: cargo nextest run -p malachite-itf --all-features

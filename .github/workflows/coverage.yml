@@ -4,13 +4,13 @@ on:
   push:
     branches: main
     paths:
-      - Code/**
-      - Specs/Quint/**
+      - code/**
+      - specs/quint/**
       - .github/workflows/coverage.yml
   pull_request:
     paths:
-      - Code/**
-      - Specs/Quint/**
+      - code/**
+      - specs/quint/**
       - .github/workflows/coverage.yml
 
 jobs:
@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Code
+        working-directory: code
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -46,7 +46,7 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: Code/lcov.info
+          files: code/lcov.info
           flags: integration
           fail_ci_if_error: false
 
@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Code
+        working-directory: code
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -82,6 +82,6 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: Code/lcov.info
+          files: code/lcov.info
           flags: mbt
           fail_ci_if_error: false
