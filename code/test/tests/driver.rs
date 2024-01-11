@@ -56,6 +56,7 @@ fn driver_steps_proposer() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -69,6 +70,7 @@ fn driver_steps_proposer() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -87,6 +89,7 @@ fn driver_steps_proposer() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -100,6 +103,7 @@ fn driver_steps_proposer() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -118,6 +122,7 @@ fn driver_steps_proposer() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -147,6 +152,7 @@ fn driver_steps_proposer() {
                     value,
                     round: Round::new(0),
                 }),
+                decision: None,
             },
         },
         TestStep {
@@ -166,6 +172,7 @@ fn driver_steps_proposer() {
                     value,
                     round: Round::new(0),
                 }),
+                decision: None,
             },
         },
         TestStep {
@@ -190,6 +197,7 @@ fn driver_steps_proposer() {
                     value,
                     round: Round::new(0),
                 }),
+                decision: None,
             },
         },
         TestStep {
@@ -214,6 +222,7 @@ fn driver_steps_proposer() {
                     value,
                     round: Round::new(0),
                 }),
+                decision: Some(value),
             },
         },
     ];
@@ -248,6 +257,7 @@ fn driver_steps_proposer_timeout_get_value() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -266,6 +276,7 @@ fn driver_steps_proposer_timeout_get_value() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
     ];
@@ -303,6 +314,7 @@ fn driver_steps_not_proposer_valid() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -321,6 +333,7 @@ fn driver_steps_not_proposer_valid() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -334,6 +347,7 @@ fn driver_steps_not_proposer_valid() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -352,6 +366,7 @@ fn driver_steps_not_proposer_valid() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -381,6 +396,7 @@ fn driver_steps_not_proposer_valid() {
                     value,
                     round: Round::new(0),
                 }),
+                decision: None,
             },
         },
         TestStep {
@@ -400,6 +416,7 @@ fn driver_steps_not_proposer_valid() {
                     value,
                     round: Round::new(0),
                 }),
+                decision: None,
             },
         },
         TestStep {
@@ -424,6 +441,7 @@ fn driver_steps_not_proposer_valid() {
                     value,
                     round: Round::new(0),
                 }),
+                decision: None,
             },
         },
         TestStep {
@@ -448,6 +466,7 @@ fn driver_steps_not_proposer_valid() {
                     value,
                     round: Round::new(0),
                 }),
+                decision: Some(value),
             },
         },
     ];
@@ -485,6 +504,7 @@ fn driver_steps_not_proposer_invalid() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -500,6 +520,7 @@ fn driver_steps_not_proposer_invalid() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -513,6 +534,7 @@ fn driver_steps_not_proposer_invalid() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -528,6 +550,7 @@ fn driver_steps_not_proposer_invalid() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -543,6 +566,7 @@ fn driver_steps_not_proposer_invalid() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -558,6 +582,7 @@ fn driver_steps_not_proposer_invalid() {
                 step: Step::Precommit,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
     ];
@@ -596,6 +621,7 @@ fn driver_steps_not_proposer_other_height() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -609,6 +635,7 @@ fn driver_steps_not_proposer_other_height() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
     ];
@@ -647,6 +674,7 @@ fn driver_steps_not_proposer_other_round() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -660,6 +688,7 @@ fn driver_steps_not_proposer_other_round() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
     ];
@@ -696,6 +725,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // Receive a propose timeout, prevote for nil (from v3)
@@ -715,6 +745,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // Receive our own prevote v3
@@ -729,6 +760,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // v1 prevotes for its own proposal
@@ -748,6 +780,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // v2 prevotes for nil, we get +2/3 nil prevotes and precommit for nil
@@ -772,6 +805,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 step: Step::Precommit,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // v3 receives its own precommit
@@ -786,6 +820,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 step: Step::Precommit,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // v1 precommits its proposal
@@ -805,6 +840,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 step: Step::Precommit,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // v2 precommits for nil
@@ -824,6 +860,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 step: Step::Precommit,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // we receive a precommit timeout, start a new round
@@ -838,6 +875,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 step: Step::Unstarted,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         TestStep {
@@ -851,6 +889,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
     ];
@@ -971,6 +1010,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // Receive a propose timeout, prevote for nil (from v3)
@@ -990,6 +1030,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // Receive our own prevote v3
@@ -1004,6 +1045,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // v1 prevotes for its own proposal
@@ -1023,6 +1065,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // v2 prevotes for v1 proposal in round 1, expected output is to move to next round
@@ -1042,6 +1085,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 step: Step::Unstarted,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
     ];
@@ -1079,6 +1123,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 step: Step::Propose,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // Receive a propose timeout, prevote for nil (from v3)
@@ -1098,6 +1143,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // Receive our own prevote v3
@@ -1112,6 +1158,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // v1 prevotes for its own proposal
@@ -1131,6 +1178,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 step: Step::Prevote,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
         // v2 prevotes for v1 proposal in round 1, expected output is to move to next round
@@ -1150,6 +1198,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 step: Step::Unstarted,
                 locked: None,
                 valid: None,
+                decision: None,
             },
         },
     ];

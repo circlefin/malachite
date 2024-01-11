@@ -426,6 +426,9 @@ pub fn commit<Ctx>(state: State<Ctx>, round: Round, proposal: Ctx::Proposal) -> 
 where
     Ctx: Context,
 {
+    let new_state = state
+        .set_decision(proposal.value().clone())
+        .with_step(Step::Commit);
     let output = Output::decision(round, proposal.value().clone());
-    Transition::to(state.with_step(Step::Commit)).with_output(output)
+    Transition::to(new_state).with_output(output)
 }

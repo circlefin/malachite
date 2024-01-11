@@ -106,11 +106,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
             input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
             expected_output: decide_output(Round::new(0), value),
             expected_round: Round::new(0),
-            new_state: decided_state(
-                Round::new(0),
-                // Proposal::new(Height::new(1), Round::new(1), value, Round::new(0)), <--- TODO - should be this?
-                value,
-            ),
+            new_state: decided_state(Round::new(0), value),
         },
     ];
 
@@ -207,11 +203,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
             input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
             expected_output: decide_output(Round::new(0), value),
             expected_round: Round::new(1),
-            new_state: decided_state(
-                Round::new(1),
-                // Proposal::new(Height::new(1), Round::new(1), value, Round::new(0)), <--- TODO - should be this
-                value,
-            ),
+            new_state: decided_state(Round::new(1), value),
         },
     ];
 

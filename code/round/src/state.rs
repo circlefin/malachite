@@ -63,6 +63,9 @@ where
 
     /// The value for which we received a polka for after we already precommitted
     pub valid: Option<RoundValue<Ctx::Value>>,
+
+    /// The value we have decided on, None if no decision has been made yet.
+    pub decision: Option<Ctx::Value>,
 }
 
 impl<Ctx> State<Ctx>
@@ -77,6 +80,7 @@ where
             step: Step::Unstarted,
             locked: None,
             valid: None,
+            decision: None,
         }
     }
 
@@ -102,6 +106,14 @@ where
     pub fn set_valid(self, value: Ctx::Value) -> Self {
         Self {
             valid: Some(RoundValue::new(value, self.round)),
+            ..self
+        }
+    }
+
+    /// Set the valid value.
+    pub fn set_decision(self, value: Ctx::Value) -> Self {
+        Self {
+            decision: Some(value),
             ..self
         }
     }
@@ -137,6 +149,7 @@ where
             step: self.step,
             locked: self.locked.clone(),
             valid: self.valid.clone(),
+            decision: self.decision.clone(),
         }
     }
 }
@@ -153,6 +166,7 @@ where
             .field("step", &self.step)
             .field("locked", &self.locked)
             .field("valid", &self.valid)
+            .field("decision", &self.decision)
             .finish()
     }
 }
@@ -168,6 +182,7 @@ where
             && self.step == other.step
             && self.locked == other.locked
             && self.valid == other.valid
+            && self.decision == other.decision
     }
 }
 

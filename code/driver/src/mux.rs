@@ -130,7 +130,7 @@ where
             &proposal.round(),
             VoteType::Precommit,
             Threshold::Value(proposal.value().id()),
-        ) && !self.round_state.step.eq(&Step::Commit)
+        ) && self.round_state.decision.is_none()
         {
             return Some(RoundInput::ProposalAndPrecommitValue(proposal));
         }
