@@ -45,7 +45,6 @@ impl Vote {
         }
     }
 
-    // TODO: Use a canonical vote
     pub fn to_bytes(&self) -> Vec<u8> {
         let vtpe = match self.typ {
             VoteType::Prevote => 0,
