@@ -23,7 +23,8 @@ where
     /// Schedule the timeout.
     ScheduleTimeout(Timeout),
 
-    /// Ask for a value and schedule a timeout.
+    /// Ask for a value at the given height, round and to schedule a timeout.
+    /// The timeout tells the proposal builder how long it has to build a value.
     GetValueAndScheduleTimeout(Ctx::Height, Round, Timeout),
 
     /// Decide the value.
@@ -66,7 +67,7 @@ impl<Ctx: Context> Output<Ctx> {
         Output::ScheduleTimeout(Timeout { round, step })
     }
 
-    /// Build a `GetValueAndScheduleTimeout` output.
+    /// Build a `GetValue` output.
     pub fn get_value_and_schedule_timeout(
         height: Ctx::Height,
         round: Round,

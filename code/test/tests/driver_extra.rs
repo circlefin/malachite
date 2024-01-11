@@ -49,7 +49,7 @@ pub fn output_to_input(output: Output<TestContext>) -> Option<Input<TestContext>
         Output::Vote(v) => Some(Input::Vote(v)),
         Output::Decide(_, _) => None,
         Output::ScheduleTimeout(_) => None,
-        Output::GetValueAndScheduleTimeout(_, _, _) => None,
+        Output::GetValue(_, _, _) => None,
     }
 }
 

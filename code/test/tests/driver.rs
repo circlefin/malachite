@@ -21,7 +21,7 @@ pub fn output_to_input(output: Output<TestContext>) -> Option<Input<TestContext>
         Output::Vote(v) => Some(Input::Vote(v)),
         Output::Decide(_, _) => None,
         Output::ScheduleTimeout(_) => None,
-        Output::GetValueAndScheduleTimeout(_, _, _) => None,
+        Output::GetValue(_, _, _) => None,
     }
 }
 
@@ -45,7 +45,7 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "Start round 0, we are proposer, ask for a value to propose",
             input: Some(Input::NewRound(Height::new(1), Round::new(0))),
-            expected_output: Some(Output::GetValueAndScheduleTimeout(
+            expected_output: Some(Output::GetValue(
                 Height::new(1),
                 Round::new(0),
                 Timeout::new(Round::new(0), TimeoutStep::Propose),
@@ -247,7 +247,7 @@ fn driver_steps_proposer_timeout_get_value() {
         TestStep {
             desc: "Start round 0, we are proposer, ask for a value to propose",
             input: Some(Input::NewRound(Height::new(1), Round::new(0))),
-            expected_output: Some(Output::GetValueAndScheduleTimeout(
+            expected_output: Some(Output::GetValue(
                 Height::new(1),
                 Round::new(0),
                 Timeout::new(Round::new(0), TimeoutStep::Propose),
@@ -922,7 +922,7 @@ fn driver_steps_no_value_to_propose() {
 
     assert_eq!(
         output,
-        Some(Output::GetValueAndScheduleTimeout(
+        Some(Output::GetValue(
             Height::new(1),
             Round::new(0),
             Timeout::propose(Round::new(0))

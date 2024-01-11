@@ -234,12 +234,12 @@ where
             Transition::to(state.with_step(Step::Propose)).with_output(proposal)
         }
         None => {
-            let timeout = Output::get_value_and_schedule_timeout(
-                state.height.clone(),
+            let output = Output::get_value_and_schedule_timeout(
+                state.height,
                 state.round,
                 TimeoutStep::Propose,
             );
-            Transition::to(state.with_step(Step::Propose)).with_output(timeout)
+            Transition::to(state.with_step(Step::Propose)).with_output(output)
         }
     }
 }

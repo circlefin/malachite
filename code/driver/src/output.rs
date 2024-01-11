@@ -22,8 +22,9 @@ where
     /// Schedule a timeout
     ScheduleTimeout(Timeout),
 
-    /// Ask for a value to propose and schedule a timeout
-    GetValueAndScheduleTimeout(Ctx::Height, Round, Timeout),
+    /// Ask for a value at the given height, round.
+    /// The timeout tells the proposal builder how long it has to build a value.
+    GetValue(Ctx::Height, Round, Timeout),
 }
 
 // NOTE: We have to derive these instances manually, otherwise
@@ -39,9 +40,7 @@ impl<Ctx: Context> Clone for Output<Ctx> {
             Output::Vote(signed_vote) => Output::Vote(signed_vote.clone()),
             Output::Decide(round, value) => Output::Decide(*round, value.clone()),
             Output::ScheduleTimeout(timeout) => Output::ScheduleTimeout(*timeout),
-            Output::GetValueAndScheduleTimeout(height, round, timeout) => {
-                Output::GetValueAndScheduleTimeout(*height, *round, *timeout)
-            }
+            Output::GetValue(height, round, timeout) => Output::GetValue(*height, *round, *timeout),
         }
     }
 }
@@ -55,12 +54,8 @@ impl<Ctx: Context> fmt::Debug for Output<Ctx> {
             Output::Vote(signed_vote) => write!(f, "Vote({:?})", signed_vote),
             Output::Decide(round, value) => write!(f, "Decide({:?}, {:?})", round, value),
             Output::ScheduleTimeout(timeout) => write!(f, "ScheduleTimeout({:?})", timeout),
-            Output::GetValueAndScheduleTimeout(height, round, timeout) => {
-                write!(
-                    f,
-                    "GetValueAndScheduleTimeout({:?}, {:?}, {:?})",
-                    height, round, timeout
-                )
+            Output::GetValue(height, round, timeout) => {
+                write!(f, "GetValue({:?}, {:?}, {:?})", height, round, timeout)
             }
         }
     }
@@ -86,8 +81,8 @@ impl<Ctx: Context> PartialEq for Output<Ctx> {
                 timeout == other_timeout
             }
             (
-                Output::GetValueAndScheduleTimeout(height, round, timeout),
-                Output::GetValueAndScheduleTimeout(other_height, other_round, other_timeout),
+                Output::GetValue(height, round, timeout),
+                Output::GetValue(other_height, other_round, other_timeout),
             ) => height == other_height && round == other_round && timeout == other_timeout,
             _ => false,
         }
