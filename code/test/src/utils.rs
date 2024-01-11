@@ -56,17 +56,13 @@ pub fn new_round_input(round: Round) -> Input<TestContext> {
     Input::NewRound(Height::new(1), round)
 }
 
-pub fn new_round_output(round: Round) -> Option<Output<TestContext>> {
-    Some(Output::NewRound(Height::new(1), round))
+pub fn new_round_output(round: Round) -> Output<TestContext> {
+    Output::NewRound(Height::new(1), round)
 }
 
-pub fn proposal_output(
-    round: Round,
-    value: Value,
-    locked_round: Round,
-) -> Option<Output<TestContext>> {
+pub fn proposal_output(round: Round, value: Value, locked_round: Round) -> Output<TestContext> {
     let proposal = Proposal::new(Height::new(1), round, value, locked_round);
-    Some(Output::Propose(proposal))
+    Output::Propose(proposal)
 }
 
 pub fn proposal_input(
@@ -79,24 +75,24 @@ pub fn proposal_input(
     Input::Proposal(proposal, validity)
 }
 
-pub fn prevote_output(round: Round, addr: &Address) -> Option<Output<TestContext>> {
+pub fn prevote_output(round: Round, addr: &Address) -> Output<TestContext> {
     let value = Value::new(9999);
 
-    Some(Output::Vote(Vote::new_prevote(
+    Output::Vote(Vote::new_prevote(
         Height::new(1),
         round,
         NilOrVal::Val(value.id()),
         *addr,
-    )))
+    ))
 }
 
-pub fn prevote_nil_output(round: Round, addr: &Address) -> Option<Output<TestContext>> {
-    Some(Output::Vote(Vote::new_prevote(
+pub fn prevote_nil_output(round: Round, addr: &Address) -> Output<TestContext> {
+    Output::Vote(Vote::new_prevote(
         Height::new(1),
         round,
         NilOrVal::Nil,
         *addr,
-    )))
+    ))
 }
 
 pub fn prevote_input(addr: &Address) -> Input<TestContext> {
@@ -130,22 +126,22 @@ pub fn prevote_input_at(round: Round, addr: &Address) -> Input<TestContext> {
     ))
 }
 
-pub fn precommit_output(round: Round, value: Value, addr: &Address) -> Option<Output<TestContext>> {
-    Some(Output::Vote(Vote::new_precommit(
+pub fn precommit_output(round: Round, value: Value, addr: &Address) -> Output<TestContext> {
+    Output::Vote(Vote::new_precommit(
         Height::new(1),
         round,
         NilOrVal::Val(value.id()),
         *addr,
-    )))
+    ))
 }
 
-pub fn precommit_nil_output(round: Round, addr: &Address) -> Option<Output<TestContext>> {
-    Some(Output::Vote(Vote::new_precommit(
+pub fn precommit_nil_output(round: Round, addr: &Address) -> Output<TestContext> {
+    Output::Vote(Vote::new_precommit(
         Height::new(1),
         round,
         NilOrVal::Nil,
         *addr,
-    )))
+    ))
 }
 
 pub fn precommit_input(round: Round, value: Value, addr: &Address) -> Input<TestContext> {
@@ -157,28 +153,28 @@ pub fn precommit_input(round: Round, value: Value, addr: &Address) -> Input<Test
     ))
 }
 
-pub fn decide_output(round: Round, value: Value) -> Option<Output<TestContext>> {
-    Some(Output::Decide(round, value))
+pub fn decide_output(round: Round, value: Value) -> Output<TestContext> {
+    Output::Decide(round, value)
 }
 
-pub fn start_propose_timer_output(round: Round) -> Option<Output<TestContext>> {
-    Some(Output::ScheduleTimeout(Timeout::propose(round)))
+pub fn start_propose_timer_output(round: Round) -> Output<TestContext> {
+    Output::ScheduleTimeout(Timeout::propose(round))
 }
 
 pub fn timeout_propose_input(round: Round) -> Input<TestContext> {
     Input::TimeoutElapsed(Timeout::propose(round))
 }
 
-pub fn start_prevote_timer_output(round: Round) -> Option<Output<TestContext>> {
-    Some(Output::ScheduleTimeout(Timeout::prevote(round)))
+pub fn start_prevote_timer_output(round: Round) -> Output<TestContext> {
+    Output::ScheduleTimeout(Timeout::prevote(round))
 }
 
 pub fn timeout_prevote_input(round: Round) -> Input<TestContext> {
     Input::TimeoutElapsed(Timeout::prevote(round))
 }
 
-pub fn start_precommit_timer_output(round: Round) -> Option<Output<TestContext>> {
-    Some(Output::ScheduleTimeout(Timeout::precommit(round)))
+pub fn start_precommit_timer_output(round: Round) -> Output<TestContext> {
+    Output::ScheduleTimeout(Timeout::precommit(round))
 }
 
 pub fn timeout_precommit_input(round: Round) -> Input<TestContext> {

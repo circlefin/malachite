@@ -8,7 +8,7 @@ use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value, Vote};
 pub struct TestStep {
     desc: &'static str,
     input: Option<Input<TestContext>>,
-    expected_output: Option<Output<TestContext>>,
+    expected_outputs: Vec<Output<TestContext>>,
     expected_round: Round,
     new_state: State<TestContext>,
 }
@@ -45,11 +45,11 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "Start round 0, we are proposer, ask for a value to propose",
             input: Some(Input::NewRound(Height::new(1), Round::new(0))),
-            expected_output: Some(Output::GetValue(
+            expected_outputs: vec![Output::GetValue(
                 Height::new(1),
                 Round::new(0),
                 Timeout::new(Round::new(0), TimeoutStep::Propose),
-            )),
+            )],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -63,7 +63,7 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "Feed a value to propose, propose that value",
             input: Some(Input::ProposeValue(Round::new(0), value)),
-            expected_output: Some(Output::Propose(proposal.clone())),
+            expected_outputs: vec![Output::Propose(proposal.clone())],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -77,12 +77,12 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "Receive our own proposal, prevote for it (v1)",
             input: None,
-            expected_output: Some(Output::Vote(Vote::new_prevote(
+            expected_outputs: vec![Output::Vote(Vote::new_prevote(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
                 my_addr,
-            ))),
+            ))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -96,7 +96,7 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "Receive our own prevote v1",
             input: None,
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -115,7 +115,7 @@ fn driver_steps_proposer() {
                 NilOrVal::Val(value.id()),
                 v2.address,
             ))),
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -134,12 +134,12 @@ fn driver_steps_proposer() {
                 NilOrVal::Val(value.id()),
                 v3.address,
             ))),
-            expected_output: Some(Output::Vote(Vote::new_precommit(
+            expected_outputs: vec![Output::Vote(Vote::new_precommit(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
                 my_addr,
-            ))),
+            ))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -159,7 +159,7 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "v1 receives its own precommit",
             input: None,
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -184,7 +184,7 @@ fn driver_steps_proposer() {
                 NilOrVal::Val(value.id()),
                 v2.address,
             ))),
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -209,7 +209,7 @@ fn driver_steps_proposer() {
                 NilOrVal::Val(value.id()),
                 v3.address,
             ))),
-            expected_output: Some(Output::Decide(Round::new(0), value)),
+            expected_outputs: vec![Output::Decide(Round::new(0), value)],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -247,11 +247,11 @@ fn driver_steps_proposer_timeout_get_value() {
         TestStep {
             desc: "Start round 0, we are proposer, ask for a value to propose",
             input: Some(Input::NewRound(Height::new(1), Round::new(0))),
-            expected_output: Some(Output::GetValue(
+            expected_outputs: vec![Output::GetValue(
                 Height::new(1),
                 Round::new(0),
                 Timeout::new(Round::new(0), TimeoutStep::Propose),
-            )),
+            )],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -265,12 +265,12 @@ fn driver_steps_proposer_timeout_get_value() {
         TestStep {
             desc: "Receive a propose timeout",
             input: Some(Input::TimeoutElapsed(Timeout::propose(Round::new(0)))),
-            expected_output: Some(Output::Vote(Vote::new_prevote(
+            expected_outputs: vec![Output::Vote(Vote::new_prevote(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Nil,
                 my_addr,
-            ))),
+            ))],
             expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
@@ -308,7 +308,7 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "Start round 0, we are not the proposer",
             input: Some(Input::NewRound(Height::new(1), Round::new(0))),
-            expected_output: Some(Output::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -322,12 +322,12 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "Receive a proposal, prevote for it (v2)",
             input: Some(Input::Proposal(proposal.clone(), Validity::Valid)),
-            expected_output: Some(Output::Vote(Vote::new_prevote(
+            expected_outputs: vec![Output::Vote(Vote::new_prevote(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
                 my_addr,
-            ))),
+            ))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -341,7 +341,7 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "Receive our own prevote (v2)",
             input: None,
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -360,7 +360,7 @@ fn driver_steps_not_proposer_valid() {
                 NilOrVal::Val(value.id()),
                 v1.address,
             ))),
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -379,12 +379,12 @@ fn driver_steps_not_proposer_valid() {
                 NilOrVal::Val(value.id()),
                 v3.address,
             ))),
-            expected_output: Some(Output::Vote(Vote::new_precommit(
+            expected_outputs: vec![Output::Vote(Vote::new_precommit(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
                 my_addr,
-            ))),
+            ))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -404,7 +404,7 @@ fn driver_steps_not_proposer_valid() {
         TestStep {
             desc: "we receive our own precommit",
             input: None,
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -429,7 +429,7 @@ fn driver_steps_not_proposer_valid() {
                 NilOrVal::Val(value.id()),
                 v1.address,
             ))),
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -454,7 +454,7 @@ fn driver_steps_not_proposer_valid() {
                 NilOrVal::Val(value.id()),
                 v3.address,
             ))),
-            expected_output: Some(Output::Decide(Round::new(0), value)),
+            expected_outputs: vec![Output::Decide(Round::new(0), value)],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -498,7 +498,7 @@ fn driver_steps_not_proposer_invalid() {
         TestStep {
             desc: "Start round 0, we are not the proposer",
             input: Some(Input::NewRound(Height::new(1), Round::new(0))),
-            expected_output: Some(Output::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -512,7 +512,7 @@ fn driver_steps_not_proposer_invalid() {
         TestStep {
             desc: "Receive an invalid proposal, prevote for nil (v2)",
             input: Some(Input::Proposal(proposal.clone(), Validity::Invalid)),
-            expected_output: Some(Output::Vote(
+            expected_outputs: vec!(Output::Vote(
                 Vote::new_prevote(Height::new(1),Round::new(0), NilOrVal::Nil, my_addr)
             )),
             expected_round: Round::new(0),
@@ -528,7 +528,7 @@ fn driver_steps_not_proposer_invalid() {
         TestStep {
             desc: "Receive our own prevote (v2)",
             input: None,
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -544,7 +544,7 @@ fn driver_steps_not_proposer_invalid() {
             input: Some(Input::Vote(
                 Vote::new_prevote(Height::new(1), Round::new(0), NilOrVal::Val(value.id()), v1.address)
             )),
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -560,7 +560,7 @@ fn driver_steps_not_proposer_invalid() {
             input: Some(Input::Vote(
                 Vote::new_prevote(Height::new(1), Round::new(0), NilOrVal::Val(value.id()), v3.address)
             )),
-            expected_output: Some(Output::ScheduleTimeout(Timeout::prevote(Round::new(0)))),
+            expected_outputs: vec![Output::ScheduleTimeout(Timeout::prevote(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -574,7 +574,7 @@ fn driver_steps_not_proposer_invalid() {
         TestStep {
             desc: "prevote timeout elapses, we precommit for nil (v2)",
             input: Some(Input::TimeoutElapsed(Timeout::prevote(Round::new(0)))),
-            expected_output: Some(Output::Vote(
+            expected_outputs: vec!(Output::Vote(
                 Vote::new_precommit(Height::new(1), Round::new(0), NilOrVal::Nil, my_addr)
             )),
             expected_round: Round::new(0),
@@ -615,7 +615,7 @@ fn driver_steps_not_proposer_other_height() {
         TestStep {
             desc: "Start round 0, we are not the proposer",
             input: Some(Input::NewRound(Height::new(1), Round::new(0))),
-            expected_output: Some(Output::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -629,7 +629,7 @@ fn driver_steps_not_proposer_other_height() {
         TestStep {
             desc: "Receive a proposal for another height, ignore it (v2)",
             input: Some(Input::Proposal(proposal.clone(), Validity::Invalid)),
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -668,7 +668,7 @@ fn driver_steps_not_proposer_other_round() {
         TestStep {
             desc: "Start round 0, we are not the proposer",
             input: Some(Input::NewRound(Height::new(1), Round::new(0))),
-            expected_output: Some(Output::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -682,7 +682,7 @@ fn driver_steps_not_proposer_other_round() {
         TestStep {
             desc: "Receive a proposal for another round, ignore it (v2)",
             input: Some(Input::Proposal(proposal.clone(), Validity::Invalid)),
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -719,7 +719,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer",
             input: Some(Input::NewRound(Height::new(1), Round::new(0))),
-            expected_output: Some(Output::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -734,12 +734,12 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "Receive a propose timeout, prevote for nil (v3)",
             input: Some(Input::TimeoutElapsed(Timeout::propose(Round::new(0)))),
-            expected_output: Some(Output::Vote(Vote::new_prevote(
+            expected_outputs: vec![Output::Vote(Vote::new_prevote(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Nil,
                 my_addr,
-            ))),
+            ))],
             expected_round: Round::new(0),
             new_state: State {
                 round: Round::new(0),
@@ -754,7 +754,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "Receive our own prevote v3",
             input: None,
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -774,7 +774,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 NilOrVal::Val(value.id()),
                 v1.address,
             ))),
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -794,12 +794,12 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 NilOrVal::Nil,
                 v2.address,
             ))),
-            expected_output: Some(Output::Vote(Vote::new_precommit(
+            expected_outputs: vec![Output::Vote(Vote::new_precommit(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Nil,
                 my_addr,
-            ))),
+            ))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -814,7 +814,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "v3 receives its own precommit",
             input: None,
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -834,7 +834,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 NilOrVal::Val(value.id()),
                 v1.address,
             ))),
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -854,7 +854,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 NilOrVal::Nil,
                 v2.address,
             ))),
-            expected_output: Some(Output::ScheduleTimeout(Timeout::precommit(Round::new(0)))),
+            expected_outputs: vec![Output::ScheduleTimeout(Timeout::precommit(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -869,7 +869,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "we receive a precommit timeout, start a new round",
             input: Some(Input::TimeoutElapsed(Timeout::precommit(Round::new(0)))),
-            expected_output: Some(Output::NewRound(Height::new(1), Round::new(1))),
+            expected_outputs: vec![Output::NewRound(Height::new(1), Round::new(1))],
             expected_round: Round::new(1),
             new_state: State {
                 height: Height::new(1),
@@ -883,7 +883,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         TestStep {
             desc: "Start round 1, we are not the proposer",
             input: Some(Input::NewRound(Height::new(1), Round::new(1))),
-            expected_output: Some(Output::ScheduleTimeout(Timeout::propose(Round::new(1)))),
+            expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(1)))],
             expected_round: Round::new(1),
             new_state: State {
                 height: Height::new(1),
@@ -1005,7 +1005,7 @@ fn driver_steps_skip_round_skip_threshold() {
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer",
             input: Some(Input::NewRound(height, Round::new(0))),
-            expected_output: Some(Output::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
                 height,
@@ -1020,12 +1020,12 @@ fn driver_steps_skip_round_skip_threshold() {
         TestStep {
             desc: "Receive a propose timeout, prevote for nil (v3)",
             input: Some(Input::TimeoutElapsed(Timeout::propose(Round::new(0)))),
-            expected_output: Some(Output::Vote(Vote::new_prevote(
+            expected_outputs: vec![Output::Vote(Vote::new_prevote(
                 height,
                 Round::new(0),
                 NilOrVal::Nil,
                 my_addr,
-            ))),
+            ))],
             expected_round: Round::new(0),
             new_state: State {
                 height,
@@ -1040,7 +1040,7 @@ fn driver_steps_skip_round_skip_threshold() {
         TestStep {
             desc: "Receive our own prevote v3",
             input: None,
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height,
@@ -1060,7 +1060,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 NilOrVal::Val(value.id()),
                 v1.address,
             ))),
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height,
@@ -1080,7 +1080,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 NilOrVal::Val(value.id()),
                 v2.address,
             ))),
-            expected_output: Some(Output::NewRound(height, Round::new(1))),
+            expected_outputs: vec![Output::NewRound(height, Round::new(1))],
             expected_round: Round::new(1),
             new_state: State {
                 height,
@@ -1118,7 +1118,7 @@ fn driver_steps_skip_round_quorum_threshold() {
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer",
             input: Some(Input::NewRound(height, Round::new(0))),
-            expected_output: Some(Output::ScheduleTimeout(Timeout::propose(Round::new(0)))),
+            expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
                 height,
@@ -1133,12 +1133,12 @@ fn driver_steps_skip_round_quorum_threshold() {
         TestStep {
             desc: "Receive a propose timeout, prevote for nil (v3)",
             input: Some(Input::TimeoutElapsed(Timeout::propose(Round::new(0)))),
-            expected_output: Some(Output::Vote(Vote::new_prevote(
+            expected_outputs: vec![Output::Vote(Vote::new_prevote(
                 height,
                 Round::new(0),
                 NilOrVal::Nil,
                 my_addr,
-            ))),
+            ))],
             expected_round: Round::new(0),
             new_state: State {
                 height,
@@ -1153,7 +1153,7 @@ fn driver_steps_skip_round_quorum_threshold() {
         TestStep {
             desc: "Receive our own prevote v3",
             input: None,
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height,
@@ -1173,7 +1173,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 NilOrVal::Val(value.id()),
                 v1.address,
             ))),
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
                 height,
@@ -1193,7 +1193,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 NilOrVal::Val(value.id()),
                 v2.address,
             ))),
-            expected_output: Some(Output::NewRound(height, Round::new(1))),
+            expected_outputs: vec![Output::NewRound(height, Round::new(1))],
             expected_round: Round::new(1),
             new_state: State {
                 height,
@@ -1220,12 +1220,11 @@ fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
             .unwrap_or_else(|| input_from_prev_output.unwrap());
 
         let mut outputs = driver.process(input).expect("execute succeeded");
-        let output = outputs.pop();
 
-        assert_eq!(output, step.expected_output, "expected output");
+        assert_eq!(outputs, step.expected_outputs, "expected outputs");
         assert_eq!(driver.round(), step.expected_round, "expected round");
         assert_eq!(driver.round_state, step.new_state, "new state");
 
-        input_from_prev_output = output.and_then(output_to_input);
+        input_from_prev_output = outputs.pop().and_then(output_to_input);
     }
 }
