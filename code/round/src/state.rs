@@ -110,7 +110,7 @@ where
         }
     }
 
-    /// Set the valid value.
+    /// Set the value we have decided on.
     pub fn set_decision(self, value: Ctx::Value) -> Self {
         Self {
             decision: Some(value),
