@@ -45,11 +45,14 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "Start round 0, we are proposer, ask for a value to propose",
             input: Some(Input::NewRound(Height::new(1), Round::new(0))),
-            expected_outputs: vec![Output::GetValue(
-                Height::new(1),
-                Round::new(0),
-                Timeout::new(Round::new(0), TimeoutStep::Propose),
-            )],
+            expected_outputs: vec![
+                Output::ScheduleTimeout(Timeout::new(Round::new(0), TimeoutStep::Propose)),
+                Output::GetValue(
+                    Height::new(1),
+                    Round::new(0),
+                    Timeout::new(Round::new(0), TimeoutStep::Propose),
+                ),
+            ],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -247,11 +250,14 @@ fn driver_steps_proposer_timeout_get_value() {
         TestStep {
             desc: "Start round 0, we are proposer, ask for a value to propose",
             input: Some(Input::NewRound(Height::new(1), Round::new(0))),
-            expected_outputs: vec![Output::GetValue(
-                Height::new(1),
-                Round::new(0),
-                Timeout::new(Round::new(0), TimeoutStep::Propose),
-            )],
+            expected_outputs: vec![
+                Output::ScheduleTimeout(Timeout::new(Round::new(0), TimeoutStep::Propose)),
+                Output::GetValue(
+                    Height::new(1),
+                    Round::new(0),
+                    Timeout::new(Round::new(0), TimeoutStep::Propose),
+                ),
+            ],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -914,19 +920,20 @@ fn driver_steps_no_value_to_propose() {
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
-    let mut outputs = driver
+    let outputs = driver
         .process(Input::NewRound(Height::new(1), Round::new(0)))
         .expect("execute succeeded");
 
-    let output = outputs.pop();
-
     assert_eq!(
-        output,
-        Some(Output::GetValue(
-            Height::new(1),
-            Round::new(0),
-            Timeout::propose(Round::new(0))
-        ))
+        outputs,
+        vec!(
+            Output::ScheduleTimeout(Timeout::new(Round::new(0), TimeoutStep::Propose)),
+            Output::GetValue(
+                Height::new(1),
+                Round::new(0),
+                Timeout::propose(Round::new(0))
+            )
+        )
     );
 }
 
