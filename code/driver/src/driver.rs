@@ -142,8 +142,8 @@ where
 
             RoundOutput::ScheduleTimeout(timeout) => Output::ScheduleTimeout(timeout),
 
-            RoundOutput::GetValueAndScheduleTimeout(round, timeout) => {
-                Output::GetValueAndScheduleTimeout(round, timeout)
+            RoundOutput::GetValueAndScheduleTimeout(height, round, timeout) => {
+                Output::GetValueAndScheduleTimeout(height, round, timeout)
             }
 
             RoundOutput::Decision(value) => Output::Decide(value.round, value.value),

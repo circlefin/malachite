@@ -30,7 +30,7 @@ fn test_propose() {
     assert_eq!(transition.next_state, state);
     assert_eq!(
         transition.output.unwrap(),
-        Output::get_value_and_schedule_timeout(round, TimeoutStep::Propose)
+        Output::get_value_and_schedule_timeout(height, round, TimeoutStep::Propose)
     );
 
     let transition = apply(transition.next_state, &data, Input::ProposeValue(value));

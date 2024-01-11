@@ -236,9 +236,10 @@ impl ItfRunner for ConsensusRunner {
                 }
 
                 (
-                    Output::GetValueAndScheduleTimeout(round, timeout),
+                    Output::GetValueAndScheduleTimeout(height, round, timeout),
                     ModelOutput::Proposal(proposal),
                 ) => {
+                    assert_eq!(height.as_u64(), proposal.height as u64);
                     assert_eq!(round.as_i64(), proposal.round);
                     assert_eq!(timeout.step, TimeoutStep::Propose);
 
