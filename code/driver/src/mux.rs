@@ -95,12 +95,14 @@ where
         // Store the proposal
         self.proposal = Some(proposal.clone());
 
+        // Determine if there is a polka for the proposal
         let polka_for_pol = self.vote_keeper.is_threshold_met(
             &proposal.pol_round(),
             VoteType::Prevote,
             Threshold::Value(proposal.value().id()),
         );
 
+        // Determine if the polka is for a previous round
         let polka_previous = proposal.pol_round().is_defined()
             && polka_for_pol
             && proposal.pol_round() < self.round_state.round;
@@ -124,12 +126,12 @@ where
 
         // We have a valid proposal.
         // L49
-        // TODO - check if not already decided
         if self.vote_keeper.is_threshold_met(
             &proposal.round(),
             VoteType::Precommit,
             Threshold::Value(proposal.value().id()),
-        ) {
+        ) && !self.round_state.step.eq(&Step::Commit)
+        {
             return Some(RoundInput::ProposalAndPrecommitValue(proposal));
         }
 
@@ -153,7 +155,6 @@ where
 
         // L28
         if self.round_state.step == Step::Propose && polka_previous {
-            // TODO: Check proposal vr is equal to threshold vr
             return Some(RoundInput::ProposalAndPolkaPrevious(proposal));
         }
 

@@ -2,8 +2,6 @@ use core::fmt;
 
 use crate::{Context, Signature, Vote};
 
-// TODO: Do we need to abstract over `SignedVote` as well?
-
 /// A signed vote, ie. a vote emitted by a validator and signed by its private key.
 pub struct SignedVote<Ctx>
 where
