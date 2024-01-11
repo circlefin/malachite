@@ -81,8 +81,8 @@ where
     }
 
     /// Return the height of the consensus.
-    pub fn height(&self) -> &Ctx::Height {
-        &self.round_state.height
+    pub fn height(&self) -> Ctx::Height {
+        self.round_state.height
     }
 
     /// Return the current round we are at.
@@ -134,7 +134,7 @@ where
     /// Convert an output of the round state machine to the output type of the driver.
     fn lift_output(&mut self, round_output: RoundOutput<Ctx>) -> Output<Ctx> {
         match round_output {
-            RoundOutput::NewRound(round) => Output::NewRound(self.height().clone(), round),
+            RoundOutput::NewRound(round) => Output::NewRound(self.height(), round),
 
             RoundOutput::Proposal(proposal) => Output::Propose(proposal),
 
@@ -166,7 +166,7 @@ where
         height: Ctx::Height,
         round: Round,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        if self.height() == &height {
+        if self.height() == height {
             // If it's a new round for same height, just reset the round, keep the valid and locked values
             self.round_state.round = round;
         } else {

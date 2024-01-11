@@ -144,7 +144,6 @@ where
         // L57
         // We are the proposer.
         (Step::Propose, Input::TimeoutPropose) if this_round && info.is_proposer() => {
-            // TODO: Do we need to do something else here?
             prevote_nil(state, info.address)
         }
 
@@ -227,7 +226,7 @@ where
         Some(round_value) => {
             let pol_round = round_value.round;
             let proposal = Output::proposal(
-                state.height.clone(),
+                state.height,
                 state.round,
                 round_value.value.clone(),
                 pol_round,
@@ -249,7 +248,7 @@ pub fn propose<Ctx>(state: State<Ctx>, value: Ctx::Value) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let proposal = Output::proposal(state.height.clone(), state.round, value, Round::Nil);
+    let proposal = Output::proposal(state.height, state.round, value, Round::Nil);
     Transition::to(state.with_step(Step::Propose)).with_output(proposal)
 }
 
@@ -278,7 +277,7 @@ where
         None => NilOrVal::Val(proposed), // not locked, prevote the value
     };
 
-    let output = Output::prevote(state.height.clone(), state.round, value, address.clone());
+    let output = Output::prevote(state.height, state.round, value, address.clone());
     Transition::to(state.with_step(Step::Prevote)).with_output(output)
 }
 
@@ -289,12 +288,7 @@ pub fn prevote_nil<Ctx>(state: State<Ctx>, address: &Ctx::Address) -> Transition
 where
     Ctx: Context,
 {
-    let output = Output::prevote(
-        state.height.clone(),
-        state.round,
-        NilOrVal::Nil,
-        address.clone(),
-    );
+    let output = Output::prevote(state.height, state.round, NilOrVal::Nil, address.clone());
 
     Transition::to(state.with_step(Step::Prevote)).with_output(output)
 }
@@ -323,7 +317,7 @@ where
 
     let value = proposal.value();
     let output = Output::precommit(
-        state.height.clone(),
+        state.height,
         state.round,
         NilOrVal::Val(value.id()),
         address.clone(),
@@ -344,12 +338,7 @@ pub fn precommit_nil<Ctx>(state: State<Ctx>, address: &Ctx::Address) -> Transiti
 where
     Ctx: Context,
 {
-    let output = Output::precommit(
-        state.height.clone(),
-        state.round,
-        NilOrVal::Nil,
-        address.clone(),
-    );
+    let output = Output::precommit(state.height, state.round, NilOrVal::Nil, address.clone());
     Transition::to(state.with_step(Step::Precommit)).with_output(output)
 }
 

@@ -34,7 +34,7 @@ impl<Ctx: Context> Clone for Output<Ctx> {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         match self {
-            Output::NewRound(height, round) => Output::NewRound(height.clone(), *round),
+            Output::NewRound(height, round) => Output::NewRound(*height, *round),
             Output::Propose(proposal) => Output::Propose(proposal.clone()),
             Output::Vote(signed_vote) => Output::Vote(signed_vote.clone()),
             Output::Decide(round, value) => Output::Decide(*round, value.clone()),

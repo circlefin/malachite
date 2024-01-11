@@ -22,7 +22,6 @@ pub mod round_votes;
 pub mod round_weights;
 pub mod value_weights;
 
-// TODO: Introduce newtype
 /// Represents the weight of a vote,
 /// ie. the voting power of the validator that cast the vote.
 pub type Weight = VotingPower;
@@ -66,7 +65,6 @@ impl Default for ThresholdParams {
     }
 }
 
-// TODO: Distinguish between quorum and honest thresholds at the type-level
 /// Represents the different quorum thresholds.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct ThresholdParam {
