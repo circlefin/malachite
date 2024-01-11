@@ -111,8 +111,7 @@ where
             None => return Ok(Vec::new()),
         };
 
-        let output = self.lift_output(round_output);
-        let mut outputs = vec![output];
+        let mut outputs = self.lift_output(round_output);
 
         self.process_pending(&mut outputs)?;
 
@@ -123,8 +122,8 @@ where
     fn process_pending(&mut self, outputs: &mut Vec<Output<Ctx>>) -> Result<(), Error<Ctx>> {
         while let Some((round, input)) = self.pending_input.take() {
             if let Some(round_output) = self.apply_input(round, input)? {
-                let output = self.lift_output(round_output);
-                outputs.push(output);
+                let new_outputs = self.lift_output(round_output);
+                outputs.extend(new_outputs);
             };
         }
 
@@ -132,21 +131,24 @@ where
     }
 
     /// Convert an output of the round state machine to the output type of the driver.
-    fn lift_output(&mut self, round_output: RoundOutput<Ctx>) -> Output<Ctx> {
+    fn lift_output(&mut self, round_output: RoundOutput<Ctx>) -> Vec<Output<Ctx>> {
         match round_output {
-            RoundOutput::NewRound(round) => Output::NewRound(self.height(), round),
+            RoundOutput::NewRound(round) => vec![Output::NewRound(self.height(), round)],
 
-            RoundOutput::Proposal(proposal) => Output::Propose(proposal),
+            RoundOutput::Proposal(proposal) => vec![Output::Propose(proposal)],
 
-            RoundOutput::Vote(vote) => Output::Vote(vote),
+            RoundOutput::Vote(vote) => vec![Output::Vote(vote)],
 
-            RoundOutput::ScheduleTimeout(timeout) => Output::ScheduleTimeout(timeout),
+            RoundOutput::ScheduleTimeout(timeout) => vec![Output::ScheduleTimeout(timeout)],
 
             RoundOutput::GetValueAndScheduleTimeout(height, round, timeout) => {
-                Output::GetValue(height, round, timeout)
+                vec![
+                    Output::ScheduleTimeout(timeout),
+                    Output::GetValue(height, round, timeout),
+                ]
             }
 
-            RoundOutput::Decision(value) => Output::Decide(value.round, value.value),
+            RoundOutput::Decision(value) => vec![Output::Decide(value.round, value.value)],
         }
     }
 
