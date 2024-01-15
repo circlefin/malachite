@@ -1,7 +1,7 @@
 use malachite_itf::types::{NonNilValue, Value as ModelValue};
 use malachite_test::{Value, ValueId};
 
-pub const ADDRESSES: [&str; 2] = ["Josef", "Other"];
+pub const ADDRESSES: [&str; 2] = ["v1", "v2"];
 
 pub fn value_from_string(v: &NonNilValue) -> Option<Value> {
     match v.as_str() {

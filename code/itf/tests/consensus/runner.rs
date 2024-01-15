@@ -48,7 +48,7 @@ impl ItfRunner for ConsensusRunner {
         println!("🔸 step: model state={:?}", expected.state);
 
         let address = self.address_map.get(&expected.state.process).unwrap();
-        let some_other_node = self.address_map.get("Other").unwrap(); // FIXME
+        let some_other_node = self.address_map.get("v2").unwrap(); // FIXME
 
         let (data, input) = match &expected.input {
             ModelInput::NoInput => unreachable!(),
