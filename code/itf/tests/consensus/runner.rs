@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use pretty_assertions::assert_eq;
 
@@ -13,11 +13,11 @@ use malachite_test::{Address, Height, TestContext};
 use itf::Runner as ItfRunner;
 
 use crate::utils::{
-    value_from_model, value_from_string, value_id_from_model, value_id_from_string,
+    value_from_model, value_from_string, value_id_from_model, value_id_from_string, OTHER_PROCESS,
 };
 
 pub struct ConsensusRunner {
-    pub address_map: HashMap<String, Address>,
+    pub address_map: BTreeMap<String, Address>,
 }
 
 impl ItfRunner for ConsensusRunner {
@@ -48,7 +48,7 @@ impl ItfRunner for ConsensusRunner {
         println!("🔸 step: model state={:?}", expected.state);
 
         let address = self.address_map.get(&expected.state.process).unwrap();
-        let some_other_node = self.address_map.get("Other").unwrap(); // FIXME
+        let some_other_node = self.address_map.get(OTHER_PROCESS).unwrap(); // FIXME
 
         let (data, input) = match &expected.input {
             ModelInput::NoInput => unreachable!(),

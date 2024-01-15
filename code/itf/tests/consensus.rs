@@ -9,10 +9,8 @@ use rand::SeedableRng;
 
 use malachite_itf::consensus::State;
 use malachite_itf::utils::generate_traces;
-use malachite_test::{Address, PrivateKey};
 
 use runner::ConsensusRunner;
-use utils::ADDRESSES;
 
 const RANDOM_SEED: u64 = 0x42;
 
@@ -51,16 +49,10 @@ fn test_itf() {
 
         let mut rng = StdRng::seed_from_u64(RANDOM_SEED);
 
-        // build mapping from model addresses to real addresses
-        let consensus_runner = ConsensusRunner {
-            address_map: ADDRESSES
-                .iter()
-                .map(|&name| {
-                    let pk = PrivateKey::generate(&mut rng).public_key();
-                    (name.into(), Address::from_public_key(&pk))
-                })
-                .collect(),
-        };
+        // Build mapping from model addresses to real addresses
+        let address_map = utils::build_address_map(&trace, &mut rng);
+
+        let consensus_runner = ConsensusRunner { address_map };
 
         trace.run_on(consensus_runner).unwrap();
     }
