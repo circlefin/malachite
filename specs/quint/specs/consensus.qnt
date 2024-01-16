@@ -45,7 +45,7 @@ module consensus {
         // Start a new round as proposer.
         | NewRoundProposerCInput(Round)
         // GetValue returns (L18)
-        | ProposeValue(NonNilValue)
+        | ProposeValueCInput(NonNilValue)
         // Receive a proposal without associated valid round.
         | ProposalCInput((Round, Value))
         // Receive a valid proposal with an associated valid round, attested by a a Polka(vr).
@@ -131,7 +131,7 @@ module consensus {
             else if (round <= state.round)
                 state.toErrorOutput("new round is not bigger than current round")
             else
-                if (state.validValue != Nil) // state.validValue.getVal()
+                if (state.validValue == Nil) 
                     state
                         .with("step", ProposeStep)
                         .with("round", round)
@@ -143,7 +143,7 @@ module consensus {
                         .with("round", round)
                         .toProposalOutput(state.p, state.height, round, v, state.validRound) // line 19
 
-        | ProposeValue(value) =>
+        | ProposeValueCInput(value) =>
             // here we assume that the driver has checked that we are the proposer of 
             // the current round (and we have not sent proposal before)
             state.toProposalOutput(state.p, state.height, state.round, value, state.validRound) // line 19

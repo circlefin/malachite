@@ -61,7 +61,7 @@ module driver {
         | PendingDInput(ConsensusInput)
         | SetNextProposedValueDInput(NonNilValue) // TODO: remove perhaps
         | StepChangeDInput
-        | SetValueDInput(NonNilValue)
+        | ProposeValueDInput(NonNilValue)
 
     val emptyProposal = mkProposal(noAddress, 0, 0, "", 0)
     val emptyVote = mkVote(Prevote, noAddress, 0, 0, Nil)
@@ -332,6 +332,8 @@ module driver {
                     | SkipRoundOutput(r) => handleSkip(newState, r)
                     | _ => (newState, conOut)
                 }
+            | ProposeValueDInput(v) =>
+                callConsensus(state, state.bk, ProposeValueCInput(v))
             | VoteDInput(vote) => 
                 match vote.voteType {
                     | Precommit =>
@@ -423,14 +425,18 @@ module driver {
     // This is a simple function that figures out in what external events (messages,
     // timeouts, etc.) the node should act.
     // currently this is linked in via the state machine. But we can move it into
-    // the functional layer/
+    // the functional layer
     pure def nextAction(state: NodeState): (NodeState, DriverInput) =
         if (not(state.es.started))
             (state, StartDInput)
 
-        // This is hard coded right now
+        // This is hard coded right now. I remove the request when served
         else if (state.getValueRequests.contains((state.es.cs.height, state.es.cs.round)))
-            (state, SetValueDInput(getVal(state.es.getValue())))
+            val newstate = { ...state, getValueRequests: state.getValueRequests.exclude(Set((state.es.cs.height, state.es.cs.round)))}
+            if (state.es.nextValueToPropose != Nil)
+                (newstate, ProposeValueDInput(getVal(state.es.nextValueToPropose)))
+            else
+                (newstate, ProposeValueDInput("nothing to propose"))
 
         else if (state.es.pendingStepChange != NoStep)
             (state, StepChangeDInput)

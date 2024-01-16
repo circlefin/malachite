@@ -108,18 +108,20 @@ action valStep(v: Address) : bool = {
         // do networking
         match consensus_output {
             | ProposalOutput(proposal) => all {
-                // TODO: do we need to start a timeout on this result, that is, when we are proposer and
-                // send a proposal?
                 propBuffer' = sendProposal(propBuffer, proposal), 
                 voteBuffer' = voteBuffer,
-                system' = sys,
+                // if there has been the GetValue flow before, the timeout is already started
+                // but since it is added to a set it is no harm in calling startTimeout again
+                // in the model
+                system' = startTimeout(sys, v, ProposeTimeout),
             }
             | GetValueAndScheduleTimeoutOutput(height_round) => all{
                 propBuffer' = propBuffer, 
                 voteBuffer' = voteBuffer,
-                system' = addGetValueRequest(sys, v, sys.get(v).es.cs.height, sys.get(v).es.cs.round)
+                // record the value request and start the propose timeout
+                val sysVal = addGetValueRequest(sys, v, height_round._1, height_round._2)
+                system' = startTimeout(sysVal, v, ProposeTimeout),
             }
-            
             | VoteOutput(vote) => all {
                 propBuffer' = propBuffer,
                 voteBuffer' = sendVote(voteBuffer, vote), 
