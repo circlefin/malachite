@@ -8,13 +8,14 @@ on:
       - edited
       - synchronize
 
+permissions:
+  pull-requests: read
+
 jobs:
   lint:
     name: Check PR title
     runs-on: ubuntu-latest
-    permissions:
-      statuses: write
     steps:
-      - uses: aslafy-z/conventional-pr-title-action@v3
+      - uses: amannn/action-semantic-pull-request@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

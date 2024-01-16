@@ -93,3 +93,39 @@ fn test_prevote() {
         )
     );
 }
+
+#[test]
+fn test_input_message_while_commit_step() {
+    let value = Value::new(42);
+    let height = Height::new(1);
+    let round = Round::new(1);
+
+    let state: State<TestContext> = State {
+        height,
+        round,
+        ..Default::default()
+    };
+
+    let proposal = Proposal::new(Height::new(1), Round::new(1), value, Round::Nil);
+
+    let data = Info::new(round, &ADDRESS, &OTHER_ADDRESS);
+
+    let mut transition = apply(state, &data, Input::NewRound(round));
+    let mut state = transition.next_state;
+
+    // Go to Commit step via L49
+    transition = apply(
+        state,
+        &data,
+        Input::ProposalAndPrecommitValue(proposal.clone()),
+    );
+    state = transition.next_state;
+    assert_eq!(state.step, Step::Commit);
+
+    // Send a proposal message while in Commit step, transition should be invalid
+    transition = apply(state, &data, Input::Proposal(proposal));
+    state = transition.next_state;
+
+    assert_eq!(state.step, Step::Commit);
+    assert!(!transition.valid);
+}
