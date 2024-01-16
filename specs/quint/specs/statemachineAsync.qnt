@@ -115,10 +115,9 @@ action valStep(v: Address) : bool = {
                 system' = sys,
             }
             | GetValueAndScheduleTimeoutOutput(height_round) => all{
-                // TODO: store request similar to startTimeout
                 propBuffer' = propBuffer, 
                 voteBuffer' = voteBuffer,
-                system' = sys,
+                system' = addGetValueRequest(sys, v, sys.get(v).es.cs.height, sys.get(v).es.cs.round)
             }
             
             | VoteOutput(vote) => all {
@@ -159,6 +158,8 @@ action setNextValueToPropose(v: Address, value: NonNilValue) : bool = all {
     propBuffer' = propBuffer,
     voteBuffer' = voteBuffer,
 }
+
+
 
 action deliverProposal(v: Address, p: Proposal) : bool = all {
     propBuffer.get(v).union(AllFaultyProposals).contains(p), // the proposal must be sent or from a faulty node
