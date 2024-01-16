@@ -576,28 +576,28 @@ fn driver_steps_polka_previous_new_proposal() {
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
             input: new_round_input(Round::new(0)),
-            expected_output: start_propose_timer_output(Round::new(0)),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
             desc: "receive a valid proposal for round 0",
             input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
-            expected_output: prevote_output(Round::new(0), &my_addr),
+            expected_outputs: vec![prevote_output(Round::new(0), &my_addr)],
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
         TestStep {
             desc: "v1 prevotes the proposal",
             input: prevote_input(&v1.address),
-            expected_output: None,
+            expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
         TestStep {
             desc: "v2 prevotes for same proposal, we get +2/3 prevotes, precommit",
             input: prevote_input(&v2.address),
-            expected_output: precommit_output(Round::new(0), value, &my_addr),
+            expected_outputs: vec![precommit_output(Round::new(0), value, &my_addr)],
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
                 Round::new(0),
@@ -607,7 +607,7 @@ fn driver_steps_polka_previous_new_proposal() {
         TestStep {
             desc: "Receive f+1 vote for round 1 from v2",
             input: prevote_input_at(Round::new(1), &v2.address),
-            expected_output: new_round_output(Round::new(1)),
+            expected_outputs: vec![new_round_output(Round::new(1))],
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_locked_and_valid(
                 Round::new(1),
@@ -617,7 +617,7 @@ fn driver_steps_polka_previous_new_proposal() {
         TestStep {
             desc: "start round 1, we, v3, are not the proposer, start timeout propose",
             input: new_round_input(Round::new(1)),
-            expected_output: start_propose_timer_output(Round::new(1)),
+            expected_outputs: vec![start_propose_timer_output(Round::new(1))],
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
@@ -627,7 +627,7 @@ fn driver_steps_polka_previous_new_proposal() {
         TestStep {
             desc: "receive a valid proposal for round 1 with different value",
             input: proposal_input(Round::new(1), other_value, Round::Nil, Validity::Valid),
-            expected_output: prevote_nil_output(Round::new(1), &my_addr),
+            expected_outputs: vec![prevote_nil_output(Round::new(1), &my_addr)],
             expected_round: Round::new(1),
             new_state: prevote_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
