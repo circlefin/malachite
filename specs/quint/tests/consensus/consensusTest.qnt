@@ -50,7 +50,7 @@ module consensusTest {
             fireInput(TimeoutProposeCInput((h, r))),
             fireInput(TimeoutPrevoteCInput((h, r))),
             fireInput(TimeoutPrecommitCInput((h, r))),
-            fireInput(ProposalAndPolkaAndInvalidCInput((h, r, Val(v)))),
+            fireInput(ProposalAndPolkaAndInvalidCInput(Val(v))),
         }
 
     action unchangedAll = all {

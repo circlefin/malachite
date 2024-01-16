@@ -58,7 +58,7 @@ module consensus {
         | ProposalAndPolkaAndValidCInput(Value)
         // found after Montebello
         // TODO: Discuss what to do about it
-        | ProposalAndPolkaAndInvalidCInput((Height, Round, Value))
+        | ProposalAndPolkaAndInvalidCInput(Value)
         // Receive +2/3 precommits from different validators, not for the same value or nil.
         | PrecommitAnyCInput
         // Proposal and 2/3+ commits for the proposal => decision
@@ -176,7 +176,7 @@ module consensus {
                     .toPrevoteOutput(state.p, state.height, state.round, Nil)
             else state.toErrorOutput("ProposalCInput when not in ProposeStep")
 
-        // line 28
+        // line 28 (with valid(v) evaluates to true)
         | ProposalAndPolkaPreviousAndValidCInput(value_vr) =>
             val v: Value = value_vr._1
             val vr: Round = value_vr._2
@@ -188,8 +188,14 @@ module consensus {
                 else 
                     state
                         .with("step", PrevoteStep)                                    // line 33
-                        .toPrevoteOutput(state.p, state.height, state.round, Nil)     // line 32
+                        .toPrevoteOutput(state.p, state.height, state.round, Nil)     // line 32 (valid)
             else state.toErrorOutput("ProposalAndPolkaPreviousAndValidCInput")
+
+        // line 28 (with valid(v) evaluates to false)
+        | ProposalAndPolkaAndInvalidCInput =>
+            state
+                .with("step", PrevoteStep)                                    // line 33
+                .toPrevoteOutput(state.p, state.height, state.round, Nil)     // line 32 (invalid)
 
         // line 34
         | PolkaAnyCInput =>
@@ -238,10 +244,6 @@ module consensus {
                     .with("step", CommitStep)
                     .toDecidedOutput(v)
             else state.toErrorOutput("ProposalAndCommitAndValidCInput when in CommitStep")
-
-        | ProposalAndPolkaAndInvalidCInput =>
-            // TODO
-            state.toNoConsensusOutput()
 
         // line 55
         | RoundSkipCInput(r) => 

@@ -27,6 +27,10 @@ run ListDeliverProposal (active, propMsg) = {
     }
 }
 
+run ListDeliverVote (active, voteMsg) = {
+    active.length().reps(i => deliverVote(active[i], voteMsg))
+}
+
 run ListDeliverSomeProposal (active) = {
     all{
         assert( Faulty != Set() or 

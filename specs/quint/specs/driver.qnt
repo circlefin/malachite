@@ -230,8 +230,8 @@ module driver {
         else // not(isValid(proposal))
             // keep ES (don't use newES here), that is, drop proposal
             if (es.cs.step == ProposeStep and es.cs.round == prop.round and es.cs.height == prop.height)
-                if (checkThreshold(es.bk, es.cs.round, Prevote, th))
-                    callConsensus(es, es.bk, ProposalAndPolkaAndInvalidCInput((es.cs.height, es.cs.round, id(Val(prop.proposal)))))
+                if (checkThreshold(es.bk, prop.validRound, Prevote, th))
+                    callConsensus(es, es.bk, ProposalAndPolkaAndInvalidCInput(id(Val(prop.proposal))))
                 else 
                     callConsensus(es, es.bk, ProposalInvalidCInput)
             else (es, NoConsensusOutput)
