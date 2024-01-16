@@ -59,8 +59,9 @@ module driver {
         | TimeoutDInput(Timeout)
         | StartDInput
         | PendingDInput(ConsensusInput)
-        | SetNextProposedValueDInput(NonNilValue)
+        | SetNextProposedValueDInput(NonNilValue) // TODO: remove perhaps
         | StepChangeDInput
+        | SetValueDInput(NonNilValue)
 
     val emptyProposal = mkProposal(noAddress, 0, 0, "", 0)
     val emptyVote = mkVote(Prevote, noAddress, 0, 0, Nil)
@@ -280,7 +281,7 @@ module driver {
     pure def handleSkip(es: DriverState, r: Round): (DriverState, ConsensusOutput) =
         if (proposer(es.valset, es.cs.height, es.cs.round + 1) == es.cs.p) // line 14
             val prop = if (es.cs.validValue != Nil) es.cs.validValue else es.getValue() // line 15
-            callConsensus(es, es.bk, NewRoundProposerCInput((r, prop.getVal())))
+            callConsensus(es, es.bk, NewRoundProposerCInput(r))
         else 
             callConsensus(es, es.bk, NewRoundCInput(r)) 
 
@@ -394,6 +395,7 @@ module driver {
         timeouts: Set[(Timeout, Height, Round)],
         incomingVotes: Set[Vote],
         incomingProposals: Set[Proposal],
+        getValueRequests: Set[(Height, Round)]
     }
 
     pure def initNode(v: Address, vs: Address -> Weight): NodeState = {
@@ -401,6 +403,7 @@ module driver {
         timeouts: Set(),
         incomingVotes: Set(),
         incomingProposals: Set(),
+        getValueRequests: Set(),
     }
 
     pure def existsTimeout(state: NodeState): bool =
@@ -424,6 +427,10 @@ module driver {
     pure def nextAction(state: NodeState): (NodeState, DriverInput) =
         if (not(state.es.started))
             (state, StartDInput)
+
+        // This is hard coded right now
+        else if (state.getValueRequests.contains((state.es.cs.height, state.es.cs.round)))
+            (state, SetValueDInput(getVal(state.es.getValue())))
 
         else if (state.es.pendingStepChange != NoStep)
             (state, StepChangeDInput)

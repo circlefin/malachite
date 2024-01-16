@@ -87,9 +87,13 @@ pure def startTimeout(sys: Address -> NodeState, v: Address, timeout: Timeout) :
     val newTimeout = (timeout, sys.get(v).es.cs.height, sys.get(v).es.cs.round)
     sys.put(v, { ...sys.get(v), timeouts: sys.get(v).timeouts.union(Set(newTimeout)) })
 
+// record a get value request
+pure def addGetValueRequest(sys: Address -> NodeState, v: Address, h: Height, r: Round) : Address -> NodeState =
+    sys.put(v, { ...sys.get(v), getValueRequests: sys.get(v).getValueRequests.union(Set((h,r)))})
+
 action valStep(v: Address) : bool = {
     // pick action
-    val next_action = system.get(v).nextAction() // nextAction could go within driver boundary
+    val next_action = system.get(v).nextAction() 
     val node_state = next_action._1
     val driver_input = next_action._2
     // remove action from v
@@ -110,6 +114,13 @@ action valStep(v: Address) : bool = {
                 voteBuffer' = voteBuffer,
                 system' = sys,
             }
+            | GetValueAndScheduleTimeoutOutput(height_round) => all{
+                // TODO: store request similar to startTimeout
+                propBuffer' = propBuffer, 
+                voteBuffer' = voteBuffer,
+                system' = sys,
+            }
+            
             | VoteOutput(vote) => all {
                 propBuffer' = propBuffer,
                 voteBuffer' = sendVote(voteBuffer, vote), 

@@ -42,8 +42,10 @@ module consensus {
         | NoConsensusInput
         // Start a new round, not as proposer.
         | NewRoundCInput(Round)
-        // Start a new round as proposer with the proposed Value.
-        | NewRoundProposerCInput((Round, NonNilValue))
+        // Start a new round as proposer.
+        | NewRoundProposerCInput(Round)
+        // GetValue returns (L18)
+        | ProposeValue(NonNilValue)
         // Receive a proposal without associated valid round.
         | ProposalCInput((Round, Value))
         // Receive a valid proposal with an associated valid round, attested by a a Polka(vr).
@@ -75,6 +77,7 @@ module consensus {
     type ConsensusOutput =
         | NoConsensusOutput
         | ProposalOutput(Proposal)
+        | GetValueAndScheduleTimeoutOutput((Height, Round))
         | VoteOutput(Vote)
         | TimeoutOutput((Round, Timeout))
         | DecidedOutput(Value)
@@ -85,6 +88,8 @@ module consensus {
         { cs: state, out: NoConsensusOutput }
     pure def toProposalOutput(state, src, height, round, value, validRound) = 
         { cs: state, out: ProposalOutput(mkProposal(src, height, round, value, validRound)) }
+    pure def toGetValueAndScheduleTimeoutOutput(state, height, round) =
+        { cs: state, out: GetValueAndScheduleTimeoutOutput((height, round))}
     pure def toPrevoteOutput(state, src, height, round, valueId) = 
         { cs: state, out: VoteOutput(mkVote(Prevote, src, height, round, valueId)) }
     pure def toPrecommitOutput(state, src, height, round, valueId) = 
@@ -120,19 +125,28 @@ module consensus {
             state.toErrorOutput("NoConsensusInput is not a valid consensus input")
         
         // line 11.14
-        | NewRoundProposerCInput(round_value) =>
-            val r = round_value._1
-            val v = round_value._2
+        | NewRoundProposerCInput(round) =>
             if (not(state.step.in(Set(UnstartedStep, NoStep))))
                 state.toErrorOutput("state is not Unstarted or initial step")
-            else if (r <= state.round)
+            else if (round <= state.round)
                 state.toErrorOutput("new round is not bigger than current round")
             else
-                val proposedValue = if (state.validValue != Nil) state.validValue.getVal() else v // lines 15-18
-                state
-                    .with("step", ProposeStep)
-                    .with("round", r)
-                    .toProposalOutput(state.p, state.height, r, proposedValue, state.validRound) // line 19
+                if (state.validValue != Nil) // state.validValue.getVal()
+                    state
+                        .with("step", ProposeStep)
+                        .with("round", round)
+                        .toGetValueAndScheduleTimeoutOutput(state.height, round) // line 18
+                else
+                    val v: NonNilValue = getVal(state.validValue) // as validValue is non-nil in this branch
+                    state
+                        .with("step", ProposeStep)
+                        .with("round", round)
+                        .toProposalOutput(state.p, state.height, round, v, state.validRound) // line 19
+
+        | ProposeValue(value) =>
+            // here we assume that the driver has checked that we are the proposer of 
+            // the current round (and we have not sent proposal before)
+            state.toProposalOutput(state.p, state.height, state.round, value, state.validRound) // line 19
 
         // line 11.20
         | NewRoundCInput(r) =>
