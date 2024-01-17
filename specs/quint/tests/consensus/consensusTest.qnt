@@ -37,7 +37,7 @@ module consensusTest {
         nondet vr = oneOf(Set(-1, 1, 2, 3, 4))
         any {
             fireInput(NewRoundCInput(r)),
-            fireInput(NewRoundProposerCInput((r, v))),
+            fireInput(NewRoundProposerCInput(r)),
             fireInput(ProposalCInput((r, Val(v)))),
             fireInput(ProposalAndPolkaPreviousAndValidCInput((Val(v), r))),
             fireInput(ProposalInvalidCInput),
@@ -85,7 +85,10 @@ module consensusTest {
     // TODO: rename test?
     run DecideNonProposerAtHeight2Test =
         initFor("v1", 2)     
-        .then(fireInput(NewRoundProposerCInput((0, "nextBlock"))))
+        .then(fireInput(NewRoundProposerCInput(0)))
+        .expect(output == GetValueAndScheduleTimeoutOutput((2, 0)))
+
+        .then(fireInput(ProposeValueCInput("nextBlock")))
         .expect(output == ProposalOutput(mkProposal("v1", 2, 0, "nextBlock", -1)))
         
         .then(fireInput(ProposalCInput((0, Val("nextBlock"))))) // it is assumed that the proposer receives its own message

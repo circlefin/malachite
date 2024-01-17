@@ -431,6 +431,7 @@ module driver {
             (state, StartDInput)
 
         // This is hard coded right now. I remove the request when served
+        // also this prevents the StepChangeDInput for the proposer of a new round
         else if (state.getValueRequests.contains((state.es.cs.height, state.es.cs.round)))
             val newstate = { ...state, getValueRequests: state.getValueRequests.exclude(Set((state.es.cs.height, state.es.cs.round)))}
             if (state.es.nextValueToPropose != Nil)
@@ -469,6 +470,7 @@ module driver {
     type Command =
         | StartCmd
         | PendingCmd
+        | ProposeValueCmd
         | ProposalCmd
         | VoteCmd
         | TimeoutCmd
@@ -477,6 +479,13 @@ module driver {
     pure def nextActionCommand(state: NodeState, command: Command): (NodeState, DriverInput) =
         if (command == StartCmd and not(state.es.started))
             (state, StartDInput)
+
+        else if (command == ProposeValueCmd and state.getValueRequests.contains((state.es.cs.height, state.es.cs.round)))
+            val newstate = { ...state, getValueRequests: state.getValueRequests.exclude(Set((state.es.cs.height, state.es.cs.round)))}
+            if (state.es.nextValueToPropose != Nil)
+                (newstate, ProposeValueDInput(getVal(state.es.nextValueToPropose)))
+            else
+                (newstate, ProposeValueDInput("nothing to propose"))
 
         else if (command == PendingCmd and state.es.pendingInputs != Set())
             val input_height_round = state.es.pendingInputs.fold((NoConsensusInput, -1, -1), (sum, y) => y)
