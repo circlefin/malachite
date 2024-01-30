@@ -36,6 +36,15 @@ where
         }
     }
 
+    /// Create a new `Info` instance where we are the proposer.
+    pub fn new_proposer(input_round: Round, address: &'a Ctx::Address) -> Self {
+        Self {
+            input_round,
+            address,
+            proposer: address,
+        }
+    }
+
     /// Check if we are the proposer for the round we are at.
     pub fn is_proposer(&self) -> bool {
         self.address == self.proposer
@@ -234,8 +243,12 @@ where
             Transition::to(state.with_step(Step::Propose)).with_output(proposal)
         }
         None => {
-            let timeout = Output::get_value_and_schedule_timeout(state.round, TimeoutStep::Propose);
-            Transition::to(state.with_step(Step::Propose)).with_output(timeout)
+            let output = Output::get_value_and_schedule_timeout(
+                state.height,
+                state.round,
+                TimeoutStep::Propose,
+            );
+            Transition::to(state.with_step(Step::Propose)).with_output(output)
         }
     }
 }

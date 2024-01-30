@@ -17,42 +17,60 @@ pub struct State {
 pub enum Input {
     #[serde(rename = "NoConsensusInput")]
     NoInput,
+
     #[serde(rename = "NewRoundCInput")]
     #[serde(with = "As::<Integer>")]
     NewRound(Round),
+
     #[serde(rename = "NewRoundProposerCInput")]
-    #[serde(with = "As::<(Integer, Same)>")]
-    NewRoundProposer(Round, NonNilValue),
+    #[serde(with = "As::<Integer>")]
+    NewRoundProposer(Round),
+
+    #[serde(rename = "ProposeValueCInput")]
+    ProposeValue(NonNilValue),
+
     #[serde(rename = "ProposalCInput")]
     #[serde(with = "As::<(Integer, Same)>")]
     Proposal(Round, Value),
+
     #[serde(rename = "ProposalAndPolkaPreviousAndValidCInput")]
     #[serde(with = "As::<(Same, Integer)>")]
     ProposalAndPolkaPreviousAndValid(Value, Round),
+
     #[serde(rename = "ProposalInvalidCInput")]
     ProposalInvalid,
+
     #[serde(rename = "PolkaNilCInput")]
     PolkaNil,
+
     #[serde(rename = "PolkaAnyCInput")]
     PolkaAny,
+
     #[serde(rename = "ProposalAndPolkaAndValidCInput")]
     ProposalAndPolkaAndValid(Value),
+
     #[serde(rename = "PrecommitAnyCInput")]
     PrecommitAny,
+
     #[serde(rename = "ProposalAndCommitAndValidCInput")]
     ProposalAndCommitAndValid(Value),
+
     #[serde(rename = "RoundSkipCInput")]
     #[serde(with = "As::<Integer>")]
     RoundSkip(Round),
+
     #[serde(rename = "TimeoutProposeCInput")]
     #[serde(with = "As::<(Integer, Integer)>")]
     TimeoutPropose(Height, Round),
+
     #[serde(rename = "TimeoutPrevoteCInput")]
     #[serde(with = "As::<(Integer, Integer)>")]
     TimeoutPrevote(Height, Round),
+
     #[serde(rename = "TimeoutPrecommitCInput")]
     #[serde(with = "As::<(Integer, Integer)>")]
     TimeoutPrecommit(Height, Round),
+
     #[serde(rename = "ProposalAndPolkaAndInvalidCInputCInput")]
     #[serde(with = "As::<(Integer, Integer, Same)>")]
     ProposalAndPolkaAndInvalidCInput(Height, Round, Value),
@@ -64,18 +82,28 @@ pub enum Input {
 pub enum Output {
     #[serde(rename = "NoConsensusOutput")]
     NoOutput,
+
     #[serde(rename = "ProposalOutput")]
     Proposal(Proposal),
+
+    #[serde(rename = "GetValueAndScheduleTimeoutOutput")]
+    #[serde(with = "As::<(Integer, Integer)>")]
+    GetValueAndScheduleTimeout(Height, Round),
+
     #[serde(rename = "VoteOutput")]
     Vote(Vote),
+
     #[serde(rename = "TimeoutOutput")]
     #[serde(with = "As::<(Integer, Same)>")]
     Timeout(Round, Timeout),
+
     #[serde(rename = "DecidedOutput")]
     Decided(Value),
+
     #[serde(rename = "SkipRoundOutput")]
     #[serde(with = "As::<Integer>")]
     SkipRound(Round),
+
     #[serde(rename = "ErrorOutput")]
     Error(String),
 }

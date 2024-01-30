@@ -62,10 +62,15 @@ impl ItfRunner for ConsensusRunner {
                 )
             }
 
-            // TODO: proposal value not used?
-            ModelInput::NewRoundProposer(round, _value) => {
+            ModelInput::NewRoundProposer(round) => {
                 let round = Round::new(*round);
-                (Info::new(round, address, address), Input::NewRound(round))
+                (Info::new_proposer(round, address), Input::NewRound(round))
+            }
+
+            ModelInput::ProposeValue(non_nil_value) => {
+                let value = value_from_string(non_nil_value).unwrap();
+                let data = Info::new_proposer(actual.round, address);
+                (data, Input::ProposeValue(value))
             }
 
             ModelInput::Proposal(round, value) => {
@@ -236,14 +241,12 @@ impl ItfRunner for ConsensusRunner {
                 }
 
                 (
-                    Output::GetValueAndScheduleTimeout(round, timeout),
-                    ModelOutput::Proposal(proposal),
+                    Output::GetValueAndScheduleTimeout(output_height, output_round, output_timeout),
+                    ModelOutput::GetValueAndScheduleTimeout(model_height, model_round),
                 ) => {
-                    assert_eq!(round.as_i64(), proposal.round);
-                    assert_eq!(timeout.step, TimeoutStep::Propose);
-
-                    // TODO: We need to manually feed `ProposeValue` to the round state
-                    //       machine here, and then check the emitted proposal.
+                    assert_eq!(output_height.as_u64(), *model_height as u64);
+                    assert_eq!(output_round.as_i64(), *model_round);
+                    assert_eq!(output_timeout.step, TimeoutStep::Propose);
                 }
 
                 (Output::Decision(decision), ModelOutput::Decided(expected_decided_value)) => {
