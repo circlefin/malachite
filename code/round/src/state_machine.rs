@@ -36,6 +36,15 @@ where
         }
     }
 
+    /// Create a new `Info` instance where we are the proposer.
+    pub fn new_proposer(input_round: Round, address: &'a Ctx::Address) -> Self {
+        Self {
+            input_round,
+            address,
+            proposer: address,
+        }
+    }
+
     /// Check if we are the proposer for the round we are at.
     pub fn is_proposer(&self) -> bool {
         self.address == self.proposer
