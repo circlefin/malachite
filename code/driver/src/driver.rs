@@ -111,9 +111,12 @@ where
             None => return Ok(Vec::new()),
         };
 
-        let output = self.lift_output(round_output);
-        let mut outputs = vec![output];
+        let mut outputs = vec![];
 
+        // Lift the round state machine output to one or more driver outputs
+        self.lift_output(round_output, &mut outputs);
+
+        // Apply the pending inputs, if any, and lift their outputs
         self.process_pending(&mut outputs)?;
 
         Ok(outputs)
@@ -123,8 +126,7 @@ where
     fn process_pending(&mut self, outputs: &mut Vec<Output<Ctx>>) -> Result<(), Error<Ctx>> {
         while let Some((round, input)) = self.pending_input.take() {
             if let Some(round_output) = self.apply_input(round, input)? {
-                let output = self.lift_output(round_output);
-                outputs.push(output);
+                self.lift_output(round_output, outputs);
             };
         }
 
@@ -132,21 +134,22 @@ where
     }
 
     /// Convert an output of the round state machine to the output type of the driver.
-    fn lift_output(&mut self, round_output: RoundOutput<Ctx>) -> Output<Ctx> {
+    fn lift_output(&mut self, round_output: RoundOutput<Ctx>, outputs: &mut Vec<Output<Ctx>>) {
         match round_output {
-            RoundOutput::NewRound(round) => Output::NewRound(self.height(), round),
+            RoundOutput::NewRound(round) => outputs.push(Output::NewRound(self.height(), round)),
 
-            RoundOutput::Proposal(proposal) => Output::Propose(proposal),
+            RoundOutput::Proposal(proposal) => outputs.push(Output::Propose(proposal)),
 
-            RoundOutput::Vote(vote) => Output::Vote(vote),
+            RoundOutput::Vote(vote) => outputs.push(Output::Vote(vote)),
 
-            RoundOutput::ScheduleTimeout(timeout) => Output::ScheduleTimeout(timeout),
+            RoundOutput::ScheduleTimeout(timeout) => outputs.push(Output::ScheduleTimeout(timeout)),
 
-            RoundOutput::GetValueAndScheduleTimeout(round, timeout) => {
-                Output::GetValueAndScheduleTimeout(round, timeout)
+            RoundOutput::GetValueAndScheduleTimeout(height, round, timeout) => {
+                outputs.push(Output::ScheduleTimeout(timeout));
+                outputs.push(Output::GetValue(height, round, timeout));
             }
 
-            RoundOutput::Decision(value) => Output::Decide(value.round, value.value),
+            RoundOutput::Decision(value) => outputs.push(Output::Decide(value.round, value.value)),
         }
     }
 

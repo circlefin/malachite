@@ -23,8 +23,9 @@ where
     /// Schedule the timeout.
     ScheduleTimeout(Timeout),
 
-    /// Ask for a value and schedule a timeout.
-    GetValueAndScheduleTimeout(Round, Timeout),
+    /// Ask for a value at the given height, round and to schedule a timeout.
+    /// The timeout tells the proposal builder how long it has to build a value.
+    GetValueAndScheduleTimeout(Ctx::Height, Round, Timeout),
 
     /// Decide the value.
     Decision(RoundValue<Ctx::Value>),
@@ -66,9 +67,13 @@ impl<Ctx: Context> Output<Ctx> {
         Output::ScheduleTimeout(Timeout { round, step })
     }
 
-    /// Build a `GetValueAndScheduleTimeout` output.
-    pub fn get_value_and_schedule_timeout(round: Round, step: TimeoutStep) -> Self {
-        Output::GetValueAndScheduleTimeout(round, Timeout { round, step })
+    /// Build a `GetValue` output.
+    pub fn get_value_and_schedule_timeout(
+        height: Ctx::Height,
+        round: Round,
+        step: TimeoutStep,
+    ) -> Self {
+        Output::GetValueAndScheduleTimeout(height, round, Timeout { round, step })
     }
 
     /// Build a `Decision` output.
@@ -89,8 +94,8 @@ impl<Ctx: Context> Clone for Output<Ctx> {
             Output::Proposal(proposal) => Output::Proposal(proposal.clone()),
             Output::Vote(vote) => Output::Vote(vote.clone()),
             Output::ScheduleTimeout(timeout) => Output::ScheduleTimeout(*timeout),
-            Output::GetValueAndScheduleTimeout(round, timeout) => {
-                Output::GetValueAndScheduleTimeout(*round, *timeout)
+            Output::GetValueAndScheduleTimeout(height, round, timeout) => {
+                Output::GetValueAndScheduleTimeout(*height, *round, *timeout)
             }
             Output::Decision(round_value) => Output::Decision(round_value.clone()),
         }
@@ -105,8 +110,12 @@ impl<Ctx: Context> fmt::Debug for Output<Ctx> {
             Output::Proposal(proposal) => write!(f, "Proposal({:?})", proposal),
             Output::Vote(vote) => write!(f, "Vote({:?})", vote),
             Output::ScheduleTimeout(timeout) => write!(f, "ScheduleTimeout({:?})", timeout),
-            Output::GetValueAndScheduleTimeout(round, timeout) => {
-                write!(f, "GetValueAndScheduleTimeout({:?}, {:?})", round, timeout)
+            Output::GetValueAndScheduleTimeout(height, round, timeout) => {
+                write!(
+                    f,
+                    "GetValueAndScheduleTimeout({:?}, {:?}, {:?})",
+                    height, round, timeout
+                )
             }
             Output::Decision(round_value) => write!(f, "Decision({:?})", round_value),
         }
@@ -126,9 +135,9 @@ impl<Ctx: Context> PartialEq for Output<Ctx> {
                 timeout == other_timeout
             }
             (
-                Output::GetValueAndScheduleTimeout(round, timeout),
-                Output::GetValueAndScheduleTimeout(other_round, other_timeout),
-            ) => round == other_round && timeout == other_timeout,
+                Output::GetValueAndScheduleTimeout(height, round, timeout),
+                Output::GetValueAndScheduleTimeout(other_height, other_round, other_timeout),
+            ) => height == other_height && round == other_round && timeout == other_timeout,
             (Output::Decision(round_value), Output::Decision(other_round_value)) => {
                 round_value == other_round_value
             }

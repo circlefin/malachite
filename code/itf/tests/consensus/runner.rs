@@ -241,12 +241,10 @@ impl ItfRunner for ConsensusRunner {
                 }
 
                 (
-                    Output::GetValueAndScheduleTimeout(output_round, output_timeout),
-                    ModelOutput::GetValueAndScheduleTimeout(_model_height, model_round),
+                    Output::GetValueAndScheduleTimeout(output_height, output_round, output_timeout),
+                    ModelOutput::GetValueAndScheduleTimeout(model_height, model_round),
                 ) => {
-                    // FIXME: Discrepancy between model having height but no timeout
-                    // and implementation having timeout but no height.
-
+                    assert_eq!(output_height.as_u64(), *model_height as u64);
                     assert_eq!(output_round.as_i64(), *model_round);
                     assert_eq!(output_timeout.step, TimeoutStep::Propose);
                 }
