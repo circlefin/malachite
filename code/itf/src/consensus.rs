@@ -87,8 +87,8 @@ pub enum Output {
     Proposal(Proposal),
 
     #[serde(rename = "GetValueAndScheduleTimeoutOutput")]
-    #[serde(with = "As::<(Integer, Integer)>")]
-    GetValueAndScheduleTimeout(Height, Round),
+    #[serde(with = "As::<(Integer, Integer, Same)>")]
+    GetValueAndScheduleTimeout(Height, Round, Timeout),
 
     #[serde(rename = "VoteOutput")]
     Vote(Vote),

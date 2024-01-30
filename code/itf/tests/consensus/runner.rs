@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use pretty_assertions::assert_eq;
 
-use malachite_common::{Context, NilOrVal, Round, TimeoutStep};
+use malachite_common::{Context, NilOrVal, Round};
 use malachite_itf::consensus::{Input as ModelInput, Output as ModelOutput, State};
 use malachite_itf::types::Step;
 use malachite_round::input::Input;
@@ -242,11 +242,15 @@ impl ItfRunner for ConsensusRunner {
 
                 (
                     Output::GetValueAndScheduleTimeout(output_height, output_round, output_timeout),
-                    ModelOutput::GetValueAndScheduleTimeout(model_height, model_round),
+                    ModelOutput::GetValueAndScheduleTimeout(
+                        model_height,
+                        model_round,
+                        model_timeout,
+                    ),
                 ) => {
                     assert_eq!(output_height.as_u64(), *model_height as u64);
                     assert_eq!(output_round.as_i64(), *model_round);
-                    assert_eq!(output_timeout.step, TimeoutStep::Propose);
+                    assert_eq!(output_timeout.step, model_timeout.to_common());
                 }
 
                 (Output::Decision(decision), ModelOutput::Decided(expected_decided_value)) => {
