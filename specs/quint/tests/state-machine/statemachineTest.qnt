@@ -82,8 +82,7 @@ action valStep(v: Address): bool =
     }
 
 action setNextValueToPropose(v: Address, value: NonNilValue): bool = all {
-    val res = driver(system.get(v).es, SetNextProposedValueDInput(value))
-    val newNS = { ...system.get(v), es: res._1}
+    val newNS = setValue(system.get(v), value)
     system' = system.put(v, newNS),
     _hist' = _hist
 }
