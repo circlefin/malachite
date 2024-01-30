@@ -77,7 +77,7 @@ module consensus {
     type ConsensusOutput =
         | NoConsensusOutput
         | ProposalOutput(Proposal)
-        | GetValueAndScheduleTimeoutOutput((Height, Round))
+        | GetValueAndScheduleTimeoutOutput((Height, Round, Timeout))
         | VoteOutput(Vote)
         | TimeoutOutput((Round, Timeout))
         | DecidedOutput(Value)
@@ -88,8 +88,8 @@ module consensus {
         { cs: state, out: NoConsensusOutput }
     pure def toProposalOutput(state, src, height, round, value, validRound) = 
         { cs: state, out: ProposalOutput(mkProposal(src, height, round, value, validRound)) }
-    pure def toGetValueAndScheduleTimeoutOutput(state, height, round) =
-        { cs: state, out: GetValueAndScheduleTimeoutOutput((height, round))}
+    pure def toGetValueAndScheduleTimeoutOutput(state, height, round, timeout) =
+        { cs: state, out: GetValueAndScheduleTimeoutOutput((height, round, timeout))}
     pure def toPrevoteOutput(state, src, height, round, valueId) = 
         { cs: state, out: VoteOutput(mkVote(Prevote, src, height, round, valueId)) }
     pure def toPrecommitOutput(state, src, height, round, valueId) = 
@@ -135,7 +135,7 @@ module consensus {
                     state
                         .with("step", ProposeStep)
                         .with("round", round)
-                        .toGetValueAndScheduleTimeoutOutput(state.height, round) // line 18
+                        .toGetValueAndScheduleTimeoutOutput(state.height, round, ProposeTimeout) // line 18
                 else
                     val v: NonNilValue = getVal(state.validValue) // as validValue is non-nil in this branch
                     state

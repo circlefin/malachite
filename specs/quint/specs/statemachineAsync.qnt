@@ -115,12 +115,12 @@ action valStep(v: Address) : bool = {
                 // in the model
                 system' = startTimeout(sys, v, ProposeTimeout),
             }
-            | GetValueAndScheduleTimeoutOutput(height_round) => all{
+            | GetValueAndScheduleTimeoutOutput(height_round_timeout) => all{
                 propBuffer' = propBuffer, 
                 voteBuffer' = voteBuffer,
                 // record the value request and start the propose timeout
-                val sysVal = addGetValueRequest(sys, v, height_round._1, height_round._2)
-                system' = startTimeout(sysVal, v, ProposeTimeout),
+                val sysVal = addGetValueRequest(sys, v, height_round_timeout._1, height_round_timeout._2)
+                system' = startTimeout(sysVal, v, height_round_timeout._3),
             }
             | VoteOutput(vote) => all {
                 propBuffer' = propBuffer,
@@ -153,8 +153,7 @@ action valStep(v: Address) : bool = {
 }
 
 action setNextValueToPropose(v: Address, value: NonNilValue) : bool = all {
-    val res = driver(system.get(v).es, SetNextProposedValueDInput(value))
-    val newNS = { ...system.get(v), es: res._1}
+    val newNS = setValue(system.get(v), value)
     system' = system.put(v, newNS),
     _hist' = _hist,
     propBuffer' = propBuffer,

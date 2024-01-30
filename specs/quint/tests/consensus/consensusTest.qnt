@@ -86,7 +86,7 @@ module consensusTest {
     run DecideNonProposerAtHeight2Test =
         initFor("v1", 2)     
         .then(fireInput(NewRoundProposerCInput(0)))
-        .expect(output == GetValueAndScheduleTimeoutOutput((2, 0)))
+        .expect(output == GetValueAndScheduleTimeoutOutput((2, 0, ProposeTimeout)))
 
         .then(fireInput(ProposeValueCInput("nextBlock")))
         .expect(output == ProposalOutput(mkProposal("v1", 2, 0, "nextBlock", -1)))

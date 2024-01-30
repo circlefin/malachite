@@ -22,7 +22,6 @@ module driver {
         started: bool,
         voteKeeperOutput: VoteKeeperOutput,
         chain : List[Value],
-        nextValueToPropose: Value,
     }
 
     pure def initDriver(v: Address, vs: Address -> Weight): DriverState = {
@@ -36,7 +35,6 @@ module driver {
         started: false,
         voteKeeperOutput: NoVKOutput,
         chain : List(),
-        nextValueToPropose: Nil, 
     }
 
     pure def existsProposal(state, round, value) = 
@@ -45,8 +43,8 @@ module driver {
     pure def existsProposalValid(state, round, value, validRound) = 
         state.proposals.exists(p => p.round == round and p.proposal == value and p.validRound == validRound)
 
-    pure def setValue(es: DriverState, value: Value): DriverState =
-        { ...es, nextValueToPropose: value }
+    pure def setValue(s: NodeState, value: NonNilValue): NodeState =
+        { ...s, nextValueToPropose: Val(value) }
 
     // *************************************************************************
     // Input
@@ -59,7 +57,6 @@ module driver {
         | TimeoutDInput(Timeout)
         | StartDInput
         | PendingDInput(ConsensusInput)
-        | SetNextProposedValueDInput(NonNilValue) // TODO: remove perhaps
         | StepChangeDInput
         | ProposeValueDInput(NonNilValue)
 
@@ -81,7 +78,7 @@ module driver {
         else "v4"
     }
 
-    pure def getValue(state: DriverState): Value = state.nextValueToPropose
+    pure def getValue(state: NodeState): Value = state.nextValueToPropose
 
     type ConsensusCall = {
         es: DriverState,
@@ -280,7 +277,6 @@ module driver {
     // We do this when we need to jump to a new round
     pure def handleSkip(es: DriverState, r: Round): (DriverState, ConsensusOutput) =
         if (proposer(es.valset, es.cs.height, es.cs.round + 1) == es.cs.p) // line 14
-            val prop = if (es.cs.validValue != Nil) es.cs.validValue else es.getValue() // line 15
             callConsensus(es, es.bk, NewRoundProposerCInput(r))
         else 
             callConsensus(es, es.bk, NewRoundCInput(r)) 
@@ -319,8 +315,6 @@ module driver {
         // TODO: We need to check whether the sender actually is in the validator set. Where should
         //       we put the check?
         match input {
-            | SetNextProposedValueDInput(v) =>
-                (state.setValue(Val(v)), NoConsensusOutput)
             | StartDInput =>
                 handleSkip({ ...state, started: true }, 0)
             | ProposalDInput(proposal) =>
@@ -397,7 +391,8 @@ module driver {
         timeouts: Set[(Timeout, Height, Round)],
         incomingVotes: Set[Vote],
         incomingProposals: Set[Proposal],
-        getValueRequests: Set[(Height, Round)]
+        getValueRequests: Set[(Height, Round)],
+        nextValueToPropose: Value, 
     }
 
     pure def initNode(v: Address, vs: Address -> Weight): NodeState = {
@@ -406,6 +401,7 @@ module driver {
         incomingVotes: Set(),
         incomingProposals: Set(),
         getValueRequests: Set(),
+        nextValueToPropose: Nil, 
     }
 
     pure def existsTimeout(state: NodeState): bool =
@@ -434,8 +430,8 @@ module driver {
         // also this prevents the StepChangeDInput for the proposer of a new round
         else if (state.getValueRequests.contains((state.es.cs.height, state.es.cs.round)))
             val newstate = { ...state, getValueRequests: state.getValueRequests.exclude(Set((state.es.cs.height, state.es.cs.round)))}
-            if (state.es.nextValueToPropose != Nil)
-                (newstate, ProposeValueDInput(getVal(state.es.nextValueToPropose)))
+            if (state.nextValueToPropose != Nil)
+                (newstate, ProposeValueDInput(getVal(state.nextValueToPropose)))
             else
                 (newstate, ProposeValueDInput("nothing to propose"))
 
@@ -482,8 +478,8 @@ module driver {
 
         else if (command == ProposeValueCmd and state.getValueRequests.contains((state.es.cs.height, state.es.cs.round)))
             val newstate = { ...state, getValueRequests: state.getValueRequests.exclude(Set((state.es.cs.height, state.es.cs.round)))}
-            if (state.es.nextValueToPropose != Nil)
-                (newstate, ProposeValueDInput(getVal(state.es.nextValueToPropose)))
+            if (state.nextValueToPropose != Nil)
+                (newstate, ProposeValueDInput(getVal(state.nextValueToPropose)))
             else
                 (newstate, ProposeValueDInput("nothing to propose"))
 

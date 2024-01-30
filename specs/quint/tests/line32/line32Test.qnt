@@ -13,7 +13,7 @@ import line32run(
     slowByz = "v3"
 ) as N4F3 from "./line32run"
 
-run line32TestInvalid = {
+run line32InvalidTest = {
     N4F3::runToLine32invalid
 }
 
@@ -28,7 +28,7 @@ import line32run(
     slowByz = "v1"
 ) as N4F1 from "./line32run"
 
-run line32TestLocked = {
+run line32LockedTest = {
     N4F1::runToLine32locked
 }
 
