@@ -34,4 +34,6 @@ pub fn generate_traces(spec_rel_path: &str, gen_dir: &str, quint_seed: u64) {
     {
         std::fs::remove_file(&redundant_itf).unwrap();
     }
+
+    println!("🪄 Generated traces in {gen_dir:?}");
 }

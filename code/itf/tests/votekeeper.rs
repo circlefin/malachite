@@ -18,7 +18,13 @@ const RANDOM_SEED: u64 = 0x42;
 
 #[test]
 fn test_itf() {
-    let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+    let temp_dir =
+        tempfile::TempDir::with_prefix("malachite-votekeeper-").expect("Failed to create temp dir");
+    let temp_path = temp_dir.path().to_owned();
+
+    if std::env::var("KEEP_TEMP").is_ok() {
+        std::mem::forget(temp_dir);
+    }
 
     let quint_seed = option_env!("QUINT_SEED")
         // use inspect when stabilized
@@ -33,11 +39,11 @@ fn test_itf() {
 
     generate_traces(
         "tests/votekeeper/votekeeperTest.qnt",
-        &temp_dir.path().to_string_lossy(),
+        &temp_path.to_string_lossy(),
         quint_seed,
     );
 
-    for json_fixture in glob(&format!("{}/*.itf.json", temp_dir.path().display()))
+    for json_fixture in glob(&format!("{}/*.itf.json", temp_path.display()))
         .expect("Failed to read glob pattern")
         .flatten()
     {
