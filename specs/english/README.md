@@ -52,11 +52,6 @@ associated to a round step:
 This section overviews how messages should be handled at different stages of
 the protocol.
 
-<!---
-It is assumed that a validator is at round `r` of height `h` of consensus, or in
-short, at round `(h, r)`.
---->
-
 ### Proposals
 
 Messages `⟨PROPOSAL, h, r, v, vr⟩` are generically called proposals.
@@ -160,51 +155,59 @@ cannot exceed `f`, so that the subset of considered vote messages that must
 have been produced by correct validators have a cumulative voting power of at
 least `f + 1`, which is strictly greater than `f`.
 
-### Different heights
+### Different rounds
 
-Messages with heights `h'` with either `h' < h` (past) or `h' > h` (future).
+Messages matching the current height and round of a validator produce most of
+the relevant events for the consensus state machine.
+Messages from different rounds, however, also trigger relevant events.
 
-The pseudocode description of the algorithm ignores messages from different
-heights.
-If we take the same approach in this specification, we have to specify
-separately modules responsible to handle those messages.
+This section assumes that a validator is at round `r` of height `h` of
+consensus, or in short, at round `(h, r)`.
 
+#### Previous rounds
 
-- Past heights (`h' < h`): the consensus state machine is not affected by such
-  messages. However, their reception might indicate that a peer is lagging
-  behind in the protocol, and need to be synchronized.
-  - In CometBFT's implementation we handle message from the previous height
-    (`h' = h - 1`) for the `LastCommit` vote set. This only happens during the
-    first step of the first round (`r = 0`) of a height.
-- Future heights (`h' > h`): the consensus state machine is not able to process
-  message from future heights in a proper way, as the validator set for them is
-  not known. However, once the process reaches this height `h'`, those messages
-  are _required_ for proper operation. There are two options here:
-  1. Buffer a limited amount of such messages
-  2. Assume that the communication subsystem (p2p) is able to retrieve (ask for
-     retransmission) of them when the process reaches height `h'`.
-     Notice that this option implies that processes keep a minimal set of
-     consensus messages that enables peers lagging behind to decide a past height.
+The consensus state machine has events requiring messages from previous rounds
+`(h, r')` with `r' < r`:
 
-### Previous rounds
+- `PREVOTE` messages may be required to produce a Proof of Lock (POL or Polka) for a
+  value `v` needed for accepting a `PROPOSAL(h, r, v, vr)` message, with
+  `0 ≤ vr < r`, of the current round (L28).
+  - A Polka for `v` at round `vr` is a `2f + 1` threshold of `⟨PREVOTE, h, vr, id(v)⟩` messages.
+- `PROPOSAL` messages from previous rounds can be required to decide a value
+  (L49), see more details below.
+- `PRECOMMIT` messages can produce a `2f + 1` threshold of `⟨PRECOMMIT, h, r', id(v)⟩`
+   messages which, together with a `PROPOSAL(h, r', v, *)` message, 
+  leads to the decision of `v` at round `r'` (L49).
 
-Messages from rounds `(h, r')` with `r' < r`: same height `h` but previous round `r'`.
+As a result, a validator needs to keep track of messages from previous
+rounds to produce the enumerated events:
 
-The consensus state machine requires receiving and processing messages from
-previous rounds:
+1. `PROPOSAL` messages should be maintained when a validator moves to higher rounds,
+   as well as new `PROPOSAL` messages from previous rounds should be stored.
+   - Reason I: a `2f + 1` threshold of `⟨PRECOMMIT, h, r', id(v)⟩` messages
+     could still be obtained, and an existing proposal message for `v` in the
+     previous round `r' < r` enables the validator to decide `v`.
+   - Reason II: a `2f + 1` threshold of `⟨PRECOMMIT, h, r', id(v)⟩` messages
+     was already obtained, but the proposal message for `v` at round `r'`
+     is missing. Once received, the validator can decide `v`.
+2. `PREVOTE` messages should be maintained when a validator moves to higher rounds,
+   as well as new `PREVOTE` messages from previous rounds should be stored.
+   - Reason I: a `PROPOSAL(h, r, v, vr)` with `0 ≤ vr < r` can be received in
+     the current round, requiring an existing `2f + 1` threshold of `⟨PREVOTE, h, vr, id(v)⟩` messages.
+   - Reason II: a `2f + 1` threshold of `⟨PREVOTE, h, vr, id(v)⟩` messages
+     can still be obtained and unblock the processing of `PROPOSAL(h, r, v, vr)`
+     received in the current round.
+   - Observe that `PREVOTE` messages for `nil` do not need to be maintained or stored.
+3. `PRECOMMIT` messages should be maintained when a validator moves to higher rounds,
+   as well as new `PRECOMMIT` messages from previous rounds should be stored.
+   - Reason I: a `2f + 1` threshold of `⟨PRECOMMIT, h, r', id(v)⟩` messages
+     can be obtained, and there is a proposal message for `v` in round
+     `r'`, leading the validator to decide `v`.
+   - Reason II: a `2f + 1` threshold of `⟨PRECOMMIT, h, r', id(v)⟩` messages
+     can be obtained, but there is no proposal message for `v` in round
+     `r'`. This enables Reason II of 1., i.e., receiving a late proposal.
 
-- `PREVOTE` messages can produce a Proof of Lock (POL) `2f + 1 ⟨PREVOTE, h, vr, id(v)⟩`
-  needed for accepting `PROPOSAL(h, r, v, vr)` message from the current round,
-  where `vr == r' < r` (L28).
-- `PRECOMMIT` messages can produce a Precommit quorum `2f + 1 ⟨PRECOMMIT, h, r', id(v)⟩`
-  that leads to the decision of `v` at round `r'` (L49).
-- `PROPOSAL` messages can be required to match a produced Precommit quorum (L49).
-  - Associated full value messages are required to produce the `⟨PROPOSAL, h, r', v, *⟩` event
-
-The production of the enumerated events from previous rounds should be
-identical to the production of events from messages from the [current round](#current-round).
-
-### Future rounds
+#### Future rounds
 
 Messages from rounds `(h, r')` with `r' > r`: same height `h` but future round `r'`.
 
@@ -246,10 +249,33 @@ There are two options, which can in particular be combined:
    default, peers that have reached the future round `r'` should be able to
    retransmit them.
 
-### Current round
+### Different heights
 
-Messages matching the current round `(h, r)` of a process produce most of the
-relevant events for the consensus state machine.
+Messages with heights `h'` with either `h' < h` (past) or `h' > h` (future).
+
+The pseudocode description of the algorithm ignores messages from different
+heights.
+If we take the same approach in this specification, we have to specify
+separately modules responsible to handle those messages.
+
+
+- Past heights (`h' < h`): the consensus state machine is not affected by such
+  messages. However, their reception might indicate that a peer is lagging
+  behind in the protocol, and need to be synchronized.
+  - In CometBFT's implementation we handle message from the previous height
+    (`h' = h - 1`) for the `LastCommit` vote set. This only happens during the
+    first step of the first round (`r = 0`) of a height.
+- Future heights (`h' > h`): the consensus state machine is not able to process
+  message from future heights in a proper way, as the validator set for them is
+  not known. However, once the process reaches this height `h'`, those messages
+  are _required_ for proper operation. There are two options here:
+  1. Buffer a limited amount of such messages
+  2. Assume that the communication subsystem (p2p) is able to retrieve (ask for
+     retransmission) of them when the process reaches height `h'`.
+     Notice that this option implies that processes keep a minimal set of
+     consensus messages that enables peers lagging behind to decide a past height.
+
+
 
 
 ## Round state machine
