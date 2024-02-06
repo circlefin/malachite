@@ -27,14 +27,32 @@ current state and a consensus input.
 
 ## Messages to Events
 
-The consensus state-machine operates on complex `Event`s that reflect the
-reception of one or multiple `Message`s, combined with state elements and the
+The consensus state-machine operates on complex Events that reflect the
+reception of one or multiple Messages, combined with state elements and the
 interaction with other modules.
 
-This document overviews how messages should be handled at different stages of
+The Tendermint consensus algorithm defines three message types, each type
+associated to a round step:
+
+- `PROPOSAL`: broadcast by the proposer of a round at the `propose` round step.
+  Carries the value `v` proposed for the current height of consensus.
+  Only proposed values can be decided.
+- `PREVOTE`: broadcast by validators at the `prevote` round step.
+  Carries either the unique identifier `id(v)` of a proposed value `v`,
+  in the event that the proposed value was accepted,
+  or the special `nil` value, otherwise
+  (i.e., when the proposed value has not been received
+  or when it was received but not accepted).
+- `PRECOMMIT`: broadcast by validators at the `precommit` round step.
+  Carries either the unique identifier `id(v)` of a proposed value `v`,
+  in the event that the proposed value was accepted by `2f + 1` validators,
+  or the special `nil` value, otherwise.
+  A value is decided when it receives `2f + 1` precommits.
+
+This section overviews how messages should be handled at different stages of
 the protocol.
 
-It is assume that a process is at round `r` of height `h` of consensus, or in
+It is assumed that a validator is at round `r` of height `h` of consensus, or in
 short, at round `(h, r)`.
 
 
