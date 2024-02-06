@@ -197,7 +197,7 @@ rounds to produce the enumerated events:
    - Reason II: a `2f + 1` threshold of `⟨PREVOTE, h, vr, id(v)⟩` messages
      can still be obtained and unblock the processing of `PROPOSAL(h, r, v, vr)`
      received in the current round.
-   - Observe that `PREVOTE` messages for `nil` do not need to be maintained or stored.
+   - Observe that `PREVOTE` messages for `nil` do not need to be maintained for previous rounds.
 3. `PRECOMMIT` messages should be maintained when a validator moves to higher rounds,
    as well as new `PRECOMMIT` messages from previous rounds should be stored.
    - Reason I: a `2f + 1` threshold of `⟨PRECOMMIT, h, r', id(v)⟩` messages
@@ -206,6 +206,7 @@ rounds to produce the enumerated events:
    - Reason II: a `2f + 1` threshold of `⟨PRECOMMIT, h, r', id(v)⟩` messages
      can be obtained, but there is no proposal message for `v` in round
      `r'`. This enables Reason II of 1., i.e., receiving a late proposal.
+   - Observe that `PRECOMMIT` messages for `nil` do not need to be maintained for previous rounds.
 
 #### Future rounds
 
@@ -237,23 +238,40 @@ first interpretation has been adopted.
 Namely, the senders of both `PREVOTE` and `PRECOMMIT` messages of a round `r' > r`
 are counted together towards the `f + 1` threshold.
 
-#### Limits
+#### Attack vectors
 
-The same reasoning applied for messages from [future heights](#different-heights)
-applies for messages from future rounds.
+In addition to the attack vectors induced by equivocating validators,
+for [proposal messages](#proposals) and [vote messages](#counting-votes),
+the need of storing message referring to previous or future rounds introduces
+new attack vectors.
 
-Messages from future rounds are _required_ for the proper operation of the
-consensus state machine once the process reaches their round `r'`.
-There are two options, which can in particular be combined:
+In the case of messages of [previous rounds](#previous-rounds), the attack
+vectors are the same as for messages matching the current round, as the
+validator is supposed in any case to store all messages of previous rounds.
+A possible mitigation is the observation that vote messages for `nil` have no
+use when they refer to previous rounds.
 
-1. Buffer a limited amount of such messages, or messages from a limited amount
-   of future rounds `r'`
-   - In CometBFT's implementation, only messages from round `r' = r + 1` are tracked.
-2. Assume that the communication subsystem (p2p) is able to retrieve (ask for
-   retransmission) of messages from future rounds when the process reaches round `r'`.
-   Since messages from [previous rounds](#previous-rounds) are stored by
-   default, peers that have reached the future round `r'` should be able to
-   retransmit them.
+In the case of messages of [future rounds](#future-rounds) `r' > r`,
+in addition to tracking message senders to enable round skipping,
+a validator _must_ store the (early) received messages so that they can be
+processed and produce relevant events once the validator starts the future
+round `r'`.
+This constitutes an important attack vector, as Byzantine validators could
+broadcast messages referring to an arbitrary number of future rounds.
+
+There is no trivial solution for preventing the attack derived from the need of
+storing messages of future rounds.
+However, the following approaches, individually or combined, can mitigate the
+effects of this attack:
+
+1. Store messages only for a limited number future rounds, say future rounds
+   `r'` where `r < r' ≤ r_max`.
+   - For instance,  CometBFT only tracks messages of a single future round,
+     i.e., `r_max = r + 1`.
+2. Assume that the communication subsystem (p2p) is able to retrieve messages
+   from a future round `r' > r` once the validator reaches round `r'`.
+   Since validators keep track of messages of both the current and previous
+   rounds, they should be able to transmit those messages to their lagging peers.
 
 ### Different heights
 
