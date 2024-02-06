@@ -7,7 +7,7 @@ use crate::{
 /// that are used in the consensus engine.
 pub trait Context
 where
-    Self: Sized,
+    Self: Sized + Send + Sync + 'static,
 {
     /// The type of address of a validator.
     type Address: Address;

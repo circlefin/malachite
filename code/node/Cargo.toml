@@ -1,0 +1,22 @@
+[package]
+name = "malachite-node"
+description = "Node for running the Malachite consensus engine"
+
+version.workspace    = true
+edition.workspace    = true
+repository.workspace = true
+license.workspace    = true
+publish.workspace    = true
+
+[dependencies]
+malachite-common = { version = "0.1.0", path = "../common" }
+malachite-driver = { version = "0.1.0", path = "../driver" }
+malachite-round  = { version = "0.1.0", path = "../round" }
+malachite-vote   = { version = "0.1.0", path = "../vote" }
+
+futures = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-stream = { workspace = true }
+
+[dev-dependencies]
+malachite-test = { version = "0.1.0", path = "../test" }
