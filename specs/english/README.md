@@ -57,6 +57,43 @@ It is assumed that a validator is at round `r` of height `h` of consensus, or in
 short, at round `(h, r)`.
 --->
 
+### Proposals
+
+Messages `⟨PROPOSAL, h, r, v, vr⟩` are generically called proposals.
+They are produced at the `propose` round step and are inputs for all round
+steps.
+General assumptions regarding proposal messages:
+
+- Proposal messages are produced, signed and broadcast by a validator,
+  referred the message's *sender*.
+- The sender of a proposal message of round `(h, r)` must be the proposer of
+  round `(h, r)`. The proposer of a round is deterministically computed from
+  the round identifier `(h, r)` and the validator set of height `h`.
+- Proposal messages are the only messages carrying a (full) proposed value `v`.
+  Knowing the proposed value `v` of a round `(h, r)` is a requirement for
+  voting for `v` and for deciding `v` in round `(h, r)`.
+- Correct validators only broadcast a proposal message in a round if they are
+  the proposer of that round.
+  A correct proposer broadcasts a single proposal message, carrying a single
+  value `v`, per round.
+- Byzantine validators may broadcast proposal messages in rounds where they
+  are not the round's proposer.
+  - Correct validators can easily identify this attack and ignore such
+    invalid proposal messages.
+- A Byzantine validator that is the proposer of a round may broadcast multiple
+  proposal messages, carrying distinct proposed values, in that round.
+  This behaviour constitutes an equivocation attack.
+  - A correct validator could in thesis only consider the first proposal
+    message received for a round, say it proposes `v`.
+    The problem of this approach is that `2f + 1` validators might accept, or
+    even decide, a different value `v' != v`.
+    By ignoring the equivocating proposal for `v'`, the validator will not be
+    able to vote for or decide `v'`, which in Tendermint consensus algorithm
+    may compromise liveness.
+  - Storing multiple proposal messages for the same round is, by itself, an
+    attack vector. Validators must thus restrict the number of proposal
+    messages stored in rounds where multiple proposals are produced.
+
 ### Counting votes
 
 Messages `⟨PREVOTE, h, r, *⟩` and `⟨PRECOMMIT, h, r, *⟩` are generically called votes.
@@ -81,14 +118,22 @@ General assumptions regarding vote messages:
     sender of each vote message.
 - A vote message carries either the unique identifier `id(v)` of a proposed
   value `v`, or the special `nil` value.
-- Correct validators produce at most one vote message per round step:
+- Correct validators broadcast at most one vote message per round step:
   carrying either a `id(v)` or `nil`.
-- Byzantine validators may produce multiple distinct vote messages for the same
-  round step: equivocation attack. Equivocating vote
-  messages differ on the value they carry: `nil`, `id(v)`, `id(v')` with `v' != v`.
-  - This possibility constitutes an attack vector. A validator must thus restrict
-    the number of distinct vote messages from the same sender and referring to
-    the same round step that can be stored.
+- Byzantine validators may broadcast multiple distinct vote messages for the same
+  round step: equivocation attack. Equivocating vote messages differ on the
+  value they carry: `nil`, `id(v)`, `id(v')` with `v' != v`.
+  - A correct validator could in thesis only consider the first vote message
+    received from a sender per round step, say it carries `id(v)`.
+    The problem of this approach is that `2f + 1`  validators might only
+    consider a different vote message from the same sender and round step,
+    carrying `id(v')` with `v' != v`. This may lead other validators to decide `v'`.
+    By ignoring the equivocating voting message carrying `id(v')`, the
+    validator might not be able to decide `v'`, which may compromise
+    liveness of the consensus algorithm.
+  - Storing multiple vote messages from the same sender and referring to the
+    same round step is, by itself, an attack vector. Validators must thus
+    restrict the number of votes stored per sender and round step.
 
 #### `f + 1` threshold
 
