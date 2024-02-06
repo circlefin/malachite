@@ -52,9 +52,68 @@ associated to a round step:
 This section overviews how messages should be handled at different stages of
 the protocol.
 
+<!---
 It is assumed that a validator is at round `r` of height `h` of consensus, or in
 short, at round `(h, r)`.
+--->
 
+### Counting votes
+
+Messages `⟨PREVOTE, h, r, *⟩` and `⟨PRECOMMIT, h, r, *⟩` are generically called votes.
+They refer to a round step `(h, r, s)` of consensus, where `s` is defined by
+the vote type, either `prevote` or `precommit`.
+
+The processing of _individual_ vote messages doesn't produce events relevant for
+the consensus state machine.
+But when the number of unique vote messages referring to a given round step
+`(h, r, s)` reaches a given _threshold_, relevant events are produced;
+the produced event depends on the value carried by such votes.
+
+General assumptions regarding vote messages:
+
+- Vote messages are produced, signed and broadcast by a validator,
+  referred the message's *sender*.
+  - The sender of a vote message must be part of the current *validator set*.
+    To define whether a vote message from height `h` is valid, the validator
+    set for height `h` must be known.
+- To each validator in the validator set of a height `h` is associated a *voting power*.
+  - Thresholds are computed from the voting power associated to the
+    sender of each vote message.
+- A vote message carries either the unique identifier `id(v)` of a proposed
+  value `v`, or the special `nil` value.
+- Correct validators produce at most one vote message per round step:
+  carrying either a `id(v)` or `nil`.
+- Byzantine validators may produce multiple distinct vote messages for the same
+  round step: equivocation attack. Equivocating vote
+  messages differ on the value they carry: `nil`, `id(v)`, `id(v')` with `v' != v`.
+  - This possibility constitutes an attack vector. A validator must thus restrict
+    the number of distinct vote messages from the same sender and referring to
+    the same round step that can be stored.
+
+#### `f + 1` threshold
+
+This threshold represents that vote messages referring to a round step were
+received from a enough number of unique senders, so that it is guaranteed that
+_at least one_ of the senders is a correct validator.
+
+The rationale here is that the cumulative voting power of Byzantine validators
+cannot exceed `f`, so that at least one of the considered vote messages must
+have been produced by a correct validator.
+
+#### `2f + 1` threshold
+
+This threshold represents that vote messages referring to a round step were
+received from a enough number of unique senders, so that it is guaranteed that
+the voting power of senders that are correct validators exceeds the voting
+power of senders that might be Byzantine validators.
+In a simplified setup, where validators have the same voting power, the
+`2f + 1` threshold guarantees that _the majority_ of the senders are correct
+validators.
+
+The rationale here is that the cumulative voting power of Byzantine validators
+cannot exceed `f`, so that the subset of considered vote messages that must
+have been produced by correct validators have a cumulative voting power of at
+least `f + 1`, which is strictly greater than `f`.
 
 ### Different heights
 
@@ -146,62 +205,6 @@ There are two options, which can in particular be combined:
 
 Messages matching the current round `(h, r)` of a process produce most of the
 relevant events for the consensus state machine.
-
-### Counting votes
-
-Messages `⟨PREVOTE, h, r, *⟩` and `⟨PRECOMMIT, h, r, *⟩` are generically called votes.
-They refer to a round step `(h, r, s)` of consensus, where `s` is defined by
-the vote type, either `PREVOTE` or `PRECOMMIT`.
-
-The processing of _individual_ vote messages doesn't produce events relevant for
-the consensus state machine.
-But when the number of unique vote messages referring to a given round step
-`(h, r, s)` reaches a given _threshold_, relevant events are produced;
-the produced event depends on the value carried by such votes.
-
-General assumptions regarding vote messages:
-
-- Vote messages are produced, signed and broadcast by a validator, which is its
-  *sender*
-  - To define whether a vote message for round step `(h, r, s)` is valid, the
-    validator set for height `h` must be known.
-    The validator set can change over heights, but it is the same within a height.
-- To each validator in the validator set of a height `h` is associated a *voting power*
-  - Thresholds are computed from the voting power associated to the
-    sender of each vote message
-- A vote message carries a value: either a reference to a proposed value
-  `id(v)`, or the special `nil` value
-  - For practical effects, it should be considered that the size of vote
-    messages is constant
-- Correct validators produce at most one vote message per round step: either
-  for a `id(v)` or for `nil`
-- Byzantine validators may equivocate and produce multiple distinct vote
-  messages for the same round step. Equivocating vote messages differ on the
-  value they carry: for  `nil`, `id(v)`, `id(v')`, etc.
-  - This possibility constitutes an attack vector. A process must thus restrict
-    the number of distinct vote messages from the same sender and referring to
-    the same round step that can be stored.
-
-#### `f + 1` threshold
-
-This threshold represents that vote messages referring to a round step were
-received from a enough number of unique senders, so that it is guaranteed that
-_at least one_ of the senders is a _correct_ validator.
-
-The rationale here is that the cumulative voting power of Byzantine validators
-cannot exceed `f`, so that at least one of the considered vote messages must
-have been produced by a correct validator.
-
-#### `2f + 1` threshold
-
-This threshold represents that vote messages referring to a round step were
-received from a enough number of unique senders, so that it is guaranteed that
-_the majority_ of the senders are _correct_ validators.
-
-The rationale here is that the cumulative voting power of Byzantine validators
-cannot exceed `f`, so that the subset of considered vote messages that must
-have been produced by correct validators have a cumulative voting power of at
-least `f + 1`, which is strictly greater than `f`.
 
 
 ## Round state machine
