@@ -209,27 +209,33 @@ rounds to produce the enumerated events:
 
 #### Future rounds
 
-Messages from rounds `(h, r')` with `r' > r`: same height `h` but future round `r'`.
-
-#### Round skipping
-
 The consensus state machine requires receiving and processing messages from
-future rounds for enabling the _round skipping_ mechanism, defined as follows
-in the pseudocode:
+future rounds `(h, r')` with `r' > r` for enabling the _round skipping_ mechanism.
+This mechanism is defined in the pseudocode as follows:
 
 ```
 55: upon f + 1 ⟨∗, hp, round, ∗, ∗⟩ with round > roundp do
 56:   StartRound(round)
 ```
 
-The current interpretation of this rule is that messages from a round `r' > r`
-are received from `f + 1` voting-power equivalent distinct senders.
-This means, that at least `1` correct process is at round `r'`.
+The definition is ambiguous and the event triggering round skipping can be
+interpreted in two main ways:
 
-While this threshold does not need to be adopted (it can be configurable),
-messages from a future round should initially have their unique senders counted.
-Once the round skip threshold of processes is reached, the corresponding event
-should be produced.
+1. Messages of any type and round `r' > r` are received so that the
+   `f + 1` threshold is reached.
+2. Messages of a given type and round `r' > r` are received so that the
+   `f + 1` threshold is reached.
+
+Since proposal messages for a round have a single sender, the round's proposer,
+in both interpretations the vote messages are the ones that really count
+towards the `f + 1` threshold.
+The question then is whether we count the senders of `PREVOTE` and `PRECOMMIT`
+messages separately (i.e., one set per vote type) or together.
+
+According to the vote keeper [spec in Quint][quint-votekeeper], the
+first interpretation has been adopted.
+Namely, the senders of both `PREVOTE` and `PRECOMMIT` messages of a round `r' > r`
+are counted together towards the `f + 1` threshold.
 
 #### Limits
 
