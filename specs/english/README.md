@@ -1,19 +1,19 @@
 # Malachite Documentation
 
-Malachite is an implementation of the Tendermint consensus algorithm in Rust.
-It comes together with an executable specification in Quint. We will use
+Malachite is an implementation of the [Tendermint consensus algorithm][arxiv] in Rust.
+It comes together with an executable specification in [Quint][quint-spec]. We use
 model-based testing to make sure that the implementation corresponds to the 
 specification.
 
-Tendermint consensus works by a set of validator nodes exchanging messages over a
+Tendermint consensus algorithm works by a set of validator nodes exchanging messages over a
 network, and the local consensus instances act on the incoming messages if
 certain conditions are met (e.g., if a threshold number of specific messages is
 received a state transition should happen). The 
 architecture of Malachite separates
 
-- message counting in a *vote book keeper*,
-- creating consensus inputs in a *driver*, e.g., if a threshold is reached
-- doing the state transition depending on the consensus input in the *state machine*
+- counting messages in a *vote keeper* ([Quint][quint-votekeeper]),
+- creating consensus inputs in a *driver* ([Quint][quint-driver]), e.g., if a threshold is reached
+- doing the state transition depending on the consensus input in the *state machine* ([Quint][quint-sm])
 
 A detailed executable specification of these functionalities are given in Quint.
 In this (English) document we discuss some underlying principles, namely,
@@ -21,9 +21,8 @@ In this (English) document we discuss some underlying principles, namely,
 - [Message handling](#messages-to-events): How to treat incoming messages. Which messages to store, 
 and on what conditions to generate consensus inputs.
 
-- [Round state machine](#consensus-protocol---round-state-machine): How to change state depending on the
+- [Round state machine](#round-state-machine): How to change state depending on the
 current state and a consensus input.
-
 
 
 ## Messages to Events
@@ -186,15 +185,12 @@ cannot exceed `f`, so that the subset of considered vote messages that must
 have been produced by correct validators have a cumulative voting power of at
 least `f + 1`, which is strictly greater than `f`.
 
-## Consensus protocol - round state machine
 
-This document provides an overview of the Tendermint consensus protocol and follows ["The latest gossip on BFT consensus"](#References) and the English and Quint specifications located in the [specs](../../specs) directory.
+## Round state machine
 
 The consensus state-machine operates on complex `Event`s that reflect the
 reception of one or multiple `Message`s, combined with state elements and the
 interaction with other modules.
-
-### Round state-machine
 
 The state machine represents the operation of consensus at a single `Height(h)` and `Round(r)`.
 The diagram below offers a visual representation of the state machine. It shows the input events, using green for simple inputs (e.g. timeouts, proposal)
@@ -215,7 +211,8 @@ The set of states can be summarized as:
 - `Commit`
   - Final state for a successful round
 
-#### Exit transitions
+### Exit transitions
+
 The table below summarizes the major state transitions in the `Round(r)` state machine.
 The transactions from state `InProgress` consider that node can be at any of
 the `Propose`, `Prevote`, `Precommit` states.
@@ -228,7 +225,7 @@ The `Ref` column refers to the line of the pseudocode where the events can be fo
 | InProgress | Unstarted   | SkipRound(r')                | `f + 1 ⟨*, h, r', *, *⟩` with `r' > r`                            | `next_round(r')`                  | L55 |
 | InProgress | Commit     | ProposalAndPrecommitValue(v) | `⟨PROPOSAL, h, r', v, *⟩` <br> `2f + 1 ⟨PRECOMMIT, h, r', id(v)⟩` | `commit(v)`                       | L49 |
 
-#### InProgress round
+### InProgress round
 
 The table below summarizes the state transitions within the `InProgress` state
 of the `Round(r)` state machine.
@@ -256,7 +253,8 @@ round steps `Propose`, `Prevote`, and `Precommit`, represented in the table.
 The conditions for concluding a round of consensus, therefore for leaving the
 `InProgress` state, are presented in the previous subsection.
 
-##### Validity Checks
+#### Validity Checks
+
 The pseudocode of the algorithm includes validity checks for the messages. These checks have been moved out of the state machine and are now performed by the `driver` module.
 For this reason:
 - `L22` is covered by `Proposal(v, -1) and `InvalidProposal(v, -1)`
@@ -265,7 +263,8 @@ For this reason:
 
 TODO - show the full algorithm with all the changes
 
-##### Asynchronous getValue() and ProposeValue(v)
+#### Asynchronous getValue() and ProposeValue(v)
+
 The original algorithm is modified to allow for asynchronous `getValue()`. The details are described below.
 
 <table>
@@ -363,7 +362,8 @@ upon PROPOSEVALUE (h_p, round_p, v) {
 </table>
 
 
-#### Notes
+### Notes
+
 Most of the state transitions represented in the previous tables consider message and
 events referring to the node's current round `r`.
 In the pseudocode this current round of a node is referred as `round_p`.
@@ -375,4 +375,10 @@ There are however exceptions that have to be handled properly:
 
 ## References
 
-* ["The latest gossip on BFT consensus"](https://arxiv.org/pdf/1807.04938.pdf), by _Buchman, Kwon, Milosevic_. 2018.
+* ["The latest gossip on BFT consensus"][arxiv], by _Buchman, Kwon, Milosevic_. 2018.
+
+[arxiv]: https://arxiv.org/pdf/1807.04938.pdf
+[quint-spec]: ../quint/README.md
+[quint-votekeeper]: ../quint/specs/votekeeper.qnt
+[quint-driver]: ../quint/specs/driver.qnt
+[quint-sm]: ../quint/specs/consensus.qnt
