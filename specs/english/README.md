@@ -275,32 +275,47 @@ effects of this attack:
 
 ### Different heights
 
-Messages with heights `h'` with either `h' < h` (past) or `h' > h` (future).
+Heights in Tendermint consensus algorithm are communication closed.
+This means that if a validator is at height `h`, messages from either `h' < h`
+(past) or `h' > h` (future) heights have no effect on the operation of height `h`.
 
-The pseudocode description of the algorithm ignores messages from different
-heights.
+However, due to asynchrony, different validators can be at different heights.
+More specifically, assuming a lock-step operation for heights (i.e., a
+validator only starts height `h + 1` once height `h` is decided), some
+validators can be trying to decide a value for height `h` while others have
+already transitioned to heights `h' > h`.
+
+TODO: handling lagging validators.
 If we take the same approach in this specification, we have to specify
 separately modules responsible to handle those messages.
 
+#### Past heights
 
-- Past heights (`h' < h`): the consensus state machine is not affected by such
-  messages. However, their reception might indicate that a peer is lagging
-  behind in the protocol, and need to be synchronized.
-  - In CometBFT's implementation we handle message from the previous height
-    (`h' = h - 1`) for the `LastCommit` vote set. This only happens during the
-    first step of the first round (`r = 0`) of a height.
-- Future heights (`h' > h`): the consensus state machine is not able to process
-  message from future heights in a proper way, as the validator set for them is
-  not known. However, once the process reaches this height `h'`, those messages
-  are _required_ for proper operation. There are two options here:
-  1. Buffer a limited amount of such messages
-  2. Assume that the communication subsystem (p2p) is able to retrieve (ask for
-     retransmission) of them when the process reaches height `h'`.
-     Notice that this option implies that processes keep a minimal set of
-     consensus messages that enables peers lagging behind to decide a past height.
+The consensus state machine is not affected by messages from past heights.
+However, their reception indicates that a peer is lagging behind in the
+protocol, and need to be catched up.
 
+> In CometBFT's implementation we handle message from the previous height
+> (`h' = h - 1`) for the `LastCommit` vote set. This only happens during the
+> first step of the first round (`r = 0`) of a height.
 
+#### Future heights
 
+The consensus state machine is not able to process message from future heights
+in a proper way, as the validator set for for a future height may not be known
+until the future height is started.
+However, once the validator reaches the future height, messages belonging to
+that height that were early received are _required_ for proper operation.
+
+There are two options here: (TODO: review)
+
+1. Buffer messages for a limited number of future heights, say heights
+   `h'` where `h < h' ≤ h_max`.
+2. Assume that the communication subsystem (p2p) is able to retrieve messages
+   from a future heights `h' > h` once the validator reaches height `h'`.
+   Notice that this option implies that validators keep a minimal set of
+   consensus messages from [previous heights](#past-heights) so that to enable
+peers lagging behind to decide a past height.
 
 ## Round state machine
 
