@@ -2,14 +2,14 @@
 
 Malachite is an implementation of the [Tendermint consensus algorithm][arxiv] in Rust.
 It comes together with an executable specification in [Quint][quint-spec]. We use
-model-based testing to make sure that the implementation corresponds to the 
+model-based testing to make sure that the implementation corresponds to the
 specification.
 
 Tendermint consensus algorithm works by a set of validator nodes exchanging messages over a
 network, and the local consensus instances act on the incoming messages if
 certain conditions are met (e.g., if a threshold number of specific messages is
-received a state transition should happen). The 
-architecture of Malachite separates
+received a state transition should happen).
+The architecture of Malachite separates:
 
 - counting messages in a *vote keeper* ([Quint][quint-votekeeper]),
 - creating consensus inputs in a *driver* ([Quint][quint-driver]), e.g., if a threshold is reached
@@ -86,7 +86,7 @@ General assumptions regarding proposal messages:
     able to vote for or decide `v'`, which in Tendermint consensus algorithm
     may compromise liveness.
 
-    **Note:** in contrast to algorithms from theoretical papers, a node running Tendermint consensus terminates 
+    **Note:** in contrast to algorithms from theoretical papers, a node running Tendermint consensus terminates$
     a consensus instance after it has decided; it will no longer react on messages from that instance or send
     messages for that instance (if it is a validator). In contrast, in theoretical algorithms, even after deciding, validators keep on
     participating and sending messages. In the theoretical setting these validators will help the validator that
@@ -185,7 +185,7 @@ The consensus state machine has events requiring messages from previous rounds
 - `PROPOSAL` messages from previous rounds can be required to decide a value
   (L49), see more details below.
 - `PRECOMMIT` messages can produce a `2f + 1` threshold of `⟨PRECOMMIT, h, r', id(v)⟩`
-   messages which, together with a `PROPOSAL(h, r', v, *)` message, 
+   messages which, together with a `PROPOSAL(h, r', v, *)` message,
   leads to the decision of `v` at round `r'` (L49).
 
 As a result, a validator needs to keep track of messages from previous
@@ -296,7 +296,7 @@ already transitioned to heights `h' > h`.
 
 An open question is whether the consensus protocol should be in charge of
 handling lagging validators.
-This is probably easier to implemented by a separate or auxiliary component,
+This is probably easier to be implement by a separate or auxiliary component,
 which implements a syncing protocol.
 
 #### Past heights
@@ -305,14 +305,10 @@ The consensus state machine is not affected by messages from past heights.
 However, the reception of such messages from a peer indicates that the peer may
 lagging behind in the protocol, and need to be caught up.
 
-> The consensus implementation in CometBFT only handle `Precommit` messages
-> from the previous height (`h' = h - 1`) for feeding the `LastCommit` vote set,
-> during the first  round step of  round `0` of height `h`.
-
 To catchup a peer that is behind in the protocol (previous heights) it would be
 enough to provide the peer with the `Proposal` for the decided value `v` and
 a `2f + 1` threshold of `Precommit` messages of the decision round for `id(v)`.
-These messages, forming a decision certificate, should be stored for a given
+These messages, forming a _decision certificate_, should be stored for a given
 number of previous heights.
 
 #### Future heights
@@ -323,7 +319,39 @@ until the future height is started.
 However, once the validator reaches the future height, messages belonging to
 that height that were early received are **required** for proper operation.
 
-The options here are similar to the reasoning for [future rounds](#attack-vectors):
+An additional complication when handling messages from future heights is that,
+contrarily to what happens with messages of [future rounds](#future-rounds),
+there is no mechanism that allows the validator to switch to the future height
+when it receives a given set of messages from that height.
+In fact, considering the lock-step operation of the consensus algorithm, a
+node can only start height `h` once height `h - 1` is decided.
+Moreover, messages of future heights `h' > h` do not enable, in any way, a
+node to reach a decision in its current height `h`.
+
+#### Attack vectors
+
+In addition to the attack vectors induced by equivocating validators,
+for [proposal messages](#proposals) and [vote messages](#counting-votes),
+the need of storing message referring to previous or future heights introduces
+new attack vectors.
+
+If messages from [previous heights](#previous-heights) from a peer trigger in a
+node procedures for trying to catch up that peer, a Byzantine peer may
+indefinitely claim to be stuck in a previous height, or that it is behind by
+several heights.
+In both cases the node will consume resources to catchup a peer that possibly
+does not need to be caught up.
+
+The fact that a validator needs to store messages from [future heights](#future-heights),
+so that they can be processed and produce relevant events once the validator
+eventually starts the corresponding heights,
+constitutes a very important attack vector, as Byzantine validators could
+broadcast messages referring to an arbitrary number of future heights.
+
+There is no trivial solution for preventing the attack derived from the need of
+storing messages of future heights.
+However, the following approaches, individually or combined, can mitigate the
+effects of this attack:
 
 1. Buffer messages for a limited number of future heights, say heights
    `h'` where `h < h' ≤ h_max`.
@@ -332,6 +360,7 @@ The options here are similar to the reasoning for [future rounds](#attack-vector
    Notice that this option implies that validators keep a minimal set of
    consensus messages from [previous heights](#past-heights) so that to enable
 peers lagging behind to decide a past height.
+
 
 ## Round state machine
 
