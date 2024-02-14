@@ -78,10 +78,16 @@ General assumptions regarding proposal messages:
 - A Byzantine validator that is the proposer of a round may broadcast multiple
   proposal messages, carrying distinct proposed values, in that round.
   This behaviour constitutes an equivocation attack.
-  - A correct validator could in thesis only consider the first proposal
+  - A correct validator could in theory only consider the first proposal
     message received for a round, say it proposes `v`.
     The problem of this approach is that `2f + 1` validators might accept, or
     even decide, a different value `v' != v`.
+    In contrast to algorithms from theoretical papers, a process running Tendermint consensus terminates
+    a consensus instance after it has decided; it will no longer react on messages from that instance or send
+    messages for that instance. In contrast, in theoretical algorithms, even after deciding, validators keep on
+    participating and sending messages. In the theoretical setting these validators will help the validator, who
+    only considered to first proposal of a faulty proposer, to make progress. In Tendermint consensus, this
+    help is not there. Thus there is a liveness issue:
     By ignoring the equivocating proposal for `v'`, the validator will not be
     able to vote for or decide `v'`, which in Tendermint consensus algorithm
     may compromise liveness.
@@ -118,8 +124,9 @@ General assumptions regarding vote messages:
 - Byzantine validators may broadcast multiple distinct vote messages for the same
   round step: equivocation attack. Equivocating vote messages differ on the
   value they carry: `nil`, `id(v)`, `id(v')` with `v' != v`.
-  - A correct validator could in thesis only consider the first vote message
-    received from a sender per round step, say it carries `id(v)`.
+  - A correct validator could "in theory" only consider the first vote message
+    received from a sender per round step, say it carries `id(v)` (with similar 
+    consequences on liveness as discussed above).
     The problem of this approach is that `2f + 1`  validators might only
     consider a different vote message from the same sender and round step,
     carrying `id(v')` with `v' != v`. This may lead other validators to decide `v'`.
@@ -275,7 +282,7 @@ effects of this attack:
 
 ### Different heights
 
-Heights in Tendermint consensus algorithm are communication closed.
+Heights in Tendermint consensus algorithm are communication-closed.
 This means that if a validator is at height `h`, messages from either `h' < h`
 (past) or `h' > h` (future) heights have no effect on the operation of height `h`.
 
@@ -292,7 +299,7 @@ separately modules responsible to handle those messages.
 #### Past heights
 
 The consensus state machine is not affected by messages from past heights.
-However, their reception indicates that a peer is lagging behind in the
+However, their reception indicates that a peer may lagging behind in the
 protocol, and need to be catched up.
 
 > In CometBFT's implementation we handle message from the previous height
