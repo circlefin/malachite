@@ -82,15 +82,16 @@ General assumptions regarding proposal messages:
     message received for a round, say it proposes `v`.
     The problem of this approach is that `2f + 1` validators might accept, or
     even decide, a different value `v' != v`.
-    In contrast to algorithms from theoretical papers, a process running Tendermint consensus terminates
-    a consensus instance after it has decided; it will no longer react on messages from that instance or send
-    messages for that instance. In contrast, in theoretical algorithms, even after deciding, validators keep on
-    participating and sending messages. In the theoretical setting these validators will help the validator, who
-    only considered to first proposal of a faulty proposer, to make progress. In Tendermint consensus, this
-    help is not there. Thus there is a liveness issue:
     By ignoring the equivocating proposal for `v'`, the validator will not be
     able to vote for or decide `v'`, which in Tendermint consensus algorithm
     may compromise liveness.
+
+    **Note:** in contrast to algorithms from theoretical papers, a node running Tendermint consensus terminates 
+    a consensus instance after it has decided; it will no longer react on messages from that instance or send
+    messages for that instance (if it is a validator). In contrast, in theoretical algorithms, even after deciding, validators keep on
+    participating and sending messages. In the theoretical setting these validators will help the validator that
+    has only considered to first proposal from a faulty proposer, to make progress. In Tendermint consensus, this
+    help is not there. Thus, there is above discussed liveness issue.
   - Storing multiple proposal messages for the same round is, by itself, an
     attack vector. Validators must thus restrict the number of proposal
     messages stored in rounds where multiple proposals are produced.
@@ -125,14 +126,15 @@ General assumptions regarding vote messages:
   round step: equivocation attack. Equivocating vote messages differ on the
   value they carry: `nil`, `id(v)`, `id(v')` with `v' != v`.
   - A correct validator could "in theory" only consider the first vote message
-    received from a sender per round step, say it carries `id(v)` (with similar 
-    consequences on liveness as discussed above).
+    received from a sender per round step, say it carries `id(v)`.
     The problem of this approach is that `2f + 1`  validators might only
     consider a different vote message from the same sender and round step,
     carrying `id(v')` with `v' != v`. This may lead other validators to decide `v'`.
     By ignoring the equivocating voting message carrying `id(v')`, the
     validator might not be able to decide `v'`, which may compromise
     liveness of the consensus algorithm.
+
+    **Note**: the consequences on liveness are the same discussed in the note for Proposal messages.
   - Storing multiple vote messages from the same sender and referring to the
     same round step is, by itself, an attack vector. Validators must thus
     restrict the number of votes stored per sender and round step.
@@ -300,11 +302,11 @@ separately modules responsible to handle those messages.
 
 The consensus state machine is not affected by messages from past heights.
 However, their reception indicates that a peer may lagging behind in the
-protocol, and need to be catched up.
+protocol, and need to be caught up.
 
-> In CometBFT's implementation we handle message from the previous height
-> (`h' = h - 1`) for the `LastCommit` vote set. This only happens during the
-> first step of the first round (`r = 0`) of a height.
+> The consensus implementation in CometBFT only handle `Precommit` messages
+> from the previous height (`h' = h - 1`) for feeding the `LastCommit` vote set,
+> during the first  round step of  round `0` of height `h`.
 
 #### Future heights
 
