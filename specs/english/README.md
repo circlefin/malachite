@@ -18,14 +18,14 @@ architecture of Malachite separates
 A detailed executable specification of these functionalities are given in Quint.
 In this (English) document we discuss some underlying principles, namely,
 
-- [Message handling](#messages-to-events): How to treat incoming messages. Which messages to store, 
+- [Message handling](#message-handling): How to treat incoming messages. Which messages to store,
 and on what conditions to generate consensus inputs.
 
 - [Round state machine](#round-state-machine): How to change state depending on the
 current state and a consensus input.
 
 
-## Messages to Events
+## Message Handling
 
 The consensus state-machine operates on complex Events that reflect the
 reception of one or multiple Messages, combined with state elements and the
