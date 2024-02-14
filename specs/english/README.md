@@ -294,19 +294,26 @@ validator only starts height `h + 1` once height `h` is decided), some
 validators can be trying to decide a value for height `h` while others have
 already transitioned to heights `h' > h`.
 
-TODO: handling lagging validators.
-If we take the same approach in this specification, we have to specify
-separately modules responsible to handle those messages.
+An open question is whether the consensus protocol should be in charge of
+handling lagging validators.
+This is probably easier to implemented by a separate or auxiliary component,
+which implements a syncing protocol.
 
 #### Past heights
 
 The consensus state machine is not affected by messages from past heights.
-However, their reception indicates that a peer may lagging behind in the
-protocol, and need to be caught up.
+However, the reception of such messages from a peer indicates that the peer may
+lagging behind in the protocol, and need to be caught up.
 
 > The consensus implementation in CometBFT only handle `Precommit` messages
 > from the previous height (`h' = h - 1`) for feeding the `LastCommit` vote set,
 > during the first  round step of  round `0` of height `h`.
+
+To catchup a peer that is behind in the protocol (previous heights) it would be
+enough to provide the peer with the `Proposal` for the decided value `v` and
+a `2f + 1` threshold of `Precommit` messages of the decision round for `id(v)`.
+These messages, forming a decision certificate, should be stored for a given
+number of previous heights.
 
 #### Future heights
 
@@ -314,14 +321,14 @@ The consensus state machine is not able to process message from future heights
 in a proper way, as the validator set for for a future height may not be known
 until the future height is started.
 However, once the validator reaches the future height, messages belonging to
-that height that were early received are _required_ for proper operation.
+that height that were early received are **required** for proper operation.
 
-There are two options here: (TODO: review)
+The options here are similar to the reasoning for [future rounds](#attack-vectors):
 
 1. Buffer messages for a limited number of future heights, say heights
    `h'` where `h < h' ≤ h_max`.
 2. Assume that the communication subsystem (p2p) is able to retrieve messages
-   from a future heights `h' > h` once the validator reaches height `h'`.
+   from future heights `h' > h` once the validator reaches height `h'`.
    Notice that this option implies that validators keep a minimal set of
    consensus messages from [previous heights](#past-heights) so that to enable
 peers lagging behind to decide a past height.
