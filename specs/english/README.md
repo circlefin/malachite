@@ -335,8 +335,8 @@ for [proposal messages](#proposals) and [vote messages](#counting-votes),
 the need of storing message referring to previous or future heights introduces
 new attack vectors.
 
-If messages from [previous heights](#previous-heights) from a peer trigger in a
-node procedures for trying to catch up that peer, a Byzantine peer may
+If messages from [previous heights](#previous-heights) from a peer trigger a different node to
+execute procedures for trying to catch up that peer, a Byzantine peer may
 indefinitely claim to be stuck in a previous height, or that it is behind by
 several heights.
 In both cases the node will consume resources to catchup a peer that possibly
