@@ -175,7 +175,7 @@ async fn listen<Ctx: Context>(
 async fn send_peer_id(socket: &mut TcpStream, id: PeerId) {
     let bytes = id.0.as_bytes();
     socket.write_u32(bytes.len() as u32).await.unwrap();
-    socket.write_all(&bytes).await.unwrap();
+    socket.write_all(bytes).await.unwrap();
     socket.flush().await.unwrap();
 }
 
