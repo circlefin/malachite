@@ -43,6 +43,12 @@ pub struct PeerInfo {
     pub addr: SocketAddr,
 }
 
+impl fmt::Display for PeerInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{id} ({addr})", id = self.id, addr = self.addr)
+    }
+}
+
 pub struct Peer<Ctx: Context> {
     id: PeerId,
     addr: SocketAddr,
@@ -67,6 +73,7 @@ impl<Ctx: Context> Peer<Ctx> {
         tokio::spawn(listen(self.id.clone(), self.addr, tx_spawned, tx_msg));
 
         let id = self.id.clone();
+
         tokio::spawn(async move {
             while let Some(event) = rx_peer_event.recv().await {
                 match event {
@@ -99,12 +106,14 @@ async fn connect_to_peer<Ctx: Context>(
     done: oneshot::Sender<()>,
     per_peer_tx: &broadcast::Sender<(PeerId, Msg<Ctx>)>,
 ) {
-    println!("[{id}] Connecting to {peer_info:?}...");
+    println!("[{id}] Connecting to {peer_info}...");
 
     let mut stream = TcpStream::connect(peer_info.addr).await.unwrap();
     done.send(()).unwrap();
 
     let mut per_peer_rx = per_peer_tx.subscribe();
+
+    send_peer_id(&mut stream, id.clone()).await;
 
     tokio::spawn(async move {
         loop {
@@ -113,7 +122,7 @@ async fn connect_to_peer<Ctx: Context>(
                 continue;
             }
 
-            println!("[{id}] Sending message to {peer_info:?}: {msg:?}");
+            println!("[{id}] Sending message to {peer_info}: {msg:?}");
 
             let bytes = msg.as_bytes();
             stream.write_u32(bytes.len() as u32).await.unwrap();
@@ -127,7 +136,7 @@ async fn listen<Ctx: Context>(
     id: PeerId,
     addr: SocketAddr,
     tx_spawned: oneshot::Sender<()>,
-    tx_msg: mpsc::Sender<(PeerId, Msg<Ctx>)>,
+    tx_received: mpsc::Sender<(PeerId, Msg<Ctx>)>,
 ) -> ! {
     let listener = TcpListener::bind(addr).await.unwrap();
     println!("[{id}] Listening on {addr}...");
@@ -142,8 +151,10 @@ async fn listen<Ctx: Context>(
             peer = socket.peer_addr().unwrap()
         );
 
+        let peer_id = read_peer_id(&mut socket).await;
+
         let id = id.clone();
-        let tx_msg = tx_msg.clone();
+        let tx_received = tx_received.clone();
 
         tokio::spawn(async move {
             let len = socket.read_u32().await.unwrap();
@@ -152,13 +163,28 @@ async fn listen<Ctx: Context>(
             let msg: Msg<Ctx> = Msg::from_bytes(&buf);
 
             println!(
-                "[{id}] Received message from {peer}: {msg:?}",
-                peer = socket.peer_addr().unwrap(),
+                "[{id}] Received message from {peer_id} ({addr}): {msg:?}",
+                addr = socket.peer_addr().unwrap(),
             );
 
-            tx_msg.send((id.clone(), msg)).await.unwrap(); // FIXME
+            tx_received.send((peer_id.clone(), msg)).await.unwrap(); // FIXME
         });
     }
+}
+
+async fn send_peer_id(socket: &mut TcpStream, id: PeerId) {
+    let bytes = id.0.as_bytes();
+    socket.write_u32(bytes.len() as u32).await.unwrap();
+    socket.write_all(&bytes).await.unwrap();
+    socket.flush().await.unwrap();
+}
+
+async fn read_peer_id(socket: &mut TcpStream) -> PeerId {
+    let len = socket.read_u32().await.unwrap();
+    let mut buf = vec![0; len as usize];
+    socket.read_exact(&mut buf).await.unwrap();
+    let id = String::from_utf8(buf).unwrap();
+    PeerId(id)
 }
 
 pub struct Handle<Ctx: Context> {
@@ -201,8 +227,12 @@ impl<Ctx: Context> Handle<Ctx> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::time::Duration;
+
     use malachite_test::TestContext;
+    use tokio::time::timeout;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_peer() {
@@ -243,9 +273,11 @@ mod tests {
 
         handle1.broadcast(Msg::Dummy(1)).await;
 
-        let msg2 = handle2.recv().await.unwrap();
+        let deadline = Duration::from_millis(100);
+
+        let msg2 = timeout(deadline, handle2.recv()).await.unwrap();
         dbg!(&msg2);
-        let msg3 = handle3.recv().await.unwrap();
+        let msg3 = timeout(deadline, handle3.recv()).await.unwrap();
         dbg!(&msg3);
     }
 }
