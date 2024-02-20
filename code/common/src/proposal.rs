@@ -8,7 +8,7 @@ use crate::{Context, Round};
 pub trait Proposal<Ctx>
 where
     Self: Clone + Debug + Eq + Send + Sync + 'static,
-    Self: Protobuf<malachite_proto::Proposal>,
+    Self: Protobuf<Proto = malachite_proto::Proposal>,
     Ctx: Context,
 {
     /// The height for which the proposal is for.

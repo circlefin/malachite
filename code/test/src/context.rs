@@ -3,9 +3,10 @@ use malachite_common::NilOrVal;
 use malachite_common::Round;
 use malachite_common::SignedVote;
 
+use crate::address::*;
 use crate::height::*;
 use crate::proposal::*;
-use crate::signing::{Ed25519, PrivateKey, PublicKey};
+use crate::signing::*;
 use crate::validator_set::*;
 use crate::value::*;
 use crate::vote::*;

@@ -63,3 +63,7 @@ impl From<Proposal> for malachite_proto::Proposal {
         }
     }
 }
+
+impl malachite_proto::Protobuf for Proposal {
+    type Proto = malachite_proto::Proposal;
+}

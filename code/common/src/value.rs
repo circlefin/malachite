@@ -87,7 +87,7 @@ impl<Value> NilOrVal<Value> {
 pub trait Value
 where
     Self: Clone + Debug + PartialEq + Eq + PartialOrd + Ord,
-    Self: Protobuf<malachite_proto::Value>,
+    Self: Protobuf<Proto = malachite_proto::Value>,
 {
     /// The type of the ID of the value.
     /// Typically a representation of the value with a lower memory footprint.

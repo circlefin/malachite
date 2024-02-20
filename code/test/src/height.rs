@@ -29,3 +29,7 @@ impl From<Height> for malachite_proto::Height {
         malachite_proto::Height { value: height.0 }
     }
 }
+
+impl malachite_proto::Protobuf for Height {
+    type Proto = malachite_proto::Height;
+}

@@ -10,6 +10,6 @@ use malachite_proto::Protobuf;
 pub trait Height
 where
     Self: Default + Copy + Clone + Debug + PartialEq + Eq + PartialOrd + Ord,
-    Self: Protobuf<malachite_proto::Height>,
+    Self: Protobuf<Proto = malachite_proto::Height>,
 {
 }

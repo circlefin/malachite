@@ -42,7 +42,7 @@ impl From<VoteType> for malachite_proto::VoteType {
 pub trait Vote<Ctx>
 where
     Self: Clone + Debug + Eq + Send + Sync + 'static,
-    Self: Protobuf<malachite_proto::Vote>,
+    Self: Protobuf<Proto = malachite_proto::Vote>,
     Ctx: Context,
 {
     /// The height for which the vote is for.

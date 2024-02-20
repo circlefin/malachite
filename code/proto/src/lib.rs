@@ -18,38 +18,34 @@ pub enum Error {
     Other(String),
 }
 
-pub trait Protobuf<Proto> {
+pub trait Protobuf {
+    type Proto: Message + Default;
+
     fn from_bytes(bytes: &[u8]) -> Result<Self, Error>
     where
-        Self: Sized;
-    fn into_bytes(self) -> Result<Vec<u8>, Error>;
-
-    fn to_bytes(&self) -> Result<Vec<u8>, Error>
-    where
-        Self: Clone,
+        Self: TryFrom<Self::Proto> + Sized, // FIXME: Require `TryFrom<&Self::Proto>` instead
+        Self::Error: Display,               // FIXME: Require `std::error::Error` instead
     {
-        self.clone().into_bytes()
-    }
-}
-
-impl<T, Proto> Protobuf<Proto> for T
-where
-    T: TryFrom<Proto>,
-    T::Error: Display,
-    Proto: Message + From<T> + Default,
-{
-    fn from_bytes(bytes: &[u8]) -> Result<Self, Error>
-    where
-        Self: Sized,
-    {
-        let proto = Proto::decode(bytes)?;
+        let proto = Self::Proto::decode(bytes)?;
         Self::try_from(proto).map_err(|e| Error::Other(e.to_string()))
     }
 
-    fn into_bytes(self) -> Result<Vec<u8>, Error> {
-        let proto = Proto::from(self);
+    fn into_bytes(self) -> Result<Vec<u8>, Error>
+    where
+        Self: Sized,
+        Self::Proto: From<Self>,
+    {
+        let proto = Self::Proto::from(self);
         let mut bytes = Vec::with_capacity(proto.encoded_len());
         proto.encode(&mut bytes)?;
         Ok(bytes)
+    }
+
+    fn to_bytes(&self) -> Result<Vec<u8>, Error>
+    where
+        Self: Sized + Clone,
+        Self::Proto: From<Self>,
+    {
+        Protobuf::into_bytes(self.clone())
     }
 }

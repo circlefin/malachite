@@ -1,4 +1,5 @@
 use prost::Message;
+use prost::Name;
 use prost_types::Any;
 
 use malachite_proto::Error as ProtoError;
@@ -16,32 +17,48 @@ pub enum Msg {
 
 impl Msg {
     pub fn from_network_bytes(bytes: &[u8]) -> Result<Self, ProtoError> {
-        Protobuf::<Any>::from_bytes(bytes)
+        Protobuf::from_bytes(bytes)
     }
 
     pub fn to_network_bytes(&self) -> Result<Vec<u8>, ProtoError> {
-        Protobuf::<Any>::to_bytes(self)
+        Protobuf::to_bytes(self)
     }
 
     const DUMMY_TYPE_URL: &'static str = "malachite.Dummy";
 }
 
-impl Protobuf<Any> for Msg {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ProtoError>
-    where
-        Self: Sized,
-    {
-        use prost::Name;
+impl From<Msg> for Any {
+    fn from(msg: Msg) -> Self {
+        match msg {
+            Msg::Vote(vote) => Any {
+                type_url: SignedVote::type_url(),
+                value: vote.encode_to_vec(),
+            },
+            Msg::Proposal(proposal) => Any {
+                type_url: Proposal::type_url(),
+                value: proposal.encode_to_vec(),
+            },
 
-        let any = Any::decode(bytes)?;
+            #[cfg(test)]
+            Msg::Dummy(value) => Any {
+                type_url: Msg::DUMMY_TYPE_URL.to_string(),
+                value: value.to_be_bytes().to_vec(),
+            },
+        }
+    }
+}
 
+impl TryFrom<Any> for Msg {
+    type Error = ProtoError;
+
+    fn try_from(any: Any) -> Result<Self, Self::Error> {
         if any.type_url == SignedVote::type_url() {
             let vote = SignedVote::decode(any.value.as_slice())?;
             Ok(Msg::Vote(vote))
-        } else if any.type_url == malachite_proto::Proposal::type_url() {
+        } else if any.type_url == Proposal::type_url() {
             let proposal = Proposal::decode(any.value.as_slice())?;
             Ok(Msg::Proposal(proposal))
-        } else if any.type_url == Msg::DUMMY_TYPE_URL {
+        } else if cfg!(test) && any.type_url == Msg::DUMMY_TYPE_URL {
             #[cfg(test)]
             {
                 let value = u64::from_be_bytes(any.value.try_into().unwrap());
@@ -62,27 +79,20 @@ impl Protobuf<Any> for Msg {
             )))
         }
     }
+}
+
+impl Protobuf for Msg {
+    type Proto = Any;
+
+    fn from_bytes(bytes: &[u8]) -> Result<Self, ProtoError>
+    where
+        Self: Sized,
+    {
+        let any = Any::decode(bytes)?;
+        Self::try_from(any)
+    }
 
     fn into_bytes(self) -> Result<Vec<u8>, ProtoError> {
-        match self {
-            Msg::Vote(vote) => {
-                let any = Any::from_msg(&vote)?;
-                Ok(any.encode_to_vec())
-            }
-            Msg::Proposal(proposal) => {
-                let any = Any::from_msg(&proposal)?;
-                Ok(any.encode_to_vec())
-            }
-
-            #[cfg(test)]
-            Msg::Dummy(value) => {
-                let any = Any {
-                    type_url: Msg::DUMMY_TYPE_URL.to_string(),
-                    value: value.to_be_bytes().to_vec(),
-                };
-
-                Ok(any.encode_to_vec())
-            }
-        }
+        Ok(Any::from(self).encode_to_vec())
     }
 }

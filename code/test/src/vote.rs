@@ -133,3 +133,7 @@ impl From<Vote> for malachite_proto::Vote {
         }
     }
 }
+
+impl malachite_proto::Protobuf for Vote {
+    type Proto = malachite_proto::Vote;
+}

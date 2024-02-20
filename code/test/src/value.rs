@@ -87,3 +87,7 @@ impl From<Value> for malachite_proto::Value {
         }
     }
 }
+
+impl malachite_proto::Protobuf for Value {
+    type Proto = malachite_proto::Value;
+}
