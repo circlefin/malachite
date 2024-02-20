@@ -5,7 +5,7 @@ use alloc::collections::BTreeMap;
 use crate::Weight;
 
 /// Keeps track of the weight (ie. voting power) of each validator.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RoundWeights<Address> {
     map: BTreeMap<Address, Weight>,
 }

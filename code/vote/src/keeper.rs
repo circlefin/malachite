@@ -1,6 +1,6 @@
 //! For tallying votes and emitting messages when certain thresholds are reached.
 
-use core::fmt;
+use derive_where::derive_where;
 
 use alloc::collections::{BTreeMap, BTreeSet};
 
@@ -33,6 +33,7 @@ pub enum Output<Value> {
 }
 
 /// Keeps track of votes and emitted outputs for a given round.
+#[derive_where(Clone, Debug, PartialEq, Eq, Default)]
 pub struct PerRound<Ctx>
 where
     Ctx: Context,
@@ -50,7 +51,7 @@ where
     Ctx: Context,
 {
     /// Create a new `PerRound` instance.
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             votes: RoundVotes::new(),
             addresses_weights: RoundWeights::new(),
@@ -74,35 +75,8 @@ where
     }
 }
 
-impl<Ctx> Clone for PerRound<Ctx>
-where
-    Ctx: Context,
-{
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn clone(&self) -> Self {
-        Self {
-            votes: self.votes.clone(),
-            addresses_weights: self.addresses_weights.clone(),
-            emitted_outputs: self.emitted_outputs.clone(),
-        }
-    }
-}
-
-impl<Ctx> fmt::Debug for PerRound<Ctx>
-where
-    Ctx: Context,
-{
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PerRound")
-            .field("votes", &self.votes)
-            .field("addresses_weights", &self.addresses_weights)
-            .field("emitted_outputs", &self.emitted_outputs)
-            .finish()
-    }
-}
-
 /// Keeps track of votes and emits messages when thresholds are reached.
+#[derive_where(Clone, Debug)]
 pub struct VoteKeeper<Ctx>
 where
     Ctx: Context,
@@ -259,33 +233,5 @@ fn threshold_to_output<Value>(typ: VoteType, threshold: Threshold<Value>) -> Opt
         (VoteType::Precommit, Threshold::Any) => Some(Output::PrecommitAny),
         (VoteType::Precommit, Threshold::Nil) => Some(Output::PrecommitAny),
         (VoteType::Precommit, Threshold::Value(v)) => Some(Output::PrecommitValue(v)),
-    }
-}
-
-impl<Ctx> Clone for VoteKeeper<Ctx>
-where
-    Ctx: Context,
-{
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn clone(&self) -> Self {
-        Self {
-            total_weight: self.total_weight,
-            threshold_params: self.threshold_params,
-            per_round: self.per_round.clone(),
-        }
-    }
-}
-
-impl<Ctx> fmt::Debug for VoteKeeper<Ctx>
-where
-    Ctx: Context,
-{
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("VoteKeeper")
-            .field("total_weight", &self.total_weight)
-            .field("threshold_params", &self.threshold_params)
-            .field("per_round", &self.per_round)
-            .finish()
     }
 }

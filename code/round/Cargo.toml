@@ -10,3 +10,5 @@ publish.workspace      = true
 
 [dependencies]
 malachite-common = { version = "0.1.0", path = "../common" }
+
+derive-where.workspace = true
