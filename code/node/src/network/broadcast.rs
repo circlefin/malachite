@@ -105,7 +105,10 @@ async fn connect_to_peer<Ctx: Context>(
 
     let mut per_peer_rx = per_peer_tx.subscribe();
 
-    send_peer_id(&mut stream, id.clone()).await;
+    Frame::<Ctx>::PeerId(id.clone())
+        .write(&mut stream)
+        .await
+        .unwrap();
 
     tokio::spawn(async move {
         loop {
@@ -115,11 +118,7 @@ async fn connect_to_peer<Ctx: Context>(
             }
 
             println!("[{id}] Sending message to {peer_info}: {msg:?}");
-
-            let bytes = msg.to_network_bytes().unwrap();
-            stream.write_u32(bytes.len() as u32).await.unwrap();
-            stream.write_all(&bytes).await.unwrap();
-            stream.flush().await.unwrap();
+            Frame::Msg(msg).write(&mut stream).await.unwrap();
         }
     });
 }
@@ -143,40 +142,87 @@ async fn listen<Ctx: Context>(
             peer = socket.peer_addr().unwrap()
         );
 
-        let peer_id = read_peer_id(&mut socket).await;
+        let Frame::PeerId(peer_id) = Frame::<Ctx>::read(&mut socket).await.unwrap() else {
+            eprintln!("[{id}] Peer did not send its ID");
+            continue;
+        };
 
         let id = id.clone();
         let tx_received = tx_received.clone();
 
         tokio::spawn(async move {
-            let len = socket.read_u32().await.unwrap();
-            let mut buf = vec![0; len as usize];
-            socket.read_exact(&mut buf).await.unwrap();
-            let msg: Msg<Ctx> = Msg::from_network_bytes(&buf).unwrap();
+            loop {
+                let Frame::Msg(msg) = Frame::<Ctx>::read(&mut socket).await.unwrap() else {
+                    eprintln!("[{id}] Peer did not send a message");
+                    return;
+                };
 
-            println!(
-                "[{id}] Received message from {peer_id} ({addr}): {msg:?}",
-                addr = socket.peer_addr().unwrap(),
-            );
+                println!(
+                    "[{id}] Received message from {peer_id} ({addr}): {msg:?}",
+                    addr = socket.peer_addr().unwrap(),
+                );
 
-            tx_received.send((peer_id.clone(), msg)).await.unwrap(); // FIXME
+                tx_received.send((peer_id.clone(), msg)).await.unwrap(); // FIXME
+            }
         });
     }
 }
 
-async fn send_peer_id(socket: &mut TcpStream, id: PeerId) {
-    let bytes = id.0.as_bytes();
-    socket.write_u32(bytes.len() as u32).await.unwrap();
-    socket.write_all(bytes).await.unwrap();
-    socket.flush().await.unwrap();
+pub enum Frame<Ctx: Context> {
+    PeerId(PeerId),
+    Msg(Msg<Ctx>),
 }
 
-async fn read_peer_id(socket: &mut TcpStream) -> PeerId {
-    let len = socket.read_u32().await.unwrap();
-    let mut buf = vec![0; len as usize];
-    socket.read_exact(&mut buf).await.unwrap();
-    let id = String::from_utf8(buf).unwrap();
-    PeerId(id)
+impl<Ctx: Context> Frame<Ctx> {
+    /// Write a frame to the given writer, prefixing it with its discriminant.
+    pub async fn write<W: AsyncWriteExt + Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), std::io::Error> {
+        match self {
+            Frame::PeerId(id) => {
+                writer.write_u8(0x40).await?;
+                let bytes = id.0.as_bytes();
+                writer.write_u32(bytes.len() as u32).await?;
+                writer.write_all(bytes).await?;
+                writer.flush().await?;
+            }
+            Frame::Msg(msg) => {
+                writer.write_u8(0x41).await?;
+                let bytes = msg
+                    .to_network_bytes()
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+                writer.write_u32(bytes.len() as u32).await?;
+                writer.write_all(&bytes).await?;
+                writer.flush().await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn read<R: AsyncReadExt + Unpin>(reader: &mut R) -> Result<Self, std::io::Error> {
+        let discriminant = reader.read_u8().await?;
+
+        match discriminant {
+            0x40 => {
+                let len = reader.read_u32().await?;
+                let mut buf = vec![0; len as usize];
+                reader.read_exact(&mut buf).await?;
+                Ok(Frame::PeerId(PeerId(String::from_utf8(buf).unwrap())))
+            }
+            0x41 => {
+                let len = reader.read_u32().await?;
+                let mut buf = vec![0; len as usize];
+                reader.read_exact(&mut buf).await?;
+                Ok(Frame::Msg(Msg::from_network_bytes(&buf).unwrap()))
+            }
+            _ => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("Invalid frame discriminant: {discriminant}"),
+            )),
+        }
+    }
 }
 
 pub struct Handle<Ctx: Context> {
@@ -274,6 +320,7 @@ mod tests {
         handle3.connect_to_peer(peer2_info.clone()).await;
 
         handle1.broadcast(Msg::Dummy(1)).await;
+        handle1.broadcast(Msg::Dummy(2)).await;
 
         let deadline = Duration::from_millis(100);
 
@@ -281,5 +328,10 @@ mod tests {
         dbg!(&msg2);
         let msg3 = timeout(deadline, handle3.recv()).await.unwrap();
         dbg!(&msg3);
+
+        let msg4 = timeout(deadline, handle2.recv()).await.unwrap();
+        dbg!(&msg4);
+        let msg5 = timeout(deadline, handle3.recv()).await.unwrap();
+        dbg!(&msg5);
     }
 }
