@@ -9,6 +9,5 @@ license.workspace      = true
 publish.workspace      = true
 
 [dependencies]
-malachite-proto.workspace = true
 derive-where.workspace    = true
 signature.workspace       = true

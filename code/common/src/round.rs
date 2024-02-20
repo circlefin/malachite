@@ -1,5 +1,4 @@
 use core::cmp;
-use core::convert::Infallible;
 
 /// A round number.
 ///
@@ -70,22 +69,6 @@ impl PartialOrd for Round {
 impl Ord for Round {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.as_i64().cmp(&other.as_i64())
-    }
-}
-
-impl TryFrom<malachite_proto::Round> for Round {
-    type Error = Infallible;
-
-    fn try_from(proto: malachite_proto::Round) -> Result<Self, Self::Error> {
-        Ok(Self::new(proto.round))
-    }
-}
-
-impl From<Round> for malachite_proto::Round {
-    fn from(round: Round) -> malachite_proto::Round {
-        malachite_proto::Round {
-            round: round.as_i64(),
-        }
     }
 }
 

@@ -4,6 +4,8 @@ use prost::{DecodeError, EncodeError, Message};
 
 include!(concat!(env!("OUT_DIR"), "/malachite.rs"));
 
+mod impls;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Failed to decode Protobuf message")]

@@ -18,6 +18,8 @@ impl Ed25519 {
 }
 
 impl SigningScheme for Ed25519 {
+    type DecodingError = ed25519_consensus::Error;
+
     type Signature = Signature;
     type PublicKey = PublicKey;
     type PrivateKey = PrivateKey;
@@ -26,9 +28,8 @@ impl SigningScheme for Ed25519 {
         signature.to_bytes().to_vec()
     }
 
-    fn decode_signature(bytes: &[u8]) -> Result<Self::Signature, malachite_proto::Error> {
+    fn decode_signature(bytes: &[u8]) -> Result<Self::Signature, Self::DecodingError> {
         Signature::try_from(bytes)
-            .map_err(|e| malachite_proto::Error::Other(format!("Failed to decode signature: {e}")))
     }
 }
 
