@@ -1,5 +1,7 @@
 use core::fmt::Debug;
 
+use malachite_proto::Protobuf;
+
 /// Represents either `Nil` or a value of type `Value`.
 ///
 /// This type is isomorphic to `Option<Value>` but is more explicit about its intent.
@@ -53,10 +55,39 @@ impl<Value> NilOrVal<Value> {
     }
 }
 
+// impl<Value> TryFrom<malachite_proto::Value> for NilOrVal<Value>
+// where
+//     Value: From<u64>, // FIXME
+// {
+//     type Error = String;
+//
+//     fn try_from(proto: malachite_proto::Value) -> Result<Self, Self::Error> {
+//         match proto.value {
+//             Some(value) => Ok(NilOrVal::Val(Value::from(value))), // FIXME
+//             None => Ok(NilOrVal::Nil),
+//         }
+//     }
+// }
+//
+// impl<Value> TryFrom<malachite_proto::ValueId> for NilOrVal<Value>
+// where
+//     Value: TryFrom<Vec<u8>>, // FIXME
+// {
+//     type Error = String;
+//
+//     fn try_from(proto: malachite_proto::ValueId) -> Result<Self, Self::Error> {
+//         match proto.value {
+//             Some(value) => Ok(NilOrVal::Val(Value::from(value))), // FIXME
+//             None => Ok(NilOrVal::Nil),
+//         }
+//     }
+// }
+
 /// Defines the requirements for the type of value to decide on.
 pub trait Value
 where
     Self: Clone + Debug + PartialEq + Eq + PartialOrd + Ord,
+    Self: Protobuf<malachite_proto::Value>,
 {
     /// The type of the ID of the value.
     /// Typically a representation of the value with a lower memory footprint.

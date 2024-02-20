@@ -1,4 +1,7 @@
+use core::convert::Infallible;
 use core::fmt::Debug;
+
+use malachite_proto::Protobuf;
 
 use crate::{Context, NilOrVal, Round, Value};
 
@@ -12,6 +15,26 @@ pub enum VoteType {
     Precommit,
 }
 
+impl TryFrom<malachite_proto::VoteType> for VoteType {
+    type Error = Infallible;
+
+    fn try_from(vote_type: malachite_proto::VoteType) -> Result<Self, Self::Error> {
+        match vote_type {
+            malachite_proto::VoteType::Prevote => Ok(VoteType::Prevote),
+            malachite_proto::VoteType::Precommit => Ok(VoteType::Precommit),
+        }
+    }
+}
+
+impl From<VoteType> for malachite_proto::VoteType {
+    fn from(vote_type: VoteType) -> malachite_proto::VoteType {
+        match vote_type {
+            VoteType::Prevote => malachite_proto::VoteType::Prevote,
+            VoteType::Precommit => malachite_proto::VoteType::Precommit,
+        }
+    }
+}
+
 /// Defines the requirements for a vote.
 ///
 /// Votes are signed messages from validators for a particular value which
@@ -19,6 +42,7 @@ pub enum VoteType {
 pub trait Vote<Ctx>
 where
     Self: Clone + Debug + Eq + Send + Sync + 'static,
+    Self: Protobuf<malachite_proto::Vote>,
     Ctx: Context,
 {
     /// The height for which the vote is for.

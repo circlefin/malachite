@@ -1,6 +1,11 @@
 use derive_where::derive_where;
 
+use prost::Message;
+use prost_types::Any;
+
 use malachite_common::Context;
+use malachite_proto::Error as ProtoError;
+use malachite_proto::Protobuf;
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum Msg<Ctx: Context> {
@@ -8,66 +13,85 @@ pub enum Msg<Ctx: Context> {
     Proposal(Ctx::Proposal),
 
     #[cfg(test)]
-    Dummy(u32),
+    Dummy(u64),
 }
 
 impl<Ctx: Context> Msg<Ctx> {
-    pub fn as_bytes(&self) -> Vec<u8> {
-        match self {
-            Msg::Vote(_vote) => todo!(),
-            Msg::Proposal(_proposal) => todo!(),
+    pub fn from_network_bytes(bytes: &[u8]) -> Result<Self, ProtoError> {
+        Protobuf::<Any>::from_bytes(bytes)
+    }
 
+    pub fn to_network_bytes(&self) -> Result<Vec<u8>, ProtoError> {
+        Protobuf::<Any>::to_bytes(self)
+    }
+}
+
+impl<Ctx: Context> Protobuf<Any> for Msg<Ctx> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, malachite_proto::Error>
+    where
+        Self: Sized,
+    {
+        use prost::Name;
+
+        let any = Any::decode(bytes)?;
+
+        if any.type_url == malachite_proto::Vote::type_url() {
+            let vote = Ctx::Vote::from_bytes(&any.value)?;
+            Ok(Msg::Vote(vote))
+        } else if any.type_url == malachite_proto::Proposal::type_url() {
+            let proposal = Ctx::Proposal::from_bytes(&any.value)?;
+            Ok(Msg::Proposal(proposal))
+        } else if any.type_url == "malachite.proto.Dummy" {
             #[cfg(test)]
-            Msg::Dummy(n) => [&[0x42], n.to_be_bytes().as_slice()].concat(),
+            {
+                let value = u64::from_be_bytes(any.value.try_into().unwrap());
+                Ok(Msg::Dummy(value))
+            }
+
+            #[cfg(not(test))]
+            {
+                Err(malachite_proto::Error::Other(
+                    "unknown message type: malachite.proto.Dummy".to_string(),
+                ))
+            }
+        } else {
+            Err(malachite_proto::Error::Other(format!(
+                "unknown message type: {}",
+                any.type_url
+            )))
         }
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        match bytes {
-            #[cfg(test)]
-            [0x42, a, b, c, d] => Msg::Dummy(u32::from_be_bytes([*a, *b, *c, *d])),
+    fn into_bytes(self) -> Result<Vec<u8>, malachite_proto::Error> {
+        use prost::Name;
 
-            _ => todo!(),
+        match self {
+            Msg::Vote(vote) => {
+                let any = Any {
+                    type_url: malachite_proto::Vote::type_url(),
+                    value: vote.into_bytes()?,
+                };
+
+                Ok(any.encode_to_vec())
+            }
+            Msg::Proposal(proposal) => {
+                let any = Any {
+                    type_url: malachite_proto::Proposal::type_url(),
+                    value: proposal.into_bytes()?,
+                };
+
+                Ok(any.encode_to_vec())
+            }
+
+            #[cfg(test)]
+            Msg::Dummy(value) => {
+                let any = Any {
+                    type_url: "malachite.proto.Dummy".to_string(),
+                    value: value.to_be_bytes().to_vec(),
+                };
+
+                Ok(any.encode_to_vec())
+            }
         }
     }
 }
-//
-// impl<Ctx: Context> Clone for Msg<Ctx> {
-//     fn clone(&self) -> Self {
-//         match self {
-//             Msg::Vote(vote) => Msg::Vote(vote.clone()),
-//             Msg::Proposal(proposal) => Msg::Proposal(proposal.clone()),
-//
-//             #[cfg(test)]
-//             Msg::Dummy(n) => Msg::Dummy(*n),
-//         }
-//     }
-// }
-//
-// impl<Ctx: Context> fmt::Debug for Msg<Ctx> {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         match self {
-//             Msg::Vote(vote) => write!(f, "Vote({vote:?})"),
-//             Msg::Proposal(proposal) => write!(f, "Proposal({proposal:?})"),
-//
-//             #[cfg(test)]
-//             Msg::Dummy(n) => write!(f, "Dummy({n:?})"),
-//         }
-//     }
-// }
-//
-// impl<Ctx: Context> PartialEq for Msg<Ctx> {
-//     fn eq(&self, other: &Self) -> bool {
-//         match (self, other) {
-//             (Msg::Vote(vote), Msg::Vote(other_vote)) => vote == other_vote,
-//             (Msg::Proposal(proposal), Msg::Proposal(other_proposal)) => proposal == other_proposal,
-//
-//             #[cfg(test)]
-//             (Msg::Dummy(n1), Msg::Dummy(n2)) => n1 == n2,
-//
-//             _ => false,
-//         }
-//     }
-// }
-//
-// impl<Ctx: Context> Eq for Msg<Ctx> {}
