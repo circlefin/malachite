@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use thiserror::Error;
 
 use prost::{DecodeError, EncodeError, Message};
@@ -23,11 +21,10 @@ pub trait Protobuf {
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, Error>
     where
-        Self: TryFrom<Self::Proto> + Sized, // FIXME: Require `TryFrom<&Self::Proto>` instead
-        Self::Error: Display,               // FIXME: Require `std::error::Error` instead
+        Self: TryFrom<Self::Proto, Error = Error> + Sized, // FIXME: Require `TryFrom<&Self::Proto>` instead
     {
         let proto = Self::Proto::decode(bytes)?;
-        Self::try_from(proto).map_err(|e| Error::Other(e.to_string()))
+        Self::try_from(proto)
     }
 
     fn into_bytes(self) -> Result<Vec<u8>, Error>

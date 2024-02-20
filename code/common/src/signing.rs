@@ -1,6 +1,9 @@
 use core::fmt::Debug;
 
+use alloc::vec::Vec;
 use signature::{Keypair, Signer, Verifier};
+
+use malachite_proto::Error as ProtoError;
 
 /// A signing scheme that can be used to sign votes and verify such signatures.
 ///
@@ -22,4 +25,10 @@ where
 
     /// The type of private keys produced by this signing scheme.
     type PrivateKey: Clone + Signer<Self::Signature> + Keypair<VerifyingKey = Self::PublicKey>;
+
+    /// Decode a signature from a byte array.
+    fn decode_signature(bytes: &[u8]) -> Result<Self::Signature, ProtoError>;
+
+    /// Encode a signature to a byte array.
+    fn encode_signature(signature: &Self::Signature) -> Vec<u8>;
 }

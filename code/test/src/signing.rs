@@ -21,6 +21,15 @@ impl SigningScheme for Ed25519 {
     type Signature = Signature;
     type PublicKey = PublicKey;
     type PrivateKey = PrivateKey;
+
+    fn encode_signature(signature: &Signature) -> Vec<u8> {
+        signature.to_bytes().to_vec()
+    }
+
+    fn decode_signature(bytes: &[u8]) -> Result<Self::Signature, malachite_proto::Error> {
+        Signature::try_from(bytes)
+            .map_err(|e| malachite_proto::Error::Other(format!("Failed to decode signature: {e}")))
+    }
 }
 
 #[derive(Clone, Debug)]
