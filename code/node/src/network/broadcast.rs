@@ -8,16 +8,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, mpsc};
 
-use super::Msg;
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct PeerId(String);
-
-impl fmt::Display for PeerId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.0, f)
-    }
-}
+use super::{Msg, Network, PeerId};
 
 pub enum PeerEvent<Ctx: Context> {
     ConnectToPeer(PeerInfo, oneshot::Sender<()>),
@@ -222,6 +213,16 @@ impl<Ctx: Context> Handle<Ctx> {
             .unwrap();
 
         rx_done.await.unwrap();
+    }
+}
+
+impl<Ctx: Context> Network<Ctx> for Handle<Ctx> {
+    async fn recv(&mut self) -> Option<(PeerId, Msg<Ctx>)> {
+        Handle::recv(self).await
+    }
+
+    async fn broadcast(&mut self, msg: Msg<Ctx>) {
+        Handle::broadcast(self, msg).await;
     }
 }
 
