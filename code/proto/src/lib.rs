@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use thiserror::Error;
 
 use prost::{DecodeError, EncodeError, Message};
@@ -18,21 +20,32 @@ pub enum Error {
     Other(String),
 }
 
-pub trait Protobuf: Sized {
-    type Proto: Message + Default;
+impl From<String> for Error {
+    fn from(s: String) -> Self {
+        Self::Other(s)
+    }
+}
 
-    fn from_bytes(bytes: &[u8]) -> Result<Self, Error>
-    where
-        Self: TryFrom<Self::Proto, Error = Error>,
-    {
+impl From<Infallible> for Error {
+    fn from(_: Infallible) -> Self {
+        unreachable!()
+    }
+}
+
+pub trait Protobuf
+where
+    Self: Sized + TryFrom<Self::Proto>,
+    Error: From<Self::Error>,
+{
+    type Proto: Message + Default + From<Self>;
+
+    fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         let proto = Self::Proto::decode(bytes)?;
-        Self::try_from(proto)
+        let result = Self::try_from(proto)?;
+        Ok(result)
     }
 
-    fn into_bytes(self) -> Result<Vec<u8>, Error>
-    where
-        Self::Proto: From<Self>,
-    {
+    fn into_bytes(self) -> Result<Vec<u8>, Error> {
         let proto = Self::Proto::from(self);
         let mut bytes = Vec::with_capacity(proto.encoded_len());
         proto.encode(&mut bytes)?;
@@ -42,7 +55,6 @@ pub trait Protobuf: Sized {
     fn to_bytes(&self) -> Result<Vec<u8>, Error>
     where
         Self: Clone,
-        Self::Proto: From<Self>,
     {
         Protobuf::into_bytes(self.clone())
     }

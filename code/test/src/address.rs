@@ -35,15 +35,15 @@ impl fmt::Display for Address {
 impl malachite_common::Address for Address {}
 
 impl TryFrom<malachite_proto::Address> for Address {
-    type Error = String;
+    type Error = malachite_proto::Error;
 
     fn try_from(proto: malachite_proto::Address) -> Result<Self, Self::Error> {
         if proto.value.len() != Self::LENGTH {
-            return Err(format!(
+            return Err(malachite_proto::Error::Other(format!(
                 "Invalid address length: expected {}, got {}",
                 Self::LENGTH,
                 proto.value.len()
-            ));
+            )));
         }
 
         let mut address = [0; Self::LENGTH];

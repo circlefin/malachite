@@ -20,6 +20,18 @@ impl From<Round> for proto::Round {
     }
 }
 
+impl<Ctx: Context> From<SignedVote<Ctx>> for proto::SignedVote
+where
+    Ctx::Vote: Into<proto::Vote>,
+{
+    fn from(signed_vote: SignedVote<Ctx>) -> proto::SignedVote {
+        proto::SignedVote {
+            vote: Some(signed_vote.vote.into()),
+            signature: Ctx::SigningScheme::encode_signature(&signed_vote.signature),
+        }
+    }
+}
+
 impl<Ctx: Context> TryFrom<proto::SignedVote> for SignedVote<Ctx>
 where
     Ctx::Vote: TryFrom<proto::Vote, Error = Error>,
@@ -39,7 +51,10 @@ where
     }
 }
 
-impl<Ctx: Context> Protobuf for SignedVote<Ctx> {
+impl<Ctx: Context> Protobuf for SignedVote<Ctx>
+where
+    Ctx::Vote: TryFrom<proto::Vote, Error = Error> + Into<proto::Vote>,
+{
     type Proto = proto::SignedVote;
 }
 

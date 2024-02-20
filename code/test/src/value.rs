@@ -39,6 +39,10 @@ impl From<ValueId> for malachite_proto::ValueId {
     }
 }
 
+impl malachite_proto::Protobuf for ValueId {
+    type Proto = malachite_proto::ValueId;
+}
+
 /// The value to decide on
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Value(u64);
