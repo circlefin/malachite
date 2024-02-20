@@ -6,7 +6,7 @@ use crate::count::VoteCount;
 use crate::{Threshold, ThresholdParam, Weight};
 
 /// Tracks all the votes for a single round
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RoundVotes<Address, Value> {
     /// The prevotes for this round.
     prevotes: VoteCount<Address, Value>,

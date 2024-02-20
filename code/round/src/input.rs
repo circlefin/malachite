@@ -1,10 +1,11 @@
 //! Inputs to the round state machine.
 
-use core::fmt;
+use derive_where::derive_where;
 
 use malachite_common::{Context, Round, ValueId};
 
 /// Input to the round state machine.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum Input<Ctx>
 where
     Ctx: Context,
@@ -72,116 +73,4 @@ where
     /// Timeout waiting for precommits.
     /// L65
     TimeoutPrecommit,
-}
-
-impl<Ctx: Context> Clone for Input<Ctx> {
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn clone(&self) -> Self {
-        match self {
-            Input::NewRound(round) => Input::NewRound(*round),
-            Input::ProposeValue(value) => Input::ProposeValue(value.clone()),
-            Input::Proposal(proposal) => Input::Proposal(proposal.clone()),
-            Input::InvalidProposal => Input::InvalidProposal,
-            Input::ProposalAndPolkaPrevious(proposal) => {
-                Input::ProposalAndPolkaPrevious(proposal.clone())
-            }
-            Input::InvalidProposalAndPolkaPrevious(proposal) => {
-                Input::InvalidProposalAndPolkaPrevious(proposal.clone())
-            }
-            Input::PolkaAny => Input::PolkaAny,
-            Input::PolkaNil => Input::PolkaNil,
-            Input::ProposalAndPolkaCurrent(proposal) => {
-                Input::ProposalAndPolkaCurrent(proposal.clone())
-            }
-            Input::PrecommitAny => Input::PrecommitAny,
-            Input::ProposalAndPrecommitValue(proposal) => {
-                Input::ProposalAndPrecommitValue(proposal.clone())
-            }
-            Input::PrecommitValue(value_id) => Input::PrecommitValue(value_id.clone()),
-            Input::SkipRound(round) => Input::SkipRound(*round),
-            Input::TimeoutPropose => Input::TimeoutPropose,
-            Input::TimeoutPrevote => Input::TimeoutPrevote,
-            Input::TimeoutPrecommit => Input::TimeoutPrecommit,
-        }
-    }
-}
-
-impl<Ctx: Context> PartialEq for Input<Ctx> {
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Input::NewRound(round), Input::NewRound(other_round)) => round == other_round,
-            (Input::ProposeValue(value), Input::ProposeValue(other_value)) => value == other_value,
-            (Input::Proposal(proposal), Input::Proposal(other_proposal)) => {
-                proposal == other_proposal
-            }
-            (Input::InvalidProposal, Input::InvalidProposal) => true,
-            (
-                Input::ProposalAndPolkaPrevious(proposal),
-                Input::ProposalAndPolkaPrevious(other_proposal),
-            ) => proposal == other_proposal,
-            (
-                Input::InvalidProposalAndPolkaPrevious(proposal),
-                Input::InvalidProposalAndPolkaPrevious(other_proposal),
-            ) => proposal == other_proposal,
-            (Input::PolkaAny, Input::PolkaAny) => true,
-            (Input::PolkaNil, Input::PolkaNil) => true,
-            (
-                Input::ProposalAndPolkaCurrent(proposal),
-                Input::ProposalAndPolkaCurrent(other_proposal),
-            ) => proposal == other_proposal,
-            (Input::PrecommitAny, Input::PrecommitAny) => true,
-            (
-                Input::ProposalAndPrecommitValue(proposal),
-                Input::ProposalAndPrecommitValue(other_proposal),
-            ) => proposal == other_proposal,
-            (Input::PrecommitValue(value_id), Input::PrecommitValue(other_value_id)) => {
-                value_id == other_value_id
-            }
-            (Input::SkipRound(round), Input::SkipRound(other_round)) => round == other_round,
-            (Input::TimeoutPropose, Input::TimeoutPropose) => true,
-            (Input::TimeoutPrevote, Input::TimeoutPrevote) => true,
-            (Input::TimeoutPrecommit, Input::TimeoutPrecommit) => true,
-            _ => false,
-        }
-    }
-}
-
-impl<Ctx: Context> Eq for Input<Ctx> {}
-
-impl<Ctx> fmt::Debug for Input<Ctx>
-where
-    Ctx: Context,
-    Ctx::Value: fmt::Debug,
-    Ctx::Proposal: fmt::Debug,
-{
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Input::NewRound(round) => write!(f, "NewRound({:?})", round),
-            Input::ProposeValue(value) => write!(f, "ProposeValue({:?})", value),
-            Input::Proposal(proposal) => write!(f, "Proposal({:?})", proposal),
-            Input::InvalidProposal => write!(f, "InvalidProposal"),
-            Input::ProposalAndPolkaPrevious(proposal) => {
-                write!(f, "ProposalAndPolkaPrevious({:?})", proposal)
-            }
-            Input::InvalidProposalAndPolkaPrevious(proposal) => {
-                write!(f, "InvalidProposalAndPolkaPrevious({:?})", proposal)
-            }
-            Input::PolkaAny => write!(f, "PolkaAny"),
-            Input::PolkaNil => write!(f, "PolkaNil"),
-            Input::ProposalAndPolkaCurrent(proposal) => {
-                write!(f, "ProposalAndPolkaCurrent({:?})", proposal)
-            }
-            Input::PrecommitAny => write!(f, "PrecommitAny"),
-            Input::ProposalAndPrecommitValue(proposal) => {
-                write!(f, "ProposalAndPrecommitValue({:?})", proposal)
-            }
-            Input::PrecommitValue(value_id) => write!(f, "PrecommitValue({:?})", value_id),
-            Input::SkipRound(round) => write!(f, "SkipRound({:?})", round),
-            Input::TimeoutPropose => write!(f, "TimeoutPropose"),
-            Input::TimeoutPrevote => write!(f, "TimeoutPrevote"),
-            Input::TimeoutPrecommit => write!(f, "TimeoutPrecommit"),
-        }
-    }
 }

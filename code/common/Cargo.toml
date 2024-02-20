@@ -9,4 +9,5 @@ license.workspace      = true
 publish.workspace      = true
 
 [dependencies]
-signature.workspace = true
+derive-where.workspace = true
+signature.workspace    = true
