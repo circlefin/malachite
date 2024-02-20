@@ -9,15 +9,18 @@ license.workspace    = true
 publish.workspace    = true
 
 [dependencies]
-malachite-common = { version = "0.1.0", path = "../common" }
-malachite-driver = { version = "0.1.0", path = "../driver" }
-malachite-round  = { version = "0.1.0", path = "../round" }
-malachite-vote   = { version = "0.1.0", path = "../vote" }
+malachite-common.workspace = true
+malachite-driver.workspace = true
+malachite-round.workspace  = true
+malachite-vote.workspace   = true
+malachite-proto.workspace  = true
 
 derive-where = { workspace = true }
-futures = { workspace = true }
-tokio = { workspace = true, features = ["full"] }
+futures      = { workspace = true }
+tokio        = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true }
+prost        = { workspace = true }
+prost-types  = { workspace = true }
 
 [dev-dependencies]
-malachite-test = { version = "0.1.0", path = "../test" }
+malachite-test.workspace = true

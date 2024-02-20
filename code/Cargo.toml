@@ -5,7 +5,8 @@ members = [
   "common",
   "driver",
   "itf",
-  "node",
+  "node", 
+  "proto",
   "round",
   "test",
   "vote",
@@ -19,6 +20,15 @@ license      = "Apache-2.0"
 publish      = false
 
 [workspace.dependencies]
+malachite-common = { version = "0.1.0", path = "common" }
+malachite-driver = { version = "0.1.0", path = "driver" }
+malachite-itf    = { version = "0.1.0", path = "itf" }
+malachite-node   = { version = "0.1.0", path = "node" }
+malachite-proto  = { version = "0.1.0", path = "proto" }
+malachite-round  = { version = "0.1.0", path = "round" }
+malachite-test   = { version = "0.1.0", path = "test" }
+malachite-vote   = { version = "0.1.0", path = "vote" }
+
 derive-where      = "1.2.7"
 ed25519-consensus = "2.1.0"
 futures           = "0.3"
@@ -27,11 +37,15 @@ itf               = "0.2.2"
 num-bigint        = "0.4.4"
 num-traits        = "0.2.17"
 pretty_assertions = "1.4"
+prost             = "0.12.3"
+prost-types       = "0.12.3"
+prost-build       = "0.12.3"
 rand              = { version = "0.8.5", features = ["std_rng"] }
 serde             = "1.0"
 serde_json        = "1.0"
 serde_with        = "3.4"
 sha2              = "0.10.8"
 signature         = "2.1.0"
+thiserror         = "1.0"
 tokio             = "1.35.1"
 tokio-stream      = "0.1"

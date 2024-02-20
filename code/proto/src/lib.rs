@@ -1,0 +1,55 @@
+use std::fmt::Display;
+
+use thiserror::Error;
+
+use prost::{DecodeError, EncodeError, Message};
+
+include!(concat!(env!("OUT_DIR"), "/malachite.rs"));
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Failed to decode Protobuf message")]
+    Decode(#[from] DecodeError),
+
+    #[error("Failed to encode Protobuf message")]
+    Encode(#[from] EncodeError),
+
+    #[error("{0}")]
+    Other(String),
+}
+
+pub trait Protobuf<Proto> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, Error>
+    where
+        Self: Sized;
+    fn into_bytes(self) -> Result<Vec<u8>, Error>;
+
+    fn to_bytes(&self) -> Result<Vec<u8>, Error>
+    where
+        Self: Clone,
+    {
+        self.clone().into_bytes()
+    }
+}
+
+impl<T, Proto> Protobuf<Proto> for T
+where
+    T: TryFrom<Proto>,
+    T::Error: Display,
+    Proto: Message + From<T> + Default,
+{
+    fn from_bytes(bytes: &[u8]) -> Result<Self, Error>
+    where
+        Self: Sized,
+    {
+        let proto = Proto::decode(bytes)?;
+        Self::try_from(proto).map_err(|e| Error::Other(e.to_string()))
+    }
+
+    fn into_bytes(self) -> Result<Vec<u8>, Error> {
+        let proto = Proto::from(self);
+        let mut bytes = Vec::with_capacity(proto.encoded_len());
+        proto.encode(&mut bytes)?;
+        Ok(bytes)
+    }
+}

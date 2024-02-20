@@ -1,5 +1,7 @@
 use core::fmt::{Debug, Display};
 
+use malachite_proto::Protobuf;
+
 use crate::{Context, PublicKey};
 
 /// Voting power held by a validator.
@@ -11,6 +13,7 @@ pub type VotingPower = u64;
 pub trait Address
 where
     Self: Clone + Debug + Display + Eq + Ord,
+    Self: Protobuf<malachite_proto::Address>,
 {
 }
 

@@ -12,6 +12,8 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
+extern crate alloc;
+
 mod context;
 mod height;
 mod proposal;

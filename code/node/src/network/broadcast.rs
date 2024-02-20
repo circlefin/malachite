@@ -3,10 +3,11 @@ use std::fmt::Debug;
 use std::net::SocketAddr;
 
 use futures::channel::oneshot;
-use malachite_common::Context;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, mpsc};
+
+use malachite_common::Context;
 
 use super::{Msg, Network, PeerId};
 
@@ -115,7 +116,7 @@ async fn connect_to_peer<Ctx: Context>(
 
             println!("[{id}] Sending message to {peer_info}: {msg:?}");
 
-            let bytes = msg.as_bytes();
+            let bytes = msg.to_network_bytes().unwrap();
             stream.write_u32(bytes.len() as u32).await.unwrap();
             stream.write_all(&bytes).await.unwrap();
             stream.flush().await.unwrap();
@@ -151,7 +152,7 @@ async fn listen<Ctx: Context>(
             let len = socket.read_u32().await.unwrap();
             let mut buf = vec![0; len as usize];
             socket.read_exact(&mut buf).await.unwrap();
-            let msg: Msg<Ctx> = Msg::from_bytes(&buf);
+            let msg: Msg<Ctx> = Msg::from_network_bytes(&buf).unwrap();
 
             println!(
                 "[{id}] Received message from {peer_id} ({addr}): {msg:?}",

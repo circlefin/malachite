@@ -98,3 +98,38 @@ impl malachite_common::Vote<TestContext> for Vote {
         &self.validator_address
     }
 }
+
+impl TryFrom<malachite_proto::Vote> for Vote {
+    type Error = String;
+
+    fn try_from(vote: malachite_proto::Vote) -> Result<Self, Self::Error> {
+        Ok(Self {
+            typ: malachite_proto::VoteType::try_from(vote.vote_type)
+                .unwrap()
+                .try_into()
+                .unwrap(), // infallible
+            height: vote.height.unwrap().try_into().unwrap(), // infallible
+            round: vote.round.unwrap().try_into().unwrap(),   // infallible
+            value: match vote.value {
+                Some(value) => NilOrVal::Val(value.try_into().unwrap()), // FIXME
+                None => NilOrVal::Nil,
+            },
+            validator_address: vote.validator_address.unwrap().try_into().unwrap(), // FIXME
+        })
+    }
+}
+
+impl From<Vote> for malachite_proto::Vote {
+    fn from(vote: Vote) -> malachite_proto::Vote {
+        malachite_proto::Vote {
+            vote_type: i32::from(malachite_proto::VoteType::from(vote.typ)),
+            height: Some(vote.height.into()),
+            round: Some(vote.round.into()),
+            value: match vote.value {
+                NilOrVal::Nil => None,
+                NilOrVal::Val(v) => Some(v.into()),
+            },
+            validator_address: Some(vote.validator_address.into()),
+        }
+    }
+}
