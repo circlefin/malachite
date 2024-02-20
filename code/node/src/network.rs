@@ -1,9 +1,9 @@
 use core::fmt;
 
-use malachite_common::Context;
-
 pub mod broadcast;
 mod msg;
+
+use malachite_proto::{Proposal, SignedVote};
 
 pub use self::msg::Msg;
 
@@ -17,14 +17,14 @@ impl fmt::Display for PeerId {
 }
 
 #[allow(async_fn_in_trait)]
-pub trait Network<Ctx: Context> {
-    async fn recv(&mut self) -> Option<(PeerId, Msg<Ctx>)>;
-    async fn broadcast(&mut self, msg: Msg<Ctx>);
+pub trait Network {
+    async fn recv(&mut self) -> Option<(PeerId, Msg)>;
+    async fn broadcast(&mut self, msg: Msg);
 
-    async fn broadcast_vote(&mut self, vote: Ctx::Vote) {
+    async fn broadcast_vote(&mut self, vote: SignedVote) {
         self.broadcast(Msg::Vote(vote)).await
     }
-    async fn broadcast_proposal(&mut self, proposal: Ctx::Proposal) {
+    async fn broadcast_proposal(&mut self, proposal: Proposal) {
         self.broadcast(Msg::Proposal(proposal)).await
     }
 }

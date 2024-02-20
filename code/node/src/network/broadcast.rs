@@ -7,16 +7,14 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, mpsc};
 
-use malachite_common::Context;
-
 use super::{Msg, Network, PeerId};
 
-pub enum PeerEvent<Ctx: Context> {
+pub enum PeerEvent {
     ConnectToPeer(PeerInfo, oneshot::Sender<()>),
-    Broadcast(Msg<Ctx>, oneshot::Sender<()>),
+    Broadcast(Msg, oneshot::Sender<()>),
 }
 
-impl<Ctx: Context> Debug for PeerEvent<Ctx> {
+impl Debug for PeerEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PeerEvent::ConnectToPeer(peer_info, _) => {
@@ -41,25 +39,23 @@ impl fmt::Display for PeerInfo {
     }
 }
 
-pub struct Peer<Ctx: Context> {
+pub struct Peer {
     id: PeerId,
     addr: SocketAddr,
-    _marker: std::marker::PhantomData<Ctx>,
 }
 
-impl<Ctx: Context> Peer<Ctx> {
+impl Peer {
     pub fn new(info: PeerInfo) -> Self {
         Self {
             id: info.id,
             addr: info.addr,
-            _marker: std::marker::PhantomData,
         }
     }
 
-    pub async fn run(self) -> Handle<Ctx> {
-        let (tx_peer_event, mut rx_peer_event) = mpsc::channel::<PeerEvent<Ctx>>(16);
-        let (tx_msg, rx_msg) = mpsc::channel::<(PeerId, Msg<Ctx>)>(16);
-        let (tx_broadcast_to_peers, _) = broadcast::channel::<(PeerId, Msg<Ctx>)>(16);
+    pub async fn run(self) -> Handle {
+        let (tx_peer_event, mut rx_peer_event) = mpsc::channel::<PeerEvent>(16);
+        let (tx_msg, rx_msg) = mpsc::channel::<(PeerId, Msg)>(16);
+        let (tx_broadcast_to_peers, _) = broadcast::channel::<(PeerId, Msg)>(16);
         let (tx_spawned, rx_spawned) = oneshot::channel();
 
         tokio::spawn(listen(self.id.clone(), self.addr, tx_spawned, tx_msg));
@@ -92,11 +88,11 @@ impl<Ctx: Context> Peer<Ctx> {
     }
 }
 
-async fn connect_to_peer<Ctx: Context>(
+async fn connect_to_peer(
     id: PeerId,
     peer_info: PeerInfo,
     done: oneshot::Sender<()>,
-    per_peer_tx: &broadcast::Sender<(PeerId, Msg<Ctx>)>,
+    per_peer_tx: &broadcast::Sender<(PeerId, Msg)>,
 ) {
     println!("[{id}] Connecting to {peer_info}...");
 
@@ -105,10 +101,7 @@ async fn connect_to_peer<Ctx: Context>(
 
     let mut per_peer_rx = per_peer_tx.subscribe();
 
-    Frame::<Ctx>::PeerId(id.clone())
-        .write(&mut stream)
-        .await
-        .unwrap();
+    Frame::PeerId(id.clone()).write(&mut stream).await.unwrap();
 
     tokio::spawn(async move {
         loop {
@@ -123,11 +116,11 @@ async fn connect_to_peer<Ctx: Context>(
     });
 }
 
-async fn listen<Ctx: Context>(
+async fn listen(
     id: PeerId,
     addr: SocketAddr,
     tx_spawned: oneshot::Sender<()>,
-    tx_received: mpsc::Sender<(PeerId, Msg<Ctx>)>,
+    tx_received: mpsc::Sender<(PeerId, Msg)>,
 ) -> ! {
     let listener = TcpListener::bind(addr).await.unwrap();
     println!("[{id}] Listening on {addr}...");
@@ -142,7 +135,7 @@ async fn listen<Ctx: Context>(
             peer = socket.peer_addr().unwrap()
         );
 
-        let Frame::PeerId(peer_id) = Frame::<Ctx>::read(&mut socket).await.unwrap() else {
+        let Frame::PeerId(peer_id) = Frame::read(&mut socket).await.unwrap() else {
             eprintln!("[{id}] Peer did not send its ID");
             continue;
         };
@@ -152,7 +145,7 @@ async fn listen<Ctx: Context>(
 
         tokio::spawn(async move {
             loop {
-                let Frame::Msg(msg) = Frame::<Ctx>::read(&mut socket).await.unwrap() else {
+                let Frame::Msg(msg) = Frame::read(&mut socket).await.unwrap() else {
                     eprintln!("[{id}] Peer did not send a message");
                     return;
                 };
@@ -168,12 +161,12 @@ async fn listen<Ctx: Context>(
     }
 }
 
-pub enum Frame<Ctx: Context> {
+pub enum Frame {
     PeerId(PeerId),
-    Msg(Msg<Ctx>),
+    Msg(Msg),
 }
 
-impl<Ctx: Context> Frame<Ctx> {
+impl Frame {
     /// Write a frame to the given writer, prefixing it with its discriminant.
     pub async fn write<W: AsyncWriteExt + Unpin>(
         &self,
@@ -225,22 +218,22 @@ impl<Ctx: Context> Frame<Ctx> {
     }
 }
 
-pub struct Handle<Ctx: Context> {
+pub struct Handle {
     peer_id: PeerId,
-    rx_msg: mpsc::Receiver<(PeerId, Msg<Ctx>)>,
-    tx_peer_event: mpsc::Sender<PeerEvent<Ctx>>,
+    rx_msg: mpsc::Receiver<(PeerId, Msg)>,
+    tx_peer_event: mpsc::Sender<PeerEvent>,
 }
 
-impl<Ctx: Context> Handle<Ctx> {
+impl Handle {
     pub fn peer_id(&self) -> &PeerId {
         &self.peer_id
     }
 
-    pub async fn recv(&mut self) -> Option<(PeerId, Msg<Ctx>)> {
+    pub async fn recv(&mut self) -> Option<(PeerId, Msg)> {
         self.rx_msg.recv().await
     }
 
-    pub async fn broadcast(&self, msg: Msg<Ctx>) {
+    pub async fn broadcast(&self, msg: Msg) {
         let (tx_done, rx_done) = oneshot::channel();
 
         self.tx_peer_event
@@ -263,12 +256,12 @@ impl<Ctx: Context> Handle<Ctx> {
     }
 }
 
-impl<Ctx: Context> Network<Ctx> for Handle<Ctx> {
-    async fn recv(&mut self) -> Option<(PeerId, Msg<Ctx>)> {
+impl Network for Handle {
+    async fn recv(&mut self) -> Option<(PeerId, Msg)> {
         Handle::recv(self).await
     }
 
-    async fn broadcast(&mut self, msg: Msg<Ctx>) {
+    async fn broadcast(&mut self, msg: Msg) {
         Handle::broadcast(self, msg).await;
     }
 }
@@ -277,7 +270,6 @@ impl<Ctx: Context> Network<Ctx> for Handle<Ctx> {
 mod tests {
     use std::time::Duration;
 
-    use malachite_test::TestContext;
     use tokio::time::timeout;
 
     use super::*;
@@ -302,9 +294,9 @@ mod tests {
             addr: "127.0.0.1:12003".parse().unwrap(),
         };
 
-        let peer1: Peer<TestContext> = Peer::new(peer1_info.clone());
-        let peer2: Peer<TestContext> = Peer::new(peer2_info.clone());
-        let peer3: Peer<TestContext> = Peer::new(peer3_info.clone());
+        let peer1: Peer = Peer::new(peer1_info.clone());
+        let peer2: Peer = Peer::new(peer2_info.clone());
+        let peer3: Peer = Peer::new(peer3_info.clone());
 
         let handle1 = peer1.run().await;
         let mut handle2 = peer2.run().await;

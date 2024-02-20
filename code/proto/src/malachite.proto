@@ -30,6 +30,11 @@ message Vote {
     Address validator_address = 5;
 }
 
+message SignedVote {
+    Vote vote = 1;
+    bytes signature = 2;
+}
+
 message Proposal {
     Height height = 1;
     Round round = 2;
