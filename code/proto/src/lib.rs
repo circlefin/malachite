@@ -16,12 +16,12 @@ pub enum Error {
     Other(String),
 }
 
-pub trait Protobuf {
+pub trait Protobuf: Sized {
     type Proto: Message + Default;
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, Error>
     where
-        Self: TryFrom<Self::Proto, Error = Error> + Sized, // FIXME: Require `TryFrom<&Self::Proto>` instead
+        Self: TryFrom<Self::Proto, Error = Error>,
     {
         let proto = Self::Proto::decode(bytes)?;
         Self::try_from(proto)
@@ -29,7 +29,6 @@ pub trait Protobuf {
 
     fn into_bytes(self) -> Result<Vec<u8>, Error>
     where
-        Self: Sized,
         Self::Proto: From<Self>,
     {
         let proto = Self::Proto::from(self);
@@ -40,7 +39,7 @@ pub trait Protobuf {
 
     fn to_bytes(&self) -> Result<Vec<u8>, Error>
     where
-        Self: Sized + Clone,
+        Self: Clone,
         Self::Proto: From<Self>,
     {
         Protobuf::into_bytes(self.clone())
