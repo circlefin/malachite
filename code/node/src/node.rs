@@ -4,6 +4,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 use std::time::Duration;
 
+use malachite_common::TimeoutStep;
 use tokio::sync::mpsc;
 use tracing::info;
 
@@ -40,6 +41,9 @@ where
     timers: Timers,
     timeout_elapsed: mpsc::Receiver<Timeout>,
     value: Ctx::Value,
+
+    // Debug only
+    stop: bool,
 }
 
 impl<Ctx, Net> Node<Ctx, Net>
@@ -76,6 +80,7 @@ where
             timers,
             timeout_elapsed,
             value,
+            stop: false,
         }
     }
 
@@ -88,6 +93,10 @@ where
             .unwrap();
 
         loop {
+            if self.stop {
+                break;
+            }
+
             tokio::select! {
                 Some(input) = rx_input.recv() => {
                     self.process_input(input, &tx_input).await;
@@ -126,6 +135,12 @@ where
 
                 self.timers.cancel_timeout(&timeout).await;
             }
+            Input::TimeoutElapsed(timeout) if timeout.step == TimeoutStep::Commit => {
+                // Debug only
+                self.stop = true;
+                // FIXME: Move to next height
+                return;
+            }
             Input::TimeoutElapsed(_) => (),
         }
 
@@ -133,12 +148,10 @@ where
 
         for output in outputs {
             match self.process_output(output).await {
-                Next::None => {}
-                Next::Input(input) => {
-                    tx_input.send(input).unwrap();
-                }
-                Next::Decided(_, _) => {
-                    return;
+                Next::None => (),
+                Next::Input(input) => tx_input.send(input).unwrap(),
+                Next::Decided(round, _) => {
+                    self.timers.schedule_timeout(Timeout::commit(round)).await
                 }
             }
         }
@@ -147,6 +160,8 @@ where
     pub async fn process_timeout(&mut self, timeout: Timeout, tx_input: &TxInput<Ctx>) {
         let height = self.driver.height();
         let round = self.driver.round();
+
+        // FIXME: Ensure the timeout is for the current round
 
         info!("{timeout} elapsed at height {height} and round {round}");
 

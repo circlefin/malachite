@@ -73,6 +73,7 @@ pub async fn make_node(
         propose_timeout: Duration::from_secs(10),
         prevote_timeout: Duration::from_secs(5),
         precommit_timeout: Duration::from_secs(5),
+        commit_timeout: Duration::from_secs(5),
     };
 
     let network = broadcast::Peer::new(peer_info.clone());

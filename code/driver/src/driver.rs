@@ -250,6 +250,9 @@ where
             TimeoutStep::Propose => RoundInput::TimeoutPropose,
             TimeoutStep::Prevote => RoundInput::TimeoutPrevote,
             TimeoutStep::Precommit => RoundInput::TimeoutPrecommit,
+
+            // The driver never receives a commit timeout, so we can just ignore it.
+            TimeoutStep::Commit => return Ok(None),
         };
 
         self.apply_input(timeout.round, input)

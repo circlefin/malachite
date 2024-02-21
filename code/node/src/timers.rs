@@ -12,6 +12,7 @@ pub struct Config {
     pub propose_timeout: Duration,
     pub prevote_timeout: Duration,
     pub precommit_timeout: Duration,
+    pub commit_timeout: Duration,
 }
 
 pub struct Timers {
@@ -68,6 +69,7 @@ impl Timers {
             TimeoutStep::Propose => self.config.propose_timeout,
             TimeoutStep::Prevote => self.config.prevote_timeout,
             TimeoutStep::Precommit => self.config.precommit_timeout,
+            TimeoutStep::Commit => self.config.commit_timeout,
         }
     }
 }
@@ -83,6 +85,7 @@ mod tests {
         propose_timeout: Duration::from_millis(50),
         prevote_timeout: Duration::from_millis(100),
         precommit_timeout: Duration::from_millis(150),
+        commit_timeout: Duration::from_millis(200),
     };
 
     const fn timeouts() -> (Timeout, Timeout, Timeout) {

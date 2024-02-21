@@ -5,14 +5,17 @@ use crate::Round;
 /// The round step for which the timeout is for.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TimeoutStep {
-    /// The timeout is for the propose step.
+    /// Timeout for the propose step.
     Propose,
 
-    /// The timeout is for the prevote step.
+    /// Timeout for the prevote step.
     Prevote,
 
-    /// The timeout is for the precommit step.
+    /// Timeout for the precommit step.
     Precommit,
+
+    /// Timeout for the commit step.
+    Commit,
 }
 
 /// A timeout for a round step.
@@ -44,6 +47,11 @@ impl Timeout {
     /// Create a new timeout for the precommit step of the given round.
     pub const fn precommit(round: Round) -> Self {
         Self::new(round, TimeoutStep::Precommit)
+    }
+
+    /// Create a new timeout for the commit step of the given round.
+    pub const fn commit(round: Round) -> Self {
+        Self::new(round, TimeoutStep::Commit)
     }
 }
 
