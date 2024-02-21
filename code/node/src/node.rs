@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::mpsc;
-use tracing::{debug, info, Instrument};
+use tracing::{debug, info, warn, Instrument};
 
 use malachite_common::{
     Context, Height, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep, Vote,
@@ -15,6 +15,7 @@ use malachite_vote::ThresholdParams;
 
 use crate::network::Msg as NetworkMsg;
 use crate::network::{Network, PeerId};
+use crate::peers::Peers;
 use crate::timers::{self, Timers};
 
 pub struct Params<Ctx: Context> {
@@ -23,6 +24,7 @@ pub struct Params<Ctx: Context> {
     pub validator_set: Ctx::ValidatorSet,
     pub address: Ctx::Address,
     pub threshold_params: ThresholdParams,
+    pub peers: Peers<Ctx>,
 }
 
 type TxInput<Ctx> = mpsc::UnboundedSender<Input<Ctx>>;
@@ -197,14 +199,27 @@ where
         match msg {
             NetworkMsg::Vote(signed_vote) => {
                 let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap();
-                // self.ctx.verify_signed_vote(signed_vote);
-                tx_input.send(Input::Vote(signed_vote.vote)).unwrap();
+                let peer = self.params.peers.get(&peer_id).unwrap(); // FIXME
+
+                if self.ctx.verify_signed_vote(&signed_vote, &peer.public_key) {
+                    tx_input.send(Input::Vote(signed_vote.vote)).unwrap();
+                } else {
+                    warn!("Invalid vote from peer {peer_id}: {signed_vote:?}");
+                }
             }
             NetworkMsg::Proposal(proposal) => {
                 let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap();
-                let validity = Validity::Valid; // self.ctx.verify_proposal(proposal);
+                let peer = self.params.peers.get(&peer_id).unwrap(); // FIXME
+
+                let valid = self
+                    .ctx
+                    .verify_signed_proposal(&signed_proposal, &peer.public_key);
+
                 tx_input
-                    .send(Input::Proposal(signed_proposal.proposal, validity))
+                    .send(Input::Proposal(
+                        signed_proposal.proposal,
+                        Validity::from_valid(valid),
+                    ))
                     .unwrap();
             }
 

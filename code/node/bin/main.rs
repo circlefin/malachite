@@ -1,9 +1,11 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use malachite_node::config::Config;
 use malachite_node::network::broadcast;
 use malachite_node::network::broadcast::PeerInfo;
 use malachite_node::node::{Node, Params};
+use malachite_node::peers::Peers;
 use malachite_node::timers;
 use malachite_test::utils::{make_validators, FixedProposer};
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
@@ -11,8 +13,6 @@ use tracing::info;
 
 mod cli;
 use cli::Cli;
-mod config;
-use config::{Config, PeerConfig};
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() {
@@ -43,7 +43,7 @@ pub async fn main() {
     let peer_info = peer_config.peer_info();
     let vs = ValidatorSet::new(vs);
 
-    let node = make_node(vs, my_sk, my_addr, peer_info, &config.peers).await;
+    let node = make_node(vs, my_sk, my_addr, peer_info, config.into()).await;
 
     info!("[{}] Starting...", args.peer_id);
 
@@ -51,21 +51,22 @@ pub async fn main() {
 }
 
 pub async fn make_node(
-    vs: ValidatorSet,
-    pk: PrivateKey,
-    addr: Address,
+    validator_set: ValidatorSet,
+    private_key: PrivateKey,
+    address: Address,
     peer_info: PeerInfo,
-    peers: &[PeerConfig],
+    peers: Peers<TestContext>,
 ) -> Node<TestContext, broadcast::Handle> {
-    let height = Height::new(1);
-    let ctx = TestContext::new(pk);
-    let sel = Arc::new(FixedProposer::new(vs.validators[0].address));
+    let start_height = Height::new(1);
+    let ctx = TestContext::new(private_key);
+    let proposer_selector = Arc::new(FixedProposer::new(validator_set.validators[0].address));
 
     let params = Params {
-        start_height: height,
-        proposer_selector: sel,
-        validator_set: vs,
-        address: addr,
+        start_height,
+        proposer_selector,
+        validator_set,
+        address,
+        peers: peers.clone(),
         threshold_params: Default::default(),
     };
 
