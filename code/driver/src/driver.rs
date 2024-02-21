@@ -1,4 +1,4 @@
-use alloc::boxed::Box;
+use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
@@ -29,10 +29,13 @@ where
     pub ctx: Ctx,
 
     /// The proposer selector.
-    pub proposer_selector: Box<dyn ProposerSelector<Ctx>>,
+    pub proposer_selector: Arc<dyn ProposerSelector<Ctx>>,
 
     /// The address of the node.
     pub address: Ctx::Address,
+
+    /// Quorum thresholds
+    pub threshold_params: ThresholdParams,
 
     /// The validator set at the current height
     pub validator_set: Ctx::ValidatorSet,
@@ -61,22 +64,43 @@ where
     pub fn new(
         ctx: Ctx,
         height: Ctx::Height,
-        proposer_selector: impl ProposerSelector<Ctx> + 'static,
+        proposer_selector: Arc<dyn ProposerSelector<Ctx>>,
         validator_set: Ctx::ValidatorSet,
         address: Ctx::Address,
         threshold_params: ThresholdParams,
     ) -> Self {
-        let votes = VoteKeeper::new(validator_set.total_voting_power(), threshold_params);
+        let vote_keeper = VoteKeeper::new(validator_set.total_voting_power(), threshold_params);
+        let round_state = RoundState::new(height, Round::Nil);
 
         Self {
             ctx,
-            proposer_selector: Box::new(proposer_selector),
+            proposer_selector,
             address,
+            threshold_params,
             validator_set,
-            vote_keeper: votes,
-            round_state: RoundState::new(height, Round::Nil),
+            vote_keeper,
+            round_state,
             proposal: None,
             pending_input: None,
+        }
+    }
+
+    /// Reset votes, round state, pending input and move to new height.
+    /// TODO: Allow validator set to change
+    pub fn move_to_height(self, height: Ctx::Height) -> Self {
+        let vote_keeper = VoteKeeper::new(
+            self.validator_set.total_voting_power(),
+            self.threshold_params,
+        );
+
+        let round_state = RoundState::new(height, Round::Nil);
+
+        Self {
+            vote_keeper,
+            round_state,
+            proposal: None,
+            pending_input: None,
+            ..self
         }
     }
 

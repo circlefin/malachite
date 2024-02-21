@@ -21,6 +21,7 @@ tokio        = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true }
 prost        = { workspace = true }
 prost-types  = { workspace = true }
+tracing      = { workspace = true }
 
 [dev-dependencies]
 malachite-test.workspace = true

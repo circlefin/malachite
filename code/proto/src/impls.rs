@@ -1,6 +1,6 @@
 use core::convert::Infallible;
 
-use malachite_common::{Context, Round, SignedVote, SigningScheme, VoteType};
+use malachite_common::{Context, Round, SignedProposal, SignedVote, SigningScheme, VoteType};
 
 use crate::{self as proto, Error, Protobuf};
 
@@ -76,4 +76,42 @@ impl From<VoteType> for proto::VoteType {
             VoteType::Precommit => proto::VoteType::Precommit,
         }
     }
+}
+
+impl<Ctx: Context> From<SignedProposal<Ctx>> for proto::SignedProposal
+where
+    Ctx::Proposal: Into<proto::Proposal>,
+{
+    fn from(signed_proposal: SignedProposal<Ctx>) -> proto::SignedProposal {
+        proto::SignedProposal {
+            proposal: Some(signed_proposal.proposal.into()),
+            signature: Ctx::SigningScheme::encode_signature(&signed_proposal.signature),
+        }
+    }
+}
+
+impl<Ctx: Context> TryFrom<proto::SignedProposal> for SignedProposal<Ctx>
+where
+    Ctx::Proposal: TryFrom<proto::Proposal, Error = Error>,
+{
+    type Error = Error;
+
+    fn try_from(value: proto::SignedProposal) -> Result<Self, Error> {
+        let proposal = value
+            .proposal
+            .ok_or_else(|| Error::Other("Missing field `proposal`".to_string()))?;
+
+        Ok(Self {
+            proposal: Ctx::Proposal::try_from(proposal)?,
+            signature: Ctx::SigningScheme::decode_signature(&value.signature)
+                .map_err(|e| Error::Other(format!("Failed to decode signature: {e}")))?,
+        })
+    }
+}
+
+impl<Ctx: Context> Protobuf for SignedProposal<Ctx>
+where
+    Ctx::Proposal: TryFrom<proto::Proposal, Error = Error> + Into<proto::Proposal>,
+{
+    type Proto = proto::SignedProposal;
 }

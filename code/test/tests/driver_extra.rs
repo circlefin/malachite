@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use malachite_common::Round;
 use malachite_driver::{Driver, Input, Output, Validity};
 use malachite_round::state::State;
@@ -77,7 +79,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer;
+    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
@@ -146,7 +148,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer;
+    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
@@ -243,7 +245,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer;
+    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
@@ -368,7 +370,7 @@ fn driver_steps_polka_previous_with_locked() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer;
+    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
@@ -476,7 +478,7 @@ fn driver_steps_polka_previous_invalid_proposal() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer;
+    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
@@ -567,7 +569,7 @@ fn driver_steps_polka_previous_new_proposal() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer;
+    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
@@ -678,7 +680,7 @@ fn driver_steps_polka_previous_with_no_locked() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer;
+    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
@@ -787,7 +789,7 @@ fn driver_steps_polka_nil_and_timout_propose() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer;
+    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
@@ -851,7 +853,7 @@ fn driver_steps_polka_value_then_proposal() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer;
+    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
@@ -918,7 +920,7 @@ fn driver_steps_polka_any_then_proposal_other() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = RotateProposer;
+    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());

@@ -1,7 +1,7 @@
 use crate::Round;
 
 /// The round step for which the timeout is for.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TimeoutStep {
     /// The timeout is for the propose step.
     Propose,
@@ -14,7 +14,7 @@ pub enum TimeoutStep {
 }
 
 /// A timeout for a round step.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Timeout {
     /// The round for which the timeout is for.
     pub round: Round,

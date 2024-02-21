@@ -1,4 +1,5 @@
 use malachite_common::Round;
+use malachite_proto::Protobuf;
 
 use crate::{Height, TestContext, Value};
 
@@ -19,6 +20,10 @@ impl Proposal {
             value,
             pol_round,
         }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        Protobuf::to_bytes(self).unwrap()
     }
 }
 

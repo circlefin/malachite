@@ -22,6 +22,11 @@ message Round {
     int64 round = 1;
 }
 
+enum VoteType {
+   PREVOTE = 0;
+   PRECOMMIT = 1;
+}
+
 message Vote {
     VoteType vote_type = 1;
     Height height = 2;
@@ -42,7 +47,8 @@ message Proposal {
     Round pol_round = 4;
 }
 
-enum VoteType {
-   PREVOTE = 0;
-   PRECOMMIT = 1;
+message SignedProposal {
+    Proposal proposal = 1;
+    bytes signature = 2;
 }
+

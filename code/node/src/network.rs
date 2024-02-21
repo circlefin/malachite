@@ -3,7 +3,7 @@ use core::fmt;
 pub mod broadcast;
 mod msg;
 
-use malachite_proto::{Proposal, SignedVote};
+use malachite_proto::{SignedProposal, SignedVote};
 
 pub use self::msg::Msg;
 
@@ -24,7 +24,7 @@ pub trait Network {
     async fn broadcast_vote(&mut self, vote: SignedVote) {
         self.broadcast(Msg::Vote(vote)).await
     }
-    async fn broadcast_proposal(&mut self, proposal: Proposal) {
+    async fn broadcast_proposal(&mut self, proposal: SignedProposal) {
         self.broadcast(Msg::Proposal(proposal)).await
     }
 }

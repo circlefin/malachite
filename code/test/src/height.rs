@@ -1,3 +1,4 @@
+use core::fmt;
 use std::convert::Infallible;
 
 /// A blockchain height
@@ -11,6 +12,12 @@ impl Height {
 
     pub fn as_u64(&self) -> u64 {
         self.0
+    }
+}
+
+impl fmt::Display for Height {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 

@@ -1,15 +1,14 @@
-use prost::Message;
-use prost::Name;
+use prost::{Message, Name};
 use prost_types::Any;
 
 use malachite_proto::Error as ProtoError;
 use malachite_proto::Protobuf;
-use malachite_proto::{Proposal, SignedVote};
+use malachite_proto::{SignedProposal, SignedVote};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Msg {
     Vote(SignedVote),
-    Proposal(Proposal),
+    Proposal(SignedProposal),
 
     #[cfg(test)]
     Dummy(u64),
@@ -35,7 +34,7 @@ impl From<Msg> for Any {
                 value: vote.encode_to_vec(),
             },
             Msg::Proposal(proposal) => Any {
-                type_url: Proposal::type_url(),
+                type_url: SignedProposal::type_url(),
                 value: proposal.encode_to_vec(),
             },
 
@@ -55,8 +54,8 @@ impl TryFrom<Any> for Msg {
         if any.type_url == SignedVote::type_url() {
             let vote = SignedVote::decode(any.value.as_slice())?;
             Ok(Msg::Vote(vote))
-        } else if any.type_url == Proposal::type_url() {
-            let proposal = Proposal::decode(any.value.as_slice())?;
+        } else if any.type_url == SignedProposal::type_url() {
+            let proposal = SignedProposal::decode(any.value.as_slice())?;
             Ok(Msg::Proposal(proposal))
         } else if cfg!(test) && any.type_url == Msg::DUMMY_TYPE_URL {
             #[cfg(test)]

@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
 use malachite_common::Context;
 use malachite_common::NilOrVal;
 use malachite_common::Round;
+use malachite_common::SignedProposal;
 use malachite_common::SignedVote;
 
 use crate::address::*;
@@ -13,12 +16,14 @@ use crate::vote::*;
 
 #[derive(Clone, Debug)]
 pub struct TestContext {
-    private_key: PrivateKey,
+    private_key: Arc<PrivateKey>,
 }
 
 impl TestContext {
     pub fn new(private_key: PrivateKey) -> Self {
-        Self { private_key }
+        Self {
+            private_key: Arc::new(private_key),
+        }
     }
 }
 
@@ -42,6 +47,26 @@ impl Context for TestContext {
         use signature::Verifier;
         public_key
             .verify(&signed_vote.vote.to_bytes(), &signed_vote.signature)
+            .is_ok()
+    }
+
+    fn sign_proposal(&self, proposal: Self::Proposal) -> SignedProposal<Self> {
+        use signature::Signer;
+        let signature = self.private_key.sign(&proposal.to_bytes());
+        SignedProposal::new(proposal, signature)
+    }
+
+    fn verify_signed_proposal(
+        &self,
+        signed_proposal: &SignedProposal<Self>,
+        public_key: &PublicKey,
+    ) -> bool {
+        use signature::Verifier;
+        public_key
+            .verify(
+                &signed_proposal.proposal.to_bytes(),
+                &signed_proposal.signature,
+            )
             .is_ok()
     }
 
