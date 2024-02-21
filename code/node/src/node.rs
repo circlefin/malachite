@@ -83,10 +83,11 @@ where
                     let height = self.driver.height();
                     let round = self.driver.round();
 
-                    info!("{timeout:?} elapsed at height {height} and round {round}");
+                    info!("{timeout} elapsed at height {height} and round {round}");
 
                     input = Some(Input::TimeoutElapsed(timeout));
                 }
+
                 Some((peer_id, msg)) = self.network.recv() => {
                     info!("Received message from peer {peer_id}: {msg:?}");
 
@@ -141,13 +142,13 @@ where
                 info!("Decided on value {value:?} at round {round}");
             }
             Output::ScheduleTimeout(timeout) => {
-                info!("Scheduling {:?} at round {}", timeout.step, timeout.round);
+                info!("Scheduling {timeout}");
 
                 self.timers.schedule_timeout(timeout).await
             }
             Output::GetValue(height, round, timeout) => {
                 info!("Requesting value at height {height} and round {round}");
-                info!("Scheduling {:?} at round {}", timeout.step, timeout.round);
+                info!("Scheduling {timeout}");
 
                 self.timers.schedule_timeout(timeout).await;
             }

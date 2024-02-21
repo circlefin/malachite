@@ -8,20 +8,29 @@ repository.workspace = true
 license.workspace    = true
 publish.workspace    = true
 
+[[bin]]
+name = "malachite-node"
+path = "bin/main.rs"
+
 [dependencies]
 malachite-common.workspace = true
 malachite-driver.workspace = true
 malachite-round.workspace  = true
 malachite-vote.workspace   = true
 malachite-proto.workspace  = true
+malachite-test.workspace   = true
 
-derive-where = { workspace = true }
-futures      = { workspace = true }
-tokio        = { workspace = true, features = ["full"] }
-tokio-stream = { workspace = true }
-prost        = { workspace = true }
-prost-types  = { workspace = true }
-tracing      = { workspace = true }
+ed25519-consensus  = { workspace = true, features = ["serde"] }
+derive-where       = { workspace = true }
+futures            = { workspace = true }
+tokio              = { workspace = true, features = ["full"] }
+tokio-stream       = { workspace = true }
+prost              = { workspace = true }
+prost-types        = { workspace = true }
+serde              = { workspace = true, features = ["derive"] }
+toml               = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["fmt"] }
 
 [dev-dependencies]
 malachite-test.workspace = true

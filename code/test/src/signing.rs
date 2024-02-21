@@ -81,6 +81,10 @@ impl PublicKey {
         hasher.update(self.0.as_bytes());
         hasher.finalize().into()
     }
+
+    pub fn inner(&self) -> &ed25519_consensus::VerificationKey {
+        &self.0
+    }
 }
 
 impl Verifier<Signature> for PublicKey {

@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::Round;
 
 /// The round step for which the timeout is for.
@@ -42,5 +44,11 @@ impl Timeout {
     /// Create a new timeout for the precommit step of the given round.
     pub const fn precommit(round: Round) -> Self {
         Self::new(round, TimeoutStep::Precommit)
+    }
+}
+
+impl fmt::Display for Timeout {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}Timeout({})", self.step, self.round)
     }
 }

@@ -1,4 +1,6 @@
 use core::fmt;
+use std::convert::Infallible;
+use std::str::FromStr;
 
 pub mod broadcast;
 mod msg;
@@ -10,9 +12,23 @@ pub use self::msg::Msg;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PeerId(String);
 
+impl PeerId {
+    pub fn new(id: impl ToString) -> Self {
+        Self(id.to_string())
+    }
+}
+
 impl fmt::Display for PeerId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl FromStr for PeerId {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.to_string()))
     }
 }
 

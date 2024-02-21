@@ -1,23 +1,25 @@
 use core::fmt;
 use std::fmt::Debug;
 use std::net::SocketAddr;
+use std::time::{Duration, Instant};
 
 use futures::channel::oneshot;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, mpsc};
+use tracing::{error, info, warn};
 
 use super::{Msg, Network, PeerId};
 
 pub enum PeerEvent {
-    ConnectToPeer(PeerInfo, oneshot::Sender<()>),
+    ConnectToPeer(PeerInfo, Option<Duration>, oneshot::Sender<()>),
     Broadcast(Msg, oneshot::Sender<()>),
 }
 
 impl Debug for PeerEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PeerEvent::ConnectToPeer(peer_info, _) => {
+            PeerEvent::ConnectToPeer(peer_info, _, _) => {
                 write!(f, "ConnectToPeer({peer_info:?})")
             }
             PeerEvent::Broadcast(msg, _) => {
@@ -65,12 +67,19 @@ impl Peer {
         tokio::spawn(async move {
             while let Some(event) = rx_peer_event.recv().await {
                 match event {
-                    PeerEvent::ConnectToPeer(peer_info, done) => {
-                        connect_to_peer(id.clone(), peer_info, done, &tx_broadcast_to_peers).await;
+                    PeerEvent::ConnectToPeer(peer_info, timeout, done) => {
+                        connect_to_peer(
+                            id.clone(),
+                            peer_info,
+                            timeout,
+                            done,
+                            &tx_broadcast_to_peers,
+                        )
+                        .await;
                     }
 
                     PeerEvent::Broadcast(msg, done) => {
-                        println!("[{id}] Broadcasting message: {msg:?}");
+                        info!("[{id}] Broadcasting message: {msg:?}");
                         tx_broadcast_to_peers.send((id.clone(), msg)).unwrap();
                         done.send(()).unwrap();
                     }
@@ -91,12 +100,39 @@ impl Peer {
 async fn connect_to_peer(
     id: PeerId,
     peer_info: PeerInfo,
+    timeout: Option<Duration>,
     done: oneshot::Sender<()>,
     per_peer_tx: &broadcast::Sender<(PeerId, Msg)>,
 ) {
-    println!("[{id}] Connecting to {peer_info}...");
+    info!("[{id}] Connecting to {peer_info}...");
 
-    let mut stream = TcpStream::connect(peer_info.addr).await.unwrap();
+    let mut stream = if let Some(timeout) = timeout {
+        let start = Instant::now();
+
+        loop {
+            match TcpStream::connect(peer_info.addr).await {
+                Ok(stream) => break stream,
+                Err(e) => warn!("[{id}] Failed to connect to {peer_info}: {e}"),
+            }
+
+            if start.elapsed() >= timeout {
+                error!("[{id}] Connection to {peer_info} timed out");
+                return;
+            }
+
+            warn!("[{id}] Retrying in 1 second...");
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    } else {
+        match TcpStream::connect(peer_info.addr).await {
+            Ok(stream) => stream,
+            Err(e) => {
+                error!("[{id}] Failed to connect to {peer_info}: {e}");
+                return;
+            }
+        }
+    };
+
     done.send(()).unwrap();
 
     let mut per_peer_rx = per_peer_tx.subscribe();
@@ -110,7 +146,7 @@ async fn connect_to_peer(
                 continue;
             }
 
-            println!("[{id}] Sending message to {peer_info}: {msg:?}");
+            info!("[{id}] Sending message to {peer_info}: {msg:?}");
             Frame::Msg(msg).write(&mut stream).await.unwrap();
         }
     });
@@ -123,20 +159,20 @@ async fn listen(
     tx_received: mpsc::Sender<(PeerId, Msg)>,
 ) -> ! {
     let listener = TcpListener::bind(addr).await.unwrap();
-    println!("[{id}] Listening on {addr}...");
+    info!("[{id}] Listening on {addr}...");
 
     tx_spawned.send(()).unwrap();
 
     loop {
         let (mut socket, _) = listener.accept().await.unwrap();
 
-        println!(
+        info!(
             "[{id}] Accepted connection from {peer}...",
             peer = socket.peer_addr().unwrap()
         );
 
         let Frame::PeerId(peer_id) = Frame::read(&mut socket).await.unwrap() else {
-            eprintln!("[{id}] Peer did not send its ID");
+            error!("[{id}] Peer did not send its ID");
             continue;
         };
 
@@ -146,11 +182,11 @@ async fn listen(
         tokio::spawn(async move {
             loop {
                 let Frame::Msg(msg) = Frame::read(&mut socket).await.unwrap() else {
-                    eprintln!("[{id}] Peer did not send a message");
+                    error!("[{id}] Peer did not send a message");
                     return;
                 };
 
-                println!(
+                info!(
                     "[{id}] Received message from {peer_id} ({addr}): {msg:?}",
                     addr = socket.peer_addr().unwrap(),
                 );
@@ -244,11 +280,11 @@ impl Handle {
         rx_done.await.unwrap();
     }
 
-    pub async fn connect_to_peer(&self, peer_info: PeerInfo) {
+    pub async fn connect_to_peer(&self, peer_info: PeerInfo, timeout: Option<Duration>) {
         let (tx_done, rx_done) = oneshot::channel();
 
         self.tx_peer_event
-            .send(PeerEvent::ConnectToPeer(peer_info, tx_done))
+            .send(PeerEvent::ConnectToPeer(peer_info, timeout, tx_done))
             .await
             .unwrap();
 
@@ -302,14 +338,14 @@ mod tests {
         let mut handle2 = peer2.run().await;
         let mut handle3 = peer3.run().await;
 
-        handle1.connect_to_peer(peer2_info.clone()).await;
-        handle1.connect_to_peer(peer3_info.clone()).await;
+        handle1.connect_to_peer(peer2_info.clone(), None).await;
+        handle1.connect_to_peer(peer3_info.clone(), None).await;
 
-        handle2.connect_to_peer(peer1_info.clone()).await;
-        handle2.connect_to_peer(peer3_info.clone()).await;
+        handle2.connect_to_peer(peer1_info.clone(), None).await;
+        handle2.connect_to_peer(peer3_info.clone(), None).await;
 
-        handle3.connect_to_peer(peer1_info.clone()).await;
-        handle3.connect_to_peer(peer2_info.clone()).await;
+        handle3.connect_to_peer(peer1_info.clone(), None).await;
+        handle3.connect_to_peer(peer2_info.clone(), None).await;
 
         handle1.broadcast(Msg::Dummy(1)).await;
         handle1.broadcast(Msg::Dummy(2)).await;
