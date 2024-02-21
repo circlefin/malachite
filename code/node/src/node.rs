@@ -99,7 +99,7 @@ where
                             self.timers.cancel_timeout(&Timeout::propose(round)).await;
                         }
                         Input::Vote(vote) => {
-                            // FIXME: Only cancel the timeout when we have a quorum of votes
+                            // FIXME: Only cancel the timeout when we have received enough* votes
                             let round = Vote::<Ctx>::round(vote);
                             let timeout = match Vote::<Ctx>::vote_type(vote) {
                                 VoteType::Prevote => Timeout::prevote(round),
@@ -170,7 +170,7 @@ where
                 let signed_proposal = self.ctx.sign_proposal(proposal);
                 let proto = signed_proposal.to_proto().unwrap();
                 self.network.broadcast_proposal(proto).await;
-                None
+                Some(Input::Proposal(signed_proposal.proposal, Validity::Valid))
             }
 
             Output::Vote(vote) => {
@@ -183,7 +183,7 @@ where
                 let signed_vote = self.ctx.sign_vote(vote);
                 let proto = signed_vote.to_proto().unwrap();
                 self.network.broadcast_vote(proto).await;
-                None
+                Some(Input::Vote(signed_vote.vote))
             }
 
             Output::Decide(round, value) => {
