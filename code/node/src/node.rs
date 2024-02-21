@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use malachite_common::TimeoutStep;
 use tokio::sync::mpsc;
+use tracing::debug;
 use tracing::info;
 
 use malachite_common::{
@@ -161,7 +162,14 @@ where
         let height = self.driver.height();
         let round = self.driver.round();
 
-        // FIXME: Ensure the timeout is for the current round
+        if timeout.round != round {
+            debug!(
+                "Ignoring timeout for round {} at height {}, current round: {round}",
+                timeout.round, height
+            );
+
+            return;
+        }
 
         info!("{timeout} elapsed at height {height} and round {round}");
 
