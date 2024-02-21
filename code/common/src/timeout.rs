@@ -25,22 +25,22 @@ pub struct Timeout {
 
 impl Timeout {
     /// Create a new timeout for the given round and step.
-    pub fn new(round: Round, step: TimeoutStep) -> Self {
+    pub const fn new(round: Round, step: TimeoutStep) -> Self {
         Self { round, step }
     }
 
     /// Create a new timeout for the propose step of the given round.
-    pub fn propose(round: Round) -> Self {
+    pub const fn propose(round: Round) -> Self {
         Self::new(round, TimeoutStep::Propose)
     }
 
     /// Create a new timeout for the prevote step of the given round.
-    pub fn prevote(round: Round) -> Self {
+    pub const fn prevote(round: Round) -> Self {
         Self::new(round, TimeoutStep::Prevote)
     }
 
     /// Create a new timeout for the precommit step of the given round.
-    pub fn precommit(round: Round) -> Self {
+    pub const fn precommit(round: Round) -> Self {
         Self::new(round, TimeoutStep::Precommit)
     }
 }
