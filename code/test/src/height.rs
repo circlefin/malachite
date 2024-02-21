@@ -22,7 +22,11 @@ impl fmt::Display for Height {
     }
 }
 
-impl malachite_common::Height for Height {}
+impl malachite_common::Height for Height {
+    fn increment(&self) -> Self {
+        Self(self.0 + 1)
+    }
+}
 
 impl proto::Protobuf for Height {
     type Proto = proto::Height;

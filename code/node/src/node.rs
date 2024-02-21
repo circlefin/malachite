@@ -1,24 +1,20 @@
-#![allow(dead_code)]
-
 use std::fmt::Display;
 use std::sync::Arc;
 use std::time::Duration;
 
-use malachite_common::TimeoutStep;
 use tokio::sync::mpsc;
-use tracing::debug;
-use tracing::info;
+use tracing::{debug, info, Instrument};
 
 use malachite_common::{
-    Context, Proposal, Round, SignedProposal, SignedVote, Timeout, Vote, VoteType,
+    Context, Height, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep, Vote,
+    VoteType,
 };
 use malachite_driver::{Driver, Input, Output, ProposerSelector, Validity};
 use malachite_proto::{self as proto, Protobuf};
 use malachite_vote::ThresholdParams;
 
 use crate::network::Msg as NetworkMsg;
-use crate::network::Network;
-use crate::network::PeerId;
+use crate::network::{Network, PeerId};
 use crate::timers::{self, Timers};
 
 pub struct Params<Ctx: Context> {
@@ -42,9 +38,7 @@ where
     timers: Timers,
     timeout_elapsed: mpsc::Receiver<Timeout>,
     value: Ctx::Value,
-
-    // Debug only
-    stop: bool,
+    done: bool,
 }
 
 impl<Ctx, Net> Node<Ctx, Net>
@@ -81,20 +75,38 @@ where
             timers,
             timeout_elapsed,
             value,
-            stop: false,
+            done: false,
         }
     }
 
     pub async fn run(mut self) {
-        let height = self.driver.height();
+        let mut height = self.params.start_height;
 
-        let (tx_input, mut rx_input) = tokio::sync::mpsc::unbounded_channel();
+        loop {
+            let span = tracing::error_span!("node", height = %height);
+
+            self.start_height(height).instrument(span).await;
+
+            height = self.driver.height().increment();
+            self.driver = self.driver.move_to_height(height);
+
+            debug_assert_eq!(self.driver.height(), height);
+            debug_assert_eq!(self.driver.round(), Round::Nil);
+        }
+    }
+
+    pub async fn start_height(&mut self, height: Ctx::Height) {
+        let (tx_input, mut rx_input) = mpsc::unbounded_channel();
+
         tx_input
             .send(Input::NewRound(height, Round::new(0)))
             .unwrap();
 
         loop {
-            if self.stop {
+            if self.done {
+                self.done = false;
+                self.timers.reset().await;
+
                 break;
             }
 
@@ -137,9 +149,7 @@ where
                 self.timers.cancel_timeout(&timeout).await;
             }
             Input::TimeoutElapsed(timeout) if timeout.step == TimeoutStep::Commit => {
-                // Debug only
-                self.stop = true;
-                // FIXME: Move to next height
+                self.done = true;
                 return;
             }
             Input::TimeoutElapsed(_) => (),

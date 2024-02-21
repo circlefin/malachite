@@ -9,4 +9,6 @@ pub trait Height
 where
     Self: Default + Copy + Clone + Debug + PartialEq + Eq + PartialOrd + Ord,
 {
+    /// Increment the height by one.
+    fn increment(&self) -> Self;
 }
