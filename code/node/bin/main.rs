@@ -5,8 +5,8 @@ use malachite_node::network::broadcast;
 use malachite_node::network::broadcast::PeerInfo;
 use malachite_node::node::{Node, Params};
 use malachite_node::timers;
-use malachite_test::utils::{make_validators, RotateProposer};
-use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet};
+use malachite_test::utils::{make_validators, FixedProposer};
+use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 use tracing::info;
 
 mod cli;
@@ -59,7 +59,7 @@ pub async fn make_node(
 ) -> Node<TestContext, broadcast::Handle> {
     let height = Height::new(1);
     let ctx = TestContext::new(pk);
-    let sel = Arc::new(RotateProposer);
+    let sel = Arc::new(FixedProposer::new(vs.validators[0].address));
 
     let params = Params {
         start_height: height,
@@ -70,9 +70,9 @@ pub async fn make_node(
     };
 
     let timers_config = timers::Config {
-        propose_timeout: Duration::from_secs(3),
-        prevote_timeout: Duration::from_secs(1),
-        precommit_timeout: Duration::from_secs(1),
+        propose_timeout: Duration::from_secs(10),
+        prevote_timeout: Duration::from_secs(5),
+        precommit_timeout: Duration::from_secs(5),
     };
 
     let network = broadcast::Peer::new(peer_info.clone());
@@ -89,5 +89,5 @@ pub async fn make_node(
         handle.connect_to_peer(peer, timeout).await;
     }
 
-    Node::new(ctx, params, handle, timers_config)
+    Node::new(ctx, params, handle, Value::new(42), timers_config)
 }

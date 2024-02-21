@@ -7,7 +7,7 @@ use futures::channel::oneshot;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, mpsc};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use super::{Msg, Network, PeerId};
 
@@ -79,7 +79,7 @@ impl Peer {
                     }
 
                     PeerEvent::Broadcast(msg, done) => {
-                        info!("[{id}] Broadcasting message: {msg:?}");
+                        debug!("[{id}] Broadcasting message: {msg:?}");
                         tx_broadcast_to_peers.send((id.clone(), msg)).unwrap();
                         done.send(()).unwrap();
                     }
@@ -146,7 +146,7 @@ async fn connect_to_peer(
                 continue;
             }
 
-            info!("[{id}] Sending message to {peer_info}: {msg:?}");
+            debug!("[{id}] Sending message to {peer_info}: {msg:?}");
             Frame::Msg(msg).write(&mut stream).await.unwrap();
         }
     });
@@ -186,7 +186,7 @@ async fn listen(
                     return;
                 };
 
-                info!(
+                debug!(
                     "[{id}] Received message from {peer_id} ({addr}): {msg:?}",
                     addr = socket.peer_addr().unwrap(),
                 );
