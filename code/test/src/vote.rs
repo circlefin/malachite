@@ -1,7 +1,7 @@
-use malachite_proto::Protobuf;
 use signature::Signer;
 
 use malachite_common::{NilOrVal, Round, SignedVote, VoteType};
+use malachite_proto::{self as proto};
 
 use crate::{Address, Height, PrivateKey, TestContext, ValueId};
 
@@ -47,7 +47,7 @@ impl Vote {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        Protobuf::to_bytes(self).unwrap()
+        proto::Protobuf::to_bytes(self).unwrap()
     }
 
     pub fn signed(self, private_key: &PrivateKey) -> SignedVote<TestContext> {
@@ -86,41 +86,44 @@ impl malachite_common::Vote<TestContext> for Vote {
     }
 }
 
-impl TryFrom<malachite_proto::Vote> for Vote {
-    type Error = String;
+impl proto::Protobuf for Vote {
+    type Proto = proto::Vote;
 
-    fn try_from(vote: malachite_proto::Vote) -> Result<Self, Self::Error> {
+    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self {
-            typ: malachite_proto::VoteType::try_from(vote.vote_type)
-                .unwrap()
-                .try_into()
-                .unwrap(), // infallible
-            height: vote.height.unwrap().try_into().unwrap(), // infallible
-            round: vote.round.unwrap().try_into().unwrap(),   // infallible
-            value: match vote.value {
-                Some(value) => NilOrVal::Val(value.try_into().unwrap()), // FIXME
+            typ: VoteType::from(proto.vote_type()),
+            height: Height::from_proto(
+                proto
+                    .height
+                    .ok_or_else(|| proto::Error::missing_field::<proto::Vote>("height"))?,
+            )?,
+            round: Round::from_proto(
+                proto
+                    .round
+                    .ok_or_else(|| proto::Error::missing_field::<proto::Vote>("round"))?,
+            )?,
+            value: match proto.value {
+                Some(value) => NilOrVal::Val(ValueId::from_proto(value)?),
                 None => NilOrVal::Nil,
             },
-            validator_address: vote.validator_address.unwrap().try_into().unwrap(), // FIXME
+            validator_address: Address::from_proto(
+                proto.validator_address.ok_or_else(|| {
+                    proto::Error::missing_field::<proto::Vote>("validator_address")
+                })?,
+            )?,
         })
     }
-}
 
-impl From<Vote> for malachite_proto::Vote {
-    fn from(vote: Vote) -> malachite_proto::Vote {
-        malachite_proto::Vote {
-            vote_type: i32::from(malachite_proto::VoteType::from(vote.typ)),
-            height: Some(vote.height.into()),
-            round: Some(vote.round.into()),
-            value: match vote.value {
+    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+        Ok(proto::Vote {
+            vote_type: proto::VoteType::from(self.typ).into(),
+            height: Some(self.height.to_proto()?),
+            round: Some(self.round.to_proto()?),
+            value: match &self.value {
                 NilOrVal::Nil => None,
-                NilOrVal::Val(v) => Some(v.into()),
+                NilOrVal::Val(v) => Some(v.to_proto()?),
             },
-            validator_address: Some(vote.validator_address.into()),
-        }
+            validator_address: Some(self.validator_address.to_proto()?),
+        })
     }
-}
-
-impl malachite_proto::Protobuf for Vote {
-    type Proto = malachite_proto::Vote;
 }

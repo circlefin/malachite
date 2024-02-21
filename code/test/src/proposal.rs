@@ -1,5 +1,5 @@
 use malachite_common::Round;
-use malachite_proto::Protobuf;
+use malachite_proto::{self as proto};
 
 use crate::{Height, TestContext, Value};
 
@@ -23,7 +23,7 @@ impl Proposal {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        Protobuf::to_bytes(self).unwrap()
+        proto::Protobuf::to_bytes(self).unwrap()
     }
 }
 
@@ -45,30 +45,40 @@ impl malachite_common::Proposal<TestContext> for Proposal {
     }
 }
 
-impl TryFrom<malachite_proto::Proposal> for Proposal {
-    type Error = String;
+impl proto::Protobuf for Proposal {
+    type Proto = malachite_proto::Proposal;
 
-    fn try_from(proposal: malachite_proto::Proposal) -> Result<Self, Self::Error> {
-        Ok(Self {
-            height: proposal.height.unwrap().try_into().unwrap(), // infallible
-            round: proposal.round.unwrap().try_into().unwrap(),   // infallible
-            value: proposal.value.unwrap().try_into().unwrap(),   // FIXME
-            pol_round: proposal.pol_round.unwrap().try_into().unwrap(), // infallible
+    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+        Ok(proto::Proposal {
+            height: Some(self.height.to_proto()?),
+            round: Some(self.round.to_proto()?),
+            value: Some(self.value.to_proto()?),
+            pol_round: Some(self.pol_round.to_proto()?),
         })
     }
-}
 
-impl From<Proposal> for malachite_proto::Proposal {
-    fn from(proposal: Proposal) -> malachite_proto::Proposal {
-        malachite_proto::Proposal {
-            height: Some(proposal.height.into()),
-            round: Some(proposal.round.into()),
-            value: Some(proposal.value.into()),
-            pol_round: Some(proposal.pol_round.into()),
-        }
+    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+        Ok(Self {
+            height: Height::from_proto(
+                proto
+                    .height
+                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("height"))?,
+            )?,
+            round: Round::from_proto(
+                proto
+                    .round
+                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("round"))?,
+            )?,
+            value: Value::from_proto(
+                proto
+                    .value
+                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?,
+            )?,
+            pol_round: Round::from_proto(
+                proto
+                    .pol_round
+                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("pol_round"))?,
+            )?,
+        })
     }
-}
-
-impl malachite_proto::Protobuf for Proposal {
-    type Proto = malachite_proto::Proposal;
 }

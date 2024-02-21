@@ -1,5 +1,6 @@
 use core::fmt;
-use std::convert::Infallible;
+
+use malachite_proto as proto;
 
 /// A blockchain height
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
@@ -23,20 +24,14 @@ impl fmt::Display for Height {
 
 impl malachite_common::Height for Height {}
 
-impl TryFrom<malachite_proto::Height> for Height {
-    type Error = Infallible;
+impl proto::Protobuf for Height {
+    type Proto = proto::Height;
 
-    fn try_from(height: malachite_proto::Height) -> Result<Self, Self::Error> {
-        Ok(Self(height.value))
+    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+        Ok(Self(proto.value))
     }
-}
 
-impl From<Height> for malachite_proto::Height {
-    fn from(height: Height) -> malachite_proto::Height {
-        malachite_proto::Height { value: height.0 }
+    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+        Ok(proto::Height { value: self.0 })
     }
-}
-
-impl malachite_proto::Protobuf for Height {
-    type Proto = malachite_proto::Height;
 }

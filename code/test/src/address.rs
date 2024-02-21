@@ -1,5 +1,7 @@
 use core::fmt;
 
+use malachite_proto as proto;
+
 use crate::signing::PublicKey;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -34,12 +36,12 @@ impl fmt::Display for Address {
 
 impl malachite_common::Address for Address {}
 
-impl TryFrom<malachite_proto::Address> for Address {
-    type Error = malachite_proto::Error;
+impl malachite_proto::Protobuf for Address {
+    type Proto = proto::Address;
 
-    fn try_from(proto: malachite_proto::Address) -> Result<Self, Self::Error> {
+    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         if proto.value.len() != Self::LENGTH {
-            return Err(malachite_proto::Error::Other(format!(
+            return Err(proto::Error::Other(format!(
                 "Invalid address length: expected {}, got {}",
                 Self::LENGTH,
                 proto.value.len()
@@ -50,16 +52,10 @@ impl TryFrom<malachite_proto::Address> for Address {
         address.copy_from_slice(&proto.value);
         Ok(Self(address))
     }
-}
 
-impl From<Address> for malachite_proto::Address {
-    fn from(address: Address) -> Self {
-        Self {
-            value: address.0.to_vec(),
-        }
+    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+        Ok(proto::Address {
+            value: self.0.to_vec(),
+        })
     }
-}
-
-impl malachite_proto::Protobuf for Address {
-    type Proto = malachite_proto::Address;
 }

@@ -1,70 +1,52 @@
-use core::convert::Infallible;
-
 use malachite_common::{Context, Round, SignedProposal, SignedVote, SigningScheme, VoteType};
 
 use crate::{self as proto, Error, Protobuf};
 
-impl TryFrom<proto::Round> for Round {
-    type Error = Infallible;
+impl Protobuf for Round {
+    type Proto = proto::Round;
 
-    fn try_from(proto: proto::Round) -> Result<Self, Self::Error> {
-        Ok(Self::new(proto.round))
+    fn from_proto(proto: Self::Proto) -> Result<Self, Error> {
+        Ok(Round::new(proto.round))
     }
-}
 
-impl From<Round> for proto::Round {
-    fn from(round: Round) -> proto::Round {
-        proto::Round {
-            round: round.as_i64(),
-        }
-    }
-}
-
-impl<Ctx: Context> From<SignedVote<Ctx>> for proto::SignedVote
-where
-    Ctx::Vote: Into<proto::Vote>,
-{
-    fn from(signed_vote: SignedVote<Ctx>) -> proto::SignedVote {
-        proto::SignedVote {
-            vote: Some(signed_vote.vote.into()),
-            signature: Ctx::SigningScheme::encode_signature(&signed_vote.signature),
-        }
-    }
-}
-
-impl<Ctx: Context> TryFrom<proto::SignedVote> for SignedVote<Ctx>
-where
-    Ctx::Vote: TryFrom<proto::Vote, Error = Error>,
-{
-    type Error = Error;
-
-    fn try_from(value: proto::SignedVote) -> Result<Self, Error> {
-        let vote = value
-            .vote
-            .ok_or_else(|| Error::Other("Missing field `vote`".to_string()))?;
-
-        Ok(Self {
-            vote: Ctx::Vote::try_from(vote)?,
-            signature: Ctx::SigningScheme::decode_signature(&value.signature)
-                .map_err(|e| Error::Other(format!("Failed to decode signature: {e}")))?,
+    fn to_proto(&self) -> Result<Self::Proto, Error> {
+        Ok(proto::Round {
+            round: self.as_i64(),
         })
     }
 }
 
 impl<Ctx: Context> Protobuf for SignedVote<Ctx>
 where
-    Ctx::Vote: TryFrom<proto::Vote, Error = Error> + Into<proto::Vote>,
+    Ctx::Vote: Protobuf<Proto = proto::Vote>,
 {
     type Proto = proto::SignedVote;
+
+    fn from_proto(proto: Self::Proto) -> Result<Self, Error> {
+        let vote = proto
+            .vote
+            .ok_or_else(|| Error::missing_field::<proto::SignedVote>("vote"))?;
+
+        Ok(Self {
+            vote: Ctx::Vote::from_proto(vote)?,
+            signature: Ctx::SigningScheme::decode_signature(&proto.signature)
+                .map_err(|e| Error::Other(format!("Failed to decode signature: {e}")))?,
+        })
+    }
+
+    fn to_proto(&self) -> Result<Self::Proto, Error> {
+        Ok(proto::SignedVote {
+            vote: Some(self.vote.to_proto()?),
+            signature: Ctx::SigningScheme::encode_signature(&self.signature),
+        })
+    }
 }
 
-impl TryFrom<proto::VoteType> for VoteType {
-    type Error = Infallible;
-
-    fn try_from(vote_type: proto::VoteType) -> Result<Self, Self::Error> {
+impl From<proto::VoteType> for VoteType {
+    fn from(vote_type: proto::VoteType) -> Self {
         match vote_type {
-            proto::VoteType::Prevote => Ok(VoteType::Prevote),
-            proto::VoteType::Precommit => Ok(VoteType::Precommit),
+            proto::VoteType::Prevote => VoteType::Prevote,
+            proto::VoteType::Precommit => VoteType::Precommit,
         }
     }
 }
@@ -78,40 +60,28 @@ impl From<VoteType> for proto::VoteType {
     }
 }
 
-impl<Ctx: Context> From<SignedProposal<Ctx>> for proto::SignedProposal
+impl<Ctx: Context> Protobuf for SignedProposal<Ctx>
 where
-    Ctx::Proposal: Into<proto::Proposal>,
+    Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
 {
-    fn from(signed_proposal: SignedProposal<Ctx>) -> proto::SignedProposal {
-        proto::SignedProposal {
-            proposal: Some(signed_proposal.proposal.into()),
-            signature: Ctx::SigningScheme::encode_signature(&signed_proposal.signature),
-        }
-    }
-}
+    type Proto = proto::SignedProposal;
 
-impl<Ctx: Context> TryFrom<proto::SignedProposal> for SignedProposal<Ctx>
-where
-    Ctx::Proposal: TryFrom<proto::Proposal, Error = Error>,
-{
-    type Error = Error;
-
-    fn try_from(value: proto::SignedProposal) -> Result<Self, Error> {
-        let proposal = value
+    fn from_proto(proto: Self::Proto) -> Result<Self, Error> {
+        let proposal = proto
             .proposal
             .ok_or_else(|| Error::Other("Missing field `proposal`".to_string()))?;
 
         Ok(Self {
-            proposal: Ctx::Proposal::try_from(proposal)?,
-            signature: Ctx::SigningScheme::decode_signature(&value.signature)
+            proposal: Ctx::Proposal::from_proto(proposal)?,
+            signature: Ctx::SigningScheme::decode_signature(&proto.signature)
                 .map_err(|e| Error::Other(format!("Failed to decode signature: {e}")))?,
         })
     }
-}
 
-impl<Ctx: Context> Protobuf for SignedProposal<Ctx>
-where
-    Ctx::Proposal: TryFrom<proto::Proposal, Error = Error> + Into<proto::Proposal>,
-{
-    type Proto = proto::SignedProposal;
+    fn to_proto(&self) -> Result<Self::Proto, Error> {
+        Ok(proto::SignedProposal {
+            proposal: Some(self.proposal.to_proto()?),
+            signature: Ctx::SigningScheme::encode_signature(&self.signature),
+        })
+    }
 }

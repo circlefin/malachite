@@ -26,9 +26,38 @@ impl Msg {
     const DUMMY_TYPE_URL: &'static str = "malachite.Dummy";
 }
 
-impl From<Msg> for Any {
-    fn from(msg: Msg) -> Self {
-        match msg {
+impl Protobuf for Msg {
+    type Proto = Any;
+
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
+        if proto.type_url == SignedVote::type_url() {
+            let vote = SignedVote::decode(proto.value.as_slice())?;
+            Ok(Msg::Vote(vote))
+        } else if proto.type_url == SignedProposal::type_url() {
+            let proposal = SignedProposal::decode(proto.value.as_slice())?;
+            Ok(Msg::Proposal(proposal))
+        } else if cfg!(test) && proto.type_url == Msg::DUMMY_TYPE_URL {
+            #[cfg(test)]
+            {
+                let value = u64::from_be_bytes(proto.value.try_into().unwrap());
+                Ok(Msg::Dummy(value))
+            }
+
+            #[cfg(not(test))]
+            {
+                Err(ProtoError::UnknownMessageType {
+                    type_url: Msg::DUMMY_TYPE_URL.to_string(),
+                })
+            }
+        } else {
+            Err(ProtoError::UnknownMessageType {
+                type_url: proto.type_url,
+            })
+        }
+    }
+
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
+        Ok(match self {
             Msg::Vote(vote) => Any {
                 type_url: SignedVote::type_url(),
                 value: vote.encode_to_vec(),
@@ -43,55 +72,6 @@ impl From<Msg> for Any {
                 type_url: Msg::DUMMY_TYPE_URL.to_string(),
                 value: value.to_be_bytes().to_vec(),
             },
-        }
-    }
-}
-
-impl TryFrom<Any> for Msg {
-    type Error = ProtoError;
-
-    fn try_from(any: Any) -> Result<Self, Self::Error> {
-        if any.type_url == SignedVote::type_url() {
-            let vote = SignedVote::decode(any.value.as_slice())?;
-            Ok(Msg::Vote(vote))
-        } else if any.type_url == SignedProposal::type_url() {
-            let proposal = SignedProposal::decode(any.value.as_slice())?;
-            Ok(Msg::Proposal(proposal))
-        } else if cfg!(test) && any.type_url == Msg::DUMMY_TYPE_URL {
-            #[cfg(test)]
-            {
-                let value = u64::from_be_bytes(any.value.try_into().unwrap());
-                Ok(Msg::Dummy(value))
-            }
-
-            #[cfg(not(test))]
-            {
-                Err(malachite_proto::Error::Other(format!(
-                    "unknown message type: {}",
-                    Msg::DUMMY_TYPE_URL
-                )))
-            }
-        } else {
-            Err(ProtoError::Other(format!(
-                "unknown message type: {}",
-                any.type_url
-            )))
-        }
-    }
-}
-
-impl Protobuf for Msg {
-    type Proto = Any;
-
-    fn from_bytes(bytes: &[u8]) -> Result<Self, ProtoError>
-    where
-        Self: Sized,
-    {
-        let any = Any::decode(bytes)?;
-        Self::try_from(any)
-    }
-
-    fn into_bytes(self) -> Result<Vec<u8>, ProtoError> {
-        Ok(Any::from(self).encode_to_vec())
+        })
     }
 }

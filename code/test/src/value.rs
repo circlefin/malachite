@@ -1,3 +1,5 @@
+use malachite_proto::{self as proto};
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Copy)]
 pub struct ValueId(u64);
 
@@ -17,30 +19,25 @@ impl From<u64> for ValueId {
     }
 }
 
-impl TryFrom<malachite_proto::ValueId> for ValueId {
-    type Error = String;
+impl proto::Protobuf for ValueId {
+    type Proto = proto::ValueId;
 
-    fn try_from(proto: malachite_proto::ValueId) -> Result<Self, Self::Error> {
-        match proto.value {
-            Some(bytes) => {
-                let bytes = <[u8; 8]>::try_from(bytes).unwrap(); // FIXME
-                Ok(ValueId::new(u64::from_be_bytes(bytes)))
-            }
-            None => Err("ValueId not present".to_string()),
-        }
+    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+        let bytes = proto
+            .value
+            .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
+
+        let bytes = <[u8; 8]>::try_from(bytes)
+            .map_err(|_| proto::Error::Other("Invalid value length".to_string()))?;
+
+        Ok(ValueId::new(u64::from_be_bytes(bytes)))
     }
-}
 
-impl From<ValueId> for malachite_proto::ValueId {
-    fn from(value: ValueId) -> malachite_proto::ValueId {
-        malachite_proto::ValueId {
-            value: Some(value.0.to_be_bytes().to_vec()),
-        }
+    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+        Ok(proto::ValueId {
+            value: Some(self.0.to_be_bytes().to_vec()),
+        })
     }
-}
-
-impl malachite_proto::Protobuf for ValueId {
-    type Proto = malachite_proto::ValueId;
 }
 
 /// The value to decide on
@@ -69,29 +66,23 @@ impl malachite_common::Value for Value {
     }
 }
 
-impl TryFrom<malachite_proto::Value> for Value {
-    type Error = String;
+impl proto::Protobuf for Value {
+    type Proto = proto::Value;
 
-    fn try_from(proto: malachite_proto::Value) -> Result<Self, Self::Error> {
-        match proto.value {
-            Some(bytes) => {
-                let bytes = <[u8; 8]>::try_from(bytes).unwrap(); // FIXME
-                let value = u64::from_be_bytes(bytes);
-                Ok(Value::new(value))
-            }
-            None => Err("Value not present".to_string()),
-        }
+    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+        let bytes = proto
+            .value
+            .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
+
+        let bytes = <[u8; 8]>::try_from(bytes)
+            .map_err(|_| proto::Error::Other("Invalid value length".to_string()))?;
+
+        Ok(Value::new(u64::from_be_bytes(bytes)))
     }
-}
 
-impl From<Value> for malachite_proto::Value {
-    fn from(value: Value) -> malachite_proto::Value {
-        malachite_proto::Value {
-            value: Some(value.0.to_be_bytes().to_vec()),
-        }
+    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+        Ok(proto::Value {
+            value: Some(self.0.to_be_bytes().to_vec()),
+        })
     }
-}
-
-impl malachite_proto::Protobuf for Value {
-    type Proto = malachite_proto::Value;
 }

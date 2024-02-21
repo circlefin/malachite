@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::fmt::{Debug, Display};
+use std::fmt::Display;
 use std::sync::Arc;
 
 use tokio::sync::mpsc;
@@ -8,7 +8,7 @@ use tracing::info;
 
 use malachite_common::{Context, Proposal, Round, SignedProposal, SignedVote, Timeout, Vote};
 use malachite_driver::{Driver, Input, Output, ProposerSelector, Validity};
-use malachite_proto as proto;
+use malachite_proto::{self as proto, Protobuf};
 use malachite_vote::ThresholdParams;
 
 use crate::network::Msg as NetworkMsg;
@@ -40,17 +40,8 @@ where
     Ctx: Context,
     Net: Network,
     Ctx::Height: Display,
-    // TODO: Avoid having to specify these bounds
-    Ctx::Vote: TryFrom<proto::Vote>,
-    <Ctx::Vote as TryFrom<proto::Vote>>::Error: Debug,
-    Ctx::Proposal: TryFrom<proto::Proposal>,
-    <Ctx::Proposal as TryFrom<proto::Proposal>>::Error: Debug,
-    SignedVote<Ctx>: TryFrom<proto::SignedVote>,
-    <SignedVote<Ctx> as TryFrom<proto::SignedVote>>::Error: Debug,
-    SignedProposal<Ctx>: TryFrom<proto::SignedProposal>,
-    <SignedProposal<Ctx> as TryFrom<proto::SignedProposal>>::Error: Debug,
-    proto::Vote: From<Ctx::Vote>,
-    proto::Proposal: From<Ctx::Proposal>,
+    Ctx::Vote: Protobuf<Proto = proto::Vote>,
+    Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
 {
     pub fn new(ctx: Ctx, params: Params<Ctx>, network: Net, timers_config: timers::Config) -> Self {
         let driver = Driver::new(
@@ -101,12 +92,12 @@ where
 
                     match msg {
                         NetworkMsg::Vote(signed_vote) => {
-                            let signed_vote = SignedVote::<Ctx>::try_from(signed_vote).unwrap();
+                            let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap();
                             // self.ctx.verify_signed_vote(signed_vote);
                             input = Some(Input::Vote(signed_vote.vote));
                         }
                         NetworkMsg::Proposal(proposal) => {
-                            let signed_proposal = SignedProposal::<Ctx>::try_from(proposal).unwrap();
+                            let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap();
                             let validity = Validity::Valid; // self.ctx.verify_proposal(proposal);
                             input = Some(Input::Proposal(signed_proposal.proposal, validity));
                         }
@@ -132,7 +123,7 @@ where
                 );
 
                 let signed_proposal = self.ctx.sign_proposal(proposal);
-                let proto = proto::SignedProposal::from(signed_proposal);
+                let proto = signed_proposal.to_proto().unwrap();
                 self.network.broadcast_proposal(proto).await;
             }
             Output::Vote(vote) => {
@@ -143,7 +134,7 @@ where
                 );
 
                 let signed_vote = self.ctx.sign_vote(vote);
-                let proto = proto::SignedVote::from(signed_vote);
+                let proto = signed_vote.to_proto().unwrap();
                 self.network.broadcast_vote(proto).await;
             }
             Output::Decide(round, value) => {
