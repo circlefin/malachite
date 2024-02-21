@@ -1,9 +1,11 @@
 use malachite_common::{Context, Round, Timeout};
 
+use derive_where::derive_where;
+
 use crate::Validity;
 
 /// Events that can be received by the [`Driver`](crate::Driver).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum Input<Ctx>
 where
     Ctx: Context,

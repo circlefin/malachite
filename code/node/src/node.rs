@@ -87,7 +87,6 @@ where
         loop {
             tokio::select! {
                 Some(input) = rx_input.recv() =>{
-                    dbg!(&input);
                     match &input {
                         Input::NewRound(_, _) => {
                             self.timers.reset().await;
@@ -199,11 +198,8 @@ where
                 None
             }
 
-            Output::GetValue(height, round, timeout) => {
+            Output::GetValue(height, round, _timeout) => {
                 info!("Requesting value at height {height} and round {round}");
-                info!("Scheduling {timeout}");
-
-                self.timers.schedule_timeout(timeout).await;
 
                 let value = self.get_value().await;
                 Some(Input::ProposeValue(round, value))
