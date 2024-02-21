@@ -16,6 +16,7 @@ use malachite_vote::ThresholdParams;
 
 use crate::network::Msg as NetworkMsg;
 use crate::network::Network;
+use crate::network::PeerId;
 use crate::timers::{self, Timers};
 
 pub struct Params<Ctx: Context> {
@@ -25,6 +26,8 @@ pub struct Params<Ctx: Context> {
     pub address: Ctx::Address,
     pub threshold_params: ThresholdParams,
 }
+
+type TxInput<Ctx> = mpsc::UnboundedSender<Input<Ctx>>;
 
 pub struct Node<Ctx, Net>
 where
@@ -86,78 +89,103 @@ where
 
         loop {
             tokio::select! {
-                Some(input) = rx_input.recv() =>{
-                    match &input {
-                        Input::NewRound(_, _) => {
-                            self.timers.reset().await;
-                        }
-                        Input::ProposeValue(round, _) => {
-                            self.timers.cancel_timeout(&Timeout::propose(*round)).await;
-                        },
-                        Input::Proposal(proposal, _) => {
-                            let round = Proposal::<Ctx>::round(proposal);
-                            self.timers.cancel_timeout(&Timeout::propose(round)).await;
-                        }
-                        Input::Vote(vote) => {
-                            // FIXME: Only cancel the timeout when we have received enough* votes
-                            let round = Vote::<Ctx>::round(vote);
-                            let timeout = match Vote::<Ctx>::vote_type(vote) {
-                                VoteType::Prevote => Timeout::prevote(round),
-                                VoteType::Precommit => Timeout::precommit(round),
-                            };
-
-                            self.timers.cancel_timeout(&timeout).await;
-                        }
-                        Input::TimeoutElapsed(_) => (),
-                    }
-
-                    let outputs = self.driver.process(input).unwrap();
-
-                    for output in outputs {
-                        if let Some(input) = self.process_output(output).await {
-                            tx_input.send(input).unwrap();
-                        }
-                    }
+                Some(input) = rx_input.recv() => {
+                    self.process_input(input, &tx_input).await;
                 }
 
                 Some(timeout) = self.timeout_elapsed.recv() => {
-                    let height = self.driver.height();
-                    let round = self.driver.round();
-
-                    info!("{timeout} elapsed at height {height} and round {round}");
-
-                    tx_input.send(Input::TimeoutElapsed(timeout)).unwrap();
+                    self.process_timeout(timeout, &tx_input).await;
                 }
 
                 Some((peer_id, msg)) = self.network.recv() => {
-                    info!("Received message from peer {peer_id}: {msg:?}");
-
-                    match msg {
-                        NetworkMsg::Vote(signed_vote) => {
-                            let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap();
-                            // self.ctx.verify_signed_vote(signed_vote);
-                            tx_input.send(Input::Vote(signed_vote.vote)).unwrap();
-                        }
-                        NetworkMsg::Proposal(proposal) => {
-                            let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap();
-                            let validity = Validity::Valid; // self.ctx.verify_proposal(proposal);
-                            tx_input.send(Input::Proposal(signed_proposal.proposal, validity)).unwrap();
-                        }
-
-                        #[cfg(test)]
-                        NetworkMsg::Dummy(_) => unreachable!()
-                    }
+                    self.process_network_msg(peer_id, msg, &tx_input).await;
                 }
             }
         }
     }
 
+    pub async fn process_input(&mut self, input: Input<Ctx>, tx_input: &TxInput<Ctx>) {
+        match &input {
+            Input::NewRound(_, _) => {
+                self.timers.reset().await;
+            }
+            Input::ProposeValue(round, _) => {
+                self.timers.cancel_timeout(&Timeout::propose(*round)).await;
+            }
+            Input::Proposal(proposal, _) => {
+                let round = Proposal::<Ctx>::round(proposal);
+                self.timers.cancel_timeout(&Timeout::propose(round)).await;
+            }
+            Input::Vote(vote) => {
+                // FIXME: Only cancel the timeout when we have received enough* votes
+                let round = Vote::<Ctx>::round(vote);
+                let timeout = match Vote::<Ctx>::vote_type(vote) {
+                    VoteType::Prevote => Timeout::prevote(round),
+                    VoteType::Precommit => Timeout::precommit(round),
+                };
+
+                self.timers.cancel_timeout(&timeout).await;
+            }
+            Input::TimeoutElapsed(_) => (),
+        }
+
+        let outputs = self.driver.process(input).unwrap();
+
+        for output in outputs {
+            match self.process_output(output).await {
+                Next::None => {}
+                Next::Input(input) => {
+                    tx_input.send(input).unwrap();
+                }
+                Next::Decided(_, _) => {
+                    return;
+                }
+            }
+        }
+    }
+
+    pub async fn process_timeout(&mut self, timeout: Timeout, tx_input: &TxInput<Ctx>) {
+        let height = self.driver.height();
+        let round = self.driver.round();
+
+        info!("{timeout} elapsed at height {height} and round {round}");
+
+        tx_input.send(Input::TimeoutElapsed(timeout)).unwrap();
+    }
+
+    pub async fn process_network_msg(
+        &mut self,
+        peer_id: PeerId,
+        msg: NetworkMsg,
+        tx_input: &TxInput<Ctx>,
+    ) {
+        info!("Received message from peer {peer_id}: {msg:?}");
+
+        match msg {
+            NetworkMsg::Vote(signed_vote) => {
+                let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap();
+                // self.ctx.verify_signed_vote(signed_vote);
+                tx_input.send(Input::Vote(signed_vote.vote)).unwrap();
+            }
+            NetworkMsg::Proposal(proposal) => {
+                let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap();
+                let validity = Validity::Valid; // self.ctx.verify_proposal(proposal);
+                tx_input
+                    .send(Input::Proposal(signed_proposal.proposal, validity))
+                    .unwrap();
+            }
+
+            #[cfg(test)]
+            NetworkMsg::Dummy(_) => unreachable!(),
+        }
+    }
+
     #[must_use]
-    pub async fn process_output(&mut self, output: Output<Ctx>) -> Option<Input<Ctx>> {
+    pub async fn process_output(&mut self, output: Output<Ctx>) -> Next<Ctx> {
         match output {
             Output::NewRound(height, round) => {
                 info!("New round at height {height}: {round}");
-                Some(Input::NewRound(height, round))
+                Next::Input(Input::NewRound(height, round))
             }
 
             Output::Propose(proposal) => {
@@ -170,7 +198,7 @@ where
                 let signed_proposal = self.ctx.sign_proposal(proposal);
                 let proto = signed_proposal.to_proto().unwrap();
                 self.network.broadcast_proposal(proto).await;
-                Some(Input::Proposal(signed_proposal.proposal, Validity::Valid))
+                Next::Input(Input::Proposal(signed_proposal.proposal, Validity::Valid))
             }
 
             Output::Vote(vote) => {
@@ -183,26 +211,29 @@ where
                 let signed_vote = self.ctx.sign_vote(vote);
                 let proto = signed_vote.to_proto().unwrap();
                 self.network.broadcast_vote(proto).await;
-                Some(Input::Vote(signed_vote.vote))
+                Next::Input(Input::Vote(signed_vote.vote))
             }
 
             Output::Decide(round, value) => {
                 info!("Decided on value {value:?} at round {round}");
-                None
+                self.timers.reset().await;
+
+                // TODO: Wait for `timeout_commit` and start the next height
+                Next::Decided(round, value)
             }
 
             Output::ScheduleTimeout(timeout) => {
                 info!("Scheduling {timeout}");
-
                 self.timers.schedule_timeout(timeout).await;
-                None
+
+                Next::None
             }
 
             Output::GetValue(height, round, _timeout) => {
                 info!("Requesting value at height {height} and round {round}");
-
                 let value = self.get_value().await;
-                Some(Input::ProposeValue(round, value))
+
+                Next::Input(Input::ProposeValue(round, value))
             }
         }
     }
@@ -213,4 +244,10 @@ where
 
         self.value.clone()
     }
+}
+
+pub enum Next<Ctx: Context> {
+    None,
+    Input(Input<Ctx>),
+    Decided(Round, Ctx::Value),
 }
