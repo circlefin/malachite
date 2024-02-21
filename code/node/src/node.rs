@@ -1,6 +1,6 @@
 use std::fmt::Display;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::Instant;
 
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn, Instrument};
@@ -17,10 +17,12 @@ use crate::network::Msg as NetworkMsg;
 use crate::network::{Network, PeerId};
 use crate::peers::Peers;
 use crate::timers::{self, Timers};
+use crate::value::ValueBuilder;
 
 pub struct Params<Ctx: Context> {
     pub start_height: Ctx::Height,
     pub proposer_selector: Arc<dyn ProposerSelector<Ctx>>,
+    pub proposal_builder: Arc<dyn ValueBuilder<Ctx>>,
     pub validator_set: Ctx::ValidatorSet,
     pub address: Ctx::Address,
     pub threshold_params: ThresholdParams,
@@ -39,7 +41,6 @@ where
     network: Net,
     timers: Timers,
     timeout_elapsed: mpsc::Receiver<Timeout>,
-    value: Ctx::Value,
     done: bool,
 }
 
@@ -51,13 +52,7 @@ where
     Ctx::Vote: Protobuf<Proto = proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
 {
-    pub fn new(
-        ctx: Ctx,
-        params: Params<Ctx>,
-        network: Net,
-        value: Ctx::Value,
-        timers_config: timers::Config,
-    ) -> Self {
+    pub fn new(ctx: Ctx, params: Params<Ctx>, network: Net, timers_config: timers::Config) -> Self {
         let driver = Driver::new(
             ctx.clone(),
             params.start_height,
@@ -76,7 +71,6 @@ where
             network,
             timers,
             timeout_elapsed,
-            value,
             done: false,
         }
     }
@@ -277,20 +271,26 @@ where
                 Next::None
             }
 
-            Output::GetValue(height, round, _timeout) => {
+            Output::GetValue(height, round, timeout) => {
                 info!("Requesting value at height {height} and round {round}");
-                let value = self.get_value().await;
+
+                // FIXME: Make this asynchronous, we can't block the event loop
+                //        while we are waiting for a value.
+                let value = self.get_value(height, &timeout).await;
 
                 Next::Input(Input::ProposeValue(round, value))
             }
         }
     }
 
-    pub async fn get_value(&self) -> Ctx::Value {
-        // Simulate waiting for a value to be assembled
-        tokio::time::sleep(Duration::from_secs(1)).await;
+    pub async fn get_value(&self, height: Ctx::Height, timeout: &Timeout) -> Ctx::Value {
+        let deadline = Instant::now() + self.timers.timeout_duration(&timeout.step);
 
-        self.value.clone()
+        self.params
+            .proposal_builder
+            .build_proposal(height, deadline)
+            .await
+            .unwrap() // FIXME
     }
 }
 

@@ -7,8 +7,9 @@ use malachite_node::network::broadcast::PeerInfo;
 use malachite_node::node::{Node, Params};
 use malachite_node::peers::Peers;
 use malachite_node::timers;
+use malachite_node::value::test::TestValueBuilder;
 use malachite_test::utils::{make_validators, FixedProposer};
-use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
+use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet};
 use tracing::info;
 
 mod cli;
@@ -60,10 +61,12 @@ pub async fn make_node(
     let start_height = Height::new(1);
     let ctx = TestContext::new(private_key);
     let proposer_selector = Arc::new(FixedProposer::new(validator_set.validators[0].address));
+    let proposal_builder = Arc::new(TestValueBuilder::default());
 
     let params = Params {
         start_height,
         proposer_selector,
+        proposal_builder,
         validator_set,
         address,
         peers: peers.clone(),
@@ -91,5 +94,5 @@ pub async fn make_node(
         handle.connect_to_peer(peer, timeout).await;
     }
 
-    Node::new(ctx, params, handle, Value::new(42), timers_config)
+    Node::new(ctx, params, handle, timers_config)
 }

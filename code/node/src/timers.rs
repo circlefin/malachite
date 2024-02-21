@@ -46,7 +46,7 @@ impl Timers {
 
     pub async fn schedule_timeout(&mut self, timeout: Timeout) {
         let tx = self.timeout_elapsed.clone();
-        let duration = self.timeout_duration(&timeout);
+        let duration = self.timeout_duration(&timeout.step);
 
         let timeouts = self.timeouts.clone();
         let handle = tokio::spawn(async move {
@@ -64,8 +64,8 @@ impl Timers {
         }
     }
 
-    fn timeout_duration(&self, timeout: &Timeout) -> Duration {
-        match timeout.step {
+    pub fn timeout_duration(&self, step: &TimeoutStep) -> Duration {
+        match step {
             TimeoutStep::Propose => self.config.propose_timeout,
             TimeoutStep::Prevote => self.config.prevote_timeout,
             TimeoutStep::Precommit => self.config.precommit_timeout,
