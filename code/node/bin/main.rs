@@ -1,5 +1,3 @@
-#![cfg_attr(coverage_nightly, coverage(off))]
-
 use malachite_node::config::Config;
 use malachite_node::util::make_node;
 use malachite_test::utils::make_validators;
