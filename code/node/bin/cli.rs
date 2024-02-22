@@ -1,3 +1,5 @@
+#![cfg_attr(coverage_nightly, coverage(off))]
+
 use malachite_node::network::PeerId;
 
 pub struct Cli {

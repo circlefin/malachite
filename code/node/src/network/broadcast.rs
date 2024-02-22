@@ -17,6 +17,7 @@ pub enum PeerEvent {
 }
 
 impl Debug for PeerEvent {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PeerEvent::ConnectToPeer(peer_info, _, _) => {
@@ -36,6 +37,7 @@ pub struct PeerInfo {
 }
 
 impl fmt::Display for PeerInfo {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{id} ({addr})", id = self.id, addr = self.addr)
     }
