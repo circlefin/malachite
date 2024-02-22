@@ -13,7 +13,12 @@ use crate::{
 pub struct RotateProposer;
 
 impl ProposerSelector<TestContext> for RotateProposer {
-    fn select_proposer(&self, round: Round, validator_set: &ValidatorSet) -> Address {
+    fn select_proposer(
+        &self,
+        _height: Height,
+        round: Round,
+        validator_set: &ValidatorSet,
+    ) -> Address {
         let proposer_index = round.as_i64() as usize % validator_set.validators.len();
         validator_set.validators[proposer_index].address
     }
@@ -31,7 +36,12 @@ impl FixedProposer {
 }
 
 impl ProposerSelector<TestContext> for FixedProposer {
-    fn select_proposer(&self, _round: Round, _validator_set: &ValidatorSet) -> Address {
+    fn select_proposer(
+        &self,
+        _height: Height,
+        _round: Round,
+        _validator_set: &ValidatorSet,
+    ) -> Address {
         self.proposer
     }
 }

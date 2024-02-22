@@ -14,5 +14,10 @@ where
     /// # Important
     /// This function must be deterministic!
     /// For a given round and validator set, it must always return the same proposer.
-    fn select_proposer(&self, round: Round, validator_set: &Ctx::ValidatorSet) -> Ctx::Address;
+    fn select_proposer(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+        validator_set: &Ctx::ValidatorSet,
+    ) -> Ctx::Address;
 }

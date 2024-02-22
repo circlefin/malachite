@@ -115,10 +115,14 @@ where
     }
 
     /// Return the proposer for the current round.
-    pub fn get_proposer(&self, round: Round) -> Result<&Ctx::Validator, Error<Ctx>> {
+    pub fn get_proposer(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+    ) -> Result<&Ctx::Validator, Error<Ctx>> {
         let address = self
             .proposer_selector
-            .select_proposer(round, &self.validator_set);
+            .select_proposer(height, round, &self.validator_set);
 
         let proposer = self
             .validator_set
@@ -267,7 +271,7 @@ where
         let round_state = core::mem::take(&mut self.round_state);
         let current_step = round_state.step;
 
-        let proposer = self.get_proposer(round_state.round)?;
+        let proposer = self.get_proposer(round_state.height, round_state.round)?;
         let info = Info::new(input_round, &self.address, proposer.address());
 
         // Apply the input to the round state machine
