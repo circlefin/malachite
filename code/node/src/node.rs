@@ -1,8 +1,9 @@
 use std::fmt::Display;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Instant;
 
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, info, warn, Instrument};
 
 use malachite_common::{
@@ -30,6 +31,27 @@ pub struct Params<Ctx: Context> {
 }
 
 type TxInput<Ctx> = mpsc::UnboundedSender<Input<Ctx>>;
+
+type RxDecision<Ctx> =
+    mpsc::UnboundedReceiver<Option<(<Ctx as Context>::Height, Round, <Ctx as Context>::Value)>>;
+type TxDecision<Ctx> =
+    mpsc::UnboundedSender<Option<(<Ctx as Context>::Height, Round, <Ctx as Context>::Value)>>;
+
+pub struct Handle<Ctx: Context> {
+    tx_abort: oneshot::Sender<()>,
+    rx_decision: RxDecision<Ctx>,
+    _marker: PhantomData<Ctx>,
+}
+
+impl<Ctx: Context> Handle<Ctx> {
+    pub fn abort(self) {
+        self.tx_abort.send(()).unwrap();
+    }
+
+    pub async fn wait_decision(&mut self) -> Option<(Ctx::Height, Round, Ctx::Value)> {
+        self.rx_decision.recv().await.flatten()
+    }
+}
 
 pub struct Node<Ctx, Net>
 where
@@ -75,23 +97,40 @@ where
         }
     }
 
-    pub async fn run(mut self) {
+    pub async fn run(mut self) -> Handle<Ctx> {
         let mut height = self.params.start_height;
 
-        loop {
-            let span = tracing::error_span!("node", height = %height);
+        let (tx_abort, mut rx_abort) = oneshot::channel();
+        let (tx_decision, rx_decision) = mpsc::unbounded_channel();
 
-            self.start_height(height).instrument(span).await;
+        tokio::spawn(async move {
+            loop {
+                let span = tracing::error_span!("node", height = %height);
 
-            height = self.driver.height().increment();
-            self.driver = self.driver.move_to_height(height);
+                self.start_height(height, &tx_decision)
+                    .instrument(span)
+                    .await;
 
-            debug_assert_eq!(self.driver.height(), height);
-            debug_assert_eq!(self.driver.round(), Round::Nil);
+                height = self.driver.height().increment();
+                self.driver = self.driver.move_to_height(height);
+
+                debug_assert_eq!(self.driver.height(), height);
+                debug_assert_eq!(self.driver.round(), Round::Nil);
+
+                if let Ok(()) = rx_abort.try_recv() {
+                    break;
+                }
+            }
+        });
+
+        Handle {
+            tx_abort,
+            rx_decision,
+            _marker: PhantomData,
         }
     }
 
-    pub async fn start_height(&mut self, height: Ctx::Height) {
+    pub async fn start_height(&mut self, height: Ctx::Height, tx_decision: &TxDecision<Ctx>) {
         let (tx_input, mut rx_input) = mpsc::unbounded_channel();
 
         tx_input
@@ -108,7 +147,7 @@ where
 
             tokio::select! {
                 Some(input) = rx_input.recv() => {
-                    self.process_input(input, &tx_input).await;
+                    self.process_input(input, &tx_input, tx_decision).await;
                 }
 
                 Some(timeout) = self.timeout_elapsed.recv() => {
@@ -122,7 +161,12 @@ where
         }
     }
 
-    pub async fn process_input(&mut self, input: Input<Ctx>, tx_input: &TxInput<Ctx>) {
+    pub async fn process_input(
+        &mut self,
+        input: Input<Ctx>,
+        tx_input: &TxInput<Ctx>,
+        tx_decision: &TxDecision<Ctx>,
+    ) {
         match &input {
             Input::NewRound(_, _) => {
                 self.timers.reset().await;
@@ -157,8 +201,12 @@ where
             match self.process_output(output).await {
                 Next::None => (),
                 Next::Input(input) => tx_input.send(input).unwrap(),
-                Next::Decided(round, _) => {
-                    self.timers.schedule_timeout(Timeout::commit(round)).await
+                Next::Decided(round, value) => {
+                    self.timers.schedule_timeout(Timeout::commit(round)).await;
+
+                    tx_decision
+                        .send(Some((self.driver.height(), round, value)))
+                        .unwrap();
                 }
             }
         }

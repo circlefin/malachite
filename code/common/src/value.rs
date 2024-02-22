@@ -56,11 +56,11 @@ impl<Value> NilOrVal<Value> {
 /// Defines the requirements for the type of value to decide on.
 pub trait Value
 where
-    Self: Clone + Debug + PartialEq + Eq + PartialOrd + Ord,
+    Self: Clone + Debug + PartialEq + Eq + PartialOrd + Ord + Send + Sync,
 {
     /// The type of the ID of the value.
     /// Typically a representation of the value with a lower memory footprint.
-    type Id: Clone + Debug + PartialEq + Eq + PartialOrd + Ord;
+    type Id: Clone + Debug + PartialEq + Eq + PartialOrd + Ord + Send + Sync;
 
     /// The ID of the value.
     fn id(&self) -> Self::Id;

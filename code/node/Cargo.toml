@@ -20,6 +20,7 @@ malachite-vote.workspace   = true
 malachite-proto.workspace  = true
 malachite-test.workspace   = true
 
+async-trait        = { workspace = true }
 ed25519-consensus  = { workspace = true, features = ["serde"] }
 derive-where       = { workspace = true }
 futures            = { workspace = true }

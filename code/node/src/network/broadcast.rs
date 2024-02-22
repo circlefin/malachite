@@ -292,6 +292,7 @@ impl Handle {
     }
 }
 
+#[async_trait::async_trait]
 impl Network for Handle {
     async fn recv(&mut self) -> Option<(PeerId, Msg)> {
         Handle::recv(self).await

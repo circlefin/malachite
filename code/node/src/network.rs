@@ -2,6 +2,8 @@ use core::fmt;
 use std::convert::Infallible;
 use std::str::FromStr;
 
+use async_trait::async_trait;
+
 pub mod broadcast;
 mod msg;
 
@@ -32,8 +34,11 @@ impl FromStr for PeerId {
     }
 }
 
-#[allow(async_fn_in_trait)]
-pub trait Network {
+#[async_trait]
+pub trait Network
+where
+    Self: Send + Sync + 'static,
+{
     async fn recv(&mut self) -> Option<(PeerId, Msg)>;
     async fn broadcast(&mut self, msg: Msg);
 

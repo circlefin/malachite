@@ -7,7 +7,7 @@ use futures::future::BoxFuture;
 use malachite_common::Context;
 
 #[allow(async_fn_in_trait)]
-pub trait ValueBuilder<Ctx: Context> {
+pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
     fn build_proposal(
         &self,
         height: Ctx::Height,

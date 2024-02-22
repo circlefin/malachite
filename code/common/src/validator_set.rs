@@ -10,14 +10,14 @@ pub type VotingPower = u64;
 /// Defines the requirements for an address.
 pub trait Address
 where
-    Self: Clone + Debug + Display + Eq + Ord,
+    Self: Clone + Debug + Display + Eq + Ord + Send + Sync,
 {
 }
 
 /// Defines the requirements for a validator.
 pub trait Validator<Ctx>
 where
-    Self: Clone + Debug + PartialEq + Eq,
+    Self: Clone + Debug + PartialEq + Eq + Send + Sync,
     Ctx: Context,
 {
     /// The address of the validator, typically derived from its public key.
@@ -35,7 +35,7 @@ where
 /// A validator set is a collection of validators.
 pub trait ValidatorSet<Ctx>
 where
-    Self: Clone + Debug,
+    Self: Clone + Debug + Send + Sync,
     Ctx: Context,
 {
     /// The total voting power of the validator set.
