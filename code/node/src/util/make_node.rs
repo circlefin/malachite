@@ -43,7 +43,7 @@ pub async fn make_node(
     let network = broadcast::Peer::new(peer_info.clone());
     let handle = network.run().await;
 
-    let timeout = Some(Duration::from_secs(5));
+    let timeout = Some(Duration::from_secs(30));
 
     let to_connect = peers
         .iter()

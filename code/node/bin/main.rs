@@ -41,5 +41,14 @@ pub async fn main() {
 
     info!("[{}] Starting...", args.peer_id);
 
-    node.run().await;
+    let mut handle = node.run().await;
+
+    loop {
+        if let Some((height, round, value)) = handle.wait_decision().await {
+            info!(
+                "[{}] Decision at height {height} and round {round}: {value:?}",
+                args.peer_id
+            );
+        }
+    }
 }
