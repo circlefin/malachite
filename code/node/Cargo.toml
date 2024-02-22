@@ -12,6 +12,9 @@ publish.workspace    = true
 name = "malachite-node"
 path = "bin/main.rs"
 
+[features]
+turmoil = ["dep:turmoil"]
+
 [dependencies]
 malachite-common.workspace = true
 malachite-driver.workspace = true
@@ -32,6 +35,8 @@ serde              = { workspace = true, features = ["derive"] }
 toml               = { workspace = true }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
+
+turmoil            = { workspace = true, optional = true }
 
 [dev-dependencies]
 malachite-test.workspace = true
