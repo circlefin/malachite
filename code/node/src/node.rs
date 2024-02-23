@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, info, warn, Instrument};
+use tracing::{debug, error_span, info, warn, Instrument};
 
 use malachite_common::{
     Context, Height, NilOrVal, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
@@ -31,6 +31,7 @@ pub struct Params<Ctx: Context> {
 }
 
 type TxInput<Ctx> = mpsc::UnboundedSender<Input<Ctx>>;
+type RxInput<Ctx> = mpsc::UnboundedReceiver<Input<Ctx>>;
 
 type RxDecision<Ctx> =
     mpsc::UnboundedReceiver<Option<(<Ctx as Context>::Height, Round, <Ctx as Context>::Value)>>;
@@ -105,7 +106,7 @@ where
 
         tokio::spawn(async move {
             loop {
-                let span = tracing::error_span!("node", height = %height);
+                let span = error_span!("node", height = %height);
 
                 self.start_height(height, &tx_decision)
                     .instrument(span)
@@ -138,6 +139,8 @@ where
             .unwrap();
 
         loop {
+            let span = error_span!("round", round = %self.driver.round());
+
             if self.done {
                 self.done = false;
                 self.timers.reset().await;
@@ -145,18 +148,29 @@ where
                 break;
             }
 
-            tokio::select! {
-                Some(input) = rx_input.recv() => {
-                    self.process_input(input, &tx_input, tx_decision).await;
-                }
+            self.step(&tx_input, &mut rx_input, tx_decision)
+                .instrument(span)
+                .await;
+        }
+    }
 
-                Some(timeout) = self.timeout_elapsed.recv() => {
-                    self.process_timeout(timeout, &tx_input).await;
-                }
+    pub async fn step(
+        &mut self,
+        tx_input: &TxInput<Ctx>,
+        rx_input: &mut RxInput<Ctx>,
+        tx_decision: &TxDecision<Ctx>,
+    ) {
+        tokio::select! {
+            Some(input) = rx_input.recv() => {
+                self.process_input(input, tx_input, tx_decision).await;
+            }
 
-                Some((peer_id, msg)) = self.network.recv() => {
-                    self.process_network_msg(peer_id, msg, &tx_input).await;
-                }
+            Some(timeout) = self.timeout_elapsed.recv() => {
+                self.process_timeout(timeout, tx_input).await;
+            }
+
+            Some((peer_id, msg)) = self.network.recv() => {
+                self.process_network_msg(peer_id, msg, tx_input).await;
             }
         }
     }
