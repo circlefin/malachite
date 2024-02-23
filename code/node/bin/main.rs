@@ -1,14 +1,30 @@
-use malachite_node::config::Config;
+use std::net::{Ipv4Addr, SocketAddr};
+
+use malachite_node::config::{Config, PeerConfig};
+use malachite_node::network::PeerId;
 use malachite_node::util::make_node;
 use malachite_test::utils::make_validators;
 
-use malachite_test::ValidatorSet;
+use malachite_test::{Validator, ValidatorSet};
 use tracing::info;
 
 mod cli;
 use cli::Cli;
 
 const VOTING_PWERS: [u64; 3] = [5, 20, 10];
+
+fn make_config<'a>(vs: impl Iterator<Item = &'a Validator>) -> Config {
+    let peers = vs
+        .enumerate()
+        .map(|(i, v)| PeerConfig {
+            id: PeerId::new(format!("node{}", i + 1)),
+            addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 1200 + i as u16 + 1),
+            public_key: v.public_key,
+        })
+        .collect();
+
+    Config { peers }
+}
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() {
@@ -18,9 +34,7 @@ pub async fn main() {
 
     // Validators keys are deterministic and match the ones in the config file
     let vs = make_validators(VOTING_PWERS);
-
-    let config = std::fs::read_to_string("node/peers.toml").expect("Error: missing peers.toml");
-    let config = toml::from_str::<Config>(&config).expect("Error: invalid peers.toml");
+    let config = make_config(vs.iter().map(|(v, _)| v));
 
     let peer_config = config
         .peers
