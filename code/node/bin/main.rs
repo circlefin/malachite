@@ -8,6 +8,8 @@ use tracing::info;
 mod cli;
 use cli::Cli;
 
+const VOTING_PWERS: [u64; 3] = [5, 20, 10];
+
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() {
     tracing_subscriber::fmt::init();
@@ -15,7 +17,7 @@ pub async fn main() {
     let args = Cli::from_env();
 
     // Validators keys are deterministic and match the ones in the config file
-    let vs = make_validators([2, 3, 2]);
+    let vs = make_validators(VOTING_PWERS);
 
     let config = std::fs::read_to_string("node/peers.toml").expect("Error: missing peers.toml");
     let config = toml::from_str::<Config>(&config).expect("Error: invalid peers.toml");

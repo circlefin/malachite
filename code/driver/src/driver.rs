@@ -114,6 +114,11 @@ where
         self.round_state.round
     }
 
+    /// Return a reference to the votekeper
+    pub fn votes(&self) -> &VoteKeeper<Ctx> {
+        &self.vote_keeper
+    }
+
     /// Return the proposer for the current round.
     pub fn get_proposer(
         &self,

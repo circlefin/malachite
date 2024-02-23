@@ -7,12 +7,12 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, info, warn, Instrument};
 
 use malachite_common::{
-    Context, Height, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep, Vote,
-    VoteType,
+    Context, Height, NilOrVal, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
+    Vote, VoteType,
 };
 use malachite_driver::{Driver, Input, Output, ProposerSelector, Validity};
 use malachite_proto::{self as proto, Protobuf};
-use malachite_vote::ThresholdParams;
+use malachite_vote::{Threshold, ThresholdParams};
 
 use crate::network::Msg as NetworkMsg;
 use crate::network::{Network, PeerId};
@@ -195,7 +195,38 @@ where
             Input::TimeoutElapsed(_) => (),
         }
 
+        let check_threshold = if let Input::Vote(vote) = &input {
+            let round = Vote::<Ctx>::round(vote);
+            let value = Vote::<Ctx>::value(vote);
+
+            Some((vote.vote_type(), round, value.clone()))
+        } else {
+            None
+        };
+
         let outputs = self.driver.process(input).unwrap();
+
+        // When we receive a vote, check if we've gotten +2/3 votes for the value we just received a vote for.
+        if let Some((vote_type, round, value)) = check_threshold {
+            let threshold = match value {
+                NilOrVal::Nil => Threshold::Nil,
+                NilOrVal::Val(value) => Threshold::Value(value),
+            };
+
+            if self
+                .driver
+                .votes()
+                .is_threshold_met(&round, vote_type, threshold.clone())
+            {
+                let timeout = match vote_type {
+                    VoteType::Prevote => Timeout::prevote(round),
+                    VoteType::Precommit => Timeout::precommit(round),
+                };
+
+                info!("Threshold met for {threshold:?} at round {round}, cancelling {timeout}");
+                self.timers.cancel_timeout(&timeout).await;
+            }
+        }
 
         for output in outputs {
             match self.process_output(output).await {
