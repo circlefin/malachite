@@ -144,7 +144,10 @@ async fn connect_to_peer(
 
     let mut per_peer_rx = per_peer_tx.subscribe();
 
-    Frame::PeerId(id.clone()).write(&mut stream).await.unwrap();
+    if let Err(e) = Frame::PeerId(id.clone()).write(&mut stream).await {
+        error!("[{id}] Failed to send our ID to {peer_info}: {e}");
+        return;
+    };
 
     tokio::spawn(async move {
         loop {
@@ -155,7 +158,11 @@ async fn connect_to_peer(
                     }
 
                     debug!("[{id}] Sending message to {peer_info}: {msg:?}");
-                    Frame::Msg(msg).write(&mut stream).await.unwrap();
+
+                    if let Err(e) = Frame::Msg(msg).write(&mut stream).await {
+                        error!("[{id}] Failed to send message to {peer_info}: {e}");
+                        break;
+                    }
                 }
 
                 Err(e) => {
@@ -172,8 +179,15 @@ async fn listen(
     addr: SocketAddr,
     tx_spawned: oneshot::Sender<()>,
     tx_received: mpsc::Sender<(PeerId, Msg)>,
-) -> ! {
-    let listener = TcpListener::bind(addr).await.unwrap();
+) {
+    let listener = match TcpListener::bind(addr).await {
+        Ok(listener) => listener,
+        Err(e) => {
+            error!("[{id}] Failed to bind to {addr}: {e}");
+            return;
+        }
+    };
+
     info!("[{id}] Listening on {addr}...");
 
     tx_spawned.send(()).unwrap();
@@ -186,9 +200,16 @@ async fn listen(
             peer = socket.peer_addr().unwrap()
         );
 
-        let Frame::PeerId(peer_id) = Frame::read(&mut socket).await.unwrap() else {
-            error!("[{id}] Peer did not send its ID");
-            continue;
+        let peer_id = match Frame::read(&mut socket).await {
+            Ok(Frame::PeerId(peer_id)) => peer_id,
+            Ok(frame) => {
+                error!("[{id}] Peer did not send its ID, got instead: {frame:?}");
+                continue;
+            }
+            Err(e) => {
+                error!("[{id}] Peer did not send its ID: {e}");
+                continue;
+            }
         };
 
         let id = id.clone();
