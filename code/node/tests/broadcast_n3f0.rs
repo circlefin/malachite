@@ -1,6 +1,5 @@
 use malachite_common::Round;
-use malachite_node::config::Config;
-use malachite_node::util::make_node;
+use malachite_node::util::{make_config, make_node};
 use malachite_test::utils::make_validators;
 use malachite_test::{Height, ValidatorSet, Value};
 
@@ -8,11 +7,11 @@ use malachite_test::{Height, ValidatorSet, Value};
 pub async fn decide_on_value() {
     tracing_subscriber::fmt::init();
 
-    // Validators keys are deterministic and match the ones in the config file
-    let vs = make_validators([2, 3, 2]);
+    let voting_powers = [5, 20, 10, 30, 15, 1, 5, 25, 10, 15];
 
-    let config = include_str!("../peers.toml");
-    let config = toml::from_str::<Config>(config).expect("Error: invalid peers.toml");
+    // Validators keys are deterministic and match the ones in the config file
+    let vs = make_validators(voting_powers);
+    let config = make_config(vs.iter().map(|(v, _)| v));
 
     let mut handles = Vec::with_capacity(config.peers.len());
 
