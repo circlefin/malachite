@@ -4,12 +4,13 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 
-pub mod broadcast;
-mod msg;
-
 use malachite_proto::{SignedProposal, SignedVote};
 
-pub use self::msg::Msg;
+pub mod broadcast;
+pub mod gossip;
+
+mod msg;
+pub use msg::Msg;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PeerId(String);

@@ -3,7 +3,8 @@ resolver = "2"
 
 members = [
   "common",
-  "driver",
+  "driver", 
+  "gossip",
   "itf",
   "node", 
   "proto",
@@ -22,6 +23,7 @@ publish      = false
 [workspace.dependencies]
 malachite-common = { version = "0.1.0", path = "common" }
 malachite-driver = { version = "0.1.0", path = "driver" }
+malachite-gossip = { version = "0.1.0", path = "gossip" }
 malachite-itf    = { version = "0.1.0", path = "itf" }
 malachite-node   = { version = "0.1.0", path = "node" }
 malachite-proto  = { version = "0.1.0", path = "proto" }
