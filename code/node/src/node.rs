@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::sync::{mpsc, oneshot};
+#[allow(unused_imports)]
 use tracing::{debug, error_span, info, warn, Instrument};
 
 use malachite_common::{
@@ -286,28 +287,33 @@ where
         match msg {
             NetworkMsg::Vote(signed_vote) => {
                 let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap();
-                let peer = self.params.peers.get(&peer_id).unwrap(); // FIXME
+                tx_input.send(Input::Vote(signed_vote.vote)).unwrap();
 
-                if self.ctx.verify_signed_vote(&signed_vote, &peer.public_key) {
-                    tx_input.send(Input::Vote(signed_vote.vote)).unwrap();
-                } else {
-                    warn!("Invalid vote from peer {peer_id}: {signed_vote:?}");
-                }
+                // let peer = self.params.peers.get(&peer_id).unwrap(); // FIXME
+                // if self.ctx.verify_signed_vote(&signed_vote, &peer.public_key) {
+                //     tx_input.send(Input::Vote(signed_vote.vote)).unwrap();
+                // } else {
+                //     warn!("Invalid vote from peer {peer_id}: {signed_vote:?}");
+                // }
             }
             NetworkMsg::Proposal(proposal) => {
                 let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap();
-                let peer = self.params.peers.get(&peer_id).unwrap(); // FIXME
-
-                let valid = self
-                    .ctx
-                    .verify_signed_proposal(&signed_proposal, &peer.public_key);
-
                 tx_input
-                    .send(Input::Proposal(
-                        signed_proposal.proposal,
-                        Validity::from_valid(valid),
-                    ))
+                    .send(Input::Proposal(signed_proposal.proposal, Validity::Valid))
                     .unwrap();
+
+                // let peer = self.params.peers.get(&peer_id).unwrap(); // FIXME
+                //
+                // let valid = self
+                //     .ctx
+                //     .verify_signed_proposal(&signed_proposal, &peer.public_key);
+                //
+                // tx_input
+                //     .send(Input::Proposal(
+                //         signed_proposal.proposal,
+                //         Validity::from_valid(valid),
+                //     ))
+                //     .unwrap();
             }
 
             #[cfg(test)]

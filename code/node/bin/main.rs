@@ -1,5 +1,5 @@
+use malachite_node::util::make_broadcast_node;
 use malachite_node::util::make_config;
-use malachite_node::util::make_node;
 use malachite_test::utils::make_validators;
 
 use malachite_test::ValidatorSet;
@@ -8,7 +8,7 @@ use tracing::info;
 mod cli;
 use cli::Cli;
 
-const VOTING_PWERS: [u64; 3] = [5, 20, 10];
+const VOTING_POWERS: [u64; 3] = [5, 20, 10];
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() {
@@ -17,7 +17,7 @@ pub async fn main() {
     let args = Cli::from_env();
 
     // Validators keys are deterministic and match the ones in the config file
-    let vs = make_validators(VOTING_PWERS);
+    let vs = make_validators(VOTING_POWERS);
     let config = make_config(vs.iter().map(|(v, _)| v));
 
     let peer_config = config
@@ -37,7 +37,7 @@ pub async fn main() {
     let peer_info = peer_config.peer_info();
     let vs = ValidatorSet::new(vs);
 
-    let node = make_node(vs, my_sk, my_addr, peer_info, config.into()).await;
+    let node = make_broadcast_node(vs, my_sk, my_addr, peer_info, config.into()).await;
 
     info!("[{}] Starting...", args.peer_id);
 

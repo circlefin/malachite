@@ -18,10 +18,11 @@ turmoil = ["dep:turmoil"]
 [dependencies]
 malachite-common.workspace = true
 malachite-driver.workspace = true
-malachite-round.workspace  = true
-malachite-vote.workspace   = true
+malachite-gossip.workspace = true
 malachite-proto.workspace  = true
+malachite-round.workspace  = true
 malachite-test.workspace   = true
+malachite-vote.workspace   = true
 
 async-trait        = { workspace = true }
 ed25519-consensus  = { workspace = true, features = ["serde"] }

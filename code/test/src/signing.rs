@@ -51,6 +51,11 @@ impl PrivateKey {
     pub fn public_key(&self) -> PublicKey {
         PublicKey::new(self.0.verification_key())
     }
+
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    pub fn inner(&self) -> &ed25519_consensus::SigningKey {
+        &self.0
+    }
 }
 
 impl Signer<Signature> for PrivateKey {

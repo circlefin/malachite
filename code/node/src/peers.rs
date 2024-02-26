@@ -8,7 +8,7 @@ use crate::config::{Config, PeerConfig};
 use crate::network::broadcast::PeerInfo;
 use crate::network::PeerId;
 
-#[derive_where(Clone, Debug)]
+#[derive_where(Clone, Debug, Default)]
 pub struct Peers<Ctx: Context> {
     pub peers: Vec<Peer<Ctx>>,
 }

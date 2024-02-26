@@ -1,7 +1,8 @@
 use malachite_common::Round;
-use malachite_node::util::{make_broadcast_node, make_config};
+use malachite_node::util::make_gossip_node;
 use malachite_test::utils::make_validators;
 use malachite_test::{Height, ValidatorSet, Value};
+use tokio::time::{sleep, Duration};
 
 #[tokio::test]
 pub async fn decide_on_value() {
@@ -10,42 +11,26 @@ pub async fn decide_on_value() {
     let voting_powers = [5, 20, 10, 30, 15, 1, 5, 25, 10, 15];
 
     // Validators keys are deterministic and match the ones in the config file
-    let vs = make_validators(voting_powers);
-    let config = make_config(vs.iter().map(|(v, _)| v));
+    let vals_and_keys = make_validators(voting_powers);
+    let vs = ValidatorSet::new(vals_and_keys.iter().map(|(v, _)| v.clone()));
 
-    let mut handles = Vec::with_capacity(config.peers.len());
+    let mut handles = Vec::with_capacity(vals_and_keys.len());
 
-    for peer_config in &config.peers {
-        let (my_sk, my_addr) = vs
-            .iter()
-            .find(|(v, _)| v.public_key == peer_config.public_key)
-            .map(|(v, pk)| (pk.clone(), v.address))
-            .expect("Error: invalid peer id");
-
-        let (vs, _): (Vec<_>, Vec<_>) = vs.clone().into_iter().unzip();
-
-        let peer_info = peer_config.peer_info();
-        let vs = ValidatorSet::new(vs);
-
-        let node = tokio::spawn(make_broadcast_node(
-            vs,
-            my_sk,
-            my_addr,
-            peer_info,
-            config.clone().into(),
-        ));
-
+    for (v, sk) in vals_and_keys {
+        let node = tokio::spawn(make_gossip_node(vs.clone(), sk, v.address));
         handles.push(node);
     }
 
-    let mut nodes = Vec::with_capacity(config.peers.len());
+    sleep(Duration::from_secs(3)).await;
+
+    let mut nodes = Vec::with_capacity(handles.len());
 
     for handle in handles {
         let node = handle.await.expect("Error: node failed to start");
         nodes.push(node);
     }
 
-    let mut handles = Vec::with_capacity(config.peers.len());
+    let mut handles = Vec::with_capacity(nodes.len());
 
     for node in nodes {
         let handle = node.run().await;
