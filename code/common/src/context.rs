@@ -59,6 +59,7 @@ where
         round: Round,
         value: Self::Value,
         pol_round: Round,
+        address: Self::Address,
     ) -> Self::Proposal;
 
     /// Build a new prevote vote by the validator with the given address,

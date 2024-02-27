@@ -19,4 +19,7 @@ where
 
     /// The POL round for which the proposal is for.
     fn pol_round(&self) -> Round;
+
+    /// Address of the validator who issued this proposal
+    fn validator_address(&self) -> &Ctx::Address;
 }

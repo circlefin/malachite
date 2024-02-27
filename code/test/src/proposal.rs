@@ -1,7 +1,7 @@
 use malachite_common::Round;
 use malachite_proto::{self as proto};
 
-use crate::{Height, TestContext, Value};
+use crate::{Address, Height, TestContext, Value};
 
 /// A proposal for a value in a round
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -10,15 +10,23 @@ pub struct Proposal {
     pub round: Round,
     pub value: Value,
     pub pol_round: Round,
+    pub validator_address: Address,
 }
 
 impl Proposal {
-    pub fn new(height: Height, round: Round, value: Value, pol_round: Round) -> Self {
+    pub fn new(
+        height: Height,
+        round: Round,
+        value: Value,
+        pol_round: Round,
+        validator_address: Address,
+    ) -> Self {
         Self {
             height,
             round,
             value,
             pol_round,
+            validator_address,
         }
     }
 
@@ -43,6 +51,10 @@ impl malachite_common::Proposal<TestContext> for Proposal {
     fn pol_round(&self) -> Round {
         self.pol_round
     }
+
+    fn validator_address(&self) -> &Address {
+        &self.validator_address
+    }
 }
 
 impl proto::Protobuf for Proposal {
@@ -54,6 +66,7 @@ impl proto::Protobuf for Proposal {
             round: Some(self.round.to_proto()?),
             value: Some(self.value.to_proto()?),
             pol_round: Some(self.pol_round.to_proto()?),
+            validator_address: Some(self.validator_address.to_proto()?),
         })
     }
 
@@ -78,6 +91,11 @@ impl proto::Protobuf for Proposal {
                 proto
                     .pol_round
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("pol_round"))?,
+            )?,
+            validator_address: Address::from_proto(
+                proto.validator_address.ok_or_else(|| {
+                    proto::Error::missing_field::<Self::Proto>("validator_address")
+                })?,
             )?,
         })
     }

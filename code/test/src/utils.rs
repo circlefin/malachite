@@ -70,8 +70,13 @@ pub fn new_round_output(round: Round) -> Output<TestContext> {
     Output::NewRound(Height::new(1), round)
 }
 
-pub fn proposal_output(round: Round, value: Value, locked_round: Round) -> Output<TestContext> {
-    let proposal = Proposal::new(Height::new(1), round, value, locked_round);
+pub fn proposal_output(
+    round: Round,
+    value: Value,
+    locked_round: Round,
+    address: Address,
+) -> Output<TestContext> {
+    let proposal = Proposal::new(Height::new(1), round, value, locked_round, address);
     Output::Propose(proposal)
 }
 
@@ -80,8 +85,9 @@ pub fn proposal_input(
     value: Value,
     locked_round: Round,
     validity: Validity,
+    address: Address,
 ) -> Input<TestContext> {
-    let proposal = Proposal::new(Height::new(1), round, value, locked_round);
+    let proposal = Proposal::new(Height::new(1), round, value, locked_round, address);
     Input::Proposal(proposal, validity)
 }
 

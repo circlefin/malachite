@@ -108,7 +108,13 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
         },
         TestStep {
             desc: "Receive proposal",
-            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
+            input: proposal_input(
+                Round::new(0),
+                value,
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
             expected_outputs: vec![decide_output(Round::new(0), value)],
             expected_round: Round::new(0),
             new_state: decided_state(Round::new(0), value),
@@ -205,7 +211,13 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
         },
         TestStep {
             desc: "Receive proposal",
-            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
+            input: proposal_input(
+                Round::new(0),
+                value,
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
             expected_outputs: vec![decide_output(Round::new(0), value)],
             expected_round: Round::new(1),
             new_state: decided_state(Round::new(1), value),
@@ -250,6 +262,8 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
+    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address);
+
     let steps = vec![
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
@@ -281,7 +295,13 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
         },
         TestStep {
             desc: "Receive proposal, L37-L43",
-            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
+            input: proposal_input(
+                Round::new(0),
+                value,
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
             expected_outputs: vec![precommit_output(
                 Round::new(0),
                 Value::new(9999),
@@ -290,7 +310,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                proposal.clone(),
             ),
         },
         TestStep {
@@ -300,7 +320,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                proposal.clone(),
             ),
         },
         TestStep {
@@ -310,7 +330,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                proposal.clone(),
             ),
         },
         TestStep {
@@ -320,7 +340,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                proposal.clone(),
             ),
         },
         TestStep {
@@ -330,7 +350,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
             expected_round: Round::new(1),
             new_state: decided_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(1), value, Round::Nil),
+                proposal.clone(),
             ),
         },
     ];
@@ -385,7 +405,13 @@ fn driver_steps_polka_previous_with_locked() {
         },
         TestStep {
             desc: "receive a proposal from v1 - L22 send prevote",
-            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
+            input: proposal_input(
+                Round::new(0),
+                value,
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
             expected_outputs: vec![prevote_output(Round::new(0), &my_addr)],
             expected_round: Round::new(0),
             new_state: prevote_state(
@@ -410,7 +436,7 @@ fn driver_steps_polka_previous_with_locked() {
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address),
             ),
         },
         TestStep {
@@ -420,27 +446,44 @@ fn driver_steps_polka_previous_with_locked() {
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address),
             ),
         },
         TestStep {
             desc: "start round 1, we are proposer with a valid value, propose it",
             input: new_round_input(Round::new(1)),
-            expected_outputs: vec![proposal_output(Round::new(1), value, Round::new(0))],
+            expected_outputs: vec![proposal_output(
+                Round::new(1),
+                value,
+                Round::new(0),
+                v2.address,
+            )],
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v2.address),
             ),
         },
         TestStep {
             desc: "Receive our own proposal",
-            input: proposal_input(Round::new(1), value, Round::new(0), Validity::Valid),
-            expected_outputs: vec![prevote_output(Round::new(1), &my_addr)],
+            input: proposal_input(
+                Round::new(1),
+                value,
+                Round::new(0),
+                Validity::Valid,
+                v1.address,
+            ),
+            expected_outputs: vec![prevote_output(Round::new(1), &v2.address)],
             expected_round: Round::new(1),
             new_state: prevote_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(1), value, Round::new(0)),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(1),
+                    value,
+                    Round::new(0),
+                    v2.address,
+                ),
             ),
         },
     ];
@@ -528,7 +571,13 @@ fn driver_steps_polka_previous_invalid_proposal() {
         },
         TestStep {
             desc: "receive an invalid proposal for POL round 0",
-            input: proposal_input(Round::new(1), value, Round::new(0), Validity::Invalid),
+            input: proposal_input(
+                Round::new(1),
+                value,
+                Round::new(0),
+                Validity::Invalid,
+                v1.address,
+            ),
             expected_outputs: vec![prevote_nil_output(Round::new(1), &my_addr)],
             expected_round: Round::new(1),
             new_state: prevote_state(Round::new(1)),
@@ -584,7 +633,13 @@ fn driver_steps_polka_previous_new_proposal() {
         },
         TestStep {
             desc: "receive a valid proposal for round 0",
-            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
+            input: proposal_input(
+                Round::new(0),
+                value,
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
             expected_outputs: vec![prevote_output(Round::new(0), &my_addr)],
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
@@ -603,7 +658,7 @@ fn driver_steps_polka_previous_new_proposal() {
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address),
             ),
         },
         TestStep {
@@ -613,7 +668,7 @@ fn driver_steps_polka_previous_new_proposal() {
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address),
             ),
         },
         TestStep {
@@ -623,17 +678,29 @@ fn driver_steps_polka_previous_new_proposal() {
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address),
             ),
         },
         TestStep {
             desc: "receive a valid proposal for round 1 with different value",
-            input: proposal_input(Round::new(1), other_value, Round::Nil, Validity::Valid),
+            input: proposal_input(
+                Round::new(1),
+                other_value,
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
             expected_outputs: vec![prevote_nil_output(Round::new(1), &my_addr)],
             expected_round: Round::new(1),
             new_state: prevote_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(1), value, Round::new(0)),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(1),
+                    value,
+                    Round::new(0),
+                    v1.address,
+                ),
             ),
         },
     ];
@@ -694,7 +761,7 @@ fn driver_steps_polka_previous_with_no_locked() {
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
-            desc: "Timeout propopse, prevote for nil (v2)",
+            desc: "Timeout propose, prevote for nil (v2)",
             input: timeout_propose_input(Round::new(0)),
             expected_outputs: vec![prevote_nil_output(Round::new(0), &my_addr)],
             expected_round: Round::new(0),
@@ -723,13 +790,19 @@ fn driver_steps_polka_previous_with_no_locked() {
         },
         TestStep {
             desc: "receive  a proposal - L36, we don't lock, we set valid",
-            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
+            input: proposal_input(
+                Round::new(0),
+                value,
+                Round::Nil,
+                Validity::Valid,
+                v3.address,
+            ),
             expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_valid(
                 Round::new(0),
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v3.address),
             ),
         },
         TestStep {
@@ -739,29 +812,40 @@ fn driver_steps_polka_previous_with_no_locked() {
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v3.address),
             ),
         },
         TestStep {
             desc: "start round 1, we are proposer with a valid value from round 0, propose it",
             input: new_round_input(Round::new(1)),
-            expected_outputs: vec![proposal_output(Round::new(1), value, Round::new(0))],
+            expected_outputs: vec![proposal_output(
+                Round::new(1),
+                value,
+                Round::new(0),
+                v2.address,
+            )],
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_valid(
                 Round::new(1),
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v2.address),
             ),
         },
         TestStep {
             desc: "Receive our own proposal, prevote nil as we are not locked on the value",
-            input: proposal_input(Round::new(1), value, Round::new(0), Validity::Valid),
+            input: proposal_input(
+                Round::new(1),
+                value,
+                Round::new(0),
+                Validity::Valid,
+                v2.address,
+            ),
             expected_outputs: vec![prevote_nil_output(Round::new(1), &my_addr)],
             expected_round: Round::new(1),
             new_state: prevote_state_with_proposal_and_valid(
                 Round::new(1),
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v2.address),
             ),
         },
     ];
@@ -858,7 +942,8 @@ fn driver_steps_polka_value_then_proposal() {
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
-    let steps = vec![
+    let steps =
+        vec![
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
             input: new_round_input(Round::new(0)),
@@ -882,7 +967,7 @@ fn driver_steps_polka_value_then_proposal() {
         },
         TestStep {
             desc: "receive a proposal from v1 - L22 send prevote",
-            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
+            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid, v1.address),
             expected_outputs: vec![
                 prevote_output(Round::new(0), &my_addr),
                 precommit_output(Round::new(0), value, &my_addr),
@@ -890,7 +975,7 @@ fn driver_steps_polka_value_then_proposal() {
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil),
+                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address),
             ),
         },
     ];
@@ -949,7 +1034,7 @@ fn driver_steps_polka_any_then_proposal_other() {
         },
         TestStep {
             desc: "receive a proposal from v1 - L22 send prevote, replay polkaAny, start timeout prevote",
-            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid),
+            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid, v1.address),
             expected_outputs: vec![
                 prevote_output(Round::new(0), &my_addr),
                 start_prevote_timer_output(Round::new(0))

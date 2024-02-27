@@ -45,6 +45,7 @@ message Proposal {
     Round round = 2;
     Value value = 3;
     Round pol_round = 4;
+    Address validator_address = 5;
 }
 
 message SignedProposal {

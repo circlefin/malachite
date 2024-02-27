@@ -41,7 +41,13 @@ fn driver_steps_proposer() {
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(0),
+        value,
+        Round::new(-1),
+        my_addr,
+    );
 
     let steps = vec![
         TestStep {
@@ -310,7 +316,13 @@ fn driver_steps_not_proposer_valid() {
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(0),
+        value,
+        Round::new(-1),
+        v1.address,
+    );
 
     let steps = vec![
         TestStep {
@@ -500,7 +512,13 @@ fn driver_steps_not_proposer_invalid() {
 
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(0),
+        value,
+        Round::new(-1),
+        v1.address,
+    );
 
     let steps = vec![
         TestStep {
@@ -617,7 +635,13 @@ fn driver_steps_not_proposer_other_height() {
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
     // Proposal is for another height
-    let proposal = Proposal::new(Height::new(2), Round::new(0), value, Round::new(-1));
+    let proposal = Proposal::new(
+        Height::new(2),
+        Round::new(0),
+        value,
+        Round::new(-1),
+        v1.address,
+    );
 
     let steps = vec![
         TestStep {
@@ -670,7 +694,13 @@ fn driver_steps_not_proposer_other_round() {
     let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
 
     // Proposal is for another round
-    let proposal = Proposal::new(Height::new(1), Round::new(1), value, Round::new(-1));
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(1),
+        value,
+        Round::new(-1),
+        v2.address,
+    );
 
     let steps = vec![
         TestStep {

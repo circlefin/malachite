@@ -70,8 +70,14 @@ impl Context for TestContext {
             .is_ok()
     }
 
-    fn new_proposal(height: Height, round: Round, value: Value, pol_round: Round) -> Proposal {
-        Proposal::new(height, round, value, pol_round)
+    fn new_proposal(
+        height: Height,
+        round: Round,
+        value: Value,
+        pol_round: Round,
+        address: Address,
+    ) -> Proposal {
+        Proposal::new(height, round, value, pol_round, address)
     }
 
     fn new_prevote(
