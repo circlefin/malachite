@@ -15,11 +15,16 @@ pub struct RotateProposer;
 impl ProposerSelector<TestContext> for RotateProposer {
     fn select_proposer(
         &self,
-        _height: Height,
+        height: Height,
         round: Round,
         validator_set: &ValidatorSet,
     ) -> Address {
-        let proposer_index = round.as_i64() as usize % validator_set.validators.len();
+        assert!(round != Round::Nil && round.as_i64() >= 0);
+
+        let height = height.as_u64() as usize;
+        let round = round.as_i64() as usize;
+
+        let proposer_index = (height - 1 + round) % validator_set.validators.len();
         validator_set.validators[proposer_index].address
     }
 }

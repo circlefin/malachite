@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use malachite_test::utils::FixedProposer;
+use malachite_test::utils::RotateProposer;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet};
 
 use crate::network::broadcast;
@@ -20,7 +20,7 @@ pub async fn make_broadcast_node(
 ) -> Node<TestContext, broadcast::Handle> {
     let start_height = Height::new(1);
     let ctx = TestContext::new(private_key);
-    let proposer_selector = Arc::new(FixedProposer::new(validator_set.validators[0].address));
+    let proposer_selector = Arc::new(RotateProposer);
     let proposal_builder = Arc::new(TestValueBuilder::default());
 
     let params = Params {
@@ -65,7 +65,7 @@ pub async fn make_gossip_node(
 
     let start_height = Height::new(1);
     let ctx = TestContext::new(private_key);
-    let proposer_selector = Arc::new(FixedProposer::new(validator_set.validators[0].address));
+    let proposer_selector = Arc::new(RotateProposer);
     let proposal_builder = Arc::new(TestValueBuilder::default());
 
     let params = Params {
