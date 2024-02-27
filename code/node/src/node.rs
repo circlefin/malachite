@@ -9,7 +9,7 @@ use tracing::{debug, error_span, info, warn, Instrument};
 
 use malachite_common::{
     Context, Height, NilOrVal, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
-    Vote, VoteType,
+    Validator, ValidatorSet, Vote, VoteType,
 };
 use malachite_driver::{Driver, Input, Output, ProposerSelector, Validity};
 use malachite_proto::{self as proto, Protobuf};
@@ -17,7 +17,6 @@ use malachite_vote::{Threshold, ThresholdParams};
 
 use crate::network::Msg as NetworkMsg;
 use crate::network::{Network, PeerId};
-use crate::peers::Peers;
 use crate::timers::{self, Timers};
 use crate::value::ValueBuilder;
 
@@ -28,7 +27,6 @@ pub struct Params<Ctx: Context> {
     pub validator_set: Ctx::ValidatorSet,
     pub address: Ctx::Address,
     pub threshold_params: ThresholdParams,
-    pub peers: Peers<Ctx>,
 }
 
 type TxInput<Ctx> = mpsc::UnboundedSender<Input<Ctx>>;
@@ -287,33 +285,42 @@ where
         match msg {
             NetworkMsg::Vote(signed_vote) => {
                 let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap();
-                tx_input.send(Input::Vote(signed_vote.vote)).unwrap();
+                let validator_address = signed_vote.validator_address();
+                let Some(validator) = self.params.validator_set.get_by_address(validator_address)
+                else {
+                    warn!(%peer_id, %validator_address, "Received vote from unknown validator");
+                    return;
+                };
 
-                // let peer = self.params.peers.get(&peer_id).unwrap(); // FIXME
-                // if self.ctx.verify_signed_vote(&signed_vote, &peer.public_key) {
-                //     tx_input.send(Input::Vote(signed_vote.vote)).unwrap();
-                // } else {
-                //     warn!("Invalid vote from peer {peer_id}: {signed_vote:?}");
-                // }
+                if self
+                    .ctx
+                    .verify_signed_vote(&signed_vote, validator.public_key())
+                {
+                    tx_input.send(Input::Vote(signed_vote.vote)).unwrap(); // FIXME
+                } else {
+                    warn!(%peer_id, %validator_address, "Received invalid vote: {signed_vote:?}");
+                }
             }
+
             NetworkMsg::Proposal(proposal) => {
                 let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap();
-                tx_input
-                    .send(Input::Proposal(signed_proposal.proposal, Validity::Valid))
-                    .unwrap();
+                let validator_address = signed_proposal.proposal.validator_address();
+                let Some(validator) = self.params.validator_set.get_by_address(validator_address)
+                else {
+                    warn!(%peer_id, %validator_address, "Received proposal from unknown validator");
+                    return;
+                };
 
-                // let peer = self.params.peers.get(&peer_id).unwrap(); // FIXME
-                //
-                // let valid = self
-                //     .ctx
-                //     .verify_signed_proposal(&signed_proposal, &peer.public_key);
-                //
-                // tx_input
-                //     .send(Input::Proposal(
-                //         signed_proposal.proposal,
-                //         Validity::from_valid(valid),
-                //     ))
-                //     .unwrap();
+                let valid = self
+                    .ctx
+                    .verify_signed_proposal(&signed_proposal, validator.public_key());
+
+                tx_input
+                    .send(Input::Proposal(
+                        signed_proposal.proposal,
+                        Validity::from_valid(valid),
+                    ))
+                    .unwrap(); // FIXME
             }
 
             #[cfg(test)]

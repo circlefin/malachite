@@ -29,7 +29,6 @@ pub async fn make_broadcast_node(
         proposal_builder,
         validator_set,
         address,
-        peers: peers.clone(),
         threshold_params: Default::default(),
     };
 
@@ -75,7 +74,6 @@ pub async fn make_gossip_node(
         proposal_builder,
         validator_set,
         address,
-        peers: Default::default(),
         threshold_params: Default::default(),
     };
 
