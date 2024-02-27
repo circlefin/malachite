@@ -21,7 +21,7 @@ pub async fn decide_on_value() {
         handles.push(node);
     }
 
-    sleep(Duration::from_secs(3)).await;
+    sleep(Duration::from_secs(5)).await;
 
     let mut nodes = Vec::with_capacity(handles.len());
 

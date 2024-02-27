@@ -46,7 +46,7 @@ jobs:
       - name: Build code
         run: cargo nextest run --workspace --all-features --no-run
       - name: Run tests
-        run: cargo nextest run --workspace --all-features
+        run: cargo nextest run --workspace --all-features --no-capture
 
   clippy:
     name: Clippy

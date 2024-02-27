@@ -3,14 +3,9 @@ use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
-#[cfg(not(feature = "turmoil"))]
-use tokio::net::{TcpListener, TcpStream};
-
-#[cfg(feature = "turmoil")]
-use turmoil::net::{TcpListener, TcpStream};
-
 use futures::channel::oneshot;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, warn};
 
@@ -353,7 +348,6 @@ impl Network for Handle {
 }
 
 #[cfg(test)]
-#[allow(unused_imports)]
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -361,51 +355,44 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    #[cfg(feature = "turmoil")]
-    fn test_peer() {
+    #[tokio::test]
+    async fn test_peer() {
         use std::net::{IpAddr, Ipv4Addr};
         use std::sync::Arc;
-        use turmoil::lookup;
 
         tracing_subscriber::fmt().init();
 
         let peer1_id = PeerId("peer-1".to_string());
         let peer1_info = PeerInfo {
             id: peer1_id.clone(),
-            addr: (IpAddr::from(Ipv4Addr::UNSPECIFIED), 12001).into(),
+            addr: (IpAddr::from(Ipv4Addr::LOCALHOST), 12001).into(),
         };
 
         let peer2_id = PeerId("peer-2".to_string());
         let peer2_info = PeerInfo {
             id: peer2_id.clone(),
-            addr: (IpAddr::from(Ipv4Addr::UNSPECIFIED), 12002).into(),
+            addr: (IpAddr::from(Ipv4Addr::LOCALHOST), 12002).into(),
         };
 
         let peer3_id = PeerId("peer-3".to_string());
         let peer3_info = PeerInfo {
             id: peer3_id.clone(),
-            addr: (IpAddr::from(Ipv4Addr::UNSPECIFIED), 12003).into(),
+            addr: (IpAddr::from(Ipv4Addr::LOCALHOST), 12003).into(),
         };
 
         let peer1: Peer = Peer::new(peer1_info.clone());
         let peer2: Peer = Peer::new(peer2_info.clone());
         let peer3: Peer = Peer::new(peer3_info.clone());
 
-        let mut sim = turmoil::Builder::new().build();
-
         let done = Arc::new(AtomicUsize::new(0));
         let deadline = Duration::from_millis(200);
 
-        {
+        let handle1 = {
             let done = Arc::clone(&done);
-            let mut peer2_info = peer2_info.clone();
-            let mut peer3_info = peer3_info.clone();
+            let peer2_info = peer2_info.clone();
+            let peer3_info = peer3_info.clone();
 
-            sim.client("peer1", async move {
-                peer2_info.addr.set_ip(lookup("peer2"));
-                peer3_info.addr.set_ip(lookup("peer3"));
-
+            tokio::spawn(async move {
                 let handle1 = peer1.run().await;
                 handle1.connect_to_peer(peer2_info, None).await;
                 handle1.connect_to_peer(peer3_info, None).await;
@@ -416,22 +403,17 @@ mod tests {
 
                 handle1.broadcast(Msg::Dummy(1)).await;
                 handle1.broadcast(Msg::Dummy(2)).await;
+            })
+        };
 
-                Ok(())
-            });
-        }
-
-        {
+        let handle2 = {
             let done = Arc::clone(&done);
 
             let peer1_id = peer1_id.clone();
-            let mut peer1_info = peer1_info.clone();
-            let mut peer3_info = peer3_info.clone();
+            let peer1_info = peer1_info.clone();
+            let peer3_info = peer3_info.clone();
 
-            sim.client("peer2", async move {
-                peer1_info.addr.set_ip(lookup("peer1"));
-                peer3_info.addr.set_ip(lookup("peer3"));
-
+            tokio::spawn(async move {
                 let mut handle2 = peer2.run().await;
                 handle2.connect_to_peer(peer1_info, None).await;
                 handle2.connect_to_peer(peer3_info, None).await;
@@ -443,20 +425,15 @@ mod tests {
 
                 let msg2 = timeout(deadline, handle2.recv()).await.unwrap();
                 assert_eq!(msg2, Some((peer1_id.clone(), Msg::Dummy(2))));
+            })
+        };
 
-                Ok(())
-            });
-        }
-
-        {
+        let handle3 = {
             let done = Arc::clone(&done);
-            let mut peer1_info = peer1_info.clone();
-            let mut peer2_info = peer2_info.clone();
+            let peer1_info = peer1_info.clone();
+            let peer2_info = peer2_info.clone();
 
-            sim.client("peer3", async move {
-                peer1_info.addr.set_ip(lookup("peer1"));
-                peer2_info.addr.set_ip(lookup("peer2"));
-
+            tokio::spawn(async move {
                 let mut handle3 = peer3.run().await;
                 handle3.connect_to_peer(peer1_info, None).await;
                 handle3.connect_to_peer(peer2_info, None).await;
@@ -468,11 +445,12 @@ mod tests {
 
                 let msg2 = timeout(deadline, handle3.recv()).await.unwrap();
                 assert_eq!(msg2, Some((peer1_id.clone(), Msg::Dummy(2))));
+            })
+        };
 
-                Ok(())
-            });
-        }
-
-        sim.run().unwrap();
+        let (res1, res2, res3) = tokio::join!(handle1, handle2, handle3);
+        res1.unwrap();
+        res2.unwrap();
+        res3.unwrap();
     }
 }
