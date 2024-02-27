@@ -4,7 +4,7 @@ use malachite_proto as proto;
 
 use crate::signing::PublicKey;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Address([u8; Self::LENGTH]);
 
 impl Address {
@@ -31,6 +31,13 @@ impl fmt::Display for Address {
             write!(f, "{:02x}", byte)?;
         }
         Ok(())
+    }
+}
+
+impl fmt::Debug for Address {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Address({})", self)
     }
 }
 

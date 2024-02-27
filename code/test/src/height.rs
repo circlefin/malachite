@@ -3,7 +3,7 @@ use core::fmt;
 use malachite_proto as proto;
 
 /// A blockchain height
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Height(u64);
 
 impl Height {
@@ -19,6 +19,12 @@ impl Height {
 impl fmt::Display for Height {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl fmt::Debug for Height {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Height({})", self.0)
     }
 }
 

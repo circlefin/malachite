@@ -6,7 +6,7 @@ use futures::StreamExt;
 use libp2p::swarm::{self, NetworkBehaviour, SwarmEvent};
 use libp2p::{gossipsub, identify, mdns, noise, tcp, yamux, SwarmBuilder};
 use tokio::sync::mpsc;
-use tracing::{debug, error, error_span, info, Instrument};
+use tracing::{debug, error, error_span, Instrument};
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
@@ -215,7 +215,7 @@ async fn handle_swarm_event(
 ) -> ControlFlow<()> {
     match event {
         SwarmEvent::NewListenAddr { address, .. } => {
-            info!("Node is listening on {address}");
+            debug!("Node is listening on {address}");
 
             if let Err(e) = tx_event.send(HandleEvent::Listening(address)).await {
                 error!("Error sending listening event to handle: {e}");

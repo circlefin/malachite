@@ -280,12 +280,13 @@ where
         msg: NetworkMsg,
         tx_input: &TxInput<Ctx>,
     ) {
-        info!("Received message from peer {peer_id}: {msg:?}");
-
         match msg {
             NetworkMsg::Vote(signed_vote) => {
-                let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap();
+                let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap(); // FIXME
                 let validator_address = signed_vote.validator_address();
+
+                info!(%peer_id, %validator_address, "Received vote: {:?}", signed_vote.vote);
+
                 let Some(validator) = self.params.validator_set.get_by_address(validator_address)
                 else {
                     warn!(%peer_id, %validator_address, "Received vote from unknown validator");
@@ -305,6 +306,9 @@ where
             NetworkMsg::Proposal(proposal) => {
                 let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap();
                 let validator_address = signed_proposal.proposal.validator_address();
+
+                info!(%peer_id, %validator_address, "Received proposal: {:?}", signed_proposal.proposal);
+
                 let Some(validator) = self.params.validator_set.get_by_address(validator_address)
                 else {
                     warn!(%peer_id, %validator_address, "Received proposal from unknown validator");
