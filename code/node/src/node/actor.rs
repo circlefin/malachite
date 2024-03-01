@@ -1,6 +1,6 @@
 use std::fmt::Display;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use driver::Validity;
 use malachite_common::{
@@ -14,8 +14,9 @@ use malachite_gossip::Event as GossipEvent;
 use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::Threshold;
+use ractor::rpc::call_and_forward;
 use ractor::{Actor, ActorName, ActorProcessingErr, ActorRef};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::network::Msg as NetworkMsg;
 use crate::network::PeerId;
@@ -24,6 +25,7 @@ use crate::timers;
 use crate::timers::actor::{Msg as TimerMsg, TimeoutElapsed, Timers};
 use crate::util::actor::forward;
 
+use super::proposal_builder::{BuildProposal, ProposedValue};
 use super::Next;
 
 pub struct Node<Ctx>
@@ -32,8 +34,9 @@ where
 {
     ctx: Ctx,
     params: Params<Ctx>,
-    gossip: ActorRef<GossipMsg>,
     timers_config: timers::Config,
+    gossip: ActorRef<GossipMsg>,
+    proposal_builder: ActorRef<BuildProposal<Ctx>>,
 }
 
 pub enum Msg<Ctx: Context> {
@@ -41,6 +44,7 @@ pub enum Msg<Ctx: Context> {
     MoveToNextHeight,
     GossipEvent(Arc<GossipEvent>),
     TimeoutElapsed(Timeout),
+    ProposeValue(Ctx::Height, Round, Option<Ctx::Value>),
     SendDriverInput(driver::Input<Ctx>),
     Decided(Ctx::Height, Round, Ctx::Value),
 }
@@ -71,14 +75,16 @@ where
     pub async fn spawn(
         ctx: Ctx,
         params: Params<Ctx>,
-        gossip: ActorRef<GossipMsg>,
         timers_config: timers::Config,
+        gossip: ActorRef<GossipMsg>,
+        proposal_builder: ActorRef<BuildProposal<Ctx>>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let node = Self {
             ctx,
             params,
-            gossip,
             timers_config,
+            gossip,
+            proposal_builder,
         };
 
         let (actor_ref, _) = Actor::spawn(Some(ActorName::from("Node")), node, Args).await?;
@@ -364,26 +370,24 @@ where
         myself: ActorRef<Msg<Ctx>>,
         height: Ctx::Height,
         round: Round,
-        _timeout: Timeout,
+        timeout: Timeout,
     ) -> Result<(), ActorProcessingErr> {
-        // FIXME: state.timers.timeout_duration(&timeout.step);
-        let deadline = Instant::now() + Duration::from_secs(1);
+        let deadline = Instant::now() + self.timers_config.timeout_duration(timeout.step);
 
-        // FIXME: Use call_and_forward
-
-        let pb = self.params.proposal_builder.clone();
-
-        tokio::task::spawn(async move {
-            if let Some(value) = pb.build_proposal(height, deadline).await {
-                myself
-                    .cast(Msg::SendDriverInput(driver::Input::ProposeValue(
-                        round, value,
-                    )))
-                    .unwrap(); // FIXME
-            } else {
-                error!("Failed to get value at height {height} and round {round}");
-            }
-        });
+        call_and_forward(
+            &self.proposal_builder.get_cell(),
+            |reply| BuildProposal {
+                height,
+                round,
+                deadline,
+                reply,
+            },
+            myself.get_cell(),
+            |proposed: ProposedValue<Ctx>| {
+                Msg::<Ctx>::ProposeValue(proposed.height, proposed.round, proposed.value)
+            },
+            None,
+        )?;
 
         Ok(())
     }
@@ -449,6 +453,37 @@ where
 
                 debug_assert_eq!(state.driver.height(), height);
                 debug_assert_eq!(state.driver.round(), Round::Nil);
+            }
+
+            Msg::ProposeValue(height, round, value) => {
+                if state.driver.height() != height {
+                    warn!(
+                        "Ignoring proposal for height {height}, current height: {}",
+                        state.driver.height()
+                    );
+
+                    return Ok(());
+                }
+
+                if state.driver.round() != round {
+                    warn!(
+                        "Ignoring proposal for round {round}, current round: {}",
+                        state.driver.round()
+                    );
+
+                    return Ok(());
+                }
+
+                match value {
+                    Some(value) => myself.cast(Msg::SendDriverInput(
+                        driver::Input::ProposeValue(round, value),
+                    ))?,
+
+                    None => warn!(
+                        %height, %round,
+                        "Proposal builder failed to build a value within the deadline"
+                    ),
+                }
             }
 
             Msg::Decided(height, round, value) => {

@@ -1,4 +1,5 @@
 pub mod actor;
+pub mod proposal_builder;
 
 use std::fmt::Display;
 use std::marker::PhantomData;
@@ -6,7 +7,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::sync::{mpsc, oneshot};
-#[allow(unused_imports)]
 use tracing::{debug, error_span, info, warn, Instrument};
 
 use malachite_common::{
@@ -396,7 +396,7 @@ where
     }
 
     pub async fn get_value(&self, height: Ctx::Height, timeout: &Timeout) -> Ctx::Value {
-        let deadline = Instant::now() + self.timers.timeout_duration(&timeout.step);
+        let deadline = Instant::now() + self.timers.timeout_duration(timeout.step);
 
         self.params
             .proposal_builder

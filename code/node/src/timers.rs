@@ -17,6 +17,17 @@ pub struct Config {
     pub commit_timeout: Duration,
 }
 
+impl Config {
+    pub fn timeout_duration(&self, step: TimeoutStep) -> Duration {
+        match step {
+            TimeoutStep::Propose => self.propose_timeout,
+            TimeoutStep::Prevote => self.prevote_timeout,
+            TimeoutStep::Precommit => self.precommit_timeout,
+            TimeoutStep::Commit => self.commit_timeout,
+        }
+    }
+}
+
 pub struct Timers {
     config: Config,
     timeouts: Arc<Mutex<HashMap<Timeout, JoinHandle<()>>>>,
@@ -48,7 +59,7 @@ impl Timers {
 
     pub async fn schedule_timeout(&mut self, timeout: Timeout) {
         let tx = self.timeout_elapsed.clone();
-        let duration = self.timeout_duration(&timeout.step);
+        let duration = self.timeout_duration(timeout.step);
 
         let timeouts = self.timeouts.clone();
         let handle = tokio::spawn(async move {
@@ -66,13 +77,8 @@ impl Timers {
         }
     }
 
-    pub fn timeout_duration(&self, step: &TimeoutStep) -> Duration {
-        match step {
-            TimeoutStep::Propose => self.config.propose_timeout,
-            TimeoutStep::Prevote => self.config.prevote_timeout,
-            TimeoutStep::Precommit => self.config.precommit_timeout,
-            TimeoutStep::Commit => self.config.commit_timeout,
-        }
+    pub fn timeout_duration(&self, step: TimeoutStep) -> Duration {
+        self.config.timeout_duration(step)
     }
 }
 
