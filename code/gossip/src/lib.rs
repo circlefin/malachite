@@ -22,6 +22,7 @@ const TOPIC: &str = "consensus";
 
 pub type BoxError = Box<dyn Error + Send + Sync + 'static>;
 
+#[derive(Clone, Debug)]
 pub struct Config {
     idle_connection_timeout: Duration,
 }

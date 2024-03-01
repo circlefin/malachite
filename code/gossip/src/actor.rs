@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
 use libp2p::identity::Keypair;
 use libp2p::Multiaddr;
 use ractor::Actor;
+use ractor::ActorCell;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
 use tokio::task::JoinHandle;
@@ -9,28 +12,41 @@ use crate::handle::CtrlHandle;
 use crate::Config;
 use crate::Event;
 
-pub struct Gossip<M> {
-    listener: ractor::ActorRef<M>,
-}
+pub struct Gossip;
 
-impl<M> Gossip<M>
-where
-    M: From<Event> + ractor::Message,
-{
+impl Gossip {
     pub async fn spawn(
         keypair: Keypair,
         addr: Multiaddr,
         config: Config,
-        listener: ractor::ActorRef<M>,
     ) -> Result<(ActorRef<Msg>, JoinHandle<()>), ractor::SpawnErr> {
         Actor::spawn(
             None,
-            Self { listener },
+            Self,
             Args {
                 keypair,
                 addr,
                 config,
             },
+        )
+        .await
+    }
+
+    pub async fn spawn_linked(
+        keypair: Keypair,
+        addr: Multiaddr,
+        config: Config,
+        supervisor: ActorCell,
+    ) -> Result<(ActorRef<Msg>, JoinHandle<()>), ractor::SpawnErr> {
+        Actor::spawn_linked(
+            None,
+            Self,
+            Args {
+                keypair,
+                addr,
+                config,
+            },
+            supervisor,
         )
         .await
     }
@@ -45,12 +61,14 @@ pub struct Args {
 pub enum State {
     Stopped,
     Running {
+        subscribers: Vec<ActorRef<Arc<Event>>>,
         ctrl_handle: CtrlHandle,
         recv_task: JoinHandle<()>,
     },
 }
 
 pub enum Msg {
+    Subscribe(ActorRef<Arc<Event>>),
     Broadcast(Vec<u8>),
 
     // Internal message
@@ -59,10 +77,7 @@ pub enum Msg {
 }
 
 #[ractor::async_trait]
-impl<M> Actor for Gossip<M>
-where
-    M: From<Event> + ractor::Message,
-{
+impl Actor for Gossip {
     type Msg = Msg;
     type State = State;
     type Arguments = Args;
@@ -84,6 +99,7 @@ where
         });
 
         Ok(State::Running {
+            subscribers: Vec::new(),
             ctrl_handle,
             recv_task,
         })
@@ -103,13 +119,24 @@ where
         msg: Msg,
         state: &mut State,
     ) -> Result<(), ActorProcessingErr> {
-        let State::Running { ctrl_handle, .. } = state else {
+        let State::Running {
+            subscribers,
+            ctrl_handle,
+            ..
+        } = state
+        else {
             return Ok(());
         };
 
         match msg {
+            Msg::Subscribe(subscriber) => subscribers.push(subscriber),
             Msg::Broadcast(data) => ctrl_handle.broadcast(data).await?,
-            Msg::NewEvent(event) => self.listener.cast(event.into())?,
+            Msg::NewEvent(event) => {
+                let event = Arc::new(event);
+                for subscriber in subscribers {
+                    subscriber.cast(Arc::clone(&event))?;
+                }
+            }
         }
 
         Ok(())
@@ -125,6 +152,7 @@ where
         if let State::Running {
             ctrl_handle,
             recv_task,
+            ..
         } = state
         {
             ctrl_handle.wait_shutdown().await?;

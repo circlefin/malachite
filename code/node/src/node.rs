@@ -1,3 +1,5 @@
+pub mod actor;
+
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -112,7 +114,7 @@ where
                     .await;
 
                 height = self.driver.height().increment();
-                self.driver = self.driver.move_to_height(height);
+                self.driver.move_to_height(height);
 
                 debug_assert_eq!(self.driver.height(), height);
                 debug_assert_eq!(self.driver.round(), Round::Nil);

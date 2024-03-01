@@ -3,12 +3,18 @@ use std::time::Duration;
 
 use malachite_common::{Timeout, TimeoutStep};
 use ractor::time::send_after;
-use ractor::{Actor, ActorName, ActorProcessingErr, ActorRef, MessagingErr};
+use ractor::{Actor, ActorCell, ActorName, ActorProcessingErr, ActorRef, MessagingErr};
 use tokio::task::JoinHandle;
 
 use super::Config;
 
 pub struct TimeoutElapsed(Timeout);
+
+impl TimeoutElapsed {
+    pub fn timeout(&self) -> Timeout {
+        self.0
+    }
+}
 
 pub struct Timers<M> {
     config: Config,
@@ -31,6 +37,20 @@ where
         .await
     }
 
+    pub async fn spawn_linked(
+        config: Config,
+        listener: ActorRef<M>,
+        supervisor: ActorCell,
+    ) -> Result<(ActorRef<Msg>, JoinHandle<()>), ractor::SpawnErr> {
+        Actor::spawn_linked(
+            Some(ActorName::from("Timers")),
+            Self { config, listener },
+            (),
+            supervisor,
+        )
+        .await
+    }
+
     pub fn timeout_duration(&self, step: &TimeoutStep) -> Duration {
         match step {
             TimeoutStep::Propose => self.config.propose_timeout,
@@ -44,6 +64,7 @@ where
 pub enum Msg {
     ScheduleTimeout(Timeout),
     CancelTimeout(Timeout),
+    Reset,
 
     // Internal messages
     #[doc(hidden)]
@@ -92,6 +113,12 @@ where
 
             Msg::CancelTimeout(timeout) => {
                 if let Some(task) = state.timers.remove(&timeout) {
+                    task.abort();
+                }
+            }
+
+            Msg::Reset => {
+                for (_, task) in state.timers.drain() {
                     task.abort();
                 }
             }

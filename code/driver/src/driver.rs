@@ -87,7 +87,7 @@ where
 
     /// Reset votes, round state, pending input and move to new height.
     /// TODO: Allow validator set to change
-    pub fn move_to_height(self, height: Ctx::Height) -> Self {
+    pub fn move_to_height(&mut self, height: Ctx::Height) {
         let vote_keeper = VoteKeeper::new(
             self.validator_set.total_voting_power(),
             self.threshold_params,
@@ -95,13 +95,10 @@ where
 
         let round_state = RoundState::new(height, Round::Nil);
 
-        Self {
-            vote_keeper,
-            round_state,
-            proposal: None,
-            pending_input: None,
-            ..self
-        }
+        self.vote_keeper = vote_keeper;
+        self.round_state = round_state;
+        self.proposal = None;
+        self.pending_input = None;
     }
 
     /// Return the height of the consensus.
