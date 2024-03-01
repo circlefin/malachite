@@ -1,4 +1,4 @@
-pub use malachite_gossip::{spawn, Config, CtrlMsg, Handle, HandleEvent, Keypair};
+pub use malachite_gossip::{handle::Handle, spawn, Config, CtrlMsg, Event, Keypair};
 
 use super::{Msg, Network, PeerId};
 
@@ -7,7 +7,7 @@ impl Network for Handle {
     async fn recv(&mut self) -> Option<(PeerId, Msg)> {
         loop {
             match Handle::recv(self).await {
-                Some(HandleEvent::Message(peer_id, data)) => {
+                Some(Event::Message(peer_id, data)) => {
                     let msg = Msg::from_network_bytes(&data).unwrap();
                     let peer_id = PeerId::new(peer_id.to_string());
                     return Some((peer_id, msg));

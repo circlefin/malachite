@@ -2,8 +2,10 @@ use std::error::Error;
 use std::ops::ControlFlow;
 use std::time::Duration;
 
+use behaviour::{Behaviour, NetworkEvent};
 use futures::StreamExt;
-use libp2p::swarm::{self, NetworkBehaviour, SwarmEvent};
+use handle::Handle;
+use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, mdns, SwarmBuilder};
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, Instrument};
@@ -11,62 +13,14 @@ use tracing::{debug, error, error_span, Instrument};
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
+pub mod actor;
+pub mod behaviour;
+pub mod handle;
+
 const PROTOCOL_VERSION: &str = "malachite-gossip/v1beta1";
 const TOPIC: &str = "consensus";
 
-#[derive(NetworkBehaviour)]
-#[behaviour(to_swarm = "Event")]
-struct Behaviour {
-    identify: identify::Behaviour,
-    mdns: mdns::tokio::Behaviour,
-    gossipsub: gossipsub::Behaviour,
-}
-
-impl Behaviour {
-    fn new(keypair: &Keypair) -> Self {
-        Self {
-            identify: identify::Behaviour::new(identify::Config::new(
-                PROTOCOL_VERSION.to_string(),
-                keypair.public(),
-            )),
-            mdns: mdns::tokio::Behaviour::new(
-                mdns::Config::default(),
-                keypair.public().to_peer_id(),
-            )
-            .unwrap(),
-            gossipsub: gossipsub::Behaviour::new(
-                gossipsub::MessageAuthenticity::Signed(keypair.clone()),
-                gossipsub::Config::default(),
-            )
-            .unwrap(),
-        }
-    }
-}
-
-#[derive(Debug)]
-enum Event {
-    Identify(identify::Event),
-    Mdns(mdns::Event),
-    GossipSub(gossipsub::Event),
-}
-
-impl From<identify::Event> for Event {
-    fn from(event: identify::Event) -> Self {
-        Self::Identify(event)
-    }
-}
-
-impl From<mdns::Event> for Event {
-    fn from(event: mdns::Event) -> Self {
-        Self::Mdns(event)
-    }
-}
-
-impl From<gossipsub::Event> for Event {
-    fn from(event: gossipsub::Event) -> Self {
-        Self::GossipSub(event)
-    }
-}
+pub type BoxError = Box<dyn Error + Send + Sync + 'static>;
 
 pub struct Config {
     idle_connection_timeout: Duration,
@@ -87,7 +41,7 @@ impl Default for Config {
 }
 
 #[derive(Debug)]
-pub enum HandleEvent {
+pub enum Event {
     Listening(Multiaddr),
     Message(PeerId, Vec<u8>),
     PeerConnected(PeerId),
@@ -100,34 +54,7 @@ pub enum CtrlMsg {
     Shutdown,
 }
 
-pub struct Handle {
-    rx_event: mpsc::Receiver<HandleEvent>,
-    tx_ctrl: mpsc::Sender<CtrlMsg>,
-    task_handle: tokio::task::JoinHandle<()>,
-}
-
-impl Handle {
-    pub async fn recv(&mut self) -> Option<HandleEvent> {
-        self.rx_event.recv().await
-    }
-
-    pub async fn broadcast(&mut self, data: Vec<u8>) -> Result<(), Box<dyn Error>> {
-        self.tx_ctrl.send(CtrlMsg::Broadcast(data)).await?;
-        Ok(())
-    }
-
-    pub async fn shutdown(self) -> Result<(), Box<dyn Error>> {
-        self.tx_ctrl.send(CtrlMsg::Shutdown).await?;
-        self.task_handle.await?;
-        Ok(())
-    }
-}
-
-pub async fn spawn(
-    keypair: Keypair,
-    addr: Multiaddr,
-    config: Config,
-) -> Result<Handle, Box<dyn Error>> {
+pub async fn spawn(keypair: Keypair, addr: Multiaddr, config: Config) -> Result<Handle, BoxError> {
     let mut swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
         .with_quic()
@@ -147,18 +74,14 @@ pub async fn spawn(
     let span = error_span!("gossip", peer = %peer_id);
     let task_handle = tokio::task::spawn(run(swarm, topic, rx_ctrl, tx_event).instrument(span));
 
-    Ok(Handle {
-        rx_event,
-        tx_ctrl,
-        task_handle,
-    })
+    Ok(Handle::new(tx_ctrl, rx_event, task_handle))
 }
 
 async fn run(
     mut swarm: swarm::Swarm<Behaviour>,
     topic: gossipsub::IdentTopic,
     mut rx_ctrl: mpsc::Receiver<CtrlMsg>,
-    tx_event: mpsc::Sender<HandleEvent>,
+    tx_event: mpsc::Sender<Event>,
 ) {
     loop {
         let result = tokio::select! {
@@ -204,30 +127,33 @@ async fn handle_ctrl_msg(
 }
 
 async fn handle_swarm_event(
-    event: SwarmEvent<Event>,
+    event: SwarmEvent<NetworkEvent>,
     swarm: &mut swarm::Swarm<Behaviour>,
     topic: &gossipsub::IdentTopic,
-    tx_event: &mpsc::Sender<HandleEvent>,
+    tx_event: &mpsc::Sender<Event>,
 ) -> ControlFlow<()> {
     match event {
         SwarmEvent::NewListenAddr { address, .. } => {
             debug!("Node is listening on {address}");
 
-            if let Err(e) = tx_event.send(HandleEvent::Listening(address)).await {
+            if let Err(e) = tx_event.send(Event::Listening(address)).await {
                 error!("Error sending listening event to handle: {e}");
                 return ControlFlow::Break(());
             }
         }
 
-        SwarmEvent::Behaviour(Event::Identify(identify::Event::Sent { peer_id })) => {
+        SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent { peer_id })) => {
             debug!("Sent identity to {peer_id}");
         }
 
-        SwarmEvent::Behaviour(Event::Identify(identify::Event::Received { peer_id, info: _ })) => {
+        SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Received {
+            peer_id,
+            info: _,
+        })) => {
             debug!("Received identity from {peer_id}");
         }
 
-        SwarmEvent::Behaviour(Event::Mdns(mdns::Event::Discovered(peers))) => {
+        SwarmEvent::Behaviour(NetworkEvent::Mdns(mdns::Event::Discovered(peers))) => {
             for (peer_id, addr) in peers {
                 debug!("Discovered peer {peer_id} at {addr}");
                 swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
@@ -239,7 +165,7 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::Behaviour(Event::Mdns(mdns::Event::Expired(peers))) => {
+        SwarmEvent::Behaviour(NetworkEvent::Mdns(mdns::Event::Expired(peers))) => {
             for (peer_id, _addr) in peers {
                 debug!("Expired peer: {peer_id}");
                 swarm
@@ -254,7 +180,7 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::Behaviour(Event::GossipSub(gossipsub::Event::Subscribed {
+        SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Subscribed {
             peer_id,
             topic: topic_hash,
         })) => {
@@ -265,13 +191,13 @@ async fn handle_swarm_event(
 
             debug!("Peer {peer_id} subscribed to {topic_hash}");
 
-            if let Err(e) = tx_event.send(HandleEvent::PeerConnected(peer_id)).await {
+            if let Err(e) = tx_event.send(Event::PeerConnected(peer_id)).await {
                 error!("Error sending peer connected event to handle: {e}");
                 return ControlFlow::Break(());
             }
         }
 
-        SwarmEvent::Behaviour(Event::GossipSub(gossipsub::Event::Message {
+        SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Message {
             propagation_source: peer_id,
             message_id: _,
             message,
@@ -290,10 +216,7 @@ async fn handle_swarm_event(
                 message.data.len()
             );
 
-            if let Err(e) = tx_event
-                .send(HandleEvent::Message(peer_id, message.data))
-                .await
-            {
+            if let Err(e) = tx_event.send(Event::Message(peer_id, message.data)).await {
                 error!("Error sending message to handle: {e}");
                 return ControlFlow::Break(());
             }

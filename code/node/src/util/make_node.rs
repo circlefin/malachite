@@ -60,7 +60,7 @@ pub async fn make_gossip_node(
     validator_set: ValidatorSet,
     private_key: PrivateKey,
     address: Address,
-) -> Node<TestContext, malachite_gossip::Handle> {
+) -> Node<TestContext, malachite_gossip::handle::Handle> {
     let keypair = gossip::Keypair::ed25519_from_bytes(private_key.inner().to_bytes()).unwrap();
 
     let start_height = Height::new(1);
