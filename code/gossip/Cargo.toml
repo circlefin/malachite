@@ -13,5 +13,5 @@ libp2p-gossipsub   = { version = "0.46.1" }
 futures            = { workspace = true }
 tokio              = { workspace = true }
 tracing            = { workspace = true }
-ractor             = { version = "0.9.6", features = ["async-trait"] }
-ractor_actors      = { version = "0.4.0", default-features = false, features = ["streams"] }
+ractor             = { workspace = true, features = ["async-trait"] }
+ractor_actors      = { workspace = true, features = ["streams"] }

@@ -7,6 +7,8 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex; // TODO: Use parking_lot instead?
 use tokio::task::JoinHandle;
 
+pub mod actor;
+
 #[derive(Copy, Clone, Debug)]
 pub struct Config {
     pub propose_timeout: Duration,

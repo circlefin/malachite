@@ -33,6 +33,8 @@ serde              = { workspace = true, features = ["derive"] }
 toml               = { workspace = true }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
+ractor             = { workspace = true, features = ["async-trait"] }
+ractor_actors      = { workspace = true, default-features = false, features = ["streams"] }
 
 [dev-dependencies]
 malachite-test.workspace = true
