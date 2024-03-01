@@ -2,13 +2,14 @@ use std::fmt::Display;
 use std::sync::Arc;
 use std::time::Instant;
 
-use driver::Validity;
 use malachite_common::{
     Context, Height, NilOrVal, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
     Validator, ValidatorSet, Vote, VoteType,
 };
-use malachite_driver as driver;
 use malachite_driver::Driver;
+use malachite_driver::Input as DriverInput;
+use malachite_driver::Output as DriverOutput;
+use malachite_driver::Validity;
 use malachite_gossip::actor::Msg as GossipMsg;
 use malachite_gossip::Event as GossipEvent;
 use malachite_proto as proto;
@@ -18,15 +19,14 @@ use ractor::rpc::call_and_forward;
 use ractor::{Actor, ActorName, ActorProcessingErr, ActorRef};
 use tracing::{debug, info, warn};
 
+use crate::actors::proposal_builder::{BuildProposal, ProposedValue};
+use crate::actors::timers::{Msg as TimerMsg, TimeoutElapsed, Timers};
+use crate::actors::util::forward;
 use crate::network::Msg as NetworkMsg;
 use crate::network::PeerId;
+use crate::node::Next;
 use crate::node::Params;
 use crate::timers;
-use crate::timers::actor::{Msg as TimerMsg, TimeoutElapsed, Timers};
-use crate::util::actor::forward;
-
-use super::proposal_builder::{BuildProposal, ProposedValue};
-use super::Next;
 
 pub struct Node<Ctx>
 where
@@ -45,7 +45,7 @@ pub enum Msg<Ctx: Context> {
     GossipEvent(Arc<GossipEvent>),
     TimeoutElapsed(Timeout),
     ProposeValue(Ctx::Height, Round, Option<Ctx::Value>),
-    SendDriverInput(driver::Input<Ctx>),
+    SendDriverInput(DriverInput<Ctx>),
     Decided(Ctx::Height, Round, Ctx::Value),
 }
 
@@ -145,7 +145,7 @@ where
                     .ctx
                     .verify_signed_vote(&signed_vote, validator.public_key())
                 {
-                    myself.cast(Msg::SendDriverInput(driver::Input::Vote(signed_vote.vote)))?;
+                    myself.cast(Msg::SendDriverInput(DriverInput::Vote(signed_vote.vote)))?;
                 } else {
                     warn!(%from, %validator_address, "Received invalid vote: {signed_vote:?}");
                 }
@@ -167,7 +167,7 @@ where
                     .ctx
                     .verify_signed_proposal(&signed_proposal, validator.public_key());
 
-                myself.cast(Msg::SendDriverInput(driver::Input::Proposal(
+                myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
                     signed_proposal.proposal,
                     Validity::from_valid(valid),
                 )))?;
@@ -200,7 +200,7 @@ where
 
         info!("{timeout} elapsed at height {height} and round {round}");
 
-        myself.cast(Msg::SendDriverInput(driver::Input::TimeoutElapsed(timeout)))?;
+        myself.cast(Msg::SendDriverInput(DriverInput::TimeoutElapsed(timeout)))?;
 
         if timeout.step == TimeoutStep::Commit {
             myself.cast(Msg::MoveToNextHeight)?;
@@ -211,31 +211,31 @@ where
 
     pub async fn send_driver_input(
         &self,
-        input: driver::Input<Ctx>,
+        input: DriverInput<Ctx>,
         myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match &input {
-            driver::Input::NewRound(_, _) => {
+            DriverInput::NewRound(_, _) => {
                 state.timers.cast(TimerMsg::Reset)?;
             }
 
-            driver::Input::ProposeValue(round, _) => state
+            DriverInput::ProposeValue(round, _) => state
                 .timers
                 .cast(TimerMsg::CancelTimeout(Timeout::propose(*round)))?,
 
-            driver::Input::Proposal(proposal, _) => {
+            DriverInput::Proposal(proposal, _) => {
                 let round = Proposal::<Ctx>::round(proposal);
                 state
                     .timers
                     .cast(TimerMsg::CancelTimeout(Timeout::propose(round)))?;
             }
 
-            driver::Input::Vote(_) => (),
-            driver::Input::TimeoutElapsed(_) => (),
+            DriverInput::Vote(_) => (),
+            DriverInput::TimeoutElapsed(_) => (),
         }
 
-        let check_threshold = if let driver::Input::Vote(vote) = &input {
+        let check_threshold = if let DriverInput::Vote(vote) = &input {
             let round = Vote::<Ctx>::round(vote);
             let value = Vote::<Ctx>::value(vote);
 
@@ -293,18 +293,18 @@ where
 
     async fn handle_driver_output(
         &self,
-        output: driver::Output<Ctx>,
+        output: DriverOutput<Ctx>,
         myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<Next<Ctx>, ActorProcessingErr> {
         match output {
-            driver::Output::NewRound(height, round) => {
+            DriverOutput::NewRound(height, round) => {
                 info!("New round at height {height}: {round}");
 
-                Ok(Next::Input(driver::Input::NewRound(height, round)))
+                Ok(Next::Input(DriverInput::NewRound(height, round)))
             }
 
-            driver::Output::Propose(proposal) => {
+            DriverOutput::Propose(proposal) => {
                 info!(
                     "Proposing value {:?} at round {}",
                     proposal.value(),
@@ -319,13 +319,13 @@ where
                 let bytes = msg.to_network_bytes().unwrap(); // FIXME
                 self.gossip.cast(GossipMsg::Broadcast(bytes))?;
 
-                Ok(Next::Input(driver::Input::Proposal(
+                Ok(Next::Input(DriverInput::Proposal(
                     signed_proposal.proposal,
                     Validity::Valid,
                 )))
             }
 
-            driver::Output::Vote(vote) => {
+            DriverOutput::Vote(vote) => {
                 info!(
                     "Voting for value {:?} at round {}",
                     vote.value(),
@@ -340,23 +340,23 @@ where
                 let bytes = msg.to_network_bytes().unwrap(); // FIXME
                 self.gossip.cast(GossipMsg::Broadcast(bytes))?;
 
-                Ok(Next::Input(driver::Input::Vote(signed_vote.vote)))
+                Ok(Next::Input(DriverInput::Vote(signed_vote.vote)))
             }
 
-            driver::Output::Decide(round, value) => {
+            DriverOutput::Decide(round, value) => {
                 info!("Decided on value {value:?} at round {round}");
 
                 Ok(Next::Decided(round, value))
             }
 
-            driver::Output::ScheduleTimeout(timeout) => {
+            DriverOutput::ScheduleTimeout(timeout) => {
                 info!("Scheduling {timeout}");
                 state.timers.cast(TimerMsg::ScheduleTimeout(timeout))?;
 
                 Ok(Next::None)
             }
 
-            driver::Output::GetValue(height, round, timeout) => {
+            DriverOutput::GetValue(height, round, timeout) => {
                 info!("Requesting value at height {height} and round {round}");
                 self.get_value(myself, height, round, timeout).await?;
 
@@ -438,7 +438,7 @@ where
             Msg::StartHeight(height) => {
                 info!("Starting height {height}");
 
-                myself.cast(Msg::SendDriverInput(driver::Input::NewRound(
+                myself.cast(Msg::SendDriverInput(DriverInput::NewRound(
                     height,
                     Round::new(0),
                 )))?;
@@ -475,9 +475,9 @@ where
                 }
 
                 match value {
-                    Some(value) => myself.cast(Msg::SendDriverInput(
-                        driver::Input::ProposeValue(round, value),
-                    ))?,
+                    Some(value) => myself.cast(Msg::SendDriverInput(DriverInput::ProposeValue(
+                        round, value,
+                    )))?,
 
                     None => warn!(
                         %height, %round,

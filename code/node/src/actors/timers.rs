@@ -6,7 +6,7 @@ use ractor::time::send_after;
 use ractor::{Actor, ActorCell, ActorName, ActorProcessingErr, ActorRef, MessagingErr};
 use tokio::task::JoinHandle;
 
-use super::Config;
+use crate::timers::Config;
 
 pub struct TimeoutElapsed(Timeout);
 
