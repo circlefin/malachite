@@ -39,7 +39,7 @@ pub async fn decide_on_value() {
         handles.push(handle);
     }
 
-    tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
     // for height in 1..=3 {
     //     for handle in &mut handles {
@@ -51,8 +51,11 @@ pub async fn decide_on_value() {
     //         );
     //     }
     // }
-    //
-    // for handle in handles {
-    //     handle.abort();
-    // }
+
+    for handle in handles {
+        handle
+            .stop_and_wait(None, Some(Duration::from_secs(5)))
+            .await
+            .unwrap();
+    }
 }
