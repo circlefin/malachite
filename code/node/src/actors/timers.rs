@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use malachite_common::{Timeout, TimeoutStep};
 use ractor::time::send_after;
-use ractor::{Actor, ActorCell, ActorName, ActorProcessingErr, ActorRef, MessagingErr};
+use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, MessagingErr};
 use tokio::task::JoinHandle;
 
 use crate::timers::Config;
@@ -29,12 +29,7 @@ where
         config: Config,
         listener: ActorRef<M>,
     ) -> Result<(ActorRef<Msg>, JoinHandle<()>), ractor::SpawnErr> {
-        Actor::spawn(
-            Some(ActorName::from("Timers")),
-            Self { config, listener },
-            (),
-        )
-        .await
+        Actor::spawn(None, Self { config, listener }, ()).await
     }
 
     pub async fn spawn_linked(
@@ -42,13 +37,7 @@ where
         listener: ActorRef<M>,
         supervisor: ActorCell,
     ) -> Result<(ActorRef<Msg>, JoinHandle<()>), ractor::SpawnErr> {
-        Actor::spawn_linked(
-            Some(ActorName::from("Timers")),
-            Self { config, listener },
-            (),
-            supervisor,
-        )
-        .await
+        Actor::spawn_linked(None, Self { config, listener }, (), supervisor).await
     }
 
     pub fn timeout_duration(&self, step: &TimeoutStep) -> Duration {

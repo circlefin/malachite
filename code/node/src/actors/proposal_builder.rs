@@ -3,7 +3,8 @@ use std::sync::atomic::AtomicPtr;
 use std::time::Instant;
 
 use malachite_common::{Context, Round};
-use ractor::{Actor, RpcReplyPort};
+use ractor::{Actor, ActorRef, RpcReplyPort};
+use tokio::task::JoinHandle;
 
 use crate::value::ValueBuilder;
 
@@ -23,6 +24,26 @@ pub struct ProposedValue<Ctx: Context> {
 pub struct ProposalBuilder<Ctx, VB> {
     builder: VB,
     marker: PhantomData<AtomicPtr<Ctx>>,
+}
+
+impl<Ctx, VB> ProposalBuilder<Ctx, VB>
+where
+    Ctx: Context,
+    VB: ValueBuilder<Ctx>,
+{
+    pub async fn spawn(
+        builder: VB,
+    ) -> Result<(ActorRef<BuildProposal<Ctx>>, JoinHandle<()>), ractor::SpawnErr> {
+        Actor::spawn(
+            None,
+            Self {
+                builder,
+                marker: PhantomData,
+            },
+            (),
+        )
+        .await
+    }
 }
 
 #[ractor::async_trait]

@@ -72,6 +72,22 @@ where
     Ctx::Vote: Protobuf<Proto = proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
 {
+    pub fn new(
+        ctx: Ctx,
+        params: Params<Ctx>,
+        timers_config: timers::Config,
+        gossip: ActorRef<GossipMsg>,
+        proposal_builder: ActorRef<BuildProposal<Ctx>>,
+    ) -> Self {
+        Self {
+            ctx,
+            params,
+            timers_config,
+            gossip,
+            proposal_builder,
+        }
+    }
+
     pub async fn spawn(
         ctx: Ctx,
         params: Params<Ctx>,
@@ -79,14 +95,7 @@ where
         gossip: ActorRef<GossipMsg>,
         proposal_builder: ActorRef<BuildProposal<Ctx>>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
-        let node = Self {
-            ctx,
-            params,
-            timers_config,
-            gossip,
-            proposal_builder,
-        };
-
+        let node = Self::new(ctx, params, timers_config, gossip, proposal_builder);
         let (actor_ref, _) = Actor::spawn(Some(ActorName::from("Node")), node, Args).await?;
 
         Ok(actor_ref)
@@ -453,6 +462,11 @@ where
 
                 debug_assert_eq!(state.driver.height(), height);
                 debug_assert_eq!(state.driver.round(), Round::Nil);
+
+                myself.cast(Msg::SendDriverInput(DriverInput::NewRound(
+                    height,
+                    Round::new(0),
+                )))?;
             }
 
             Msg::ProposeValue(height, round, value) => {
