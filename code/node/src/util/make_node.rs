@@ -86,7 +86,7 @@ pub async fn make_gossip_node(
 
     let config = malachite_gossip::Config::default();
 
-    let addr = "/ip4/0.0.0.0/tcp/0".parse().unwrap();
+    let addr = "/ip4/0.0.0.0/udp/0/quic-v1".parse().unwrap();
     let handle = malachite_gossip::spawn(keypair, addr, config)
         .await
         .unwrap();

@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use libp2p::swarm::{self, NetworkBehaviour, SwarmEvent};
-use libp2p::{gossipsub, identify, mdns, noise, tcp, yamux, SwarmBuilder};
+use libp2p::{gossipsub, identify, mdns, SwarmBuilder};
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, Instrument};
 
@@ -130,11 +130,7 @@ pub async fn spawn(
 ) -> Result<Handle, Box<dyn Error>> {
     let mut swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
-        .with_tcp(
-            tcp::Config::default(),
-            noise::Config::new,
-            yamux::Config::default,
-        )?
+        .with_quic()
         .with_behaviour(Behaviour::new)?
         .with_swarm_config(|cfg| config.apply(cfg))
         .build();

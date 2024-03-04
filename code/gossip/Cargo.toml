@@ -7,7 +7,7 @@ license.workspace    = true
 publish.workspace    = true
 
 [dependencies]
-libp2p             = { version = "0.53.2", features = ["macros", "noise", "mdns",  "identify", "yamux", "tokio", "ed25519", "tcp", "tls", "gossipsub"] }
+libp2p             = { version = "0.53.2", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "quic", "tls", "gossipsub"] }
 libp2p-gossipsub   = { version = "0.46.1" }
 
 futures            = { workspace = true }
