@@ -9,7 +9,7 @@ use tokio::time::{sleep, Duration};
 pub async fn decide_on_value() {
     tracing_subscriber::fmt::init();
 
-    let voting_powers = [5, 20, 10, 30, 15, 1, 5, 25, 10, 15];
+    let voting_powers = [5, 20, 10];
 
     // Validators keys are deterministic and match the ones in the config file
     let vals_and_keys = make_validators(voting_powers);
