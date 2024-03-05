@@ -35,6 +35,7 @@ tracing            = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
 ractor             = { workspace = true, features = ["async-trait"] }
 ractor_actors      = { workspace = true, default-features = false, features = ["streams"] }
+rand              = { workspace = true }
 
 [dev-dependencies]
 malachite-test.workspace = true

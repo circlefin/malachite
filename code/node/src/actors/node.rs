@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 use std::time::Instant;
 
+use malachite_common::ValueId;
 use malachite_common::{
     Context, Height, NilOrVal, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
     Validator, ValidatorSet, Vote, VoteType,
@@ -16,7 +17,8 @@ use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::Threshold;
 use ractor::rpc::call_and_forward;
-use ractor::{Actor, ActorName, ActorProcessingErr, ActorRef};
+use ractor::{Actor, ActorProcessingErr, ActorRef};
+use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
 use crate::actors::proposal_builder::{BuildProposal, ProposedValue};
@@ -37,6 +39,7 @@ where
     timers_config: timers::Config,
     gossip: ActorRef<GossipMsg>,
     proposal_builder: ActorRef<BuildProposal<Ctx>>,
+    tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
 }
 
 pub enum Msg<Ctx: Context> {
@@ -63,8 +66,6 @@ where
     timers: ActorRef<TimerMsg>,
 }
 
-pub struct Args;
-
 impl<Ctx> Node<Ctx>
 where
     Ctx: Context,
@@ -78,6 +79,7 @@ where
         timers_config: timers::Config,
         gossip: ActorRef<GossipMsg>,
         proposal_builder: ActorRef<BuildProposal<Ctx>>,
+        tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
     ) -> Self {
         Self {
             ctx,
@@ -85,6 +87,7 @@ where
             timers_config,
             gossip,
             proposal_builder,
+            tx_decision,
         }
     }
 
@@ -94,10 +97,18 @@ where
         timers_config: timers::Config,
         gossip: ActorRef<GossipMsg>,
         proposal_builder: ActorRef<BuildProposal<Ctx>>,
+        tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
-        let node = Self::new(ctx, params, timers_config, gossip, proposal_builder);
-        let (actor_ref, _) = Actor::spawn(Some(ActorName::from("Node")), node, Args).await?;
+        let node = Self::new(
+            ctx,
+            params,
+            timers_config,
+            gossip,
+            proposal_builder,
+            tx_decision,
+        );
 
+        let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
         Ok(actor_ref)
     }
 
@@ -253,8 +264,22 @@ where
             None
         };
 
-        let outputs = state.driver.process(input).unwrap();
+        let outputs = state
+            .driver
+            .process(input)
+            .map_err(|e| format!("Driver failed to process input: {e}"))?;
 
+        self.process_driver_outputs(outputs, check_threshold, myself, state)
+            .await
+    }
+
+    async fn process_driver_outputs(
+        &self,
+        outputs: Vec<DriverOutput<Ctx>>,
+        check_threshold: Option<(VoteType, Round, NilOrVal<ValueId<Ctx>>)>,
+        myself: ActorRef<Msg<Ctx>>,
+        state: &mut State<Ctx>,
+    ) -> Result<(), ActorProcessingErr> {
         // When we receive a vote, check if we've gotten +2/3 votes for the value we just received a vote for,
         // if so then cancel the corresponding timeout.
         if let Some((vote_type, round, value)) = check_threshold {
@@ -263,11 +288,9 @@ where
                 NilOrVal::Val(value) => Threshold::Value(value),
             };
 
-            if state
-                .driver
-                .votes()
-                .is_threshold_met(&round, vote_type, threshold.clone())
-            {
+            let votes = state.driver.votes();
+
+            if votes.is_threshold_met(&round, vote_type, threshold.clone()) {
                 let timeout = match vote_type {
                     VoteType::Prevote => Timeout::prevote(round),
                     VoteType::Precommit => Timeout::precommit(round),
@@ -279,10 +302,11 @@ where
         }
 
         for output in outputs {
-            match self
+            let next = self
                 .handle_driver_output(output, myself.clone(), state)
-                .await?
-            {
+                .await?;
+
+            match next {
                 Next::None => (),
 
                 Next::Input(input) => myself.cast(Msg::SendDriverInput(input))?,
@@ -355,6 +379,11 @@ where
             DriverOutput::Decide(round, value) => {
                 info!("Decided on value {value:?} at round {round}");
 
+                let _ = self
+                    .tx_decision
+                    .send((state.driver.height(), round, value.clone()))
+                    .await;
+
                 Ok(Next::Decided(round, value))
             }
 
@@ -412,12 +441,12 @@ where
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
-    type Arguments = Args;
+    type Arguments = ();
 
     async fn pre_start(
         &self,
         myself: ActorRef<Msg<Ctx>>,
-        _args: Args,
+        _args: (),
     ) -> Result<State<Ctx>, ractor::ActorProcessingErr> {
         let (timers, _) =
             Timers::spawn_linked(self.timers_config, myself.clone(), myself.get_cell()).await?;
