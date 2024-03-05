@@ -7,11 +7,11 @@ use malachite_proto as proto;
 pub struct Height(u64);
 
 impl Height {
-    pub fn new(height: u64) -> Self {
+    pub const fn new(height: u64) -> Self {
         Self(height)
     }
 
-    pub fn as_u64(&self) -> u64 {
+    pub const fn as_u64(&self) -> u64 {
         self.0
     }
 }
