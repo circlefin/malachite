@@ -10,8 +10,8 @@ use malachite_node::util::make_node_actor;
 use malachite_test::utils::make_validators;
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet, Value};
 use ractor::Actor;
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand_chacha::ChaCha12Rng;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info};
@@ -110,7 +110,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
 
     for (i, (node, rx)) in nodes.into_iter().enumerate() {
         let handle = if let Some(test_node) = test.get(i) {
-            let rng = Box::new(StdRng::seed_from_u64(SEED));
+            let rng = Box::new(ChaCha12Rng::seed_from_u64(SEED));
             FaultyNode::spawn(node, test_node.faults.clone(), rng)
                 .await
                 .expect("Error: faulty node failed to start")
