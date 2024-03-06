@@ -6,7 +6,7 @@ use util::*;
 pub async fn discard_gossip_event_fail() {
     let nodes = Test::new(
         [
-            TestNode::faulty(10, vec![Fault::DiscardGossipEvent(0.5)]),
+            TestNode::faulty(10, vec![Fault::DiscardGossipEvent(1.0)]),
             TestNode::faulty(5, vec![]),
             TestNode::faulty(5, vec![]),
         ],
@@ -20,7 +20,7 @@ pub async fn discard_gossip_event_fail() {
 pub async fn discard_gossip_event_ok() {
     let nodes = Test::new(
         [
-            TestNode::faulty(5, vec![Fault::DiscardGossipEvent(0.5)]),
+            TestNode::faulty(5, vec![Fault::DiscardGossipEvent(1.0)]),
             TestNode::faulty(15, vec![]),
             TestNode::faulty(15, vec![]),
         ],
