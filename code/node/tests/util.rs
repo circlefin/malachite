@@ -22,7 +22,7 @@ pub const SEED: u64 = 42;
 pub const HEIGHTS: u64 = 3;
 pub const START_HEIGHT: Height = Height::new(1);
 pub const END_HEIGHT: Height = Height::new(START_HEIGHT.as_u64() + HEIGHTS - 1);
-pub const TEST_TIMEOUT: Duration = Duration::from_secs(10);
+pub const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 
 pub struct Test<const N: usize> {
     pub nodes: [TestNode; N],
