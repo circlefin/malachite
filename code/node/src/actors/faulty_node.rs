@@ -48,18 +48,32 @@ impl Faults {
 #[derive(Copy, Clone, Debug)]
 pub enum Fault {
     DiscardGossipEvent(Prob),
+
     DelayStartHeight(Prob, Duration),
     DelayMoveToNextHeight(Prob, Duration),
+
+    DiscardDriverInput(Prob),
+    DelayDriverInput(Prob, Duration),
+
+    DiscardDriverOutputs(Prob),
+    DelayDriverOutputs(Prob, Duration),
+
+    DiscardProposeValue(Prob),
     DelayProposeValue(Prob, Duration),
 }
 
 impl Fault {
     pub fn is_enabled(&self, rng: &mut dyn rand::RngCore) -> bool {
         match self {
-            Fault::DiscardGossipEvent(prob) => rng.gen_bool(*prob),
-            Fault::DelayStartHeight(prob, _) => rng.gen_bool(*prob),
-            Fault::DelayMoveToNextHeight(prob, _) => rng.gen_bool(*prob),
-            Fault::DelayProposeValue(prob, _) => rng.gen_bool(*prob),
+            Fault::DiscardGossipEvent(prob)
+            | Fault::DelayStartHeight(prob, _)
+            | Fault::DelayMoveToNextHeight(prob, _)
+            | Fault::DiscardDriverInput(prob)
+            | Fault::DelayDriverInput(prob, _)
+            | Fault::DiscardDriverOutputs(prob)
+            | Fault::DelayDriverOutputs(prob, _)
+            | Fault::DiscardProposeValue(prob)
+            | Fault::DelayProposeValue(prob, _) => rng.gen_bool(*prob),
         }
     }
 
@@ -71,7 +85,15 @@ impl Fault {
             Fault::DiscardGossipEvent(_) => matches!(msg, Msg::GossipEvent(_)),
             Fault::DelayStartHeight(_, _) => matches!(msg, Msg::StartHeight(_)),
             Fault::DelayMoveToNextHeight(_, _) => matches!(msg, Msg::MoveToNextHeight),
-            Fault::DelayProposeValue(_, _) => matches!(msg, Msg::ProposeValue(_, _, _)),
+            Fault::DiscardDriverInput(_) | Fault::DelayDriverInput(_, _) => {
+                matches!(msg, Msg::SendDriverInput(_))
+            }
+            Fault::DiscardDriverOutputs(_) | Fault::DelayDriverOutputs(_, _) => {
+                matches!(msg, Msg::ProcessDriverOutputs(_, _))
+            }
+            Fault::DiscardProposeValue(_) | Fault::DelayProposeValue(_, _) => {
+                matches!(msg, Msg::ProposeValue(_, _, _))
+            }
         }
     }
 }
@@ -161,14 +183,30 @@ where
                     // Do nothing
                     Ok(())
                 }
+
                 (Msg::StartHeight(_), Fault::DelayStartHeight(_, delay)) => {
                     tokio::time::sleep(*delay).await;
                     self.node.handle(myself, msg, &mut state.node_state).await
                 }
+
                 (Msg::MoveToNextHeight, Fault::DelayMoveToNextHeight(_, delay)) => {
                     tokio::time::sleep(*delay).await;
                     self.node.handle(myself, msg, &mut state.node_state).await
                 }
+
+                (Msg::SendDriverInput(_), Fault::DiscardDriverInput(_)) => Ok(()),
+                (Msg::SendDriverInput(_), Fault::DelayDriverInput(_, delay)) => {
+                    tokio::time::sleep(*delay).await;
+                    self.node.handle(myself, msg, &mut state.node_state).await
+                }
+
+                (Msg::ProcessDriverOutputs(_, _), Fault::DiscardDriverOutputs(_)) => Ok(()),
+                (Msg::ProcessDriverOutputs(_, _), Fault::DelayDriverOutputs(_, delay)) => {
+                    tokio::time::sleep(*delay).await;
+                    self.node.handle(myself, msg, &mut state.node_state).await
+                }
+
+                (Msg::ProposeValue(_, _, _), Fault::DiscardProposeValue(_)) => Ok(()),
                 (Msg::ProposeValue(_, _, _), Fault::DelayProposeValue(_, delay)) => {
                     tokio::time::sleep(*delay).await;
                     self.node.handle(myself, msg, &mut state.node_state).await

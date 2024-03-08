@@ -50,6 +50,10 @@ pub enum Msg<Ctx: Context> {
     ProposeValue(Ctx::Height, Round, Option<Ctx::Value>),
     SendDriverInput(DriverInput<Ctx>),
     Decided(Ctx::Height, Round, Ctx::Value),
+    ProcessDriverOutputs(
+        Vec<DriverOutput<Ctx>>,
+        Option<(VoteType, Round, NilOrVal<ValueId<Ctx>>)>,
+    ),
 }
 
 impl<Ctx: Context> From<TimeoutElapsed> for Msg<Ctx> {
@@ -269,8 +273,9 @@ where
             .process(input)
             .map_err(|e| format!("Driver failed to process input: {e}"))?;
 
-        self.process_driver_outputs(outputs, check_threshold, myself, state)
-            .await
+        myself.cast(Msg::ProcessDriverOutputs(outputs, check_threshold))?;
+
+        Ok(())
     }
 
     async fn process_driver_outputs(
@@ -544,6 +549,11 @@ where
 
             Msg::SendDriverInput(input) => {
                 self.send_driver_input(input, myself, state).await?;
+            }
+
+            Msg::ProcessDriverOutputs(outputs, check_threshold) => {
+                self.process_driver_outputs(outputs, check_threshold, myself, state)
+                    .await?;
             }
         }
 
