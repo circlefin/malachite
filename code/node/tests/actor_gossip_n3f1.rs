@@ -10,7 +10,7 @@ pub async fn discard_gossip_event_fail() {
             TestNode::faulty(5, vec![]),
             TestNode::faulty(5, vec![]),
         ],
-        3,
+        0,
     );
 
     run_test(nodes).await
@@ -24,7 +24,7 @@ pub async fn discard_gossip_event_ok() {
             TestNode::faulty(15, vec![]),
             TestNode::faulty(15, vec![]),
         ],
-        7,
+        6,
     );
 
     run_test(nodes).await
