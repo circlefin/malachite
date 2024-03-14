@@ -1,0 +1,28 @@
+# System
+
+We consider a composition of three components
+- L1. A smart contract on Ethereum
+- L2. distributed system of full nodes and validators running a BFT consensus engine
+- PR. nodes running prover software (potentially on the same machines as the full nodes/validators)
+
+Some aspects of the composition
+- The validity property of consensus (which determines whether a block should be decided on in L2), is defined by L1 and PR: A block _b_ is valid iff L1 can successfully verify _PR(b)_
+- L1 accepts two kinds of proofs, namely proving
+    1. normal block production (no error condition)
+    2. production of an initial block of a fork after reset
+- **normal block production:** _PR(b)_ is a proof that _b_ was produced properly, including
+    - the state transition encoded in _b_ is consistent with the transactions in the block (TODO: not sure. can be polished) and the complete history of transaction in the prefix of the blockchain (iteratively, that is, one can apply a proof of a block to the proof of the prefix)
+    - other meta data consistency is met (the next validator set is consistent with the received registrations, same chain id)
+    - if the block contains transactions, it must also contain a proof
+    - that enough of the required validators, as defined by the history of the blockchain, have signed the block
+- **fork block production:** similar to above but
+    - different meta data constraints as the new chain id comes from the epochs of L1 (TODO: does there need to be an acknowledgement to L1 about the reception of a new chainID?)
+    - the required signatures are defined by data from L1 and L2 (TODO: confirm) 
+        - the last block of L2 proved to L1
+        - stale registrations from L1; TODO: confirm: I guess they must appear as transactions in the block (so that they can be acked to L1), but in contrast to the normal flow, they must be applied instantaneously
+
+
+- The "required validators" is information that originates from L1, via so called registrations, and is enforced by L1
+    - L1 uses L1->L2 messaging (with acknowledgements) to make sure that L2 is aware of all registrations
+    - if acknowledgements time out (in terms of EVE epochs)
+    - intuitively, L1 observes whether all its registrations are mirrored on L2 (TODO: confirm, by checking the proof, L1 can check that a specific registration appeared in L2)
