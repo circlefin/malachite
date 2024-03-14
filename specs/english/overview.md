@@ -14,12 +14,14 @@ Some aspects of the composition
     - the state transition encoded in _b_ is consistent with the transactions in the block (TODO: not sure. can be polished) and the complete history of transaction in the prefix of the blockchain (iteratively, that is, one can apply a proof of a block to the proof of the prefix)
     - other meta data consistency is met (the next validator set is consistent with the received registrations, same chain id)
     - if the block contains transactions, it must also contain a proof
-    - that enough of the required validators, as defined by the history of the blockchain, have signed the block
+    - that enough of the required validators, as defined by the history of the blockchain and the epoched validator set changes (we can write this more precisely), have signed the block
 - **fork block production:** similar to above but
     - different meta data constraints as the new chain id comes from the epochs of L1 (TODO: does there need to be an acknowledgement to L1 about the reception of a new chainID?)
     - the required signatures are defined by data from L1 and L2 (TODO: confirm) 
         - the last block of L2 proved to L1
         - stale registrations from L1; TODO: confirm: I guess they must appear as transactions in the block (so that they can be acked to L1), but in contrast to the normal flow, they must be applied instantaneously
+        - COMMENT: if height _f_ is a fork block, then checking the "validity" based on block _f-1_ requires a different function -> implies complexity for light clients 
+    - TODO: Confirm: I guess this block is allowed to contain transactions even if it doesn't have a block. Follow-up: If there is a new fork, some of the proofs that have been done for the old fork are still usable (the proofs always point to the past). Are we thinking about storing and re-proposing them?
 
 
 - The "required validators" is information that originates from L1, via so called registrations, and is enforced by L1
