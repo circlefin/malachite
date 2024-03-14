@@ -27,4 +27,11 @@ Some aspects of the composition
 - The "required validators" is information that originates from L1, via so called registrations, and is enforced by L1
     - L1 uses L1->L2 messaging (with acknowledgements) to make sure that L2 is aware of all registrations
     - if acknowledgements time out (in terms of EVE epochs), a reset happens (validator nodes observe that and take action)
-    - intuitively, L1 observes whether all its registrations are mirrored on L2 (TODO: confirm, by checking the proof, L1 can check that a specific registration appeared in L2)
+        - a reset means, that L1 stops accepting "normal block production proofs" and requires specific "fork block production proofs"
+        - as these specific proofs **enforce** the first block to contain timed-out registrations and a new validator set (and corresponding signatures), **validity enforces a reconfiguration**.
+    - intuitively, L1 observes whether all its registrations are mirrored on L2 (TODO: confirm, by checking the proof, L1 can check that a specific registration appeared in L2). Then the existence of a proof of block production implies that the correct validator set as defined by the registration is used (and there are enough signatures)
+
+QUESTION: As there is epoched staking, I wonder why registrations are sent one-by-one. In principle they could be sent as a batch at the end of an EVE epoch. 
+    - This will lead to slightly different behavior on L2, as the Starknet epochs are not synchronized with EVE
+    - this would potentially simplify ordering of messages in L1->L2?
+    - not sure whether number of L1->L2 messages is a concern. I think in Interchain staking they are not happy with so many transfers (we need to confirm with the hub team)
