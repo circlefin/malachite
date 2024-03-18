@@ -6,7 +6,7 @@ We consider a composition of three components
 - PR. nodes running prover software (potentially on the same machines as the full nodes/validators)
 
 Some aspects of the composition
-- The validity property of consensus (which determines whether a block should be decided on in L2), is defined by L1 and PR: A block _b_ is valid iff L1 can successfully verify _PR(b)_
+- The validity property of consensus (which determines whether a specific block block can be decided on in L2), is defined by L1 and PR: A block _b_ is valid iff L1 can successfully verify _PR(b)_
 - L1 accepts (at least?) two kinds of proofs, namely proving
     1. normal block production (no error condition)
     2. production of an initial block of a fork after reset
@@ -15,16 +15,18 @@ Some aspects of the composition
     - other meta data consistency is met (the pending validator set changes are consistent with the received registrations; same chain id as previous block; lastblockID is hash of last block, etc.)
     - if the block contains transactions, it must also contain a proof
     - enough of the required validators, have signed the block. "Enough" as defined by the history of the blockchain and the epoched validator set changes (we can write this more precisely), 
+    - **Observation** assumption/design decision: full nodes (validators) can check this kind of validity by observing only L2 (this doesn't mean that this is the validity that L1 is going to use in case there is a fork)
 - **fork block production:** similar to above but
     - different meta data constraints as the new chain id comes from the epochs of L1 (TODO: does there need to be an acknowledgement to L1 about the reception of a new chainID?)
     - the required signatures are defined by data from L1 and L2 (TODO: confirm) 
         - the last block of L2 proved to L1
         - stale registrations from L1; TODO: confirm: I guess they must appear as transactions in the block (so that they can be acked to L1), but in contrast to the normal flow, they must be applied instantaneously
-        - COMMENT: if height _f_ is a fork block, then checking the "validity" based on block _f-1_ requires a different function -> implies complexity for light clients that read L2
+    - **Observation** assumption/design decision: full nodes (validators) need to observe L1 (stale registrations, last proofed block) and L2 for this.
+    - COMMENT: if height _f_ is a fork block, then checking the "validity" based on block _f-1_ requires a different function -> implies complexity for light clients that read L2
     - TODO: 
-        - Confirm: I guess this block is allowed to contain transactions even if it doesn't have a proof. 
+        - Confirm: I guess this block is allowed to contain transactions even if it doesn't have a proof. (cf. discussion around proof braiding)
         - Follow-up: If there is a new fork, some of the proofs that have been done for the old fork are still usable (the proofs always point to the past). Are we thinking about storing and re-proposing them?
-        - How precisely does L1 figure out that there are stale registrations, that is, it seems that existence of transactions need to be checked agains a proof.
+        - How precisely does L1 figure out that there are stale registrations, that is, it seems that existence of transactions need to be checked against a proof.
 
 
 - The "required validators" is information that originates from L1, via so called registrations, and is enforced by L1
