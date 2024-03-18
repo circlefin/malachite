@@ -6,7 +6,7 @@ We consider a composition of three components
 - PR. nodes running prover software (potentially on the same machines as the full nodes/validators)
 
 Some aspects of the composition
-- The validity property of consensus (which determines whether a specific block block can be decided on in L2), is defined by L1 and PR: A block _b_ is valid iff L1 can successfully verify _PR(b)_
+- The validity property of consensus (which determines whether a specific block can be decided on in L2), is defined by L1 and PR: **A block _b_ produced by L2 is valid iff L1 can successfully verify _PR(b)_**
 - L1 accepts (at least?) two kinds of proofs, namely proving
     1. normal block production (no error condition)
     2. production of an initial block of a fork after reset
@@ -26,7 +26,7 @@ Some aspects of the composition
     - TODO: 
         - Confirm: I guess this block is allowed to contain transactions even if it doesn't have a proof. (cf. discussion around proof braiding)
         - Follow-up: If there is a new fork, some of the proofs that have been done for the old fork are still usable (the proofs always point to the past). Are we thinking about storing and re-proposing them?
-        - How precisely does L1 figure out that there are stale registrations, that is, it seems that existence of transactions need to be checked against a proof.
+        - How precisely does L1 figure out that there are stale registrations, that is, it seems that existence/absence of transactions need to be checked against a proof. (Is there also a Merkle root stored on L1 for which we can check inclusion?)
 
 
 - The "required validators" is information that originates from L1, via so called registrations, and is enforced by L1
