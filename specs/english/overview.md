@@ -7,7 +7,7 @@ We consider a composition of three components
 
 Some aspects of the composition
 - The validity property of consensus (which determines whether a block should be decided on in L2), is defined by L1 and PR: A block _b_ is valid iff L1 can successfully verify _PR(b)_
-- L1 accepts two kinds of proofs, namely proving
+- L1 accepts (at least?) two kinds of proofs, namely proving
     1. normal block production (no error condition)
     2. production of an initial block of a fork after reset
 - **normal block production:** _PR(b)_ is a proof that _b_ was produced properly, including
@@ -21,7 +21,10 @@ Some aspects of the composition
         - the last block of L2 proved to L1
         - stale registrations from L1; TODO: confirm: I guess they must appear as transactions in the block (so that they can be acked to L1), but in contrast to the normal flow, they must be applied instantaneously
         - COMMENT: if height _f_ is a fork block, then checking the "validity" based on block _f-1_ requires a different function -> implies complexity for light clients that read L2
-    - TODO: Confirm: I guess this block is allowed to contain transactions even if it doesn't have a block. Follow-up: If there is a new fork, some of the proofs that have been done for the old fork are still usable (the proofs always point to the past). Are we thinking about storing and re-proposing them?
+    - TODO: 
+        - Confirm: I guess this block is allowed to contain transactions even if it doesn't have a proof. 
+        - Follow-up: If there is a new fork, some of the proofs that have been done for the old fork are still usable (the proofs always point to the past). Are we thinking about storing and re-proposing them?
+        - How precisely does L1 figure out that there are stale registrations, that is, it seems that existence of transactions need to be checked agains a proof.
 
 
 - The "required validators" is information that originates from L1, via so called registrations, and is enforced by L1
@@ -34,4 +37,4 @@ Some aspects of the composition
 QUESTION: As there is epoched staking, I wonder why registrations are sent one-by-one. In principle they could be sent as a batch at the end of an EVE epoch. 
     - This will lead to slightly different behavior on L2, as the Starknet epochs are not synchronized with EVE
     - this would potentially simplify ordering of messages in L1->L2?
-    - not sure whether number of L1->L2 messages is a concern. I think in Interchain staking they are not happy with so many transfers (we need to confirm with the hub team)
+    - not sure whether number of L1->L2 messages is a concern. I think in Interchain staking they are not happy with so many transfers (we need to confirm with the hub team) -- but I think Starknet will do batches?
