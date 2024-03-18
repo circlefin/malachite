@@ -37,6 +37,8 @@ Some aspects of the composition
     - intuitively, L1 observes whether all its registrations are mirrored on L2 (TODO: confirm, by checking the proof, L1 can check that a specific registration appeared in L2). Then the existence of a proof of block production implies that the correct validator set as defined by the registration is used (and there are enough signatures)
 
 QUESTION: As there is epoched staking, I wonder why registrations are sent one-by-one. In principle they could be sent as a batch at the end of an EVE epoch. 
-    - This will lead to slightly different behavior on L2, as the Starknet epochs are not synchronized with EVE
-    - this would potentially simplify ordering of messages in L1->L2?
-    - not sure whether number of L1->L2 messages is a concern. I think in Interchain staking they are not happy with so many transfers (we need to confirm with the hub team) -- but I think Starknet will do batches?
+
+- This will lead to slightly different behavior on L2, as the Starknet epochs are not synchronized with EVE
+- this would potentially simplify ordering of messages in L1->L2?
+- not sure whether number of L1->L2 messages is a concern. I think in Interchain staking they are not happy with so many transfers (we need to confirm with the hub team) -- but I think Starknet will do batches?
+- as mentioned on Slack L1->L2 messaging from the past
