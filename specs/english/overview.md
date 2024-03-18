@@ -16,13 +16,14 @@ Some aspects of the composition
     - if the block contains transactions, it must also contain a proof
     - enough of the required validators, have signed the block. "Enough" as defined by the history of the blockchain and the epoched validator set changes (we can write this more precisely), 
     - **Observation** assumption/design decision: full nodes (validators) can check this kind of validity by observing only L2 (this doesn't mean that this is the validity that L1 is going to use in case there is a fork)
+    - Question: Does L1 need any other data except the proof to verify the proof?
 - **fork block production:** similar to above but
-    - different meta data constraints as the new chain id comes from the epochs of L1 (TODO: does there need to be an acknowledgement to L1 about the reception of a new chainID?)
+    - different meta data constraints, e.g., as the new chain id comes from the epochs of L1 (TODO: does there need to be an acknowledgement to L1 about the reception of a new chainID?)
     - the required signatures are defined by data from L1 and L2 (TODO: confirm) 
         - the last block of L2 proved to L1
-        - stale registrations from L1; TODO: confirm: I guess they must appear as transactions in the block (so that they can be acked to L1), but in contrast to the normal flow, they must be applied instantaneously
+        - stale registrations from L1; TODO: confirm: I guess they must appear as transactions in the block (so that they can be acknowledged to L1), but in contrast to the normal flow, they must be applied instantaneously (to the metadata, that is, the validator set)
     - **Observation** assumption/design decision: full nodes (validators) need to observe L1 (stale registrations, last proofed block) and L2 for this.
-    - COMMENT: if height _f_ is a fork block, then checking the "validity" based on block _f-1_ requires a different function -> implies complexity for light clients that read L2
+    - COMMENT: if height _f_ is a fork block, then checking the "validity" based on block _f-1_ requires a different function -> implies complexity for light clients that read L2; CONFIRM: are L2 light clients a concern? (i.e., validate state from L2)
     - TODO: 
         - Confirm: I guess this block is allowed to contain transactions even if it doesn't have a proof. (cf. discussion around proof braiding)
         - Follow-up: If there is a new fork, some of the proofs that have been done for the old fork are still usable (the proofs always point to the past). Are we thinking about storing and re-proposing them?
@@ -31,7 +32,7 @@ Some aspects of the composition
 
 - The "required validators" is information that originates from L1, via so called registrations, and is enforced by L1
     - L1 uses L1->L2 messaging (with acknowledgements) to make sure that L2 is aware of all registrations
-    - if acknowledgements time out (in terms of EVE epochs), a reset happens (validator nodes observe that and take action)
+    - if acknowledgements time out (in terms of EVE epochs), a reset happens (L2 validator nodes observe that and take action)
         - a reset means, that L1 stops accepting "normal block production proofs" and requires specific "fork block production proofs"
         - as these specific proofs **enforce** the first block to contain timed-out registrations and a new validator set (and corresponding signatures), **validity enforces a reconfiguration**.
     - intuitively, L1 observes whether all its registrations are mirrored on L2 (TODO: confirm, by checking the proof, L1 can check that a specific registration appeared in L2). Then the existence of a proof of block production implies that the correct validator set as defined by the registration is used (and there are enough signatures)
