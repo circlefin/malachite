@@ -43,3 +43,12 @@ QUESTION: As there is epoched staking, I wonder why registrations are sent one-b
 - this would potentially simplify ordering of messages in L1->L2?
 - not sure whether number of L1->L2 messages is a concern. I think in Interchain staking they are not happy with so many transfers (we need to confirm with the hub team) -- but I think Starknet will do batches?
 - as mentioned on Slack L1->L2 messaging from the past
+
+
+# Notes from meeting
+
+- proofs are published on L1 along with **result**. For instance, from the result L1 can observe whether a registration made it to L2
+- proofs are published by a specific node who is elected.
+- L1->L2 messaging is done by an oracle flow (not the IBC way of cryptographic proofs): the proposer sees a message to be sent on L1. When it can be sure that the other validators also have seen the message it puts it into the proposal, and the validators vote on it. This means, for validating a proposal, a validator needs to closely follow what happens on L1.
+- It seems that a lot of the L2 logic should end up in a smart contract. E.g., even validator sets should be handled and stored only in application data, and consensus needs to query the application for that. We will do a follow-up discussion on that.
+- L2 Light clients are a concern. However, one needs to accept that they have reduced security compared to full nodes. In particular, we need to figure out whether and how a light client should figure out that there is a reset, and what to do in this case.
