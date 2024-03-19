@@ -10,7 +10,5 @@ publish.workspace    = true
 futures            = { workspace = true }
 libp2p             = { workspace = true }
 libp2p-gossipsub   = { workspace = true }
-ractor             = { workspace = true, features = ["async-trait"] }
-ractor_actors      = { workspace = true, features = ["streams"] }
 tokio              = { workspace = true }
 tracing            = { workspace = true }
