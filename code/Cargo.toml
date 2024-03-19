@@ -2,7 +2,8 @@
 resolver = "2"
 
 members = [
-  "actors", "cli",
+  "actors", 
+  "cli",
   "common",
   "driver", 
   "gossip",
@@ -22,6 +23,8 @@ license      = "Apache-2.0"
 publish      = false
 
 [workspace.dependencies]
+malachite-actors = { version = "0.1.0", path = "actors" }
+malachite-cli    = { version = "0.1.0", path = "cli" }
 malachite-common = { version = "0.1.0", path = "common" }
 malachite-driver = { version = "0.1.0", path = "driver" }
 malachite-gossip = { version = "0.1.0", path = "gossip" }
