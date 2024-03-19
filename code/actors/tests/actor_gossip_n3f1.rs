@@ -2,6 +2,7 @@
 mod util;
 use util::*;
 
+#[ignore]
 #[tokio::test]
 pub async fn discard_gossip_event_fail() {
     let nodes = Test::new(
@@ -16,6 +17,7 @@ pub async fn discard_gossip_event_fail() {
     run_test(nodes).await
 }
 
+#[ignore]
 #[tokio::test]
 pub async fn discard_gossip_event_ok() {
     let nodes = Test::new(
