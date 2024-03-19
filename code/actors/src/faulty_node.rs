@@ -6,16 +6,16 @@ use std::time::Duration;
 use ractor::Actor;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
-
-use malachite_common::Context;
-use malachite_proto::{self as proto, Protobuf};
 use rand::seq::IteratorRandom;
 use rand::Rng;
 use tracing::warn;
 
-use crate::actors::node::Msg;
-use crate::actors::node::Node;
-use crate::actors::node::State;
+use malachite_common::Context;
+use malachite_proto::{self as proto, Protobuf};
+
+use crate::node::Msg;
+use crate::node::Node;
+use crate::node::State;
 
 pub type Prob = f64;
 

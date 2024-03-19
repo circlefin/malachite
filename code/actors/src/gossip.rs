@@ -8,9 +8,9 @@ use ractor::ActorProcessingErr;
 use ractor::ActorRef;
 use tokio::task::JoinHandle;
 
-use crate::handle::CtrlHandle;
-use crate::Config;
-use crate::Event;
+use malachite_gossip::handle::CtrlHandle;
+use malachite_gossip::Config;
+use malachite_gossip::Event;
 
 pub struct Gossip;
 
@@ -87,7 +87,7 @@ impl Actor for Gossip {
         myself: ActorRef<Msg>,
         args: Args,
     ) -> Result<State, ActorProcessingErr> {
-        let handle = crate::spawn(args.keypair, args.addr, args.config).await?;
+        let handle = malachite_gossip::spawn(args.keypair, args.addr, args.config).await?;
         let (mut recv_handle, ctrl_handle) = handle.split();
 
         let recv_task = tokio::spawn({

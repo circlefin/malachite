@@ -9,9 +9,6 @@ use malachite_proto::{SignedProposal, SignedVote};
 pub enum Msg {
     Vote(SignedVote),
     Proposal(SignedProposal),
-
-    #[cfg(test)]
-    Dummy(u64),
 }
 
 impl Msg {
@@ -22,8 +19,6 @@ impl Msg {
     pub fn to_network_bytes(&self) -> Result<Vec<u8>, ProtoError> {
         Protobuf::to_bytes(self)
     }
-
-    const DUMMY_TYPE_URL: &'static str = "malachite.Dummy";
 }
 
 impl Protobuf for Msg {
@@ -36,19 +31,6 @@ impl Protobuf for Msg {
         } else if proto.type_url == SignedProposal::type_url() {
             let proposal = SignedProposal::decode(proto.value.as_slice())?;
             Ok(Msg::Proposal(proposal))
-        } else if cfg!(test) && proto.type_url == Msg::DUMMY_TYPE_URL {
-            #[cfg(test)]
-            {
-                let value = u64::from_be_bytes(proto.value.try_into().unwrap());
-                Ok(Msg::Dummy(value))
-            }
-
-            #[cfg(not(test))]
-            {
-                Err(ProtoError::UnknownMessageType {
-                    type_url: Msg::DUMMY_TYPE_URL.to_string(),
-                })
-            }
         } else {
             Err(ProtoError::UnknownMessageType {
                 type_url: proto.type_url,
@@ -65,12 +47,6 @@ impl Protobuf for Msg {
             Msg::Proposal(proposal) => Any {
                 type_url: SignedProposal::type_url(),
                 value: proposal.encode_to_vec(),
-            },
-
-            #[cfg(test)]
-            Msg::Dummy(value) => Any {
-                type_url: Msg::DUMMY_TYPE_URL.to_string(),
-                value: value.to_be_bytes().to_vec(),
             },
         })
     }

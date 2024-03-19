@@ -3,7 +3,7 @@ use std::sync::atomic::AtomicPtr;
 
 use ractor::{Actor, ActorCell, ActorRef, Message};
 
-struct Forward<A, B, F> {
+pub struct Forward<A, B, F> {
     to: ActorRef<B>,
     map: F,
     _marker: PhantomData<AtomicPtr<A>>,

@@ -6,7 +6,7 @@ use ractor::time::send_after;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, MessagingErr};
 use tokio::task::JoinHandle;
 
-use crate::timers::Config;
+use malachite_node::timers::Config;
 
 pub struct TimeoutElapsed(Timeout);
 

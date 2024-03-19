@@ -3,12 +3,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use malachite_common::{Round, VotingPower};
-use malachite_node::actors::faulty_node::FaultyNode;
-use malachite_node::actors::node::Msg;
-use malachite_node::util::make_node_actor;
-use malachite_test::utils::make_validators;
-use malachite_test::{Height, PrivateKey, Validator, ValidatorSet, Value};
 use ractor::Actor;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
@@ -16,7 +10,15 @@ use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info};
 
-pub use malachite_node::actors::faulty_node::Fault;
+use malachite_common::{Round, VotingPower};
+use malachite_test::utils::make_validators;
+use malachite_test::{Height, PrivateKey, Validator, ValidatorSet, Value};
+
+use malachite_actors::faulty_node::FaultyNode;
+use malachite_actors::node::Msg;
+use malachite_actors::util::make_node_actor;
+
+pub use malachite_actors::faulty_node::Fault;
 
 pub const SEED: u64 = 42;
 pub const HEIGHTS: u64 = 3;

@@ -1,18 +1,19 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use malachite_common::Round;
-use malachite_gossip::actor::Gossip;
-use malachite_test::utils::RotateProposer;
-use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 use tokio::sync::mpsc;
 
-use crate::actors::node::Node;
-use crate::actors::proposal_builder::ProposalBuilder;
-use crate::network::gossip;
-use crate::node::Params;
-use crate::timers;
-use crate::value::test::TestValueBuilder;
+use malachite_common::Round;
+use malachite_node::network::gossip;
+use malachite_node::node::Params;
+use malachite_node::timers;
+use malachite_node::value::test::TestValueBuilder;
+use malachite_test::utils::RotateProposer;
+use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
+
+use crate::gossip::Gossip;
+use crate::node::Node;
+use crate::proposal_builder::ProposalBuilder;
 
 pub async fn make_node_actor(
     validator_set: ValidatorSet,

@@ -2,11 +2,11 @@ use std::marker::PhantomData;
 use std::sync::atomic::AtomicPtr;
 use std::time::Instant;
 
-use malachite_common::{Context, Round};
 use ractor::{Actor, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 
-use crate::value::ValueBuilder;
+use malachite_common::{Context, Round};
+use malachite_node::value::ValueBuilder;
 
 pub struct BuildProposal<Ctx: Context> {
     pub height: Ctx::Height,

@@ -2,33 +2,33 @@ use std::fmt::Display;
 use std::sync::Arc;
 use std::time::Instant;
 
-use malachite_common::ValueId;
-use malachite_common::{
-    Context, Height, NilOrVal, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
-    Validator, ValidatorSet, Vote, VoteType,
-};
-use malachite_driver::Driver;
-use malachite_driver::Input as DriverInput;
-use malachite_driver::Output as DriverOutput;
-use malachite_driver::Validity;
-use malachite_gossip::actor::Msg as GossipMsg;
-use malachite_gossip::Event as GossipEvent;
-use malachite_proto as proto;
-use malachite_proto::Protobuf;
-use malachite_vote::Threshold;
 use ractor::rpc::call_and_forward;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
-use crate::actors::proposal_builder::{BuildProposal, ProposedValue};
-use crate::actors::timers::{Msg as TimerMsg, TimeoutElapsed, Timers};
-use crate::actors::util::forward;
-use crate::network::Msg as NetworkMsg;
-use crate::network::PeerId;
-use crate::node::Next;
-use crate::node::Params;
-use crate::timers;
+use malachite_common::{
+    Context, Height, NilOrVal, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
+    Validator, ValidatorSet, ValueId, Vote, VoteType,
+};
+use malachite_driver::Driver;
+use malachite_driver::Input as DriverInput;
+use malachite_driver::Output as DriverOutput;
+use malachite_driver::Validity;
+use malachite_gossip::Event as GossipEvent;
+use malachite_node::network::Msg as NetworkMsg;
+use malachite_node::network::PeerId;
+use malachite_node::node::Next;
+use malachite_node::node::Params;
+use malachite_node::timers;
+use malachite_proto as proto;
+use malachite_proto::Protobuf;
+use malachite_vote::Threshold;
+
+use crate::gossip::Msg as GossipMsg;
+use crate::proposal_builder::{BuildProposal, ProposedValue};
+use crate::timers::{Msg as TimerMsg, TimeoutElapsed, Timers};
+use crate::util::forward;
 
 pub struct Node<Ctx>
 where
@@ -196,9 +196,6 @@ where
                     Validity::from_valid(valid),
                 )))?;
             }
-
-            #[cfg(test)]
-            NetworkMsg::Dummy(_) => unreachable!(),
         }
 
         Ok(())

@@ -13,7 +13,6 @@ use tracing::{debug, error, error_span, Instrument};
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
-pub mod actor;
 pub mod behaviour;
 pub mod handle;
 

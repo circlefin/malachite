@@ -401,8 +401,8 @@ mod tests {
                     sleep(Duration::from_millis(50)).await;
                 }
 
-                handle1.broadcast(Msg::Dummy(1)).await;
-                handle1.broadcast(Msg::Dummy(2)).await;
+                handle1.broadcast(dummy(1)).await;
+                handle1.broadcast(dummy(2)).await;
             })
         };
 
@@ -421,10 +421,10 @@ mod tests {
                 done.fetch_add(1, Ordering::SeqCst);
 
                 let msg1 = timeout(deadline, handle2.recv()).await.unwrap();
-                assert_eq!(msg1, Some((peer1_id.clone(), Msg::Dummy(1))));
+                assert_eq!(msg1, Some((peer1_id.clone(), dummy(1))));
 
                 let msg2 = timeout(deadline, handle2.recv()).await.unwrap();
-                assert_eq!(msg2, Some((peer1_id.clone(), Msg::Dummy(2))));
+                assert_eq!(msg2, Some((peer1_id.clone(), dummy(2))));
             })
         };
 
@@ -441,10 +441,10 @@ mod tests {
                 done.fetch_add(1, Ordering::SeqCst);
 
                 let msg1 = timeout(deadline, handle3.recv()).await.unwrap();
-                assert_eq!(msg1, Some((peer1_id.clone(), Msg::Dummy(1))));
+                assert_eq!(msg1, Some((peer1_id.clone(), dummy(1))));
 
                 let msg2 = timeout(deadline, handle3.recv()).await.unwrap();
-                assert_eq!(msg2, Some((peer1_id.clone(), Msg::Dummy(2))));
+                assert_eq!(msg2, Some((peer1_id.clone(), dummy(2))));
             })
         };
 
@@ -452,5 +452,12 @@ mod tests {
         res1.unwrap();
         res2.unwrap();
         res3.unwrap();
+    }
+
+    fn dummy(value: u8) -> Msg {
+        Msg::Vote(malachite_proto::SignedVote {
+            vote: None,
+            signature: vec![value],
+        })
     }
 }

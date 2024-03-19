@@ -325,9 +325,6 @@ where
                     ))
                     .unwrap(); // FIXME
             }
-
-            #[cfg(test)]
-            NetworkMsg::Dummy(_) => unreachable!(),
         }
     }
 
