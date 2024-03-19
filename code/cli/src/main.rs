@@ -1,7 +1,7 @@
 use malachite_node::util::make_gossip_node;
 use malachite_test::utils::make_validators;
-
 use malachite_test::ValidatorSet;
+
 use tracing::info;
 
 const VOTING_POWERS: [u64; 3] = [5, 20, 10];
