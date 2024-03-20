@@ -41,6 +41,7 @@ where
     Self: Send + Sync + 'static,
 {
     async fn recv(&mut self) -> Option<(PeerId, Msg)>;
+
     async fn broadcast(&mut self, msg: Msg);
 
     async fn broadcast_vote(&mut self, vote: SignedVote) {
