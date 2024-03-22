@@ -2,10 +2,7 @@ module reset {
 
 type Address = str
 
-type Validator = {
-    address : Address,
-    power: int
-}
+
 
 type Registration = {
     epoch: int,
@@ -37,8 +34,8 @@ type L2Block = {
     // transactions    
     registrations: Set[Registration],
     // state    
-    valset: Set[Validator],
-    nextValset: Set[Validator],
+    valset: Address -> int,
+    nextValset: Address -> int,
     pendingValsetUpdates: Set[Registration],
     // history of received registrations needed for proof
     receivedRegistrations: Set[Registration],
@@ -66,8 +63,8 @@ action init = all {
                 }),
     L2' = List({height: 0,
                 registrations: Set(),
-                valset: Set({address: "Donald", power: 1}),
-                nextValset: Set({address: "Donald", power: 1}), // Question: initialized?
+                valset: Map(),
+                nextValset: Map(), // Question: initialized?
                 pendingValsetUpdates: Set(),
                 receivedRegistrations: Set(),
                 }),
@@ -120,9 +117,14 @@ action addL1Block = all {
 pure def updatePendingUpdates (pending: Set[Registration], regs: Set[Registration]) : Set[Registration] =
     pending.union(regs)
 
-pure def nextValSet (vals: Set[Validator], regs: Set[Registration]) : Set[Validator] =
-    // TODO implement update
-    vals
+pure def addOneReg (vals: Address -> int, reg: Registration) : Address -> int =
+    if (vals.keys().contains(reg.address))
+        vals.set(reg.address, vals.get(reg.address) + reg.update)
+    else
+        vals.put(reg.address, reg.update)
+
+pure def nextValSet (vals: Address -> int, regs: Set[Registration]) : Address -> int =
+    regs.fold(vals, (v, r) => addOneReg(v,r))
 
 pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block = 
     val prev = chain[chain.length() - 1]
