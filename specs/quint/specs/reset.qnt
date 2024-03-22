@@ -1,8 +1,12 @@
 module reset {
 
+val L2EpochSize = 5
+val L1EpochSize = 3
+val maxReg = 3
+val minReg = -3
+val ValAddresses = Set("Huey", "Dewey", "Louie")
+
 type Address = str
-
-
 
 type Registration = {
     epoch: int,
@@ -31,6 +35,7 @@ type L1Block = {
 type L2Block = {
     // meta data
     height: int,
+    chainID: int,
     // transactions    
     registrations: Set[Registration],
     // state    
@@ -42,16 +47,17 @@ type L2Block = {
 }
 
 var L1: List[L1Block]
-
-
 var L2: List[L2Block]
 
-val L2EpochSize = 5
-val L1EpochSize = 3
-val maxReg = 3
-val minReg = -3
+pure def existsStale (b: L1Block) : bool =
+    b.pendingRegistrations.exists(r => r.epoch + 1 < b.height / L1EpochSize)
+    
+def staleInv = not(L1[L1.length() - 1].existsStale())
 
-val ValAddresses = Set("Huey", "Dewey", "Louie")
+def noReset = L2[L2.length() - 1].chainID == 0
+
+pure def staleRegs (b: L1Block) : Set[Registration] =
+    b.pendingRegistrations.filter(r => r.epoch + 1 < b.height / L1EpochSize)
 
 action init = all {
     L1' = List({height : 0,
@@ -62,6 +68,7 @@ action init = all {
                 cntRegistrations: 0,
                 }),
     L2' = List({height: 0,
+                chainID: 0,
                 registrations: Set(),
                 valset: Map(),
                 nextValset: Map(), // Question: initialized?
@@ -95,7 +102,7 @@ pure def newL1Block (chain: List[L1Block], regs: Set[Registration], proof: Proof
         proof: newProof,
         pendingRegistrations: updatePending(regs, prev.pendingRegistrations, confirmedRegs(proof)),
         provenHeight: ph,
-        cntRegistrations: prev.cntRegistrations + 1 // TODO: properly handly multiple regs per block
+        cntRegistrations: prev.cntRegistrations + 1 // TODO: properly handle multiple regs per block
     } 
 
 action addL1Block = all {
@@ -130,6 +137,7 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
     val prev = chain[chain.length() - 1]
     if (chain.length() % L2EpochSize == 0) // new epochj
         {   height: chain.length(), 
+            chainID: prev.chainID,
             registrations: regs, 
             valset: prev.nextValset, 
             nextValset: nextValSet( prev.nextValset, 
@@ -139,6 +147,7 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
         }   
     else
         {   height: chain.length(), 
+            chainID: prev.chainID,
             registrations: regs, 
             valset: prev.valset, 
             nextValset: prev.nextValset, 
@@ -152,8 +161,38 @@ action addL2Block = all {
     L1' = L1,
 }
 
-// action pick registrations to be put into block
-// fuction produceL2Block that does valset and registration logic
-// action addblock calling function
+pure def forkBlock (chain : List[L2Block], lastL1: L1Block) : L2Block =
+    val prev = chain[chain.length() - 1]
+    val regs = staleRegs(lastL1)
+    val newValSet = nextValSet(prev.nextValset, updatePendingUpdates(prev.pendingValsetUpdates, regs))
+    {   height: lastL1.provenHeight + 1, 
+        chainID: lastL1.height,
+        registrations: regs, 
+        valset: newValSet,  
+        nextValset: newValSet, 
+        pendingValsetUpdates: Set(),
+        receivedRegistrations: prev.receivedRegistrations.union(regs),
+    }
+
+
+pure def resetL2 (chain : List[L2Block], lastL1: L1Block) : List[L2Block] = 
+    chain.slice(0, lastL1.provenHeight).append(forkBlock(chain, lastL1))
+
+action reset = all {
+    val lastL1 = L1[L1.length() - 1]
+    if (existsStale(lastL1))
+        L2' = L2.resetL2(lastL1)
+    else
+        L2' = L2,
+    L1' = L1
+}
+
+action step = any {
+    addL1Block,
+    addL2Block,
+    reset
+}
+
+
 
 }
