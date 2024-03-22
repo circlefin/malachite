@@ -16,6 +16,7 @@ edition      = "2021"
 repository   = "https://github.com/informalsystems/malachite"
 license      = "Apache-2.0"
 publish      = false
+rust-version = "1.77"
 
 [workspace.dependencies]
 derive-where      = "1.2.7"
