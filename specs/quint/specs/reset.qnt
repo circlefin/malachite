@@ -21,7 +21,6 @@ type Proof =
     | L2Proof((int,Set[Registration]))
     | Nil
 
-
 type L1Block = {
     // meta data
     height : int,
@@ -50,6 +49,7 @@ type L2Block = {
 
 var L1: List[L1Block]
 var L2: List[L2Block]
+var envRegs: Set[Registration]
 
 pure def existsStale (b: L1Block) : bool =
     b.pendingRegistrations.exists(r => r.epoch + 1 < b.height / L1EpochSize)
@@ -77,6 +77,7 @@ action init = all {
                 pendingValsetUpdates: Set(),
                 receivedRegistrations: Set(),
                 }),
+    envRegs' = Set(),
 }
 
 pure def updatePending (new: Set[Registration], pending: Set[Registration], confirmed: Set[Registration]) : Set[Registration] =
@@ -104,23 +105,30 @@ pure def newL1Block (chain: List[L1Block], regs: Set[Registration], proof: Proof
         proof: newProof,
         pendingRegistrations: updatePending(regs, prev.pendingRegistrations, confirmedRegs(proof)),
         provenHeight: ph,
-        cntRegistrations: prev.cntRegistrations + 1 // TODO: properly handle multiple regs per block
+        cntRegistrations: prev.cntRegistrations + regs.size() 
     } 
 
-action addL1Block = all {
-    nondet newWal = ValAddresses.oneOf()
+action addRegistration = all {
+    nondet newVal = ValAddresses.oneOf()
     nondet power = minReg.to(maxReg).oneOf()
+    val newReg = {
+        epoch: L1.length() / L1EpochSize,
+        index: L1[L1.length() - 1].cntRegistrations + envRegs.size()  + 1,
+        address: newVal,
+        update: power
+    }
+    envRegs' = envRegs.union(Set(newReg)),
+    L1' = L1,
+    L2' = L2,
+}
+
+action addL1Block = all {
     nondet proofHeight = (-1).to(L2.length() - 1).oneOf()
     val proof = if (proofHeight == -1) Nil
                 else L2Proof((proofHeight, L2[proofHeight].receivedRegistrations)) 
-    val newReg = {
-        epoch: L1.length() / L1EpochSize,
-        index: L1[L1.length() - 1].cntRegistrations + 1,
-        address: newWal,
-        update: power
-    }
-    L1' = L1.append(newL1Block(L1, Set(newReg), proof)),
+    L1' = L1.append(newL1Block(L1, envRegs, proof)),
     L2' = L2,
+    envRegs' = Set(),
 }
 
 pure def updatePendingUpdates (pending: Set[Registration], regs: Set[Registration]) : Set[Registration] =
@@ -137,7 +145,7 @@ pure def nextValSet (vals: Address -> int, regs: Set[Registration]) : Address ->
 
 pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block = 
     val prev = chain[chain.length() - 1]
-    if (chain.length() % L2EpochSize == 0) // new epochj
+    if (chain.length() % L2EpochSize == 0) // new epoch
         {   height: chain.length(), 
             chainID: prev.chainID,
             registrations: regs, 
@@ -161,6 +169,7 @@ action addL2Block = all {
     nondet regs = L1[L1.length() - 1].pendingRegistrations.powerset().oneOf() // Question: at most once?
     L2' = L2.append(newL2Block(L2, regs)),
     L1' = L1,
+    envRegs' = envRegs,
 }
 
 pure def forkBlock (chain : List[L2Block], lastL1: L1Block) : L2Block =
@@ -176,7 +185,6 @@ pure def forkBlock (chain : List[L2Block], lastL1: L1Block) : L2Block =
         receivedRegistrations: prev.receivedRegistrations.union(regs),
     }
 
-
 pure def resetL2 (chain : List[L2Block], lastL1: L1Block) : List[L2Block] = 
     chain.slice(0, lastL1.provenHeight + 1).append(forkBlock(chain, lastL1))
 
@@ -186,10 +194,12 @@ action reset = all {
         L2' = L2.resetL2(lastL1)
     else
         L2' = L2,
-    L1' = L1
+    L1' = L1,
+    envRegs' = envRegs,
 }
 
 action step = any {
+    addRegistration,
     addL1Block,
     addL2Block,
     reset
