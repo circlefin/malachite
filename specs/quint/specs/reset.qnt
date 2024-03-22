@@ -1,3 +1,5 @@
+// -*- mode: Bluespec; -*-
+
 module reset {
 
 val L2EpochSize = 5
@@ -176,7 +178,7 @@ pure def forkBlock (chain : List[L2Block], lastL1: L1Block) : L2Block =
 
 
 pure def resetL2 (chain : List[L2Block], lastL1: L1Block) : List[L2Block] = 
-    chain.slice(0, lastL1.provenHeight).append(forkBlock(chain, lastL1))
+    chain.slice(0, lastL1.provenHeight + 1).append(forkBlock(chain, lastL1))
 
 action reset = all {
     val lastL1 = L1[L1.length() - 1]
