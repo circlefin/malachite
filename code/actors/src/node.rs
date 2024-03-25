@@ -44,6 +44,7 @@ where
 
 pub enum Msg<Ctx: Context> {
     StartHeight(Ctx::Height),
+    MoveToHeight(Ctx::Height),
     MoveToNextHeight,
     GossipEvent(Arc<GossipEvent>),
     TimeoutElapsed(Timeout),
@@ -150,7 +151,7 @@ where
         from: PeerId,
         msg: NetworkMsg,
         myself: ActorRef<Msg<Ctx>>,
-        _state: &mut State<Ctx>,
+        state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::Vote(signed_vote) => {
@@ -165,14 +166,29 @@ where
                     return Ok(());
                 };
 
-                if self
+                if !self
                     .ctx
                     .verify_signed_vote(&signed_vote, validator.public_key())
                 {
-                    myself.cast(Msg::SendDriverInput(DriverInput::Vote(signed_vote.vote)))?;
-                } else {
                     warn!(%from, %validator_address, "Received invalid vote: {signed_vote:?}");
+                    return Ok(());
                 }
+
+                let vote_height = signed_vote.vote.height();
+
+                if vote_height > state.driver.height() {
+                    warn!(
+                        %from, %validator_address,
+                        "Received vote for height {0} greater than current height {1}, moving to height {0}",
+                        vote_height, state.driver.height(),
+                    );
+
+                    myself.cast(Msg::MoveToHeight(vote_height))?;
+
+                    return Ok(());
+                }
+
+                myself.cast(Msg::SendDriverInput(DriverInput::Vote(signed_vote.vote)))?;
             }
 
             NetworkMsg::Proposal(proposal) => {
@@ -190,6 +206,20 @@ where
                 let valid = self
                     .ctx
                     .verify_signed_proposal(&signed_proposal, validator.public_key());
+
+                let proposal_height = signed_proposal.proposal.height();
+
+                if proposal_height > state.driver.height() {
+                    warn!(
+                        %from, %validator_address,
+                        "Received proposal for height {0} greater than current height {1}, moving to height {0}",
+                        proposal_height, state.driver.height(),
+                    );
+
+                    myself.cast(Msg::MoveToHeight(proposal_height))?;
+
+                    return Ok(());
+                }
 
                 myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
                     signed_proposal.proposal,
@@ -470,6 +500,14 @@ where
         Ok(State { driver, timers })
     }
 
+    #[tracing::instrument(
+        name = "node", 
+        skip(self, myself, msg, state),
+        fields(
+            height = %state.driver.height(),
+            round = %state.driver.round()
+        )
+    )]
     async fn handle(
         &self,
         myself: ActorRef<Msg<Ctx>>,
@@ -490,16 +528,17 @@ where
                 let height = state.driver.height().increment();
                 info!("Moving to next height {height}");
 
+                myself.cast(Msg::MoveToHeight(height))?;
+            }
+
+            Msg::MoveToHeight(height) => {
                 state.timers.cast(TimerMsg::Reset)?;
                 state.driver.move_to_height(height);
 
                 debug_assert_eq!(state.driver.height(), height);
                 debug_assert_eq!(state.driver.round(), Round::Nil);
 
-                myself.cast(Msg::SendDriverInput(DriverInput::NewRound(
-                    height,
-                    Round::new(0),
-                )))?;
+                myself.cast(Msg::StartHeight(height))?;
             }
 
             Msg::ProposeValue(height, round, value) => {
