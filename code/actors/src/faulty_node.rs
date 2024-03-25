@@ -13,9 +13,9 @@ use tracing::warn;
 use malachite_common::Context;
 use malachite_proto::{self as proto, Protobuf};
 
-use crate::node::Msg;
-use crate::node::Node;
-use crate::node::State;
+use crate::consensus::Consensus;
+use crate::consensus::Msg;
+use crate::consensus::State;
 
 pub type Prob = f64;
 
@@ -114,7 +114,7 @@ pub struct FaultyNode<Ctx>
 where
     Ctx: Context,
 {
-    node: Node<Ctx>,
+    consensus: Consensus<Ctx>,
     faults: Faults,
 }
 
@@ -125,19 +125,19 @@ where
     Ctx::Vote: Protobuf<Proto = proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
 {
-    pub fn new(node: Node<Ctx>, faults: Vec<Fault>) -> Self {
+    pub fn new(consensus: Consensus<Ctx>, faults: Vec<Fault>) -> Self {
         Self {
-            node,
+            consensus,
             faults: Faults::new(faults),
         }
     }
 
     pub async fn spawn(
-        node: Node<Ctx>,
+        consensus: Consensus<Ctx>,
         faults: Vec<Fault>,
         rng: Box<dyn rand::RngCore + Send + Sync>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
-        let faulty_node = Self::new(node, faults);
+        let faulty_node = Self::new(consensus, faults);
         let (actor_ref, _) = Actor::spawn(None, faulty_node, FaultyArgs { rng }).await?;
 
         Ok(actor_ref)
@@ -161,7 +161,7 @@ where
         myself: ActorRef<Self::Msg>,
         args: FaultyArgs,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let state = self.node.pre_start(myself, ()).await?;
+        let state = self.consensus.pre_start(myself, ()).await?;
 
         Ok(FaultyState {
             node_state: state,
@@ -186,38 +186,54 @@ where
 
                 (Msg::StartHeight(_), Fault::DelayStartHeight(_, delay)) => {
                     tokio::time::sleep(*delay).await;
-                    self.node.handle(myself, msg, &mut state.node_state).await
+                    self.consensus
+                        .handle(myself, msg, &mut state.node_state)
+                        .await
                 }
 
                 (Msg::MoveToNextHeight, Fault::DelayMoveToNextHeight(_, delay)) => {
                     tokio::time::sleep(*delay).await;
-                    self.node.handle(myself, msg, &mut state.node_state).await
+                    self.consensus
+                        .handle(myself, msg, &mut state.node_state)
+                        .await
                 }
 
                 (Msg::SendDriverInput(_), Fault::DiscardDriverInput(_)) => Ok(()),
                 (Msg::SendDriverInput(_), Fault::DelayDriverInput(_, delay)) => {
                     tokio::time::sleep(*delay).await;
-                    self.node.handle(myself, msg, &mut state.node_state).await
+                    self.consensus
+                        .handle(myself, msg, &mut state.node_state)
+                        .await
                 }
 
                 (Msg::ProcessDriverOutputs(_, _), Fault::DiscardDriverOutputs(_)) => Ok(()),
                 (Msg::ProcessDriverOutputs(_, _), Fault::DelayDriverOutputs(_, delay)) => {
                     tokio::time::sleep(*delay).await;
-                    self.node.handle(myself, msg, &mut state.node_state).await
+                    self.consensus
+                        .handle(myself, msg, &mut state.node_state)
+                        .await
                 }
 
                 (Msg::ProposeValue(_, _, _), Fault::DiscardProposeValue(_)) => Ok(()),
                 (Msg::ProposeValue(_, _, _), Fault::DelayProposeValue(_, delay)) => {
                     tokio::time::sleep(*delay).await;
-                    self.node.handle(myself, msg, &mut state.node_state).await
+                    self.consensus
+                        .handle(myself, msg, &mut state.node_state)
+                        .await
                 }
 
                 // Wrong combination of message and fault, just handle the message normally.
                 // This should never happen, but oh well.
-                _ => self.node.handle(myself, msg, &mut state.node_state).await,
+                _ => {
+                    self.consensus
+                        .handle(myself, msg, &mut state.node_state)
+                        .await
+                }
             }
         } else {
-            self.node.handle(myself, msg, &mut state.node_state).await
+            self.consensus
+                .handle(myself, msg, &mut state.node_state)
+                .await
         }
     }
 }

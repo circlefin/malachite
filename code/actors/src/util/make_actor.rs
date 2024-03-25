@@ -9,8 +9,8 @@ use malachite_node::value::test::TestValueBuilder;
 use malachite_test::utils::RotateProposer;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 
+use crate::consensus::{Consensus, Params};
 use crate::gossip::Gossip;
-use crate::node::{Node, Params};
 use crate::proposal_builder::ProposalBuilder;
 use crate::timers::Config as TimersConfig;
 
@@ -19,7 +19,7 @@ pub async fn make_node_actor(
     private_key: PrivateKey,
     address: Address,
     tx_decision: mpsc::Sender<(Height, Round, Value)>,
-) -> Node<TestContext> {
+) -> Consensus<TestContext> {
     let keypair = gossip::Keypair::ed25519_from_bytes(private_key.inner().to_bytes()).unwrap();
     let start_height = Height::new(1);
     let ctx = TestContext::new(private_key);
@@ -50,7 +50,7 @@ pub async fn make_node_actor(
     let addr = "/ip4/0.0.0.0/udp/0/quic-v1".parse().unwrap();
     let (gossip, _) = Gossip::spawn(keypair, addr, config).await.unwrap();
 
-    Node::new(
+    Consensus::new(
         ctx,
         params,
         timers_config,

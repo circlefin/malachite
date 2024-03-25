@@ -41,7 +41,7 @@ pub struct Params<Ctx: Context> {
     pub threshold_params: ThresholdParams,
 }
 
-pub struct Node<Ctx>
+pub struct Consensus<Ctx>
 where
     Ctx: Context,
 {
@@ -82,7 +82,7 @@ where
     timers: ActorRef<TimersMsg>,
 }
 
-impl<Ctx> Node<Ctx>
+impl<Ctx> Consensus<Ctx>
 where
     Ctx: Context,
     Ctx::Height: Display,
@@ -479,7 +479,7 @@ where
 }
 
 #[ractor::async_trait]
-impl<Ctx> Actor for Node<Ctx>
+impl<Ctx> Actor for Consensus<Ctx>
 where
     Ctx: Context,
     Ctx::Height: Display,

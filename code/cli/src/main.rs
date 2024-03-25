@@ -1,4 +1,4 @@
-use malachite_actors::node::Msg;
+use malachite_actors::consensus::Msg;
 use malachite_actors::prelude::*;
 use malachite_actors::util::make_node_actor;
 use malachite_test::utils::make_validators;
