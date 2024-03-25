@@ -30,6 +30,15 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("[{index}] Starting...");
     let (actor, join_handle) = Actor::spawn(Some(format!("node-{index}")), node, ()).await?;
 
+    tokio::spawn({
+        let actor = actor.clone();
+        async move {
+            tokio::signal::ctrl_c().await.unwrap();
+            info!("[{index}] Shutting down...");
+            actor.stop(None);
+        }
+    });
+
     actor.cast(Msg::StartHeight(Height::new(1)))?;
 
     while let Some((height, round, value)) = rx_decision.recv().await {
@@ -37,5 +46,6 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     join_handle.await?;
+
     Ok(())
 }

@@ -610,4 +610,16 @@ where
 
         Ok(())
     }
+
+    async fn post_stop(
+        &self,
+        _myself: ActorRef<Self::Msg>,
+        state: &mut State<Ctx>,
+    ) -> Result<(), ActorProcessingErr> {
+        info!("Stopping...");
+
+        state.timers.stop(None);
+
+        Ok(())
+    }
 }
