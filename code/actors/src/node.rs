@@ -446,6 +446,8 @@ where
     ) -> Result<(), ActorProcessingErr> {
         let deadline = Instant::now() + self.timers_config.timeout_duration(timeout.step);
 
+        // Call `BuildProposal` on the proposal builder actor,
+        // and forward the reply to the current actor, wrapping it in `Msg::ProposeValue`.
         call_and_forward(
             &self.proposal_builder.get_cell(),
             |reply| BuildProposal {
