@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use libp2p::identity::Keypair;
 use libp2p::Multiaddr;
+use malachite_gossip::Channel;
 use ractor::Actor;
 use ractor::ActorCell;
 use ractor::ActorProcessingErr;
@@ -69,7 +70,7 @@ pub enum State {
 
 pub enum Msg {
     Subscribe(ActorRef<Arc<Event>>),
-    Broadcast(Vec<u8>),
+    Broadcast(Channel, Vec<u8>),
 
     // Internal message
     #[doc(hidden)]
@@ -130,7 +131,7 @@ impl Actor for Gossip {
 
         match msg {
             Msg::Subscribe(subscriber) => subscribers.push(subscriber),
-            Msg::Broadcast(data) => ctrl_handle.broadcast(data).await?,
+            Msg::Broadcast(channel, data) => ctrl_handle.broadcast(channel, data).await?,
             Msg::NewEvent(event) => {
                 let event = Arc::new(event);
                 for subscriber in subscribers {

@@ -15,7 +15,7 @@ use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_driver::Validity;
-use malachite_gossip::Event as GossipEvent;
+use malachite_gossip::{Channel, Event as GossipEvent};
 use malachite_node::network::Msg as NetworkMsg;
 use malachite_node::network::PeerId;
 use malachite_node::node::Next;
@@ -132,7 +132,7 @@ where
             GossipEvent::PeerDisconnected(peer_id) => {
                 info!("Disconnected from peer {peer_id}");
             }
-            GossipEvent::Message(from, data) => {
+            GossipEvent::Message(from, Channel::Consensus, data) => {
                 let from = PeerId::new(from.to_string());
                 let msg = NetworkMsg::from_network_bytes(data).unwrap();
 
@@ -352,7 +352,8 @@ where
                 let proto = signed_proposal.to_proto().unwrap(); // FIXME
                 let msg = NetworkMsg::Proposal(proto);
                 let bytes = msg.to_network_bytes().unwrap(); // FIXME
-                self.gossip.cast(GossipMsg::Broadcast(bytes))?;
+                self.gossip
+                    .cast(GossipMsg::Broadcast(Channel::Consensus, bytes))?;
 
                 Ok(Next::Input(DriverInput::Proposal(
                     signed_proposal.proposal,
@@ -373,7 +374,8 @@ where
                 let proto = signed_vote.to_proto().unwrap(); // FIXME
                 let msg = NetworkMsg::Vote(proto);
                 let bytes = msg.to_network_bytes().unwrap(); // FIXME
-                self.gossip.cast(GossipMsg::Broadcast(bytes))?;
+                self.gossip
+                    .cast(GossipMsg::Broadcast(Channel::Consensus, bytes))?;
 
                 Ok(Next::Input(DriverInput::Vote(signed_vote.vote)))
             }

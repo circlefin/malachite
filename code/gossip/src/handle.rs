@@ -1,7 +1,7 @@
 use tokio::sync::mpsc;
 use tokio::task;
 
-use crate::{BoxError, CtrlMsg, Event};
+use crate::{BoxError, Channel, CtrlMsg, Event};
 
 pub struct RecvHandle {
     rx_event: mpsc::Receiver<Event>,
@@ -19,8 +19,8 @@ pub struct CtrlHandle {
 }
 
 impl CtrlHandle {
-    pub async fn broadcast(&self, data: Vec<u8>) -> Result<(), BoxError> {
-        self.tx_ctrl.send(CtrlMsg::Broadcast(data)).await?;
+    pub async fn broadcast(&self, channel: Channel, data: Vec<u8>) -> Result<(), BoxError> {
+        self.tx_ctrl.send(CtrlMsg::Broadcast(channel, data)).await?;
         Ok(())
     }
 
@@ -69,8 +69,8 @@ impl Handle {
         self.recv.recv().await
     }
 
-    pub async fn broadcast(&self, data: Vec<u8>) -> Result<(), BoxError> {
-        self.ctrl.broadcast(data).await
+    pub async fn broadcast(&self, channel: Channel, data: Vec<u8>) -> Result<(), BoxError> {
+        self.ctrl.broadcast(channel, data).await
     }
 
     pub async fn wait_shutdown(self) -> Result<(), BoxError> {
