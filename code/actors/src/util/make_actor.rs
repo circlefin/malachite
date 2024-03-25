@@ -5,15 +5,14 @@ use tokio::sync::mpsc;
 
 use malachite_common::Round;
 use malachite_node::network::gossip;
-use malachite_node::node::Params;
-use malachite_node::timers;
 use malachite_node::value::test::TestValueBuilder;
 use malachite_test::utils::RotateProposer;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 
 use crate::gossip::Gossip;
-use crate::node::Node;
+use crate::node::{Node, Params};
 use crate::proposal_builder::ProposalBuilder;
+use crate::timers::Config as TimersConfig;
 
 pub async fn make_node_actor(
     validator_set: ValidatorSet,
@@ -27,20 +26,19 @@ pub async fn make_node_actor(
     let proposer_selector = Arc::new(RotateProposer);
 
     let (proposal_builder, _) =
-        ProposalBuilder::<TestContext, _>::spawn(TestValueBuilder::<TestContext>::default())
+        ProposalBuilder::<TestContext, _>::spawn(TestValueBuilder::default())
             .await
             .unwrap();
 
     let params = Params {
         start_height,
         proposer_selector,
-        proposal_builder: Arc::new(TestValueBuilder::default()), // unused
         validator_set,
         address,
         threshold_params: Default::default(),
     };
 
-    let timers_config = timers::Config {
+    let timers_config = TimersConfig {
         propose_timeout: Duration::from_secs(3),
         prevote_timeout: Duration::from_secs(1),
         precommit_timeout: Duration::from_secs(1),

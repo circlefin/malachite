@@ -11,24 +11,35 @@ use malachite_common::{
     Context, Height, NilOrVal, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
     Validator, ValidatorSet, ValueId, Vote, VoteType,
 };
-use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_driver::Validity;
+use malachite_driver::{Driver, ProposerSelector};
 use malachite_gossip::{Channel, Event as GossipEvent};
 use malachite_node::network::Msg as NetworkMsg;
 use malachite_node::network::PeerId;
-use malachite_node::node::Next;
-use malachite_node::node::Params;
-use malachite_node::timers;
 use malachite_proto as proto;
 use malachite_proto::Protobuf;
-use malachite_vote::Threshold;
+use malachite_vote::{Threshold, ThresholdParams};
 
 use crate::gossip::Msg as GossipMsg;
 use crate::proposal_builder::{BuildProposal, ProposedValue};
-use crate::timers::{Msg as TimerMsg, TimeoutElapsed, Timers};
+use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers};
 use crate::util::forward;
+
+pub enum Next<Ctx: Context> {
+    None,
+    Input(DriverInput<Ctx>),
+    Decided(Round, Ctx::Value),
+}
+
+pub struct Params<Ctx: Context> {
+    pub start_height: Ctx::Height,
+    pub proposer_selector: Arc<dyn ProposerSelector<Ctx>>,
+    pub validator_set: Ctx::ValidatorSet,
+    pub address: Ctx::Address,
+    pub threshold_params: ThresholdParams,
+}
 
 pub struct Node<Ctx>
 where
@@ -36,7 +47,7 @@ where
 {
     ctx: Ctx,
     params: Params<Ctx>,
-    timers_config: timers::Config,
+    timers_config: TimersConfig,
     gossip: ActorRef<GossipMsg>,
     proposal_builder: ActorRef<BuildProposal<Ctx>>,
     tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
@@ -68,7 +79,7 @@ where
     Ctx: Context,
 {
     driver: Driver<Ctx>,
-    timers: ActorRef<TimerMsg>,
+    timers: ActorRef<TimersMsg>,
 }
 
 impl<Ctx> Node<Ctx>
@@ -81,7 +92,7 @@ where
     pub fn new(
         ctx: Ctx,
         params: Params<Ctx>,
-        timers_config: timers::Config,
+        timers_config: TimersConfig,
         gossip: ActorRef<GossipMsg>,
         proposal_builder: ActorRef<BuildProposal<Ctx>>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
@@ -99,7 +110,7 @@ where
     pub async fn spawn(
         ctx: Ctx,
         params: Params<Ctx>,
-        timers_config: timers::Config,
+        timers_config: TimersConfig,
         gossip: ActorRef<GossipMsg>,
         proposal_builder: ActorRef<BuildProposal<Ctx>>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
@@ -268,18 +279,18 @@ where
     ) -> Result<(), ractor::ActorProcessingErr> {
         match &input {
             DriverInput::NewRound(_, _) => {
-                state.timers.cast(TimerMsg::Reset)?;
+                state.timers.cast(TimersMsg::Reset)?;
             }
 
             DriverInput::ProposeValue(round, _) => state
                 .timers
-                .cast(TimerMsg::CancelTimeout(Timeout::propose(*round)))?,
+                .cast(TimersMsg::CancelTimeout(Timeout::propose(*round)))?,
 
             DriverInput::Proposal(proposal, _) => {
                 let round = Proposal::<Ctx>::round(proposal);
                 state
                     .timers
-                    .cast(TimerMsg::CancelTimeout(Timeout::propose(round)))?;
+                    .cast(TimersMsg::CancelTimeout(Timeout::propose(round)))?;
             }
 
             DriverInput::Vote(_) => (),
@@ -329,7 +340,7 @@ where
                 };
 
                 info!("Threshold met for {threshold:?} at round {round}, cancelling {timeout}");
-                state.timers.cast(TimerMsg::CancelTimeout(timeout))?;
+                state.timers.cast(TimersMsg::CancelTimeout(timeout))?;
             }
         }
 
@@ -346,7 +357,7 @@ where
                 Next::Decided(round, value) => {
                     state
                         .timers
-                        .cast(TimerMsg::ScheduleTimeout(Timeout::commit(round)))?;
+                        .cast(TimersMsg::ScheduleTimeout(Timeout::commit(round)))?;
 
                     myself.cast(Msg::Decided(state.driver.height(), round, value))?;
                 }
@@ -423,7 +434,7 @@ where
 
             DriverOutput::ScheduleTimeout(timeout) => {
                 info!("Scheduling {timeout}");
-                state.timers.cast(TimerMsg::ScheduleTimeout(timeout))?;
+                state.timers.cast(TimersMsg::ScheduleTimeout(timeout))?;
 
                 Ok(Next::None)
             }
@@ -534,7 +545,7 @@ where
             }
 
             Msg::MoveToHeight(height) => {
-                state.timers.cast(TimerMsg::Reset)?;
+                state.timers.cast(TimersMsg::Reset)?;
                 state.driver.move_to_height(height);
 
                 debug_assert_eq!(state.driver.height(), height);

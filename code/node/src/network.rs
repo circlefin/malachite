@@ -6,7 +6,6 @@ use async_trait::async_trait;
 
 use malachite_proto::{SignedProposal, SignedVote};
 
-pub mod broadcast;
 pub mod gossip;
 
 mod msg;

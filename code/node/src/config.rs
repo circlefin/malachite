@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use malachite_test::PublicKey;
 
-use crate::network::{broadcast::PeerInfo, PeerId};
+use crate::network::PeerId;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -18,15 +18,6 @@ pub struct PeerConfig {
     pub addr: SocketAddr,
     #[serde(with = "de::public_key")]
     pub public_key: PublicKey,
-}
-
-impl PeerConfig {
-    pub fn peer_info(&self) -> PeerInfo {
-        PeerInfo {
-            id: self.id.clone(),
-            addr: self.addr,
-        }
-    }
 }
 
 pub mod de {

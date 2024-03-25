@@ -6,7 +6,24 @@ use ractor::time::send_after;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, MessagingErr};
 use tokio::task::JoinHandle;
 
-use malachite_node::timers::Config;
+#[derive(Copy, Clone, Debug)]
+pub struct Config {
+    pub propose_timeout: Duration,
+    pub prevote_timeout: Duration,
+    pub precommit_timeout: Duration,
+    pub commit_timeout: Duration,
+}
+
+impl Config {
+    pub fn timeout_duration(&self, step: TimeoutStep) -> Duration {
+        match step {
+            TimeoutStep::Propose => self.propose_timeout,
+            TimeoutStep::Prevote => self.prevote_timeout,
+            TimeoutStep::Precommit => self.precommit_timeout,
+            TimeoutStep::Commit => self.commit_timeout,
+        }
+    }
+}
 
 pub struct TimeoutElapsed(Timeout);
 
@@ -133,3 +150,89 @@ where
         Ok(())
     }
 }
+
+// #[cfg(test)]
+// #[allow(non_upper_case_globals)]
+// mod tests {
+//     use malachite_common::Round;
+//
+//     use super::*;
+//
+//     const config: Config = Config {
+//         propose_timeout: Duration::from_millis(50),
+//         prevote_timeout: Duration::from_millis(100),
+//         precommit_timeout: Duration::from_millis(150),
+//         commit_timeout: Duration::from_millis(200),
+//     };
+//
+//     const fn timeouts() -> (Timeout, Timeout, Timeout) {
+//         let (r0, r1, r2) = (Round::new(0), Round::new(1), Round::new(2));
+//
+//         (
+//             Timeout::new(r0, TimeoutStep::Propose),
+//             Timeout::new(r1, TimeoutStep::Prevote),
+//             Timeout::new(r2, TimeoutStep::Precommit),
+//         )
+//     }
+//
+//     #[tokio::test]
+//     async fn timers_no_cancel() {
+//         let (t0, t1, t2) = timeouts();
+//
+//         let (mut timers, mut rx_timeout_elapsed) = Timers::new(config);
+//
+//         timers.schedule_timeout(t1).await;
+//         timers.schedule_timeout(t0).await;
+//         timers.schedule_timeout(t2).await;
+//         assert_eq!(timers.scheduled().await, 3);
+//
+//         assert_eq!(rx_timeout_elapsed.recv().await.unwrap(), t0);
+//         assert_eq!(timers.scheduled().await, 2);
+//         assert_eq!(rx_timeout_elapsed.recv().await.unwrap(), t1);
+//         assert_eq!(timers.scheduled().await, 1);
+//         assert_eq!(rx_timeout_elapsed.recv().await.unwrap(), t2);
+//         assert_eq!(timers.scheduled().await, 0);
+//     }
+//
+//     #[tokio::test]
+//     async fn timers_cancel_first() {
+//         let (t0, t1, t2) = timeouts();
+//
+//         let (mut timers, mut rx_timeout_elapsed) = Timers::new(config);
+//
+//         timers.schedule_timeout(t0).await;
+//         timers.schedule_timeout(t1).await;
+//         timers.schedule_timeout(t2).await;
+//         assert_eq!(timers.scheduled().await, 3);
+//
+//         timers.cancel_timeout(&t0).await;
+//         assert_eq!(timers.scheduled().await, 2);
+//
+//         assert_eq!(rx_timeout_elapsed.recv().await.unwrap(), t1);
+//         assert_eq!(timers.scheduled().await, 1);
+//
+//         assert_eq!(rx_timeout_elapsed.recv().await.unwrap(), t2);
+//         assert_eq!(timers.scheduled().await, 0);
+//     }
+//
+//     #[tokio::test]
+//     async fn timers_cancel_middle() {
+//         let (t0, t1, t2) = timeouts();
+//
+//         let (mut timers, mut rx_timeout_elapsed) = Timers::new(config);
+//
+//         timers.schedule_timeout(t2).await;
+//         timers.schedule_timeout(t1).await;
+//         timers.schedule_timeout(t0).await;
+//         assert_eq!(timers.scheduled().await, 3);
+//
+//         assert_eq!(rx_timeout_elapsed.recv().await.unwrap(), t0);
+//         assert_eq!(timers.scheduled().await, 2);
+//
+//         timers.cancel_timeout(&t1).await;
+//         assert_eq!(timers.scheduled().await, 1);
+//
+//         assert_eq!(rx_timeout_elapsed.recv().await.unwrap(), t2);
+//         assert_eq!(timers.scheduled().await, 0);
+//     }
+// }
