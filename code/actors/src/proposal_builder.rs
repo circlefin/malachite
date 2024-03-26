@@ -3,8 +3,7 @@ use std::sync::atomic::AtomicPtr;
 use std::time::Instant;
 
 use async_trait::async_trait;
-use ractor::{Actor, ActorRef, RpcReplyPort};
-use tokio::task::JoinHandle;
+use ractor::{Actor, ActorCell, ActorRef, RpcReplyPort};
 
 use malachite_common::{Context, Round};
 use malachite_node::value_builder::ValueBuilder;
@@ -22,36 +21,38 @@ pub struct ProposedValue<Ctx: Context> {
     pub value: Option<Ctx::Value>,
 }
 
-pub struct ProposalBuilder<Ctx, VB> {
-    builder: VB,
+pub struct ProposalBuilder<Ctx> {
+    builder: Box<dyn ValueBuilder<Ctx>>,
     marker: PhantomData<AtomicPtr<Ctx>>,
 }
 
-impl<Ctx, VB> ProposalBuilder<Ctx, VB>
+impl<Ctx> ProposalBuilder<Ctx>
 where
     Ctx: Context,
-    VB: ValueBuilder<Ctx>,
 {
     pub async fn spawn(
-        builder: VB,
-    ) -> Result<(ActorRef<BuildProposal<Ctx>>, JoinHandle<()>), ractor::SpawnErr> {
-        Actor::spawn(
-            None,
-            Self {
-                builder,
-                marker: PhantomData,
-            },
-            (),
-        )
-        .await
+        builder: Box<dyn ValueBuilder<Ctx>>,
+        supervisor: Option<ActorCell>,
+    ) -> Result<ActorRef<BuildProposal<Ctx>>, ractor::SpawnErr> {
+        let this = Self {
+            builder,
+            marker: PhantomData,
+        };
+
+        let (actor_ref, _) = if let Some(supervisor) = supervisor {
+            Actor::spawn_linked(None, this, (), supervisor).await?
+        } else {
+            Actor::spawn(None, this, ()).await?
+        };
+
+        Ok(actor_ref)
     }
 }
 
 #[async_trait]
-impl<Ctx, VB> Actor for ProposalBuilder<Ctx, VB>
+impl<Ctx> Actor for ProposalBuilder<Ctx>
 where
     Ctx: Context,
-    VB: ValueBuilder<Ctx>,
 {
     type Msg = BuildProposal<Ctx>;
     type State = ();

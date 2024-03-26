@@ -21,36 +21,21 @@ impl Gossip {
         keypair: Keypair,
         addr: Multiaddr,
         config: Config,
-    ) -> Result<(ActorRef<Msg>, JoinHandle<()>), ractor::SpawnErr> {
-        Actor::spawn(
-            None,
-            Self,
-            Args {
-                keypair,
-                addr,
-                config,
-            },
-        )
-        .await
-    }
+        supervisor: Option<ActorCell>,
+    ) -> Result<ActorRef<Msg>, ractor::SpawnErr> {
+        let args = Args {
+            keypair,
+            addr,
+            config,
+        };
 
-    pub async fn spawn_linked(
-        keypair: Keypair,
-        addr: Multiaddr,
-        config: Config,
-        supervisor: ActorCell,
-    ) -> Result<(ActorRef<Msg>, JoinHandle<()>), ractor::SpawnErr> {
-        Actor::spawn_linked(
-            None,
-            Self,
-            Args {
-                keypair,
-                addr,
-                config,
-            },
-            supervisor,
-        )
-        .await
+        let (actor_ref, _) = if let Some(supervisor) = supervisor {
+            Actor::spawn_linked(None, Self, args, supervisor).await?
+        } else {
+            Actor::spawn(None, Self, args).await?
+        };
+
+        Ok(actor_ref)
     }
 }
 
