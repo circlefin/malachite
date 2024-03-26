@@ -4,8 +4,8 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 use malachite_common::Round;
-use malachite_node::network::gossip;
-use malachite_node::value::test::TestValueBuilder;
+use malachite_gossip::Keypair;
+use malachite_node::value_builder::test::TestValueBuilder;
 use malachite_test::utils::RotateProposer;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 
@@ -20,7 +20,7 @@ pub async fn make_node_actor(
     address: Address,
     tx_decision: mpsc::Sender<(Height, Round, Value)>,
 ) -> Consensus<TestContext> {
-    let keypair = gossip::Keypair::ed25519_from_bytes(private_key.inner().to_bytes()).unwrap();
+    let keypair = Keypair::ed25519_from_bytes(private_key.inner().to_bytes()).unwrap();
     let start_height = Height::new(1);
     let ctx = TestContext::new(private_key);
     let proposer_selector = Arc::new(RotateProposer);

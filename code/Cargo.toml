@@ -7,7 +7,8 @@ members = [
   "common",
   "driver", 
   "gossip",
-  "itf", 
+  "itf",
+  "network", 
   "node", 
   "proto",
   "round",
@@ -22,18 +23,22 @@ repository   = "https://github.com/informalsystems/malachite"
 license      = "Apache-2.0"
 publish      = false
 
+[workspace.lints.rust]
+# unused_crate_dependencies = "warn"
+
 [workspace.dependencies]
-malachite-actors = { version = "0.1.0", path = "actors" }
-malachite-cli    = { version = "0.1.0", path = "cli" }
-malachite-common = { version = "0.1.0", path = "common" }
-malachite-driver = { version = "0.1.0", path = "driver" }
-malachite-gossip = { version = "0.1.0", path = "gossip" }
-malachite-itf    = { version = "0.1.0", path = "itf" }
-malachite-node   = { version = "0.1.0", path = "node" }
-malachite-proto  = { version = "0.1.0", path = "proto" }
-malachite-round  = { version = "0.1.0", path = "round" }
-malachite-test   = { version = "0.1.0", path = "test" }
-malachite-vote   = { version = "0.1.0", path = "vote" }
+malachite-actors  = { version = "0.1.0", path = "actors" }
+malachite-cli     = { version = "0.1.0", path = "cli" }
+malachite-common  = { version = "0.1.0", path = "common" }
+malachite-driver  = { version = "0.1.0", path = "driver" }
+malachite-gossip  = { version = "0.1.0", path = "gossip" }
+malachite-network = { version = "0.1.0", path = "network" }
+malachite-itf     = { version = "0.1.0", path = "itf" }
+malachite-node    = { version = "0.1.0", path = "node" }
+malachite-proto   = { version = "0.1.0", path = "proto" }
+malachite-round   = { version = "0.1.0", path = "round" }
+malachite-test    = { version = "0.1.0", path = "test" }
+malachite-vote    = { version = "0.1.0", path = "vote" }
 
 async-trait        = "0.1.77"
 derive-where       = "1.2.7"

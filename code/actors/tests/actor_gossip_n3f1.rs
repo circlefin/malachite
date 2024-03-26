@@ -1,3 +1,5 @@
+#![allow(unused_crate_dependencies)]
+
 #[path = "util.rs"]
 mod util;
 use util::*;

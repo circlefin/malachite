@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use malachite_common::{Timeout, TimeoutStep};
+use async_trait::async_trait;
 use ractor::time::send_after;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, MessagingErr};
 use tokio::task::JoinHandle;
+
+use malachite_common::{Timeout, TimeoutStep};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Config {
@@ -84,7 +86,7 @@ pub struct State {
     timers: HashMap<Timeout, TimerTask>,
 }
 
-#[ractor::async_trait]
+#[async_trait]
 impl<M> Actor for Timers<M>
 where
     M: From<TimeoutElapsed> + ractor::Message,

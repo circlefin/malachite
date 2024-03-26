@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 use std::time::Instant;
 
+use async_trait::async_trait;
 use ractor::rpc::call_and_forward;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
@@ -16,8 +17,8 @@ use malachite_driver::Output as DriverOutput;
 use malachite_driver::Validity;
 use malachite_driver::{Driver, ProposerSelector};
 use malachite_gossip::{Channel, Event as GossipEvent};
-use malachite_node::network::Msg as NetworkMsg;
-use malachite_node::network::PeerId;
+use malachite_network::Msg as NetworkMsg;
+use malachite_network::PeerId;
 use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::{Threshold, ThresholdParams};
@@ -478,7 +479,7 @@ where
     }
 }
 
-#[ractor::async_trait]
+#[async_trait]
 impl<Ctx> Actor for Consensus<Ctx>
 where
     Ctx: Context,

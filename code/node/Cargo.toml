@@ -8,29 +8,16 @@ repository.workspace = true
 license.workspace    = true
 publish.workspace    = true
 
+[lints]
+workspace = true
+
 [dependencies]
-malachite-common.workspace = true
-malachite-driver.workspace = true
-malachite-gossip.workspace = true
-malachite-proto.workspace  = true
-malachite-round.workspace  = true
-malachite-test.workspace   = true
-malachite-vote.workspace   = true
+malachite-common.workspace  = true
+malachite-network.workspace = true
+malachite-test.workspace    = true
 
-async-trait        = { workspace = true }
-ed25519-consensus  = { workspace = true, features = ["serde"] }
-derive-where       = { workspace = true }
-futures            = { workspace = true }
-tokio              = { workspace = true, features = ["full"] }
-tokio-stream       = { workspace = true }
-prost              = { workspace = true }
-prost-types        = { workspace = true }
-serde              = { workspace = true, features = ["derive"] }
-toml               = { workspace = true }
-tracing            = { workspace = true }
-rand               = { workspace = true }
-rand_chacha        = { workspace = true }
-
-[dev-dependencies]
-tracing-subscriber = { workspace = true }
-
+async-trait       = { workspace = true }
+ed25519-consensus = { workspace = true, features = ["serde"] }
+derive-where      = { workspace = true }
+tokio             = { workspace = true, features = ["full"] }
+serde             = { workspace = true, features = ["derive"] }

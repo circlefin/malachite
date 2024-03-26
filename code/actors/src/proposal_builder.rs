@@ -2,11 +2,12 @@ use std::marker::PhantomData;
 use std::sync::atomic::AtomicPtr;
 use std::time::Instant;
 
+use async_trait::async_trait;
 use ractor::{Actor, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 
 use malachite_common::{Context, Round};
-use malachite_node::value::ValueBuilder;
+use malachite_node::value_builder::ValueBuilder;
 
 pub struct BuildProposal<Ctx: Context> {
     pub height: Ctx::Height,
@@ -46,7 +47,7 @@ where
     }
 }
 
-#[ractor::async_trait]
+#[async_trait]
 impl<Ctx, VB> Actor for ProposalBuilder<Ctx, VB>
 where
     Ctx: Context,

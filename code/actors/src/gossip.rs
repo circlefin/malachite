@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use libp2p::identity::Keypair;
 use libp2p::Multiaddr;
 use malachite_gossip::Channel;
@@ -77,7 +78,7 @@ pub enum Msg {
     NewEvent(Event),
 }
 
-#[ractor::async_trait]
+#[async_trait]
 impl Actor for Gossip {
     type Msg = Msg;
     type State = State;

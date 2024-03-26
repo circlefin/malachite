@@ -2,9 +2,8 @@ use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
 
+use malachite_network::PeerId;
 use malachite_test::PublicKey;
-
-use crate::network::PeerId;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -13,7 +12,6 @@ pub struct Config {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PeerConfig {
-    #[serde(with = "de::peer_id")]
     pub id: PeerId,
     pub addr: SocketAddr,
     #[serde(with = "de::public_key")]
@@ -22,27 +20,6 @@ pub struct PeerConfig {
 
 pub mod de {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub mod peer_id {
-        use super::*;
-
-        use crate::network::PeerId;
-
-        pub fn serialize<S>(id: &PeerId, s: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
-            s.serialize_str(&id.to_string())
-        }
-
-        pub fn deserialize<'de, D>(d: D) -> Result<PeerId, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            let s = String::deserialize(d)?;
-            Ok(PeerId::new(s))
-        }
-    }
 
     pub mod public_key {
         use super::*;

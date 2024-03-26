@@ -6,34 +6,27 @@ repository.workspace = true
 license.workspace    = true
 publish.workspace    = true
 
+[lints]
+workspace = true
+
 [dependencies]
-malachite-common.workspace = true
-malachite-driver.workspace = true
-malachite-gossip.workspace = true
-malachite-node.workspace   = true
-malachite-proto.workspace  = true
-malachite-round.workspace  = true
-malachite-test.workspace   = true
-malachite-vote.workspace   = true
+malachite-common.workspace  = true
+malachite-driver.workspace  = true
+malachite-gossip.workspace  = true
+malachite-network.workspace = true
+malachite-node.workspace    = true
+malachite-proto.workspace   = true
+malachite-test.workspace    = true
+malachite-vote.workspace    = true
 
 async-trait        = { workspace = true }
-derive-where       = { workspace = true }
-ed25519-consensus  = { workspace = true, features = ["serde"] }
-futures            = { workspace = true }
 libp2p             = { workspace = true }
-libp2p-gossipsub   = { workspace = true }
-prost              = { workspace = true }
-prost-types        = { workspace = true }
 ractor             = { workspace = true, features = ["async-trait"] }
-ractor_actors      = { workspace = true, default-features = false, features = ["streams"] }
 rand               = { workspace = true }
-rand_chacha        = { workspace = true }
-serde              = { workspace = true, features = ["derive"] }
 tokio              = { workspace = true, features = ["full"] }
-tokio-stream       = { workspace = true }
-toml               = { workspace = true }
 tracing            = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["fmt"] }
 
 [dev-dependencies]
-malachite-test.workspace = true
+malachite-test     = { workspace = true }
+rand_chacha        = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["fmt"] }

@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_variables)]
 
+use async_trait::async_trait;
 use std::fmt::Display;
 use std::time::Duration;
 
@@ -144,7 +145,7 @@ where
     }
 }
 
-#[ractor::async_trait]
+#[async_trait]
 impl<Ctx> Actor for FaultyNode<Ctx>
 where
     Ctx: Context,
