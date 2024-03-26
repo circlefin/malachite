@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use ractor::ActorRef;
 use tokio::sync::mpsc;
@@ -27,12 +26,7 @@ pub async fn make_node_actor(
 
     let value_builder = Box::<TestValueBuilder<TestContext>>::default();
 
-    let timers_config = TimersConfig {
-        propose_timeout: Duration::from_secs(3),
-        prevote_timeout: Duration::from_secs(1),
-        precommit_timeout: Duration::from_secs(1),
-        commit_timeout: Duration::from_secs(1),
-    };
+    let timers_config = TimersConfig::default();
 
     let params = NodeParams {
         address,

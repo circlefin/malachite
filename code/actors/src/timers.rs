@@ -8,24 +8,7 @@ use tokio::task::JoinHandle;
 
 use malachite_common::{Timeout, TimeoutStep};
 
-#[derive(Copy, Clone, Debug)]
-pub struct Config {
-    pub propose_timeout: Duration,
-    pub prevote_timeout: Duration,
-    pub precommit_timeout: Duration,
-    pub commit_timeout: Duration,
-}
-
-impl Config {
-    pub fn timeout_duration(&self, step: TimeoutStep) -> Duration {
-        match step {
-            TimeoutStep::Propose => self.propose_timeout,
-            TimeoutStep::Prevote => self.prevote_timeout,
-            TimeoutStep::Precommit => self.precommit_timeout,
-            TimeoutStep::Commit => self.commit_timeout,
-        }
-    }
-}
+pub use malachite_node::config::TimeoutConfig as Config;
 
 pub struct TimeoutElapsed(Timeout);
 
@@ -61,10 +44,10 @@ where
 
     pub fn timeout_duration(&self, step: &TimeoutStep) -> Duration {
         match step {
-            TimeoutStep::Propose => self.config.propose_timeout,
-            TimeoutStep::Prevote => self.config.prevote_timeout,
-            TimeoutStep::Precommit => self.config.precommit_timeout,
-            TimeoutStep::Commit => self.config.commit_timeout,
+            TimeoutStep::Propose => self.config.timeout_propose,
+            TimeoutStep::Prevote => self.config.timeout_prevote,
+            TimeoutStep::Precommit => self.config.timeout_precommit,
+            TimeoutStep::Commit => self.config.timeout_commit,
         }
     }
 }
