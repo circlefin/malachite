@@ -1,5 +1,8 @@
 // -*- mode: Bluespec; -*-
 
+// TODO: is the number of registrations in L2 block a limitting factor for the reset
+// TODO: generate unsuccesful reset schenario
+
 module reset {
 
 val L2EpochSize = 5
@@ -45,8 +48,9 @@ type L2Block = {
     valset: Address -> int,
     nextValset: Address -> int,
     pendingValsetUpdates: Set[Registration],
-    // history of received registrations needed for proof
+    // history of received registrations needed for proof (for analysis. history variable)
     receivedRegistrations: Set[Registration],
+    // proofs not modelled here
 }
 
 var L1: List[L1Block]
@@ -75,7 +79,7 @@ action init = all {
                 chainID: 0,
                 registrations: Set(),
                 valset: Map(),
-                nextValset: Map(), // Question: initialized?
+                nextValset: Map(), // TODO: Question: initialized?
                 pendingValsetUpdates: Set(),
                 receivedRegistrations: Set(),
                 }),
@@ -92,7 +96,7 @@ pure def confirmedRegs (proof: Proof)  : Set[Registration] =
     }
 
 pure def allConfirmed (proof: Proof, prev: L1Block, epoch: int) : bool = {
-    // figure out whether all pending registrations 
+    // TODO: figure out whether all pending registrations are confirmed
     
     true
 }
@@ -125,8 +129,12 @@ pure def newL1Block (chain: List[L1Block], regs: Set[Registration], proof: Proof
             val currentEpoch = chain.length() / L1EpochSize
             if  (not(existsStale(prev)) // TODO: figure out which epochs to accept in the "normal" case without stale registrations
                 or
+                // If there are stale registrations, I only accept a proof for a block whose 
+                // chainID "corresponds to" current EVE epoch
                 (pCID == currentEpoch and 
+                // all stale registrations are confirmed
                 allConfirmed(newProof, prev, currentEpoch) and
+                // and height sanity check:
                 pHeight > prev.provenHeight))
                 blockWithProof
             else 
@@ -178,7 +186,8 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
         }
 
 action addL2Block = all {
-    nondet regs = L1[L1.length() - 1].pendingRegistrations.powerset().oneOf() // Question: at most once?
+    nondet regs = L1[L1.length() - 1].pendingRegistrations.powerset().oneOf() 
+    // TODO: Question: at most once?
     L2' = L2.append(newL2Block(L2, regs)),
     L1' = L1,
     envRegs' = envRegs,
@@ -188,11 +197,14 @@ pure def forkBlock (chain : List[L2Block], lastL1: L1Block) : L2Block =
     val prev = chain[chain.length() - 1]
     val regs = staleRegs(lastL1)
     val newValSet = nextValSet(prev.nextValset, updatePendingUpdates(prev.pendingValsetUpdates, regs))
+    // TODO: confirm if the above is OK?
+    // pendingValsetUpdates could be filtered for epochs? 
+    // Is L1->L2 messaging guaranteed to be ordered?
     {   height: lastL1.provenHeight + 1, 
-        chainID: lastL1.height,
+        chainID: lastL1.height % L1EpochSize,
         registrations: regs, 
         valset: newValSet,  
-        nextValset: newValSet, 
+        nextValset: newValSet, //TODO: validator set
         pendingValsetUpdates: Set(),
         receivedRegistrations: prev.receivedRegistrations.union(regs),
     }
@@ -215,7 +227,7 @@ action addRegistration = all {
     nondet power = minReg.to(maxReg).oneOf()
     val newReg = {
         epoch: L1.length() / L1EpochSize,
-        index: L1[L1.length() - 1].cntRegistrations + envRegs.size()  + 1,
+        index: L1[L1.length() - 1].cntRegistrations + envRegs.size()  + 1, // encodes unique registration index
         address: newVal,
         update: power
     }
@@ -223,6 +235,8 @@ action addRegistration = all {
     L1' = L1,
     L2' = L2,
 }
+
+
 
 action step = any {
     addRegistration,    // adds a registration to the environment. A bit like submitting a transaction
