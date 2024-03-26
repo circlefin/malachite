@@ -1,5 +1,4 @@
 pub mod consensus;
-pub mod faulty_node;
 pub mod gossip;
 pub mod node;
 pub mod prelude;

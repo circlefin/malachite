@@ -3,9 +3,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-// use ractor::Actor;
-// use rand::SeedableRng;
-// use rand_chacha::ChaCha12Rng;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info};
@@ -14,11 +11,8 @@ use malachite_common::{Round, VotingPower};
 use malachite_test::utils::make_validators;
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet, Value};
 
-// use malachite_actors::faulty_node::FaultyNode;
 use malachite_actors::node::Msg;
 use malachite_actors::util::make_node_actor;
-
-pub use malachite_actors::faulty_node::Fault;
 
 pub const SEED: u64 = 42;
 pub const HEIGHTS: u64 = 3;
@@ -62,22 +56,11 @@ impl<const N: usize> Test<N> {
 
 pub struct TestNode {
     pub voting_power: VotingPower,
-    pub faults: Vec<Fault>,
 }
 
 impl TestNode {
     pub fn correct(voting_power: VotingPower) -> Self {
-        Self {
-            voting_power,
-            faults: vec![],
-        }
-    }
-
-    pub fn faulty(voting_power: VotingPower, faults: Vec<Fault>) -> Self {
-        Self {
-            voting_power,
-            faults,
-        }
+        Self { voting_power }
     }
 }
 
@@ -111,17 +94,6 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
     let mut rxs = Vec::with_capacity(nodes.len());
 
     for ((actor, _), rx) in nodes {
-        // let handle = if let Some(test_node) = test.get(i) {
-        //     let rng = Box::new(ChaCha12Rng::seed_from_u64(SEED));
-        //     FaultyNode::spawn(node, test_node.faults.clone(), rng)
-        //         .await
-        //         .expect("Error: faulty node failed to start")
-        // } else {
-        //   Actor::spawn(None, node, args)
-        //       .await
-        //       .expect("Error: correct node failed to start")
-        // };
-
         actor.cast(Msg::Start).unwrap();
 
         actors.push(actor);
