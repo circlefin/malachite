@@ -1,4 +1,4 @@
-use core::fmt::Debug;
+use core::fmt::{Debug, Display};
 
 /// Defines the requirements for a height type.
 ///
@@ -7,7 +7,8 @@ use core::fmt::Debug;
 /// A height of 0 represents a chain which has not yet produced a block.
 pub trait Height
 where
-    Self: Default + Copy + Clone + Debug + PartialEq + Eq + PartialOrd + Ord + Send + Sync,
+    Self:
+        Default + Copy + Clone + Debug + Display + PartialEq + Eq + PartialOrd + Ord + Send + Sync,
 {
     /// Increment the height by one.
     fn increment(&self) -> Self;

@@ -1,8 +1,7 @@
-use malachite_actors::consensus::Msg;
-use malachite_actors::prelude::*;
+use malachite_actors::node::Msg;
 use malachite_actors::util::make_node_actor;
 use malachite_test::utils::make_validators;
-use malachite_test::{Height, ValidatorSet};
+use malachite_test::ValidatorSet;
 
 use tracing::info;
 
@@ -24,11 +23,10 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (vs, _): (Vec<_>, Vec<_>) = vs.into_iter().unzip();
     let vs = ValidatorSet::new(vs);
 
-    let (tx_decision, mut rx_decision) = tokio::sync::mpsc::channel(32);
-    let node = make_node_actor(vs, sk, val.address, tx_decision).await;
-
     info!("[{index}] Starting...");
-    let (actor, join_handle) = Actor::spawn(Some(format!("node-{index}")), node, ()).await?;
+
+    let (tx_decision, mut rx_decision) = tokio::sync::mpsc::channel(32);
+    let (actor, handle) = make_node_actor(vs, sk, val.address, tx_decision).await;
 
     tokio::spawn({
         let actor = actor.clone();
@@ -39,13 +37,13 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    actor.cast(Msg::StartHeight(Height::new(1)))?;
+    actor.cast(Msg::Start)?;
 
     while let Some((height, round, value)) = rx_decision.recv().await {
         info!("[{index}] Decision at height {height} and round {round}: {value:?}",);
     }
 
-    join_handle.await?;
+    handle.await?;
 
     Ok(())
 }

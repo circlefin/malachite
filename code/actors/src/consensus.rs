@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use ractor::rpc::call_and_forward;
-use ractor::{Actor, ActorProcessingErr, ActorRef};
+use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
@@ -86,7 +86,6 @@ where
 impl<Ctx> Consensus<Ctx>
 where
     Ctx: Context,
-    Ctx::Height: Display,
     Ctx::Vote: Protobuf<Proto = proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
 {
@@ -115,6 +114,7 @@ where
         gossip: ActorRef<GossipMsg>,
         proposal_builder: ActorRef<BuildProposal<Ctx>>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
+        supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let node = Self::new(
             ctx,
@@ -125,7 +125,12 @@ where
             tx_decision,
         );
 
-        let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
+        let (actor_ref, _) = if let Some(supervisor) = supervisor {
+            Actor::spawn_linked(None, node, (), supervisor).await?
+        } else {
+            Actor::spawn(None, node, ()).await?
+        };
+
         Ok(actor_ref)
     }
 
