@@ -22,6 +22,7 @@ edition      = "2021"
 repository   = "https://github.com/informalsystems/malachite"
 license      = "Apache-2.0"
 publish      = false
+rust-version = "1.77"
 
 [workspace.lints.rust]
 # unused_crate_dependencies = "warn"
@@ -45,7 +46,7 @@ derive-where       = "1.2.7"
 ed25519-consensus  = "2.1.0"
 futures            = "0.3"
 glob               = "0.3.0"
-itf                = "0.2.2"
+itf                = "0.2.3"
 libp2p             = { version = "0.53.2", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "quic", "tls", "gossipsub"] }
 libp2p-gossipsub   = { version = "0.46.1" }
 num-bigint         = "0.4.4"
@@ -56,15 +57,15 @@ prost-build        = "0.12.3"
 prost-types        = "0.12.3"
 ractor             = "0.9.6"
 ractor_actors      = { version = "0.4.0", default-features= false }
-rand               = "0.8.5"
+rand               = { version = "0.8.5", features = ["std_rng"] }
 rand_chacha        = "0.3.1"
 serde              = "1.0"
 serde_json         = "1.0"
-serde_with         = "3.4"
+serde_with         = "3.7"
 sha2               = "0.10.8"
-signature          = "2.1.0"
+signature          = "2.2.0"
 thiserror          = "1.0"
-tokio              = "1.35.1"
+tokio              = "1.36.0"
 tokio-stream       = "0.1"
 toml               = "0.8.10"
 tracing            = "0.1.40"
