@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use clap::Parser;
 use malachite_actors::node::Msg;
 use malachite_actors::util::make_node_actor;
 use malachite_test::utils::make_validators;
@@ -7,17 +8,23 @@ use malachite_test::ValidatorSet;
 
 use tracing::info;
 
+#[derive(clap::Parser)]
+pub struct Args {
+    #[clap(
+        short,
+        long,
+        help = "Index of this node in the validator set (0, 1, or 2)"
+    )]
+    pub index: usize,
+}
+
 const VOTING_POWERS: [u64; 3] = [5, 20, 10];
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
-    let index: usize = std::env::args()
-        .nth(1)
-        .expect("Error: missing index")
-        .parse()
-        .expect("Error: invalid index");
+    let Args { index } = Args::parse();
 
     let vs = make_validators(VOTING_POWERS);
 
