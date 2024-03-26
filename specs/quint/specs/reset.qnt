@@ -2,6 +2,11 @@
 
 // TODO: is the number of registrations in L2 block a limitting factor for the reset
 // TODO: generate unsuccesful reset schenario
+// TODO: Write properties in terms of valid, decided, invalidated, finalized blocks
+
+
+// quint run --invariant "noReset" reset.qnt 
+
 
 module reset {
 
@@ -53,38 +58,10 @@ type L2Block = {
     // proofs not modelled here
 }
 
-var L1: List[L1Block]
-var L2: List[L2Block]
-var envRegs: Set[Registration]
-
-pure def existsStale (b: L1Block) : bool =
-    b.pendingRegistrations.exists(r => r.epoch + 1 < b.height / L1EpochSize)
-    
-def staleInv = not(L1[L1.length() - 1].existsStale())
-
-def noReset = L2[L2.length() - 1].chainID == 0
 
 pure def staleRegs (b: L1Block) : Set[Registration] =
     b.pendingRegistrations.filter(r => r.epoch + 1 < b.height / L1EpochSize)
 
-action init = all {
-    L1' = List({height : 0,
-                newRegistrations: Set(),
-                proof: Nil,
-                pendingRegistrations: Set(),
-                provenHeight: -1,
-                cntRegistrations: 0,
-                }),
-    L2' = List({height: 0,
-                chainID: 0,
-                registrations: Set(),
-                valset: Map(),
-                nextValset: Map(), // TODO: Question: initialized?
-                pendingValsetUpdates: Set(),
-                receivedRegistrations: Set(),
-                }),
-    envRegs' = Set(),
-}
 
 pure def updatePending (new: Set[Registration], pending: Set[Registration], confirmed: Set[Registration]) : Set[Registration] =
     pending.union(new).exclude(confirmed)
@@ -141,16 +118,6 @@ pure def newL1Block (chain: List[L1Block], regs: Set[Registration], proof: Proof
                 blockWithoutProof
     }
 
-
-action addL1Block = all {
-    nondet proofHeight = (-1).to(L2.length() - 1).oneOf()
-    val proof = if (proofHeight == -1) Nil
-                else L2Proof((proofHeight, L2[proofHeight].receivedRegistrations, L2[proofHeight].chainID)) 
-    L1' = L1.append(newL1Block(L1, envRegs, proof)),
-    L2' = L2,
-    envRegs' = Set(),
-}
-
 pure def updatePendingUpdates (pending: Set[Registration], regs: Set[Registration]) : Set[Registration] =
     pending.union(regs)
 
@@ -185,19 +152,14 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
             receivedRegistrations: prev.receivedRegistrations.union(regs),
         }
 
-action addL2Block = all {
-    nondet regs = L1[L1.length() - 1].pendingRegistrations.powerset().oneOf() 
-    // TODO: Question: at most once?
-    L2' = L2.append(newL2Block(L2, regs)),
-    L1' = L1,
-    envRegs' = envRegs,
-}
+
 
 pure def forkBlock (chain : List[L2Block], lastL1: L1Block) : L2Block =
     val prev = chain[chain.length() - 1]
     val regs = staleRegs(lastL1)
     val newValSet = nextValSet(prev.nextValset, updatePendingUpdates(prev.pendingValsetUpdates, regs))
-    // TODO: confirm if the above is OK?
+    // TODO: confirm if the intention above is OK?
+    // TODO: there is a bug in registrations are doubly counted if already in nextValSet
     // pendingValsetUpdates could be filtered for epochs? 
     // Is L1->L2 messaging guaranteed to be ordered?
     {   height: lastL1.provenHeight + 1, 
@@ -212,14 +174,40 @@ pure def forkBlock (chain : List[L2Block], lastL1: L1Block) : L2Block =
 pure def resetL2 (chain : List[L2Block], lastL1: L1Block) : List[L2Block] = 
     chain.slice(0, lastL1.provenHeight + 1).append(forkBlock(chain, lastL1))
 
-action reset = all {
-    val lastL1 = L1[L1.length() - 1]
-    if (existsStale(lastL1))
-        L2' = L2.resetL2(lastL1)
-    else
-        L2' = L2,
-    L1' = L1,
-    envRegs' = envRegs,
+
+// STATE MACHINE
+
+var L1: List[L1Block]
+var L2: List[L2Block]
+var envRegs: Set[Registration]
+
+pure def existsStale (b: L1Block) : bool =
+    b.pendingRegistrations.exists(r => r.epoch + 1 < b.height / L1EpochSize)
+    
+def staleInv = not(L1[L1.length() - 1].existsStale())
+
+def noReset = L2[L2.length() - 1].chainID == 0
+
+
+// ACTIONS
+
+action init = all {
+    L1' = List({height : 0,
+                newRegistrations: Set(),
+                proof: Nil,
+                pendingRegistrations: Set(),
+                provenHeight: -1,
+                cntRegistrations: 0,
+                }),
+    L2' = List({height: 0,
+                chainID: 0,
+                registrations: Set(),
+                valset: Map(),
+                nextValset: Map(), // TODO: Question: initialized?
+                pendingValsetUpdates: Set(),
+                receivedRegistrations: Set(),
+                }),
+    envRegs' = Set(),
 }
 
 action addRegistration = all {
@@ -235,6 +223,34 @@ action addRegistration = all {
     L1' = L1,
     L2' = L2,
 }
+
+action addL1Block = all {
+    nondet proofHeight = (-1).to(L2.length() - 1).oneOf()
+    val proof = if (proofHeight == -1) Nil
+                else L2Proof((proofHeight, L2[proofHeight].receivedRegistrations, L2[proofHeight].chainID)) 
+    L1' = L1.append(newL1Block(L1, envRegs, proof)),
+    L2' = L2,
+    envRegs' = Set(),
+}
+
+action addL2Block = all {
+    nondet regs = L1[L1.length() - 1].pendingRegistrations.powerset().oneOf() 
+    // TODO: Question: at most once?
+    L2' = L2.append(newL2Block(L2, regs)),
+    L1' = L1,
+    envRegs' = envRegs,
+}
+
+action reset = all {
+    val lastL1 = L1[L1.length() - 1]
+    if (existsStale(lastL1))
+        L2' = L2.resetL2(lastL1)
+    else
+        L2' = L2,
+    L1' = L1,
+    envRegs' = envRegs,
+}
+
 
 
 
