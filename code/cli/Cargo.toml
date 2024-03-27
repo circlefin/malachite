@@ -15,6 +15,8 @@ malachite-node.workspace   = true
 malachite-test.workspace   = true
 
 clap               = { workspace = true }
+color-eyre         = { workspace = true }
+itertools          = { workspace = true }
 tokio              = { workspace = true, features = ["full"] }
 tracing            = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["fmt"] }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }

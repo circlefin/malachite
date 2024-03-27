@@ -43,11 +43,13 @@ malachite-vote    = { version = "0.1.0", path = "vote" }
 
 async-trait        = "0.1.77"
 clap               = { version = "4.5.4", features = ["derive"] }
+color-eyre         = "0.6"
 derive-where       = "1.2.7"
 ed25519-consensus  = "2.1.0"
 futures            = "0.3"
 glob               = "0.3.0"
 humantime-serde    = "1.1.1"
+itertools          = "0.12"
 itf                = "0.2.3"
 libp2p             = { version = "0.53.2", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "quic", "tls", "gossipsub"] }
 libp2p-gossipsub   = { version = "0.46.1" }
