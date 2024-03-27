@@ -41,7 +41,7 @@ type L1Block = {
     height : int,
     // transactions
     newRegistrations: Set[Registration],
-    proof: Proof,
+    proof: Proof, // Set[Proof],
     // state
     pendingRegistrations: Set[Registration],
     provenHeight: int,
@@ -84,6 +84,34 @@ pure def allConfirmed (proof: Proof, prev: L1Block, epoch: int) : bool = {
     
     true
 }
+
+// pure def correctForkProved(chain: List[L1Block], proofs: Set[Proof]) : bool = 
+//    true // there exists a proof with: correct forkID, all pending registrations confirmed
+
+// // This is how newL1Block should look like if proofs would become a set
+// pure def newL1Block (chain: List[L1Block], regs: Set[Registration], proofs: Set[Proof]) : L1Block =
+//     val prev = chain[chain.length() - 1]
+//     val auxBlock = {    height : chain.length(),
+//                         newRegistrations: regs,
+//                         proof: prev.proof, //proofs,  todo: transfer to set
+//                         pendingRegistrations: prev.pendingRegistrations.union(regs),
+//                         provenHeight: 1, // TODO remove
+//                         cntRegistrations: prev.cntRegistrations + regs.size()
+//     }
+//     // If there are no stale registrations or ther are stale registrations but the proofs contain a proof
+//     //   for a good fork block, we add the proof and remove confirmed registrations from pending ones
+//     // Else, we reject the proof, and thus don't have confirmations
+//     val blockWithGoodProof = 
+//         {... auxBlock, pendingRegistrations: auxBlock.pendingRegistrations.exclude(confirmedRegs(auxBlock.proof))}
+//     val blockWithRejectedProof = 
+//         {... auxBlock, proof: Nil}     
+//     if (not(existsStale(prev))) // TODO: one-off question
+//         blockWithGoodProof
+//     else
+//         if (correctForkProved(chain, proofs))
+//             blockWithGoodProof
+//         else 
+//             blockWithRejectedProof
 
 pure def newL1Block (chain: List[L1Block], regs: Set[Registration], proof: Proof) : L1Block =
     val prev = chain[chain.length() - 1]
@@ -145,7 +173,7 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
         {   height: chain.length(), 
             chainID: prev.chainID,
             registrations: regs, 
-            valset: nextValSet( prev.valset, prev.unstagedUpdates),
+            valset: nextValSet(prev.valset, prev.unstagedUpdates),
             unstagedUpdates: regs,
             stagedUpdates: prev.unstagedUpdates,
             receivedRegistrations: prev.receivedRegistrations.union(regs),
@@ -190,11 +218,15 @@ var L1: List[L1Block]
 var L2: List[L2Block]
 var envRegs: Set[Registration]
 
+// Invariants
 pure def existsStale (b: L1Block) : bool =
     b.pendingRegistrations.exists(r => r.epoch + 1 < b.height / L1EpochSize)
     
 def staleInv = not(L1[L1.length() - 1].existsStale())
 
+
+// chainID of last element is 0
+// if used as invariant and violated, we have an example with a reset
 def noReset = L2[L2.length() - 1].chainID == 0
 
 
@@ -203,7 +235,7 @@ def noReset = L2[L2.length() - 1].chainID == 0
 action init = all {
     L1' = List({height : 0,
                 newRegistrations: Set(),
-                proof: Nil,
+                proof: Nil, // Set(Nil),
                 pendingRegistrations: Set(),
                 provenHeight: -1,
                 cntRegistrations: 0,
@@ -256,11 +288,9 @@ action reset = all {
         L2' = L2.resetL2(lastL1)
     else
         L2' = L2,
-    L1' = L1,
+    L1' =  L1,
     envRegs' = envRegs,
 }
-
-
 
 
 action step = any {
@@ -268,6 +298,15 @@ action step = any {
     addL1Block,         // adds a new L1 block, and takes all registrations from the environment
     addL2Block,         // adds a normal L2 block / no reset
     reset               // this is asynchronous now. We should link it to L1 block generation
+}
+
+
+run simpleTest = {
+    all {
+    init
+    .then(all{assert(L1.length() == 1), addL1Block})
+    .then(all{assert(L1.length() == 2), addL1Block})
+    }
 }
 
 }
