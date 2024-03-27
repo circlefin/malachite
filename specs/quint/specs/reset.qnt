@@ -4,6 +4,11 @@
 // TODO: generate unsuccesful reset schenario
 // TODO: Write properties in terms of valid, decided, invalidated, finalized blocks
 
+// TODO: L1->L2 messaging uses nonce for at-most-once delivery / but delivery might be out of order
+
+// TODO: replace nextValset by staged, unstaged Registration logic
+
+// TODO: Time between block creation and proof on L1 must be big enough to also have proof on L2
 
 // quint run --invariant "noReset" reset.qnt 
 
@@ -28,7 +33,7 @@ type Registration = {
 }
 
 type Proof = 
-    | L2Proof((Height,Set[Registration],ChainIDs))
+    | L2Proof((Height,Set[Registration],ChainIDs)) // aggregated heights TODO: add set of proods 
     | Nil
 
 type L1Block = {
@@ -51,9 +56,11 @@ type L2Block = {
     registrations: Set[Registration],
     // state    
     valset: Address -> int,
-    nextValset: Address -> int,
-    pendingValsetUpdates: Set[Registration],
+    stagedUpdates: Set[Registration],
+    unstagedUpdates: Set[Registration],
     // history of received registrations needed for proof (for analysis. history variable)
+    // TODO: actually it is needed to ensure at-most once. I guess we will do 
+    // "registrations \setminus receivedRegistrations
     receivedRegistrations: Set[Registration],
     // proofs not modelled here
 }
@@ -108,7 +115,9 @@ pure def newL1Block (chain: List[L1Block], regs: Set[Registration], proof: Proof
                 or
                 // If there are stale registrations, I only accept a proof for a block whose 
                 // chainID "corresponds to" current EVE epoch
-                (pCID == currentEpoch and 
+                (pCID == currentEpoch and // L 1/ EVE. First block the proof represents contains valset with all 
+                // PCID: should be forkID
+                // should not be current epoch but epoch of stale registrations
                 // all stale registrations are confirmed
                 allConfirmed(newProof, prev, currentEpoch) and
                 // and height sanity check:
@@ -118,8 +127,8 @@ pure def newL1Block (chain: List[L1Block], regs: Set[Registration], proof: Proof
                 blockWithoutProof
     }
 
-pure def updatePendingUpdates (pending: Set[Registration], regs: Set[Registration]) : Set[Registration] =
-    pending.union(regs)
+// pure def updatePendingUpdates (pending: Set[Registration], regs: Set[Registration]) : Set[Registration] =
+//    pending.union(regs)
 
 pure def addOneReg (vals: Address -> int, reg: Registration) : Address -> int =
     if (vals.keys().contains(reg.address))
@@ -136,10 +145,9 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
         {   height: chain.length(), 
             chainID: prev.chainID,
             registrations: regs, 
-            valset: prev.nextValset, 
-            nextValset: nextValSet( prev.nextValset, 
-                                    updatePendingUpdates(prev.pendingValsetUpdates, regs)),
-            pendingValsetUpdates: Set(),
+            valset: nextValSet( prev.valset, prev.unstagedUpdates),
+            unstagedUpdates: regs,
+            stagedUpdates: prev.unstagedUpdates,
             receivedRegistrations: prev.receivedRegistrations.union(regs),
         }   
     else
@@ -147,8 +155,8 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
             chainID: prev.chainID,
             registrations: regs, 
             valset: prev.valset, 
-            nextValset: prev.nextValset, 
-            pendingValsetUpdates: updatePendingUpdates(prev.pendingValsetUpdates, regs),
+            stagedUpdates: prev.stagedUpdates, 
+            unstagedUpdates: prev.unstagedUpdates.union(regs),
             receivedRegistrations: prev.receivedRegistrations.union(regs),
         }
 
@@ -157,17 +165,18 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
 pure def forkBlock (chain : List[L2Block], lastL1: L1Block) : L2Block =
     val prev = chain[chain.length() - 1]
     val regs = staleRegs(lastL1)
-    val newValSet = nextValSet(prev.nextValset, updatePendingUpdates(prev.pendingValsetUpdates, regs))
+    val newValSet = nextValSet(prev.valset, prev.unstagedUpdates.union(prev.stagedUpdates).union(regs))
     // TODO: confirm if the intention above is OK?
-    // TODO: there is a bug in registrations are doubly counted if already in nextValSet
-    // pendingValsetUpdates could be filtered for epochs? 
+    // TODO: there is a bug in registrations are doubly counted if already in nextValSet 
+    //       (registrations are not "at most once" in this model)
+    // unstagedUpdates could be filtered for epochs? 
     // Is L1->L2 messaging guaranteed to be ordered?
     {   height: lastL1.provenHeight + 1, 
         chainID: lastL1.height % L1EpochSize,
         registrations: regs, 
         valset: newValSet,  
-        nextValset: newValSet, //TODO: validator set
-        pendingValsetUpdates: Set(),
+        stagedUpdates: Set(),
+        unstagedUpdates: Set(),
         receivedRegistrations: prev.receivedRegistrations.union(regs),
     }
 
@@ -203,8 +212,8 @@ action init = all {
                 chainID: 0,
                 registrations: Set(),
                 valset: Map(),
-                nextValset: Map(), // TODO: Question: initialized?
-                pendingValsetUpdates: Set(),
+                stagedUpdates: Set(),
+                unstagedUpdates: Set(),
                 receivedRegistrations: Set(),
                 }),
     envRegs' = Set(),
