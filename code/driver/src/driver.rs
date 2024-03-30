@@ -231,6 +231,10 @@ where
     }
 
     fn apply_vote(&mut self, vote: Ctx::Vote) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+        if self.height() != vote.height() {
+            return Ok(None);
+        }
+
         let validator = self
             .validator_set
             .get_by_address(vote.validator_address())
