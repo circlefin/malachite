@@ -154,11 +154,11 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
             let result = swarm
                 .behaviour_mut()
                 .gossipsub
-                .publish(channel.topic_hash(), data);
+                .publish(channel.topic_hash(), data.clone());
 
             match result {
                 Ok(message_id) => {
-                    debug!("Broadcasted message {message_id}");
+                    debug!("Broadcasted message {message_id} of {} bytes", data.len());
                 }
                 Err(e) => {
                     error!("Error broadcasting message: {e}");
@@ -244,12 +244,12 @@ async fn handle_swarm_event(
 
         SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Message {
             propagation_source: peer_id,
-            message_id: _,
+            message_id,
             message,
         })) => {
             let Some(channel) = Channel::from_topic_hash(&message.topic) else {
                 debug!(
-                    "Received message from {peer_id} on different channel: {}",
+                    "Received message {message_id} from {peer_id} on different channel: {}",
                     message.topic
                 );
 
@@ -257,7 +257,7 @@ async fn handle_swarm_event(
             };
 
             debug!(
-                "Received message from {peer_id} on channel {} of {} bytes",
+                "Received message {message_id} from {peer_id} on channel {} of {} bytes",
                 channel,
                 message.data.len()
             );

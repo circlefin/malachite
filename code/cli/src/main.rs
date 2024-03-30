@@ -30,7 +30,7 @@ pub struct Args {
     debug: Vec<DebugSection>,
 }
 
-const VOTING_POWERS: [u64; 3] = [5, 20, 10];
+const VOTING_POWERS: [u64; 3] = [11, 10, 10];
 
 mod logging;
 
