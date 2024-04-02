@@ -45,7 +45,7 @@ type L1Block = {
     // state
     pendingRegistrations: Set[Registration],
     verifiedProofs: Set[L2BlockProof],
-    // provenHeight: int,
+    // history variable for analysis. Not sure we actually need it
     cntRegistrations: int,
 }
 
@@ -64,6 +64,11 @@ type L2Block = {
     // proofs not modelled here
 }
 
+//
+// Functions for L1 chain
+//
+
+
 pure def L1Epoch(b: L1Block) : int =
     b.height / L1EpochSize
 
@@ -75,9 +80,13 @@ pure def existsStale (b: L1Block) : bool =
 
 
 pure def provenHeight(verifProofs: Set[L2BlockProof]) : Height =
-    //TODO: smallest unproven block - 1
-    val HeightsWithProofs = verifProofs.fold(Set(), (s, pp) => s.union(Set(pp.height))).union(Set(0))
+    // smallest unproven block - 1
+    // Remark: This models somewhat that L1 is initialized with a proof of the L2 genesis state
+    val HeightsWithProofs = Set(0).union(verifProofs.fold(Set(), (s, pp) => s.union(Set(pp.height))))
+    // complete contains a proofs i such that we also have all proofs from 0 to i
+    // that is if we have {0,1,2,4,5,8}, complete is {0,1,2}; TODO test
     val complete = HeightsWithProofs.filter(i => 0.to(i).subseteq(HeightsWithProofs))
+    // take biggest, that is 2 in the example above
     complete.fold(0, (max, i) => if (i > max) i else max)
 
 // confirmed registrations in proofs up to the proven height
@@ -89,7 +98,7 @@ pure def confirmedRegistrations (vp: Set[L2BlockProof]) : Set[Registration] =
 // otherwise, for heights greater they need to be from the current epoch
 pure def proofOK (prev: L1Block, p: L2BlockProof) : bool =
     if (existsStale(prev))
-        if (p.height < prev.verifiedProofs.provenHeight())
+        if (p.height <= prev.verifiedProofs.provenHeight()) // resubmission of a proof
             p.forkID <= prev.L1Epoch() // TODO: not very precise
         else
             p.forkID == prev.L1Epoch() 
@@ -108,6 +117,10 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proofs: Set[L2Block
         pendingRegistrations: prev.pendingRegistrations.union(regs).exclude(confirmed),
         cntRegistrations: prev.cntRegistrations + regs.size()
     }
+
+//
+// Functions for L2 chain
+//
 
 // auxiliary function to compute new valset. Need to figure out whether validator
 // already is in the valset
@@ -224,6 +237,7 @@ pure def makeProof (b: L2Block) : L2BlockProof =
         forkID: b.chainID,
     }
 
+// for repl and writing tests
 action addL1BlockNoProof = all {
     val someHeights = Set()
     val l = L2.select(b => someHeights.contains(b.height))
@@ -233,6 +247,7 @@ action addL1BlockNoProof = all {
     envRegs' = Set(),
 }        
 
+// for repl and writing tests
 action addL1BlockProofWithHeight(h) = all {
     val someHeights = Set(h)
     val l = L2.select(b => someHeights.contains(b.height))
@@ -242,6 +257,7 @@ action addL1BlockProofWithHeight(h) = all {
     envRegs' = Set(),
 }        
 
+// TODO: rewrite action to take someheights Set[int] as input
 action addL1Block = all {
     nondet someHeights = (-1).to(L2.length() - 1).powerset().oneOf()
     val l = L2.select(b => someHeights.contains(b.height))
@@ -251,6 +267,7 @@ action addL1Block = all {
     envRegs' = Set(),
 }
 
+// for repl and writing tests
 action addL2BlockRegs (regs: Set[Registration]) : bool = all {
     L2' = L2.append(newL2Block(L2, regs)),
     L1' = L1,
