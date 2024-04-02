@@ -222,6 +222,11 @@ where
         proposal: Ctx::Proposal,
         validity: Validity,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+        // Discard proposals from different heights
+        if self.height() != proposal.height() {
+            return Ok(None);
+        }
+
         let round = proposal.round();
 
         match self.multiplex_proposal(proposal, validity) {
@@ -231,6 +236,7 @@ where
     }
 
     fn apply_vote(&mut self, vote: Ctx::Vote) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+        // Discard votes from different heights
         if self.height() != vote.height() {
             return Ok(None);
         }

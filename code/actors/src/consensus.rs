@@ -200,6 +200,10 @@ where
                         vote_height, state.driver.height(),
                     );
 
+                    // FIXME: We lose the vote here. We should instead buffer it
+                    //        and process it once we moved to the correct height.
+                    // NOTE: We cannot just send the vote via `SendDriverInput` because otherwise
+                    //       the vote will reach the driver before it has started the new height.
                     myself.cast(Msg::MoveToHeight(vote_height))?;
 
                     return Ok(());
@@ -233,6 +237,10 @@ where
                         proposal_height, state.driver.height(),
                     );
 
+                    // FIXME: We lose the proposal here. We should instead buffer it
+                    //        and process it once we moved to the correct height.
+                    // NOTE: We cannot just send the proposal via `SendDriverInput` because otherwise
+                    //       the proposal will reach the driver before it has started the new height.
                     myself.cast(Msg::MoveToHeight(proposal_height))?;
 
                     return Ok(());
