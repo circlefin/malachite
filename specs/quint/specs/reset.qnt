@@ -18,7 +18,7 @@ type Height = int
 type ChainID = int
 
 val    L2EpochSize = 5
-val    L1EpochSize = 10
+val    L1EpochSize = 3
 val    maxReg = 3
 val    minReg = -3
 val    ValAddresses = Set("Huey", "Dewey", "Louie")
@@ -30,10 +30,11 @@ val    ValAddresses = Set("Huey", "Dewey", "Louie")
 // const ValAddresses : Set[Address]
 
 type Registration = {
-    epoch: int,
-    index: int,
-    address: Address,
-    update: int
+     // from Matan: [seq_num, starknet_addr, eth_addr, amount, eth_epoch
+    epoch: int, // eth_epoch
+    index: int, // seq_num
+    address: Address, // starknet_addr
+    update: int // amount
 }
 
 type L2BlockProof = {
@@ -45,11 +46,12 @@ type L2BlockProof = {
 type L1Block = {
     // meta data
     height : Height,
+    // TODO: perhaps add forkID
     // transactions
-    newRegistrations: Set[Registration],
-    newProof: Set[L2BlockProof],
+    newRegistrations: Set[Registration], // MAtan: next_update_id used to make reg.index unique
+    newProof: Set[L2BlockProof], // TODO: can there be holes
     // state
-    pendingRegistrations: Set[Registration],
+    pendingRegistrations: Set[Registration], // TODO: Matan: unfulfilled_updates
     verifiedProofs: Set[L2BlockProof],
     // history variable for analysis. Not sure we actually need it
     cntRegistrations: int,
@@ -58,11 +60,11 @@ type L1Block = {
 type L2Block = {
     // meta data
     height: int,
-    chainID: int,
+    chainID: int, // TODO: forkID
     // transactions    
     registrations: Set[Registration],
     // state    
-    valset: Address -> int,
+    valset: Address -> int, // stakers
     stagedUpdates: Set[Registration],
     unstagedUpdates: Set[Registration],
     // history of received registrations needed for proof (for analysis. history variable)
@@ -107,7 +109,7 @@ pure def proofOK (prev: L1Block, p: L2BlockProof) : bool =
         if (p.height <= prev.verifiedProofs.provenHeight()) // resubmission of a proof
             p.forkID <= prev.L1Epoch() // TODO: not very precise
         else
-            p.forkID == prev.L1Epoch() 
+            p.forkID == prev.L1Epoch() // TODO: if forkID
     else
         p.forkID <= prev.L1Epoch() // TODO: not very precise 
 
@@ -167,7 +169,7 @@ pure def forkBlock (prev: L2Block, lastL1: L1Block) : L2Block =
     // unstagedUpdates could be filtered for epochs? 
     // Is L1->L2 messaging guaranteed to be ordered?
     {   height: lastL1.verifiedProofs.provenHeight() + 1, 
-        chainID: lastL1.L1Epoch(),
+        chainID: lastL1.L1Epoch(), // TODO: check Matan's document. Epoch of the heighest stale update?
         registrations: regs, 
         valset: newValSet,  
         stagedUpdates: Set(),
@@ -191,6 +193,7 @@ def staleInv = not(L1[L1.length() - 1].existsStale())
 // chainID of last element is 0
 // if used as invariant and violated, we have an example with a reset
 def noReset = L2[L2.length() - 1].chainID == 0
+
 
 // No registration is ever confirmed (i.e., removed from pending)
 // if used as invariant and violated, we have an example where a registration
