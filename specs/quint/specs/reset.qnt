@@ -17,11 +17,17 @@ type Address = str
 type Height = int
 type ChainID = int
 
-const L2EpochSize : int
-const L1EpochSize : int
-const maxReg : int
-const minReg : int
-const ValAddresses : Set[Address]
+val    L2EpochSize = 5
+val    L1EpochSize = 10
+val    maxReg = 3
+val    minReg = -3
+val    ValAddresses = Set("Huey", "Dewey", "Louie")
+
+// const L2EpochSize : int
+// const L1EpochSize : int
+// const maxReg : int
+// const minReg : int
+// const ValAddresses : Set[Address]
 
 type Registration = {
     epoch: int,
@@ -300,6 +306,18 @@ action step = any {
     reset               // this is asynchronous now. We should link it to L1 block generation
 }
 
+run FailedResetTest = 
+    init
+    .then(addRegistration)
+    .then(addL1BlockNoProof)
+    .then((2 * L1EpochSize).reps(_ => addL1BlockNoProof))
+    .then(reset)
+    .expect(L2[L2.length()-1].chainID == 2 and L2.length() == 2)   // first reset happened
+    .then((L1EpochSize).reps(_ => addL1BlockNoProof))
+    .then(reset)
+    .expect(L2[L2.length()-1].chainID == 3 and L2.length() == 2)   // second reset happened
+    .then(addL1BlockProofWithHeight(1))                                  // now proof gets into L1
+    .expect(not(existsStale(L1[L1.length()-1])))                   // no more stale registrations
 
 
 }
