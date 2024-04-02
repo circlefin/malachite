@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fmt::Display;
 use std::sync::Arc;
 use std::time::Instant;
@@ -81,6 +82,7 @@ where
 {
     driver: Driver<Ctx>,
     timers: ActorRef<TimersMsg>,
+    msg_queue: VecDeque<Msg<Ctx>>,
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -524,7 +526,11 @@ where
             self.params.threshold_params,
         );
 
-        Ok(State { driver, timers })
+        Ok(State {
+            driver,
+            timers,
+            msg_queue: VecDeque::new(),
+        })
     }
 
     #[tracing::instrument(
@@ -549,6 +555,13 @@ where
                     height,
                     Round::new(0),
                 )))?;
+
+                // Drain the pending message queue to process any gossip events that were received
+                // before the driver started the new height and was still at round Nil.
+                let pending_msgs = std::mem::take(&mut state.msg_queue);
+                for msg in pending_msgs {
+                    myself.cast(msg)?;
+                }
             }
 
             Msg::MoveToNextHeight => {
@@ -604,8 +617,13 @@ where
             }
 
             Msg::GossipEvent(event) => {
-                self.handle_gossip_event(event.as_ref(), myself, state)
-                    .await?;
+                if state.driver.round() == Round::Nil {
+                    debug!("Received gossip event at round -1, queuing for later");
+                    state.msg_queue.push_back(Msg::GossipEvent(event));
+                } else {
+                    self.handle_gossip_event(event.as_ref(), myself, state)
+                        .await?;
+                }
             }
 
             Msg::TimeoutElapsed(timeout) => {
