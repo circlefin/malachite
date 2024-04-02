@@ -151,14 +151,16 @@ async fn run(
 async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> ControlFlow<()> {
     match msg {
         CtrlMsg::Broadcast(channel, data) => {
+            let msg_size = data.len();
+
             let result = swarm
                 .behaviour_mut()
                 .gossipsub
-                .publish(channel.topic_hash(), data.clone());
+                .publish(channel.topic_hash(), data);
 
             match result {
                 Ok(message_id) => {
-                    debug!("Broadcasted message {message_id} of {} bytes", data.len());
+                    debug!("Broadcasted message {message_id} of {msg_size} bytes");
                 }
                 Err(e) => {
                     error!("Error broadcasting message: {e}");
