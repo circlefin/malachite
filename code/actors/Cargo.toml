@@ -20,6 +20,7 @@ malachite-test.workspace    = true
 malachite-vote.workspace    = true
 
 async-trait        = { workspace = true }
+derive-where       = { workspace = true }
 libp2p             = { workspace = true }
 ractor             = { workspace = true, features = ["async-trait"] }
 rand               = { workspace = true }
@@ -30,3 +31,4 @@ tracing            = { workspace = true }
 malachite-test     = { workspace = true }
 rand_chacha        = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
+

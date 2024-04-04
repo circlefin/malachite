@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use malachite_common::{Context, Round};
-use malachite_node::proposer::select_proposer;
-use malachite_node::value_builder::ValueBuilder;
+use malachite_common::{Context, Height, Round, Validator, ValidatorSet};
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
+
+use crate::util::ValueBuilder;
 
 pub struct ProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
@@ -70,7 +70,16 @@ impl<Ctx: Context> CAL<Ctx> {
         height: Ctx::Height,
         round: Round,
     ) -> Result<Ctx::Address, ActorProcessingErr> {
-        Ok(select_proposer::<Ctx>(height, round, &self.validator_set).clone())
+        assert!(self.validator_set.count() > 0);
+        assert!(round != Round::Nil && round.as_i64() >= 0);
+
+        let height = height.as_u64() as usize;
+        let round = round.as_i64() as usize;
+
+        let proposer_index = (height - 1 + round) % self.validator_set.count();
+        let proposer = self.validator_set.get_by_index(proposer_index).unwrap();
+
+        Ok(proposer.address().clone())
     }
 
     async fn get_value(

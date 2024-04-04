@@ -4,7 +4,6 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use malachite_common::{Context, Round};
-use malachite_node::value_builder::ValueBuilder;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
@@ -13,6 +12,7 @@ use crate::cal::CAL;
 use crate::consensus::{Consensus, Msg as ConsensusMsg, Params as ConsensusParams};
 use crate::gossip::{Gossip, Msg as GossipMsg};
 use crate::timers::Config as TimersConfig;
+use crate::util::ValueBuilder;
 
 pub struct Params<Ctx: Context> {
     pub address: Ctx::Address,

@@ -3,12 +3,12 @@ use tokio::sync::mpsc;
 
 use malachite_common::Round;
 use malachite_gossip::Keypair;
-use malachite_node::value_builder::test::TestValueBuilder;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 use tokio::task::JoinHandle;
 
 use crate::node::{Msg as NodeMsg, Params as NodeParams};
 use crate::timers::Config as TimersConfig;
+use crate::util::TestValueBuilder;
 
 pub async fn make_node_actor(
     initial_validator_set: ValidatorSet,
