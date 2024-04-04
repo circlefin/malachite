@@ -294,7 +294,7 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match &input {
-            DriverInput::NewRound(_, _) => {
+            DriverInput::NewRound(_, _, _) => {
                 state.timers.cast(TimersMsg::Reset)?;
             }
 
@@ -393,7 +393,15 @@ where
             DriverOutput::NewRound(height, round) => {
                 info!("New round at height {height}: {round}");
 
-                Ok(Next::Input(DriverInput::NewRound(height, round)))
+                let proposer = self.params.proposer_selector.select_proposer(
+                    height,
+                    round,
+                    &self.params.validator_set,
+                );
+
+                info!("Proposer for height {height} and round {round}: {proposer}");
+
+                Ok(Next::Input(DriverInput::NewRound(height, round, proposer)))
             }
 
             DriverOutput::Propose(proposal) => {
@@ -520,7 +528,6 @@ where
         let driver = Driver::new(
             self.ctx.clone(),
             self.params.start_height,
-            self.params.proposer_selector.clone(),
             self.params.validator_set.clone(),
             self.params.address.clone(),
             self.params.threshold_params,
@@ -549,11 +556,20 @@ where
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             Msg::StartHeight(height) => {
-                info!("Starting height {height}");
+                let round = Round::new(0);
+
+                info!("Starting height {height} at round {round}");
+
+                let proposer = self.params.proposer_selector.select_proposer(
+                    height,
+                    round,
+                    &self.params.validator_set,
+                );
+
+                info!("Proposer for height {height} and round {round}: {proposer}");
 
                 myself.cast(Msg::SendDriverInput(DriverInput::NewRound(
-                    height,
-                    Round::new(0),
+                    height, round, proposer,
                 )))?;
 
                 // Drain the pending message queue to process any gossip events that were received

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use malachite_common::Round;
 use malachite_driver::{Driver, Input, Output, Validity};
 use malachite_round::state::State;
@@ -46,18 +44,6 @@ struct TestStep {
     new_state: State<TestContext>,
 }
 
-pub fn output_to_input(output: Output<TestContext>) -> Option<Input<TestContext>> {
-    match output {
-        Output::NewRound(height, round) => Some(Input::NewRound(height, round)),
-        // Let's consider our own proposal to always be valid
-        Output::Propose(p) => Some(Input::Proposal(p, Validity::Valid)),
-        Output::Vote(v) => Some(Input::Vote(v)),
-        Output::Decide(_, _) => None,
-        Output::ScheduleTimeout(_) => None,
-        Output::GetValue(_, _, _) => None,
-    }
-}
-
 // Arrive at L49 with commits from current rounds, no locked value, no valid value
 //
 // Ev:             NewRound                    <quorum>                       Proposal
@@ -79,15 +65,14 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(0)),
+            input: new_round_input(Round::new(0), v1.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
@@ -154,15 +139,14 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(0)),
+            input: new_round_input(Round::new(0), v1.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
@@ -257,17 +241,16 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
     let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address);
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(0)),
+            input: new_round_input(Round::new(0), v1.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
@@ -325,7 +308,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
         },
         TestStep {
             desc: "Start round 1, we, v3, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(1)),
+            input: new_round_input(Round::new(1), v2.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(1))],
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_locked_and_valid(
@@ -390,15 +373,14 @@ fn driver_steps_polka_previous_with_locked() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we, v2, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(0)),
+            input: new_round_input(Round::new(0), v1.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
@@ -451,7 +433,7 @@ fn driver_steps_polka_previous_with_locked() {
         },
         TestStep {
             desc: "start round 1, we are proposer with a valid value, propose it",
-            input: new_round_input(Round::new(1)),
+            input: new_round_input(Round::new(1), v2.address),
             expected_outputs: vec![proposal_output(
                 Round::new(1),
                 value,
@@ -521,15 +503,14 @@ fn driver_steps_polka_previous_invalid_proposal() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(0)),
+            input: new_round_input(Round::new(0), v1.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
@@ -564,7 +545,7 @@ fn driver_steps_polka_previous_invalid_proposal() {
         },
         TestStep {
             desc: "start round 1, we, v3, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(1)),
+            input: new_round_input(Round::new(1), v2.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(1))],
             expected_round: Round::new(1),
             new_state: propose_state(Round::new(1)),
@@ -618,15 +599,14 @@ fn driver_steps_polka_previous_new_proposal() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(0)),
+            input: new_round_input(Round::new(0), v1.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
@@ -673,7 +653,7 @@ fn driver_steps_polka_previous_new_proposal() {
         },
         TestStep {
             desc: "start round 1, we, v3, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(1)),
+            input: new_round_input(Round::new(1), v2.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(1))],
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_locked_and_valid(
@@ -747,15 +727,14 @@ fn driver_steps_polka_previous_with_no_locked() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we, v2, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(0)),
+            input: new_round_input(Round::new(0), v1.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
@@ -817,7 +796,7 @@ fn driver_steps_polka_previous_with_no_locked() {
         },
         TestStep {
             desc: "start round 1, we are proposer with a valid value from round 0, propose it",
-            input: new_round_input(Round::new(1)),
+            input: new_round_input(Round::new(1), v2.address),
             expected_outputs: vec![proposal_output(
                 Round::new(1),
                 value,
@@ -873,15 +852,14 @@ fn driver_steps_polka_nil_and_timout_propose() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(0)),
+            input: new_round_input(Round::new(0), v1.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
@@ -937,16 +915,15 @@ fn driver_steps_polka_value_then_proposal() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
     let steps =
         vec![
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(0)),
+            input: new_round_input(Round::new(0), v1.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
@@ -1005,15 +982,14 @@ fn driver_steps_polka_any_then_proposal_other() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = Arc::new(RotateProposer);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
-            input: new_round_input(Round::new(0)),
+            input: new_round_input(Round::new(0), v1.address),
             expected_outputs: vec![start_propose_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),

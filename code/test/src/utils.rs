@@ -67,8 +67,8 @@ pub fn make_validators<const N: usize>(
     validators.try_into().expect("N validators")
 }
 
-pub fn new_round_input(round: Round) -> Input<TestContext> {
-    Input::NewRound(Height::new(1), round)
+pub fn new_round_input(round: Round, proposer: Address) -> Input<TestContext> {
+    Input::NewRound(Height::new(1), round, proposer)
 }
 
 pub fn new_round_output(round: Round) -> Output<TestContext> {
