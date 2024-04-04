@@ -4,7 +4,7 @@ pub fn select_proposer<Ctx>(
     height: Ctx::Height,
     round: Round,
     validator_set: &Ctx::ValidatorSet,
-) -> Option<&Ctx::Address>
+) -> &Ctx::Address
 where
     Ctx: Context,
 {
@@ -15,7 +15,7 @@ where
     let round = round.as_i64() as usize;
 
     let proposer_index = (height - 1 + round) % validator_set.count();
-    let proposer = validator_set.get_by_index(proposer_index);
+    let proposer = validator_set.get_by_index(proposer_index).unwrap();
 
-    proposer.map(|v| v.address())
+    proposer.address()
 }

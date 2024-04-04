@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::time::Instant;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_where::derive_where;
@@ -8,7 +8,11 @@ use malachite_common::Context;
 
 #[async_trait]
 pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
-    async fn build_proposal(&self, height: Ctx::Height, deadline: Instant) -> Option<Ctx::Value>;
+    async fn build_value(
+        &self,
+        height: Ctx::Height,
+        timeout_duration: Duration,
+    ) -> Option<Ctx::Value>;
 }
 
 pub mod test {
@@ -23,11 +27,8 @@ pub mod test {
 
     #[async_trait]
     impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
-        async fn build_proposal(&self, height: Height, deadline: Instant) -> Option<Value> {
-            let diff = deadline.duration_since(Instant::now());
-            let wait = diff / 2;
-
-            tokio::time::sleep(wait).await;
+        async fn build_value(&self, height: Height, timeout_duration: Duration) -> Option<Value> {
+            tokio::time::sleep(timeout_duration / 2).await;
 
             Some(Value::new(40 + height.as_u64()))
         }
