@@ -5,7 +5,7 @@ mod util;
 use util::*;
 
 #[tokio::test]
-pub async fn decide_on_value() {
+pub async fn all_correct_nodes() {
     let nodes = Test::new(
         [
             TestNode::correct(5),

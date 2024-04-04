@@ -391,7 +391,7 @@ where
     ) -> Result<Next<Ctx>, ActorProcessingErr> {
         match output {
             DriverOutput::NewRound(height, round) => {
-                info!("New round at height {height}: {round}");
+                info!("Starting round {round} at height {height}");
 
                 let proposer = self.params.proposer_selector.select_proposer(
                     height,

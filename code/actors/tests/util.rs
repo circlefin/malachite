@@ -41,10 +41,6 @@ impl<const N: usize> Test<N> {
         }
     }
 
-    pub fn get(&self, index: usize) -> Option<&TestNode> {
-        self.nodes.get(index)
-    }
-
     pub fn voting_powers(nodes: &[TestNode; N]) -> [VotingPower; N] {
         let mut voting_powers = [0; N];
         for (i, node) in nodes.iter().enumerate() {
@@ -54,13 +50,42 @@ impl<const N: usize> Test<N> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Fault {
+    NoStart,
+    Crash(u64),
+}
+
+#[derive(Clone)]
 pub struct TestNode {
     pub voting_power: VotingPower,
+    pub faults: Vec<Fault>,
 }
 
 impl TestNode {
     pub fn correct(voting_power: VotingPower) -> Self {
-        Self { voting_power }
+        Self {
+            voting_power,
+            faults: vec![],
+        }
+    }
+
+    pub fn faulty(voting_power: VotingPower, faults: Vec<Fault>) -> Self {
+        Self {
+            voting_power,
+            faults,
+        }
+    }
+
+    fn start_node(&self) -> bool {
+        !self.faults.contains(&Fault::NoStart)
+    }
+
+    fn crashes_at(&self, height: u64) -> bool {
+        self.faults.iter().any(|f| match f {
+            Fault::NoStart => false,
+            Fault::Crash(h) => *h == height,
+        })
     }
 }
 
@@ -85,16 +110,19 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
     sleep(Duration::from_secs(5)).await;
 
     let mut nodes = Vec::with_capacity(handles.len());
-    for (handle, rx) in handles {
-        let node = handle.await.expect("Error: node failed to start");
-        nodes.push((node, rx));
+    for (i, (handle, rx)) in handles.into_iter().enumerate() {
+        let (actor_ref, _) = handle.await.expect("Error: node failed to start");
+        let test = test.nodes[i].clone();
+        nodes.push((actor_ref, test, rx));
     }
 
     let mut actors = Vec::with_capacity(nodes.len());
     let mut rxs = Vec::with_capacity(nodes.len());
 
-    for ((actor, _), rx) in nodes {
-        actor.cast(Msg::Start).unwrap();
+    for (actor, node_test, rx) in nodes {
+        if node_test.start_node() {
+            actor.cast(Msg::Start).unwrap();
+        }
 
         actors.push(actor);
         rxs.push(rx);
@@ -103,20 +131,27 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
     let correct_decisions = Arc::new(AtomicUsize::new(0));
 
     for (i, mut rx_decision) in rxs.into_iter().enumerate() {
-        let i = i + 1;
-
         let correct_decisions = Arc::clone(&correct_decisions);
+
+        let node_test = test.nodes[i].clone();
+        let actor_ref = actors[i].clone();
 
         tokio::spawn(async move {
             for height in START_HEIGHT.as_u64()..=END_HEIGHT.as_u64() {
+                if node_test.crashes_at(height) {
+                    info!("[{i}] Faulty node {i} has crashed");
+                    actor_ref.kill();
+                    break;
+                }
+
                 let decision = rx_decision.recv().await;
                 let expected = Some((Height::new(height), Round::new(0), Value::new(40 + height)));
 
                 if decision == expected {
-                    info!("[{height}] {i}/{HEIGHTS} correct decision");
+                    info!("[{i}] {height}/{HEIGHTS} correct decision");
                     correct_decisions.fetch_add(1, Ordering::Relaxed);
                 } else {
-                    error!("[{height}] {i}/{HEIGHTS} incorrect decision: expected {expected:?}, got {decision:?}");
+                    error!("[{i}] {height}/{HEIGHTS} incorrect decision: expected {expected:?}, got {decision:?}");
                 }
             }
         });
@@ -128,12 +163,12 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
 
     if correct_decisions != test.expected_decisions {
         panic!(
-            "Not all nodes made correct decisions: {}/{}",
+            "Not all nodes made correct decisions: got {}, expected {}",
             correct_decisions, test.expected_decisions
         );
     }
 
     for actor in actors {
-        actor.stop_and_wait(None, None).await.unwrap();
+        let _ = actor.stop_and_wait(None, None).await;
     }
 }
