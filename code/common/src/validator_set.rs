@@ -38,9 +38,15 @@ where
     Self: Clone + Debug + Send + Sync,
     Ctx: Context,
 {
+    /// The number of validators in the set.
+    fn count(&self) -> usize;
+
     /// The total voting power of the validator set.
     fn total_voting_power(&self) -> VotingPower;
 
     /// Get the validator with the given address.
     fn get_by_address(&self, address: &Ctx::Address) -> Option<&Ctx::Validator>;
+
+    /// Get the validator at the given index.
+    fn get_by_index(&self, index: usize) -> Option<&Ctx::Validator>;
 }

@@ -1,12 +1,9 @@
-use std::sync::Arc;
-
 use ractor::ActorRef;
 use tokio::sync::mpsc;
 
 use malachite_common::Round;
 use malachite_gossip::Keypair;
 use malachite_node::value_builder::test::TestValueBuilder;
-use malachite_test::utils::RotateProposer;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 use tokio::task::JoinHandle;
 
@@ -22,7 +19,6 @@ pub async fn make_node_actor(
     let keypair = Keypair::ed25519_from_bytes(private_key.inner().to_bytes()).unwrap();
     let start_height = Height::new(1);
     let ctx = TestContext::new(private_key);
-    let proposer_selector = Arc::new(RotateProposer);
 
     let value_builder = Box::<TestValueBuilder<TestContext>>::default();
 
@@ -32,7 +28,6 @@ pub async fn make_node_actor(
         address,
         initial_validator_set,
         keypair,
-        proposer_selector,
         start_height,
         threshold_params: Default::default(),
         timers_config,

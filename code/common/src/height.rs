@@ -12,4 +12,7 @@ where
 {
     /// Increment the height by one.
     fn increment(&self) -> Self;
+
+    /// Convert the height to a `u64`.
+    fn as_u64(&self) -> u64;
 }

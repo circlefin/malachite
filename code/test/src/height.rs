@@ -32,6 +32,10 @@ impl malachite_common::Height for Height {
     fn increment(&self) -> Self {
         Self(self.0 + 1)
     }
+
+    fn as_u64(&self) -> u64 {
+        self.0
+    }
 }
 
 impl proto::Protobuf for Height {

@@ -1,12 +1,9 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use ractor::{Actor, ActorRef};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use malachite_common::{Context, Round};
-use malachite_driver::ProposerSelector;
 use malachite_node::value_builder::ValueBuilder;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
@@ -20,7 +17,6 @@ pub struct Params<Ctx: Context> {
     pub address: Ctx::Address,
     pub initial_validator_set: Ctx::ValidatorSet,
     pub keypair: malachite_gossip::Keypair,
-    pub proposer_selector: Arc<dyn ProposerSelector<Ctx>>,
     pub start_height: Ctx::Height,
     pub threshold_params: ThresholdParams,
     pub timers_config: TimersConfig,
@@ -41,7 +37,6 @@ where
 
     let consensus_params = ConsensusParams {
         start_height: params.start_height,
-        proposer_selector: params.proposer_selector,
         validator_set: params.initial_validator_set,
         address: params.address,
         threshold_params: params.threshold_params,

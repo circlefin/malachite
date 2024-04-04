@@ -19,12 +19,10 @@ mod error;
 mod input;
 mod mux;
 mod output;
-mod proposer;
 mod util;
 
 pub use driver::Driver;
 pub use error::Error;
 pub use input::Input;
 pub use output::Output;
-pub use proposer::ProposerSelector;
 pub use util::Validity;

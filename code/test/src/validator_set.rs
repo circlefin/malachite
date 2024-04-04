@@ -111,12 +111,20 @@ impl ValidatorSet {
 }
 
 impl malachite_common::ValidatorSet<TestContext> for ValidatorSet {
+    fn count(&self) -> usize {
+        self.validators.len()
+    }
+
     fn total_voting_power(&self) -> VotingPower {
         self.total_voting_power()
     }
 
     fn get_by_address(&self, address: &Address) -> Option<&Validator> {
         self.get_by_address(address)
+    }
+
+    fn get_by_index(&self, index: usize) -> Option<&Validator> {
+        self.validators.get(index)
     }
 }
 
