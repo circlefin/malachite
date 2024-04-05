@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use malachite_common::{Context, Height, Round, Validator, ValidatorSet};
+use malachite_common::{Context, Round};
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 
 use crate::util::ValueBuilder;
@@ -15,12 +15,6 @@ pub enum Msg<Ctx: Context> {
     GetValidatorSet {
         height: Ctx::Height,
         reply: RpcReplyPort<Ctx::ValidatorSet>,
-    },
-
-    GetProposer {
-        height: Ctx::Height,
-        round: Round,
-        reply: RpcReplyPort<Ctx::Address>,
     },
 
     GetValue {
@@ -63,23 +57,6 @@ impl<Ctx: Context> CAL<Ctx> {
         _height: Ctx::Height,
     ) -> Result<Ctx::ValidatorSet, ActorProcessingErr> {
         Ok(self.validator_set.clone())
-    }
-
-    async fn get_proposer(
-        &self,
-        height: Ctx::Height,
-        round: Round,
-    ) -> Result<Ctx::Address, ActorProcessingErr> {
-        assert!(self.validator_set.count() > 0);
-        assert!(round != Round::Nil && round.as_i64() >= 0);
-
-        let height = height.as_u64() as usize;
-        let round = round.as_i64() as usize;
-
-        let proposer_index = (height - 1 + round) % self.validator_set.count();
-        let proposer = self.validator_set.get_by_index(proposer_index).unwrap();
-
-        Ok(proposer.address().clone())
     }
 
     async fn get_value(
@@ -125,15 +102,6 @@ impl<Ctx: Context> Actor for CAL<Ctx> {
             Msg::GetValidatorSet { height, reply } => {
                 let validators = self.get_validator_set(height).await?;
                 reply.send(validators)?;
-            }
-
-            Msg::GetProposer {
-                height,
-                round,
-                reply,
-            } => {
-                let proposer = self.get_proposer(height, round).await?;
-                reply.send(proposer)?;
             }
 
             Msg::GetValue {

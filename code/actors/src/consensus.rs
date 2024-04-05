@@ -58,7 +58,6 @@ where
 pub enum Msg<Ctx: Context> {
     StartHeight(Ctx::Height),
     MoveToHeight(Ctx::Height),
-    MoveToNextHeight,
     GossipEvent(Arc<GossipEvent>),
     TimeoutElapsed(Timeout),
     ProposeValue(Ctx::Height, Round, Option<Ctx::Value>),
@@ -273,7 +272,7 @@ where
         myself.cast(Msg::SendDriverInput(DriverInput::TimeoutElapsed(timeout)))?;
 
         if timeout.step == TimeoutStep::Commit {
-            myself.cast(Msg::MoveToNextHeight)?;
+            myself.cast(Msg::MoveToHeight(height.increment()))?;
         }
 
         Ok(())
@@ -385,7 +384,8 @@ where
             DriverOutput::NewRound(height, round) => {
                 info!("Starting round {round} at height {height}");
 
-                let proposer = self.get_proposer(height, round).await?;
+                let validator_set = &state.driver.validator_set;
+                let proposer = self.get_proposer(height, round, validator_set).await?;
                 info!("Proposer for height {height} and round {round}: {proposer}");
 
                 Ok(Next::Input(DriverInput::NewRound(
@@ -496,29 +496,18 @@ where
         &self,
         height: Ctx::Height,
         round: Round,
+        validator_set: &Ctx::ValidatorSet,
     ) -> Result<Ctx::Address, ActorProcessingErr> {
-        let result = self
-            .cal
-            .call(
-                |reply| CALMsg::GetProposer {
-                    height,
-                    round,
-                    reply,
-                },
-                None,
-            )
-            .await?;
+        assert!(validator_set.count() > 0);
+        assert!(round != Round::Nil && round.as_i64() >= 0);
 
-        // TODO: Figure out better way to handle this:
-        // - use `ractor::cast!` macro?
-        // - extension trait?
-        match result {
-            CallResult::Success(proposer) => Ok(proposer),
-            error => Err(format!(
-                "Error at height {height} and round {round} when waiting for proposer: {error:?}"
-            )),
-        }
-        .map_err(Into::into)
+        let height = height.as_u64() as usize;
+        let round = round.as_i64() as usize;
+
+        let proposer_index = (height - 1 + round) % validator_set.count();
+        let proposer = validator_set.get_by_index(proposer_index).unwrap();
+
+        Ok(proposer.address().clone())
     }
 
     async fn get_validator_set(
@@ -601,7 +590,8 @@ where
                 let round = Round::new(0);
                 info!("Starting height {height} at round {round}");
 
-                let proposer = self.get_proposer(height, round).await?;
+                let validator_set = &state.driver.validator_set;
+                let proposer = self.get_proposer(height, round, validator_set).await?;
                 info!("Proposer for height {height} and round {round}: {proposer}");
 
                 myself.cast(Msg::SendDriverInput(DriverInput::NewRound(
@@ -614,13 +604,6 @@ where
                 for msg in pending_msgs {
                     myself.cast(msg)?;
                 }
-            }
-
-            Msg::MoveToNextHeight => {
-                let height = state.driver.height().increment();
-                info!("Moving to next height {height}");
-
-                myself.cast(Msg::MoveToHeight(height))?;
             }
 
             Msg::MoveToHeight(height) => {
