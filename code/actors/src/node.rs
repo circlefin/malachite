@@ -11,6 +11,8 @@ use crate::cal::Msg as CALMsg;
 use crate::cal::CAL;
 use crate::consensus::{Consensus, Msg as ConsensusMsg, Params as ConsensusParams};
 use crate::gossip::{Gossip, Msg as GossipMsg};
+use crate::proposal_builder::Msg as ProposalBuilderMsg;
+use crate::proposal_builder::ProposalBuilder;
 use crate::timers::Config as TimersConfig;
 use crate::util::ValueBuilder;
 
@@ -34,12 +36,9 @@ where
     Ctx::Vote: Protobuf<Proto = malachite_proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = malachite_proto::Proposal>,
 {
-    let cal = CAL::spawn(
-        ctx.clone(),
-        params.initial_validator_set.clone(),
-        params.value_builder,
-    )
-    .await?;
+    let cal = CAL::spawn(ctx.clone(), params.initial_validator_set.clone()).await?;
+
+    let proposal_builder = ProposalBuilder::spawn(ctx.clone(), params.value_builder).await?;
 
     let consensus_params = ConsensusParams {
         start_height: params.start_height,
@@ -60,12 +59,20 @@ where
         params.timers_config,
         gossip.clone(),
         cal.clone(),
+        proposal_builder.clone(),
         params.tx_decision,
         None,
     )
     .await?;
 
-    let node = Node::new(ctx, cal, gossip, consensus, params.start_height);
+    let node = Node::new(
+        ctx,
+        cal,
+        gossip,
+        consensus,
+        proposal_builder,
+        params.start_height,
+    );
     let actor = node.spawn().await?;
     Ok(actor)
 }
@@ -76,6 +83,7 @@ pub struct Node<Ctx: Context> {
     cal: ActorRef<CALMsg<Ctx>>,
     gossip: ActorRef<GossipMsg>,
     consensus: ActorRef<ConsensusMsg<Ctx>>,
+    proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
     start_height: Ctx::Height,
 }
 
@@ -90,6 +98,7 @@ where
         cal: ActorRef<CALMsg<Ctx>>,
         gossip: ActorRef<GossipMsg>,
         consensus: ActorRef<ConsensusMsg<Ctx>>,
+        proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
         start_height: Ctx::Height,
     ) -> Self {
         Self {
@@ -97,6 +106,7 @@ where
             cal,
             gossip,
             consensus,
+            proposal_builder,
             start_height,
         }
     }
@@ -130,6 +140,7 @@ where
         self.cal.link(myself.get_cell());
         self.gossip.link(myself.get_cell());
         self.consensus.link(myself.get_cell());
+        self.proposal_builder.link(myself.get_cell());
 
         Ok(())
     }

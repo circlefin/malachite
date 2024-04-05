@@ -23,8 +23,9 @@ use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::{Threshold, ThresholdParams};
 
-use crate::cal::{Msg as CALMsg, ProposedValue};
+use crate::cal::Msg as CALMsg;
 use crate::gossip::Msg as GossipMsg;
+use crate::proposal_builder::{Msg as ProposalBuilderMsg, ProposedValue};
 use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers};
 use crate::util::forward;
 
@@ -52,6 +53,7 @@ where
     timers_config: TimersConfig,
     gossip: ActorRef<GossipMsg>,
     cal: ActorRef<CALMsg<Ctx>>,
+    proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
     tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
 }
 
@@ -97,6 +99,7 @@ where
         timers_config: TimersConfig,
         gossip: ActorRef<GossipMsg>,
         cal: ActorRef<CALMsg<Ctx>>,
+        proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
     ) -> Self {
         Self {
@@ -105,20 +108,31 @@ where
             timers_config,
             gossip,
             cal,
+            proposal_builder,
             tx_decision,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn spawn(
         ctx: Ctx,
         params: Params<Ctx>,
         timers_config: TimersConfig,
         gossip: ActorRef<GossipMsg>,
         cal: ActorRef<CALMsg<Ctx>>,
+        proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
-        let node = Self::new(ctx, params, timers_config, gossip, cal, tx_decision);
+        let node = Self::new(
+            ctx,
+            params,
+            timers_config,
+            gossip,
+            cal,
+            proposal_builder,
+            tx_decision,
+        );
 
         let (actor_ref, _) = if let Some(supervisor) = supervisor {
             Actor::spawn_linked(None, node, (), supervisor).await?
@@ -475,8 +489,8 @@ where
         // Call `GetValue` on the CAL actor, and forward the reply to the current actor,
         // wrapping it in `Msg::ProposeValue`.
         call_and_forward(
-            &self.cal.get_cell(),
-            |reply| CALMsg::GetValue {
+            &self.proposal_builder.get_cell(),
+            |reply| ProposalBuilderMsg::GetValue {
                 height,
                 round,
                 timeout_duration,

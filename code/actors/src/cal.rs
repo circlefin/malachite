@@ -1,27 +1,10 @@
-use std::time::Duration;
-
-use malachite_common::{Context, Round};
+use malachite_common::Context;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
-
-use crate::util::ValueBuilder;
-
-pub struct ProposedValue<Ctx: Context> {
-    pub height: Ctx::Height,
-    pub round: Round,
-    pub value: Option<Ctx::Value>,
-}
 
 pub enum Msg<Ctx: Context> {
     GetValidatorSet {
         height: Ctx::Height,
         reply: RpcReplyPort<Ctx::ValidatorSet>,
-    },
-
-    GetValue {
-        height: Ctx::Height,
-        round: Round,
-        timeout_duration: Duration,
-        reply: RpcReplyPort<ProposedValue<Ctx>>,
     },
 }
 
@@ -29,25 +12,14 @@ pub struct CAL<Ctx: Context> {
     #[allow(dead_code)]
     ctx: Ctx,
     validator_set: Ctx::ValidatorSet,
-    value_builder: Box<dyn ValueBuilder<Ctx>>,
 }
 
 impl<Ctx: Context> CAL<Ctx> {
     pub async fn spawn(
         ctx: Ctx,
         validator_set: Ctx::ValidatorSet,
-        value_builder: Box<dyn ValueBuilder<Ctx>>,
     ) -> Result<ActorRef<Msg<Ctx>>, ActorProcessingErr> {
-        let (actor_ref, _) = Actor::spawn(
-            None,
-            Self {
-                ctx,
-                validator_set,
-                value_builder,
-            },
-            (),
-        )
-        .await?;
+        let (actor_ref, _) = Actor::spawn(None, Self { ctx, validator_set }, ()).await?;
 
         Ok(actor_ref)
     }
@@ -57,24 +29,6 @@ impl<Ctx: Context> CAL<Ctx> {
         _height: Ctx::Height,
     ) -> Result<Ctx::ValidatorSet, ActorProcessingErr> {
         Ok(self.validator_set.clone())
-    }
-
-    async fn get_value(
-        &self,
-        height: Ctx::Height,
-        round: Round,
-        timeout_duration: Duration,
-    ) -> Result<ProposedValue<Ctx>, ActorProcessingErr> {
-        let value = self
-            .value_builder
-            .build_value(height, timeout_duration)
-            .await;
-
-        Ok(ProposedValue {
-            height,
-            round,
-            value,
-        })
     }
 }
 
@@ -102,16 +56,6 @@ impl<Ctx: Context> Actor for CAL<Ctx> {
             Msg::GetValidatorSet { height, reply } => {
                 let validators = self.get_validator_set(height).await?;
                 reply.send(validators)?;
-            }
-
-            Msg::GetValue {
-                height,
-                round,
-                timeout_duration,
-                reply,
-            } => {
-                let value = self.get_value(height, round, timeout_duration).await?;
-                reply.send(value)?;
             }
         }
 
