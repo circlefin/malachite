@@ -10,6 +10,9 @@
 
 // quint run --invariant "noReset" reset.qnt 
 
+// Starknet Forced Staking Updates: https://docs.google.com/document/d/1OaYLh9o10DIsGpW0GTRhWl-IJiVyjRsy7UttHs9_1Fw/edit#heading=h.hvyiqqxvuqzo
+// Leader and Proof scheduling: https://docs.google.com/document/d/1qjngaq9GoMWa5UJOrTlKNqwi_pI0aHt8iULWD9Gy9hE/edit#heading=h.s8yc63mi87f5
+
 
 module reset {
 
@@ -17,17 +20,17 @@ type Address = str
 type Height = int
 type ChainID = int
 
-val    L2EpochSize = 5
-val    L1EpochSize = 3
-val    maxReg = 3
-val    minReg = -3
-val    ValAddresses = Set("Huey", "Dewey", "Louie")
+// val    L2EpochSize = 5
+// val    L1EpochSize = 3
+// val    maxReg = 3
+// val    minReg = -3
+// val    ValAddresses = Set("Huey", "Dewey", "Louie")
 
-// const L2EpochSize : int
-// const L1EpochSize : int
-// const maxReg : int
-// const minReg : int
-// const ValAddresses : Set[Address]
+const L2EpochSize : int
+const L1EpochSize : int
+const maxReg : int
+const minReg : int
+const ValAddresses : Set[Address]
 
 type Registration = {
      // from Matan: [seq_num, starknet_addr, eth_addr, amount, eth_epoch
@@ -41,6 +44,8 @@ type L2BlockProof = {
     height: Height,
     confirmedRegs: Set[Registration],
     forkID: ChainID,
+    // TODO0404: resultingBlock: L2Block,
+    // TODO0404: valid: bool,
 }
 
 type L1Block = {
@@ -52,7 +57,8 @@ type L1Block = {
     newProof: Set[L2BlockProof], // TODO: can there be holes
     // state
     pendingRegistrations: Set[Registration], // TODO: Matan: unfulfilled_updates
-    verifiedProofs: Set[L2BlockProof],
+    verifiedProofs: Set[L2BlockProof], // TODO0404. Not stored. 
+    // TODO0404: latestProvenL2BlockHash: L2Block, // What happens is that the actuall proof submitted to L1 is computed from L2 off-chain
     // history variable for analysis. Not sure we actually need it
     cntRegistrations: int,
 }
@@ -86,7 +92,11 @@ pure def staleRegs (b: L1Block) : Set[Registration] =
 pure def existsStale (b: L1Block) : bool =
     staleRegs(b).size() > 0
 
+pure def forkID (regs: Set[Registration]) : int =
+    // TODO0404: it will set the fork ID equal to the EVE of the most recent stale registration
+    1
 
+// TODO0404: gets much simpler
 pure def provenHeight(verifProofs: Set[L2BlockProof]) : Height =
     // smallest unproven block - 1
     // Remark: This models somewhat that L1 is initialized with a proof of the L2 genesis state
@@ -167,7 +177,8 @@ pure def forkBlock (prev: L2Block, lastL1: L1Block) : L2Block =
     val regs = staleRegs(lastL1)
     val newValSet = nextValSet(prev.valset, prev.unstagedUpdates.union(prev.stagedUpdates).union(regs))
     // unstagedUpdates could be filtered for epochs? 
-    // Is L1->L2 messaging guaranteed to be ordered?
+    // Is L1->L2 messaging guaranteed to be ordered? not in the L1->L2 protocol, but the L2 smart contract
+    // ensures ordering
     {   height: lastL1.verifiedProofs.provenHeight() + 1, 
         chainID: lastL1.L1Epoch(), // TODO: check Matan's document. Epoch of the heighest stale update?
         registrations: regs, 
@@ -309,18 +320,6 @@ action step = any {
     reset               // this is asynchronous now. We should link it to L1 block generation
 }
 
-run FailedResetTest = 
-    init
-    .then(addRegistration)
-    .then(addL1BlockNoProof)
-    .then((2 * L1EpochSize).reps(_ => addL1BlockNoProof))
-    .then(reset)
-    .expect(L2[L2.length()-1].chainID == 2 and L2.length() == 2)   // first reset happened
-    .then((L1EpochSize).reps(_ => addL1BlockNoProof))
-    .then(reset)
-    .expect(L2[L2.length()-1].chainID == 3 and L2.length() == 2)   // second reset happened
-    .then(addL1BlockProofWithHeight(1))                                  // now proof gets into L1
-    .expect(not(existsStale(L1[L1.length()-1])))                   // no more stale registrations
 
 
 }
