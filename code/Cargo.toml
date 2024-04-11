@@ -42,8 +42,10 @@ malachite-test    = { version = "0.1.0", path = "test" }
 malachite-vote    = { version = "0.1.0", path = "vote" }
 
 async-trait        = "0.1.77"
-clap               = { version = "4.5.4", features = ["derive"] }
+base64             = "0.22.0"
+clap               = "4.5.4"
 color-eyre         = "0.6"
+confy              = "0.6.1"
 derive-where       = "1.2.7"
 ed25519-consensus  = "2.1.0"
 futures            = "0.3"

@@ -14,9 +14,13 @@ malachite-actors.workspace = true
 malachite-node.workspace   = true
 malachite-test.workspace   = true
 
-clap               = { workspace = true }
+base64             = { workspace = true }
+clap               = { workspace = true, features = ["derive", "env"] }
 color-eyre         = { workspace = true }
+confy              = { workspace = true }
 itertools          = { workspace = true }
 tokio              = { workspace = true, features = ["full"] }
 tracing            = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+serde              = { workspace = true, features = ["derive"] }
+rand.workspace = true

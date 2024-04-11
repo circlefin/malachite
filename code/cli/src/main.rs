@@ -1,7 +1,7 @@
+mod config;
+
 use std::time::Duration;
 
-use clap::Parser;
-use logging::DebugSection;
 use malachite_actors::node::Msg;
 use malachite_actors::util::make_node_actor;
 use malachite_test::utils::make_validators;
@@ -11,35 +11,20 @@ use tracing::info;
 
 use crate::logging::LogLevel;
 
-#[derive(clap::Parser)]
-pub struct Args {
-    #[clap(
-        short,
-        long,
-        help = "Index of this node in the validator set (0, 1, or 2)"
-    )]
-    pub index: usize,
-
-    #[clap(
-        short,
-        long = "debug",
-        help = "Enable debug output for the given comma-separated sections",
-        value_enum,
-        value_delimiter = ','
-    )]
-    debug: Vec<DebugSection>,
-}
-
 const VOTING_POWERS: [u64; 3] = [11, 10, 10];
 
 mod logging;
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-    let index = args.index;
+    let cfg = config::Args::new();
+    if let config::Commands::Init = cfg.command {
+        return Ok(());
+    }
 
-    logging::init(LogLevel::Debug, &args.debug);
+    logging::init(LogLevel::Debug, &cfg.debug);
+
+    let index = cfg.index;
 
     let vs = make_validators(VOTING_POWERS);
 
