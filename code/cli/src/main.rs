@@ -1,3 +1,5 @@
+mod config;
+
 use malachite_actors::node::Msg;
 use malachite_actors::prelude::*;
 use malachite_actors::util::make_node_actor;
@@ -12,11 +14,12 @@ const VOTING_POWERS: [u64; 3] = [5, 20, 10];
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
-    let index: usize = std::env::args()
-        .nth(1)
-        .expect("Error: missing index")
-        .parse()
-        .expect("Error: invalid index");
+    let cfg = config::Args::new();
+    if let config::Commands::Init = cfg.command {
+        return Ok(());
+    }
+
+    let index = cfg.index;
 
     let vs = make_validators(VOTING_POWERS);
 
