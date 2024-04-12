@@ -58,6 +58,12 @@ impl PrivateKey {
     }
 }
 
+impl From<[u8; 32]> for PrivateKey {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(ed25519_consensus::SigningKey::from(bytes))
+    }
+}
+
 impl Signer<Signature> for PrivateKey {
     fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
         Ok(self.0.sign(msg))

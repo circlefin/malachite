@@ -18,9 +18,12 @@ base64             = { workspace = true }
 clap               = { workspace = true, features = ["derive", "env"] }
 color-eyre         = { workspace = true }
 confy              = { workspace = true }
+ed25519-consensus  = { workspace = true }
+hex                = { workspace = true }
 itertools          = { workspace = true }
 tokio              = { workspace = true, features = ["full"] }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 serde              = { workspace = true, features = ["derive"] }
+serde_json         = { workspace = true }
 rand.workspace = true
