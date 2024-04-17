@@ -128,7 +128,7 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proofs: Set[L2Block
     val accepted =  if (proofs.forall(p => proofOK(prev, p))) proofs
                     else Set()
     val verifProofs = prev.verifiedProofs.union(accepted)
-    val confirmed = confirmedRegistrations(verifProofs)
+    val confirmed = confirmedRegistrations(accepted)
     {   time : prev.time + 1, // TODO: right now time increments. We should pass in the time as a parameter to this function
         newRegistrations: regs,
         newProof: proofs,
