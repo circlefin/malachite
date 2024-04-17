@@ -18,7 +18,7 @@ module reset {
 
 type Address = str
 type Height = int
-type ChainID = int
+type ForkID = int
 
 // val    L2EpochSize = 5
 // val    L1EpochSize = 3
@@ -33,17 +33,16 @@ const minReg : int
 const ValAddresses : Set[Address]
 
 type Registration = {
-     // from Matan: [seq_num, starknet_addr, eth_addr, amount, eth_epoch
-    epoch: int, // eth_epoch
-    index: int, // seq_num
-    address: Address, // starknet_addr
-    update: int // amount
+    eth_epoch: int, 
+    seq_num: int, 
+    starknet_addr: Address, 
+    amount: int 
 }
 
 type L2BlockProof = {
     height: Height,
     confirmedRegs: Set[Registration],
-    forkID: ChainID,
+    forkID: ForkID,
     // TODO0404: resultingBlock: L2Block,
     // TODO0404: valid: bool,
 }
@@ -87,7 +86,7 @@ pure def L1Epoch(b: L1Block) : int =
     b.height / L1EpochSize
 
 pure def staleRegs (b: L1Block) : Set[Registration] =
-    b.pendingRegistrations.filter(r => r.epoch + 1 < b.height / L1EpochSize)
+    b.pendingRegistrations.filter(r => r.eth_epoch + 1 < b.height / L1EpochSize)
 
 pure def existsStale (b: L1Block) : bool =
     staleRegs(b).size() > 0
@@ -143,10 +142,10 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proofs: Set[L2Block
 // auxiliary function to compute new valset. Need to figure out whether validator
 // already is in the valset
 pure def addOneReg (vals: Address -> int, reg: Registration) : Address -> int =
-    if (vals.keys().contains(reg.address))
-        vals.set(reg.address, vals.get(reg.address) + reg.update)
+    if (vals.keys().contains(reg.starknet_addr))
+        vals.set(reg.starknet_addr, vals.get(reg.starknet_addr) + reg.amount)
     else
-        vals.put(reg.address, reg.update)
+        vals.put(reg.starknet_addr, reg.amount)
 
 pure def nextValSet (vals: Address -> int, regs: Set[Registration]) : Address -> int =
     regs.fold(vals, (v, r) => addOneReg(v,r))
@@ -241,10 +240,10 @@ action addRegistration = all {
     nondet newVal = ValAddresses.oneOf()
     nondet power = minReg.to(maxReg).oneOf()
     val newReg = {
-        epoch: L1.length() / L1EpochSize, //TODO: check and fix
-        index: L1[L1.length() - 1].cntRegistrations + envRegs.size() + 1, // encodes unique registration index
-        address: newVal,
-        update: power
+        eth_epoch: L1.length() / L1EpochSize, //TODO: check and fix
+        seq_num: L1[L1.length() - 1].cntRegistrations + envRegs.size() + 1, // encodes unique registration index
+        starknet_addr: newVal,
+        amount: power
     }
     envRegs' = envRegs.union(Set(newReg)),
     L1' = L1,
