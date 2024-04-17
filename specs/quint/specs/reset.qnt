@@ -87,7 +87,7 @@ pure def L1Epoch(b: L1Block) : int =
     b.height / L1EpochSize
 
 pure def staleRegs (b: L1Block) : Set[Registration] =
-    b.pendingRegistrations.filter(r => r.epoch + 1 < b.height / L1EpochSize)
+    b.pendingRegistrations.filter(r => r.epoch + 2 <= b.height / L1EpochSize)
 
 pure def existsStale (b: L1Block) : bool =
     staleRegs(b).size() > 0
