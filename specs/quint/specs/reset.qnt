@@ -66,7 +66,7 @@ type L1Block = {
 type L2Block = {
     // meta data
     height: int,
-    chainID: int, // TODO: forkID
+    forkID: ForkID, // TODO: forkID
     // transactions    
     registrations: Set[Registration],
     // state    
@@ -128,7 +128,7 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proofs: Set[L2Block
     val accepted =  if (proofs.forall(p => proofOK(prev, p))) proofs
                     else Set()
     val verifProofs = prev.verifiedProofs.union(accepted)
-    val confirmed = confirmedRegistrations(verifProofs)
+    val confirmed = confirmedRegistrations(accepted)
     {   time : prev.time + 1, // TODO: right now time increments. We should pass in the time as a parameter to this function
         newRegistrations: regs,
         newProof: proofs,
@@ -159,7 +159,7 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
             stagedUpdates: prev.unstagedUpdates,
             unstagedUpdates: regs,
             height: chain.length(), 
-            chainID: prev.chainID,
+            forkID: prev.forkID,
             registrations: regs, 
             receivedRegistrations: prev.receivedRegistrations.union(regs),
         }   
@@ -168,7 +168,7 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
             stagedUpdates: prev.stagedUpdates, 
             unstagedUpdates: prev.unstagedUpdates.union(regs),
             height: chain.length(), 
-            chainID: prev.chainID,
+            forkID: prev.forkID,
             registrations: regs, 
             receivedRegistrations: prev.receivedRegistrations.union(regs),
         }
@@ -181,7 +181,7 @@ pure def forkBlock (prev: L2Block, lastL1: L1Block) : L2Block =
     // Is L1->L2 messaging guaranteed to be ordered? not in the L1->L2 protocol, but the L2 smart contract
     // ensures ordering
     {   height: lastL1.verifiedProofs.provenHeight() + 1, 
-        chainID: lastL1.L1Epoch(), // TODO: check Matan's document. Epoch of the heighest stale update?
+        forkID: lastL1.L1Epoch(), // TODO: check Matan's document. Epoch of the heighest stale update?
         registrations: regs, 
         valset: newValSet,  
         stagedUpdates: Set(),
@@ -204,16 +204,21 @@ def staleInv = not(L1[L1.length() - 1].existsStale())
 
 // chainID of last element is 0
 // if used as invariant and violated, we have an example with a reset
-def noReset = L2[L2.length() - 1].chainID == 0
+def noReset = L2[L2.length() - 1].forkID == 0
 
+def growingForkID = (
+    L2.length() > 1 implies 
+        (L2[L2.length() - 1].forkID >= L2[L2.length() - 2].forkID)
+)
 
 // No registration is ever confirmed (i.e., removed from pending)
 // if used as invariant and violated, we have an example where a registration
 // is removed from pending
-def noConfirmed = 
-    (L1.length() > 2) implies L1[L1.length() - 2].pendingRegistrations.forall(
-        r => L1[L1.length() - 1].pendingRegistrations.contains(r)
-    ) 
+def noConfirmed = (
+        L1.length() > 2) implies 
+            L1[L1.length() - 2].pendingRegistrations.forall(
+                r => L1[L1.length() - 1].pendingRegistrations.contains(r)
+) 
 
 
 // ACTIONS
@@ -228,7 +233,7 @@ action init = all {
                 cntRegistrations: 0,
                 }),
     L2' = List({height: 0,
-                chainID: 0,
+                forkID: 0,
                 registrations: Set(),
                 valset: Map(),
                 stagedUpdates: Set(),
@@ -255,7 +260,7 @@ action addRegistration = all {
 pure def makeProof (b: L2Block) : L2BlockProof = 
     {   height: b.height, 
         confirmedRegs: b.receivedRegistrations, 
-        forkID: b.chainID,
+        forkID: b.forkID,
     }
 
 // for repl and writing tests
