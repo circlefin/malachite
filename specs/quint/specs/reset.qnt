@@ -41,24 +41,30 @@ type Registration = {
 }
 
 type L2BlockProof = {
-    height: Height,
+    from_height: Height,
+    to_height: Height,
     confirmedRegs: Set[Registration],
     forkID: ForkID,
-    // TODO0404: resultingBlock: L2Block,
-    // TODO0404: valid: bool,
+    resultingBlock: L2Block,
 }
+
+type L2Proof = 
+    | Proof (L2BlockProof)
+    | Invalid // for modeling ZK checks. to allow executions where invalid proofs are submitted
+    | None
+
 
 type L1Block = {
     // meta data
     time : Time,
-    // TODO: perhaps add forkID
     // transactions
     newRegistrations: Set[Registration], // MAtan: next_update_id used to make reg.index unique
-    newProof: Set[L2BlockProof], // TODO: can there be holes
+    newProof: L2Proof, 
     // state
     pendingRegistrations: Set[Registration], // TODO: Matan: unfulfilled_updates
-    verifiedProofs: Set[L2BlockProof], // TODO0404. Not stored. 
-    // TODO0404: latestProvenL2BlockHash: L2Block, // What happens is that the actuall proof submitted to L1 is computed from L2 off-chain
+    provenHeight: Height, 
+    l2forkID: int,
+    latestProvenL2BlockHash: L2Block, // What happens is that the actuall proof submitted to L1 is computed from L2 off-chain
     // history variable for analysis. Not sure we actually need it
     cntRegistrations: int,
 }
@@ -97,42 +103,66 @@ pure def forkID (regs: Set[Registration]) : int =
     // TODO0404: it will set the fork ID equal to the EVE of the most recent stale registration
     1
 
-// TODO0404: gets much simpler
-pure def provenHeight(verifProofs: Set[L2BlockProof]) : Height =
-    // smallest unproven block - 1
-    // Remark: This models somewhat that L1 is initialized with a proof of the L2 genesis state
-    val HeightsWithProofs = Set(0).union(verifProofs.fold(Set(), (s, pp) => s.union(Set(pp.height))))
-    // complete contains a proofs i such that we also have all proofs from 0 to i
-    // that is if we have {0,1,2,4,5,8}, complete is {0,1,2}; TODO test
-    val complete = HeightsWithProofs.filter(i => 0.to(i).subseteq(HeightsWithProofs))
-    // take biggest, that is 2 in the example above
-    complete.fold(0, (max, i) => if (i > max) i else max)
+// // TODO0404: gets much simpler
+// pure def provenHeight(verifProofs: Set[L2BlockProof]) : Height =
+//     // smallest unproven block - 1
+//     // Remark: This models somewhat that L1 is initialized with a proof of the L2 genesis state
+//     val HeightsWithProofs = Set(0).union(verifProofs.fold(Set(), (s, pp) => s.union(Set(pp.height))))
+//     // complete contains a proofs i such that we also have all proofs from 0 to i
+//     // that is if we have {0,1,2,4,5,8}, complete is {0,1,2}; TODO test
+//     val complete = HeightsWithProofs.filter(i => 0.to(i).subseteq(HeightsWithProofs))
+//     // take biggest, that is 2 in the example above
+//     complete.fold(0, (max, i) => if (i > max) i else max)
 
 // confirmed registrations in proofs up to the proven height
-pure def confirmedRegistrations (vp: Set[L2BlockProof]) : Set[Registration] = 
-    val ps = vp.filter(p => p.height <= provenHeight(vp))
-    ps.fold(Set(), (s, p) => s.union(p.confirmedRegs))
+pure def confirmedRegistrations (vp: L2Proof) : Set[Registration] = 
+    match vp {
+            | None => Set()
+            | Invalid => Set()
+            | Proof(p) => p.confirmedRegs
+    }
+
 
 // If no registrations are stale, I accept everything from past epochs
 // otherwise, for heights greater they need to be from the current epoch
 pure def proofOK (prev: L1Block, p: L2BlockProof) : bool =
-    if (existsStale(prev))
-        if (p.height <= prev.verifiedProofs.provenHeight()) // resubmission of a proof
-            p.forkID <= prev.L1Epoch() // TODO: not very precise
-        else
-            p.forkID == prev.L1Epoch() // TODO: if forkID
+    if (prev.provenHeight + 1 != p.from_height) false
     else
-        p.forkID <= prev.L1Epoch() // TODO: not very precise 
+        if (existsStale(prev))
+            p.forkID == prev.L1Epoch() // TODO: epoch of the latest stale
+        else
+            p.forkID <= prev.l2forkID // TODO: not very precise 
 
-pure def newL1Block (prev: L1Block, regs: Set[Registration], proofs: Set[L2BlockProof]) : L1Block =
-    val accepted =  if (proofs.forall(p => proofOK(prev, p))) proofs
-                    else Set()
-    val verifProofs = prev.verifiedProofs.union(accepted)
+pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof) : L1Block =
+    val accepted = match proof {
+            | None => None
+            | Invalid => None
+            | Proof(p) =>        
+                if (proofOK(prev, p)) proof
+                else None
+    }
     val confirmed = confirmedRegistrations(accepted)
+    val newProvenHeight = match accepted {
+        | None => prev.provenHeight
+        | Invalid => prev.provenHeight
+        | Proof(p) => p.to_height
+    }
+    val newForkID = match accepted {
+        | None => prev.l2forkID
+        | Invalid => prev.provenHeight
+        | Proof(p) => p.forkID
+    }
+    val newBlockHash = match accepted {
+        | None => prev.latestProvenL2BlockHash
+        | Invalid => prev.latestProvenL2BlockHash
+        | Proof(p) => p.resultingBlock
+    }
     {   time : prev.time + 1, // TODO: right now time increments. We should pass in the time as a parameter to this function
         newRegistrations: regs,
-        newProof: proofs,
-        verifiedProofs: verifProofs, 
+        newProof: proof,
+        provenHeight: newProvenHeight,
+        latestProvenL2BlockHash: newBlockHash,
+        l2forkID: newForkID,
         pendingRegistrations: prev.pendingRegistrations.union(regs).exclude(confirmed),
         cntRegistrations: prev.cntRegistrations + regs.size()
     }
@@ -180,7 +210,7 @@ pure def forkBlock (prev: L2Block, lastL1: L1Block) : L2Block =
     // unstagedUpdates could be filtered for epochs? 
     // Is L1->L2 messaging guaranteed to be ordered? not in the L1->L2 protocol, but the L2 smart contract
     // ensures ordering
-    {   height: lastL1.verifiedProofs.provenHeight() + 1, 
+    {   height: lastL1.provenHeight + 1, 
         forkID: lastL1.L1Epoch(), // TODO: check Matan's document. Epoch of the heighest stale update?
         registrations: regs, 
         valset: newValSet,  
@@ -223,23 +253,27 @@ def noConfirmed = (
 
 // ACTIONS
 
-action init = all {
+action init = 
+    val initialL2Block = {
+        height: 0,
+        forkID: 0,
+        registrations: Set(),
+        valset: Map(),
+        stagedUpdates: Set(),
+        unstagedUpdates: Set(),
+        receivedRegistrations: Set(),
+    }
+    all {
     L1' = List({time : 0,
                 newRegistrations: Set(),
-                newProof: Set(),
+                newProof: None,
                 pendingRegistrations: Set(),
-                verifiedProofs: Set(),
-                // provenHeight: -1,
+                provenHeight: -1,
+                l2forkID: 0,
+                latestProvenL2BlockHash: initialL2Block,
                 cntRegistrations: 0,
                 }),
-    L2' = List({height: 0,
-                forkID: 0,
-                registrations: Set(),
-                valset: Map(),
-                stagedUpdates: Set(),
-                unstagedUpdates: Set(),
-                receivedRegistrations: Set(),
-                }),
+    L2' = List(initialL2Block),
     envRegs' = Set(),
 }
 
@@ -257,37 +291,41 @@ action addRegistration = all {
     L2' = L2,
 }
 
-pure def makeProof (b: L2Block) : L2BlockProof = 
-    {   height: b.height, 
-        confirmedRegs: b.receivedRegistrations, 
-        forkID: b.forkID,
-    }
+pure def makeProof (l2: List[L2Block], to_height: Height, l1: List[L1Block]) : L2Proof = 
+    val from_height = l1[l1.length()-1].provenHeight // + 1
+    val listToProve = l2.slice(from_height, to_height)
+    val regs = listToProve.foldl (Set(), (s, x) => s.union(x.registrations))
+    val forkID = listToProve[listToProve.length()-1].forkID
+    if (from_height < to_height and to_height <= l2.length())
+        Proof({   from_height: from_height,
+        to_height: to_height,
+        confirmedRegs: regs,
+        forkID: forkID,
+        resultingBlock: l2[to_height]})
+    else
+        Invalid
+
+    
 
 // for repl and writing tests
-action addL1BlockNoProof = all {
-    val someHeights = Set()
-    val l = L2.select(b => someHeights.contains(b.height))
-    val newproof = l.foldl( Set(), (p, b) => p.union(Set(makeProof(b))))              
-    L1' = L1.append(newL1Block(L1[L1.length() - 1], envRegs, newproof)),
+action addL1BlockNoProof = all {             
+    L1' = L1.append(newL1Block(L1[L1.length() - 1], envRegs, None)),
     L2' = L2,
     envRegs' = Set(),
 }        
 
 // for repl and writing tests
 action addL1BlockProofWithHeight(h) = all {
-    val someHeights = Set(h)
-    val l = L2.select(b => someHeights.contains(b.height))
-    val newproof = l.foldl( Set(), (p, b) => p.union(Set(makeProof(b))))              
+    val newproof = makeProof(L2, h, L1)
     L1' = L1.append(newL1Block(L1[L1.length() - 1], envRegs, newproof)),
     L2' = L2,
     envRegs' = Set(),
 }        
 
-// TODO: rewrite action to take someheights Set[int] as input
+// TODO: rewrite action to take heights 
 action addL1Block = all {
-    nondet someHeights = (-1).to(L2.length() - 1).powerset().oneOf()
-    val l = L2.select(b => someHeights.contains(b.height))
-    val newproof = l.foldl( Set(), (p, b) => p.union(Set(makeProof(b))))              
+    nondet someHeight = (-1).to(L2.length() - 1).oneOf() // TODO: instead of -1 take lastProvenHeight
+    val newproof = makeProof(L2, someHeight, L1)              
     L1' = L1.append(newL1Block(L1[L1.length() - 1], envRegs, newproof)),
     L2' = L2,
     envRegs' = Set(),
@@ -311,7 +349,7 @@ action addL2Block = all {
 action reset = all {
     val lastL1 = L1[L1.length() - 1]
     if (existsStale(lastL1))
-        L2' = L2.slice(0, lastL1.verifiedProofs.provenHeight() + 1).append(forkBlock(L2[L2.length()-1], lastL1))
+        L2' = L2.slice(0, lastL1.provenHeight + 1).append(forkBlock(L2[L2.length()-1], lastL1))
     else
         L2' = L2,
     L1' =  L1,
