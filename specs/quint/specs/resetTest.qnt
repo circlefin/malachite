@@ -4,7 +4,7 @@ module resetTest {
     
 import reset (
     L2EpochSize = 5,
-    L1EpochSize = 10,
+    L1EpochSize = 5,
     maxReg = 3,
     minReg = -3,
     ValAddresses = Set("Huey", "Dewey", "Louie")

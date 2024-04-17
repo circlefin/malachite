@@ -18,6 +18,7 @@ module reset {
 
 type Address = str
 type Height = int
+type Time = int
 type ForkID = int
 
 // val    L2EpochSize = 5
@@ -26,14 +27,14 @@ type ForkID = int
 // val    minReg = -3
 // val    ValAddresses = Set("Huey", "Dewey", "Louie")
 
-const L2EpochSize : int
-const L1EpochSize : int
+const L2EpochSize : Height
+const L1EpochSize : Time
 const maxReg : int
 const minReg : int
 const ValAddresses : Set[Address]
 
 type Registration = {
-    eth_epoch: int, 
+    eth_epoch: int, // Time/Time gives unit 1
     seq_num: int, 
     starknet_addr: Address, 
     amount: int 
@@ -49,7 +50,7 @@ type L2BlockProof = {
 
 type L1Block = {
     // meta data
-    height : Height,
+    time : Time,
     // TODO: perhaps add forkID
     // transactions
     newRegistrations: Set[Registration], // MAtan: next_update_id used to make reg.index unique
@@ -83,10 +84,10 @@ type L2Block = {
 
 
 pure def L1Epoch(b: L1Block) : int =
-    b.height / L1EpochSize
+    b.time / L1EpochSize
 
 pure def staleRegs (b: L1Block) : Set[Registration] =
-    b.pendingRegistrations.filter(r => r.eth_epoch + 2 <= b.height / L1EpochSize)
+    b.pendingRegistrations.filter(r => r.eth_epoch + 2 <= L1Epoch(b))
 
 
 pure def existsStale (b: L1Block) : bool =
@@ -128,7 +129,7 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proofs: Set[L2Block
                     else Set()
     val verifProofs = prev.verifiedProofs.union(accepted)
     val confirmed = confirmedRegistrations(verifProofs)
-    {   height : prev.height + 1,
+    {   time : prev.time + 1, // TODO: right now time increments. We should pass in the time as a parameter to this function
         newRegistrations: regs,
         newProof: proofs,
         verifiedProofs: verifProofs, 
@@ -218,7 +219,7 @@ def noConfirmed =
 // ACTIONS
 
 action init = all {
-    L1' = List({height : 0,
+    L1' = List({time : 0,
                 newRegistrations: Set(),
                 newProof: Set(),
                 pendingRegistrations: Set(),
