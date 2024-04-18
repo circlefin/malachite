@@ -27,8 +27,10 @@ type ForkID = int
 // val    minReg = -3
 // val    ValAddresses = Set("Huey", "Dewey", "Louie")
 
+
 const L2EpochSize : Height
 const L1EpochSize : Time
+const EthStartTime : Time
 const maxReg : int
 const minReg : int
 const ValAddresses : Set[Address]
@@ -95,24 +97,14 @@ pure def L1Epoch(b: L1Block) : int =
 pure def staleRegs (b: L1Block) : Set[Registration] =
     b.pendingRegistrations.filter(r => r.eth_epoch + 2 <= L1Epoch(b))
 
-
 pure def existsStale (b: L1Block) : bool =
     staleRegs(b).size() > 0
 
-pure def forkID (regs: Set[Registration]) : int =
-    // TODO0404: it will set the fork ID equal to the EVE of the most recent stale registration
-    1
-
-// // TODO0404: gets much simpler
-// pure def provenHeight(verifProofs: Set[L2BlockProof]) : Height =
-//     // smallest unproven block - 1
-//     // Remark: This models somewhat that L1 is initialized with a proof of the L2 genesis state
-//     val HeightsWithProofs = Set(0).union(verifProofs.fold(Set(), (s, pp) => s.union(Set(pp.height))))
-//     // complete contains a proofs i such that we also have all proofs from 0 to i
-//     // that is if we have {0,1,2,4,5,8}, complete is {0,1,2}; TODO test
-//     val complete = HeightsWithProofs.filter(i => 0.to(i).subseteq(HeightsWithProofs))
-//     // take biggest, that is 2 in the example above
-//     complete.fold(0, (max, i) => if (i > max) i else max)
+// set the fork ID equal to the EVE of the most recent stale registration
+pure def expectedForkID (b: L1Block) : int =
+    if (not(existsStale(b))) b.l2forkID
+    else
+        staleRegs(b).fold(b.l2forkID, (s, x) => if (x.eth_epoch > s) x.eth_epoch else s)
 
 // confirmed registrations in proofs up to the proven height
 pure def confirmedRegistrations (vp: L2Proof) : Set[Registration] = 
@@ -128,10 +120,7 @@ pure def confirmedRegistrations (vp: L2Proof) : Set[Registration] =
 pure def proofOK (prev: L1Block, p: L2BlockProof) : bool =
     if (prev.provenHeight + 1 != p.from_height) false
     else
-        if (existsStale(prev))
-            p.forkID == prev.L1Epoch() // TODO: epoch of the latest stale
-        else
-            p.forkID <= prev.l2forkID // TODO: not very precise 
+        p.forkID == prev.expectedForkID() 
 
 pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof) : L1Block =
     val accepted = match proof {
@@ -147,11 +136,6 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof) : L
         | Invalid => prev.provenHeight
         | Proof(p) => p.to_height
     }
-    val newForkID = match accepted {
-        | None => prev.l2forkID
-        | Invalid => prev.provenHeight
-        | Proof(p) => p.forkID
-    }
     val newBlockHash = match accepted {
         | None => prev.latestProvenL2BlockHash
         | Invalid => prev.latestProvenL2BlockHash
@@ -162,7 +146,7 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof) : L
         newProof: proof,
         provenHeight: newProvenHeight,
         latestProvenL2BlockHash: newBlockHash,
-        l2forkID: newForkID,
+        l2forkID: prev.expectedForkID(), // off by one perhaps.
         pendingRegistrations: prev.pendingRegistrations.union(regs).exclude(confirmed),
         cntRegistrations: prev.cntRegistrations + regs.size()
     }
@@ -211,7 +195,7 @@ pure def forkBlock (prev: L2Block, lastL1: L1Block) : L2Block =
     // Is L1->L2 messaging guaranteed to be ordered? not in the L1->L2 protocol, but the L2 smart contract
     // ensures ordering
     {   height: lastL1.provenHeight + 1, 
-        forkID: lastL1.L1Epoch(), // TODO: check Matan's document. Epoch of the heighest stale update?
+        forkID: lastL1.expectedForkID(), // TODO: check Matan's document. Epoch of the heighest stale update?
         registrations: regs, 
         valset: newValSet,  
         stagedUpdates: Set(),
@@ -220,6 +204,23 @@ pure def forkBlock (prev: L2Block, lastL1: L1Block) : L2Block =
     }
 
 
+//
+// Functions for Provers
+//
+
+pure def makeProof (l2: List[L2Block], to_height: Height, l1: List[L1Block]) : L2Proof = 
+    val from_height = l1[l1.length()-1].provenHeight + 1
+    if (from_height <= to_height and to_height < l2.length())
+        val listToProve = l2.slice(from_height, to_height + 1)
+        val regs = listToProve.foldl (Set(), (s, x) => s.union(x.registrations))
+        val newforkID = listToProve[listToProve.length()-1].forkID
+        Proof({ from_height: from_height,
+                to_height: to_height,
+                confirmedRegs: regs,
+                forkID: newforkID,
+                resultingBlock: l2[to_height]})
+    else
+        Invalid
 
 
 // STATE MACHINE
@@ -264,24 +265,25 @@ action init =
         receivedRegistrations: Set(),
     }
     all {
-    L1' = List({time : 0,
+    L1' = List({time : EthStartTime,
                 newRegistrations: Set(),
                 newProof: None,
                 pendingRegistrations: Set(),
-                provenHeight: -1,
+                provenHeight: 0, // initial state proven?
                 l2forkID: 0,
                 latestProvenL2BlockHash: initialL2Block,
                 cntRegistrations: 0,
                 }),
     L2' = List(initialL2Block),
     envRegs' = Set(),
-}
+    }
+
 
 action addRegistration = all {
     nondet newVal = ValAddresses.oneOf()
     nondet power = minReg.to(maxReg).oneOf()
     val newReg = {
-        eth_epoch: L1.length() / L1EpochSize, //TODO: check and fix
+        eth_epoch: L1[L1.length()-1].L1Epoch(), //TODO: check and fix
         seq_num: L1[L1.length() - 1].cntRegistrations + envRegs.size() + 1, // encodes unique registration index
         starknet_addr: newVal,
         amount: power
@@ -291,19 +293,7 @@ action addRegistration = all {
     L2' = L2,
 }
 
-pure def makeProof (l2: List[L2Block], to_height: Height, l1: List[L1Block]) : L2Proof = 
-    val from_height = l1[l1.length()-1].provenHeight // + 1
-    val listToProve = l2.slice(from_height, to_height)
-    val regs = listToProve.foldl (Set(), (s, x) => s.union(x.registrations))
-    val forkID = listToProve[listToProve.length()-1].forkID
-    if (from_height < to_height and to_height <= l2.length())
-        Proof({   from_height: from_height,
-        to_height: to_height,
-        confirmedRegs: regs,
-        forkID: forkID,
-        resultingBlock: l2[to_height]})
-    else
-        Invalid
+
 
     
 
