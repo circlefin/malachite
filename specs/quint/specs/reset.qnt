@@ -47,7 +47,7 @@ type L2BlockProof = {
     to_height: Height,
     confirmedRegs: Set[Registration],
     forkID: ForkID,
-    resultingBlock: L2Block,
+    resultingBlock: L2Block, // Block of to_height
 }
 
 type L2Proof = 
@@ -74,7 +74,7 @@ type L1Block = {
 type L2Block = {
     // meta data
     height: int,
-    forkID: ForkID, // TODO: forkID
+    forkID: ForkID, 
     // transactions    
     registrations: Set[Registration],
     // state    
@@ -82,7 +82,7 @@ type L2Block = {
     stagedUpdates: Set[Registration],
     unstagedUpdates: Set[Registration],
     // history of received registrations needed for proof (for analysis. history variable)
-    receivedRegistrations: Set[Registration],
+    // receivedRegistrations: Set[Registration],
     // proofs not modelled here
 }
 
@@ -104,7 +104,7 @@ pure def existsStale (b: L1Block) : bool =
 pure def expectedForkID (b: L1Block) : int =
     if (not(existsStale(b))) b.l2forkID
     else
-        staleRegs(b).fold(b.l2forkID, (s, x) => if (x.eth_epoch > s) x.eth_epoch else s)
+        staleRegs(b).fold(b.l2forkID, (s, x) => if (x.eth_epoch > s) x.eth_epoch else s) // max
 
 // confirmed registrations in proofs up to the proven height
 pure def confirmedRegistrations (vp: L2Proof) : Set[Registration] = 
@@ -120,7 +120,7 @@ pure def confirmedRegistrations (vp: L2Proof) : Set[Registration] =
 pure def proofOK (prev: L1Block, p: L2BlockProof) : bool =
     if (prev.provenHeight + 1 != p.from_height) false
     else
-        p.forkID == prev.expectedForkID() 
+        p.forkID == prev.expectedForkID() // if you "apply proof", as a resykt there cannot be stale registrations left
 
 pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof) : L1Block =
     val accepted = match proof {
@@ -170,12 +170,12 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
     val prev = chain[chain.length() - 1]
     if (chain.length() % L2EpochSize == 0) // new epoch
         {   valset: nextValSet(prev.valset, prev.stagedUpdates),
-            stagedUpdates: prev.unstagedUpdates,
+            stagedUpdates: prev.unstagedUpdates, // TODO: "dense subset" and remainder stays in unstaged
             unstagedUpdates: regs,
             height: chain.length(), 
             forkID: prev.forkID,
             registrations: regs, 
-            receivedRegistrations: prev.receivedRegistrations.union(regs),
+            //receivedRegistrations: prev.receivedRegistrations.union(regs),
         }   
     else
         {   valset: prev.valset, 
@@ -184,23 +184,27 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
             height: chain.length(), 
             forkID: prev.forkID,
             registrations: regs, 
-            receivedRegistrations: prev.receivedRegistrations.union(regs),
+            //receivedRegistrations: prev.receivedRegistrations.union(regs),
         }
+
+
+// TODO: faulty forkBlock action that ignores some stale registrations
 
 // special function to compute a first block for a new fork
 pure def forkBlock (prev: L2Block, lastL1: L1Block) : L2Block =
     val regs = staleRegs(lastL1)
     val newValSet = nextValSet(prev.valset, prev.unstagedUpdates.union(prev.stagedUpdates).union(regs))
     // unstagedUpdates could be filtered for epochs? 
+    // TODO: but we need to ensure that the big union of 3 sets doesn't have holes, and unstaged might have holes
     // Is L1->L2 messaging guaranteed to be ordered? not in the L1->L2 protocol, but the L2 smart contract
     // ensures ordering
     {   height: lastL1.provenHeight + 1, 
-        forkID: lastL1.expectedForkID(), // TODO: check Matan's document. Epoch of the heighest stale update?
+        forkID: lastL1.expectedForkID(), 
         registrations: regs, 
         valset: newValSet,  
         stagedUpdates: Set(),
-        unstagedUpdates: Set(),
-        receivedRegistrations: prev.receivedRegistrations.union(regs),
+        unstagedUpdates: Set(), // TODO: the new valset is constructed without holes in seq_num
+        //receivedRegistrations: prev.receivedRegistrations.union(regs),
     }
 
 
@@ -262,7 +266,7 @@ action init =
         valset: Map(),
         stagedUpdates: Set(),
         unstagedUpdates: Set(),
-        receivedRegistrations: Set(),
+        //receivedRegistrations: Set(),
     }
     all {
     L1' = List({time : EthStartTime,
@@ -338,8 +342,8 @@ action addL2Block = all {
 
 action reset = all {
     val lastL1 = L1[L1.length() - 1]
-    if (existsStale(lastL1))
-        L2' = L2.slice(0, lastL1.provenHeight + 1).append(forkBlock(L2[L2.length()-1], lastL1))
+    if (existsStale(lastL1)) // AND last block on L2 must have old fork id TODO: important
+        L2' = L2.slice(0, lastL1.provenHeight + 1).append(forkBlock(L2[L2.length()-1], lastL1)) // TODO: fix from PR
     else
         L2' = L2,
     L1' =  L1,
