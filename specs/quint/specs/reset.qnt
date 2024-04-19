@@ -81,6 +81,7 @@ type L2Block = {
     valset: Address -> int, // stakers
     stagedUpdates: Set[Registration],
     unstagedUpdates: Set[Registration],
+    highest_applied_seq_num: int,
     // history of received registrations needed for proof (for analysis. history variable)
     // receivedRegistrations: Set[Registration],
     // proofs not modelled here
@@ -176,15 +177,38 @@ pure def addOneReg (vals: Address -> int, reg: Registration) : Address -> int =
 pure def nextValSet (vals: Address -> int, regs: Set[Registration]) : Address -> int =
     regs.fold(vals, (v, r) => addOneReg(v,r))
 
+pure def completePrefixIdx(r: Set[Registration]) : int =
+    // smallest unproven block - 1
+    val existingIdx = Set(0).union(r.fold(Set(), (s, x) => s.union(Set(x.seq_num))))
+    // if we have {0,1,2,4,5,8}, complete is {0,1,2}; TODO test
+    val complete = existingIdx.filter(i => 0.to(i).subseteq(existingIdx))
+    complete.fold(0, (max, i) => if (i > max) i else max)
+
+
+type DenseResult = {
+    idx: int,
+    denseRegs: Set[Registration]
+}
+
+pure def denseSubset (regs: Set[Registration]) : DenseResult =
+    val c = regs.completePrefixIdx()
+    {   idx: c,
+        denseRegs: regs.filter(r => r.seq_num <= c)
+    }
+
+
 pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block = 
     val prev = last(chain)
     if (chain.length() % L2EpochSize == 0) // new epoch
+        val toStaged = prev.unstagedUpdates.denseSubset().denseRegs
+        val toUnstaged = prev.unstagedUpdates.exclude(toStaged).union(regs)
         {   valset: nextValSet(prev.valset, prev.stagedUpdates),
-            stagedUpdates: prev.unstagedUpdates, // TODO: "dense subset" and remainder stays in unstaged
-            unstagedUpdates: regs,
+            stagedUpdates: toStaged, // TODO: "dense subset" and remainder stays in unstaged
+            unstagedUpdates: toUnstaged,
             height: chain.length(), 
             forkID: prev.forkID,
             registrations: regs, 
+            highest_applied_seq_num: prev.unstagedUpdates.denseSubset().idx,
             //receivedRegistrations: prev.receivedRegistrations.union(regs),
         }   
     else
@@ -194,28 +218,31 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
             height: chain.length(), 
             forkID: prev.forkID,
             registrations: regs, 
+            highest_applied_seq_num: prev.highest_applied_seq_num,
             //receivedRegistrations: prev.receivedRegistrations.union(regs),
         }
 
 
-// TODO: faulty forkBlock action that ignores some stale registrations
+
 
 // special function to compute a first block for a new fork
-pure def forkBlock (prev: L2Block, lastL1: L1Block) : L2Block =
-    val regs = staleRegs(lastL1)
-    val newValSet = nextValSet(prev.valset, prev.unstagedUpdates.union(prev.stagedUpdates).union(regs))
-    // unstagedUpdates could be filtered for epochs? 
-    // TODO: but we need to ensure that the big union of 3 sets doesn't have holes, and unstaged might have holes
-    // Is L1->L2 messaging guaranteed to be ordered? not in the L1->L2 protocol, but the L2 smart contract
-    // ensures ordering
-    {   height: lastL1.provenHeight + 1, 
-        forkID: lastL1.expectedForkID(), 
+// TODO: test with holes in registrations
+// TODO: test with forkBlock that misses stale registrations
+pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: ForkID) : L2Block =
+    val allRegs = prev.unstagedUpdates.union(prev.stagedUpdates).union(regs)
+    val toApplyNow = allRegs.denseSubset().denseRegs
+    val toUnstaged = allRegs.exclude(toApplyNow)
+    val newValSet = nextValSet(prev.valset, toApplyNow)
+    {   height: h, // lastL1.provenHeight + 1, 
+        forkID: fID, // lastL1.expectedForkID(), 
         registrations: regs, 
         valset: newValSet,  
         stagedUpdates: Set(),
-        unstagedUpdates: Set(), // TODO: the new valset is constructed without holes in seq_num
+        unstagedUpdates: toUnstaged, 
+        highest_applied_seq_num: allRegs.denseSubset().idx, 
         //receivedRegistrations: prev.receivedRegistrations.union(regs),
     }
+
 
 
 //
@@ -237,7 +264,11 @@ pure def makeProof (l2: List[L2Block], to_height: Height, l1: List[L1Block]) : L
         Invalid
 
 
+
+//
 // STATE MACHINE
+//
+//
 
 var L1: List[L1Block]
 var L2: List[L2Block]
@@ -289,6 +320,7 @@ action init =
         valset: Map(),
         stagedUpdates: Set(),
         unstagedUpdates: Set(),
+        highest_applied_seq_num: -1,
         //receivedRegistrations: Set(),
     }
     all {
@@ -363,9 +395,37 @@ action addL2Block = all {
     envRegs' = envRegs,
 }
 
+// this was the first version of reset that contains two bugs
+// in the if conditions, multiple resets can happen for the same forkID (L2 progress is over-written)
+// the forkBlock function used the wrong L2 block as a base to compute the next block
+action old_reset = all {
+    if (existsStale(L1.last()))
+        L2' = L2
+            .slice(0, L1.last().provenHeight + 1)
+            .append(forkBlock(
+                        L2.last(), 
+                        L1.last().staleRegs(), 
+                        L1.last().provenHeight + 1, 
+                        L1.last().expectedForkID())) // TODO: fix from PR
+    else
+        L2' = L2,
+    L1' =  L1,
+    envRegs' = envRegs,
+}
+
 action reset = all {
-    if (existsStale(L1.last())) // AND last block on L2 must have old fork id TODO: important
-        L2' = L2.slice(0, L1.last().provenHeight + 1).append(forkBlock(L2.last(), L1.last())) // TODO: fix from PR
+    if (existsStale(L1.last()) and L2.last().forkID != L1.last().l2forkID)
+        // TODO debug to make sure L1 last forkID and stale are handled on the right L1 block
+        // there is an off by one issue. 
+        // AND last block on L2 must have old fork id TODO: important
+        L2' = L2
+                .slice(0, L1.last().provenHeight + 1)
+                .append(forkBlock(
+                            L2[L1.last().provenHeight], 
+                            L1.last().staleRegs(), 
+                            L1.last().provenHeight + 1, 
+                            L1.last().expectedForkID())) 
+                // TODO: write more involved test that fails old_reset
     else
         L2' = L2,
     L1' =  L1,
