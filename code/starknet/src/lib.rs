@@ -86,9 +86,9 @@ pub trait Host {
     /// Validates the signature field of a message. If None returns false.
     async fn validate_signature(
         &self,
-        hash: Self::MessageHash,
-        signature: Self::Signature,
-        public_key: Self::PublicKey,
+        hash: &Self::MessageHash,
+        signature: &Self::Signature,
+        public_key: &Self::PublicKey,
     ) -> bool;
 
     /// Update the Context about which decision has been made. It is responsible for pinging any

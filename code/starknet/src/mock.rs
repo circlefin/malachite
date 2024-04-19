@@ -46,6 +46,10 @@ impl MockHost {
     pub fn set_last_error(&self, error: Option<String>) {
         self.inner.write().unwrap().last_error = error;
     }
+
+    pub fn public_key(&self) -> PublicKey {
+        self.inner.read().unwrap().private_key.public_key()
+    }
 }
 
 #[async_trait]
@@ -198,9 +202,9 @@ impl Host for MockHost {
     /// Validates the signature field of a message. If None returns false.
     async fn validate_signature(
         &self,
-        hash: Self::MessageHash,
-        signature: Self::Signature,
-        public_key: Self::PublicKey,
+        hash: &Self::MessageHash,
+        signature: &Self::Signature,
+        public_key: &Self::PublicKey,
     ) -> bool {
         public_key.verify(hash.as_bytes(), &signature).is_ok()
     }

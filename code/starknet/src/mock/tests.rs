@@ -1,6 +1,9 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use malachite_common::NilOrVal;
+use malachite_common::Round;
+use malachite_common::VoteType;
 use rand::SeedableRng;
 use rand_chacha::ChaChaRng;
 use tokio::sync::mpsc;
@@ -141,6 +144,7 @@ async fn test_send_known_proposal_correct_hash() -> TestResult {
 
     Ok(())
 }
+
 #[tokio::test]
 async fn test_send_known_proposal_incorrect_hash() {
     let mut rng = ChaChaRng::from_seed([42; 32]);
@@ -167,4 +171,50 @@ async fn test_send_known_proposal_incorrect_hash() {
     sleep(Duration::from_millis(100)).await; // Wait for the task to complete
 
     assert!(host.last_error().unwrap().contains("Invalid hash"));
+}
+
+#[tokio::test]
+async fn test_sign_message_proposal() {
+    let mut rng = ChaChaRng::from_seed([42; 32]);
+    let host = MockHost::new(&mut rng);
+
+    let message = Message::Proposal(Proposal {
+        height: Height::new(1),
+        round: Round::new(0),
+        value: ProposalContent::Tx(TxContent { data: vec![42] }),
+        pol_round: Round::Nil,
+        validator_address: Address::new([1; 20]),
+    });
+
+    let message_hash = message.hash();
+    let signed_message = host.sign(message).await;
+
+    let valid = host
+        .validate_signature(&message_hash, &signed_message.signature, &host.public_key())
+        .await;
+
+    assert!(valid, "Expected the signature to be valid");
+}
+
+#[tokio::test]
+async fn test_sign_message_vote() {
+    let mut rng = ChaChaRng::from_seed([42; 32]);
+    let host = MockHost::new(&mut rng);
+
+    let message = Message::Vote(Vote {
+        typ: VoteType::Precommit,
+        height: Height::new(1),
+        round: Round::new(0),
+        value: NilOrVal::Val(BlockHash::new([42; 32])),
+        validator_address: Address::new([1; 20]),
+    });
+
+    let message_hash = message.hash();
+    let signed_message = host.sign(message).await;
+
+    let valid = host
+        .validate_signature(&message_hash, &signed_message.signature, &host.public_key())
+        .await;
+
+    assert!(valid, "Expected the signature to be valid");
 }
