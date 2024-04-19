@@ -22,6 +22,7 @@ impl Hash {
 impl proto::Protobuf for Hash {
     type Proto = proto::ValueId;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self::new(
             proto
@@ -32,6 +33,7 @@ impl proto::Protobuf for Hash {
         ))
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(proto::ValueId {
             value: Some(self.0.to_vec()),
@@ -89,10 +91,12 @@ impl core::str::FromStr for BlockHash {
 impl proto::Protobuf for BlockHash {
     type Proto = proto::ValueId;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self(Hash::from_proto(proto)?))
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         self.0.to_proto()
     }
@@ -130,10 +134,12 @@ impl core::str::FromStr for MessageHash {
 impl proto::Protobuf for MessageHash {
     type Proto = proto::ValueId;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self(Hash::from_proto(proto)?))
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         self.0.to_proto()
     }
@@ -160,6 +166,7 @@ impl Vote {
 impl proto::Protobuf for Vote {
     type Proto = proto::Vote;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self {
             typ: VoteType::from(proto.vote_type()),
@@ -185,6 +192,7 @@ impl proto::Protobuf for Vote {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(proto::Vote {
             vote_type: proto::VoteType::from(self.typ).into(),
@@ -220,6 +228,7 @@ impl Proposal {
 impl proto::Protobuf for Proposal {
     type Proto = malachite_proto::Proposal;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(proto::Proposal {
             height: Some(self.height.to_proto()?),
@@ -230,6 +239,7 @@ impl proto::Protobuf for Proposal {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self {
             height: Height::from_proto(
@@ -270,6 +280,7 @@ pub enum ProposalContent {
 impl proto::Protobuf for ProposalContent {
     type Proto = malachite_proto::Value;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(match self {
             ProposalContent::Tx(tx) => {
@@ -285,6 +296,7 @@ impl proto::Protobuf for ProposalContent {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         let data = proto
             .value
