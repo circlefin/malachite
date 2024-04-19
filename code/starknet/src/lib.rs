@@ -19,6 +19,7 @@ pub trait Host {
     type Precommit;
     type Validator;
     type Message;
+    type SignedMessage;
 
     /// Initiate building a proposal.
     ///
@@ -80,7 +81,7 @@ pub trait Host {
     async fn validators(&self, height: Self::Height) -> Option<BTreeSet<Self::Validator>>;
 
     /// Fills in the signature field of Message.
-    async fn sign(&self, message: Self::Message) -> Self::Message;
+    async fn sign(&self, message: Self::Message) -> Self::SignedMessage;
 
     /// Validates the signature field of a message. If None returns false.
     async fn validate_signature(

@@ -10,6 +10,7 @@ publish.workspace    = true
 [dependencies]
 malachite-common = { path = "../common" }
 malachite-test   = { path = "../test" }
+malachite-proto  = { path = "../proto" }
 
 async-trait     = { workspace = true }
 futures         = { workspace = true }

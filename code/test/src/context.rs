@@ -44,7 +44,6 @@ impl Context for TestContext {
     }
 
     fn verify_signed_vote(&self, signed_vote: &SignedVote<Self>, public_key: &PublicKey) -> bool {
-        use signature::Verifier;
         public_key
             .verify(&signed_vote.vote.to_bytes(), &signed_vote.signature)
             .is_ok()
@@ -61,7 +60,6 @@ impl Context for TestContext {
         signed_proposal: &SignedProposal<Self>,
         public_key: &PublicKey,
     ) -> bool {
-        use signature::Verifier;
         public_key
             .verify(
                 &signed_proposal.proposal.to_bytes(),

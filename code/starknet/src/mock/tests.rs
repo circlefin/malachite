@@ -1,6 +1,8 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use rand::SeedableRng;
+use rand_chacha::ChaChaRng;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tokio::time::Instant;
@@ -15,7 +17,8 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 #[tokio::test]
 async fn test_build_new_proposal_normal() -> TestResult {
-    let host = MockHost::default();
+    let mut rng = ChaChaRng::from_seed([42; 32]);
+    let host = MockHost::new(&mut rng);
 
     let deadline = Instant::now() + Duration::from_millis(500);
     let height = Height::new(1);
@@ -43,9 +46,11 @@ async fn test_build_new_proposal_normal() -> TestResult {
 
 #[tokio::test]
 async fn test_build_new_proposal_immediate_deadline() -> TestResult {
+    let mut rng = ChaChaRng::from_seed([42; 32]);
+    let host = MockHost::new(&mut rng);
+
     let deadline = Instant::now();
     let height = Height::new(1);
-    let host = MockHost::default();
 
     let (mut rx_content, rx_hash) = host.build_new_proposal(deadline, height).await;
 
@@ -63,7 +68,8 @@ async fn test_build_new_proposal_immediate_deadline() -> TestResult {
 
 #[tokio::test]
 async fn test_receive_proposal_normal() -> TestResult {
-    let host = MockHost::default();
+    let mut rng = ChaChaRng::from_seed([42; 32]);
+    let host = MockHost::new(&mut rng);
 
     let height = Height::new(1);
     let (tx_content, rx_content) = mpsc::channel(10);
@@ -90,7 +96,8 @@ async fn test_receive_proposal_normal() -> TestResult {
 
 #[tokio::test]
 async fn test_receive_proposal_no_content() -> TestResult {
-    let host = MockHost::default();
+    let mut rng = ChaChaRng::from_seed([42; 32]);
+    let host = MockHost::new(&mut rng);
 
     let height = Height::new(1);
     let (tx_content, rx_content) = mpsc::channel(10);
@@ -108,7 +115,9 @@ async fn test_receive_proposal_no_content() -> TestResult {
 
 #[tokio::test]
 async fn test_send_known_proposal_correct_hash() -> TestResult {
-    let host = MockHost::default();
+    let mut rng = ChaChaRng::from_seed([42; 32]);
+    let host = MockHost::new(&mut rng);
+
     let block_hash =
         BlockHash::from_str("f8348e0b1df00833cbbbd08f07abdecc10c0efb78829d7828c62a7f36d0cc549")?;
 
@@ -134,7 +143,9 @@ async fn test_send_known_proposal_correct_hash() -> TestResult {
 }
 #[tokio::test]
 async fn test_send_known_proposal_incorrect_hash() {
-    let host = MockHost::default();
+    let mut rng = ChaChaRng::from_seed([42; 32]);
+    let host = MockHost::new(&mut rng);
+
     let block_hash = BlockHash::new([255; 32]); // Example hash unlikely to match actual content
 
     let tx_content = host.send_known_proposal(block_hash).await;

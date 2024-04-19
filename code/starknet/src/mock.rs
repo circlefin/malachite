@@ -1,4 +1,6 @@
-use rand::{Rng, SeedableRng};
+use malachite_common::signature::SignerMut;
+use malachite_test::PrivateKey;
+use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaChaRng;
 use sha2::{Digest, Sha256};
 
@@ -9,7 +11,7 @@ pub use types::*;
 mod tests;
 
 use std::collections::BTreeSet;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
@@ -17,14 +19,32 @@ use tokio::time::Instant;
 
 use crate::Host;
 
-#[derive(Default)]
+#[derive(Clone)]
 pub struct MockHost {
-    pub last_error: Arc<Mutex<Option<String>>>,
+    inner: Arc<RwLock<Inner>>,
+}
+
+struct Inner {
+    private_key: PrivateKey,
+    last_error: Option<String>,
 }
 
 impl MockHost {
+    pub fn new(rng: impl RngCore + CryptoRng) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(Inner {
+                private_key: PrivateKey::generate(rng),
+                last_error: None,
+            })),
+        }
+    }
+
     pub fn last_error(&self) -> Option<String> {
-        self.last_error.lock().unwrap().clone()
+        self.inner.read().unwrap().last_error.clone()
+    }
+
+    pub fn set_last_error(&self, error: Option<String>) {
+        self.inner.write().unwrap().last_error = error;
     }
 }
 
@@ -39,6 +59,7 @@ impl Host for MockHost {
     type Precommit = Precommit;
     type Validator = Validator;
     type Message = Message;
+    type SignedMessage = SignedMessage;
 
     async fn build_new_proposal(
         &self,
@@ -134,7 +155,7 @@ impl Host for MockHost {
         &self,
         block_hash: Self::BlockHash,
     ) -> mpsc::Sender<Self::ProposalContent> {
-        let last_error = self.last_error.clone();
+        let this = self.clone();
 
         let (tx_content, mut rx_content) = mpsc::channel(10);
 
@@ -151,7 +172,7 @@ impl Host for MockHost {
             let hash = BlockHash::new(hasher.finalize().into());
 
             if hash != block_hash {
-                *last_error.lock().unwrap() = Some(format!("Invalid hash: {hash} != {block_hash}"));
+                this.set_last_error(Some(format!("Invalid hash: {hash} != {block_hash}")));
             }
         });
 
@@ -166,19 +187,22 @@ impl Host for MockHost {
         None
     }
 
-    /// Fills in the signature field of Message.
-    async fn sign(&self, message: Self::Message) -> Self::Message {
-        message
+    /// Sign the given message.
+    async fn sign(&self, message: Self::Message) -> Self::SignedMessage {
+        let hash = message.hash();
+        let mut inner = self.inner.write().unwrap();
+        let signature = inner.private_key.sign(hash.as_bytes());
+        SignedMessage { message, signature }
     }
 
     /// Validates the signature field of a message. If None returns false.
     async fn validate_signature(
         &self,
-        _hash: Self::MessageHash,
-        _signature: Self::Signature,
-        _public_key: Self::PublicKey,
+        hash: Self::MessageHash,
+        signature: Self::Signature,
+        public_key: Self::PublicKey,
     ) -> bool {
-        true
+        public_key.verify(hash.as_bytes(), &signature).is_ok()
     }
 
     /// Update the Context about which decision has been made. It is responsible for pinging any

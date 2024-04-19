@@ -90,12 +90,16 @@ impl PublicKey {
     pub fn inner(&self) -> &ed25519_consensus::VerificationKey {
         &self.0
     }
+
+    pub fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
+        self.0
+            .verify(signature, msg)
+            .map_err(|_| signature::Error::new())
+    }
 }
 
 impl Verifier<Signature> for PublicKey {
     fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
-        self.0
-            .verify(signature, msg)
-            .map_err(|_| signature::Error::new())
+        PublicKey::verify(self, msg, signature)
     }
 }
