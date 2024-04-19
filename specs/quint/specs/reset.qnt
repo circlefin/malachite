@@ -87,6 +87,16 @@ type L2Block = {
 }
 
 //
+// Auxiliary functions
+//
+pure def last(l) =
+    l[l.length() - 1]
+
+pure def toSet (l) = 
+    l.foldl(Set(), (s, x) => s.union(Set(x)))
+
+
+//
 // Functions for L1 chain
 //
 
@@ -167,7 +177,7 @@ pure def nextValSet (vals: Address -> int, regs: Set[Registration]) : Address ->
     regs.fold(vals, (v, r) => addOneReg(v,r))
 
 pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block = 
-    val prev = chain[chain.length() - 1]
+    val prev = last(chain)
     if (chain.length() % L2EpochSize == 0) // new epoch
         {   valset: nextValSet(prev.valset, prev.stagedUpdates),
             stagedUpdates: prev.unstagedUpdates, // TODO: "dense subset" and remainder stays in unstaged
@@ -213,11 +223,11 @@ pure def forkBlock (prev: L2Block, lastL1: L1Block) : L2Block =
 //
 
 pure def makeProof (l2: List[L2Block], to_height: Height, l1: List[L1Block]) : L2Proof = 
-    val from_height = l1[l1.length()-1].provenHeight + 1
+    val from_height = l1.last().provenHeight + 1
     if (from_height <= to_height and to_height < l2.length())
         val listToProve = l2.slice(from_height, to_height + 1)
         val regs = listToProve.foldl (Set(), (s, x) => s.union(x.registrations))
-        val newforkID = listToProve[listToProve.length()-1].forkID
+        val newforkID = listToProve.last().forkID
         Proof({ from_height: from_height,
                 to_height: to_height,
                 confirmedRegs: regs,
@@ -235,11 +245,11 @@ var envRegs: Set[Registration]
 
 // Invariants
     
-def staleInv = not(L1[L1.length() - 1].existsStale())
+def staleInv = not(L1.last().existsStale())
 
 // chainID of last element is 0
 // if used as invariant and violated, we have an example with a reset
-def noReset = L2[L2.length() - 1].forkID == 0
+def noReset = L2.last().forkID == 0
 
 def growingForkID = (
     L2.length() > 1 implies 
@@ -254,6 +264,19 @@ def noConfirmed = (
             L1[L1.length() - 2].pendingRegistrations.forall(
                 r => L1[L1.length() - 1].pendingRegistrations.contains(r)
 ) 
+
+
+
+
+pure def provenBlocks (l1, l2) = 
+    l2.slice(l1[l1.length()-2].provenHeight + 1, l1[l1.length()-1].provenHeight + 1)
+
+def oneForkIDperProof = (
+    L1.length() > 1 implies 
+        provenBlocks(L1, L2).toSet().forall(a =>
+            provenBlocks(L1, L2).toSet().forall(b => a.forkID == b.forkID))
+)
+
 
 
 // ACTIONS
@@ -287,8 +310,8 @@ action addRegistration = all {
     nondet newVal = ValAddresses.oneOf()
     nondet power = minReg.to(maxReg).oneOf()
     val newReg = {
-        eth_epoch: L1[L1.length()-1].L1Epoch(), //TODO: check and fix
-        seq_num: L1[L1.length() - 1].cntRegistrations + envRegs.size() + 1, // encodes unique registration index
+        eth_epoch: L1.last().L1Epoch(), //TODO: check and fix
+        seq_num: L1.last().cntRegistrations + envRegs.size() + 1, // encodes unique registration index
         starknet_addr: newVal,
         amount: power
     }
@@ -303,7 +326,7 @@ action addRegistration = all {
 
 // for repl and writing tests
 action addL1BlockNoProof = all {             
-    L1' = L1.append(newL1Block(L1[L1.length() - 1], envRegs, None)),
+    L1' = L1.append(newL1Block(L1.last(), envRegs, None)),
     L2' = L2,
     envRegs' = Set(),
 }        
@@ -311,7 +334,7 @@ action addL1BlockNoProof = all {
 // for repl and writing tests
 action addL1BlockProofWithHeight(h) = all {
     val newproof = makeProof(L2, h, L1)
-    L1' = L1.append(newL1Block(L1[L1.length() - 1], envRegs, newproof)),
+    L1' = L1.append(newL1Block(L1.last(), envRegs, newproof)),
     L2' = L2,
     envRegs' = Set(),
 }        
@@ -320,7 +343,7 @@ action addL1BlockProofWithHeight(h) = all {
 action addL1Block = all {
     nondet someHeight = (-1).to(L2.length() - 1).oneOf() // TODO: instead of -1 take lastProvenHeight
     val newproof = makeProof(L2, someHeight, L1)              
-    L1' = L1.append(newL1Block(L1[L1.length() - 1], envRegs, newproof)),
+    L1' = L1.append(newL1Block(L1.last(), envRegs, newproof)),
     L2' = L2,
     envRegs' = Set(),
 }
@@ -333,7 +356,7 @@ action addL2BlockRegs (regs: Set[Registration]) : bool = all {
 }
 
 action addL2Block = all {
-    nondet regs = L1[L1.length() - 1].pendingRegistrations.powerset().oneOf() 
+    nondet regs = L1.last().pendingRegistrations.powerset().oneOf() 
     // TODO: Question: at most once?
     L2' = L2.append(newL2Block(L2, regs)),
     L1' = L1,
@@ -341,9 +364,8 @@ action addL2Block = all {
 }
 
 action reset = all {
-    val lastL1 = L1[L1.length() - 1]
-    if (existsStale(lastL1)) // AND last block on L2 must have old fork id TODO: important
-        L2' = L2.slice(0, lastL1.provenHeight + 1).append(forkBlock(L2[L2.length()-1], lastL1)) // TODO: fix from PR
+    if (existsStale(L1.last())) // AND last block on L2 must have old fork id TODO: important
+        L2' = L2.slice(0, L1.last().provenHeight + 1).append(forkBlock(L2.last(), L1.last())) // TODO: fix from PR
     else
         L2' = L2,
     L1' =  L1,
