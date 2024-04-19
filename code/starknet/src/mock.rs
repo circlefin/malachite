@@ -3,13 +3,13 @@ use rand_chacha::ChaChaRng;
 use sha2::{Digest, Sha256};
 
 mod types;
-use tokio::task::JoinHandle;
 pub use types::*;
 
 #[cfg(test)]
 mod tests;
 
 use std::collections::BTreeSet;
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
@@ -17,7 +17,16 @@ use tokio::time::Instant;
 
 use crate::Host;
 
-pub struct MockHost;
+#[derive(Default)]
+pub struct MockHost {
+    pub last_error: Arc<Mutex<Option<String>>>,
+}
+
+impl MockHost {
+    pub fn last_error(&self) -> Option<String> {
+        self.last_error.lock().unwrap().clone()
+    }
+}
 
 #[async_trait]
 impl Host for MockHost {
@@ -55,6 +64,8 @@ impl Host for MockHost {
                 if Instant::now() >= deadline {
                     drop(tx_content);
                     drop(tx_hash);
+
+                    // FIXME: Do we return or we still emit the proof/hash?
                     return;
                 }
 
@@ -122,10 +133,12 @@ impl Host for MockHost {
     async fn send_known_proposal(
         &self,
         block_hash: Self::BlockHash,
-    ) -> (mpsc::Sender<Self::ProposalContent>, JoinHandle<()>) {
+    ) -> mpsc::Sender<Self::ProposalContent> {
+        let last_error = self.last_error.clone();
+
         let (tx_content, mut rx_content) = mpsc::channel(10);
 
-        let handle = tokio::spawn(async move {
+        tokio::spawn(async move {
             let mut hasher = Sha256::new();
 
             while let Some(content) = rx_content.recv().await {
@@ -138,11 +151,11 @@ impl Host for MockHost {
             let hash = BlockHash::new(hasher.finalize().into());
 
             if hash != block_hash {
-                panic!("Invalid hash: {hash} != {block_hash}");
+                *last_error.lock().unwrap() = Some(format!("Invalid hash: {hash} != {block_hash}"));
             }
         });
 
-        (tx_content, handle)
+        tx_content
     }
 
     /// The set of validators for a given block height. What do we need?

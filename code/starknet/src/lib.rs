@@ -1,8 +1,9 @@
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+
 use std::collections::BTreeSet;
 
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
-use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 pub mod mock;
@@ -70,7 +71,7 @@ pub trait Host {
     async fn send_known_proposal(
         &self,
         block_hash: Self::BlockHash,
-    ) -> (mpsc::Sender<Self::ProposalContent>, JoinHandle<()>);
+    ) -> mpsc::Sender<Self::ProposalContent>;
 
     /// The set of validators for a given block height. What do we need?
     /// - address      - tells the networking layer where to send messages.

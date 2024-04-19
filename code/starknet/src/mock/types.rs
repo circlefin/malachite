@@ -13,6 +13,7 @@ impl Hash {
 }
 
 impl fmt::Display for Hash {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         std::str::from_utf8(&hex::encode(self.0)).unwrap().fmt(f)
     }
@@ -21,6 +22,7 @@ impl fmt::Display for Hash {
 impl core::str::FromStr for Hash {
     type Err = Box<dyn std::error::Error>;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self::new(hex::decode(s)?.as_slice().try_into()?))
     }
@@ -35,7 +37,7 @@ pub struct BlockHash(Hash);
 
 impl BlockHash {
     pub const fn new(hash: [u8; 32]) -> Self {
-        Self(Hash(hash))
+        Self(Hash::new(hash))
     }
 }
 
@@ -58,11 +60,12 @@ pub struct MessageHash(Hash);
 
 impl MessageHash {
     pub const fn new(hash: [u8; 32]) -> Self {
-        Self(Hash(hash))
+        Self(Hash::new(hash))
     }
 }
 
 impl fmt::Display for MessageHash {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "MessageHash({})", self.0)
     }
@@ -71,6 +74,7 @@ impl fmt::Display for MessageHash {
 impl core::str::FromStr for MessageHash {
     type Err = Box<dyn std::error::Error>;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self::new(hex::decode(s)?.as_slice().try_into()?))
     }
