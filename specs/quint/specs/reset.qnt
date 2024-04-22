@@ -29,6 +29,8 @@ const maxReg : int
 const minReg : int
 const ValAddresses : Set[Address]
 
+
+
 type Registration = {
     eth_epoch: int, // Computed by eth.now / EVE_duration. Should never be 0 as this creates a corner case with the
                     // initial forkID also being 0.
@@ -36,6 +38,8 @@ type Registration = {
     starknet_addr: Address, 
     amount: int 
 }
+
+
 
 type L2BlockProof = {
     from_height: Height,
@@ -100,6 +104,10 @@ pure def toSet (l) =
 pure def L1Epoch(b: L1Block) : int =
     b.time / L1EpochSize
 
+// pure def L1EpochTime(t: Time) : int =
+//     t / L1EpochSize
+
+
 pure def staleRegs (b: L1Block) : Set[Registration] =
     b.unfulfilled_updates.filter(r => r.eth_epoch + 2 <= L1Epoch(b))
 
@@ -124,14 +132,18 @@ pure def confirmedRegistrations (vp: L2Proof) : Set[Registration] =
 // In principle it can always be the case that we accept a fork at the end of an EVE, and
 // in the next block new registrations become stale, and we need to fork again after one block
 // TODO: make a test for that
-pure def proofOK (prev: L1Block, p: L2BlockProof) : bool = all {
+// TODO: Question: This takes the data from the previous block, in particular the time is used to 
+// compute the stale registrations. If we would use the time of the new block, this would be
+// same-block-execution.
+pure def proofOK (prev: L1Block, p: L2BlockProof, t: Time) : bool = all {
     p.from_height == prev.provenHeight + 1,
     p.forkID == prev.expectedForkID(),                  // the forkID is right, and
-    prev.staleRegs().exclude(p.confirmedRegs) == Set()  // there are no stale registrations left
-
+    prev.staleRegs().exclude(p.confirmedRegs) == Set(), // there are no stale registrations left
+    p.confirmedRegs.subseteq(prev.unfulfilled_updates), // check for invalid registrations
+                                                        // TODO: add actions and test
 }
 
-// We accept a proof if all the registrations that were stale in the previous block are confirmed
+// We accept a proof if all the registrations that were stale in the previous L1 block are confirmed
 // This allows the scenario were 
 // - we accept a proof
 // - immediately have new stale registrations (if the proof came towards the end of an EVE)
@@ -139,10 +151,11 @@ pure def proofOK (prev: L1Block, p: L2BlockProof) : bool = all {
 // I think we cannot escape such a scenario. The only question is whether we want an invariant that says
 // "an L1 Block that contains a valid proof does not contain stale registrations" 
 pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof, delay: Time) : L1Block =
+    val newTime = prev.time + delay
     val accepted = match proof {
-            | Proof(p) =>   if (proofOK(prev, p)) proof 
+            | Proof(p) =>   if (proofOK(prev, p, newTime)) proof 
                             else None       
-            |  None => None
+            | None => None
             | Invalid => None
             
     }
@@ -157,7 +170,7 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof, del
         | Invalid => prev.latestProvenL2BlockHash
     }
     val auxBlock = {   
-        time : prev.time + delay, 
+        time : newTime, 
         newRegistrations: regs,
         newProof: proof,
         provenHeight: newProvenHeight,
@@ -281,7 +294,8 @@ pure def makeProof (l2: List[L2Block], to_height: Height, l1: List[L1Block]) : L
 var L1: List[L1Block] // this is a super simplification and doesn't consider non-finalized Eth blocks
 var L2: List[L2Block]
 var envRegs: Set[Registration]
-
+// var prevDeletedL2branch: List[L2Block] TODO
+// Initialize with empty list, and overwrite in case of reset 
 
 //
 // Invariants
@@ -293,11 +307,13 @@ def staleInv = not(L1.last().existsStale())
 // if used as invariant and violated, we have an example with a reset
 def noReset = L2.last().forkID == 0
 
+// TODO: This doesn't catch duplicate forks
 def growingForkID = (
     L2.length() > 1 implies 
         (L2[L2.length() - 1].forkID >= L2[L2.length() - 2].forkID)
 )
 
+// Should fail
 // No registration is ever confirmed (i.e., removed from pending)
 // if used as invariant and violated, we have an example where a registration
 // is removed from pending
@@ -307,6 +323,7 @@ def noConfirmed = (
                 r => L1[L1.length() - 1].unfulfilled_updates.contains(r)
 ) 
 
+// Should hold
 // first line important: we only have unstanged registrations which have smaller seq_num.
 // this ensures that we don't apply a registration twice
 // TODO test
@@ -316,16 +333,27 @@ def stagedInv = all {
 } 
 
 
-
-pure def provenBlocks (l1, l2) = 
+// This returns a list of L2 blocks that are proven in the last L1 Block
+pure def provenBlocks (l1: List[L1Block], l2: List[L2Block]) : List[L2Block] = 
     l2.slice(l1[l1.length()-2].provenHeight + 1, l1[l1.length()-1].provenHeight + 1)
 
-def oneForkIDperProof = (
+// Should hold
+// A proof doesn't span L2 heights for more than one forkID
+// [ok] No violation found (67417ms).
+// Use --seed=0x970fc84d54eb5 to reproduce.
+def oneForkIDperProofInv = 
     L1.length() > 1 implies 
         provenBlocks(L1, L2).toSet().forall(a =>
             provenBlocks(L1, L2).toSet().forall(b => a.forkID == b.forkID))
-)
+            
 
+// should fail if uncorrect proof is submitted to L1
+// it fails if there is a proof in the L1 block but the provenHeight has not increased 
+// [violation] Found an issue (898ms).
+// Use --seed=0x138537f4952eb5 to reproduce.
+def allProofsAccepted = 
+    L1.length() > 1 and not (L1.last().newProof == None or  L1.last().newProof == Invalid)
+        implies L1.last().provenHeight > L1[L1.length() -2].provenHeight
 
 //
 // ACTIONS
@@ -373,18 +401,19 @@ action addRegistration = all {
 
 action addL1Block = all {
     nondet someHeight = (-1).to(L2.length() - 1).oneOf() 
-    nondet blocktime = 1.to(MaxEthBlockTime).oneOf()
+    nondet blocktimeDelta = 1.to(MaxEthBlockTime).oneOf()
     val newproof = makeProof(L2, someHeight, L1)    // if someheight < provenHeight this will give Invalid proof
     val submProof = Set(newproof, None).oneOf()
-    L1' = L1.append(newL1Block(L1.last(), envRegs, submProof, blocktime)),
+    L1' = L1.append(newL1Block(L1.last(), envRegs, submProof, blocktimeDelta)),
     L2' = L2,
     envRegs' = Set(),
 }
 
 action addL2Block = all {
-    nondet regs = L1.last().unfulfilled_updates.powerset().oneOf()  // This doesn't replay confirmed registrations
-                                                                    // And it doesn't ensure at most once semantics 
-                                                                    // for transferring registrations
+    nondet regs = L1.last().unfulfilled_updates.powerset().oneOf()  
+        // This doesn't replay confirmed registrations
+        // And it doesn't ensure at most once semantics for transferring registrations
+        // And it doesn't allow to add invalid registrations, that is, ones that are not in L1.
     L2' = L2.append(newL2Block(L2, regs)),
     L1' = L1,
     envRegs' = envRegs,
@@ -422,16 +451,16 @@ action step = any {
 //
 
 // for repl and writing tests
-action addL1BlockNoProof (blocktime) = all {             
-    L1' = L1.append(newL1Block(L1.last(), envRegs, None, blocktime)),
+action addL1BlockNoProof (blocktimeDelta) = all {             
+    L1' = L1.append(newL1Block(L1.last(), envRegs, None, blocktimeDelta)),
     L2' = L2,
     envRegs' = Set(),
 }        
 
 // for repl and writing tests
-action addL1BlockProofWithHeight(h, blocktime) = all {
+action addL1BlockProofWithHeight(h, blocktimeDelta) = all {
     val newproof = makeProof(L2, h, L1)
-    L1' = L1.append(newL1Block(L1.last(), envRegs, newproof, blocktime)),
+    L1' = L1.append(newL1Block(L1.last(), envRegs, newproof, blocktimeDelta)),
     L2' = L2,
     envRegs' = Set(),
 }        
@@ -445,6 +474,16 @@ action addL2BlockRegs (regs: Set[Registration]) : bool = all {
     envRegs' = envRegs,
 }
 
+// TODO: write a test with this
+action addL2BlockInvalidReg = all {
+    val inv = {
+    eth_epoch: 0,
+    seq_num: 0,
+    starknet_addr: "INVALID",
+    amount: 0,
+    }
+    addL2BlockRegs(Set(inv))
+}
 
 // this was the first version of reset that contains two bugs
 // in the if conditions, multiple resets can happen for the same forkID (L2 progress is over-written)
