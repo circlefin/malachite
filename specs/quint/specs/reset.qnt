@@ -6,9 +6,9 @@
 
 // TODO: L1->L2 messaging uses nonce for at-most-once delivery / but delivery might be out of order
 
-// TODO: Time between block creation and proof on L1 must be big enough to also have proof on L2
+// not captured here: Time between block creation and proof on L1 must be big enough to also have proof on L2
 
-// quint run --invariant "noReset" reset.qnt 
+// quint run --invariant "noReset" resetTest.qnt 
 
 // Starknet Forced Staking Updates: https://docs.google.com/document/d/1OaYLh9o10DIsGpW0GTRhWl-IJiVyjRsy7UttHs9_1Fw/edit#heading=h.hvyiqqxvuqzo
 // Leader and Proof scheduling: https://docs.google.com/document/d/1qjngaq9GoMWa5UJOrTlKNqwi_pI0aHt8iULWD9Gy9hE/edit#heading=h.s8yc63mi87f5
@@ -139,8 +139,7 @@ pure def proofOK (prev: L1Block, p: L2BlockProof, t: Time) : bool = all {
     p.from_height == prev.provenHeight + 1,
     p.forkID == prev.expectedForkID(),                  // the forkID is right, and
     prev.staleRegs().exclude(p.confirmedRegs) == Set(), // there are no stale registrations left
-    p.confirmedRegs.subseteq(prev.unfulfilled_updates), // check for invalid registrations
-                                                        // TODO: add actions and test
+    p.confirmedRegs.subseteq(prev.unfulfilled_updates), // check for invalid registrations IMPORTANT
 }
 
 // We accept a proof if all the registrations that were stale in the previous L1 block are confirmed
@@ -261,7 +260,6 @@ pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: Fork
         stagedUpdates: Set(),
         unstagedUpdates: toUnstaged, 
         heighest_staged_seq_num: heighest,
-        //receivedRegistrations: prev.receivedRegistrations.union(regs),
     }
 
 
@@ -382,7 +380,21 @@ def InvalidRegistrationProofAccepted =
     }
     implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
 
+pure def previouslyRolledBackForks (l: List[L2Block]) : Set[int] = 
+    l.foldl(Set(), (s,x) => s.union(Set(x.forkID)))
+    
+// should fail if two resets roll-back the L2
+def atMostXRollBacks(x) = 
+    previouslyRolledBackForks(prevDeletedL2blocks).size() < x
 
+
+pure def atMostOneResetPerForkID (l: List[L2Block]) : bool = 
+    0.to(l.length() -2).forall (i => l[i].forkID < l[i+1].forkID or l[i].height < l[i+1].height)
+
+// should hold
+// L2 chain shouldn't roll back twice one same forkID 
+def atMostOneResetPerForkIDInv = 
+    atMostOneResetPerForkID(prevDeletedL2blocks)
 
 //
 // ACTIONS
@@ -457,19 +469,25 @@ action reset = all {
         // TODO debug to make sure L1 last forkID and stale are handled on the right L1 block
         // there is an off by one issue. 
         // AND last block on L2 must have old fork id TODO: important
-        L2' = L2.slice(0, L1.last().provenHeight + 1)
+        all{
+            L2' = L2.slice(0, L1.last().provenHeight + 1)
                 .append(forkBlock(
                             L2[L1.last().provenHeight], 
                             L1.last().staleRegs(), 
                             L1.last().provenHeight + 1, 
-                            L1.last().expectedForkID())) 
+                            L1.last().expectedForkID())), 
                 // TODO: write more involved test that fails old_reset
+            prevDeletedL2blocks' = prevDeletedL2blocks.concat(
+                                L2.slice(L1.last().provenHeight + 1, L2.length())), 
+        }
     else
-        L2' = L2,
+        all {
+            L2' = L2,
+            prevDeletedL2blocks' = prevDeletedL2blocks,
+        }, 
     L1' =  L1,
     envRegs' = envRegs,
-    prevDeletedL2blocks' = prevDeletedL2blocks.concat(
-                                L2.slice(L1.last().provenHeight + 1, L2.length())), //TODO
+    
 }
 
 action step = any {
