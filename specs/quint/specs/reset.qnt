@@ -294,8 +294,8 @@ pure def makeProof (l2: List[L2Block], to_height: Height, l1: List[L1Block]) : L
 var L1: List[L1Block] // this is a super simplification and doesn't consider non-finalized Eth blocks
 var L2: List[L2Block]
 var envRegs: Set[Registration]
-// var prevDeletedL2branch: List[L2Block] TODO
-// Initialize with empty list, and overwrite in case of reset 
+var prevDeletedL2blocks: List[L2Block] 
+
 
 //
 // Invariants
@@ -355,6 +355,35 @@ def allProofsAccepted =
     L1.length() > 1 and not (L1.last().newProof == None or  L1.last().newProof == Invalid)
         implies L1.last().provenHeight > L1[L1.length() -2].provenHeight
 
+// should hold
+// If there is no (valid) proof or the proof contains an invalid registration, then the proof should
+// be rejected (provenHeight should remain unchanged)
+def InvalidRegistrationProofRejectedInv =
+    L1.length() > 1 and 
+        match L1.last().newProof {
+            | None => true
+            | Invalid => true
+            | Proof(p) => p.confirmedRegs.contains( { amount: 0, eth_epoch: 0, seq_num: 0, starknet_addr: "INVALID" })
+        }
+    implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
+
+
+// Should fail if transition system allows invalid transactions to be added to L2
+// transition relation "Step or addL2BlockInvalidReg"
+// there is a proof with invalid registration, and the proof is accepted.    
+def InvalidRegistrationProofAccepted =
+    L1.length() > 1 and 
+    L1.last().newProof != None and 
+    L1.last().newProof != Invalid and
+    match L1.last().newProof {
+        | None => true
+        | Invalid => true
+        | Proof(p) => p.confirmedRegs.contains( { amount: 0, eth_epoch: 0, seq_num: 0, starknet_addr: "INVALID" })
+    }
+    implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
+
+
+
 //
 // ACTIONS
 //
@@ -381,6 +410,7 @@ action init =
                 cntRegistrations: 0,
                 }),
     L2' = List(initialL2Block),
+    prevDeletedL2blocks' = List(),
     envRegs' = Set(),
     }
 
@@ -397,6 +427,7 @@ action addRegistration = all {
     envRegs' = envRegs.union(Set(newReg)),
     L1' = L1,
     L2' = L2,
+    prevDeletedL2blocks' = prevDeletedL2blocks,
 }
 
 action addL1Block = all {
@@ -407,6 +438,7 @@ action addL1Block = all {
     L1' = L1.append(newL1Block(L1.last(), envRegs, submProof, blocktimeDelta)),
     L2' = L2,
     envRegs' = Set(),
+    prevDeletedL2blocks' = prevDeletedL2blocks,
 }
 
 action addL2Block = all {
@@ -417,6 +449,7 @@ action addL2Block = all {
     L2' = L2.append(newL2Block(L2, regs)),
     L1' = L1,
     envRegs' = envRegs,
+    prevDeletedL2blocks' = prevDeletedL2blocks,
 }
 
 action reset = all {
@@ -435,6 +468,8 @@ action reset = all {
         L2' = L2,
     L1' =  L1,
     envRegs' = envRegs,
+    prevDeletedL2blocks' = prevDeletedL2blocks.concat(
+                                L2.slice(L1.last().provenHeight + 1, L2.length())), //TODO
 }
 
 action step = any {
@@ -455,6 +490,7 @@ action addL1BlockNoProof (blocktimeDelta) = all {
     L1' = L1.append(newL1Block(L1.last(), envRegs, None, blocktimeDelta)),
     L2' = L2,
     envRegs' = Set(),
+    prevDeletedL2blocks' = prevDeletedL2blocks,
 }        
 
 // for repl and writing tests
@@ -463,6 +499,7 @@ action addL1BlockProofWithHeight(h, blocktimeDelta) = all {
     L1' = L1.append(newL1Block(L1.last(), envRegs, newproof, blocktimeDelta)),
     L2' = L2,
     envRegs' = Set(),
+    prevDeletedL2blocks' = prevDeletedL2blocks,
 }        
 
 
@@ -472,9 +509,10 @@ action addL2BlockRegs (regs: Set[Registration]) : bool = all {
     L2' = L2.append(newL2Block(L2, regs)),
     L1' = L1,
     envRegs' = envRegs,
+    prevDeletedL2blocks' = prevDeletedL2blocks,
 }
 
-// TODO: write a test with this
+// adds a registraton to L2 that doesn't come from L1
 action addL2BlockInvalidReg = all {
     val inv = {
     eth_epoch: 0,
@@ -501,6 +539,7 @@ action old_reset = all {
         L2' = L2,
     L1' =  L1,
     envRegs' = envRegs,
+    prevDeletedL2blocks' = prevDeletedL2blocks,//
 }
 
 

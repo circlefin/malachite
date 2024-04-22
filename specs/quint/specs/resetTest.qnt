@@ -41,10 +41,20 @@ run moveOneRegToL1ToL2 =
     .then(addL1BlockNoProof(1))
     .then(addL2BlockRegs(L1[L1.length()-1].newRegistrations))
 
+
 run ProofRegsTest = 
     init     
     .then(5.reps(_=>moveOneRegToL1ToL2))
     .then(addL1BlockProofWithHeight(3,1))
+
+run invalidRegistrationTest =
+    init
+    .then(moveOneRegToL1ToL2)               // valid registration
+    .then(addL2BlockInvalidReg)             // add invalidregistration to L2
+    .then(addL1BlockProofWithHeight(2, 1))  // submit proof until height 2
+    .expect(L1.last().provenHeight == 0)    // proof rejected /  provenHeight still 0
+
+
 
 run simpleTest = 
     init
