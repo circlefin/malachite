@@ -30,7 +30,6 @@ const minReg : int
 const ValAddresses : Set[Address]
 
 
-
 type Registration = {
     eth_epoch: int, // Computed by eth.now / EVE_duration. Should never be 0 as this creates a corner case with the
                     // initial forkID also being 0.
@@ -38,8 +37,6 @@ type Registration = {
     starknet_addr: Address, 
     amount: int 
 }
-
-
 
 type L2BlockProof = {
     from_height: Height,
@@ -98,12 +95,11 @@ pure def toSet (l) =
 
 
 //
-// Functions for L1 chain
+// Auxiliary functions for L1 chain
 //
 
 pure def L1Epoch(t: Time) : int =
     t / L1EpochSize
-
 
 pure def staleRegs (regs: Set[Registration], t: Time) : Set[Registration] =
     regs.filter(r => r.eth_epoch + 2 <= L1Epoch(t))
@@ -116,7 +112,6 @@ pure def existsStale (regs: Set[Registration], t: Time) : bool =
 
 pure def existsStaleInBlock (b: L1Block) : bool = 
     existsStale(b.unfulfilled_updates, b.time)
-
 
 // set the fork ID equal to the EVE of the most recent stale registration
 pure def expectedForkID (prevID: int, regs: Set[Registration], t: Time) : int =
@@ -132,24 +127,19 @@ pure def confirmedRegistrations (vp: L2Proof) : Set[Registration] =
             | Proof(p) => p.confirmedRegs
     }
 
+//
+// Proof verification
+//
+pure def proofOK (provenHeight: Height, expForkID: int,  regs: Set[Registration], p: L2BlockProof) : bool = 
+    and {   p.from_height == provenHeight + 1,
+            p.forkID == expForkID,                  // the forkID is right, and
+            regs.exclude(p.confirmedRegs) == Set(), // there are no stale registrations left
+            p.confirmedRegs.subseteq(regs),         // check for invalid registrations IMPORTANT
+    }
 
-
-
-
-pure def proofOK (provenHeight: Height, expForkID: int,  regs: Set[Registration], p: L2BlockProof) : bool = all {
-    p.from_height == provenHeight + 1,
-    p.forkID == expForkID,                  // the forkID is right, and
-    regs.exclude(p.confirmedRegs) == Set(), // there are no stale registrations left
-    p.confirmedRegs.subseteq(regs),         // check for invalid registrations IMPORTANT
-}
-
-// We accept a proof if all the registrations that were stale in the previous L1 block are confirmed
-// This allows the scenario were 
-// - we accept a proof
-// - immediately have new stale registrations (if the proof came towards the end of an EVE)
-// - and we immediately need a reset
-// I think we cannot escape such a scenario. The only question is whether we want an invariant that says
-// "an L1 Block that contains a valid proof does not contain stale registrations" 
+//
+// N E W   B L O C K
+//
 pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof, delay: Time) : L1Block =
     val newTime = prev.time + delay
     val epochedRegs = regs.map(r => {... r, eth_epoch: L1Epoch(newTime)})
@@ -171,8 +161,7 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof, del
         | None => prev.latestProvenL2BlockHash
         | Invalid => prev.latestProvenL2BlockHash
     }
-    {   
-        time : newTime, 
+    {   time : newTime, 
         newRegistrations: regs,
         newProof: proof,
         provenHeight: newProvenHeight,
@@ -214,8 +203,12 @@ pure def denseSubset (regs: Set[Registration], heighest: int) : Set[Registration
     regs.filter(r => r.seq_num <= c)
     
 
+
+
+//
 // Compute an L2 block in the normal case (no reset)
 // block is computed on top of the L2 chain, with new registrations
+//
 pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block = 
     val prev = last(chain)
     if (chain.length() % L2EpochSize == 0) // new epoch
