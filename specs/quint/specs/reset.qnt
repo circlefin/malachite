@@ -1,7 +1,7 @@
 // -*- mode: Bluespec; -*-
 
-// TODO: is the number of registrations in L2 block a limitting factor for the reset
-// TODO: generate unsuccesful reset schenario
+// Observations: 
+// - is the number of registrations in L2 block a limitting factor for the reset
 // TODO: Write properties in terms of valid, decided, invalidated, finalized blocks
 
 // TODO: L1->L2 messaging uses nonce for at-most-once delivery / but delivery might be out of order
@@ -101,24 +101,28 @@ pure def toSet (l) =
 // Functions for L1 chain
 //
 
-pure def L1Epoch(b: L1Block) : int =
-    b.time / L1EpochSize
-
-// pure def L1EpochTime(t: Time) : int =
-//     t / L1EpochSize
+pure def L1Epoch(t: Time) : int =
+    t / L1EpochSize
 
 
-pure def staleRegs (b: L1Block) : Set[Registration] =
-    b.unfulfilled_updates.filter(r => r.eth_epoch + 2 <= L1Epoch(b))
+pure def staleRegs (regs: Set[Registration], t: Time) : Set[Registration] =
+    regs.filter(r => r.eth_epoch + 2 <= L1Epoch(t))
 
-pure def existsStale (b: L1Block) : bool =
-    staleRegs(b).size() > 0
+pure def staleRegsInBlock (b: L1Block) : Set[Registration] =
+    staleRegs(b.unfulfilled_updates, b.time)
+
+pure def existsStale (regs: Set[Registration], t: Time) : bool =
+    staleRegs(regs, t).size() > 0
+
+pure def existsStaleInBlock (b: L1Block) : bool = 
+    existsStale(b.unfulfilled_updates, b.time)
+
 
 // set the fork ID equal to the EVE of the most recent stale registration
-pure def expectedForkID (b: L1Block) : int =
-    if (not(existsStale(b))) b.l2forkID
+pure def expectedForkID (prevID: int, regs: Set[Registration], t: Time) : int =
+    if (not(existsStale(regs, t))) prevID
     else
-        staleRegs(b).fold(b.l2forkID, (s, x) => if (x.eth_epoch > s) x.eth_epoch else s) // max
+        staleRegs(regs, t).fold(prevID, (s, x) => if (x.eth_epoch > s) x.eth_epoch else s) // max
 
 // confirmed registrations in proofs up to the proven height
 pure def confirmedRegistrations (vp: L2Proof) : Set[Registration] = 
@@ -128,18 +132,15 @@ pure def confirmedRegistrations (vp: L2Proof) : Set[Registration] =
             | Proof(p) => p.confirmedRegs
     }
 
-// TODO: I am basing staleness on the previous block. We should check whether this is OK
-// In principle it can always be the case that we accept a fork at the end of an EVE, and
-// in the next block new registrations become stale, and we need to fork again after one block
-// TODO: make a test for that
-// TODO: Question: This takes the data from the previous block, in particular the time is used to 
-// compute the stale registrations. If we would use the time of the new block, this would be
-// same-block-execution.
-pure def proofOK (prev: L1Block, p: L2BlockProof, t: Time) : bool = all {
-    p.from_height == prev.provenHeight + 1,
-    p.forkID == prev.expectedForkID(),                  // the forkID is right, and
-    prev.staleRegs().exclude(p.confirmedRegs) == Set(), // there are no stale registrations left
-    p.confirmedRegs.subseteq(prev.unfulfilled_updates), // check for invalid registrations IMPORTANT
+
+
+
+
+pure def proofOK (provenHeight: Height, expForkID: int,  regs: Set[Registration], p: L2BlockProof) : bool = all {
+    p.from_height == provenHeight + 1,
+    p.forkID == expForkID,                  // the forkID is right, and
+    regs.exclude(p.confirmedRegs) == Set(), // there are no stale registrations left
+    p.confirmedRegs.subseteq(regs),         // check for invalid registrations IMPORTANT
 }
 
 // We accept a proof if all the registrations that were stale in the previous L1 block are confirmed
@@ -151,12 +152,14 @@ pure def proofOK (prev: L1Block, p: L2BlockProof, t: Time) : bool = all {
 // "an L1 Block that contains a valid proof does not contain stale registrations" 
 pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof, delay: Time) : L1Block =
     val newTime = prev.time + delay
+    val epochedRegs = regs.map(r => {... r, eth_epoch: L1Epoch(newTime)})
+    val pending = prev.unfulfilled_updates.union(epochedRegs)
+    val forkID = expectedForkID(prev.l2forkID, pending, newTime)
     val accepted = match proof {
-            | Proof(p) =>   if (proofOK(prev, p, newTime)) proof 
+            | Proof(p) =>   if (proofOK(prev.provenHeight, forkID, pending, p)) proof 
                             else None       
             | None => None
             | Invalid => None
-            
     }
     val newProvenHeight = match accepted {
         | Proof(p) => p.to_height
@@ -168,17 +171,17 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof, del
         | None => prev.latestProvenL2BlockHash
         | Invalid => prev.latestProvenL2BlockHash
     }
-    val auxBlock = {   
+    {   
         time : newTime, 
         newRegistrations: regs,
         newProof: proof,
         provenHeight: newProvenHeight,
         latestProvenL2BlockHash: newBlockHash,
-        l2forkID: prev.expectedForkID(), // off by one perhaps.
-        unfulfilled_updates: prev.unfulfilled_updates.union(regs).exclude(accepted.confirmedRegistrations()),
+        l2forkID: forkID, 
+        unfulfilled_updates: pending.exclude(accepted.confirmedRegistrations()),
         cntRegistrations: prev.cntRegistrations + regs.size()
     }
-    { ... auxBlock, l2forkID: auxBlock.expectedForkID()}
+
 
 
 //
@@ -299,7 +302,24 @@ var prevDeletedL2blocks: List[L2Block]
 // Invariants
 //
 
-def staleInv = not(L1.last().existsStale())
+def staleInv = not(L1.last().existsStaleInBlock())
+
+pure def validProof (b : L1Block, prev: L1Block) : bool =
+    val epochedRegs = b.newRegistrations.map(r => {... r, eth_epoch: L1Epoch(b.time)})
+    val pending = prev.unfulfilled_updates.union(epochedRegs)
+    val forkID = expectedForkID(prev.l2forkID, pending, b.time)
+    match b.newProof {
+            | Proof(p) =>   if (proofOK(prev.provenHeight, forkID, pending, p)) true 
+                            else false       
+            | None => false
+            | Invalid => false
+    }
+
+def noStaleWithProof = 
+    (L1.length() > 1) implies ( 
+        validProof(L1[L1.length() - 1], L1[L1.length() - 2]) implies
+        L1.last().unfulfilled_updates == Set()
+    )
 
 // chainID of last element is 0
 // if used as invariant and violated, we have an example with a reset
@@ -396,6 +416,47 @@ pure def atMostOneResetPerForkID (l: List[L2Block]) : bool =
 def atMostOneResetPerForkIDInv = 
     atMostOneResetPerForkID(prevDeletedL2blocks)
 
+// should fail
+// if it fails I get a scenario where there was a reset on L2 and before a second block
+// was added to L2 with the same fork ID, another reset happened
+def unsuccessfulReset = 
+    prevDeletedL2blocks.length() > 1 implies 
+    prevDeletedL2blocks.last().height != L2.last().height
+
+//
+// Block properties
+// 
+
+def decided (b: L2Block) : bool = 
+    L2.select(x => x == b).length() > 0         // b is contained in l2
+
+def finalized (b: L2Block) : bool = 
+    decided(b) and L1.last().provenHeight >= b.height // proven
+
+def invalidated (b: L2Block) : bool = 
+    decided(b) and     // b is contained in l2
+    L1.last().provenHeight < b.height and
+    L1.last().l2forkID > b.forkID
+
+def valid (b: L2Block, t: Time) : bool = 
+    match makeProof(L2, b.height, L1) {
+        | Invalid => false
+        | None => false
+        | Proof(bp) => proofOK (L1.last().time, 
+                                L1.last().l2forkID,
+                                L1.last().unfulfilled_updates, 
+                                bp) // whether a proof is accepted is time-dependend
+    }
+
+// If a block is finalized it stays finalized
+// If a block is invalidated it will eventually not be in L2 anymore
+// If a block is invalidated it will never be finalized
+// If a block is valid then there is an execution where it is finalized (it need not be finalized in all executions)
+// If a block is valid then eventually it will be invalidated or finalized
+
+// For every height there is eventually a finalized block of that height
+
+
 //
 // ACTIONS
 //
@@ -431,7 +492,7 @@ action addRegistration = all {
     nondet newVal = ValAddresses.oneOf()
     nondet power = minReg.to(maxReg).oneOf()
     val newReg = {
-        eth_epoch: L1.last().L1Epoch(), //TODO: check and fix
+        eth_epoch: -1, //TODO: put -1 here and set epoch when put into L1 Block
         seq_num: L1.last().cntRegistrations + envRegs.size() + 1, // encodes unique registration index
         starknet_addr: newVal,
         amount: power
@@ -465,7 +526,7 @@ action addL2Block = all {
 }
 
 action reset = all {
-    if (existsStale(L1.last()) and L2.last().forkID != L1.last().l2forkID)
+    if (existsStaleInBlock(L1.last()) and L2.last().forkID != L1.last().l2forkID)
         // TODO debug to make sure L1 last forkID and stale are handled on the right L1 block
         // there is an off by one issue. 
         // AND last block on L2 must have old fork id TODO: important
@@ -473,9 +534,9 @@ action reset = all {
             L2' = L2.slice(0, L1.last().provenHeight + 1)
                 .append(forkBlock(
                             L2[L1.last().provenHeight], 
-                            L1.last().staleRegs(), 
+                            L1.last().staleRegsInBlock(), 
                             L1.last().provenHeight + 1, 
-                            L1.last().expectedForkID())), 
+                            L1.last().l2forkID)), 
                 // TODO: write more involved test that fails old_reset
             prevDeletedL2blocks' = prevDeletedL2blocks.concat(
                                 L2.slice(L1.last().provenHeight + 1, L2.length())), 
@@ -511,6 +572,9 @@ action addL1BlockNoProof (blocktimeDelta) = all {
     prevDeletedL2blocks' = prevDeletedL2blocks,
 }        
 
+// TODO action that generates a proof 
+// And the L1 actions will then try to get this proof onto the chain
+
 // for repl and writing tests
 action addL1BlockProofWithHeight(h, blocktimeDelta) = all {
     val newproof = makeProof(L2, h, L1)
@@ -545,14 +609,14 @@ action addL2BlockInvalidReg = all {
 // in the if conditions, multiple resets can happen for the same forkID (L2 progress is over-written)
 // the forkBlock function used the wrong L2 block as a base to compute the next block
 action old_reset = all {
-    if (existsStale(L1.last()))
+    if (existsStaleInBlock(L1.last()))
         L2' = L2
             .slice(0, L1.last().provenHeight + 1)
             .append(forkBlock(
                         L2.last(), 
-                        L1.last().staleRegs(), 
+                        L1.last().staleRegsInBlock(), 
                         L1.last().provenHeight + 1, 
-                        L1.last().expectedForkID())) // TODO: fix from PR
+                        L1.last().l2forkID)) // TODO: fix from PR
     else
         L2' = L2,
     L1' =  L1,

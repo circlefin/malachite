@@ -25,7 +25,7 @@ run FailedResetTest =
     // TODO: we need a rule that resets at most once for every forkID
     .expect(L2[L2.length()-1].forkID == L1[L1.length()-1].l2forkID and L2.length() == 2)   // second reset happened
     .then(addL1BlockProofWithHeight(1,1))                                  // now proof gets into L1
-    .expect(not(existsStale(L1[L1.length()-1])))                   // no more stale registrations
+    .expect(not(existsStaleInBlock(L1[L1.length()-1])))                   // no more stale registrations
 
 
 run ResetwithProofonL1Test = 
