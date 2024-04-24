@@ -431,7 +431,7 @@ def invalidated (b: L2Block) : bool =
     L1.last().provenHeight < b.height and
     L1.last().l2forkID > b.forkID
 
-def valid (b: L2Block, t: Time) : bool = 
+def valid (b: L2Block) : bool = 
     match makeProof(L2, b.height, L1) {
         | Invalid => false
         | None => false
@@ -441,11 +441,40 @@ def valid (b: L2Block, t: Time) : bool =
                                 bp) // whether a proof is accepted is time-dependend
     }
 
-// If a block is finalized it stays finalized
+
+
+// If a block is finalized it stays finalized (that is, it is never removed from L2)
+temporal stableFinalized = always(
+    L2.toSet().forall(b => 
+        (finalized(b) implies always(finalized(b)))
+))
+
 // If a block is invalidated it will eventually not be in L2 anymore
+temporal invalidatedRemoved = always(
+    L2.toSet().forall(b => 
+        (invalidated(b) implies eventually(not(decided(b))))
+))
+
 // If a block is invalidated it will never be finalized
+temporal invalidatedNeverFinalized = always(
+    L2.toSet().forall(b => 
+        (invalidated(b) implies always(not(finalized(b))))
+))
+
 // If a block is valid then there is an execution where it is finalized (it need not be finalized in all executions)
+// should fail to be verified. A counterexample will give a trace where a valid block eventually becomes finalized
+temporal validHasNoPathtoFinalized = always(
+    L2.toSet().forall(b => 
+        (valid(b) implies always(not(finalized(b))))
+))
+
 // If a block is valid then eventually it will be invalidated or finalized
+temporal validProgress = always(
+    L2.toSet().forall(b => 
+        (valid(b) implies eventually(finalized(b) or invalidated(b))))
+)
+
+
 
 // For every height there is eventually a finalized block of that height
 
