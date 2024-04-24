@@ -80,7 +80,7 @@ type L2Block = {
     valset: Address -> int, // stakers
     stagedUpdates: Set[Registration],
     unstagedUpdates: Set[Registration],
-    heighest_staged_seq_num: int, // we need this explicitly in case the stagedUpdates becomes empty
+    highest_staged_seq_num: int, // we need this explicitly in case the stagedUpdates becomes empty
     // proofs not modelled here
 }
 
@@ -188,9 +188,9 @@ pure def addOneReg (vals: Address -> int, reg: Registration) : Address -> int =
 pure def nextValSet (vals: Address -> int, regs: Set[Registration]) : Address -> int =
     regs.fold(vals, (v, r) => addOneReg(v,r))
 
-pure def completePrefixIdx(r: Set[Registration], heighest: int) : int =
+pure def completePrefixIdx(r: Set[Registration], highest: int) : int =
     // smallest unproven block - 1
-    val existingIdx = 0.to(heighest).union(r.fold(Set(), (s, x) => s.union(Set(x.seq_num))))
+    val existingIdx = 0.to(highest).union(r.fold(Set(), (s, x) => s.union(Set(x.seq_num))))
     // if we have {0,1,2,4,5,8}, complete is {0,1,2}; TODO test
     val complete = existingIdx.filter(i => 0.to(i).subseteq(existingIdx))
     complete.fold(0, (max, i) => if (i > max) i else max)
@@ -198,8 +198,8 @@ pure def completePrefixIdx(r: Set[Registration], heighest: int) : int =
 pure def maxSeqNum (regs: Set[Registration]) : int =
     regs.fold(-1, (s, x) => if (x.seq_num > s) x.seq_num else s)
 
-pure def denseSubset (regs: Set[Registration], heighest: int) : Set[Registration] =
-    val c = regs.completePrefixIdx(heighest)
+pure def denseSubset (regs: Set[Registration], highest: int) : Set[Registration] =
+    val c = regs.completePrefixIdx(highest)
     regs.filter(r => r.seq_num <= c)
     
 
@@ -212,30 +212,30 @@ pure def denseSubset (regs: Set[Registration], heighest: int) : Set[Registration
 pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block = 
     val prev = last(chain)
     if (chain.length() % L2EpochSize == 0) // new epoch
-        val toStaged = prev.unstagedUpdates.denseSubset(prev.heighest_staged_seq_num)
-        val heighest = if (toStaged == Set()) prev.heighest_staged_seq_num else toStaged.maxSeqNum()
+        val toStaged = prev.unstagedUpdates.denseSubset(prev.highest_staged_seq_num)
+        val highest = if (toStaged == Set()) prev.highest_staged_seq_num else toStaged.maxSeqNum()
         val toUnstaged = prev.unstagedUpdates
                                 .exclude(toStaged)
                                 .union(regs)
-                                .filter(x => x.seq_num > heighest)
+                                .filter(x => x.seq_num > highest)
         {   valset: nextValSet(prev.valset, prev.stagedUpdates),
             stagedUpdates: toStaged, 
             unstagedUpdates: toUnstaged,
             height: chain.length(), 
             forkID: prev.forkID,
             registrations: regs, 
-            heighest_staged_seq_num: heighest,
+            highest_staged_seq_num: highest,
         }   
     else
         {   valset: prev.valset, 
             stagedUpdates: prev.stagedUpdates, 
             unstagedUpdates: prev.unstagedUpdates
                                     .union(regs)
-                                    .filter(x => x.seq_num > prev.heighest_staged_seq_num),
+                                    .filter(x => x.seq_num > prev.highest_staged_seq_num),
             height: chain.length(), 
             forkID: prev.forkID,
             registrations: regs, 
-            heighest_staged_seq_num: prev.heighest_staged_seq_num,
+            highest_staged_seq_num: prev.highest_staged_seq_num,
         }
 
 
@@ -245,8 +245,8 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
 // TODO: test with forkBlock that misses stale registrations
 pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: ForkID) : L2Block =
     val allRegs = prev.unstagedUpdates.union(prev.stagedUpdates).union(regs)
-    val toApplyNow = allRegs.denseSubset(prev.heighest_staged_seq_num)
-    val heighest = if (toApplyNow == Set()) prev.heighest_staged_seq_num else toApplyNow.maxSeqNum()
+    val toApplyNow = allRegs.denseSubset(prev.highest_staged_seq_num)
+    val highest = if (toApplyNow == Set()) prev.highest_staged_seq_num else toApplyNow.maxSeqNum()
     val toUnstaged = allRegs.exclude(toApplyNow)
     val newValSet = nextValSet(prev.valset, toApplyNow)
     {   height: h, // lastL1.provenHeight + 1, 
@@ -255,7 +255,7 @@ pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: Fork
         valset: newValSet,  
         stagedUpdates: Set(),
         unstagedUpdates: toUnstaged, 
-        heighest_staged_seq_num: heighest,
+        highest_staged_seq_num: highest,
     }
 
 
@@ -339,8 +339,8 @@ def noConfirmed = (
 // this ensures that we don't apply a registration twice
 // TODO test
 def stagedInv = all {
-    L2.last().unstagedUpdates.forall(r => r.seq_num > L2.last().heighest_staged_seq_num),
-    L2.last().stagedUpdates.forall(r => r.seq_num <= L2.last().heighest_staged_seq_num)
+    L2.last().unstagedUpdates.forall(r => r.seq_num > L2.last().highest_staged_seq_num),
+    L2.last().stagedUpdates.forall(r => r.seq_num <= L2.last().highest_staged_seq_num)
 } 
 
 
@@ -358,7 +358,7 @@ def oneForkIDperProofInv =
             provenBlocks(L1, L2).toSet().forall(b => a.forkID == b.forkID))
             
 
-// should fail if uncorrect proof is submitted to L1
+// should fail if incorrect proof is submitted to L1
 // it fails if there is a proof in the L1 block but the provenHeight has not increased 
 // [violation] Found an issue (898ms).
 // Use --seed=0x138537f4952eb5 to reproduce.
@@ -415,6 +415,10 @@ def atMostOneResetPerForkIDInv =
 def unsuccessfulReset = 
     prevDeletedL2blocks.length() > 1 implies 
     prevDeletedL2blocks.last().height != L2.last().height
+
+// TODO: scenarios shortly before L1 epoch end and shortly after
+
+// Scenario where the registration is confirmed but still staged or unstaged.
 
 //
 // Block properties
@@ -491,7 +495,7 @@ action init =
         valset: Map(),
         stagedUpdates: Set(),
         unstagedUpdates: Set(),
-        heighest_staged_seq_num: 0,
+        highest_staged_seq_num: 0,
         //receivedRegistrations: Set(),
     }
     all {
