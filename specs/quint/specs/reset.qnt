@@ -243,6 +243,8 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
 // Function to compute a first block for a new fork
 // TODO: test with holes in registrations
 // TODO: test with forkBlock that misses stale registrations
+// Question: Is it the case that the forkblock must not include any unstale registrations? 
+//           The current encoding allows unstale registrations, as long as there are no gaps.
 pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: ForkID) : L2Block =
     val allRegs = prev.unstagedUpdates.union(prev.stagedUpdates).union(regs)
     val toApplyNow = allRegs.denseSubset(prev.highest_staged_seq_num)
