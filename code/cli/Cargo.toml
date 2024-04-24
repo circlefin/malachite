@@ -1,0 +1,22 @@
+[package]
+name                 = "malachite-cli"
+version.workspace    = true
+edition.workspace    = true
+repository.workspace = true
+license.workspace    = true
+publish.workspace    = true
+
+[lints]
+workspace = true
+
+[dependencies]
+malachite-actors.workspace = true
+malachite-node.workspace   = true
+malachite-test.workspace   = true
+
+clap               = { workspace = true }
+color-eyre         = { workspace = true }
+itertools          = { workspace = true }
+tokio              = { workspace = true, features = ["full"] }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }

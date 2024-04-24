@@ -12,10 +12,13 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
+extern crate alloc;
+
 mod context;
 mod height;
 mod proposal;
 mod round;
+mod signed_proposal;
 mod signed_vote;
 mod signing;
 mod timeout;
@@ -42,6 +45,7 @@ pub use context::Context;
 pub use height::Height;
 pub use proposal::Proposal;
 pub use round::Round;
+pub use signed_proposal::SignedProposal;
 pub use signed_vote::SignedVote;
 pub use signing::SigningScheme;
 pub use timeout::{Timeout, TimeoutStep};

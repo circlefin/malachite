@@ -81,6 +81,7 @@ impl ItfRunner for ConsensusRunner {
                     input_round,
                     value_from_model(value).unwrap(),
                     Round::Nil,
+                    *some_other_node,
                 );
                 (data, Input::Proposal(proposal))
             }
@@ -92,6 +93,7 @@ impl ItfRunner for ConsensusRunner {
                     actual.round,
                     value_from_model(value).unwrap(),
                     Round::new(*valid_round),
+                    *some_other_node,
                 );
                 (data, Input::ProposalAndPolkaPrevious(proposal))
             }
@@ -103,6 +105,7 @@ impl ItfRunner for ConsensusRunner {
                     actual.round,
                     value_from_model(value).unwrap(),
                     Round::Nil,
+                    *some_other_node,
                 );
                 (data, Input::ProposalAndPolkaCurrent(proposal))
             }
@@ -115,6 +118,7 @@ impl ItfRunner for ConsensusRunner {
                     input_round,
                     value_from_model(value).unwrap(),
                     Round::Nil,
+                    *some_other_node,
                 );
                 (data, Input::InvalidProposalAndPolkaPrevious(proposal))
             }
@@ -126,6 +130,7 @@ impl ItfRunner for ConsensusRunner {
                     actual.round,
                     value_from_model(value).unwrap(),
                     Round::Nil,
+                    *some_other_node,
                 );
                 (data, Input::ProposalAndPrecommitValue(proposal))
             }

@@ -18,9 +18,19 @@ impl Ed25519 {
 }
 
 impl SigningScheme for Ed25519 {
+    type DecodingError = ed25519_consensus::Error;
+
     type Signature = Signature;
     type PublicKey = PublicKey;
     type PrivateKey = PrivateKey;
+
+    fn encode_signature(signature: &Signature) -> Vec<u8> {
+        signature.to_bytes().to_vec()
+    }
+
+    fn decode_signature(bytes: &[u8]) -> Result<Self::Signature, Self::DecodingError> {
+        Signature::try_from(bytes)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -40,6 +50,11 @@ impl PrivateKey {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn public_key(&self) -> PublicKey {
         PublicKey::new(self.0.verification_key())
+    }
+
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    pub fn inner(&self) -> &ed25519_consensus::SigningKey {
+        &self.0
     }
 }
 
@@ -70,6 +85,10 @@ impl PublicKey {
         let mut hasher = Sha256::new();
         hasher.update(self.0.as_bytes());
         hasher.finalize().into()
+    }
+
+    pub fn inner(&self) -> &ed25519_consensus::VerificationKey {
+        &self.0
     }
 }
 

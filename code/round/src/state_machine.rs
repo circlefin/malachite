@@ -84,7 +84,7 @@ where
             state.round = round;
 
             // We are the proposer
-            propose_valid_or_get_value(state)
+            propose_valid_or_get_value(state, info.address)
         }
 
         // L11/L20
@@ -104,7 +104,7 @@ where
         (Step::Propose, Input::ProposeValue(value)) if this_round => {
             debug_assert!(info.is_proposer());
 
-            propose(state, value)
+            propose(state, value, info.address)
         }
 
         // L22 with valid proposal
@@ -227,7 +227,7 @@ where
 /// and ask for a value.
 ///
 /// Ref: L15-L18
-pub fn propose_valid_or_get_value<Ctx>(state: State<Ctx>) -> Transition<Ctx>
+pub fn propose_valid_or_get_value<Ctx>(state: State<Ctx>, address: &Ctx::Address) -> Transition<Ctx>
 where
     Ctx: Context,
 {
@@ -239,7 +239,9 @@ where
                 state.round,
                 round_value.value.clone(),
                 pol_round,
+                address.clone(),
             );
+
             Transition::to(state.with_step(Step::Propose)).with_output(proposal)
         }
         None => {
@@ -257,11 +259,18 @@ where
 /// otherwise propose the given value.
 ///
 /// Ref: L11/L14
-pub fn propose<Ctx>(state: State<Ctx>, value: Ctx::Value) -> Transition<Ctx>
+pub fn propose<Ctx>(state: State<Ctx>, value: Ctx::Value, address: &Ctx::Address) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let proposal = Output::proposal(state.height, state.round, value, Round::Nil);
+    let proposal = Output::proposal(
+        state.height,
+        state.round,
+        value,
+        Round::Nil,
+        address.clone(),
+    );
+
     Transition::to(state.with_step(Step::Propose)).with_output(proposal)
 }
 

@@ -2,9 +2,15 @@
 resolver = "2"
 
 members = [
+  "actors", 
+  "cli",
   "common",
-  "driver",
+  "driver", 
+  "gossip",
   "itf",
+  "network", 
+  "node", 
+  "proto",
   "round",
   "test",
   "vote",
@@ -16,19 +22,56 @@ edition      = "2021"
 repository   = "https://github.com/informalsystems/malachite"
 license      = "Apache-2.0"
 publish      = false
+rust-version = "1.77"
+
+[workspace.lints.rust]
+# unused_crate_dependencies = "warn"
 
 [workspace.dependencies]
-derive-where      = "1.2.7"
-ed25519-consensus = "2.1.0"
-futures           = "0.3"
-glob              = "0.3.0"
-itf               = "0.2.2"
-num-bigint        = "0.4.4"
-num-traits        = "0.2.17"
-pretty_assertions = "1.4"
-rand              = { version = "0.8.5", features = ["std_rng"] }
-serde             = "1.0"
-serde_json        = "1.0"
-serde_with        = "3.4"
-sha2              = "0.10.8"
-signature         = "2.1.0"
+malachite-actors  = { version = "0.1.0", path = "actors" }
+malachite-cli     = { version = "0.1.0", path = "cli" }
+malachite-common  = { version = "0.1.0", path = "common" }
+malachite-driver  = { version = "0.1.0", path = "driver" }
+malachite-gossip  = { version = "0.1.0", path = "gossip" }
+malachite-network = { version = "0.1.0", path = "network" }
+malachite-itf     = { version = "0.1.0", path = "itf" }
+malachite-node    = { version = "0.1.0", path = "node" }
+malachite-proto   = { version = "0.1.0", path = "proto" }
+malachite-round   = { version = "0.1.0", path = "round" }
+malachite-test    = { version = "0.1.0", path = "test" }
+malachite-vote    = { version = "0.1.0", path = "vote" }
+
+async-trait        = "0.1.77"
+clap               = { version = "4.5.4", features = ["derive"] }
+color-eyre         = "0.6"
+derive-where       = "1.2.7"
+ed25519-consensus  = "2.1.0"
+futures            = "0.3"
+glob               = "0.3.0"
+humantime-serde    = "1.1.1"
+itertools          = "0.12"
+itf                = "0.2.3"
+libp2p             = { version = "0.53.2", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "quic", "tls", "gossipsub"] }
+libp2p-gossipsub   = { version = "0.46.1" }
+multiaddr          = "0.18.1"
+num-bigint         = "0.4.4"
+num-traits         = "0.2.17"
+pretty_assertions  = "1.4"
+prost              = "0.12.3"
+prost-build        = "0.12.3"
+prost-types        = "0.12.3"
+ractor             = "0.9.6"
+ractor_actors      = { version = "0.4.0", default-features= false }
+rand               = { version = "0.8.5", features = ["std_rng"] }
+rand_chacha        = "0.3.1"
+serde              = "1.0"
+serde_json         = "1.0"
+serde_with         = "3.7"
+sha2               = "0.10.8"
+signature          = "2.2.0"
+thiserror          = "1.0"
+tokio              = "1.36.0"
+tokio-stream       = "0.1"
+toml               = "0.8.10"
+tracing            = "0.1.40"
+tracing-subscriber = "0.3.18"
