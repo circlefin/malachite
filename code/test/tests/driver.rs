@@ -1,4 +1,6 @@
-use malachite_test::utils::{make_validators, FixedProposer, RotateProposer};
+use std::sync::Arc;
+
+use malachite_test::utils::{make_validators, FixedProposer, ProposerSelector, RotateProposer};
 
 use malachite_common::{NilOrVal, Round, Timeout, TimeoutStep};
 use malachite_driver::{Driver, Error, Input, Output, Validity};
@@ -13,9 +15,16 @@ pub struct TestStep {
     new_state: State<TestContext>,
 }
 
-pub fn output_to_input(output: Output<TestContext>) -> Option<Input<TestContext>> {
+pub fn output_to_input(
+    output: Output<TestContext>,
+    sel: &dyn ProposerSelector<TestContext>,
+    vs: &ValidatorSet,
+) -> Option<Input<TestContext>> {
     match output {
-        Output::NewRound(height, round) => Some(Input::NewRound(height, round)),
+        Output::NewRound(height, round) => {
+            let proposer = sel.select_proposer(height, round, vs);
+            Some(Input::NewRound(height, round, proposer))
+        }
         // Let's consider our own proposal to always be valid
         Output::Propose(p) => Some(Input::Proposal(p, Validity::Valid)),
         Output::Vote(v) => Some(Input::Vote(v)),
@@ -34,17 +43,23 @@ fn driver_steps_proposer() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = FixedProposer::new(my_addr);
+    let sel = Arc::new(FixedProposer::new(my_addr));
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(0),
+        value,
+        Round::new(-1),
+        my_addr,
+    );
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are proposer, ask for a value to propose",
-            input: Some(Input::NewRound(Height::new(1), Round::new(0))),
+            input: Some(Input::NewRound(Height::new(1), Round::new(0), my_addr)),
             expected_outputs: vec![
                 Output::ScheduleTimeout(Timeout::new(Round::new(0), TimeoutStep::Propose)),
                 Output::GetValue(
@@ -231,7 +246,7 @@ fn driver_steps_proposer() {
         },
     ];
 
-    run_steps(&mut driver, steps);
+    run_steps(&mut driver, steps, sel.as_ref(), &vs);
 }
 
 #[test]
@@ -241,15 +256,15 @@ fn driver_steps_proposer_timeout_get_value() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = FixedProposer::new(my_addr);
+    let sel = Arc::new(FixedProposer::new(my_addr));
     let vs = ValidatorSet::new(vec![v1, v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are proposer, ask for a value to propose",
-            input: Some(Input::NewRound(Height::new(1), Round::new(0))),
+            input: Some(Input::NewRound(Height::new(1), Round::new(0), my_addr)),
             expected_outputs: vec![
                 Output::ScheduleTimeout(Timeout::new(Round::new(0), TimeoutStep::Propose)),
                 Output::GetValue(
@@ -289,7 +304,7 @@ fn driver_steps_proposer_timeout_get_value() {
         },
     ];
 
-    run_steps(&mut driver, steps);
+    run_steps(&mut driver, steps, sel.as_ref(), &vs);
 }
 
 #[test]
@@ -303,17 +318,27 @@ fn driver_steps_not_proposer_valid() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = FixedProposer::new(v1.address);
+    let sel = Arc::new(FixedProposer::new(v1.address));
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(0),
+        value,
+        Round::new(-1),
+        v1.address,
+    );
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input: Some(Input::NewRound(Height::new(1), Round::new(0))),
+            input: Some(Input::NewRound(
+                Height::new(1),
+                Round::new(0),
+                proposal.validator_address,
+            )),
             expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
@@ -479,7 +504,7 @@ fn driver_steps_not_proposer_valid() {
         },
     ];
 
-    run_steps(&mut driver, steps);
+    run_steps(&mut driver, steps, sel.as_ref(), &vs);
 }
 
 #[test]
@@ -493,17 +518,23 @@ fn driver_steps_not_proposer_invalid() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = FixedProposer::new(v1.address);
+    let sel = Arc::new(FixedProposer::new(v1.address));
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::new(-1));
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(0),
+        value,
+        Round::new(-1),
+        v1.address,
+    );
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input: Some(Input::NewRound(Height::new(1), Round::new(0))),
+            input: Some(Input::NewRound(Height::new(1), Round::new(0), proposal.validator_address)),
             expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
@@ -595,7 +626,7 @@ fn driver_steps_not_proposer_invalid() {
         },
     ];
 
-    run_steps(&mut driver, steps);
+    run_steps(&mut driver, steps, sel.as_ref(), &vs);
 }
 
 #[test]
@@ -609,18 +640,28 @@ fn driver_steps_not_proposer_other_height() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = FixedProposer::new(v1.address);
+    let sel = Arc::new(FixedProposer::new(v1.address));
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     // Proposal is for another height
-    let proposal = Proposal::new(Height::new(2), Round::new(0), value, Round::new(-1));
+    let proposal = Proposal::new(
+        Height::new(2),
+        Round::new(0),
+        value,
+        Round::new(-1),
+        v1.address,
+    );
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input: Some(Input::NewRound(Height::new(1), Round::new(0))),
+            input: Some(Input::NewRound(
+                Height::new(1),
+                Round::new(0),
+                proposal.validator_address,
+            )),
             expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
@@ -648,7 +689,7 @@ fn driver_steps_not_proposer_other_height() {
         },
     ];
 
-    run_steps(&mut driver, steps);
+    run_steps(&mut driver, steps, sel.as_ref(), &vs);
 }
 
 #[test]
@@ -662,18 +703,24 @@ fn driver_steps_not_proposer_other_round() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = FixedProposer::new(v1.address);
+    let sel = Arc::new(FixedProposer::new(v1.address));
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     // Proposal is for another round
-    let proposal = Proposal::new(Height::new(1), Round::new(1), value, Round::new(-1));
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(1),
+        value,
+        Round::new(-1),
+        v2.address,
+    );
 
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input: Some(Input::NewRound(Height::new(1), Round::new(0))),
+            input: Some(Input::NewRound(Height::new(1), Round::new(0), v1.address)),
             expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
@@ -701,7 +748,7 @@ fn driver_steps_not_proposer_other_round() {
         },
     ];
 
-    run_steps(&mut driver, steps);
+    run_steps(&mut driver, steps, sel.as_ref(), &vs);
 }
 
 #[test]
@@ -715,16 +762,16 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
 
     let height = Height::new(1);
     let ctx = TestContext::new(my_sk.clone());
-    let sel = FixedProposer::new(v1.address);
+    let sel = Arc::new(FixedProposer::new(v1.address));
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     let steps = vec![
         // Start round 0, we, v3, are not the proposer
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer",
-            input: Some(Input::NewRound(Height::new(1), Round::new(0))),
+            input: Some(Input::NewRound(Height::new(1), Round::new(0), v1.address)),
             expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
@@ -888,7 +935,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         },
         TestStep {
             desc: "Start round 1, we are not the proposer",
-            input: Some(Input::NewRound(Height::new(1), Round::new(1))),
+            input: Some(Input::NewRound(Height::new(1), Round::new(1), v2.address)),
             expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(1)))],
             expected_round: Round::new(1),
             new_state: State {
@@ -902,7 +949,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
         },
     ];
 
-    run_steps(&mut driver, steps);
+    run_steps(&mut driver, steps, sel.as_ref(), &vs);
 }
 
 // No value to propose
@@ -915,13 +962,12 @@ fn driver_steps_no_value_to_propose() {
     let ctx = TestContext::new(my_sk.clone());
 
     // We are the proposer
-    let sel = FixedProposer::new(v1.address);
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     let outputs = driver
-        .process(Input::NewRound(Height::new(1), Round::new(0)))
+        .process(Input::NewRound(Height::new(1), Round::new(0), v1.address))
         .expect("execute succeeded");
 
     assert_eq!(
@@ -947,12 +993,11 @@ fn driver_steps_proposer_not_found() {
     let ctx = TestContext::new(my_sk.clone());
 
     // Proposer is v1, which is not in the validator set
-    let sel = FixedProposer::new(v1.address);
     let vs = ValidatorSet::new(vec![v2.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let output = driver.process(Input::NewRound(Height::new(1), Round::new(0)));
+    let output = driver.process(Input::NewRound(Height::new(1), Round::new(0), v1.address));
     assert_eq!(output, Err(Error::ProposerNotFound(v1.address)));
 }
 
@@ -968,15 +1013,14 @@ fn driver_steps_validator_not_found() {
     let ctx = TestContext::new(my_sk.clone());
 
     // Proposer is v1
-    let sel = FixedProposer::new(v1.address);
     // We omit v2 from the validator set
     let vs = ValidatorSet::new(vec![v1.clone(), v3.clone()]);
 
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     // Start new height
     driver
-        .process(Input::NewRound(Height::new(1), Round::new(0)))
+        .process(Input::NewRound(Height::new(1), Round::new(0), v1.address))
         .expect("execute succeeded");
 
     // v2 prevotes for some proposal, we cannot find it in the validator set => error
@@ -994,7 +1038,7 @@ fn driver_steps_validator_not_found() {
 fn driver_steps_skip_round_skip_threshold() {
     let value = Value::new(9999);
 
-    let sel = RotateProposer;
+    let sel = Arc::new(RotateProposer);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([1, 1, 1]);
 
@@ -1005,13 +1049,13 @@ fn driver_steps_skip_round_skip_threshold() {
     let height = Height::new(1);
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     let steps = vec![
         // Start round 0, we, v3, are not the proposer
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer",
-            input: Some(Input::NewRound(height, Round::new(0))),
+            input: Some(Input::NewRound(height, Round::new(0), v1.address)),
             expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
@@ -1100,14 +1144,14 @@ fn driver_steps_skip_round_skip_threshold() {
         },
     ];
 
-    run_steps(&mut driver, steps);
+    run_steps(&mut driver, steps, sel.as_ref(), &vs);
 }
 
 #[test]
 fn driver_steps_skip_round_quorum_threshold() {
     let value = Value::new(9999);
 
-    let sel = RotateProposer;
+    let sel = Arc::new(RotateProposer);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([1, 2, 1]);
 
@@ -1118,13 +1162,13 @@ fn driver_steps_skip_round_quorum_threshold() {
     let ctx = TestContext::new(my_sk.clone());
 
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
-    let mut driver = Driver::new(ctx, height, sel, vs, my_addr, Default::default());
+    let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     let steps = vec![
         // Start round 0, we, v3, are not the proposer
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer",
-            input: Some(Input::NewRound(height, Round::new(0))),
+            input: Some(Input::NewRound(height, Round::new(0), v1.address)),
             expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
@@ -1213,10 +1257,15 @@ fn driver_steps_skip_round_quorum_threshold() {
         },
     ];
 
-    run_steps(&mut driver, steps);
+    run_steps(&mut driver, steps, sel.as_ref(), &vs);
 }
 
-fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
+fn run_steps(
+    driver: &mut Driver<TestContext>,
+    steps: Vec<TestStep>,
+    sel: &dyn ProposerSelector<TestContext>,
+    vs: &ValidatorSet,
+) {
     let mut input_from_prev_output = None;
 
     for step in steps {
@@ -1232,6 +1281,8 @@ fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
         assert_eq!(driver.round(), step.expected_round, "expected round");
         assert_eq!(driver.round_state, step.new_state, "new state");
 
-        input_from_prev_output = outputs.pop().and_then(output_to_input);
+        input_from_prev_output = outputs
+            .pop()
+            .and_then(|input| output_to_input(input, sel, vs));
     }
 }

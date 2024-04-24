@@ -39,8 +39,9 @@ impl<Ctx: Context> Output<Ctx> {
         round: Round,
         value: Ctx::Value,
         pol_round: Round,
+        address: Ctx::Address,
     ) -> Self {
-        Output::Proposal(Ctx::new_proposal(height, round, value, pol_round))
+        Output::Proposal(Ctx::new_proposal(height, round, value, pol_round, address))
     }
 
     /// Build a `Vote` output for a prevote.

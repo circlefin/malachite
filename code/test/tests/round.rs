@@ -39,7 +39,13 @@ fn test_propose() {
     assert_eq!(transition.next_state, state);
     assert_eq!(
         transition.output.unwrap(),
-        Output::proposal(Height::new(10), Round::new(0), Value::new(42), Round::Nil)
+        Output::proposal(
+            Height::new(10),
+            Round::new(0),
+            Value::new(42),
+            Round::Nil,
+            ADDRESS
+        )
     );
 }
 
@@ -79,6 +85,7 @@ fn test_prevote() {
             Round::new(1),
             value,
             Round::Nil,
+            OTHER_ADDRESS,
         )),
     );
 
@@ -106,7 +113,13 @@ fn test_input_message_while_commit_step() {
         ..Default::default()
     };
 
-    let proposal = Proposal::new(Height::new(1), Round::new(1), value, Round::Nil);
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(1),
+        value,
+        Round::Nil,
+        OTHER_ADDRESS,
+    );
 
     let data = Info::new(round, &ADDRESS, &OTHER_ADDRESS);
 
