@@ -1,7 +1,7 @@
 // -*- mode: Bluespec; -*-
 
 // Observations: 
-// - is the number of registrations in L2 block a limitting factor for the reset
+// - is the number of registrations in L2 block a limiting factor for the reset
 // TODO: Write properties in terms of valid, decided, invalidated, finalized blocks
 
 // TODO: L1->L2 messaging uses nonce for at-most-once delivery / but delivery might be out of order

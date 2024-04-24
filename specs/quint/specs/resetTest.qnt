@@ -5,7 +5,7 @@ module resetTest {
 import reset (
     L2EpochSize = 5,
     L1EpochSize = 4,
-    EthStartTime = 42, // This enforces that the first registrations have EVE greater than the inital forkID
+    EthStartTime = 42, // This enforces that the first registrations have EVE greater than the initial forkID
     MaxEthBlockTime = 3,
     maxReg = 3,
     minReg = -3,
