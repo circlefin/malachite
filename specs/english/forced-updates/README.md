@@ -14,7 +14,7 @@ Some aspects of the composition
     - the state transition encoded in _b_ is consistent with the transactions in the block (TODO: not sure. can be polished) and the complete history of transaction in the prefix of the blockchain (iteratively, that is, one can apply a proof of a block to the proof of the prefix)
     - other meta data consistency is met (the pending validator set changes are consistent with the received registrations; same chain id as previous block; lastblockID is hash of last block, etc.)
     - if the block contains transactions, it must also contain a proof
-    - enough of the required validators, have signed the block. "Enough" as defined by the history of the blockchain and the epoched validator set changes (we can write this more precisely), 
+    - a quorum of validators, have signed the block. "Quorum" is defined by the history of the blockchain and the epoched validator set changes (we can write this more precisely), 
     - **Observation** assumption/design decision: full nodes (validators) can check this kind of validity by observing only L2 (this doesn't mean that this is the validity that L1 is going to use in case there is a fork)
     - Question: Does L1 need any other data except the proof to verify the proof?
 - **fork block production:** similar to above but
@@ -22,7 +22,7 @@ Some aspects of the composition
     - the required signatures are defined by data from L1 and L2 (TODO: confirm) 
         - the last block of L2 proved to L1
         - stale registrations from L1; TODO: confirm: I guess they must appear as transactions in the block (so that they can be acknowledged to L1), but in contrast to the normal flow, they must be applied instantaneously (to the metadata, that is, the validator set)
-    - **Observation** assumption/design decision: full nodes (validators) need to observe L1 (stale registrations, last proofed block) and L2 for this.
+    - **Observation** assumption/design decision: full nodes (validators) need to observe L1 (stale registrations, last proven block) and L2 for this.
     - COMMENT: if height _f_ is a fork block, then checking the "validity" based on block _f-1_ requires a different function -> implies complexity for light clients that read L2; CONFIRM: are L2 light clients a concern? (i.e., validate state from L2)
     - TODO: 
         - Confirm: I guess this block is allowed to contain transactions even if it doesn't have a proof. (cf. discussion around proof braiding)
