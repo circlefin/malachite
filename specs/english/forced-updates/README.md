@@ -5,6 +5,24 @@ We consider a composition of three components
 - L2. distributed system of full nodes and validators running a BFT consensus engine
 - PR. nodes running prover software (potentially on the same machines as the full nodes/validators). That produce proofs to be sent to L1 (proofs that are stored on L2 are handled somewhere else, TODO: add pointer)
 
+## Overview
+
+L2 uses L1 for security. This has two aspects
+1. proofs of L2 block production are submitted to and verified on L1. Once an L1 block where this happened becomes finalized, the L2 state becomes finalized. Thus, if clients wait for finalization of L1, they get the full security of L1
+2. before L2 blocks are finalized, they are secured by a proof-of-stake mechanism for L2. By bonding stake on L1, validators are incentivized to follow the protocol.
+    - **The goal of this protocol is to enforce the adoption of a new validator set, produced by L1**
+    - for this to work, every change in the bonded stake on L1, so-called registrations, need to be reliably transmitted to L2
+    - this is enforced by a timeout mechanism based on EVE epoch (say a day) and Point 1.: intuitively, L1 will only accept proofs for a L2 block B, if all registration from two days ago have been included in the L2 blocks up to B; if a timeout has expired L1 enforces an L2 reset, by requiring a proof for a specific block that contains all registrations from two days ago, and a new forkID.
+
+Notice, however, that there is no explicit signalization from L1 to start the reset protocol. Instead, validators that remain in the reset validator set and nodes that become validators in the reset validator set are expected to initiate the Fork Protocol, once they realize that it is needed. It is assumed that nodes joining the validator set of a fork have access to all state they need to produce and validate blocks (i.e., make progress) in that fork. 
+
+For all effects, it can be useful to consider the first block of a new fork as it was a genesis state or block.
+
+If L2 made progress until height 1000, but the last accepted proof on L1 was for height 900, on L2 this effectively means that correct validators need to roll-back to the state of 900 for the reset, and dismiss the previously produced blocks
+
+**Requirement.** In addition to to ensure safety (every proof accepted on L1 contains sufficiently old registrations), the protocol should ensure progress in favorable situations, that is: If at the end of an EVE epoch the validator set defined by L1 registrations contains a quorum of honest validators that are alive for sufficiently long, new blocks should be added to L2, and if there are alive provers, proofs should be added to L1.
+
+
 ## Central aspects of the composition
 The validity property of consensus (which determines whether a specific block can be decided on in L2), is defined by L1 and PR: **A block _b_ produced by L2 is valid iff L1 can successfully verify _PR(b)_**
     - _PR(b)_ actually stands for a combined proof of multiple L2 blocks. In practice not every block is proven individualy to L1
