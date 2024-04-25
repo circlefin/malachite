@@ -65,7 +65,72 @@ The "required validators" is information that originates from L1, via so called 
 ### L1->L2 messaging
 L1->L2 messaging is done by an oracle flow (not the IBC way of cryptographic proofs): the proposer sees a message to be sent on L1. When it can be sure that the other validators also have seen the message it puts it into the proposal, and the validators vote on it. This means, for validating a proposal, a validator needs to closely follow what happens on L1.
 
+## Formalizing the protocol in Quint
 
+We have formalized the reset protocol in Quint. To do so, we abstracted away many details not relevant to the understanding of the protocol. The specification includes:
+
+- protocol functionality: how data inside blocks is computed and validated
+- state machine consisting of L1, L2, and a set collecting registrations 
+- invariants (that have been preliminarily tested) and temporal formulas (that are just written but have not been investigated further)
+
+### Protocol functionality
+
+This contains mainly the following functions (and their auxiliary functions):
+- `pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof, delay: Time) : L1Block`
+    - this returns a new L1 block, based on the previous block, newly added registrations, potentially a submitted proof for several L2 blocks, and a delay parameter the defines the time difference between the new block and the old one, to model progress in time
+    - this function uses the important function `proofOK` to check whether the submitted proof can be verified. This captures central functionality for the rest protocol, namely whether the proof is for the right heights and forkID, has all required unfulfilled updates.
+- `pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block`
+    - this returns a new L2 block during normal operation, based on the previous block and newly added registrations (that should be thought of having received via L1->L2 messaging)
+    - it contains a big branch with the cases 
+        - of a new block within an epoch or
+        - with a new block for a new epoch
+- `pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: ForkID) : L2Block`
+    - this returns a new L2 block in the case of a reset. In addition to the "normal" parameters, it needs the last provenHeight and the new forkID which is information that the validators need to obtain from data on L1
+
+- `pure def makeProof (l2: List[L2Block], to_height: Height, l1: List[L1Block]) : L2Proof`
+    - This returns our abstraction of a proof of multiple L2 blocks. `L2Proof` is a sum-type to allow invalid and absent proofs
+    - The function needs 
+        - data from L2 to compute the result of confirmed registration
+        - data from L1 namely the provenHeight
+
+### State Machine
+
+The state machine contains the following variables:
+```
+var L1: List[L1Block] 
+var L2: List[L2Block]
+var envRegs: Set[Registration]
+```
+
+In addition to parameterized actions that we can use to control the creation of specific scenarios, we have the following actions to generate random traces:
+
+- `addRegistration`
+- `addL1Block`
+- `addL2Block`
+- `reset`
+
+#### addRegistration
+The addRegistration action creates a new registration with random content that is added to the state variable envRegs. This action represents the submission of registration from an external actor. The registration is not yet added to a L1 block.
+
+#### addL1Block
+The addL1Block action appends a new L1Block to the L1 blockchain (the state variable L1). The new L1 block includes all submitted registrations stored in the state variable envRegs, added to the  addL1Block fields newRegistrations and unfulfilled_updates. The unfulfilled_updates field contains the submitted but not yet confirmed (i.e., pending) registrations.
+
+#### addL2Block
+The addL2Block action appends a new L2Block to the L2 blockchain (the state variable L2). The new L2 block includes a random subset regs of the unfulfilled_updates field of the latest L1 block. Note that regs can be empty or its registrations may not follow the registration total order. The action uses the function `newL2Block` to compute the new block
+
+#### reset
+The reset action produces forks in the L2 blockchain when L2 fails to prove the inclusion in L2 blocks of the registrations produced by L1. There is a deadline, given in terms of L1 epochs, for each registration produced by L1 to be committed by L2. When the deadline for a registration is reached and the registration is still pending, i.e., it was not yet confirmed by L2, we say that the registration is stale. When there is a stale registration in L1, a fork should be produced in L2 as a way to enforce that all stale registrations are reflected in the validator set adopted by L2.
+
+The reset action checks whether there are stale registrations in L1 by considering the last block appended to L1, and checking if there is any registration in pendingRegistrations whose submission epoch is older than two L1 epochs, considering as the reference, current epoch, the epoch of the last block appended to L1. If this is a case a fork is produced.
+
+To produce a fork, the L2 blockchain is rolled-back to the latest (highest) L2's provenHeight. 
+All L2 blocks with height higher than the latest L2's provenHeight are thus dropped. (In the Quint specification we currently store dropped blocks in the state variable `prevDeletedL2blocks` to inspect the reset scenarios completely)
+
+Once L2 is rolled-back to latest L2's provenHeight, say h, a new block is appended to L2 with height h+1. This is a fork block produced by the forkBlock function. 
+
+### Invariants and temporal formulas
+
+For details we refer to the Quint file, and the upcoming analysis documentation (Points (c) and (d) in the SoW. TODO).
 
 ## Issues
 
