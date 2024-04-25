@@ -14,7 +14,7 @@ Some aspects of the composition
     - the state transition encoded in _b_ is consistent with the transactions in the block (TODO: not sure. can be polished) and the complete history of transaction in the prefix of the blockchain (iteratively, that is, one can apply a proof of a block to the proof of the prefix)
     - other meta data consistency is met (the pending validator set changes are consistent with the received registrations; same chain id as previous block; lastblockID is hash of last block, etc.)
     - if the block contains transactions, it must also contain a proof
-    - enough of the required validators, have signed the block. "Enough" as defined by the history of the blockchain and the epoched validator set changes (we can write this more precisely), 
+    - a quorum of validators, have signed the block. "Quorum" is defined by the history of the blockchain and the epoched validator set changes (we can write this more precisely), 
     - **Observation** assumption/design decision: full nodes (validators) can check this kind of validity by observing only L2 (this doesn't mean that this is the validity that L1 is going to use in case there is a fork)
     - Question: Does L1 need any other data except the proof to verify the proof?
 - **fork block production:** similar to above but
