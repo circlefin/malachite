@@ -9,7 +9,7 @@ We consider a composition of three components
 
 L2 uses L1 for security. This has two aspects
 1. proofs of L2 block production are submitted to and verified on L1. Once an L1 block where this happened becomes finalized, the L2 state becomes finalized. Thus, if clients wait for finalization of L1, they get the full security of L1
-2. before L2 blocks are finalized, they are secured by a proof-of-stake mechanism for L2. By bonding stake on L1, validators are incentivized to follow the protocol.
+2. before L2 blocks are finalized, they are secured by a proof-of-stake mechanism for L2. By bonding stake on L1, validators have the incentive to follow the protocol.
     - **The goal of this protocol is to enforce the adoption of a new validator set, produced by L1**
     - for this to work, every change in the bonded stake on L1, so-called registrations, need to be reliably transmitted to L2
     - this is enforced by a timeout mechanism based on EVE epoch (say a day) and Point 1.: intuitively, L1 will only accept proofs for a L2 block B, if all registration from two days ago have been included in the L2 blocks up to B; if a timeout has expired L1 enforces an L2 reset, by requiring a proof for a specific block that contains all registrations from two days ago, and a new forkID.
@@ -25,7 +25,7 @@ If L2 made progress until height 1000, but the last accepted proof on L1 was for
 
 ## Central aspects of the composition
 The validity property of consensus (which determines whether a specific block can be decided on in L2), is defined by L1 and PR: **A block _b_ produced by L2 is valid iff L1 can successfully verify _PR(b)_**
-    - _PR(b)_ actually stands for a combined proof of multiple L2 blocks. In practice not every block is proven individualy to L1
+    - _PR(b)_ actually stands for a combined proof of multiple L2 blocks. In practice not every block is proven individually to L1
     - validity is dependent on time, in particular the time on Ethereum. A block that is valid now, can become invalid if it takes too long to get a proof on L1. (This is due to stale registrations introduced below)
 
 ### Proofs
