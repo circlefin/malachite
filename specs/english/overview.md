@@ -22,7 +22,7 @@ Some aspects of the composition
     - the required signatures are defined by data from L1 and L2 (TODO: confirm) 
         - the last block of L2 proved to L1
         - stale registrations from L1; TODO: confirm: I guess they must appear as transactions in the block (so that they can be acknowledged to L1), but in contrast to the normal flow, they must be applied instantaneously (to the metadata, that is, the validator set)
-    - **Observation** assumption/design decision: full nodes (validators) need to observe L1 (stale registrations, last proofed block) and L2 for this.
+    - **Observation** assumption/design decision: full nodes (validators) need to observe L1 (stale registrations, last proven block) and L2 for this.
     - COMMENT: if height _f_ is a fork block, then checking the "validity" based on block _f-1_ requires a different function -> implies complexity for light clients that read L2; CONFIRM: are L2 light clients a concern? (i.e., validate state from L2)
     - TODO: 
         - Confirm: I guess this block is allowed to contain transactions even if it doesn't have a proof. (cf. discussion around proof braiding)
