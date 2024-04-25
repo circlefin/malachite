@@ -1,17 +1,20 @@
 // -*- mode: Bluespec; -*-
+// This is a protocol specification of "Starknet Forced Staking Updates", 
+// targeting writing invariants and temporal properties and allowing
+// us to generate interesting reset scenarios.
+//
+// For details of "Starknet Forced Staking Updates", see:
+// https://docs.google.com/document/d/1OaYLh9o10DIsGpW0GTRhWl-IJiVyjRsy7UttHs9_1Fw/edit#heading=h.hvyiqqxvuqzo
+//
+// Josef Widder, Informal Systems, 2024
 
 // Observations: 
 // - is the number of registrations in L2 block a limiting factor for the reset
-// TODO: Write properties in terms of valid, decided, invalidated, finalized blocks
+// - not captured here: Time between block creation and proof on L1 must be big enough to also have proof on L2
 
 // TODO: L1->L2 messaging uses nonce for at-most-once delivery / but delivery might be out of order
 
-// not captured here: Time between block creation and proof on L1 must be big enough to also have proof on L2
-
-// quint run --invariant "noReset" resetTest.qnt 
-
 // Starknet Forced Staking Updates: https://docs.google.com/document/d/1OaYLh9o10DIsGpW0GTRhWl-IJiVyjRsy7UttHs9_1Fw/edit#heading=h.hvyiqqxvuqzo
-// Leader and Proof scheduling: https://docs.google.com/document/d/1qjngaq9GoMWa5UJOrTlKNqwi_pI0aHt8iULWD9Gy9hE/edit#heading=h.s8yc63mi87f5
 
 
 module reset {
