@@ -1,8 +1,12 @@
 use std::convert::Infallible;
 
+use prost_types::Any;
 use thiserror::Error;
 
-use prost::{DecodeError, EncodeError, Message};
+use prost::{DecodeError, EncodeError, Message, Name};
+
+pub use prost;
+pub use prost_types as types;
 
 include!(concat!(env!("OUT_DIR"), "/malachite.rs"));
 
@@ -49,7 +53,7 @@ impl From<Infallible> for Error {
 }
 
 pub trait Protobuf: Sized {
-    type Proto: Message + Default;
+    type Proto: Message + Name + Default;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, Error>;
 
@@ -64,5 +68,15 @@ pub trait Protobuf: Sized {
     fn to_bytes(&self) -> Result<Vec<u8>, Error> {
         let proto = self.to_proto()?;
         Ok(proto.encode_to_vec())
+    }
+
+    fn to_any(&self) -> Result<Any, Error> {
+        let proto = self.to_proto()?;
+        Ok(Any::from_msg(&proto)?)
+    }
+
+    fn from_any(any: Any) -> Result<Self, Error> {
+        let proto = any.to_msg()?;
+        Self::from_proto(proto)
     }
 }

@@ -81,12 +81,12 @@ async fn test_receive_proposal_normal() -> TestResult {
 
     for i in 0..8 {
         tx_content
-            .send(ProposalContent::Tx(TxContent { data: vec![i] }))
+            .send(ProposalContent::Tx(Tx { data: vec![i] }))
             .await?;
     }
 
     tx_content
-        .send(ProposalContent::Proof(ProofContent { data: vec![8] }))
+        .send(ProposalContent::Proof(Proof { data: vec![8] }))
         .await?;
 
     drop(tx_content);
@@ -128,12 +128,12 @@ async fn test_send_known_proposal_correct_hash() -> TestResult {
 
     for i in 0..8 {
         tx_content
-            .send(ProposalContent::Tx(TxContent { data: vec![i] }))
+            .send(ProposalContent::Tx(Tx { data: vec![i] }))
             .await?;
     }
 
     tx_content
-        .send(ProposalContent::Proof(ProofContent { data: vec![8] }))
+        .send(ProposalContent::Proof(Proof { data: vec![8] }))
         .await?;
 
     drop(tx_content); // Trigger the hash comparison
@@ -156,13 +156,13 @@ async fn test_send_known_proposal_incorrect_hash() {
 
     for i in 0..8 {
         tx_content
-            .send(ProposalContent::Tx(TxContent { data: vec![i] }))
+            .send(ProposalContent::Tx(Tx { data: vec![i] }))
             .await
             .unwrap();
     }
 
     tx_content
-        .send(ProposalContent::Proof(ProofContent { data: vec![8] }))
+        .send(ProposalContent::Proof(Proof { data: vec![8] }))
         .await
         .unwrap();
 
@@ -181,7 +181,10 @@ async fn test_sign_message_proposal() {
     let message = Message::Proposal(Proposal {
         height: Height::new(1),
         round: Round::new(0),
-        value: ProposalContent::Tx(TxContent { data: vec![42] }),
+        value: Block {
+            txs: vec![Tx::new(vec![42])],
+            proof: Proof::new(vec![0b0101010]),
+        },
         pol_round: Round::Nil,
         validator_address: Address::new([1; 20]),
     });

@@ -96,7 +96,7 @@ impl Host for MockHost {
 
                 tokio::time::sleep(step).await;
 
-                let content = TxContent {
+                let content = Tx {
                     data: rng.gen::<u64>().to_le_bytes().to_vec(),
                 };
                 hasher.update(&content.data);
@@ -104,7 +104,7 @@ impl Host for MockHost {
                 tx_content.send(ProposalContent::Tx(content)).await.unwrap();
             }
 
-            let proof = ProofContent {
+            let proof = Proof {
                 data: rng.gen::<u64>().to_le_bytes().to_vec(),
             };
             hasher.update(&proof.data);

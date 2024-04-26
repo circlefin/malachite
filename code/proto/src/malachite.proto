@@ -14,6 +14,19 @@ message Value {
     optional bytes value = 2;
 }
 
+message Block {
+    repeated Tx txs = 1;
+    Proof proof = 2;
+}
+
+message Tx {
+    bytes data = 1;
+}
+
+message Proof {
+    bytes data = 1;
+}
+
 message ValueId {
     optional bytes value = 1;
 }

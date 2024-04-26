@@ -1,5 +1,7 @@
 use core::fmt;
 
+use proto::prost::Message as _;
+use proto::types::Any;
 use sha2::{Digest, Sha256};
 use subtle_encoding::hex;
 
@@ -209,12 +211,50 @@ impl proto::Protobuf for Vote {
 
 pub type Precommit = Vote;
 
+/// A block
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Block {
+    pub txs: Vec<Tx>,
+    pub proof: Proof,
+}
+
+impl proto::Protobuf for Block {
+    type Proto = malachite_proto::Block;
+
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+        Ok(Self {
+            txs: proto
+                .txs
+                .into_iter()
+                .map(Tx::from_proto)
+                .collect::<Result<_, _>>()?,
+            proof: Proof::from_proto(
+                proto
+                    .proof
+                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("proof"))?,
+            )?,
+        })
+    }
+
+    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+        Ok(malachite_proto::Block {
+            txs: self
+                .txs
+                .iter()
+                .map(Tx::to_proto)
+                .collect::<Result<_, _>>()?,
+            proof: Some(self.proof.to_proto()?),
+        })
+    }
+}
+
 /// A proposal for a value in a round
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Proposal {
     pub height: Height,
     pub round: Round,
-    pub value: ProposalContent,
+    pub value: Block,
     pub pol_round: Round,
     pub validator_address: Address,
 }
@@ -230,10 +270,14 @@ impl proto::Protobuf for Proposal {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+        let value = proto::Value {
+            value: Some(self.value.to_any()?.encode_to_vec()),
+        };
+
         Ok(proto::Proposal {
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),
-            value: Some(self.value.to_proto()?),
+            value: Some(value),
             pol_round: Some(self.pol_round.to_proto()?),
             validator_address: Some(self.validator_address.to_proto()?),
         })
@@ -241,6 +285,10 @@ impl proto::Protobuf for Proposal {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+        let value = proto
+            .value
+            .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
+
         Ok(Self {
             height: Height::from_proto(
                 proto
@@ -252,11 +300,12 @@ impl proto::Protobuf for Proposal {
                     .round
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("round"))?,
             )?,
-            value: ProposalContent::from_proto(
-                proto
+            value: Block::from_any(Any::decode(
+                value
                     .value
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?,
-            )?,
+                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?
+                    .as_slice(),
+            )?)?,
             pol_round: Round::from_proto(
                 proto
                     .pol_round
@@ -273,8 +322,8 @@ impl proto::Protobuf for Proposal {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProposalContent {
-    Tx(TxContent),
-    Proof(ProofContent),
+    Tx(Tx),
+    Proof(Proof),
 }
 
 impl proto::Protobuf for ProposalContent {
@@ -303,10 +352,10 @@ impl proto::Protobuf for ProposalContent {
             .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
 
         match data[0] {
-            1 => Ok(ProposalContent::Tx(TxContent {
+            1 => Ok(ProposalContent::Tx(Tx {
                 data: data[1..].to_vec(),
             })),
-            2 => Ok(ProposalContent::Proof(ProofContent {
+            2 => Ok(ProposalContent::Proof(Proof {
                 data: data[1..].to_vec(),
             })),
             _ => Err(proto::Error::Other(
@@ -317,13 +366,53 @@ impl proto::Protobuf for ProposalContent {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TxContent {
+pub struct Tx {
     pub data: Vec<u8>,
 }
 
+impl Tx {
+    pub fn new(data: Vec<u8>) -> Self {
+        Self { data }
+    }
+}
+
+impl proto::Protobuf for Tx {
+    type Proto = malachite_proto::Tx;
+
+    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+        Ok(Self { data: proto.data })
+    }
+
+    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+        Ok(malachite_proto::Tx {
+            data: self.data.clone(),
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProofContent {
+pub struct Proof {
     pub data: Vec<u8>,
+}
+
+impl Proof {
+    pub fn new(data: Vec<u8>) -> Self {
+        Self { data }
+    }
+}
+
+impl proto::Protobuf for Proof {
+    type Proto = malachite_proto::Proof;
+
+    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+        Ok(Self { data: proto.data })
+    }
+
+    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+        Ok(malachite_proto::Proof {
+            data: self.data.clone(),
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
