@@ -1,4 +1,5 @@
 // -*- mode: Bluespec; -*-
+//
 // This is a protocol specification of "Starknet Forced Staking Updates", 
 // targeting writing invariants and temporal properties and allowing
 // us to generate interesting reset scenarios.
@@ -7,14 +8,6 @@
 // https://docs.google.com/document/d/1OaYLh9o10DIsGpW0GTRhWl-IJiVyjRsy7UttHs9_1Fw/edit#heading=h.hvyiqqxvuqzo
 //
 // Josef Widder, Informal Systems, 2024
-
-// Observations: 
-// - is the number of registrations in L2 block a limiting factor for the reset
-// - not captured here: Time between block creation and proof on L1 must be big enough to also have proof on L2
-
-// TODO: L1->L2 messaging uses nonce for at-most-once delivery / but delivery might be out of order
-
-// Starknet Forced Staking Updates: https://docs.google.com/document/d/1OaYLh9o10DIsGpW0GTRhWl-IJiVyjRsy7UttHs9_1Fw/edit#heading=h.hvyiqqxvuqzo
 
 
 module reset {
@@ -95,6 +88,7 @@ pure def last(l) =
 
 pure def toSet (l) = 
     l.foldl(Set(), (s, x) => s.union(Set(x)))
+
 
 
 //
@@ -191,15 +185,31 @@ pure def addOneReg (vals: Address -> int, reg: Registration) : Address -> int =
 pure def nextValSet (vals: Address -> int, regs: Set[Registration]) : Address -> int =
     regs.fold(vals, (v, r) => addOneReg(v,r))
 
-pure def completePrefixIdx(r: Set[Registration], highest: int) : int =
-    // smallest unproven block - 1
-    val existingIdx = 0.to(highest).union(r.fold(Set(), (s, x) => s.union(Set(x.seq_num))))
-    // if we have {0,1,2,4,5,8}, complete is {0,1,2}; TODO test
-    val complete = existingIdx.filter(i => 0.to(i).subseteq(existingIdx))
-    complete.fold(0, (max, i) => if (i > max) i else max)
 
 pure def maxSeqNum (regs: Set[Registration]) : int =
     regs.fold(-1, (s, x) => if (x.seq_num > s) x.seq_num else s)
+
+
+
+// // We need to restrict ranges to constants so that Apalache can run on this.
+// val maxRegistrations = 100
+// def SafeRegRange(a,b) = 
+//     0.to(maxRegistrations).filter(i => a <= i and i <= b)
+
+// // TODO: perhaps we can rewrite the functions    
+// pure def completePrefixIdx(r: Set[Registration], highest: int) : int =
+//     // smallest unproven block - 1
+//     val existingIdx = SafeRegRange(0, highest).union(r.fold(Set(), (s, x) => s.union(Set(x.seq_num))))
+//     // if we have {0,1,2,4,5,8}, complete is {0,1,2}; TODO test
+//     val complete = existingIdx.filter(i => SafeRegRange(0, i).subseteq(existingIdx))
+//     complete.fold(0, (max, i) => if (i > max) i else max)
+
+
+pure def completePrefixIdx(r: Set[Registration], highest: int) : int =
+    val existingIdx = r.fold(Set(), (s, x) => s.union(Set(x.seq_num))).union(Set(highest))
+    val noSuccessor = existingIdx.filter(x => not(existingIdx.contains(x+1)))
+    val largest = noSuccessor.fold(0, (s,x) => if (x>s) x else s)
+    noSuccessor.fold(largest, (s,x) => if (x < s) x else s)
 
 pure def denseSubset (regs: Set[Registration], highest: int) : Set[Registration] =
     val c = regs.completePrefixIdx(highest)
@@ -295,12 +305,26 @@ var L2: List[L2Block]
 var envRegs: Set[Registration]
 var prevDeletedL2blocks: List[L2Block] 
 
+//
+// Auxiliary functions to limit ranges to allow verification with Apalache
+// see https://apalache.informal.systems/docs/apalache/known-issues.html#integer-ranges-with-non-constant-bounds
+//
+val minL2Height = -1
+val maxL2Height = 100
+val maxDeletedL2Height = 100
+
+
+def SafeL2Range(a,b) = 
+    minL2Height.to(maxL2Height).filter(i => a <= i and i <= b)
+
+def SafeDeletedL2Range(a,b) = 
+    0.to(maxDeletedL2Height).filter(i => a <= i and i <= b)
+
+
 
 //
 // Invariants
 //
-
-def staleInv = not(L1.last().existsStaleInBlock())
 
 pure def validProof (b : L1Block, prev: L1Block) : bool =
     val epochedRegs = b.newRegistrations.map(r => {... r, eth_epoch: L1Epoch(b.time)})
@@ -313,34 +337,26 @@ pure def validProof (b : L1Block, prev: L1Block) : bool =
             | Invalid => false
     }
 
-def noStaleWithProof = 
+// If a valid proof was verified on L1, then there should be no unfullfilled
+// updates
+def noStaleWithProofInv = 
     (L1.length() > 1) implies ( 
         validProof(L1[L1.length() - 1], L1[L1.length() - 2]) implies
-        L1.last().unfulfilled_updates == Set()
+            L1.last().unfulfilled_updates == Set()
     )
 
-// chainID of last element is 0
-// if used as invariant and violated, we have an example with a reset
-def noReset = L2.last().forkID == 0
-
-// TODO: This doesn't catch duplicate forks
-def growingForkID = (
+// ForkID on L2 is non-decreasing
+def monotonicForkIDInv = (
     L2.length() > 1 implies 
         (L2[L2.length() - 1].forkID >= L2[L2.length() - 2].forkID)
 )
 
-// Should fail
-// No registration is ever confirmed (i.e., removed from pending)
-// if used as invariant and violated, we have an example where a registration
-// is removed from pending
-def noConfirmed = (
-        L1.length() > 2) implies 
-            L1[L1.length() - 2].unfulfilled_updates.forall(
-                r => L1[L1.length() - 1].unfulfilled_updates.contains(r)
-) 
+def finalizationInv = (
+    L2.length() >= L1.last().provenHeight
+)
 
-// Should hold
-// first line important: we only have unstanged registrations which have smaller seq_num.
+// first line important: we only have unstanged registrations which have seq_num
+// smaller than highest_staged_seq_num
 // this ensures that we don't apply a registration twice
 // TODO test
 def stagedInv = all {
@@ -348,30 +364,19 @@ def stagedInv = all {
     L2.last().stagedUpdates.forall(r => r.seq_num <= L2.last().highest_staged_seq_num)
 } 
 
-
-// This returns a list of L2 blocks that are proven in the last L1 Block
+// Auxiliarr function
+// returns a list of L2 blocks that are proven in the last L1 Block
 pure def provenBlocks (l1: List[L1Block], l2: List[L2Block]) : List[L2Block] = 
     l2.slice(l1[l1.length()-2].provenHeight + 1, l1[l1.length()-1].provenHeight + 1)
 
-// Should hold
-// A proof doesn't span L2 heights for more than one forkID
+// All blocks that are proven with one proof on L1, have the same forkID
 // [ok] No violation found (67417ms).
 // Use --seed=0x970fc84d54eb5 to reproduce.
 def oneForkIDperProofInv = 
     L1.length() > 1 implies 
         provenBlocks(L1, L2).toSet().forall(a =>
             provenBlocks(L1, L2).toSet().forall(b => a.forkID == b.forkID))
-            
 
-// should fail if incorrect proof is submitted to L1
-// it fails if there is a proof in the L1 block but the provenHeight has not increased 
-// [violation] Found an issue (898ms).
-// Use --seed=0x138537f4952eb5 to reproduce.
-def allProofsAccepted = 
-    L1.length() > 1 and not (L1.last().newProof == None or  L1.last().newProof == Invalid)
-        implies L1.last().provenHeight > L1[L1.length() -2].provenHeight
-
-// should hold
 // If there is no (valid) proof or the proof contains an invalid registration, then the proof should
 // be rejected (provenHeight should remain unchanged)
 def InvalidRegistrationProofRejectedInv =
@@ -383,11 +388,54 @@ def InvalidRegistrationProofRejectedInv =
         }
     implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
 
+// L2 chain shouldn't roll back twice one same forkID 
+// checks whether in prevDeletedL2blocks there are two subsequent blocks with the same forkID whose
+// Heights are not increasing. If this is the case the second what was not a "normal" successor of
+// the first one, but is the result of a reset
+def atMostOneResetPerForkIDInv = 
+    val l = prevDeletedL2blocks
+    SafeDeletedL2Range(0,l.length() -2)
+        .exists (i => l[i].forkID == l[i+1].forkID and l[i].height >= l[i+1].height)
+
+
+//
+// Interesting reachable states
+//
+// These predicates describe interesting states. More precisely, these are 
+// negations of predicates that are interesting. We can ask the simulator
+// whether these negations are invariants. The simulator is then looking for
+// violations of invariants. If it finds one, it reports a counterexample, that
+// is, a trace that ends up in a state where the negation of the predicate is
+// violated, in other words, where the predicate holds.
+
+// should fail
+// The last block of L1 doesn't contain stale registrations.
+// If used as an invariant, then the last block contains stale registrations
+def staleWitness = not(L1.last().existsStaleInBlock())
+
+// forkID of last element is 0
+// if used as invariant and violated, we have an example with a reset
+def noResetWitness = L2.last().forkID == 0
+
+// No registration is ever confirmed (i.e., removed from unfulfilled_updates)
+// if used as invariant and violated, we have an example where a registration
+// is removed from pending
+def noConfirmedWitness = (
+    L1.length() > 2) implies 
+    L1[L1.length() - 2].unfulfilled_updates.subseteq(L1.last().unfulfilled_updates) 
+
+// should fail if incorrect proof is submitted to L1
+// it fails if there is a proof in the L1 block but the provenHeight has not increased 
+// [violation] Found an issue (898ms).
+// Use --seed=0x138537f4952eb5 to reproduce.
+def allProofsAcceptedWitness = 
+    (L1.length() > 1 and not (L1.last().newProof == None or  L1.last().newProof == Invalid))
+        implies L1.last().provenHeight > L1[L1.length() -2].provenHeight
 
 // Should fail if transition system allows invalid transactions to be added to L2
 // transition relation "Step or addL2BlockInvalidReg"
 // there is a proof with invalid registration, and the proof is accepted.    
-def InvalidRegistrationProofAccepted =
+def InvalidRegistrationProofAcceptedWitness =
     L1.length() > 1 and 
     L1.last().newProof != None and 
     L1.last().newProof != Invalid and
@@ -398,32 +446,15 @@ def InvalidRegistrationProofAccepted =
     }
     implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
 
-pure def previouslyRolledBackForks (l: List[L2Block]) : Set[int] = 
-    l.foldl(Set(), (s,x) => s.union(Set(x.forkID)))
-    
-// should fail if two resets roll-back the L2
-def atMostXRollBacks(x) = 
-    previouslyRolledBackForks(prevDeletedL2blocks).size() < x
-
-
-pure def atMostOneResetPerForkID (l: List[L2Block]) : bool = 
-    0.to(l.length() -2).forall (i => l[i].forkID < l[i+1].forkID or l[i].height < l[i+1].height)
-
-// should hold
-// L2 chain shouldn't roll back twice one same forkID 
-def atMostOneResetPerForkIDInv = 
-    atMostOneResetPerForkID(prevDeletedL2blocks)
-
-// should fail
 // if it fails I get a scenario where there was a reset on L2 and before a second block
 // was added to L2 with the same fork ID, another reset happened
-def unsuccessfulReset = 
+def unsuccessfulResetWitness = 
     prevDeletedL2blocks.length() > 1 implies 
     prevDeletedL2blocks.last().height != L2.last().height
 
 // TODO: scenarios shortly before L1 epoch end and shortly after
 
-// Scenario where the registration is confirmed but still staged or unstaged.
+// TODO: Scenario where the registration is confirmed but still staged or unstaged.
 
 //
 // Block properties
@@ -483,9 +514,8 @@ temporal validProgress = always(
         (valid(b) implies eventually(finalized(b) or invalidated(b))))
 )
 
-
-
 // For every height there is eventually a finalized block of that height
+
 
 
 //
@@ -535,10 +565,10 @@ action addRegistration = all {
 }
 
 action addL1Block = all {
-    nondet someHeight = (-1).to(L2.length() - 1).oneOf() 
+    nondet someHeight = SafeL2Range(-1, L2.length() - 1).oneOf() 
     nondet blocktimeDelta = 1.to(MaxEthBlockTime).oneOf()
     val newproof = makeProof(L2, someHeight, L1)    // if someheight < provenHeight this will give Invalid proof
-    val submProof = Set(newproof, None).oneOf()
+    nondet submProof = Set(newproof, None).oneOf()
     L1' = L1.append(newL1Block(L1.last(), envRegs, submProof, blocktimeDelta)),
     L2' = L2,
     envRegs' = Set(),
