@@ -237,6 +237,7 @@ impl proto::Protobuf for Block {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(malachite_proto::Block {
             txs: self
@@ -379,10 +380,12 @@ impl Tx {
 impl proto::Protobuf for Tx {
     type Proto = malachite_proto::Tx;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self { data: proto.data })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(malachite_proto::Tx {
             data: self.data.clone(),
@@ -404,10 +407,12 @@ impl Proof {
 impl proto::Protobuf for Proof {
     type Proto = malachite_proto::Proof;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self { data: proto.data })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(malachite_proto::Proof {
             data: self.data.clone(),

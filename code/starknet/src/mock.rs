@@ -206,7 +206,7 @@ impl Host for MockHost {
         signature: &Self::Signature,
         public_key: &Self::PublicKey,
     ) -> bool {
-        public_key.verify(hash.as_bytes(), &signature).is_ok()
+        public_key.verify(hash.as_bytes(), signature).is_ok()
     }
 
     /// Update the Context about which decision has been made. It is responsible for pinging any
