@@ -42,7 +42,7 @@ _PR(b)_ is a proof that _b_ was produced properly, including:
 
 **Observation** assumption/design decision: full nodes (validators) can check this kind of validity by observing only L2 (this doesn't mean that this is the validity that L1 is going to use in case there is a fork).
 
-#### fork block production:
+#### Fork block production:
 Similar to above but:
 - different meta data constraints, e.g. the new forkID comes from the stale registrations of L1 
 - the required signatures are defined by data from L1 and L2 
