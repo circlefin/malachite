@@ -5,6 +5,14 @@ We consider a composition of three components
 - L2. distributed system of full nodes and validators running a BFT consensus engine
 - PR. nodes running prover software (potentially on the same machines as the full nodes/validators). That produce proofs to be sent to L1 (proofs that are stored on L2 are handled somewhere else, TODO: add pointer)
 
+#### Outline of the protocol
+The rough idea of the staking protocol is a follows:
+- The stake is managed on the L1 staking registry. When a new staking event, called registration, happens, a message is sent from L1 to L2
+- This message: 
+    - results in a deferred update of the L2 validator set based on Starknet Validator Epochs SVE. If a registration is received by L2 in epoch _E_, it will affect the validator set of epoch _E+2_.
+    - must be confirmed within a timeout. The timeout is defined with respect to Ethereum Validator Epochs EVE on L1. Think of them in the order of a day. If a registration times out, a reset must happen (details follow below).
+
+
 ## Overview
 
 L2 uses L1 for security. This has two aspects:
@@ -45,8 +53,8 @@ _PR(b)_ is a proof that _b_ was produced properly, including:
 #### Fork block production:
 Similar to above but:
 - different meta data constraints, e.g. the new forkID comes from the stale registrations of L1 
-- the required signatures are defined by data from L1 and L2 
-    - the last block of L2 proved to L1 (validator set, staged and unstaged updates)
+- the new validator set is defined by data from L1 and L2 
+    - the last block of L2 proved to L1 (validator set, staged and unstaged updates; TODO: clarify with Starkware)
     - stale registrations from L1; 
         - they must appear as transactions in the block (so that they can be acknowledged to L1), 
         - in contrast to the normal flow, they must be applied instantaneously (to the metadata, that is, the validator set)
