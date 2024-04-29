@@ -18,7 +18,7 @@ Notice, however, that there is no explicit signalization from L1 to start the re
 
 For all effects, it can be useful to consider the first block of a new fork as it was a genesis state or block.
 
-If L2 made progress until height 1000, but the last accepted proof on L1 was for height 900, on L2 this effectively means that correct validators need to roll-back to the state of 900 for the reset, and dismiss the previously produced blocks
+If L2 made progress until height 1000, but the last accepted proof on L1 was for height 900, on L2 this effectively means that correct validators need to roll-back to the state of 900 for the reset, and dismiss the previously produced blocks.
 
 **Requirement.** In addition to ensure safety (every proof accepted on L1 contains all sufficiently old registrations), the protocol should ensure progress in favorable situations, that is: If at the end of an EVE epoch the validator set defined by L1 registrations contains a quorum of honest validators that are alive for sufficiently long, new blocks should be added to L2, and if there are alive provers, proofs should be added to L1.
 
