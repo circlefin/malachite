@@ -2,7 +2,7 @@
 
 module resetTest {
     
-import reset (
+import resetSystem (
     L2EpochSize = 5,
     L1EpochSize = 4,
     EthStartTime = 42, // This enforces that the first registrations have EVE greater than the initial forkID
@@ -10,7 +10,7 @@ import reset (
     maxReg = 3,
     minReg = -3,
     ValAddresses = Set("Huey", "Dewey", "Louie")
-).* from "./reset"
+).* from "./resetSystem"
 
 
 run FailedResetTest = 
