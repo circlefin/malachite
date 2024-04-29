@@ -59,7 +59,7 @@ The "required validators" is information that originates from L1, via so called 
 - L1 uses L1->L2 messaging (with acknowledgements) to make sure that L2 is aware of all registrations
 - if acknowledgements time out (in terms of EVE epochs), a reset happens (L2 validator nodes observe that and take action)
     - a reset means, that L1 stops accepting "normal block production proofs" and requires specific "fork block production proofs"
-    - as these specific proofs **enforce** the first block to contain timed-out registrations and a new validator set (and corresponding signatures), and a new forkID, **validity enforces a reconfiguration**.
+    - as these specific proofs **enforce** the first block to contain timed-out registrations and a new validator set (and corresponding signatures), and a new forkID, **validity enforces a reconfiguration**
 - intuitively, L1 observes (via results that come with proofs) whether all its registrations are mirrored on L2. Then the existence of a proof of block production implies that the correct validator set as defined by the registration is used (and there are enough signatures)
 
 
