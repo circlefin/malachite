@@ -38,7 +38,7 @@ _PR(b)_ is a proof that _b_ was produced properly, including:
 - the state transition encoded in _b_ is consistent with the transactions in the block, and the complete history of transaction in the prefix of the blockchain (iteratively, that is, one can apply a proof of a block to the proof of the prefix)
 - other meta data consistency is met (the staged and unstaged validator set changes are consistent with the received registrations; same forkID as previous block; lastblockID is hash of last block, etc.)
 - if the block contains transactions, it must also contain a proof (TODO: more details to come out of proof specification work that happens in parallel)
-- a quorum of validators has signed the block. "Quorum" is defined by the history of the blockchain and the epoched validator set changes (we can write this more precisely), 
+- a quorum of validators has signed the block. "Quorum" is defined by the history of the blockchain and the epoched validator set changes (we can write this more precisely)
 
 **Observation** assumption/design decision: full nodes (validators) can check this kind of validity by observing only L2 (this doesn't mean that this is the validity that L1 is going to use in case there is a fork)
 
