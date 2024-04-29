@@ -40,7 +40,7 @@ _PR(b)_ is a proof that _b_ was produced properly, including:
 - if the block contains transactions, it must also contain a proof (TODO: more details to come out of proof specification work that happens in parallel)
 - a quorum of validators has signed the block. "Quorum" is defined by the history of the blockchain and the epoched validator set changes (we can write this more precisely)
 
-**Observation** assumption/design decision: full nodes (validators) can check this kind of validity by observing only L2 (this doesn't mean that this is the validity that L1 is going to use in case there is a fork)
+**Observation** assumption/design decision: full nodes (validators) can check this kind of validity by observing only L2 (this doesn't mean that this is the validity that L1 is going to use in case there is a fork).
 
 #### fork block production:
 Similar to above but:
