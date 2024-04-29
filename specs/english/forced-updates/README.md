@@ -84,9 +84,9 @@ This contains mainly the following functions (and their auxiliary functions):
         - has all required unfulfilled updates.
 - `pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block`
     - this returns a new L2 block during normal operation, based on the previous block and newly added registrations (that should be thought of having received via L1->L2 messaging)
-    - it contains a branch with the cases 
-        - of a new block within an epoch or
-        - with a new block for a new epoch
+    - it contains a branch with the following cases:
+        - a new block within an SVE epoch or
+        - a new block for a new SVE epoch
 - `pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: ForkID) : L2Block`
     - this returns a new L2 block in the case of a reset. In addition to the "normal" parameters, it needs the last provenHeight and the new forkID which is information that the validators need to obtain from data on L1
 
