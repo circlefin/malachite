@@ -56,7 +56,7 @@ Similar to above but:
 - the new validator set is defined by data from L1 and L2 
     - the last block of L2 proved to L1 (validator set, staged and unstaged updates; TODO: clarify with Starkware)
     - stale registrations from L1; 
-        - they must appear as transactions in the block (so that they can be acknowledged to L1), 
+        - they must appear as transactions in the L2 block (so that L1 can verify they have been handled), 
         - in contrast to the normal flow, they must be applied instantaneously (to the metadata, that is, the validator set)
 
 **Observation** assumption/design decision: full nodes (validators) need to observe L1 (stale registrations, last proven block) and L2 for this.
