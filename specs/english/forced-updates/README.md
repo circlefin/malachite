@@ -44,7 +44,7 @@ _PR(b)_ is a proof that _b_ was produced properly, including:
 
 #### fork block production:
 Similar to above but:
-- different meta data constraints, e.g., as the new forkID comes from the stale registrations of L1 
+- different meta data constraints, e.g. the new forkID comes from the stale registrations of L1 
 - the required signatures are defined by data from L1 and L2 
     - the last block of L2 proved to L1 (validator set, staged and unstaged updates)
     - stale registrations from L1; 
