@@ -1,7 +1,7 @@
 # Starknet Forced Staking Updates Specification
 
 We consider a composition of three components
-- L1. A smart contract on Ethereum
+- L1. a smart contract on Ethereum
 - L2. distributed system of full nodes and validators running a BFT consensus engine
 - PR. nodes running prover software (potentially on the same machines as the full nodes/validators). That produce proofs to be sent to L1 (proofs that are stored on L2 are handled somewhere else, TODO: add pointer)
 
