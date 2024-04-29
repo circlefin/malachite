@@ -7,7 +7,7 @@ We consider a composition of three components
 
 ## Overview
 
-L2 uses L1 for security. This has two aspects
+L2 uses L1 for security. This has two aspects:
 1. proofs of L2 block production are submitted to and verified on L1. Once an L1 block with a valid proof becomes finalized, the L2 state becomes finalized. Thus, if clients wait for finalization of L1, they get the full security of L1
 2. before L2 blocks are finalized, they are secured by a proof-of-stake mechanism for L2. By bonding stake on L1, validators have the incentive to follow the protocol.
     - **The goal of this protocol is to enforce the adoption of a new validator set, produced by L1**
