@@ -27,7 +27,6 @@ val minL2Height = -1
 val maxL2Height = 100
 val maxDeletedL2Height = 100
 
-
 def SafeL2Range(a,b) = 
     minL2Height.to(maxL2Height).filter(i => a <= i and i <= b)
 
@@ -65,12 +64,13 @@ def monotonicForkIDInv = (
         (L2[L2.length() - 1].forkID >= L2[L2.length() - 2].forkID)
 )
 
+// L2 is never rolled-back below provenHeight
 def finalizationInv = (
-    L2.length() >= L1.last().provenHeight
+    L2.last().height >= L1.last().provenHeight
 )
 
 // first line important: we only have unstanged registrations which have seq_num
-// smaller than highest_staged_seq_num
+// greater than highest_staged_seq_num
 // this ensures that we don't apply a registration twice
 // TODO test
 def stagedInv = all {
@@ -78,14 +78,13 @@ def stagedInv = all {
     L2.last().stagedUpdates.forall(r => r.seq_num <= L2.last().highest_staged_seq_num)
 } 
 
-// Auxiliarr function
+
+// Auxiliary function
 // returns a list of L2 blocks that are proven in the last L1 Block
 pure def provenBlocks (l1: List[L1Block], l2: List[L2Block]) : List[L2Block] = 
     l2.slice(l1[l1.length()-2].provenHeight + 1, l1[l1.length()-1].provenHeight + 1)
 
 // All blocks that are proven with one proof on L1, have the same forkID
-// [ok] No violation found (67417ms).
-// Use --seed=0x970fc84d54eb5 to reproduce.
 def oneForkIDperProofInv = 
     L1.length() > 1 implies 
         provenBlocks(L1, L2).toSet().forall(a =>
@@ -108,8 +107,9 @@ def InvalidRegistrationProofRejectedInv =
 // the first one, but is the result of a reset
 def atMostOneResetPerForkIDInv = 
     val l = prevDeletedL2blocks
-    SafeDeletedL2Range(0,l.length() -2)
-        .exists (i => l[i].forkID == l[i+1].forkID and l[i].height >= l[i+1].height)
+    l.length() > 2 implies
+        SafeDeletedL2Range(0,l.length() -2)
+            .forall (i => l[i].forkID != l[i+1].forkID or l[i].height <= l[i+1].height)
 
 
 //
@@ -140,8 +140,9 @@ def noConfirmedWitness = (
 
 // should fail if incorrect proof is submitted to L1
 // it fails if there is a proof in the L1 block but the provenHeight has not increased 
-// [violation] Found an issue (898ms).
-// Use --seed=0x138537f4952eb5 to reproduce.
+// todo: understand trace
+// Use --seed=0x1d505d9aef85b1 to reproduce.
+// Use --verbosity=3 to show executions.
 def allProofsAcceptedWitness = 
     (L1.length() > 1 and not (L1.last().newProof == None or  L1.last().newProof == Invalid))
         implies L1.last().provenHeight > L1[L1.length() -2].provenHeight
@@ -165,6 +166,15 @@ def InvalidRegistrationProofAcceptedWitness =
 def unsuccessfulResetWitness = 
     prevDeletedL2blocks.length() > 1 implies 
     prevDeletedL2blocks.last().height != L2.last().height
+
+
+def InvalidRegReachesL1Witness = 
+    match L1.last().newProof {
+        | None => true
+        | Invalid => true
+        | Proof(p) => p.confirmedRegs.filter(r => r.starknet_addr == "INVALID").size() == 0
+    }
+
 
 // TODO: scenarios shortly before L1 epoch end and shortly after
 
@@ -379,6 +389,14 @@ action addL2BlockInvalidReg = all {
     }
     addL2BlockRegs(Set(inv))
 }
+
+action stepWithInvalidRegs = any {
+    step, 
+    addL2BlockInvalidReg
+}
+
+
+
 
 // this was the first version of reset that contains two bugs
 // in the if conditions, multiple resets can happen for the same forkID (L2 progress is over-written)
