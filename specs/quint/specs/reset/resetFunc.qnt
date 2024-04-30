@@ -127,10 +127,14 @@ pure def confirmedRegistrations (vp: L2Proof) : Set[Registration] =
 //
 // Proof verification
 //
-pure def proofOK (provenHeight: Height, expForkID: int,  regs: Set[Registration], p: L2BlockProof) : bool = 
+pure def proofOK (  provenHeight: Height, 
+                    expForkID: int, 
+                    regs: Set[Registration], 
+                    p: L2BlockProof,
+                    t: Time) : bool = 
     and {   p.from_height == provenHeight + 1,
             p.forkID == expForkID,                  // the forkID is right, and
-            regs.exclude(p.confirmedRegs) == Set(), // there are no stale registrations left
+            not(existsStale(regs.exclude(p.confirmedRegs), t)), // there are no stale registrations left
             p.confirmedRegs.subseteq(regs),         // check for invalid registrations IMPORTANT
     }
 
@@ -143,7 +147,7 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof, del
     val pending = prev.unfulfilled_updates.union(epochedRegs)
     val forkID = expectedForkID(prev.l2forkID, pending, newTime)
     val accepted = match proof {
-            | Proof(p) =>   if (proofOK(prev.provenHeight, forkID, pending, p)) proof 
+            | Proof(p) =>   if (proofOK(prev.provenHeight, forkID, pending, p, newTime)) proof 
                             else None       
             | None => None
             | Invalid => None

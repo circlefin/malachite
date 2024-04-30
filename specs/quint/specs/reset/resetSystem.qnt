@@ -44,7 +44,7 @@ pure def validProof (b : L1Block, prev: L1Block) : bool =
     val pending = prev.unfulfilled_updates.union(epochedRegs)
     val forkID = expectedForkID(prev.l2forkID, pending, b.time)
     match b.newProof {
-            | Proof(p) =>   if (proofOK(prev.provenHeight, forkID, pending, p)) true 
+            | Proof(p) =>   if (proofOK(prev.provenHeight, forkID, pending, p, b.time)) true 
                             else false       
             | None => false
             | Invalid => false
@@ -138,27 +138,31 @@ def noConfirmedWitness = (
     L1.length() > 2) implies 
     L1[L1.length() - 2].unfulfilled_updates.subseteq(L1.last().unfulfilled_updates) 
 
-// should fail if incorrect proof is submitted to L1
+// should fail if incorrect proof is submitted to L1 
+// (e.g., if a stale registration is not confirmed)
 // it fails if there is a proof in the L1 block but the provenHeight has not increased 
-// todo: understand trace
-// Use --seed=0x1d505d9aef85b1 to reproduce.
-// Use --verbosity=3 to show executions.
 def allProofsAcceptedWitness = 
-    (L1.length() > 1 and not (L1.last().newProof == None or  L1.last().newProof == Invalid))
-        implies L1.last().provenHeight > L1[L1.length() -2].provenHeight
+    and (
+        L1.length() > 1, 
+        L1.last().newProof != None, 
+        L1.last().newProof != Invalid
+    )
+    implies L1.last().provenHeight > L1[L1.length() -2].provenHeight
 
 // Should fail if transition system allows invalid transactions to be added to L2
 // transition relation "Step or addL2BlockInvalidReg"
-// there is a proof with invalid registration, and the proof is accepted.    
+// there is a proof with invalid registration, and the proof is rejected.    
+// TODO: figure out
 def InvalidRegistrationProofAcceptedWitness =
-    L1.length() > 1 and 
-    L1.last().newProof != None and 
-    L1.last().newProof != Invalid and
+    and (
+        L1.length() > 1, 
+        L1.last().newProof != None, 
+        L1.last().newProof != Invalid,
     match L1.last().newProof {
         | None => true
         | Invalid => true
         | Proof(p) => p.confirmedRegs.contains( { amount: 0, eth_epoch: 0, seq_num: 0, starknet_addr: "INVALID" })
-    }
+    })
     implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
 
 // if it fails I get a scenario where there was a reset on L2 and before a second block
@@ -199,10 +203,11 @@ def valid (b: L2Block) : bool =
     match makeProof(L2, b.height, L1) {
         | Invalid => false
         | None => false
-        | Proof(bp) => proofOK (L1.last().time, 
+        | Proof(bp) => proofOK (L1.last().provenHeight, 
                                 L1.last().l2forkID,
                                 L1.last().unfulfilled_updates, 
-                                bp) // whether a proof is accepted is time-dependend
+                                bp,
+                                L1.last().time) // whether a proof is accepted is time-dependend
     }
 
 
@@ -239,6 +244,10 @@ temporal validProgress = always(
 )
 
 // For every height there is eventually a finalized block of that height
+temporal finalizedLiveness = 
+    0.to(maxL2Height).forall(h => eventually(finalized(L2[h])))
+
+    
 
 
 
