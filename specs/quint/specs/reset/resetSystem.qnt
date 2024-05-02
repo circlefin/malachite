@@ -274,7 +274,7 @@ action init =
                 provenHeight: 0, // initial state proven?
                 l2forkID: 0,
                 latestProvenL2BlockHash: initialL2Block,
-                cntRegistrations: 0,
+                highest_sub_seq_num: 0,
                 }),
     L2' = List(initialL2Block),
     prevDeletedL2blocks' = List(),
@@ -287,7 +287,7 @@ action addRegistration = all {
     nondet power = minReg.to(maxReg).oneOf()
     val newReg = {
         eth_epoch: -1, //TODO: put -1 here and set epoch when put into L1 Block
-        seq_num: L1.last().cntRegistrations + envRegs.size() + 1, // encodes unique registration index
+        seq_num: L1.last().highest_sub_seq_num + envRegs.size() + 1, // encodes unique registration index
         starknet_addr: newVal,
         amount: power
     }

@@ -62,8 +62,7 @@ type L1Block = {
     provenHeight: Height, 
     l2forkID: int,
     latestProvenL2BlockHash: L2Block, // What happens is that the actual proof submitted to L1 is computed from L2 off-chain
-    // history variable for analysis. Not sure we actually need it
-    cntRegistrations: int,
+    highest_sub_seq_num: int,
 }
 
 type L2Block = {
@@ -169,7 +168,7 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof, del
         latestProvenL2BlockHash: newBlockHash,
         l2forkID: forkID, 
         unfulfilled_updates: pending.exclude(accepted.confirmedRegistrations()),
-        cntRegistrations: prev.cntRegistrations + regs.size()
+        highest_sub_seq_num: prev.highest_sub_seq_num + regs.size()
     }
 
 
@@ -192,21 +191,6 @@ pure def nextValSet (vals: Address -> int, regs: Set[Registration]) : Address ->
 
 pure def maxSeqNum (regs: Set[Registration]) : int =
     regs.fold(-1, (s, x) => if (x.seq_num > s) x.seq_num else s)
-
-
-
-// // We need to restrict ranges to constants so that Apalache can run on this.
-// val maxRegistrations = 100
-// def SafeRegRange(a,b) = 
-//     0.to(maxRegistrations).filter(i => a <= i and i <= b)
-
-// // TODO: perhaps we can rewrite the functions    
-// pure def completePrefixIdx(r: Set[Registration], highest: int) : int =
-//     // smallest unproven block - 1
-//     val existingIdx = SafeRegRange(0, highest).union(r.fold(Set(), (s, x) => s.union(Set(x.seq_num))))
-//     // if we have {0,1,2,4,5,8}, complete is {0,1,2}; TODO test
-//     val complete = existingIdx.filter(i => SafeRegRange(0, i).subseteq(existingIdx))
-//     complete.fold(0, (max, i) => if (i > max) i else max)
 
 
 pure def completePrefixIdx(r: Set[Registration], highest: int) : int =
@@ -263,7 +247,9 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
 // Question: Is it the case that the forkblock must not include any unstale registrations? 
 //           The current encoding allows unstale registrations, as long as there are no gaps.
 pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: ForkID) : L2Block =
-    val allRegs = prev.unstagedUpdates.union(prev.stagedUpdates).union(regs)
+    val allRegs = prev.unstagedUpdates.union(prev.stagedUpdates).union(regs) 
+        // we clarified this point with Matan on the Google doc, that initially only taked about 
+        // staged and stale, but didn't consider unstaged
     val toApplyNow = allRegs.denseSubset(prev.highest_staged_seq_num)
     val highest = if (toApplyNow == Set()) prev.highest_staged_seq_num else toApplyNow.maxSeqNum()
     val toUnstaged = allRegs.exclude(toApplyNow)
