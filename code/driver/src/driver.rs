@@ -1,4 +1,3 @@
-use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
@@ -16,7 +15,6 @@ use malachite_vote::ThresholdParams;
 use crate::input::Input;
 use crate::output::Output;
 use crate::Error;
-use crate::ProposerSelector;
 use crate::Validity;
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
@@ -28,11 +26,11 @@ where
     /// for defining the concrete data types and signature scheme.
     pub ctx: Ctx,
 
-    /// The proposer selector.
-    pub proposer_selector: Box<dyn ProposerSelector<Ctx>>,
-
     /// The address of the node.
     pub address: Ctx::Address,
+
+    /// Quorum thresholds
+    pub threshold_params: ThresholdParams,
 
     /// The validator set at the current height
     pub validator_set: Ctx::ValidatorSet,
@@ -42,6 +40,9 @@ where
 
     /// The state of the round state machine.
     pub round_state: RoundState<Ctx>,
+
+    /// The proposer for the current round, None for round nil.
+    pub proposer: Option<Ctx::Address>,
 
     /// The proposal to decide on, if any.
     pub proposal: Option<Ctx::Proposal>,
@@ -61,23 +62,41 @@ where
     pub fn new(
         ctx: Ctx,
         height: Ctx::Height,
-        proposer_selector: impl ProposerSelector<Ctx> + 'static,
         validator_set: Ctx::ValidatorSet,
         address: Ctx::Address,
         threshold_params: ThresholdParams,
     ) -> Self {
-        let votes = VoteKeeper::new(validator_set.total_voting_power(), threshold_params);
+        let vote_keeper = VoteKeeper::new(validator_set.total_voting_power(), threshold_params);
+        let round_state = RoundState::new(height, Round::Nil);
 
         Self {
             ctx,
-            proposer_selector: Box::new(proposer_selector),
             address,
+            threshold_params,
             validator_set,
-            vote_keeper: votes,
-            round_state: RoundState::new(height, Round::Nil),
+            vote_keeper,
+            round_state,
+            proposer: None,
             proposal: None,
             pending_input: None,
         }
+    }
+
+    /// Reset votes, round state, pending input
+    /// and move to new height with the given validator set.
+    pub fn move_to_height(&mut self, height: Ctx::Height, validator_set: Ctx::ValidatorSet) {
+        // Reset the vote keeper
+        let vote_keeper =
+            VoteKeeper::new(validator_set.total_voting_power(), self.threshold_params);
+
+        // Reset the round state
+        let round_state = RoundState::new(height, Round::Nil);
+
+        self.validator_set = validator_set;
+        self.vote_keeper = vote_keeper;
+        self.round_state = round_state;
+        self.proposal = None;
+        self.pending_input = None;
     }
 
     /// Return the height of the consensus.
@@ -90,18 +109,23 @@ where
         self.round_state.round
     }
 
+    /// Return a reference to the votekeper
+    pub fn votes(&self) -> &VoteKeeper<Ctx> {
+        &self.vote_keeper
+    }
+
     /// Return the proposer for the current round.
-    pub fn get_proposer(&self, round: Round) -> Result<&Ctx::Validator, Error<Ctx>> {
-        let address = self
-            .proposer_selector
-            .select_proposer(round, &self.validator_set);
+    pub fn get_proposer(&self) -> Result<&Ctx::Validator, Error<Ctx>> {
+        if let Some(proposer) = &self.proposer {
+            let proposer = self
+                .validator_set
+                .get_by_address(proposer)
+                .ok_or_else(|| Error::ProposerNotFound(proposer.clone()))?;
 
-        let proposer = self
-            .validator_set
-            .get_by_address(&address)
-            .ok_or_else(|| Error::ProposerNotFound(address))?;
-
-        Ok(proposer)
+            Ok(proposer)
+        } else {
+            Err(Error::NoProposer(self.height(), self.round()))
+        }
     }
 
     /// Process the given input, returning the outputs to be broadcast to the network.
@@ -156,7 +180,9 @@ where
     /// Apply the given input to the state machine, returning the output, if any.
     fn apply(&mut self, input: Input<Ctx>) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         match input {
-            Input::NewRound(height, round) => self.apply_new_round(height, round),
+            Input::NewRound(height, round, proposer) => {
+                self.apply_new_round(height, round, proposer)
+            }
             Input::ProposeValue(round, value) => self.apply_propose_value(round, value),
             Input::Proposal(proposal, validity) => self.apply_proposal(proposal, validity),
             Input::Vote(vote) => self.apply_vote(vote),
@@ -168,6 +194,7 @@ where
         &mut self,
         height: Ctx::Height,
         round: Round,
+        proposer: Ctx::Address,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         if self.height() == height {
             // If it's a new round for same height, just reset the round, keep the valid and locked values
@@ -175,6 +202,9 @@ where
         } else {
             self.round_state = RoundState::new(height, round);
         }
+
+        // Update the proposer for the new round
+        self.proposer = Some(proposer);
 
         self.apply_input(round, RoundInput::NewRound(round))
     }
@@ -192,6 +222,11 @@ where
         proposal: Ctx::Proposal,
         validity: Validity,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+        // Discard proposals from different heights
+        if self.height() != proposal.height() {
+            return Ok(None);
+        }
+
         let round = proposal.round();
 
         match self.multiplex_proposal(proposal, validity) {
@@ -201,6 +236,11 @@ where
     }
 
     fn apply_vote(&mut self, vote: Ctx::Vote) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+        // Discard votes from different heights
+        if self.height() != vote.height() {
+            return Ok(None);
+        }
+
         let validator = self
             .validator_set
             .get_by_address(vote.validator_address())
@@ -226,6 +266,9 @@ where
             TimeoutStep::Propose => RoundInput::TimeoutPropose,
             TimeoutStep::Prevote => RoundInput::TimeoutPrevote,
             TimeoutStep::Precommit => RoundInput::TimeoutPrecommit,
+
+            // The driver never receives a commit timeout, so we can just ignore it.
+            TimeoutStep::Commit => return Ok(None),
         };
 
         self.apply_input(timeout.round, input)
@@ -240,7 +283,7 @@ where
         let round_state = core::mem::take(&mut self.round_state);
         let current_step = round_state.step;
 
-        let proposer = self.get_proposer(round_state.round)?;
+        let proposer = self.get_proposer()?;
         let info = Info::new(input_round, &self.address, proposer.address());
 
         // Apply the input to the round state machine

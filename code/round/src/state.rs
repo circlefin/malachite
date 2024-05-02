@@ -1,6 +1,6 @@
 //! The state maintained by the round state machine
 
-use core::fmt;
+use derive_where::derive_where;
 
 use crate::input::Input;
 use crate::state_machine::Info;
@@ -45,6 +45,7 @@ pub enum Step {
 }
 
 /// The state of the consensus state machine
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct State<Ctx>
 where
     Ctx: Context,
@@ -124,10 +125,6 @@ where
     }
 }
 
-// NOTE: We have to derive these instances manually, otherwise
-//       the compiler would infer a Clone/Debug/PartialEq/Eq bound on `Ctx`,
-//       which may not hold for all contexts.
-
 impl<Ctx> Default for State<Ctx>
 where
     Ctx: Context,
@@ -136,54 +133,3 @@ where
         Self::new(Ctx::Height::default(), Round::Nil)
     }
 }
-
-impl<Ctx> Clone for State<Ctx>
-where
-    Ctx: Context,
-{
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn clone(&self) -> Self {
-        Self {
-            height: self.height,
-            round: self.round,
-            step: self.step,
-            locked: self.locked.clone(),
-            valid: self.valid.clone(),
-            decision: self.decision.clone(),
-        }
-    }
-}
-
-impl<Ctx> fmt::Debug for State<Ctx>
-where
-    Ctx: Context,
-{
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("State")
-            .field("height", &self.height)
-            .field("round", &self.round)
-            .field("step", &self.step)
-            .field("locked", &self.locked)
-            .field("valid", &self.valid)
-            .field("decision", &self.decision)
-            .finish()
-    }
-}
-
-impl<Ctx> PartialEq for State<Ctx>
-where
-    Ctx: Context,
-{
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn eq(&self, other: &Self) -> bool {
-        self.height == other.height
-            && self.round == other.round
-            && self.step == other.step
-            && self.locked == other.locked
-            && self.valid == other.valid
-            && self.decision == other.decision
-    }
-}
-
-impl<Ctx> Eq for State<Ctx> where Ctx: Context {}

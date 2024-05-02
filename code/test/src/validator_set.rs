@@ -1,40 +1,7 @@
-use core::fmt;
-
 use malachite_common::VotingPower;
 
-use crate::{signing::PublicKey, TestContext};
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Address([u8; Self::LENGTH]);
-
-impl Address {
-    const LENGTH: usize = 20;
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    pub const fn new(value: [u8; Self::LENGTH]) -> Self {
-        Self(value)
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn from_public_key(public_key: &PublicKey) -> Self {
-        let hash = public_key.hash();
-        let mut address = [0; Self::LENGTH];
-        address.copy_from_slice(&hash[..Self::LENGTH]);
-        Self(address)
-    }
-}
-
-impl fmt::Display for Address {
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for byte in self.0.iter() {
-            write!(f, "{:02x}", byte)?;
-        }
-        Ok(())
-    }
-}
-
-impl malachite_common::Address for Address {}
+use crate::signing::PublicKey;
+use crate::{Address, TestContext};
 
 /// A validator is a public key and voting power
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -144,12 +111,20 @@ impl ValidatorSet {
 }
 
 impl malachite_common::ValidatorSet<TestContext> for ValidatorSet {
+    fn count(&self) -> usize {
+        self.validators.len()
+    }
+
     fn total_voting_power(&self) -> VotingPower {
         self.total_voting_power()
     }
 
     fn get_by_address(&self, address: &Address) -> Option<&Validator> {
         self.get_by_address(address)
+    }
+
+    fn get_by_index(&self, index: usize) -> Option<&Validator> {
+        self.validators.get(index)
     }
 }
 

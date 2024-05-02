@@ -2,6 +2,7 @@
 #![deny(trivial_casts, trivial_numeric_casts)]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
+mod address;
 mod context;
 mod height;
 mod proposal;
@@ -12,6 +13,7 @@ mod vote;
 
 pub mod utils;
 
+pub use crate::address::*;
 pub use crate::context::*;
 pub use crate::height::*;
 pub use crate::proposal::*;

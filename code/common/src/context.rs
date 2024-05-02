@@ -1,13 +1,13 @@
 use crate::{
-    Address, Height, NilOrVal, Proposal, PublicKey, Round, SignedVote, SigningScheme, Validator,
-    ValidatorSet, Value, ValueId, Vote,
+    Address, Height, NilOrVal, Proposal, PublicKey, Round, SignedProposal, SignedVote,
+    SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
 };
 
 /// This trait allows to abstract over the various datatypes
 /// that are used in the consensus engine.
 pub trait Context
 where
-    Self: Sized,
+    Self: Sized + Clone + Send + Sync + 'static,
 {
     /// The type of address of a validator.
     type Address: Address;
@@ -33,7 +33,7 @@ where
     /// The signing scheme used to sign votes.
     type SigningScheme: SigningScheme;
 
-    /// Sign the given vote our private key.
+    /// Sign the given vote with our private key.
     fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self>;
 
     /// Verify the given vote's signature using the given public key.
@@ -43,12 +43,23 @@ where
         public_key: &PublicKey<Self>,
     ) -> bool;
 
+    /// Sign the given proposal with our private key.
+    fn sign_proposal(&self, proposal: Self::Proposal) -> SignedProposal<Self>;
+
+    /// Verify the given proposal's signature using the given public key.
+    fn verify_signed_proposal(
+        &self,
+        signed_proposal: &SignedProposal<Self>,
+        public_key: &PublicKey<Self>,
+    ) -> bool;
+
     /// Build a new proposal for the given value at the given height, round and POL round.
     fn new_proposal(
         height: Self::Height,
         round: Round,
         value: Self::Value,
         pol_round: Round,
+        address: Self::Address,
     ) -> Self::Proposal;
 
     /// Build a new prevote vote by the validator with the given address,

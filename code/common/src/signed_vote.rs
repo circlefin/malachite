@@ -1,8 +1,9 @@
-use core::fmt;
+use derive_where::derive_where;
 
 use crate::{Context, Signature, Vote};
 
 /// A signed vote, ie. a vote emitted by a validator and signed by its private key.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct SignedVote<Ctx>
 where
     Ctx: Context,
@@ -28,36 +29,3 @@ where
         self.vote.validator_address()
     }
 }
-
-// NOTE: We have to derive these instances manually, otherwise
-//       the compiler would infer a Clone/Debug/PartialEq/Eq bound on `Ctx`,
-//       which may not hold for all contexts.
-
-impl<Ctx: Context> Clone for SignedVote<Ctx> {
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn clone(&self) -> Self {
-        Self {
-            vote: self.vote.clone(),
-            signature: self.signature.clone(),
-        }
-    }
-}
-
-impl<Ctx: Context> fmt::Debug for SignedVote<Ctx> {
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SignedVote")
-            .field("vote", &self.vote)
-            .field("signature", &self.signature)
-            .finish()
-    }
-}
-
-impl<Ctx: Context> PartialEq for SignedVote<Ctx> {
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn eq(&self, other: &Self) -> bool {
-        self.vote == other.vote && self.signature == other.signature
-    }
-}
-
-impl<Ctx: Context> Eq for SignedVote<Ctx> {}

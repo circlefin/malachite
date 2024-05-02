@@ -12,4 +12,13 @@ impl Validity {
     pub fn is_valid(self) -> bool {
         self == Validity::Valid
     }
+
+    /// Returns `Valid` if given true, `Invalid` if given false.
+    pub fn from_valid(valid: bool) -> Self {
+        if valid {
+            Validity::Valid
+        } else {
+            Validity::Invalid
+        }
+    }
 }

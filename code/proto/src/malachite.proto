@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package malachite;
+
+message Height {
+    uint64 value = 1;
+}
+
+message Address {
+    bytes value = 1;
+}
+
+message Value {
+    optional bytes value = 2;
+}
+
+message ValueId {
+    optional bytes value = 1;
+}
+
+message Round {
+    int64 round = 1;
+}
+
+enum VoteType {
+   PREVOTE = 0;
+   PRECOMMIT = 1;
+}
+
+message Vote {
+    VoteType vote_type = 1;
+    Height height = 2;
+    Round round = 3;
+    ValueId value = 4;
+    Address validator_address = 5;
+}
+
+message SignedVote {
+    Vote vote = 1;
+    bytes signature = 2;
+}
+
+message Proposal {
+    Height height = 1;
+    Round round = 2;
+    Value value = 3;
+    Round pol_round = 4;
+    Address validator_address = 5;
+}
+
+message SignedProposal {
+    Proposal proposal = 1;
+    bytes signature = 2;
+}
+

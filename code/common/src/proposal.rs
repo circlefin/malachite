@@ -5,7 +5,7 @@ use crate::{Context, Round};
 /// Defines the requirements for a proposal type.
 pub trait Proposal<Ctx>
 where
-    Self: Clone + Debug + PartialEq + Eq,
+    Self: Clone + Debug + Eq + Send + Sync + 'static,
     Ctx: Context,
 {
     /// The height for which the proposal is for.
@@ -19,4 +19,7 @@ where
 
     /// The POL round for which the proposal is for.
     fn pol_round(&self) -> Round;
+
+    /// Address of the validator who issued this proposal
+    fn validator_address(&self) -> &Ctx::Address;
 }

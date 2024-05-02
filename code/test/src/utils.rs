@@ -1,20 +1,52 @@
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use malachite_common::{NilOrVal, Round, Timeout, VotingPower};
-use malachite_driver::{Input, Output, ProposerSelector, Validity};
+use malachite_common::{Context, NilOrVal, Round, Timeout, VotingPower};
+use malachite_driver::{Input, Output, Validity};
 use malachite_round::state::{RoundValue, State, Step};
 
 use crate::{
     Address, Height, PrivateKey, Proposal, TestContext, Validator, ValidatorSet, Value, Vote,
 };
 
+/// Defines how to select a proposer amongst a validator set for a given round.
+pub trait ProposerSelector<Ctx>
+where
+    Self: Send + Sync,
+    Ctx: Context,
+{
+    /// Select a proposer from the given validator set for the given round.
+    ///
+    /// This function is called at the beginning of each round to select the proposer for that
+    /// round. The proposer is responsible for proposing a value for the round.
+    ///
+    /// # Important
+    /// This function must be deterministic!
+    /// For a given round and validator set, it must always return the same proposer.
+    fn select_proposer(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+        validator_set: &Ctx::ValidatorSet,
+    ) -> Ctx::Address;
+}
+
 #[derive(Copy, Clone, Debug, Default)]
 pub struct RotateProposer;
 
 impl ProposerSelector<TestContext> for RotateProposer {
-    fn select_proposer(&self, round: Round, validator_set: &ValidatorSet) -> Address {
-        let proposer_index = round.as_i64() as usize % validator_set.validators.len();
+    fn select_proposer(
+        &self,
+        height: Height,
+        round: Round,
+        validator_set: &ValidatorSet,
+    ) -> Address {
+        assert!(round != Round::Nil && round.as_i64() >= 0);
+
+        let height = height.as_u64() as usize;
+        let round = round.as_i64() as usize;
+
+        let proposer_index = (height - 1 + round) % validator_set.validators.len();
         validator_set.validators[proposer_index].address
     }
 }
@@ -31,7 +63,12 @@ impl FixedProposer {
 }
 
 impl ProposerSelector<TestContext> for FixedProposer {
-    fn select_proposer(&self, _round: Round, _validator_set: &ValidatorSet) -> Address {
+    fn select_proposer(
+        &self,
+        _height: Height,
+        _round: Round,
+        _validator_set: &ValidatorSet,
+    ) -> Address {
         self.proposer
     }
 }
@@ -52,16 +89,21 @@ pub fn make_validators<const N: usize>(
     validators.try_into().expect("N validators")
 }
 
-pub fn new_round_input(round: Round) -> Input<TestContext> {
-    Input::NewRound(Height::new(1), round)
+pub fn new_round_input(round: Round, proposer: Address) -> Input<TestContext> {
+    Input::NewRound(Height::new(1), round, proposer)
 }
 
 pub fn new_round_output(round: Round) -> Output<TestContext> {
     Output::NewRound(Height::new(1), round)
 }
 
-pub fn proposal_output(round: Round, value: Value, locked_round: Round) -> Output<TestContext> {
-    let proposal = Proposal::new(Height::new(1), round, value, locked_round);
+pub fn proposal_output(
+    round: Round,
+    value: Value,
+    locked_round: Round,
+    address: Address,
+) -> Output<TestContext> {
+    let proposal = Proposal::new(Height::new(1), round, value, locked_round, address);
     Output::Propose(proposal)
 }
 
@@ -70,8 +112,9 @@ pub fn proposal_input(
     value: Value,
     locked_round: Round,
     validity: Validity,
+    address: Address,
 ) -> Input<TestContext> {
-    let proposal = Proposal::new(Height::new(1), round, value, locked_round);
+    let proposal = Proposal::new(Height::new(1), round, value, locked_round, address);
     Input::Proposal(proposal, validity)
 }
 

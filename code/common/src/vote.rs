@@ -18,7 +18,7 @@ pub enum VoteType {
 /// include information about the validator signing it.
 pub trait Vote<Ctx>
 where
-    Self: Clone + Debug + Eq,
+    Self: Clone + Debug + Eq + Send + Sync + 'static,
     Ctx: Context,
 {
     /// The height for which the vote is for.

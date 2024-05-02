@@ -1,0 +1,25 @@
+[package]
+name = "malachite-node"
+description = "Node for running the Malachite consensus engine"
+
+version.workspace    = true
+edition.workspace    = true
+repository.workspace = true
+license.workspace    = true
+publish.workspace    = true
+
+[lints]
+workspace = true
+
+[dependencies]
+malachite-common.workspace  = true
+malachite-network.workspace = true
+malachite-test.workspace    = true
+
+async-trait       = { workspace = true }
+derive-where      = { workspace = true }
+ed25519-consensus = { workspace = true, features = ["serde"] }
+humantime-serde   = { workspace = true }
+multiaddr         = { workspace = true }
+tokio             = { workspace = true, features = ["full"] }
+serde             = { workspace = true, features = ["derive"] }

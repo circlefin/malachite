@@ -1,4 +1,5 @@
-use core::fmt::Debug;
+use alloc::vec::Vec;
+use core::fmt::{Debug, Display};
 
 use signature::{Keypair, Signer, Verifier};
 
@@ -14,12 +15,25 @@ pub trait SigningScheme
 where
     Self: Clone + Debug + Eq,
 {
+    /// Errors that can occur when decoding a signature from a byte array.
+    type DecodingError: Display;
+
     /// The type of signatures produced by this signing scheme.
-    type Signature: Clone + Debug + Eq;
+    type Signature: Clone + Debug + Eq + Send + Sync;
 
     /// The type of public keys produced by this signing scheme.
-    type PublicKey: Clone + Debug + Eq + Verifier<Self::Signature>;
+    type PublicKey: Clone + Debug + Eq + Send + Sync + Verifier<Self::Signature>;
 
     /// The type of private keys produced by this signing scheme.
-    type PrivateKey: Clone + Signer<Self::Signature> + Keypair<VerifyingKey = Self::PublicKey>;
+    type PrivateKey: Clone
+        + Send
+        + Sync
+        + Signer<Self::Signature>
+        + Keypair<VerifyingKey = Self::PublicKey>;
+
+    /// Decode a signature from a byte array.
+    fn decode_signature(bytes: &[u8]) -> Result<Self::Signature, Self::DecodingError>;
+
+    /// Encode a signature to a byte array.
+    fn encode_signature(signature: &Self::Signature) -> Vec<u8>;
 }

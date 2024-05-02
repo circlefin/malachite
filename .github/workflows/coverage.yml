@@ -25,10 +25,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
         with:
           node-version: "18"
-      - run: npm install -g @informalsystems/quint
+      - name: Install Quint
+        run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -39,7 +43,15 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov nextest --workspace --exclude malachite-itf --all-features --ignore-run-fail --lcov --output-path lcov.info
+        run: |
+          cargo llvm-cov nextest \
+            --workspace \
+            --exclude malachite-itf \
+            --ignore-filename-regex node/bin \
+            --all-features \
+            --ignore-run-fail \
+            --lcov \
+            --output-path lcov.info
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage to Codecov
@@ -61,10 +73,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
         with:
           node-version: "18"
-      - run: npm install -g @informalsystems/quint
+      - name: Install Quint
+        run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
