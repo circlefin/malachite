@@ -4,6 +4,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use malachite_common::{Context, Round};
+use malachite_gossip::Multiaddr;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
@@ -11,6 +12,8 @@ use crate::cal::Msg as CALMsg;
 use crate::cal::CAL;
 use crate::consensus::{Consensus, Msg as ConsensusMsg, Params as ConsensusParams};
 use crate::gossip::{Gossip, Msg as GossipMsg};
+use crate::gossip_mempool::{GossipMempool, Msg as GossipMempoolMsg};
+use crate::mempool::{Mempool, Msg as MempoolMsg, Params as MempoolParams};
 use crate::proposal_builder::Msg as ProposalBuilderMsg;
 use crate::proposal_builder::ProposalBuilder;
 use crate::timers::Config as TimersConfig;
@@ -20,6 +23,7 @@ pub struct Params<Ctx: Context> {
     pub address: Ctx::Address,
     pub initial_validator_set: Ctx::ValidatorSet,
     pub keypair: malachite_gossip::Keypair,
+    pub keypair_mempool: malachite_gossip_mempool::Keypair,
     pub start_height: Ctx::Height,
     pub threshold_params: ThresholdParams,
     pub timers_config: TimersConfig,
@@ -47,9 +51,14 @@ where
         threshold_params: params.threshold_params,
     };
 
-    let addr = "/ip4/0.0.0.0/udp/0/quic-v1".parse().unwrap();
+    let addr: Multiaddr = "/ip4/0.0.0.0/udp/0/quic-v1".parse().unwrap();
     let config = malachite_gossip::Config::default();
-    let gossip = Gossip::spawn(params.keypair, addr, config, None)
+    let gossip = Gossip::spawn(params.keypair, addr.clone(), config, None)
+        .await
+        .unwrap();
+
+    let config_mempool = malachite_gossip_mempool::Config::default();
+    let gossip_mempool = GossipMempool::spawn(params.keypair_mempool, addr, config_mempool, None)
         .await
         .unwrap();
 
@@ -65,14 +74,19 @@ where
     )
     .await?;
 
+    let mempool = Mempool::spawn(MempoolParams {}, gossip_mempool.clone(), None).await?;
+
     let node = Node::new(
         ctx,
         cal,
         gossip,
         consensus,
+        gossip_mempool,
+        mempool,
         proposal_builder,
         params.start_height,
     );
+
     let actor = node.spawn().await?;
     Ok(actor)
 }
@@ -83,6 +97,8 @@ pub struct Node<Ctx: Context> {
     cal: ActorRef<CALMsg<Ctx>>,
     gossip: ActorRef<GossipMsg>,
     consensus: ActorRef<ConsensusMsg<Ctx>>,
+    gossip_mempool: ActorRef<GossipMempoolMsg>,
+    mempool: ActorRef<MempoolMsg>,
     proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
     start_height: Ctx::Height,
 }
@@ -93,11 +109,14 @@ where
     Ctx::Vote: Protobuf<Proto = malachite_proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = malachite_proto::Proposal>,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         ctx: Ctx,
         cal: ActorRef<CALMsg<Ctx>>,
         gossip: ActorRef<GossipMsg>,
         consensus: ActorRef<ConsensusMsg<Ctx>>,
+        gossip_mempool: ActorRef<GossipMempoolMsg>,
+        mempool: ActorRef<MempoolMsg>,
         proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
         start_height: Ctx::Height,
     ) -> Self {
@@ -106,6 +125,8 @@ where
             cal,
             gossip,
             consensus,
+            gossip_mempool,
+            mempool,
             proposal_builder,
             start_height,
         }
@@ -140,6 +161,8 @@ where
         self.cal.link(myself.get_cell());
         self.gossip.link(myself.get_cell());
         self.consensus.link(myself.get_cell());
+        self.gossip_mempool.link(myself.get_cell());
+        self.mempool.link(myself.get_cell());
         self.proposal_builder.link(myself.get_cell());
 
         Ok(())
@@ -152,9 +175,11 @@ where
         _state: &mut (),
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
-            Msg::Start => self
-                .consensus
-                .cast(crate::consensus::Msg::StartHeight(self.start_height))?,
+            Msg::Start => {
+                self.consensus
+                    .cast(crate::consensus::Msg::StartHeight(self.start_height))?;
+                self.mempool.cast(crate::mempool::Msg::Start)?
+            }
         }
 
         Ok(())

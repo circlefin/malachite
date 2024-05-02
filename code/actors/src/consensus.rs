@@ -433,7 +433,8 @@ where
 
             DriverOutput::Vote(vote) => {
                 info!(
-                    "Voting for value {:?} at round {}",
+                    "Voting {:?} for value {:?} at round {}",
+                    vote.vote_type(),
                     vote.value(),
                     vote.round()
                 );

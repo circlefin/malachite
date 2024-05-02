@@ -27,7 +27,8 @@ pub async fn make_node_actor(
     let params = NodeParams {
         address,
         initial_validator_set,
-        keypair,
+        keypair: keypair.clone(),
+        keypair_mempool: keypair,
         start_height,
         threshold_params: Default::default(),
         timers_config,

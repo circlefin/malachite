@@ -1,4 +1,6 @@
-use malachite_common::{Context, Round, SignedProposal, SignedVote, SigningScheme, VoteType};
+use malachite_common::{
+    Context, Round, SignedProposal, SignedVote, SigningScheme, Transaction, VoteType,
+};
 
 use crate::{self as proto, Error, Protobuf};
 
@@ -83,5 +85,22 @@ where
             proposal: Some(self.proposal.to_proto()?),
             signature: Ctx::SigningScheme::encode_signature(&self.signature),
         })
+    }
+}
+
+impl Protobuf for Transaction {
+    type Proto = proto::Transaction;
+
+    fn from_proto(proto: Self::Proto) -> Result<Self, Error> {
+        let tx = proto
+            .value
+            .ok_or_else(|| Error::Other("Missing field `value`".to_string()))?;
+
+        Ok(Self::new(tx))
+    }
+
+    fn to_proto(&self) -> Result<Self::Proto, Error> {
+        let value = self.to_bytes();
+        Ok(proto::Transaction { value: Some(value) })
     }
 }

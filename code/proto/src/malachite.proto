@@ -53,3 +53,6 @@ message SignedProposal {
     bytes signature = 2;
 }
 
+message Transaction {
+    optional bytes value = 1;
+}
