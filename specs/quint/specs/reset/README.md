@@ -25,6 +25,7 @@ Here we do random simulation and checked that the invariant holds for the defaul
     - `atMostOneResetPerForkIDInv`: L2 chain shouldn't roll back twice one same forkID 
 
 
+
 ## Interesting properties
 
 Here we do random simulation to reach a violation. The resulting trace ends in an interesting state
@@ -33,8 +34,25 @@ Here we do random simulation to reach a violation. The resulting trace ends in a
 - `ResetWitness`: generates a trace where the last block on L2 comes after a reset (new forkID)
 - `ConfirmedWitness`: generates a trace where in the last L1 block a registration was confirmed
 - `ProofNotAcceptedWitness`: generates a trace where the proof submitted to L1 was not accepted
+- `ProofAcceptedWitness`: generates a trace where the proof submitted to L1 was accepted
 - `unsuccessfulResetWitness`: generates a trace where there was a reset on L2, and before a second block
 was added to L2 with the same fork ID, another reset happened
+- `InvalidRegReachesL1Witness`
+
+- `lastPossibleL1BlockWitness`: trace where in the previous L1 block there where no stale registrations(timed-out  unfulfilled registrations), but the unfulfilled registrations from the previous block
+would become stale in the new block (as the time progressed). In this scenario, the proof
+comes in just in time. The registrations actually don't become stale. 
+TODO: this is a corner case. Discuss with Starknet
+TODO: I cannot generate traces. I guess my brain is broken.
+
+- `ProofAfterStaleWitness`: TODO
+
+- `unstagedRegConfirmedWitness`: generates a trace where a registration is confirmed on L1 but still staged or unstaged on L2.
+- `processedRegConfirmedWitness`: generates a trace where a registration is confirmed on L1 but not any more in staged or unstaged (or it never has been in these sets in case of the registration was added into L2 in a fork block)
+- `processedRegConfirmedNoForkWitness`: similar to previous, but last L2 block is no fork block
+
+
+
 
 ### Injected invalid registrations
 

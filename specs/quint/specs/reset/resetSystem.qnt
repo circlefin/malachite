@@ -194,13 +194,93 @@ def ProofNotAcceptedWitness =
     )
     implies L1.last().provenHeight > L1[L1.length() -2].provenHeight
 
-
+def ProofAcceptedWitness = 
+    L1.length() > 1 implies L1.last().provenHeight == L1[L1.length() -2].provenHeight
 
 // if it fails I get a scenario where there was a reset on L2 and before a second block
 // was added to L2 with the same fork ID, another reset happened
 def unsuccessfulResetWitness = 
     prevDeletedL2blocks.length() > 1 implies 
     prevDeletedL2blocks.last().height != L2.last().height
+
+
+
+
+def InvalidRegReachesL1Witness = 
+    match L1.last().newProof {
+        | None => true
+        | Invalid => true
+        | Proof(p) => p.confirmedRegs.filter(r => r.starknet_addr == "INVALID").size() == 0
+    }
+
+
+// scenarios shortly before L1 epoch end and shortly after
+
+// trace where in the previous L1 block there where no stale registrations (timed-out 
+// unfulfilled registrations), but the unfulfilled registrations from the previous block
+// would become stale in the new block (as the time progressed). In this scenario, the proof
+// comes in just in time. The registrations actually don't become stale
+// TODO: I cannot find traces here. Need to explore
+def lastPossibleL1BlockWitness = 
+    (L1.length() > 1 and validProof(L1[L1.length() - 1], L1[L1.length() - 2]))
+    implies (or {
+        L1[L1.length()-2].existsStaleInBlock(), // registrations in previous block were not stale
+        not(existsStale(L1[L1.length()-2].unfulfilled_updates, L1.last().time)), 
+                // these registrations would be stale now
+        L1.last().existsStaleInBlock(), // no stale registrations after proof was applied
+    })
+        
+// TODO: I cannot find traces here. Need to explore
+def ProofAfterStaleWitness = 
+    (L1.length() > 1 and validProof(L1[L1.length() - 1], L1[L1.length() - 2]))
+    implies (or {
+            not(existsStaleInBlock(L1[L1.length()-2])), 
+            L1.last().existsStaleInBlock(), // no stale registrations after proof was applied
+        }
+    )
+
+// scenarios with confirmed registrations and depending on their state in L2
+
+// trace where a registration is confirmed but still staged or unstaged.
+def unstagedRegConfirmedWitness = 
+    match L1.last().newProof {
+        | None => true
+        | Invalid => true
+        | Proof(p) => or {
+            ProofAcceptedWitness,            
+            p.confirmedRegs.forall(r => not(L2.last().unstagedUpdates.contains(r)) and 
+                                        not(L2.last().stagedUpdates.contains(r)) ),
+        }
+    }
+
+// trace where a registration is confirmed but not in staged or unstaged.
+// --seed=0xd46e092e47703 generated a trace with a reset. Stale registrations never go into
+// staged or unstaged, but directly into the valset
+def processedRegConfirmedWitness = 
+    match L1.last().newProof {
+        | None => true
+        | Invalid => true
+        | Proof(p) => or {
+            ProofAcceptedWitness,
+            p.confirmedRegs.forall(r => L2.last().unstagedUpdates.contains(r) or
+                                        L2.last().stagedUpdates.contains(r)),
+        }
+    }
+
+// trace where a registration is confirmed but not in staged or unstaged, and the last
+// L2 block is not due to a fork
+def processedRegConfirmedNoForkWitness = 
+    match L1.last().newProof {
+        | None => true
+        | Invalid => true
+        | Proof(p) => or {
+            ProofAcceptedWitness,
+            p.confirmedRegs.forall(r => L2.last().unstagedUpdates.contains(r) or
+                                        L2.last().stagedUpdates.contains(r)),
+            L2.length() > 1 implies L2.last().forkID != L2[L2.length() - 2].forkID,
+        }
+    }
+
 
 // Should fail if transition system allows invalid transactions to be added to L2
 // transition relation "Step or addL2BlockInvalidReg"
@@ -217,19 +297,7 @@ def InvalidRegistrationProofAcceptedWitness =
         | Proof(p) => p.confirmedRegs.contains( { amount: 0, eth_epoch: 0, seq_num: 0, starknet_addr: "INVALID" })
     })
     implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
-    
 
-def InvalidRegReachesL1Witness = 
-    match L1.last().newProof {
-        | None => true
-        | Invalid => true
-        | Proof(p) => p.confirmedRegs.filter(r => r.starknet_addr == "INVALID").size() == 0
-    }
-
-
-// TODO: scenarios shortly before L1 epoch end and shortly after
-
-// TODO: Scenario where the registration is confirmed but still staged or unstaged.
 
 //
 // Block properties
@@ -299,7 +367,7 @@ def testfinalized(h: Height) : bool =
     L2.length() > h implies finalized(L2[h])
 
 temporal restf = 
-    eventually(testfinalized(0))
+    eventually(testfinalized(1))
 
 
 //
