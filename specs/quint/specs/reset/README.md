@@ -4,13 +4,26 @@
 
 Here we do random simulation and checked that the invariant holds for the default state machine (init, step)
 
-- `noStaleWithProofInv`
-- `monotonicForkIDInv`
-- `finalizationInv`
-- `stagedInv`
-- `oneForkIDperProofInv`
-- `InvalidRegistrationProofRejectedInv` (checked also for `--step "stepWithInvalidRegs"`)
-- `atMostOneResetPerForkIDInv`
+- Local L1 invariants
+    - `noStaleWithProofInv`
+    - `provenHeightMonotonic`
+    - `L1ForkIDMonotonic`
+    - `InvalidRegistrationProofRejectedInv` (checked also for `--step "stepWithInvalidRegs"`)
+    
+- Local L2 invariants
+    - `monotonicForkIDInv`
+    - `monotonicStagedSeqInv`
+    - `strictlyMonotonicHeightInv`
+    - `stagedInv`
+
+- System-level invariants
+    - `proofStateInv`
+    - `forkIDNotSmaller`
+    - `finalizationInv`
+    - `oneForkIDperProofInv`
+    - `atMostOneResetPerForkIDInv`
+
+
 
 ## Interesting properties
 
@@ -33,6 +46,8 @@ We did not analyze them yet.
 ## Inductive invariants
 
 TODO: Discuss with Gabriela!
+
+`quint compile --target tlaplus --invariant "oneForkIDperProofInv" resetTest.qnt > resetTest.tla`
 
 
 

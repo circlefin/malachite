@@ -39,6 +39,9 @@ def SafeDeletedL2Range(a,b) =
 // Invariants
 //
 
+//
+// Local L1 invariants
+//
 pure def validProof (b : L1Block, prev: L1Block) : bool =
     val epochedRegs = b.newRegistrations.map(r => {... r, eth_epoch: L1Epoch(b.time)})
     val pending = prev.unfulfilled_updates.union(epochedRegs)
@@ -55,40 +58,20 @@ pure def validProof (b : L1Block, prev: L1Block) : bool =
 def noStaleWithProofInv = 
     (L1.length() > 1) implies ( 
         validProof(L1[L1.length() - 1], L1[L1.length() - 2]) implies
-            L1.last().unfulfilled_updates == Set()
+            not(L1.last().existsStaleInBlock())
     )
 
-// ForkID on L2 is non-decreasing
-def monotonicForkIDInv = (
-    L2.length() > 1 implies 
-        (L2[L2.length() - 1].forkID >= L2[L2.length() - 2].forkID)
-)
+// provenHeight non-decreasing
+def provenHeightMonotonic = 
+    (L1.length() > 1) implies ( 
+        0.to(L1.length()-2).forall(i => L1[i].provenHeight <= L1[i+1].provenHeight)
+    )
 
-// L2 is never rolled-back below provenHeight
-def finalizationInv = (
-    L2.last().height >= L1.last().provenHeight
-)
-
-// first line important: we only have unstanged registrations which have seq_num
-// greater than highest_staged_seq_num
-// this ensures that we don't apply a registration twice
-// TODO test
-def stagedInv = all {
-    L2.last().unstagedUpdates.forall(r => r.seq_num > L2.last().highest_staged_seq_num),
-    L2.last().stagedUpdates.forall(r => r.seq_num <= L2.last().highest_staged_seq_num)
-} 
-
-
-// Auxiliary function
-// returns a list of L2 blocks that are proven in the last L1 Block
-pure def provenBlocks (l1: List[L1Block], l2: List[L2Block]) : List[L2Block] = 
-    l2.slice(l1[l1.length()-2].provenHeight + 1, l1[l1.length()-1].provenHeight + 1)
-
-// All blocks that are proven with one proof on L1, have the same forkID
-def oneForkIDperProofInv = 
-    L1.length() > 1 implies 
-        provenBlocks(L1, L2).toSet().forall(a =>
-            provenBlocks(L1, L2).toSet().forall(b => a.forkID == b.forkID))
+// L1 forkID non-decreasing
+def L1ForkIDMonotonic = 
+    (L1.length() > 1) implies ( 
+        0.to(L1.length()-2).forall(i => L1[i].l2forkID <= L1[i+1].l2forkID)
+    )
 
 // If there is no (valid) proof or the proof contains an invalid registration, then the proof should
 // be rejected (provenHeight should remain unchanged)
@@ -100,6 +83,68 @@ def InvalidRegistrationProofRejectedInv =
             | Proof(p) => p.confirmedRegs.contains( { amount: 0, eth_epoch: 0, seq_num: 0, starknet_addr: "INVALID" })
         }
     implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
+
+
+//
+// Local L2 invariants
+//
+
+// ForkID on L2 is non-decreasing
+def monotonicForkIDInv = (
+    L2.length() > 1 implies 
+        (L2[L2.length() - 1].forkID >= L2[L2.length() - 2].forkID)
+)
+
+// L2 highest staged monotonic
+def monotonicStagedSeqInv = 
+    (L2.length() > 1) implies ( 
+        0.to(L2.length()-2).forall(i => L2[i].highest_staged_seq_num <= L2[i+1].highest_staged_seq_num)
+    )
+
+// L2 height monotonic
+def strictlyMonotonicHeightInv = 
+    (L2.length() > 1) implies ( 
+        0.to(L2.length()-2).forall(i => L2[i].height < L2[i+1].height)
+    )
+
+
+// first line important: we only have unstanged registrations which have seq_num
+// greater than highest_staged_seq_num
+// this ensures that we don't apply a registration twice
+// TODO test
+def stagedInv = all {
+    L2.last().unstagedUpdates.forall(r => r.seq_num > L2.last().highest_staged_seq_num),
+    L2.last().stagedUpdates.forall(r => r.seq_num <= L2.last().highest_staged_seq_num)
+} 
+
+
+//
+// System-level invariants
+//
+
+// provenHeight consistent with stored hash
+def proofStateInv = 
+    L1.last().latestProvenL2BlockHash == L2[L1.last().provenHeight]
+
+// L1 never expects a smaller forkID than there is on L2
+def forkIDNotSmaller = 
+    L1.last().l2forkID >= L2.last().forkID
+
+// L2 is never rolled-back below provenHeight
+def finalizationInv = (
+    L2.last().height >= L1.last().provenHeight
+)
+
+// Auxiliary function
+// returns a list of L2 blocks that are proven in the last L1 Block
+pure def provenBlocks (l1: List[L1Block], l2: List[L2Block]) : List[L2Block] = 
+    l2.slice(l1[l1.length()-2].provenHeight + 1, l1[l1.length()-1].provenHeight + 1)
+
+// All blocks that are proven with one proof on L1, have the same forkID
+def oneForkIDperProofInv = 
+    L1.length() > 1 implies 
+        provenBlocks(L1, L2).toSet().forall(a =>
+            provenBlocks(L1, L2).toSet().forall(b => a.forkID == b.forkID))
 
 // L2 chain shouldn't roll back twice one same forkID 
 // checks whether in prevDeletedL2blocks there are two subsequent blocks with the same forkID whose
@@ -243,12 +288,16 @@ temporal validProgress = always(
         (valid(b) implies eventually(finalized(b) or invalidated(b))))
 )
 
+
 // For every height there is eventually a finalized block of that height
 temporal finalizedLiveness = 
     0.to(maxL2Height).forall(h => eventually(finalized(L2[h])))
 
-    
+def testfinalized(h: Height) : bool =
+    L2.length() > h implies finalized(L2[h])
 
+temporal restf = 
+    eventually(testfinalized(0))
 
 
 //
@@ -273,7 +322,7 @@ action init =
                 unfulfilled_updates: Set(),
                 provenHeight: 0, // initial state proven?
                 l2forkID: 0,
-                latestProvenL2BlockHash: initialL2Block,
+                latestProvenL2BlockHash: initialL2Block, // TODO: the initialization seems to need a specific proof
                 highest_sub_seq_num: 0,
                 }),
     L2' = List(initialL2Block),
