@@ -41,6 +41,11 @@ run moveOneRegToL1ToL2 =
     .then(addL1BlockNoProof(1))
     .then(addL2BlockRegs(L1[L1.length()-1].newRegistrations))
 
+run lastPossibleL1BlockWitnessRun = 
+    init
+    .then(moveOneRegToL1ToL2)
+    .then(addL1BlockNoProof(4))
+    .then(addL1BlockProofWithHeight(1,1))
 
 run ProofRegsTest = 
     init     

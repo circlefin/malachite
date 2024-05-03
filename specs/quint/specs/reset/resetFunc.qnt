@@ -162,7 +162,7 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof, del
         | Invalid => prev.latestProvenL2BlockHash
     }
     {   time : newTime, 
-        newRegistrations: regs,
+        newRegistrations: epochedRegs,
         newProof: proof,
         provenHeight: newProvenHeight,
         latestProvenL2BlockHash: newBlockHash,

@@ -220,8 +220,13 @@ def InvalidRegReachesL1Witness =
 // unfulfilled registrations), but the unfulfilled registrations from the previous block
 // would become stale in the new block (as the time progressed). In this scenario, the proof
 // comes in just in time. The registrations actually don't become stale
-// TODO: I cannot find traces here. Need to explore
-def lastPossibleL1BlockWitness = 
+// This trace does not exists. The problem is that the "not(existsStale(..." condition
+// increases the expected forkID, while the proof was constructed for the previous Eth time
+// TODO: discuss and potentially turn into an invariant. (Perhaps we could use the previous
+// forkID in proofOK, but we decided that we shouldn't do it, as this would violate
+// noStaleWithProofInv)
+// The run lastPossibleL1BlockWitnessRun shows the behavior
+def lastPossibleL1BlockWitnessCanidate = 
     (L1.length() > 1 and validProof(L1[L1.length() - 1], L1[L1.length() - 2]))
     implies (or {
         L1[L1.length()-2].existsStaleInBlock(), // registrations in previous block were not stale
@@ -230,11 +235,12 @@ def lastPossibleL1BlockWitness =
         L1.last().existsStaleInBlock(), // no stale registrations after proof was applied
     })
         
-// TODO: I cannot find traces here. Need to explore
+// trace where the is a stale registration in the previous block, but then the proof came, and
+// in the new block there are no stale registrations
 def ProofAfterStaleWitness = 
     (L1.length() > 1 and validProof(L1[L1.length() - 1], L1[L1.length() - 2]))
     implies (or {
-            not(existsStaleInBlock(L1[L1.length()-2])), 
+            not(L1[L1.length()-2].existsStaleInBlock()), 
             L1.last().existsStaleInBlock(), // no stale registrations after proof was applied
         }
     )
@@ -419,7 +425,10 @@ action addRegistration = all {
 action addL1Block = all {
     nondet someHeight = SafeL2Range(-1, L2.length() - 1).oneOf() 
     nondet blocktimeDelta = 1.to(MaxEthBlockTime).oneOf()
-    val newproof = makeProof(L2, someHeight, L1)    // if someheight < provenHeight this will give Invalid proof
+    val newproof = makeProof(L2, someHeight, L1)   
+        // if someheight < provenHeight this will give Invalid proof
+        // this can potentially generate a proof that is valid now, but because blocktimeDelta
+        // pushes L1 to the next epoch, the proof will actually not be accepted.
     nondet submProof = Set(newproof, None).oneOf()
     L1' = L1.append(newL1Block(L1.last(), envRegs, submProof, blocktimeDelta)),
     L2' = L2,
