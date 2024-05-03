@@ -42,10 +42,9 @@ was added to L2 with the same fork ID, another reset happened
 - `lastPossibleL1BlockWitness`: trace where in the previous L1 block there where no stale registrations(timed-out  unfulfilled registrations), but the unfulfilled registrations from the previous block
 would become stale in the new block (as the time progressed). In this scenario, the proof
 comes in just in time. The registrations actually don't become stale. 
-TODO: this is a corner case. Discuss with Starknet
-TODO: I cannot generate traces. I guess my brain is broken.
+TODO: this is a corner case. Experiments showed that it doesn't exists. See discussion in qnt file.
 
-- `ProofAfterStaleWitness`: TODO
+- `ProofAfterStaleWitness`: trace where there were stale registrations, then a proof came, end then there were no stale registrations
 
 - `unstagedRegConfirmedWitness`: generates a trace where a registration is confirmed on L1 but still staged or unstaged on L2.
 - `processedRegConfirmedWitness`: generates a trace where a registration is confirmed on L1 but not any more in staged or unstaged (or it never has been in these sets in case of the registration was added into L2 in a fork block)
