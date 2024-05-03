@@ -53,7 +53,7 @@ pure def validProof (b : L1Block, prev: L1Block) : bool =
             | Invalid => false
     }
 
-// If a valid proof was verified on L1, then there should be no unfullfilled
+// If a valid proof was verified on L1, then there should be no unfulfilled
 // updates
 def noStaleWithProofInv = 
     (L1.length() > 1) implies ( 
@@ -101,7 +101,7 @@ def monotonicStagedSeqInv =
         0.to(L2.length()-2).forall(i => L2[i].highest_staged_seq_num <= L2[i+1].highest_staged_seq_num)
     )
 
-// L2 height monotonic
+// L2 height strictly monotonic
 def strictlyMonotonicHeightInv = 
     (L2.length() > 1) implies ( 
         0.to(L2.length()-2).forall(i => L2[i].height < L2[i+1].height)
@@ -122,7 +122,7 @@ def stagedInv = all {
 // System-level invariants
 //
 
-// provenHeight consistent with stored hash
+// stored hash is consistent with corresponding L2 Block
 def proofStateInv = 
     L1.last().latestProvenL2BlockHash == L2[L1.last().provenHeight]
 
@@ -140,7 +140,7 @@ def finalizationInv = (
 pure def provenBlocks (l1: List[L1Block], l2: List[L2Block]) : List[L2Block] = 
     l2.slice(l1[l1.length()-2].provenHeight + 1, l1[l1.length()-1].provenHeight + 1)
 
-// All blocks that are proven with one proof on L1, have the same forkID
+// All L2 blocks that are proven with one proof on L1, have the same forkID
 def oneForkIDperProofInv = 
     L1.length() > 1 implies 
         provenBlocks(L1, L2).toSet().forall(a =>
@@ -167,32 +167,40 @@ def atMostOneResetPerForkIDInv =
 // is, a trace that ends up in a state where the negation of the predicate is
 // violated, in other words, where the predicate holds.
 
-// should fail
+
 // The last block of L1 doesn't contain stale registrations.
 // If used as an invariant, then the last block contains stale registrations
 def staleWitness = not(L1.last().existsStaleInBlock())
 
 // forkID of last element is 0
 // if used as invariant and violated, we have an example with a reset
-def noResetWitness = L2.last().forkID == 0
+def ResetWitness = L2.last().forkID == 0
 
 // No registration is ever confirmed (i.e., removed from unfulfilled_updates)
 // if used as invariant and violated, we have an example where a registration
 // is removed from pending
-def noConfirmedWitness = (
+def ConfirmedWitness = (
     L1.length() > 2) implies 
     L1[L1.length() - 2].unfulfilled_updates.subseteq(L1.last().unfulfilled_updates) 
 
-// should fail if incorrect proof is submitted to L1 
+// fails if incorrect proof is submitted to L1 
 // (e.g., if a stale registration is not confirmed)
 // it fails if there is a proof in the L1 block but the provenHeight has not increased 
-def allProofsAcceptedWitness = 
+def ProofNotAcceptedWitness = 
     and (
         L1.length() > 1, 
         L1.last().newProof != None, 
         L1.last().newProof != Invalid
     )
     implies L1.last().provenHeight > L1[L1.length() -2].provenHeight
+
+
+
+// if it fails I get a scenario where there was a reset on L2 and before a second block
+// was added to L2 with the same fork ID, another reset happened
+def unsuccessfulResetWitness = 
+    prevDeletedL2blocks.length() > 1 implies 
+    prevDeletedL2blocks.last().height != L2.last().height
 
 // Should fail if transition system allows invalid transactions to be added to L2
 // transition relation "Step or addL2BlockInvalidReg"
@@ -209,13 +217,7 @@ def InvalidRegistrationProofAcceptedWitness =
         | Proof(p) => p.confirmedRegs.contains( { amount: 0, eth_epoch: 0, seq_num: 0, starknet_addr: "INVALID" })
     })
     implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
-
-// if it fails I get a scenario where there was a reset on L2 and before a second block
-// was added to L2 with the same fork ID, another reset happened
-def unsuccessfulResetWitness = 
-    prevDeletedL2blocks.length() > 1 implies 
-    prevDeletedL2blocks.last().height != L2.last().height
-
+    
 
 def InvalidRegReachesL1Witness = 
     match L1.last().newProof {
