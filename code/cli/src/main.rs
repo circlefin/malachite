@@ -1,8 +1,5 @@
-use std::time::Duration;
-
 use clap::Parser;
 use logging::DebugSection;
-use malachite_actors::node::Msg;
 use malachite_actors::util::make_node_actor;
 use malachite_test::utils::make_validators;
 use malachite_test::ValidatorSet;
@@ -60,10 +57,6 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
             actor.stop(None);
         }
     });
-
-    tokio::time::sleep(Duration::from_secs(1)).await;
-
-    actor.cast(Msg::Start)?;
 
     while let Some((height, round, value)) = rx_decision.recv().await {
         info!("[{index}] Decision at height {height} and round {round}: {value:?}",);
