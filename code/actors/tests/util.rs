@@ -118,7 +118,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
     let mut actors = Vec::with_capacity(nodes.len());
     let mut rxs = Vec::with_capacity(nodes.len());
 
-    for (actor, node_test, rx) in nodes {
+    for (actor, _, rx) in nodes {
         actors.push(actor);
         rxs.push(rx);
     }
