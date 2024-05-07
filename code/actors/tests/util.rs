@@ -11,7 +11,6 @@ use malachite_common::{Round, VotingPower};
 use malachite_test::utils::make_validators;
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet, Value};
 
-use malachite_actors::node::Msg;
 use malachite_actors::util::make_node_actor;
 
 pub const SEED: u64 = 42;
@@ -120,10 +119,6 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
     let mut rxs = Vec::with_capacity(nodes.len());
 
     for (actor, node_test, rx) in nodes {
-        if node_test.start_node() {
-            actor.cast(Msg::Start).unwrap();
-        }
-
         actors.push(actor);
         rxs.push(rx);
     }
