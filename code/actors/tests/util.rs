@@ -93,7 +93,11 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
 
     let mut handles = Vec::with_capacity(N);
 
-    for (v, sk) in &test.vals_and_keys {
+    for i in 0..N {
+        if test.nodes[i].faults.contains(&Fault::NoStart) {
+            continue;
+        }
+        let (v, sk) = &test.vals_and_keys[i];
         let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
 
         let node = tokio::spawn(make_node_actor(
