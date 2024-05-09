@@ -1,10 +1,11 @@
 use malachite_common::VotingPower;
+use serde::{Deserialize, Serialize};
 
 use crate::signing::PublicKey;
 use crate::{Address, TestContext};
 
 /// A validator is a public key and voting power
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Validator {
     pub address: Address,
     pub public_key: PublicKey,
@@ -37,7 +38,7 @@ impl malachite_common::Validator<TestContext> for Validator {
 }
 
 /// A validator set contains a list of validators sorted by address.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValidatorSet {
     pub validators: Vec<Validator>,
 }

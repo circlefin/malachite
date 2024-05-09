@@ -3,6 +3,7 @@ use rand::{CryptoRng, RngCore};
 use signature::{Keypair, Signer, Verifier};
 
 pub use ed25519_consensus::Signature;
+use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Ed25519;
@@ -33,7 +34,8 @@ impl SigningScheme for Ed25519 {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct PrivateKey(ed25519_consensus::SigningKey);
 
 impl PrivateKey {
@@ -78,8 +80,11 @@ impl Keypair for PrivateKey {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct PublicKey(ed25519_consensus::VerificationKey);
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct PublicKey(
+    #[serde(with = "crate::serialization::verificationkey")] ed25519_consensus::VerificationKey,
+);
 
 impl PublicKey {
     pub fn new(key: impl Into<ed25519_consensus::VerificationKey>) -> Self {

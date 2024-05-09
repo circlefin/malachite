@@ -2,50 +2,66 @@ use std::time::Duration;
 
 use malachite_actors::node::Msg;
 use malachite_actors::util::make_node_actor;
+use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
+use rand::rngs::OsRng;
 
-use config::Genesis;
+use args::Commands;
+use args::{generate_test_genesis, generate_test_private_key};
+use args::{save_config, save_genesis, save_priv_validator_key};
 use tracing::{debug, info};
 
 use crate::logging::LogLevel;
 
-mod config;
+mod args;
 mod logging;
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = config::Args::new();
-    let cfg = config::Config::load(&args)?;
+    let args = args::Args::new();
 
-    logging::init(LogLevel::Debug, &cfg.debug);
-    debug!("Configuration loaded: {:?}", cfg);
+    logging::init(LogLevel::Debug, &args.debug);
+    debug!("Command-line parameters: {:?}", args);
 
-    if let config::Commands::Init = args.command {
-        cfg.save();
-        debug!("Configuration saved to {:?}.", cfg.config_file);
-        if !cfg.genesis_file.exists() {
-            Genesis::default().save(&cfg.genesis_file);
-            debug!("Sample genesis saved to {:?}.", cfg.genesis_file);
+    if let Commands::Init = args.command {
+        let config_file = args.get_config_file_path()?;
+        let genesis_file = args.get_genesis_file_path()?;
+        let priv_validator_key_file = args.get_priv_validator_key_file_path()?;
+        // Save default configuration
+        if !config_file.exists() {
+            debug!("Saving configuration to {:?}.", config_file);
+            save_config(&config_file, &Config::default());
+        }
+        // Save default genesis
+        if !genesis_file.exists() {
+            debug!("Saving test genesis to {:?}.", genesis_file);
+            save_genesis(&genesis_file, &generate_test_genesis());
+        }
+        // Save default priv_validator_key
+        if !priv_validator_key_file.exists() {
+            debug!("Saving private key to {:?}.", priv_validator_key_file);
+            let index = args.index.unwrap_or(0);
+            save_priv_validator_key(&priv_validator_key_file, &generate_test_private_key(index));
         }
         return Ok(());
     }
 
-    let genesis = Genesis::load(&cfg)?;
+    let cfg: Config = args.clone().try_into()?;
+    let sk: PrivateKey = match args.index {
+        None => args
+            .clone()
+            .try_into()
+            .unwrap_or_else(|_| PrivateKey::generate(OsRng)),
+        Some(index) => generate_test_private_key(index),
+    };
+    let vs: ValidatorSet = match args.index {
+        None => args.clone().try_into()?,
+        Some(_) => generate_test_genesis(),
+    };
 
-    // Todo: simplify this and make it more robust.
-    let mut pk = [0u8; 32];
-    pk.copy_from_slice(&cfg.test.private_key[0..32]);
-    let sk = PrivateKey::from(pk);
     let mut address = [0u8; 20];
     address.copy_from_slice(&sk.public_key().hash()[0..20]);
     let val_address = malachite_test::Address::new(address);
-    let vs = ValidatorSet::new(
-        genesis
-            .validators
-            .into_iter()
-            .map(|v| v.into())
-            .collect::<Vec<_>>(),
-    );
     let moniker = cfg.moniker.clone();
 
     info!("[{}] Starting...", &cfg.moniker);
