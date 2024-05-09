@@ -13,22 +13,10 @@ use base64::Engine;
 use clap::{Parser, Subcommand};
 use confy::ConfyError;
 use malachite_node::config::Config;
-use malachite_test::ValidatorSet as Genesis;
-use malachite_test::{PrivateKey, Validator, ValidatorSet};
-use rand::prelude::StdRng;
-use rand::SeedableRng;
+use malachite_test::{PrivateKey, ValidatorSet};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
-
-#[derive(Subcommand, Clone, Debug, Default)]
-pub enum Commands {
-    /// Initialize configuration
-    Init,
-    /// Start node
-    #[default]
-    Start,
-}
 
 #[derive(Parser, Clone, Debug, Default)]
 #[command(version, about, long_about = None)]
@@ -60,6 +48,15 @@ pub struct Args {
 
     #[command(subcommand)]
     pub command: Commands,
+}
+
+#[derive(Subcommand, Clone, Debug, Default)]
+pub enum Commands {
+    /// Initialize configuration
+    Init,
+    /// Start node
+    #[default]
+    Start,
 }
 
 impl Args {
@@ -108,7 +105,11 @@ impl TryFrom<Args> for Config {
 
     fn try_from(args: Args) -> Result<Self, Self::Error> {
         let config_file = args.get_config_file_path()?;
-        confy::load_path(config_file)
+        let mut config: Self = confy::load_path(config_file)?;
+        if let Some(index) = args.index {
+            config.moniker = format!("test-{}", index);
+        }
+        Ok(config)
     }
 }
 
@@ -143,46 +144,4 @@ impl TryFrom<Args> for PrivateKey {
             )))
         }
     }
-}
-
-/// Save configuration to file
-pub fn save_config(config_file: &PathBuf, cfg: &Config) {
-    confy::store_path(config_file, cfg).unwrap();
-}
-
-/// Save genesis to file
-pub fn save_genesis(genesis_file: &PathBuf, genesis: &Genesis) {
-    let file = File::create(genesis_file).unwrap();
-    serde_json::to_writer_pretty(file, genesis).unwrap();
-}
-
-/// Save private_key validator key to file
-pub fn save_priv_validator_key(priv_validator_key_file: &PathBuf, private_key: &PrivateKey) {
-    let file = File::create(priv_validator_key_file).unwrap();
-    serde_json::to_writer_pretty(file, private_key).unwrap();
-}
-
-/// Generate a test genesis configuration
-pub fn generate_test_genesis() -> Genesis {
-    let voting_power = vec![11, 10, 10];
-
-    let mut rng = StdRng::seed_from_u64(0x42);
-    let mut validators = Vec::with_capacity(voting_power.len());
-
-    for vp in voting_power {
-        validators.push(Validator::new(
-            PrivateKey::generate(&mut rng).public_key(),
-            vp,
-        ));
-    }
-
-    Genesis { validators }
-}
-
-pub fn generate_test_private_key(index: usize) -> PrivateKey {
-    let mut rng = StdRng::seed_from_u64(0x42);
-    for _ in 0..index {
-        let _ = PrivateKey::generate(&mut rng);
-    }
-    PrivateKey::generate(&mut rng)
 }
