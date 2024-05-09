@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info};
 
-use malachite_common::{Round, VotingPower};
+use malachite_common::{Round, Transaction, VotingPower};
 use malachite_test::utils::make_validators;
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet, Value};
 
@@ -145,7 +145,10 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
                 }
 
                 let decision = rx_decision.recv().await;
-                let expected = Some((Height::new(height), Round::new(0), Value::new(40 + height)));
+                let value =
+                    Value::new([Transaction(Vec::from((40 + height).to_be_bytes()))].to_vec());
+
+                let expected = Some((Height::new(height), Round::new(0), value));
 
                 if decision == expected {
                     info!("[{i}] {height}/{HEIGHTS} correct decision");

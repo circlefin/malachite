@@ -4,10 +4,11 @@ use async_trait::async_trait;
 use libp2p::identity::Keypair;
 use libp2p::Multiaddr;
 use malachite_gossip_mempool::Channel;
-use ractor::Actor;
+use malachite_gossip_mempool::PeerId;
 use ractor::ActorCell;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
+use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
 
 use malachite_gossip_mempool::handle::CtrlHandle;
@@ -20,12 +21,14 @@ impl GossipMempool {
     pub async fn spawn(
         keypair: Keypair,
         addr: Multiaddr,
+        peer_ids: Vec<PeerId>,
         config: Config,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg>, ractor::SpawnErr> {
         let args = Args {
             keypair,
             addr,
+            peer_ids,
             config,
         };
 
@@ -42,12 +45,15 @@ impl GossipMempool {
 pub struct Args {
     pub keypair: Keypair,
     pub addr: Multiaddr,
+    pub peer_ids: Vec<PeerId>,
     pub config: Config,
 }
 
 pub enum State {
     Stopped,
     Running {
+        expected_peers: Vec<PeerId>,
+        peers: Vec<PeerId>,
         subscribers: Vec<ActorRef<Arc<Event>>>,
         ctrl_handle: CtrlHandle,
         recv_task: JoinHandle<()>,
@@ -61,6 +67,10 @@ pub enum Msg {
     // Internal message
     #[doc(hidden)]
     NewEvent(Event),
+    // Request for number of peers from mempool gossip
+    GetState {
+        reply: RpcReplyPort<usize>,
+    },
 }
 
 #[async_trait]
@@ -86,6 +96,8 @@ impl Actor for GossipMempool {
         });
 
         Ok(State::Running {
+            expected_peers: args.peer_ids,
+            peers: Vec::new(),
             subscribers: Vec::new(),
             ctrl_handle,
             recv_task,
@@ -107,6 +119,8 @@ impl Actor for GossipMempool {
         state: &mut State,
     ) -> Result<(), ActorProcessingErr> {
         let State::Running {
+            expected_peers,
+            peers,
             subscribers,
             ctrl_handle,
             ..
@@ -119,10 +133,22 @@ impl Actor for GossipMempool {
             Msg::Subscribe(subscriber) => subscribers.push(subscriber),
             Msg::Broadcast(channel, data) => ctrl_handle.broadcast(channel, data).await?,
             Msg::NewEvent(event) => {
+                if let Event::PeerConnected(peer_id) = event {
+                    if expected_peers.contains(&peer_id) {
+                        peers.push(peer_id);
+                    }
+                }
                 let event = Arc::new(event);
                 for subscriber in subscribers {
                     subscriber.cast(Arc::clone(&event))?;
                 }
+            }
+            Msg::GetState { reply } => {
+                let number_peers = match state {
+                    State::Stopped => 0,
+                    State::Running { peers, .. } => peers.len(),
+                };
+                reply.send(number_peers)?;
             }
         }
 

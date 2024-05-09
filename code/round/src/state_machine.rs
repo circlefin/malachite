@@ -199,7 +199,10 @@ where
         //
 
         // L47
-        (_, Input::PrecommitAny) if this_round => schedule_timeout_precommit(state),
+        (_, Input::PrecommitAny) if this_round => {
+            dbg!("precommitAny");
+            schedule_timeout_precommit(state)
+        }
 
         // L65
         (_, Input::TimeoutPrecommit) if this_round => {
@@ -438,6 +441,7 @@ where
     Ctx: Context,
 {
     let new_state = state.with_round(round).with_step(Step::Unstarted);
+    dbg!("skipping round to {}", round);
     Transition::to(new_state).with_output(Output::NewRound(round))
 }
 

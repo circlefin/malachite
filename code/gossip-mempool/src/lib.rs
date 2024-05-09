@@ -195,9 +195,12 @@ async fn handle_swarm_event(
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Received {
             peer_id,
-            info: _,
+            info,
         })) => {
-            debug!("Received identity from {peer_id}");
+            debug!(
+                "Received identity from {peer_id}, {:?}",
+                info.protocol_version
+            );
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Mdns(mdns::Event::Discovered(peers))) => {

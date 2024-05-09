@@ -4,8 +4,8 @@ use clap::Parser;
 use logging::DebugSection;
 use malachite_actors::node::Msg;
 use malachite_actors::util::make_node_actor;
-use malachite_test::utils::make_validators;
-use malachite_test::ValidatorSet;
+use malachite_test::utils::{make_mempool_nodes, make_validators};
+use malachite_test::{PrivateKey, ValidatorSet};
 
 use tracing::info;
 
@@ -43,14 +43,26 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let vs = make_validators(VOTING_POWERS);
 
-    let (val, sk) = vs[index].clone();
-    let (vs, _): (Vec<_>, Vec<_>) = vs.into_iter().unzip();
+    let (val, validator_sk) = vs[index].clone();
+    let (vs, vs_keys): (Vec<_>, Vec<_>) = vs.into_iter().unzip();
     let vs = ValidatorSet::new(vs);
 
+    let nodes: [PrivateKey; VOTING_POWERS.len()] = make_mempool_nodes();
+
+    let node_sk = nodes[index].clone();
     info!("[{index}] Starting...");
 
     let (tx_decision, mut rx_decision) = tokio::sync::mpsc::channel(32);
-    let (actor, handle) = make_node_actor(vs, sk, val.address, tx_decision).await;
+    let (actor, handle) = make_node_actor(
+        vs,
+        vs_keys.into_iter().collect(),
+        validator_sk,
+        nodes.into_iter().collect(),
+        node_sk,
+        val.address,
+        tx_decision,
+    )
+    .await;
 
     tokio::spawn({
         let actor = actor.clone();

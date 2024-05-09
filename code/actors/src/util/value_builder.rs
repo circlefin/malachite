@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use derive_where::derive_where;
 
 use malachite_common::Context;
 
@@ -19,18 +18,44 @@ pub mod test {
     use super::*;
 
     use malachite_test::{Height, TestContext, Value};
+    use ractor::ActorRef;
 
-    #[derive_where(Default)]
     pub struct TestValueBuilder<Ctx: Context> {
         _phantom: PhantomData<Ctx>,
+        tx_streamer: ActorRef<crate::mempool::Msg>,
+    }
+
+    impl<Ctx> TestValueBuilder<Ctx>
+    where
+        Ctx: Context,
+    {
+        pub fn new(tx_streamer: ActorRef<crate::mempool::Msg>) -> Self {
+            Self {
+                _phantom: Default::default(),
+                tx_streamer,
+            }
+        }
     }
 
     #[async_trait]
     impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
-        async fn build_value(&self, height: Height, timeout_duration: Duration) -> Option<Value> {
-            tokio::time::sleep(timeout_duration / 2).await;
+        async fn build_value(&self, height: Height, _timeout_duration: Duration) -> Option<Value> {
+            // TODO - loop, execute, stop on timeout and send blockID
+            let txes = self
+                .tx_streamer
+                .call(
+                    |reply| crate::mempool::Msg::TxStream {
+                        height: height.as_u64(),
+                        reply,
+                    },
+                    None,
+                ) // TODO timeout
+                .await
+                .ok()?
+                .unwrap();
 
-            Some(Value::new(40 + height.as_u64()))
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            Some(Value(txes))
         }
     }
 }

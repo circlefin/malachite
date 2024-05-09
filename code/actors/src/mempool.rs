@@ -2,14 +2,14 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
+use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::Rng;
 use tracing::info;
 
 use crate::gossip_mempool::Msg as GossipMsg;
 use crate::util::forward;
 use malachite_common::Transaction;
-use malachite_gossip_mempool::{Channel, Event as GossipEvent};
+use malachite_gossip_mempool::{Channel, Event as GossipEvent, Event};
 use malachite_network_mempool::{Msg as NetworkMsg, PeerId};
 
 pub enum Next {
@@ -29,6 +29,10 @@ pub enum Msg {
     Start,
     GossipEvent(Arc<GossipEvent>),
     Input(Transaction),
+    TxStream {
+        height: u64,
+        reply: RpcReplyPort<Vec<Transaction>>,
+    },
 }
 
 #[allow(dead_code)]
@@ -150,8 +154,10 @@ impl Actor for Mempool {
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             Msg::GossipEvent(event) => {
-                self.handle_gossip_event(event.as_ref(), myself, state)
-                    .await?;
+                if let Event::Message(_, _, _) = event.as_ref() {
+                    self.handle_gossip_event(event.as_ref(), myself, state)
+                        .await?;
+                }
             }
 
             Msg::Input(tx) => {
@@ -164,6 +170,9 @@ impl Actor for Mempool {
                     self.gossip
                         .cast(GossipMsg::Broadcast(Channel::Mempool, bytes))?;
                 }
+            }
+            Msg::TxStream { height: _, reply } => {
+                reply.send(state.transactions.clone())?;
             }
         }
 

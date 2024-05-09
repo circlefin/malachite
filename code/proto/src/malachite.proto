@@ -11,7 +11,7 @@ message Address {
 }
 
 message Value {
-    optional bytes value = 2;
+    repeated bytes value = 1;
 }
 
 message ValueId {

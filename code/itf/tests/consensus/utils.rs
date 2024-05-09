@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use malachite_common::Transaction;
 use malachite_itf::consensus::State;
 use malachite_itf::types::{NonNilValue, Value as ModelValue};
 use malachite_test::{Address, PrivateKey, Value, ValueId};
@@ -22,9 +23,13 @@ pub fn build_address_map(trace: &itf::Trace<State>, rng: &mut StdRng) -> BTreeMa
 }
 
 pub fn value_from_string(v: &NonNilValue) -> Option<Value> {
+    //let value1 = Value::new([Transaction(Vec::from(1_i32.to_be_bytes()))].to_vec());
+    let value2 = Value::new([Transaction(Vec::from(2_i32.to_be_bytes()))].to_vec());
+    let value3 = Value::new([Transaction("block".as_bytes().to_vec())].to_vec());
+
     match v.as_str() {
-        "block" => Some(Value::new(1)),
-        "nextBlock" => Some(Value::new(2)),
+        "block" => Some(value3),
+        "nextBlock" => Some(value2),
         _ => panic!("unknown value {v:?}"),
     }
 }

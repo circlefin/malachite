@@ -10,9 +10,9 @@ pub fn value_from_model(value: &Value) -> NilOrVal<ValueId> {
     match value {
         Value::Nil => NilOrVal::Nil,
         Value::Val(v) => match v.as_str() {
-            "v1" => NilOrVal::Val(1.into()),
-            "v2" => NilOrVal::Val(2.into()),
-            "v3" => NilOrVal::Val(3.into()),
+            "v1" => NilOrVal::Val(ValueId::new_from_u64(1)),
+            "v2" => NilOrVal::Val(ValueId::new_from_u64(2)),
+            "v3" => NilOrVal::Val(ValueId::new_from_u64(3)),
             _ => unimplemented!("unknown value {value:?}"),
         },
     }

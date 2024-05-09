@@ -1,10 +1,12 @@
 use async_trait::async_trait;
 use ractor::{Actor, ActorRef};
+use std::thread::sleep;
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use malachite_common::{Context, Round};
-use malachite_gossip::Multiaddr;
+use malachite_gossip::{Multiaddr, PeerId};
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
@@ -12,8 +14,8 @@ use crate::cal::Msg as CALMsg;
 use crate::cal::CAL;
 use crate::consensus::{Consensus, Msg as ConsensusMsg, Params as ConsensusParams};
 use crate::gossip::{Gossip, Msg as GossipMsg};
-use crate::gossip_mempool::{GossipMempool, Msg as GossipMempoolMsg};
-use crate::mempool::{Mempool, Msg as MempoolMsg, Params as MempoolParams};
+use crate::gossip_mempool::Msg as GossipMempoolMsg;
+use crate::mempool::Msg as MempoolMsg;
 use crate::proposal_builder::Msg as ProposalBuilderMsg;
 use crate::proposal_builder::ProposalBuilder;
 use crate::timers::Config as TimersConfig;
@@ -22,12 +24,14 @@ use crate::util::ValueBuilder;
 pub struct Params<Ctx: Context> {
     pub address: Ctx::Address,
     pub initial_validator_set: Ctx::ValidatorSet,
+    pub validator_peer_ids: Vec<PeerId>,
     pub keypair: malachite_gossip::Keypair,
-    pub keypair_mempool: malachite_gossip_mempool::Keypair,
     pub start_height: Ctx::Height,
     pub threshold_params: ThresholdParams,
     pub timers_config: TimersConfig,
     pub value_builder: Box<dyn ValueBuilder<Ctx>>,
+    pub gossip_mempool: ActorRef<crate::gossip_mempool::Msg>,
+    pub mempool: ActorRef<crate::mempool::Msg>,
     pub tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
 }
 
@@ -46,21 +50,23 @@ where
 
     let consensus_params = ConsensusParams {
         start_height: params.start_height,
-        initial_validator_set: params.initial_validator_set,
+        initial_validator_set: params.initial_validator_set.clone(),
         address: params.address,
         threshold_params: params.threshold_params,
     };
 
     let addr: Multiaddr = "/ip4/0.0.0.0/udp/0/quic-v1".parse().unwrap();
     let config = malachite_gossip::Config::default();
-    let gossip = Gossip::spawn(params.keypair, addr.clone(), config, None)
-        .await
-        .unwrap();
 
-    let config_mempool = malachite_gossip_mempool::Config::default();
-    let gossip_mempool = GossipMempool::spawn(params.keypair_mempool, addr, config_mempool, None)
-        .await
-        .unwrap();
+    let gossip = Gossip::spawn(
+        params.keypair,
+        addr.clone(),
+        params.validator_peer_ids,
+        config,
+        None,
+    )
+    .await
+    .unwrap();
 
     let consensus = Consensus::spawn(
         ctx.clone(),
@@ -74,15 +80,13 @@ where
     )
     .await?;
 
-    let mempool = Mempool::spawn(MempoolParams {}, gossip_mempool.clone(), None).await?;
-
     let node = Node::new(
         ctx,
         cal,
         gossip,
         consensus,
-        gossip_mempool,
-        mempool,
+        params.gossip_mempool,
+        params.mempool,
         proposal_builder,
         params.start_height,
     );
@@ -176,6 +180,25 @@ where
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             Msg::Start => {
+                // TODO - remove
+                // Big hack to delay start of consensus and mempool actors until their gossips establish peers
+                // but good enough until https://github.com/informalsystems/malachite/pull/190 lands
+                let mut number_peers = 0;
+                while number_peers < 2 {
+                    number_peers = self
+                        .gossip
+                        .call(|reply| crate::gossip::Msg::GetState { reply }, None) // TODO timeout
+                        .await?
+                        .unwrap();
+                    number_peers += self
+                        .gossip_mempool
+                        .call(|reply| crate::gossip_mempool::Msg::GetState { reply }, None) // TODO timeout
+                        .await?
+                        .unwrap();
+                }
+                dbg!(number_peers);
+                sleep(Duration::from_millis(100));
+
                 self.consensus
                     .cast(crate::consensus::Msg::StartHeight(self.start_height))?;
                 self.mempool.cast(crate::mempool::Msg::Start)?

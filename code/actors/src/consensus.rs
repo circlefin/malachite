@@ -16,7 +16,7 @@ use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_driver::Validity;
-use malachite_gossip::{Channel, Event as GossipEvent};
+use malachite_gossip::{Channel, Event as GossipEvent, Event};
 use malachite_network::Msg as NetworkMsg;
 use malachite_network::PeerId;
 use malachite_proto as proto;
@@ -361,7 +361,11 @@ where
                 };
 
                 info!("Threshold met for {threshold:?} at round {round}, cancelling {timeout}");
-                state.timers.cast(TimersMsg::CancelTimeout(timeout))?;
+                // TODO - check on this. For L47 (PrecommitAny) the spec says:
+                // upon 2f + 1 (PRECOMMIT, hp, roundp, *) for the first time do
+                //   schedule OnTimeoutPrecommit(hp , roundp) to be executed after timeoutPrecommit(roundp)
+                // If we cancel the timeout we will not move to next round
+                //state.timers.cast(TimersMsg::CancelTimeout(timeout))?;
             }
         }
 
@@ -669,12 +673,14 @@ where
             }
 
             Msg::GossipEvent(event) => {
-                if state.driver.round() == Round::Nil {
-                    debug!("Received gossip event at round -1, queuing for later");
-                    state.msg_queue.push_back(Msg::GossipEvent(event));
-                } else {
-                    self.handle_gossip_event(event.as_ref(), myself, state)
-                        .await?;
+                if let Event::Message(_, _, _) = event.as_ref() {
+                    if state.driver.round() == Round::Nil {
+                        debug!("Received gossip event at round -1, queuing for later");
+                        state.msg_queue.push_back(Msg::GossipEvent(event));
+                    } else {
+                        self.handle_gossip_event(event.as_ref(), myself, state)
+                            .await?;
+                    }
                 }
             }
 

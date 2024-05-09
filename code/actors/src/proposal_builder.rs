@@ -12,6 +12,7 @@ pub struct ProposedValue<Ctx: Context> {
 }
 
 pub enum Msg<Ctx: Context> {
+    // request from Driver
     GetValue {
         height: Ctx::Height,
         round: Round,
