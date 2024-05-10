@@ -200,22 +200,7 @@ where
                 }
 
                 let vote_height = signed_vote.vote.height();
-
-                if vote_height > state.driver.height() {
-                    warn!(
-                        %from, %validator_address,
-                        "Received vote for height {0} greater than current height {1}, moving to height {0}",
-                        vote_height, state.driver.height(),
-                    );
-
-                    // FIXME: We lose the vote here. We should instead buffer it
-                    //        and process it once we moved to the correct height.
-                    // NOTE: We cannot just send the vote via `SendDriverInput` because otherwise
-                    //       the vote will reach the driver before it has started the new height.
-                    myself.cast(Msg::MoveToHeight(vote_height))?;
-
-                    return Ok(());
-                }
+                assert!(vote_height == state.driver.height());
 
                 myself.cast(Msg::SendDriverInput(DriverInput::Vote(signed_vote.vote)))?;
             }
@@ -236,22 +221,7 @@ where
                     .verify_signed_proposal(&signed_proposal, validator.public_key());
 
                 let proposal_height = signed_proposal.proposal.height();
-
-                if proposal_height > state.driver.height() {
-                    warn!(
-                        %from, %validator_address,
-                        "Received proposal for height {0} greater than current height {1}, moving to height {0}",
-                        proposal_height, state.driver.height(),
-                    );
-
-                    // FIXME: We lose the proposal here. We should instead buffer it
-                    //        and process it once we moved to the correct height.
-                    // NOTE: We cannot just send the proposal via `SendDriverInput` because otherwise
-                    //       the proposal will reach the driver before it has started the new height.
-                    myself.cast(Msg::MoveToHeight(proposal_height))?;
-
-                    return Ok(());
-                }
+                assert!(proposal_height == state.driver.height());
 
                 myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
                     signed_proposal.proposal,
@@ -365,7 +335,7 @@ where
                 // upon 2f + 1 (PRECOMMIT, hp, roundp, *) for the first time do
                 //   schedule OnTimeoutPrecommit(hp , roundp) to be executed after timeoutPrecommit(roundp)
                 // If we cancel the timeout we will not move to next round
-                //state.timers.cast(TimersMsg::CancelTimeout(timeout))?;
+                state.timers.cast(TimersMsg::CancelTimeout(timeout))?;
             }
         }
 
@@ -620,6 +590,7 @@ where
                 // Drain the pending message queue to process any gossip events that were received
                 // before the driver started the new height and was still at round Nil.
                 let pending_msgs = std::mem::take(&mut state.msg_queue);
+                debug!("Replaying {} messages", pending_msgs.len());
                 for msg in pending_msgs {
                     myself.cast(msg)?;
                 }
@@ -673,11 +644,29 @@ where
             }
 
             Msg::GossipEvent(event) => {
-                if let Event::Message(_, _, _) = event.as_ref() {
+                if let Event::Message(_, _, data) = event.as_ref() {
+                    let msg = NetworkMsg::from_network_bytes(data).unwrap();
+                    let msg_height = match msg {
+                        NetworkMsg::Vote(msg) => {
+                            let signed_vote = SignedVote::<Ctx>::from_proto(msg).unwrap();
+                            signed_vote.vote.height()
+                        }
+                        NetworkMsg::Proposal(msg) => {
+                            let proposal = SignedProposal::<Ctx>::from_proto(msg).unwrap();
+                            proposal.proposal.height()
+                        }
+                    };
+
+                    // Queue messages if driver is not initialized, or if they are for higher height.
+                    // Process messages received for the current height.
+                    // Drop all others.
                     if state.driver.round() == Round::Nil {
                         debug!("Received gossip event at round -1, queuing for later");
                         state.msg_queue.push_back(Msg::GossipEvent(event));
-                    } else {
+                    } else if state.driver.height() < msg_height {
+                        debug!("Received gossip event for higher height");
+                        state.msg_queue.push_back(Msg::GossipEvent(event));
+                    } else if state.driver.height() == msg_height {
                         self.handle_gossip_event(event.as_ref(), myself, state)
                             .await?;
                     }

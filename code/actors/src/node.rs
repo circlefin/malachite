@@ -184,7 +184,7 @@ where
                 // Big hack to delay start of consensus and mempool actors until their gossips establish peers
                 // but good enough until https://github.com/informalsystems/malachite/pull/190 lands
                 let mut number_peers = 0;
-                while number_peers < 2 {
+                while number_peers < 3 {
                     number_peers = self
                         .gossip
                         .call(|reply| crate::gossip::Msg::GetState { reply }, None) // TODO timeout
