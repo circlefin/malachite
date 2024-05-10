@@ -222,7 +222,7 @@ where
         proposal: Ctx::Proposal,
         validity: Validity,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-       assert!(self.height() == proposal.height());
+        assert!(self.height() == proposal.height());
 
         let round = proposal.round();
 
