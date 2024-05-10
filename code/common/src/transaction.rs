@@ -1,5 +1,5 @@
 use core::fmt::Debug;
-use std::hash::Hash;
+use alloc::vec::Vec;
 
 /// Transaction
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
