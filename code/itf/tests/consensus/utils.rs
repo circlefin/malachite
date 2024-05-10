@@ -23,8 +23,7 @@ pub fn build_address_map(trace: &itf::Trace<State>, rng: &mut StdRng) -> BTreeMa
 }
 
 pub fn value_from_string(v: &NonNilValue) -> Option<Value> {
-    //let value1 = Value::new([Transaction(Vec::from(1_i32.to_be_bytes()))].to_vec());
-    let value2 = Value::new([Transaction(Vec::from(2_i32.to_be_bytes()))].to_vec());
+    let value2 = Value::new([Transaction("nextBlock".as_bytes().to_vec())].to_vec());
     let value3 = Value::new([Transaction("block".as_bytes().to_vec())].to_vec());
 
     match v.as_str() {

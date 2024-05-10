@@ -131,7 +131,7 @@ pub fn proposal_input(
 }
 
 pub fn prevote_output(round: Round, addr: &Address) -> Output<TestContext> {
-    let value = Value::new([Transaction(Vec::from(9999_i32.to_be_bytes()))].to_vec());
+    let value = make_value([9999]);
 
     Output::Vote(Vote::new_prevote(
         Height::new(1),
@@ -151,7 +151,7 @@ pub fn prevote_nil_output(round: Round, addr: &Address) -> Output<TestContext> {
 }
 
 pub fn prevote_input(addr: &Address) -> Input<TestContext> {
-    let value = Value::new([Transaction(Vec::from(9999_i32.to_be_bytes()))].to_vec());
+    let value = make_value([9999]);
 
     Input::Vote(Vote::new_prevote(
         Height::new(1),
@@ -171,7 +171,7 @@ pub fn prevote_nil_input(addr: &Address) -> Input<TestContext> {
 }
 
 pub fn prevote_input_at(round: Round, addr: &Address) -> Input<TestContext> {
-    let value = Value::new([Transaction(Vec::from(9999_i32.to_be_bytes()))].to_vec());
+    let value = make_value([9999]);
 
     Input::Vote(Vote::new_prevote(
         Height::new(1),
@@ -457,4 +457,12 @@ pub fn decided_state_with_proposal_and_locked_and_valid(
         }),
         decision: Some(proposal.value),
     }
+}
+
+pub fn make_value<const N: usize>(items: [u64; N]) -> Value {
+    let txes = items
+        .iter()
+        .map(|el| Transaction(Vec::from(el.to_be_bytes())))
+        .collect();
+    Value::new(txes)
 }

@@ -1,17 +1,18 @@
-use malachite_test::{Address, Height, Proposal, TestContext, Value};
+use malachite_test::{Address, Height, Proposal, TestContext};
 
 use malachite_common::{NilOrVal, Round, Timeout, TimeoutStep};
 use malachite_round::input::Input;
 use malachite_round::output::Output;
 use malachite_round::state::{State, Step};
 use malachite_round::state_machine::{apply, Info};
+use malachite_test::utils::make_value;
 
 const ADDRESS: Address = Address::new([42; 20]);
 const OTHER_ADDRESS: Address = Address::new([21; 20]);
 
 #[test]
 fn test_propose() {
-    let value = Value::new(42);
+    let value = make_value([42]);
     let height = Height::new(10);
     let round = Round::new(0);
 
@@ -42,7 +43,7 @@ fn test_propose() {
         Output::proposal(
             Height::new(10),
             Round::new(0),
-            Value::new(42),
+            make_value([42]),
             Round::Nil,
             ADDRESS
         )
@@ -51,7 +52,7 @@ fn test_propose() {
 
 #[test]
 fn test_prevote() {
-    let value = Value::new(42);
+    let value = make_value([42]);
     let height = Height::new(1);
     let round = Round::new(1);
 
@@ -83,7 +84,7 @@ fn test_prevote() {
         Input::Proposal(Proposal::new(
             Height::new(1),
             Round::new(1),
-            value,
+            value.clone(),
             Round::Nil,
             OTHER_ADDRESS,
         )),
@@ -103,7 +104,7 @@ fn test_prevote() {
 
 #[test]
 fn test_input_message_while_commit_step() {
-    let value = Value::new(42);
+    let value = make_value([42]);
     let height = Height::new(1);
     let round = Round::new(1);
 

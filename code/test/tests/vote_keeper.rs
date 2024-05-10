@@ -50,7 +50,7 @@ fn precommit_apply_nil() {
 fn prevote_apply_single_value() {
     let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(4, Default::default());
 
-    let id = ValueId::new(1);
+    let id = ValueId::new_from_u64(1);
     let val = NilOrVal::Val(id);
     let height = Height::new(1);
     let round = Round::new(0);
@@ -76,7 +76,7 @@ fn prevote_apply_single_value() {
 fn precommit_apply_single_value() {
     let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(4, Default::default());
 
-    let id = ValueId::new(1);
+    let id = ValueId::new_from_u64(1);
     let val = NilOrVal::Val(id);
     let height = Height::new(1);
     let round = Round::new(0);
@@ -102,7 +102,7 @@ fn precommit_apply_single_value() {
 fn skip_round_small_quorum_prevotes_two_vals() {
     let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(4, Default::default());
 
-    let id = ValueId::new(1);
+    let id = ValueId::new_from_u64(1);
     let val = NilOrVal::Val(id);
     let height = Height::new(1);
     let cur_round = Round::new(0);
@@ -125,7 +125,7 @@ fn skip_round_small_quorum_prevotes_two_vals() {
 fn skip_round_small_quorum_with_prevote_precommit_two_vals() {
     let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(4, Default::default());
 
-    let id = ValueId::new(1);
+    let id = ValueId::new_from_u64(1);
     let val = NilOrVal::Val(id);
     let height = Height::new(1);
     let cur_round = Round::new(0);
@@ -148,7 +148,7 @@ fn skip_round_small_quorum_with_prevote_precommit_two_vals() {
 fn skip_round_full_quorum_with_prevote_precommit_two_vals() {
     let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(5, Default::default());
 
-    let id = ValueId::new(1);
+    let id = ValueId::new_from_u64(1);
     let val = NilOrVal::Val(id);
     let height = Height::new(1);
     let cur_round = Round::new(0);
@@ -171,7 +171,7 @@ fn skip_round_full_quorum_with_prevote_precommit_two_vals() {
 fn no_skip_round_small_quorum_with_same_val() {
     let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(4, Default::default());
 
-    let id = ValueId::new(1);
+    let id = ValueId::new_from_u64(1);
     let val = NilOrVal::Val(id);
     let height = Height::new(1);
     let cur_round = Round::new(0);
@@ -194,7 +194,7 @@ fn no_skip_round_small_quorum_with_same_val() {
 fn no_skip_round_full_quorum_with_same_val() {
     let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(5, Default::default());
 
-    let id = ValueId::new(1);
+    let id = ValueId::new_from_u64(1);
     let val = NilOrVal::Val(id);
     let height = Height::new(1);
     let cur_round = Round::new(0);

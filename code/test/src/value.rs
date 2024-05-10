@@ -50,7 +50,7 @@ impl proto::Protobuf for ValueId {
 
 /// The value to decide on
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Value(pub Vec<Transaction>);
+pub struct Value(Vec<Transaction>);
 
 impl Value {
     pub fn new(txes: Vec<Transaction>) -> Self {
@@ -61,6 +61,9 @@ impl Value {
         let txs = &self.0;
         txs.hash(&mut hash);
         ValueId(hash.finish())
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.len() == 0
     }
 }
 

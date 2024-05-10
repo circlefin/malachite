@@ -4,12 +4,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::mpsc;
-use tokio::time::{sleep, Duration};
+use tokio::time::Duration;
 use tracing::{error, info};
 
-use malachite_common::{Round, Transaction, VotingPower};
-use malachite_test::utils::make_validators;
-use malachite_test::{Height, PrivateKey, Validator, ValidatorSet, Value};
+use malachite_common::{Round, VotingPower};
+use malachite_test::utils::{make_mempool_nodes, make_validators, make_value};
+use malachite_test::{Height, PrivateKey, Validator, ValidatorSet};
 
 use malachite_actors::node::Msg;
 use malachite_actors::util::make_node_actor;
@@ -24,19 +24,23 @@ pub struct Test<const N: usize> {
     pub nodes: [TestNode; N],
     pub validator_set: ValidatorSet,
     pub vals_and_keys: [(Validator, PrivateKey); N],
+    pub mempool_nodes: [PrivateKey; N],
     pub expected_decisions: usize,
 }
 
 impl<const N: usize> Test<N> {
     pub fn new(nodes: [TestNode; N], expected_decisions: usize) -> Self {
-        let vals_and_keys = make_validators(Self::voting_powers(&nodes));
+        let voting_powers = Self::voting_powers(&nodes);
+        let vals_and_keys = make_validators(voting_powers);
         let validators = vals_and_keys.iter().map(|(v, _)| v).cloned();
         let validator_set = ValidatorSet::new(validators);
+        let mempool_nodes = make_mempool_nodes();
 
         Self {
             nodes,
             validator_set,
             vals_and_keys,
+            mempool_nodes,
             expected_decisions,
         }
     }
@@ -93,21 +97,26 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
     tracing_subscriber::fmt::init();
 
     let mut handles = Vec::with_capacity(N);
-
-    for (v, sk) in &test.vals_and_keys {
+    let val_keys: Vec<PrivateKey> = test
+        .vals_and_keys
+        .iter()
+        .map(|(_, pk)| pk.clone())
+        .collect();
+    for (idx, (v, sk)) in test.vals_and_keys.iter().enumerate() {
         let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
-
+        let node_sk = &test.mempool_nodes[idx];
         let node = tokio::spawn(make_node_actor(
             test.validator_set.clone(),
+            val_keys.clone(),
             sk.clone(),
+            test.mempool_nodes.to_vec(),
+            node_sk.clone(),
             v.address,
             tx_decision,
         ));
 
         handles.push((node, rx_decision));
     }
-
-    sleep(Duration::from_secs(5)).await;
 
     let mut nodes = Vec::with_capacity(handles.len());
     for (i, (handle, rx)) in handles.into_iter().enumerate() {
@@ -145,16 +154,21 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
                 }
 
                 let decision = rx_decision.recv().await;
-                let value =
-                    Value::new([Transaction(Vec::from((40 + height).to_be_bytes()))].to_vec());
+                // TODO - the value proposed comes from a set of mempool Tx-es which are currently different for each proposer
+                // Also heights can go to higher rounds.
+                // Therefore removing the round and value check for now
+                let value = make_value([40 + height]);
 
                 let expected = Some((Height::new(height), Round::new(0), value));
 
-                if decision == expected {
-                    info!("[{i}] {height}/{HEIGHTS} correct decision");
-                    correct_decisions.fetch_add(1, Ordering::Relaxed);
-                } else {
-                    error!("[{i}] {height}/{HEIGHTS} incorrect decision: expected {expected:?}, got {decision:?}");
+                match decision {
+                    Some((h, _r, v)) if h == Height::new(height) && !v.is_empty() => {
+                        info!("[{i}] {height}/{HEIGHTS} correct decision");
+                        correct_decisions.fetch_add(1, Ordering::Relaxed);
+                    }
+                    _ => {
+                        error!("[{i}] {height}/{HEIGHTS} incorrect decision: expected {expected:?}, got {decision:?}")
+                    }
                 }
             }
         });

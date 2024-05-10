@@ -26,7 +26,7 @@ fn add_votes_nil() {
 
 #[test]
 fn add_votes_single_value() {
-    let v = ValueId::new(1);
+    let v = ValueId::new_from_u64(1);
     let val = NilOrVal::Val(v);
     let weight = 1;
 
@@ -51,8 +51,8 @@ fn add_votes_single_value() {
 
 #[test]
 fn add_votes_multi_values() {
-    let v1 = ValueId::new(1);
-    let v2 = ValueId::new(2);
+    let v1 = ValueId::new_from_u64(1);
+    let v2 = ValueId::new_from_u64(2);
     let val1 = NilOrVal::Val(v1);
     let val2 = NilOrVal::Val(v2);
 

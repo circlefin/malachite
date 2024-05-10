@@ -2,7 +2,7 @@ use malachite_common::Round;
 use malachite_driver::{Driver, Input, Output, Validity};
 use malachite_round::state::State;
 
-use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value};
+use malachite_test::{Height, Proposal, TestContext, ValidatorSet};
 
 use malachite_test::utils::*;
 // The following tests are performed:
@@ -58,7 +58,7 @@ struct TestStep {
 // L49 - v3 receives proposal and has already +2/3 precommit(id(v), round=0) (step decided)
 #[test]
 fn driver_steps_decide_current_with_no_locked_no_valid() {
-    let value = Value::new(9999);
+    let value = make_value([9999]);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
@@ -79,14 +79,14 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
         },
         TestStep {
             desc: "v1 precommits a proposal",
-            input: precommit_input(Round::new(0), value, &v1.address),
+            input: precommit_input(Round::new(0), value.clone(), &v1.address),
             expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
             desc: "v2 precommits for same proposal, we get +2/3 precommit, start precommit timer",
-            input: precommit_input(Round::new(0), value, &v2.address),
+            input: precommit_input(Round::new(0), value.clone(), &v2.address),
             expected_outputs: vec![start_precommit_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: propose_state(Round::new(0)),
@@ -95,12 +95,12 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
             desc: "Receive proposal",
             input: proposal_input(
                 Round::new(0),
-                value,
+                value.clone(),
                 Round::Nil,
                 Validity::Valid,
                 v1.address,
             ),
-            expected_outputs: vec![decide_output(Round::new(0), value)],
+            expected_outputs: vec![decide_output(Round::new(0), value.clone())],
             expected_round: Round::new(0),
             new_state: decided_state(Round::new(0), value),
         },
@@ -132,7 +132,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
 // L49 - v3 receives proposal(v, round=0) and has already +2/3 precommit(id(v), round=0) (step decided)
 #[test]
 fn driver_steps_decide_previous_with_no_locked_no_valid() {
-    let value = Value::new(9999);
+    let value = make_value([9999]);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
@@ -174,14 +174,14 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
         },
         TestStep {
             desc: "v1 precommits a proposal",
-            input: precommit_input(Round::new(0), value, &v1.address),
+            input: precommit_input(Round::new(0), value.clone(), &v1.address),
             expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
         },
         TestStep {
             desc: "v2 precommits for same proposal, we get +2/3 precommit, start precommit timer",
-            input: precommit_input(Round::new(0), value, &v2.address),
+            input: precommit_input(Round::new(0), value.clone(), &v2.address),
             expected_outputs: vec![start_precommit_timer_output(Round::new(0))],
             expected_round: Round::new(0),
             new_state: prevote_state(Round::new(0)),
@@ -197,12 +197,12 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
             desc: "Receive proposal",
             input: proposal_input(
                 Round::new(0),
-                value,
+                value.clone(),
                 Round::Nil,
                 Validity::Valid,
                 v1.address,
             ),
-            expected_outputs: vec![decide_output(Round::new(0), value)],
+            expected_outputs: vec![decide_output(Round::new(0), value.clone())],
             expected_round: Round::new(1),
             new_state: decided_state(Round::new(1), value),
         },
@@ -234,7 +234,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
 //
 #[test]
 fn driver_steps_decide_previous_with_locked_and_valid() {
-    let value = Value::new(9999);
+    let value = make_value([9999]);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
@@ -245,7 +245,13 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
-    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address);
+    let proposal = Proposal::new(
+        Height::new(1),
+        Round::new(0),
+        value.clone(),
+        Round::Nil,
+        v1.address,
+    );
 
     let steps = vec![
         TestStep {
@@ -280,16 +286,12 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
             desc: "Receive proposal, L37-L43",
             input: proposal_input(
                 Round::new(0),
-                value,
+                value.clone(),
                 Round::Nil,
                 Validity::Valid,
                 v1.address,
             ),
-            expected_outputs: vec![precommit_output(
-                Round::new(0),
-                Value::new(9999),
-                &v3.address,
-            )],
+            expected_outputs: vec![precommit_output(Round::new(0), value.clone(), &v3.address)],
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
                 Round::new(0),
@@ -298,7 +300,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
         },
         TestStep {
             desc: "v2 precommits for value in round 1, i.e. f+1 vote for round 1 from v2",
-            input: precommit_input(Round::new(1), Value::new(9999), &v2.address),
+            input: precommit_input(Round::new(1), value.clone(), &v2.address),
             expected_outputs: vec![new_round_output(Round::new(1))],
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_locked_and_valid(
@@ -318,7 +320,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
         },
         TestStep {
             desc: "v1 precommits for round 0 and same proposal",
-            input: precommit_input(Round::new(0), value, &v1.address),
+            input: precommit_input(Round::new(0), value.clone(), &v1.address),
             expected_outputs: vec![],
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_locked_and_valid(
@@ -328,7 +330,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
         },
         TestStep {
             desc: "v2 precommits for round 0 and same proposal, we get +2/3 precommit, decide",
-            input: precommit_input(Round::new(0), value, &v2.address),
+            input: precommit_input(Round::new(0), value.clone(), &v2.address),
             expected_outputs: vec![decide_output(Round::new(0), value)],
             expected_round: Round::new(1),
             new_state: decided_state_with_proposal_and_locked_and_valid(
@@ -366,7 +368,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
 //     L30 - v2 sends prevote(id(v), round=1) (step prevote)
 #[test]
 fn driver_steps_polka_previous_with_locked() {
-    let value = Value::new(9999);
+    let value = make_value([9999]);
 
     let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([2, 2, 3]);
     let (my_sk, my_addr) = (sk2, v2.address);
@@ -389,7 +391,7 @@ fn driver_steps_polka_previous_with_locked() {
             desc: "receive a proposal from v1 - L22 send prevote",
             input: proposal_input(
                 Round::new(0),
-                value,
+                value.clone(),
                 Round::Nil,
                 Validity::Valid,
                 v1.address,
@@ -414,21 +416,33 @@ fn driver_steps_polka_previous_with_locked() {
         TestStep {
             desc: "v1 prevotes for same proposal, we get +2/3 prevotes, precommit",
             input: prevote_input(&v1.address),
-            expected_outputs: vec![precommit_output(Round::new(0), value, &my_addr)],
+            expected_outputs: vec![precommit_output(Round::new(0), value.clone(), &my_addr)],
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(0),
+                    value.clone(),
+                    Round::Nil,
+                    v1.address,
+                ),
             ),
         },
         TestStep {
             desc: "Receive f+1 vote for round 1 from v3",
-            input: precommit_input(Round::new(1), Value::new(8888), &v3.address),
+            input: precommit_input(Round::new(1), make_value([8888]), &v3.address),
             expected_outputs: vec![new_round_output(Round::new(1))],
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(0),
+                    value.clone(),
+                    Round::Nil,
+                    v1.address,
+                ),
             ),
         },
         TestStep {
@@ -436,21 +450,27 @@ fn driver_steps_polka_previous_with_locked() {
             input: new_round_input(Round::new(1), v2.address),
             expected_outputs: vec![proposal_output(
                 Round::new(1),
-                value,
+                value.clone(),
                 Round::new(0),
                 v2.address,
             )],
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v2.address),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(0),
+                    value.clone(),
+                    Round::Nil,
+                    v2.address,
+                ),
             ),
         },
         TestStep {
             desc: "Receive our own proposal",
             input: proposal_input(
                 Round::new(1),
-                value,
+                value.clone(),
                 Round::new(0),
                 Validity::Valid,
                 v1.address,
@@ -496,7 +516,7 @@ fn driver_steps_polka_previous_with_locked() {
 //     L32 - v2 sends prevote(nil, round=1) (step prevote)
 #[test]
 fn driver_steps_polka_previous_invalid_proposal() {
-    let value = Value::new(9999);
+    let value = make_value([9999]);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3, v3.address);
@@ -591,8 +611,8 @@ fn driver_steps_polka_previous_invalid_proposal() {
 //     L26 - v2 sends prevote(nil, round=1) (step prevote)
 #[test]
 fn driver_steps_polka_previous_new_proposal() {
-    let value = Value::new(9999);
-    let other_value = Value::new(8888);
+    let value = make_value([9999]);
+    let other_value = make_value([8888]);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3, v3.address);
@@ -615,7 +635,7 @@ fn driver_steps_polka_previous_new_proposal() {
             desc: "receive a valid proposal for round 0",
             input: proposal_input(
                 Round::new(0),
-                value,
+                value.clone(),
                 Round::Nil,
                 Validity::Valid,
                 v1.address,
@@ -634,11 +654,17 @@ fn driver_steps_polka_previous_new_proposal() {
         TestStep {
             desc: "v2 prevotes for same proposal, we get +2/3 prevotes, precommit",
             input: prevote_input(&v2.address),
-            expected_outputs: vec![precommit_output(Round::new(0), value, &my_addr)],
+            expected_outputs: vec![precommit_output(Round::new(0), value.clone(), &my_addr)],
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(0),
+                    value.clone(),
+                    Round::Nil,
+                    v1.address,
+                ),
             ),
         },
         TestStep {
@@ -648,7 +674,13 @@ fn driver_steps_polka_previous_new_proposal() {
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(0),
+                    value.clone(),
+                    Round::Nil,
+                    v1.address,
+                ),
             ),
         },
         TestStep {
@@ -658,7 +690,13 @@ fn driver_steps_polka_previous_new_proposal() {
             expected_round: Round::new(1),
             new_state: propose_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(0),
+                    value.clone(),
+                    Round::Nil,
+                    v1.address,
+                ),
             ),
         },
         TestStep {
@@ -720,7 +758,7 @@ fn driver_steps_polka_previous_new_proposal() {
 //     L32 - v2 sends prevote(nil, round=1) (step prevote)
 #[test]
 fn driver_steps_polka_previous_with_no_locked() {
-    let value = Value::new(9999);
+    let value = make_value([9999]);
 
     let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([2, 2, 3]);
     let (my_sk, my_addr) = (sk2, v2.address);
@@ -771,7 +809,7 @@ fn driver_steps_polka_previous_with_no_locked() {
             desc: "receive  a proposal - L36, we don't lock, we set valid",
             input: proposal_input(
                 Round::new(0),
-                value,
+                value.clone(),
                 Round::Nil,
                 Validity::Valid,
                 v3.address,
@@ -781,7 +819,13 @@ fn driver_steps_polka_previous_with_no_locked() {
             new_state: precommit_state_with_proposal_and_valid(
                 Round::new(0),
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v3.address),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(0),
+                    value.clone(),
+                    Round::Nil,
+                    v3.address,
+                ),
             ),
         },
         TestStep {
@@ -791,7 +835,13 @@ fn driver_steps_polka_previous_with_no_locked() {
             expected_round: Round::new(1),
             new_state: new_round_with_proposal_and_valid(
                 Round::new(1),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v3.address),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(0),
+                    value.clone(),
+                    Round::Nil,
+                    v3.address,
+                ),
             ),
         },
         TestStep {
@@ -799,7 +849,7 @@ fn driver_steps_polka_previous_with_no_locked() {
             input: new_round_input(Round::new(1), v2.address),
             expected_outputs: vec![proposal_output(
                 Round::new(1),
-                value,
+                value.clone(),
                 Round::new(0),
                 v2.address,
             )],
@@ -807,14 +857,20 @@ fn driver_steps_polka_previous_with_no_locked() {
             new_state: propose_state_with_proposal_and_valid(
                 Round::new(1),
                 Round::new(0),
-                Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v2.address),
+                Proposal::new(
+                    Height::new(1),
+                    Round::new(0),
+                    value.clone(),
+                    Round::Nil,
+                    v2.address,
+                ),
             ),
         },
         TestStep {
             desc: "Receive our own proposal, prevote nil as we are not locked on the value",
             input: proposal_input(
                 Round::new(1),
-                value,
+                value.clone(),
                 Round::new(0),
                 Validity::Valid,
                 v2.address,
@@ -908,7 +964,7 @@ fn driver_steps_polka_nil_and_timout_propose() {
 // L36 - polka is replayed and v3 precommits for value (step precommit)
 #[test]
 fn driver_steps_polka_value_then_proposal() {
-    let value = Value::new(9999);
+    let value = make_value([9999]);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
@@ -919,8 +975,7 @@ fn driver_steps_polka_value_then_proposal() {
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
-    let steps =
-        vec![
+    let steps = vec![
         TestStep {
             desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
             input: new_round_input(Round::new(0), v1.address),
@@ -944,10 +999,16 @@ fn driver_steps_polka_value_then_proposal() {
         },
         TestStep {
             desc: "receive a proposal from v1 - L22 send prevote",
-            input: proposal_input(Round::new(0), value, Round::Nil, Validity::Valid, v1.address),
+            input: proposal_input(
+                Round::new(0),
+                value.clone(),
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
             expected_outputs: vec![
                 prevote_output(Round::new(0), &my_addr),
-                precommit_output(Round::new(0), value, &my_addr),
+                precommit_output(Round::new(0), value.clone(), &my_addr),
             ],
             expected_round: Round::new(0),
             new_state: precommit_state_with_proposal_and_locked_and_valid(
@@ -975,7 +1036,7 @@ fn driver_steps_polka_value_then_proposal() {
 // L34 - polka any is replayed and prevote timer is started (step prevote)
 #[test]
 fn driver_steps_polka_any_then_proposal_other() {
-    let value = Value::new(9999);
+    let value = make_value([9999]);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3.clone(), v3.address);

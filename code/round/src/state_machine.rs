@@ -199,9 +199,7 @@ where
         //
 
         // L47
-        (_, Input::PrecommitAny) if this_round => {
-            schedule_timeout_precommit(state)
-        }
+        (_, Input::PrecommitAny) if this_round => schedule_timeout_precommit(state),
 
         // L65
         (_, Input::TimeoutPrecommit) if this_round => {
