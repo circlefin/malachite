@@ -11,7 +11,6 @@ use malachite_common::{Round, VotingPower};
 use malachite_test::utils::{make_mempool_nodes, make_validators, make_value};
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet};
 
-use malachite_actors::node::Msg;
 use malachite_actors::util::make_node_actor;
 
 pub const SEED: u64 = 42;
@@ -97,14 +96,20 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
     tracing_subscriber::fmt::init();
 
     let mut handles = Vec::with_capacity(N);
+
     let val_keys: Vec<PrivateKey> = test
         .vals_and_keys
         .iter()
         .map(|(_, pk)| pk.clone())
         .collect();
-    for (idx, (v, sk)) in test.vals_and_keys.iter().enumerate() {
+
+    for i in 0..N {
+        if test.nodes[i].faults.contains(&Fault::NoStart) {
+            continue;
+        }
+        let (v, sk) = &test.vals_and_keys[i];
         let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
-        let node_sk = &test.mempool_nodes[idx];
+        let node_sk = &test.mempool_nodes[i];
         let node = tokio::spawn(make_node_actor(
             test.validator_set.clone(),
             val_keys.clone(),
@@ -128,11 +133,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
     let mut actors = Vec::with_capacity(nodes.len());
     let mut rxs = Vec::with_capacity(nodes.len());
 
-    for (actor, node_test, rx) in nodes {
-        if node_test.start_node() {
-            actor.cast(Msg::Start).unwrap();
-        }
-
+    for (actor, _, rx) in nodes {
         actors.push(actor);
         rxs.push(rx);
     }

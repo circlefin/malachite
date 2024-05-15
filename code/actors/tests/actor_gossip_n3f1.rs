@@ -12,7 +12,21 @@ pub async fn one_1_node_fails_to_start() {
             TestNode::faulty(5, vec![Fault::NoStart]),
             TestNode::correct(10),
         ],
-        6,
+        0,
+    );
+
+    run_test(nodes).await
+}
+
+#[tokio::test]
+pub async fn one_node_crashes() {
+    let nodes = Test::new(
+        [
+            TestNode::faulty(5, vec![Fault::Crash(2)]),
+            TestNode::correct(15),
+            TestNode::correct(10),
+        ],
+        7,
     );
 
     run_test(nodes).await
