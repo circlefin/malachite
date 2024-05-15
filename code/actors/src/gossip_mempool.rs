@@ -52,7 +52,7 @@ pub struct Args {
 pub enum State {
     Stopped,
     Running {
-        expected_peers: Vec<PeerId>,
+        // expected_peers: Vec<PeerId>,
         peers: Vec<PeerId>,
         subscribers: Vec<ActorRef<Arc<Event>>>,
         ctrl_handle: CtrlHandle,
@@ -96,7 +96,7 @@ impl Actor for GossipMempool {
         });
 
         Ok(State::Running {
-            expected_peers: args.peer_ids,
+            // expected_peers: args.peer_ids,
             peers: Vec::new(),
             subscribers: Vec::new(),
             ctrl_handle,
@@ -119,7 +119,7 @@ impl Actor for GossipMempool {
         state: &mut State,
     ) -> Result<(), ActorProcessingErr> {
         let State::Running {
-            expected_peers,
+            // expected_peers,
             peers,
             subscribers,
             ctrl_handle,
@@ -134,9 +134,11 @@ impl Actor for GossipMempool {
             Msg::Broadcast(channel, data) => ctrl_handle.broadcast(channel, data).await?,
             Msg::NewEvent(event) => {
                 if let Event::PeerConnected(peer_id) = event {
-                    if expected_peers.contains(&peer_id) {
-                        peers.push(peer_id);
-                    }
+                    peers.push(peer_id);
+
+                    // if expected_peers.contains(&peer_id) {
+                    //     peers.push(peer_id);
+                    // }
                 }
                 let event = Arc::new(event);
                 for subscriber in subscribers {
