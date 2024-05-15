@@ -1,6 +1,3 @@
-use std::time::Duration;
-
-use malachite_actors::node::Msg;
 use malachite_actors::util::make_node_actor;
 use malachite_node::config::Config;
 use malachite_test::{Address, PrivateKey, ValidatorSet};
@@ -66,10 +63,6 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
             actor.stop(None);
         }
     });
-
-    tokio::time::sleep(Duration::from_secs(1)).await;
-
-    actor.cast(Msg::Start)?;
 
     while let Some((height, round, value)) = rx_decision.recv().await {
         info!(

@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -85,6 +85,7 @@ where
     timers: ActorRef<TimersMsg>,
     msg_queue: VecDeque<Msg<Ctx>>,
     validator_set: Ctx::ValidatorSet,
+    connected_peers: BTreeSet<PeerId>,
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -149,24 +150,13 @@ where
         myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
-        match event {
-            GossipEvent::Listening(addr) => {
-                info!("Listening on {addr}");
-            }
-            GossipEvent::PeerConnected(peer_id) => {
-                info!("Connected to peer {peer_id}");
-            }
-            GossipEvent::PeerDisconnected(peer_id) => {
-                info!("Disconnected from peer {peer_id}");
-            }
-            GossipEvent::Message(from, Channel::Consensus, data) => {
-                let from = PeerId::new(from.to_string());
-                let msg = NetworkMsg::from_network_bytes(data).unwrap();
+        if let GossipEvent::Message(from, Channel::Consensus, data) = event {
+            let from = PeerId::new(from.to_string());
+            let msg = NetworkMsg::from_network_bytes(data).unwrap();
 
-                info!("Received message from peer {from}: {msg:?}");
+            info!("Received message from peer {from}: {msg:?}");
 
-                self.handle_network_msg(from, msg, myself, state).await?;
-            }
+            self.handle_network_msg(from, msg, myself, state).await?;
         }
 
         Ok(())
@@ -582,6 +572,7 @@ where
             timers,
             msg_queue: VecDeque::new(),
             validator_set: self.params.initial_validator_set.clone(),
+            connected_peers: BTreeSet::new(),
         })
     }
 
@@ -668,12 +659,43 @@ where
             }
 
             Msg::GossipEvent(event) => {
-                if state.driver.round() == Round::Nil {
-                    debug!("Received gossip event at round -1, queuing for later");
-                    state.msg_queue.push_back(Msg::GossipEvent(event));
-                } else {
-                    self.handle_gossip_event(event.as_ref(), myself, state)
-                        .await?;
+                match event.as_ref() {
+                    GossipEvent::Listening(addr) => {
+                        info!("Listening on {addr}");
+                    }
+
+                    GossipEvent::PeerConnected(peer_id) => {
+                        info!("Connected to peer {peer_id}");
+
+                        state.connected_peers.insert(PeerId::new(peer_id));
+
+                        if state.connected_peers.len() == state.validator_set.count() - 1 {
+                            info!(
+                                "Enough peers {} connected to start consensus",
+                                state.connected_peers.len()
+                            );
+
+                            myself.cast(Msg::StartHeight(state.driver.height()))?;
+                        }
+                    }
+
+                    GossipEvent::PeerDisconnected(peer_id) => {
+                        info!("Disconnected from peer {peer_id}");
+
+                        state.connected_peers.retain(|p| p != &PeerId::new(peer_id));
+
+                        // TODO: pause/stop consensus, if necessary
+                    }
+
+                    _ => {
+                        if state.driver.round() == Round::Nil {
+                            debug!("Received gossip event at round -1, queuing for later");
+                            state.msg_queue.push_back(Msg::GossipEvent(event));
+                        } else {
+                            self.handle_gossip_event(event.as_ref(), myself, state)
+                                .await?;
+                        }
+                    }
                 }
             }
 
