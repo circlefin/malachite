@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 #![deny(trivial_casts, trivial_numeric_casts)]
+// For coverage on nightly
+#![allow(unexpected_cfgs)]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 mod address;
