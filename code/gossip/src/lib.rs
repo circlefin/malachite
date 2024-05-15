@@ -1,4 +1,5 @@
 use core::fmt;
+use std::collections::HashMap;
 use std::error::Error;
 use std::ops::ControlFlow;
 use std::time::Duration;
@@ -7,7 +8,7 @@ use futures::StreamExt;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, mdns, SwarmBuilder};
 use tokio::sync::mpsc;
-use tracing::{debug, error, error_span, Instrument};
+use tracing::{debug, error, error_span, info, trace, Instrument};
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
@@ -98,6 +99,11 @@ pub enum CtrlMsg {
     Shutdown,
 }
 
+#[derive(Debug, Default)]
+pub struct State {
+    pub peers: HashMap<PeerId, identify::Info>,
+}
+
 pub async fn spawn(keypair: Keypair, addr: Multiaddr, config: Config) -> Result<Handle, BoxError> {
     let mut swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
@@ -130,10 +136,12 @@ async fn run(
     mut rx_ctrl: mpsc::Receiver<CtrlMsg>,
     tx_event: mpsc::Sender<Event>,
 ) {
+    let mut state = State::default();
+
     loop {
         let result = tokio::select! {
             event = swarm.select_next_some() => {
-                handle_swarm_event(event, &mut swarm, &tx_event).await
+                handle_swarm_event(event, &mut swarm, &mut state, &tx_event).await
             }
 
             Some(ctrl) = rx_ctrl.recv() => {
@@ -177,6 +185,7 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
 async fn handle_swarm_event(
     event: SwarmEvent<NetworkEvent>,
     swarm: &mut swarm::Swarm<Behaviour>,
+    state: &mut State,
     tx_event: &mpsc::Sender<Event>,
 ) -> ControlFlow<()> {
     match event {
@@ -190,23 +199,44 @@ async fn handle_swarm_event(
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent { peer_id })) => {
-            debug!("Sent identity to {peer_id}");
+            trace!("Sent identity to {peer_id}");
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Received {
             peer_id,
             info,
         })) => {
-            debug!(
-                "Received identity from {peer_id}, {:?}",
+            trace!(
+                "Received identity from {peer_id}: protocol={:?}",
                 info.protocol_version
             );
+
+            if info.protocol_version == PROTOCOL_VERSION {
+                info!(
+                    "Connecting to peer {peer_id} using protocol {:?}",
+                    info.protocol_version
+                );
+
+                state.peers.insert(peer_id, info);
+            } else {
+                debug!(
+                    "Peer {peer_id} is using incompatible protocol version: {:?}",
+                    info.protocol_version
+                );
+
+                swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
+
+                // FIXME: For some reason, if we disconnect from a peer here,
+                //        the swarm will never connect to any other peers.
+                // let _ = swarm.disconnect_peer_id(peer_id);
+            }
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Mdns(mdns::Event::Discovered(peers))) => {
-            for (peer_id, addr) in peers {
-                debug!("Discovered peer {peer_id} at {addr}");
-                swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
+            for (peer_id, addr) in &peers {
+                trace!("Discovered peer {peer_id} at {addr}");
+
+                swarm.behaviour_mut().gossipsub.add_explicit_peer(peer_id);
 
                 // if let Err(e) = tx_event.send(HandleEvent::PeerConnected(peer_id)).await {
                 //     error!("Error sending peer connected event to handle: {e}");
@@ -217,7 +247,8 @@ async fn handle_swarm_event(
 
         SwarmEvent::Behaviour(NetworkEvent::Mdns(mdns::Event::Expired(peers))) => {
             for (peer_id, _addr) in peers {
-                debug!("Expired peer: {peer_id}");
+                trace!("Expired peer: {peer_id}");
+
                 swarm
                     .behaviour_mut()
                     .gossipsub
@@ -234,6 +265,23 @@ async fn handle_swarm_event(
             peer_id,
             topic: topic_hash,
         })) => {
+            let Some(peer_info) = state.peers.get(&peer_id) else {
+                debug!("Peer {peer_id} has not been identified, ignoring subscription");
+
+                return ControlFlow::Continue(());
+            };
+
+            if peer_info.protocol_version != PROTOCOL_VERSION {
+                debug!(
+                    "Peer {peer_id} is using incompatible protocol version: {:?}",
+                    peer_info.protocol_version
+                );
+
+                swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
+
+                return ControlFlow::Continue(());
+            }
+
             if !Channel::has_topic(&topic_hash) {
                 debug!("Peer {peer_id} tried to subscribe to unknown topic: {topic_hash}");
                 return ControlFlow::Continue(());
@@ -252,6 +300,23 @@ async fn handle_swarm_event(
             message_id,
             message,
         })) => {
+            let Some(peer_info) = state.peers.get(&peer_id) else {
+                debug!("Peer {peer_id} has not been identified, ignoring subscription");
+
+                return ControlFlow::Continue(());
+            };
+
+            if peer_info.protocol_version != PROTOCOL_VERSION {
+                debug!(
+                    "Peer {peer_id} is using incompatible protocol version: {:?}",
+                    peer_info.protocol_version
+                );
+
+                swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
+
+                return ControlFlow::Continue(());
+            }
+
             let Some(channel) = Channel::from_topic_hash(&message.topic) else {
                 debug!(
                     "Received message {message_id} from {peer_id} on different channel: {}",

@@ -3,6 +3,7 @@ use ractor::{Actor, ActorRef};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+use tracing::debug;
 
 use malachite_common::{Context, Round};
 use malachite_gossip::{Multiaddr, PeerId};
@@ -189,7 +190,7 @@ where
                         .await?
                         .unwrap();
 
-                    dbg!(gossip_peers);
+                    debug!("gossip peers: {gossip_peers}");
 
                     let mempool_peers = self
                         .gossip_mempool
@@ -197,16 +198,19 @@ where
                         .await?
                         .unwrap();
 
-                    dbg!(mempool_peers);
+                    debug!("mempool peers: {mempool_peers}");
 
                     if gossip_peers >= 2 && mempool_peers >= 2 {
                         break;
                     }
 
-                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    // NOTE: We need to be careful to sleep here using `tokio:time::sleep`,
+                    //       otherwise we might block the tokio runtime and prevent the actors from
+                    //       making progress.
+                    tokio::time::sleep(Duration::from_millis(100)).await;
                 }
 
-                tokio::time::sleep(Duration::from_millis(500)).await;
+                tokio::time::sleep(Duration::from_millis(100)).await;
 
                 self.consensus
                     .cast(crate::consensus::Msg::StartHeight(self.start_height))?;
