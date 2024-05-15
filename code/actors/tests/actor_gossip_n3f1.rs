@@ -12,7 +12,7 @@ pub async fn one_node_fails_to_start() {
             TestNode::correct(15),
             TestNode::correct(10),
         ],
-        4,
+        0,
     );
 
     run_test(nodes).await
