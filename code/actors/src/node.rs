@@ -1,7 +1,5 @@
 use async_trait::async_trait;
 use ractor::{Actor, ActorRef};
-use std::thread::sleep;
-use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -180,27 +178,9 @@ where
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             Msg::Start => {
-                // TODO - remove
-                // Big hack to delay start of consensus and mempool actors until their gossips establish peers
-                // but good enough until https://github.com/informalsystems/malachite/pull/190 lands
-                let mut number_peers = 0;
-                while number_peers < 4 {
-                    number_peers = self
-                        .gossip
-                        .call(|reply| crate::gossip::Msg::GetState { reply }, None) // TODO timeout
-                        .await?
-                        .unwrap();
-                    number_peers += self
-                        .gossip_mempool
-                        .call(|reply| crate::gossip_mempool::Msg::GetState { reply }, None) // TODO timeout
-                        .await?
-                        .unwrap();
-                }
-                dbg!(number_peers);
-                sleep(Duration::from_millis(100));
-
                 self.consensus
                     .cast(crate::consensus::Msg::StartHeight(self.start_height))?;
+
                 self.mempool.cast(crate::mempool::Msg::Start)?
             }
         }
