@@ -691,7 +691,12 @@ fn driver_steps_not_proposer_other_height() {
         },
     ];
 
-    run_steps(&mut driver, steps, sel.as_ref(), &vs);
+    let expected_error = Error::InvalidProposalHeight {
+        proposal_height: Height::new(2),
+        consensus_height: Height::new(1),
+    };
+
+    run_steps_failing(&mut driver, steps, expected_error, sel.as_ref(), &vs);
 }
 
 #[test]
@@ -1286,5 +1291,40 @@ fn run_steps(
         input_from_prev_output = outputs
             .pop()
             .and_then(|input| output_to_input(input, sel, vs));
+    }
+}
+
+fn run_steps_failing(
+    driver: &mut Driver<TestContext>,
+    steps: Vec<TestStep>,
+    expected_error: Error<TestContext>,
+    sel: &dyn ProposerSelector<TestContext>,
+    vs: &ValidatorSet,
+) {
+    let mut input_from_prev_output = None;
+
+    for step in steps {
+        println!("Step: {}", step.desc);
+
+        let input = step
+            .input
+            .unwrap_or_else(|| input_from_prev_output.unwrap());
+
+        match driver.process(input) {
+            Ok(mut outputs) => {
+                assert_eq!(outputs, step.expected_outputs, "expected outputs");
+                assert_eq!(driver.round(), step.expected_round, "expected round");
+                assert_eq!(driver.round_state, step.new_state, "new state");
+
+                input_from_prev_output = outputs
+                    .pop()
+                    .and_then(|input| output_to_input(input, sel, vs));
+            }
+
+            Err(error) => {
+                assert_eq!(error, expected_error, "expected error");
+                return;
+            }
+        }
     }
 }
