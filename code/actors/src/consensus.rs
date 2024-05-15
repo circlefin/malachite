@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -85,7 +85,7 @@ where
     timers: ActorRef<TimersMsg>,
     msg_queue: VecDeque<Msg<Ctx>>,
     validator_set: Ctx::ValidatorSet,
-    connected_peers: Vec<PeerId>,
+    connected_peers: BTreeSet<PeerId>,
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -572,7 +572,7 @@ where
             timers,
             msg_queue: VecDeque::new(),
             validator_set: self.params.initial_validator_set.clone(),
-            connected_peers: Vec::new(),
+            connected_peers: BTreeSet::new(),
         })
     }
 
@@ -663,22 +663,30 @@ where
                     GossipEvent::Listening(addr) => {
                         info!("Listening on {addr}");
                     }
+
                     GossipEvent::PeerConnected(peer_id) => {
                         info!("Connected to peer {peer_id}");
-                        state.connected_peers.push(PeerId::new(peer_id));
+
+                        state.connected_peers.insert(PeerId::new(peer_id));
+
                         if state.connected_peers.len() == state.validator_set.count() - 1 {
                             info!(
                                 "Enough peers {} connected to start consensus",
                                 state.connected_peers.len()
                             );
+
                             myself.cast(Msg::StartHeight(state.driver.height()))?;
                         }
                     }
+
                     GossipEvent::PeerDisconnected(peer_id) => {
                         info!("Disconnected from peer {peer_id}");
+
                         state.connected_peers.retain(|p| p != &PeerId::new(peer_id));
-                        // Todo: pause/stop consensus, if necessary
+
+                        // TODO: pause/stop consensus, if necessary
                     }
+
                     _ => {
                         if state.driver.round() == Round::Nil {
                             debug!("Received gossip event at round -1, queuing for later");
