@@ -17,7 +17,7 @@ pub const SEED: u64 = 42;
 pub const HEIGHTS: u64 = 3;
 pub const START_HEIGHT: Height = Height::new(1);
 pub const END_HEIGHT: Height = Height::new(START_HEIGHT.as_u64() + HEIGHTS - 1);
-pub const TEST_TIMEOUT: Duration = Duration::from_secs(30);
+pub const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 
 pub struct Test<const N: usize> {
     pub nodes: [TestNode; N],
@@ -177,6 +177,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
                 }
 
                 let decision = rx_decision.recv().await;
+
                 // TODO - the value proposed comes from a set of mempool Tx-es which are currently different for each proposer
                 // Also heights can go to higher rounds.
                 // Therefore removing the round and value check for now
@@ -197,7 +198,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
         });
     }
 
-    tokio::time::sleep(TEST_TIMEOUT * 10).await;
+    tokio::time::sleep(TEST_TIMEOUT).await;
 
     let correct_decisions = correct_decisions.load(Ordering::Relaxed);
 
