@@ -1,9 +1,7 @@
 use async_trait::async_trait;
 use ractor::{Actor, ActorRef};
-use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tracing::debug;
 
 use malachite_common::{Context, Round};
 use malachite_gossip::{Multiaddr, PeerId};
@@ -180,38 +178,6 @@ where
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             Msg::Start => {
-                // TODO - remove
-                // Big hack to delay start of consensus and mempool actors until their gossips establish peers
-                // but good enough until https://github.com/informalsystems/malachite/pull/190 lands
-                loop {
-                    let gossip_peers = self
-                        .gossip
-                        .call(|reply| crate::gossip::Msg::GetState { reply }, None) // TODO timeout
-                        .await?
-                        .unwrap();
-
-                    debug!("gossip peers: {gossip_peers}");
-
-                    let mempool_peers = self
-                        .gossip_mempool
-                        .call(|reply| crate::gossip_mempool::Msg::GetState { reply }, None) // TODO timeout
-                        .await?
-                        .unwrap();
-
-                    debug!("mempool peers: {mempool_peers}");
-
-                    if gossip_peers >= 2 && mempool_peers >= 2 {
-                        break;
-                    }
-
-                    // NOTE: We need to be careful to sleep here using `tokio:time::sleep`,
-                    //       otherwise we might block the tokio runtime and prevent the actors from
-                    //       making progress.
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                }
-
-                tokio::time::sleep(Duration::from_millis(100)).await;
-
                 self.consensus
                     .cast(crate::consensus::Msg::StartHeight(self.start_height))?;
 

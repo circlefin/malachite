@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -16,7 +16,7 @@ use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_driver::Validity;
-use malachite_gossip::{Channel, Event as GossipEvent, Event};
+use malachite_gossip::{Channel, Event as GossipEvent};
 use malachite_network::Msg as NetworkMsg;
 use malachite_network::PeerId;
 use malachite_proto as proto;
@@ -85,6 +85,7 @@ where
     timers: ActorRef<TimersMsg>,
     msg_queue: VecDeque<Msg<Ctx>>,
     validator_set: Ctx::ValidatorSet,
+    connected_peers: BTreeSet<PeerId>,
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -149,24 +150,13 @@ where
         myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
-        match event {
-            GossipEvent::Listening(addr) => {
-                info!("Listening on {addr}");
-            }
-            GossipEvent::PeerConnected(peer_id) => {
-                info!("Connected to peer {peer_id}");
-            }
-            GossipEvent::PeerDisconnected(peer_id) => {
-                info!("Disconnected from peer {peer_id}");
-            }
-            GossipEvent::Message(from, Channel::Consensus, data) => {
-                let from = PeerId::new(from.to_string());
-                let msg = NetworkMsg::from_network_bytes(data).unwrap();
+        if let GossipEvent::Message(from, Channel::Consensus, data) = event {
+            let from = PeerId::new(from.to_string());
+            let msg = NetworkMsg::from_network_bytes(data).unwrap();
 
-                info!("Received message from peer {from}: {msg:?}");
+            info!("Received message from peer {from}: {msg:?}");
 
-                self.handle_network_msg(from, msg, myself, state).await?;
-            }
+            self.handle_network_msg(from, msg, myself, state).await?;
         }
 
         Ok(())
@@ -557,6 +547,7 @@ where
             timers,
             msg_queue: VecDeque::new(),
             validator_set: self.params.initial_validator_set.clone(),
+            connected_peers: BTreeSet::new(),
         })
     }
 
@@ -644,31 +635,61 @@ where
             }
 
             Msg::GossipEvent(event) => {
-                if let Event::Message(_, _, data) = event.as_ref() {
-                    let msg = NetworkMsg::from_network_bytes(data).unwrap();
-                    let msg_height = match msg {
-                        NetworkMsg::Vote(msg) => {
-                            let signed_vote = SignedVote::<Ctx>::from_proto(msg).unwrap();
-                            signed_vote.vote.height()
-                        }
-                        NetworkMsg::Proposal(msg) => {
-                            let proposal = SignedProposal::<Ctx>::from_proto(msg).unwrap();
-                            proposal.proposal.height()
-                        }
-                    };
+                match event.as_ref() {
+                    GossipEvent::Listening(addr) => {
+                        info!("Listening on {addr}");
+                    }
 
-                    // Queue messages if driver is not initialized, or if they are for higher height.
-                    // Process messages received for the current height.
-                    // Drop all others.
-                    if state.driver.round() == Round::Nil {
-                        debug!("Received gossip event at round -1, queuing for later");
-                        state.msg_queue.push_back(Msg::GossipEvent(event));
-                    } else if state.driver.height() < msg_height {
-                        debug!("Received gossip event for higher height");
-                        state.msg_queue.push_back(Msg::GossipEvent(event));
-                    } else if state.driver.height() == msg_height {
-                        self.handle_gossip_event(event.as_ref(), myself, state)
-                            .await?;
+                    GossipEvent::PeerConnected(peer_id) => {
+                        info!("Connected to peer {peer_id}");
+
+                        state.connected_peers.insert(PeerId::new(peer_id));
+
+                        if state.connected_peers.len() == state.validator_set.count() - 1 {
+                            info!(
+                                "Enough peers {} connected to start consensus",
+                                state.connected_peers.len()
+                            );
+
+                            myself.cast(Msg::StartHeight(state.driver.height()))?;
+                        }
+                    }
+
+                    GossipEvent::PeerDisconnected(peer_id) => {
+                        info!("Disconnected from peer {peer_id}");
+
+                        state.connected_peers.retain(|p| p != &PeerId::new(peer_id));
+
+                        // TODO: pause/stop consensus, if necessary
+                    }
+
+                    GossipEvent::Message(_, _, data) => {
+                        let msg = NetworkMsg::from_network_bytes(data).unwrap(); // FIXME
+
+                        let msg_height = match msg {
+                            NetworkMsg::Vote(msg) => {
+                                let signed_vote = SignedVote::<Ctx>::from_proto(msg).unwrap(); // FIXME
+                                signed_vote.vote.height()
+                            }
+                            NetworkMsg::Proposal(msg) => {
+                                let proposal = SignedProposal::<Ctx>::from_proto(msg).unwrap(); // FIXME
+                                proposal.proposal.height()
+                            }
+                        };
+
+                        // Queue messages if driver is not initialized, or if they are for higher height.
+                        // Process messages received for the current height.
+                        // Drop all others.
+                        if state.driver.round() == Round::Nil {
+                            debug!("Received gossip event at round -1, queuing for later");
+                            state.msg_queue.push_back(Msg::GossipEvent(event));
+                        } else if state.driver.height() < msg_height {
+                            debug!("Received gossip event for higher height");
+                            state.msg_queue.push_back(Msg::GossipEvent(event));
+                        } else if state.driver.height() == msg_height {
+                            self.handle_gossip_event(event.as_ref(), myself, state)
+                                .await?;
+                        }
                     }
                 }
             }
