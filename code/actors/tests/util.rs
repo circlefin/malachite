@@ -92,8 +92,21 @@ impl TestNode {
     }
 }
 
+fn init_logging() {
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::FmtSubscriber;
+
+    let builder = FmtSubscriber::builder()
+        .with_target(false)
+        .with_env_filter("malachite=trace")
+        .with_thread_ids(false);
+
+    let subscriber = builder.finish();
+    subscriber.init();
+}
+
 pub async fn run_test<const N: usize>(test: Test<N>) {
-    tracing_subscriber::fmt::init();
+    init_logging();
 
     let mut handles = Vec::with_capacity(N);
 
