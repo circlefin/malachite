@@ -222,7 +222,12 @@ where
         proposal: Ctx::Proposal,
         validity: Validity,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        assert!(self.height() == proposal.height());
+        if self.height() != proposal.height() {
+            return Err(Error::InvalidProposalHeight {
+                proposal_height: proposal.height(),
+                consensus_height: self.height(),
+            });
+        }
 
         let round = proposal.round();
 
@@ -233,7 +238,12 @@ where
     }
 
     fn apply_vote(&mut self, vote: Ctx::Vote) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        assert!(self.height() == vote.height());
+        if self.height() != vote.height() {
+            return Err(Error::InvalidVoteHeight {
+                vote_height: vote.height(),
+                consensus_height: self.height(),
+            });
+        }
 
         let validator = self
             .validator_set

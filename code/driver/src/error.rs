@@ -18,6 +18,22 @@ where
 
     /// Validator not found in validator set
     ValidatorNotFound(Ctx::Address),
+
+    /// Received a proposal for another height
+    InvalidProposalHeight {
+        /// Proposal height
+        proposal_height: Ctx::Height,
+        /// Consensus height
+        consensus_height: Ctx::Height,
+    },
+
+    /// Received a vote for another height
+    InvalidVoteHeight {
+        /// Vote height
+        vote_height: Ctx::Height,
+        /// Consensus height
+        consensus_height: Ctx::Height,
+    },
 }
 
 impl<Ctx> fmt::Display for Error<Ctx>
@@ -32,6 +48,24 @@ where
             }
             Error::ProposerNotFound(addr) => write!(f, "Proposer not found: {addr}"),
             Error::ValidatorNotFound(addr) => write!(f, "Validator not found: {addr}"),
+            Error::InvalidProposalHeight {
+                proposal_height,
+                consensus_height,
+            } => {
+                write!(
+                    f,
+                    "Received proposal for height {proposal_height} different from consensus height {consensus_height}"
+                )
+            }
+            Error::InvalidVoteHeight {
+                vote_height,
+                consensus_height,
+            } => {
+                write!(
+                        f,
+                        "Received vote for height {vote_height} different from consensus height {consensus_height}"
+                    )
+            }
         }
     }
 }
