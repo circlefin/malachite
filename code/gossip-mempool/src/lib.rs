@@ -225,7 +225,7 @@ async fn handle_swarm_event(
 
                 swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
 
-                // FIXME: For some reason, if we disconnect from a peer here, 
+                // FIXME: For some reason, if we disconnect from a peer here,
                 //        the swarm will never connect to any other peers.
                 // let _ = swarm.disconnect_peer_id(peer_id);
             }
