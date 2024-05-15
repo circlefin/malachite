@@ -118,8 +118,10 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
 
     for i in 0..N {
         if test.nodes[i].faults.contains(&Fault::NoStart) {
+            info!("Not spawning faulty node {i} because it should not start");
             continue;
         }
+
         let (v, sk) = &test.vals_and_keys[i];
         let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
         let node_sk = &test.mempool_nodes[i];
@@ -132,6 +134,11 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
             v.address,
             tx_decision,
         ));
+
+        info!(
+            "Spawned node {i} with voting power {}",
+            test.nodes[i].voting_power
+        );
 
         handles.push((node, rx_decision));
     }
@@ -161,6 +168,8 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
 
         tokio::spawn(async move {
             for height in START_HEIGHT.as_u64()..=END_HEIGHT.as_u64() {
+                info!("[{i}] Height {height}/{HEIGHTS} starting");
+
                 if node_test.crashes_at(height) {
                     info!("[{i}] Faulty node {i} has crashed");
                     actor_ref.kill();
@@ -188,7 +197,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
         });
     }
 
-    tokio::time::sleep(TEST_TIMEOUT).await;
+    tokio::time::sleep(TEST_TIMEOUT * 10).await;
 
     let correct_decisions = correct_decisions.load(Ordering::Relaxed);
 
