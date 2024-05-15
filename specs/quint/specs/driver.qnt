@@ -193,7 +193,7 @@ module driver {
             if (receivedCommit)
                 // we have a commit that matches the proposal. We don't need to compare against
                 // es.cs.round
-                callConsensus(newES, newES.bk, ProposalAndCommitAndValidCInput(Val(prop.proposal)))
+                callConsensus(newES, newES.bk, ProposalAndCommitAndValidCInput(Val(prop.proposal))) // FIXME: shouldn't be an ID here?
             else if (es.cs.round != prop.round or es.cs.height != prop.height) 
                 // the proposal is from the right proposer and valid, but not for this round
                 // keep the proposal, do nothing else
@@ -215,7 +215,7 @@ module driver {
                         (newES, NoConsensusOutput)
                 else if (newES.cs.step == PrevoteStep or newES.cs.step == PrecommitStep)
                     val receivedCommitCurrentVal = checkThreshold(newES.bk, newES.cs.round, Precommit, th)
-                    if (receivedCommitCurrentVal)
+                    if (receivedCommitCurrentVal) // FIXME: is this even reachable? receivedCommit is true here, right?
                         // here we need to call both, Commit and Polka. 
                         // We do commit and append polka to pending
                         val pending = (ProposalAndPolkaAndValidCInput(propId), newES.cs.height, newES.cs.round)
