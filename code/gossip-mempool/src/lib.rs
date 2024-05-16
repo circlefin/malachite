@@ -228,7 +228,8 @@ async fn handle_swarm_event(
                     info.protocol_version
                 );
 
-                swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
+                // FIXME: Things break if we blacklist a peer here
+                // swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
 
                 // FIXME: For some reason, if we disconnect from a peer here,
                 //        the swarm will never connect to any other peers.
@@ -271,22 +272,23 @@ async fn handle_swarm_event(
             peer_id,
             topic: topic_hash,
         })) => {
-            let Some(peer_info) = state.peers.get(&peer_id) else {
-                debug!("Peer {peer_id} has not been identified, ignoring subscription");
-
-                return ControlFlow::Continue(());
-            };
-
-            if peer_info.protocol_version != PROTOCOL_VERSION {
-                debug!(
-                    "Peer {peer_id} is using incompatible protocol version: {:?}",
-                    peer_info.protocol_version
-                );
-
-                swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
-
-                return ControlFlow::Continue(());
-            }
+            // let Some(peer_info) = state.peers.get(&peer_id) else {
+            //     debug!("Peer {peer_id} has not been identified, ignoring subscription");
+            //
+            //     return ControlFlow::Continue(());
+            // };
+            //
+            // if peer_info.protocol_version != PROTOCOL_VERSION {
+            //     debug!(
+            //         "Peer {peer_id} is using incompatible protocol version: {:?}",
+            //         peer_info.protocol_version
+            //     );
+            //
+            //     // FIXME: Things break if we blacklist a peer here
+            //     // swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
+            //
+            //     return ControlFlow::Continue(());
+            // }
 
             if !Channel::has_topic(&topic_hash) {
                 debug!("Peer {peer_id} tried to subscribe to unknown topic: {topic_hash}");
@@ -307,23 +309,24 @@ async fn handle_swarm_event(
             message_id,
             message,
         })) => {
-            let Some(peer_info) = state.peers.get(&peer_id) else {
-                debug!("Peer {peer_id} has not been identified, ignoring subscription");
-
-                return ControlFlow::Continue(());
-            };
-
-            if peer_info.protocol_version != PROTOCOL_VERSION {
-                debug!(
-                    "Peer {peer_id} is using incompatible protocol version: {:?}",
-                    peer_info.protocol_version
-                );
-
-                swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
-
-                return ControlFlow::Continue(());
-            }
-
+            // let Some(peer_info) = state.peers.get(&peer_id) else {
+            //     debug!("Peer {peer_id} has not been identified, ignoring subscription");
+            //
+            //     return ControlFlow::Continue(());
+            // };
+            //
+            // if peer_info.protocol_version != PROTOCOL_VERSION {
+            //     debug!(
+            //         "Peer {peer_id} is using incompatible protocol version: {:?}",
+            //         peer_info.protocol_version
+            //     );
+            //
+            //     // FIXME: Things break if we blacklist a peer here
+            //     // swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
+            //
+            //     return ControlFlow::Continue(());
+            // }
+            //
             let Some(channel) = Channel::from_topic_hash(&message.topic) else {
                 debug!(
                     "Received message {message_id} from {peer_id} on different channel: {}",

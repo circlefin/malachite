@@ -8,7 +8,7 @@ use futures::StreamExt;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, mdns, SwarmBuilder};
 use tokio::sync::mpsc;
-use tracing::{debug, error, error_span, info, trace, Instrument};
+use tracing::{debug, error, error_span, trace, Instrument};
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
@@ -217,24 +217,24 @@ async fn handle_swarm_event(
             );
 
             if info.protocol_version == PROTOCOL_VERSION {
-                info!(
-                    "Connecting to peer {peer_id} using protocol {:?}",
+                trace!(
+                    "Peer {peer_id} is using compatible protocol version: {:?}",
                     info.protocol_version
                 );
-
-                state.peers.insert(peer_id, info);
             } else {
-                debug!(
+                trace!(
                     "Peer {peer_id} is using incompatible protocol version: {:?}",
                     info.protocol_version
                 );
 
-                swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
+                // swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
 
                 // FIXME: For some reason, if we disconnect from a peer here,
                 //        the swarm will never connect to any other peers.
                 // let _ = swarm.disconnect_peer_id(peer_id);
             }
+
+            state.peers.insert(peer_id, info);
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Mdns(mdns::Event::Discovered(peers))) => {
@@ -282,7 +282,8 @@ async fn handle_swarm_event(
             //         peer_info.protocol_version
             //     );
             //
-            //     swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
+            //     // FIXME: Things break if we blacklist a peer here
+            //     // swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
             //
             //     return ControlFlow::Continue(());
             // }
@@ -305,22 +306,23 @@ async fn handle_swarm_event(
             message_id,
             message,
         })) => {
-            let Some(peer_info) = state.peers.get(&peer_id) else {
-                debug!("Peer {peer_id} has not been identified, ignoring subscription");
-
-                return ControlFlow::Continue(());
-            };
-
-            if peer_info.protocol_version != PROTOCOL_VERSION {
-                debug!(
-                    "Peer {peer_id} is using incompatible protocol version: {:?}",
-                    peer_info.protocol_version
-                );
-
-                swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
-
-                return ControlFlow::Continue(());
-            }
+            // let Some(peer_info) = state.peers.get(&peer_id) else {
+            //     debug!("Peer {peer_id} has not been identified, ignoring subscription");
+            //
+            //     return ControlFlow::Continue(());
+            // };
+            //
+            // if peer_info.protocol_version != PROTOCOL_VERSION {
+            //     debug!(
+            //         "Peer {peer_id} is using incompatible protocol version: {:?}",
+            //         peer_info.protocol_version
+            //     );
+            //
+            //     // FIXME: Things break if we blacklist a peer here
+            //     // swarm.behaviour_mut().gossipsub.blacklist_peer(&peer_id);
+            //
+            //     return ControlFlow::Continue(());
+            // }
 
             let Some(channel) = Channel::from_topic_hash(&message.topic) else {
                 debug!(
