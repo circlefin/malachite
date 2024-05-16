@@ -104,9 +104,8 @@ pub enum CtrlMsg {
     Shutdown,
 }
 
-pub async fn spawn(_keypair: Keypair, addr: Multiaddr, config: Config) -> Result<Handle, BoxError> {
-    // let mut swarm = SwarmBuilder::with_existing_identity(keypair)
-    let mut swarm = SwarmBuilder::with_new_identity()
+pub async fn spawn(keypair: Keypair, addr: Multiaddr, config: Config) -> Result<Handle, BoxError> {
+    let mut swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
         .with_quic()
         .with_behaviour(Behaviour::new)?
