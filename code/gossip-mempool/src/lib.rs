@@ -231,20 +231,6 @@ async fn handle_swarm_event(
                 trace!("Discovered peer {peer_id} at {addr}");
 
                 swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
-
-        SwarmEvent::Behaviour(NetworkEvent::Mdns(mdns::Event::Expired(peers))) => {
-            for (peer_id, _addr) in peers {
-                trace!("Expired peer: {peer_id}");
-
-                swarm
-                    .behaviour_mut()
-                    .gossipsub
-                    .remove_explicit_peer(&peer_id);
-
-                //     if let Err(e) = tx_event.send(HandleEvent::PeerDisconnected(peer_id)).await {
-                //         error!("Error sending peer disconnected event to handle: {e}");
-                //         return ControlFlow::Break(());
-                //     }
             }
         }
 

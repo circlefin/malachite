@@ -234,17 +234,6 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::Behaviour(NetworkEvent::Mdns(mdns::Event::Expired(peers))) => {
-            for (peer_id, _addr) in peers {
-                trace!("Expired peer: {peer_id}");
-
-                swarm
-                    .behaviour_mut()
-                    .gossipsub
-                    .remove_explicit_peer(&peer_id);
-            }
-        }
-
         SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Subscribed {
             peer_id,
             topic: topic_hash,
