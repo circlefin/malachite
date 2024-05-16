@@ -236,17 +236,34 @@ async fn handle_swarm_event(
 
         SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Subscribed {
             peer_id,
-            topic: topic_hash,
+            topic,
         })) => {
-            if !Channel::has_topic(&topic_hash) {
-                debug!("Peer {peer_id} tried to subscribe to unknown topic: {topic_hash}");
+            if !Channel::has_topic(&topic) {
+                debug!("Peer {peer_id} tried to subscribe to unknown topic: {topic}");
                 return ControlFlow::Continue(());
             }
 
-            debug!("Peer {peer_id} subscribed to {topic_hash}");
+            debug!("Peer {peer_id} subscribed to {topic}");
 
             if let Err(e) = tx_event.send(Event::PeerConnected(peer_id)).await {
                 error!("Error sending peer connected event to handle: {e}");
+                return ControlFlow::Break(());
+            }
+        }
+
+        SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Unsubscribed {
+            peer_id,
+            topic,
+        })) => {
+            if !Channel::has_topic(&topic) {
+                debug!("Peer {peer_id} tried to unsubscribe from unknown topic: {topic}");
+                return ControlFlow::Continue(());
+            }
+
+            debug!("Peer {peer_id} unsubscribed from {topic}");
+
+            if let Err(e) = tx_event.send(Event::PeerDisconnected(peer_id)).await {
+                error!("Error sending peer disconnected event to handle: {e}");
                 return ControlFlow::Break(());
             }
         }
