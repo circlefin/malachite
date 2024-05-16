@@ -238,6 +238,7 @@ mod tests {
     fn args_private_key() {
         let args = Args::parse_from(&["test", "start"]);
         assert!(args.load_private_key().is_err());
+        assert!(args.private_key.is_empty());
 
         let args = Args::parse_from(&["test", "--private-key", "c2VjcmV0", "start"]);
         assert!(args.load_private_key().is_err());
