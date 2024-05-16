@@ -23,8 +23,7 @@ pub async fn make_node_actor(
     address: Address,
     tx_decision: mpsc::Sender<(Height, Round, Value)>,
 ) -> (ActorRef<NodeMsg>, JoinHandle<()>) {
-    // let addr: Multiaddr = "/ip4/0.0.0.0/udp/0/quic-v1".parse().unwrap();
-    let addr: Multiaddr = "/ip4/0.0.0.0/tcp/0".parse().unwrap();
+    let addr: Multiaddr = "/ip4/0.0.0.0/udp/0/quic-v1".parse().unwrap();
     let config_mempool = malachite_gossip_mempool::Config::default();
 
     let node_keypair = Keypair::ed25519_from_bytes(node_pk.inner().to_bytes()).unwrap();

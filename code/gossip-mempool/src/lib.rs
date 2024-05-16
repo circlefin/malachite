@@ -108,12 +108,7 @@ pub async fn spawn(_keypair: Keypair, addr: Multiaddr, config: Config) -> Result
     // let mut swarm = SwarmBuilder::with_existing_identity(keypair)
     let mut swarm = SwarmBuilder::with_new_identity()
         .with_tokio()
-        // .with_quic()
-        .with_tcp(
-            libp2p::tcp::Config::default(),
-            libp2p::tls::Config::new,
-            libp2p::yamux::Config::default,
-        )?
+        .with_quic()
         .with_behaviour(Behaviour::new)?
         .with_swarm_config(|cfg| config.apply(cfg))
         .build();
