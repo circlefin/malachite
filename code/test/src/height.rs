@@ -28,6 +28,12 @@ impl fmt::Debug for Height {
     }
 }
 
+impl From<u64> for Height {
+    fn from(height: u64) -> Self {
+        Self::new(height)
+    }
+}
+
 impl malachite_common::Height for Height {
     fn increment(&self) -> Self {
         Self(self.0 + 1)

@@ -7,6 +7,7 @@ use malachite_proto::{SignedProposal, SignedVote};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Msg {
+    Ready,
     Vote(SignedVote),
     Proposal(SignedProposal),
 }
@@ -19,13 +20,23 @@ impl Msg {
     pub fn to_network_bytes(&self) -> Result<Vec<u8>, ProtoError> {
         Protobuf::to_bytes(self)
     }
+
+    pub fn msg_height(&self) -> Option<u64> {
+        match self {
+            Msg::Ready => None,
+            Msg::Vote(msg) => Some(msg.vote.as_ref()?.height.as_ref()?.value),
+            Msg::Proposal(msg) => Some(msg.proposal.as_ref()?.height.as_ref()?.value),
+        }
+    }
 }
 
 impl Protobuf for Msg {
     type Proto = Any;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
-        if proto.type_url == SignedVote::type_url() {
+        if proto.type_url == "/malachite.Ready" {
+            Ok(Msg::Ready)
+        } else if proto.type_url == SignedVote::type_url() {
             let vote = SignedVote::decode(proto.value.as_slice())?;
             Ok(Msg::Vote(vote))
         } else if proto.type_url == SignedProposal::type_url() {
@@ -40,6 +51,10 @@ impl Protobuf for Msg {
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(match self {
+            Msg::Ready => Any {
+                type_url: "/malachite.Ready".to_string(),
+                value: Vec::new(),
+            },
             Msg::Vote(vote) => Any {
                 type_url: SignedVote::type_url(),
                 value: vote.encode_to_vec(),
