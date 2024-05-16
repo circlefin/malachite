@@ -187,10 +187,45 @@ mod tests {
     }
 
     #[test]
+    fn args_methods() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        #[derive(serde::Deserialize)]
+        struct TestStruct {}
+
+        let args = Args::parse_from(&["test", "start"]);
+        assert!(args.get_config_file_path().is_ok());
+        assert!(args.get_genesis_file_path().is_ok());
+        assert!(args
+            .load_json_file::<TestStruct>(&PathBuf::from("nonexistent.json"))
+            .is_err());
+
+        let tmpfile = NamedTempFile::new().unwrap();
+        let mut file = tmpfile.as_file();
+        writeln!(file, "{{}}").unwrap();
+        assert!(args
+            .load_json_file::<TestStruct>(&PathBuf::from(tmpfile.path()))
+            .is_ok());
+    }
+
+    #[test]
     fn args_load_config() {
         let args = Args::parse_from(&["test", "--config", "../config.toml", "start"]);
         let config = args.load_config().unwrap();
         assert_eq!(config.moniker, "malachite");
+
+        // Testnet configuration
+        let args = Args::parse_from(&[
+            "test",
+            "--config",
+            "../config.toml",
+            "--index",
+            "2",
+            "start",
+        ]);
+        let config = args.load_config().unwrap();
+        assert_eq!(config.moniker, "test-2");
     }
 
     #[test]
