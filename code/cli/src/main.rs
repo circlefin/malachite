@@ -32,18 +32,17 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let cfg: Config = match args.index {
-        None => args.clone().try_into()?,
+        None => args.load_config()?,
         Some(index) => generate_config(index),
     };
     let sk: PrivateKey = match args.index {
         None => args
-            .clone()
-            .try_into()
+            .load_private_key()
             .unwrap_or_else(|_| PrivateKey::generate(OsRng)),
         Some(index) => generate_private_key(index),
     };
     let vs: ValidatorSet = match args.index {
-        None => args.clone().try_into()?,
+        None => args.load_genesis()?,
         Some(_) => generate_genesis(),
     };
 
