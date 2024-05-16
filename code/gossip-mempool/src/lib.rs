@@ -217,7 +217,7 @@ async fn handle_swarm_event(
                 info.protocol_version
             );
 
-            if info.protocol_version != PROTOCOL_VERSION {
+            if info.protocol_version == PROTOCOL_VERSION {
                 debug!(
                     "Connecting to peer {peer_id} using protocol {:?}",
                     info.protocol_version
