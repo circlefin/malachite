@@ -647,7 +647,7 @@ where
 
                         if state.connected_peers.len() == state.validator_set.count() - 1 {
                             info!(
-                                "Enough peers ({}) ready to start consensus",
+                                "Enough peers ({}) connected to start consensus",
                                 state.connected_peers.len()
                             );
 
@@ -663,7 +663,7 @@ where
                         // TODO: pause/stop consensus, if necessary
                     }
 
-                    GossipEvent::Message(_from, _, data) => {
+                    GossipEvent::Message(_, _, data) => {
                         let msg = NetworkMsg::from_network_bytes(data).unwrap(); // FIXME
 
                         let Some(msg_height) = msg.msg_height() else {

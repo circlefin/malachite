@@ -86,15 +86,15 @@ where
         params.gossip_mempool,
         params.mempool,
         proposal_builder,
-        // params.start_height,
+        params.start_height,
     );
 
     let actor = node.spawn().await?;
     Ok(actor)
 }
 
+#[allow(dead_code)]
 pub struct Node<Ctx: Context> {
-    #[allow(dead_code)]
     ctx: Ctx,
     cal: ActorRef<CALMsg<Ctx>>,
     gossip: ActorRef<GossipMsg>,
@@ -102,7 +102,7 @@ pub struct Node<Ctx: Context> {
     gossip_mempool: ActorRef<GossipMempoolMsg>,
     mempool: ActorRef<MempoolMsg>,
     proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
-    // start_height: Ctx::Height,
+    start_height: Ctx::Height,
 }
 
 impl<Ctx> Node<Ctx>
@@ -120,7 +120,7 @@ where
         gossip_mempool: ActorRef<GossipMempoolMsg>,
         mempool: ActorRef<MempoolMsg>,
         proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
-        // start_height: Ctx::Height,
+        start_height: Ctx::Height,
     ) -> Self {
         Self {
             ctx,
@@ -130,7 +130,7 @@ where
             gossip_mempool,
             mempool,
             proposal_builder,
-            // start_height,
+            start_height,
         }
     }
 

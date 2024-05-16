@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -51,8 +52,7 @@ pub struct Args {
 pub enum State {
     Stopped,
     Running {
-        expected_peers: Vec<PeerId>,
-        peers: Vec<PeerId>,
+        peers: BTreeSet<PeerId>,
         subscribers: Vec<ActorRef<Arc<Event>>>,
         ctrl_handle: CtrlHandle,
         recv_task: JoinHandle<()>,
@@ -95,8 +95,7 @@ impl Actor for Gossip {
         });
 
         Ok(State::Running {
-            expected_peers: args.peer_ids,
-            peers: Vec::new(),
+            peers: BTreeSet::new(),
             subscribers: Vec::new(),
             ctrl_handle,
             recv_task,
@@ -118,7 +117,6 @@ impl Actor for Gossip {
         state: &mut State,
     ) -> Result<(), ActorProcessingErr> {
         let State::Running {
-            expected_peers,
             peers,
             subscribers,
             ctrl_handle,
@@ -132,11 +130,16 @@ impl Actor for Gossip {
             Msg::Subscribe(subscriber) => subscribers.push(subscriber),
             Msg::Broadcast(channel, data) => ctrl_handle.broadcast(channel, data).await?,
             Msg::NewEvent(event) => {
-                if let Event::PeerConnected(peer_id) = event {
-                    if expected_peers.contains(&peer_id) {
-                        peers.push(peer_id);
+                match &event {
+                    Event::PeerConnected(peer_id) => {
+                        peers.insert(*peer_id);
                     }
+                    Event::PeerDisconnected(peer_id) => {
+                        peers.remove(peer_id);
+                    }
+                    _ => {}
                 }
+
                 let event = Arc::new(event);
                 for subscriber in subscribers {
                     subscriber.cast(Arc::clone(&event))?;
