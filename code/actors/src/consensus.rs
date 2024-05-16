@@ -86,7 +86,6 @@ where
     msg_queue: VecDeque<Msg<Ctx>>,
     validator_set: Ctx::ValidatorSet,
     connected_peers: BTreeSet<PeerId>,
-    ready_peers: BTreeSet<PeerId>,
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -171,9 +170,6 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
-            NetworkMsg::Ready => {
-                info!(%from, "Peer is ready");
-            }
             NetworkMsg::Vote(signed_vote) => {
                 let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap(); // FIXME
                 let validator_address = signed_vote.validator_address();
@@ -552,7 +548,6 @@ where
             msg_queue: VecDeque::new(),
             validator_set: self.params.initial_validator_set.clone(),
             connected_peers: BTreeSet::new(),
-            ready_peers: BTreeSet::new(),
         })
     }
 
@@ -650,10 +645,14 @@ where
 
                         state.connected_peers.insert(PeerId::new(peer_id));
 
-                        self.gossip.cast(GossipMsg::Broadcast(
-                            Channel::Consensus,
-                            NetworkMsg::Ready.to_network_bytes().unwrap(), // FIXME
-                        ))?;
+                        if state.connected_peers.len() == state.validator_set.count() - 1 {
+                            info!(
+                                "Enough peers ({}) ready to start consensus",
+                                state.connected_peers.len()
+                            );
+
+                            myself.cast(Msg::StartHeight(state.driver.height()))?;
+                        }
                     }
 
                     GossipEvent::PeerDisconnected(peer_id) => {
@@ -664,23 +663,8 @@ where
                         // TODO: pause/stop consensus, if necessary
                     }
 
-                    GossipEvent::Message(from, _, data) => {
+                    GossipEvent::Message(_from, _, data) => {
                         let msg = NetworkMsg::from_network_bytes(data).unwrap(); // FIXME
-
-                        if msg == NetworkMsg::Ready {
-                            state.ready_peers.insert(PeerId::new(from));
-
-                            if state.ready_peers.len() == state.validator_set.count() - 1 {
-                                info!(
-                                    "Enough peers ({}) ready to start consensus",
-                                    state.connected_peers.len()
-                                );
-
-                                myself.cast(Msg::StartHeight(state.driver.height()))?;
-                            }
-
-                            return Ok(());
-                        }
 
                         let Some(msg_height) = msg.msg_height() else {
                             trace!("Received message without height, dropping");
