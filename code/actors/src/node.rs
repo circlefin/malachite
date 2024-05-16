@@ -53,7 +53,8 @@ where
         threshold_params: params.threshold_params,
     };
 
-    let addr: Multiaddr = "/ip4/0.0.0.0/udp/0/quic-v1".parse().unwrap();
+    // let addr: Multiaddr = "/ip4/0.0.0.0/udp/0/quic-v1".parse().unwrap();
+    let addr: Multiaddr = "/ip4/0.0.0.0/tcp/0".parse().unwrap();
     let config = malachite_gossip::Config::default();
 
     let gossip = Gossip::spawn(
