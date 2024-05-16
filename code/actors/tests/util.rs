@@ -92,8 +92,21 @@ impl TestNode {
     }
 }
 
+fn init_logging() {
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::FmtSubscriber;
+
+    let builder = FmtSubscriber::builder()
+        .with_target(false)
+        .with_env_filter("malachite=trace")
+        .with_thread_ids(false);
+
+    let subscriber = builder.finish();
+    subscriber.init();
+}
+
 pub async fn run_test<const N: usize>(test: Test<N>) {
-    tracing_subscriber::fmt::init();
+    init_logging();
 
     let mut handles = Vec::with_capacity(N);
 
@@ -105,8 +118,10 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
 
     for i in 0..N {
         if test.nodes[i].faults.contains(&Fault::NoStart) {
+            info!("Not spawning faulty node {i} because it should not start");
             continue;
         }
+
         let (v, sk) = &test.vals_and_keys[i];
         let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
         let node_sk = &test.mempool_nodes[i];
@@ -119,6 +134,11 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
             v.address,
             tx_decision,
         ));
+
+        info!(
+            "Spawned node {i} with voting power {}",
+            test.nodes[i].voting_power
+        );
 
         handles.push((node, rx_decision));
     }
@@ -148,6 +168,8 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
 
         tokio::spawn(async move {
             for height in START_HEIGHT.as_u64()..=END_HEIGHT.as_u64() {
+                info!("[{i}] Height {height}/{HEIGHTS} starting");
+
                 if node_test.crashes_at(height) {
                     info!("[{i}] Faulty node {i} has crashed");
                     actor_ref.kill();
@@ -155,6 +177,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
                 }
 
                 let decision = rx_decision.recv().await;
+
                 // TODO - the value proposed comes from a set of mempool Tx-es which are currently different for each proposer
                 // Also heights can go to higher rounds.
                 // Therefore removing the round and value check for now

@@ -93,8 +93,8 @@ where
     Ok(actor)
 }
 
+#[allow(dead_code)]
 pub struct Node<Ctx: Context> {
-    #[allow(dead_code)]
     ctx: Ctx,
     cal: ActorRef<CALMsg<Ctx>>,
     gossip: ActorRef<GossipMsg>,
@@ -177,12 +177,7 @@ where
         _state: &mut (),
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
-            Msg::Start => {
-                self.consensus
-                    .cast(crate::consensus::Msg::StartHeight(self.start_height))?;
-
-                self.mempool.cast(crate::mempool::Msg::Start)?
-            }
+            Msg::Start => self.mempool.cast(crate::mempool::Msg::Start)?,
         }
 
         Ok(())

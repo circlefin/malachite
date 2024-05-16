@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use ractor::rpc::{call_and_forward, CallResult};
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 
 use malachite_common::{
     Context, Height, NilOrVal, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
@@ -647,7 +647,7 @@ where
 
                         if state.connected_peers.len() == state.validator_set.count() - 1 {
                             info!(
-                                "Enough peers {} connected to start consensus",
+                                "Enough peers ({}) connected to start consensus",
                                 state.connected_peers.len()
                             );
 
@@ -658,7 +658,7 @@ where
                     GossipEvent::PeerDisconnected(peer_id) => {
                         info!("Disconnected from peer {peer_id}");
 
-                        state.connected_peers.retain(|p| p != &PeerId::new(peer_id));
+                        state.connected_peers.remove(&PeerId::new(peer_id));
 
                         // TODO: pause/stop consensus, if necessary
                     }
@@ -666,15 +666,9 @@ where
                     GossipEvent::Message(_, _, data) => {
                         let msg = NetworkMsg::from_network_bytes(data).unwrap(); // FIXME
 
-                        let msg_height = match msg {
-                            NetworkMsg::Vote(msg) => {
-                                let signed_vote = SignedVote::<Ctx>::from_proto(msg).unwrap(); // FIXME
-                                signed_vote.vote.height()
-                            }
-                            NetworkMsg::Proposal(msg) => {
-                                let proposal = SignedProposal::<Ctx>::from_proto(msg).unwrap(); // FIXME
-                                proposal.proposal.height()
-                            }
+                        let Some(msg_height) = msg.msg_height() else {
+                            trace!("Received message without height, dropping");
+                            return Ok(());
                         };
 
                         // Queue messages if driver is not initialized, or if they are for higher height.
@@ -683,10 +677,10 @@ where
                         if state.driver.round() == Round::Nil {
                             debug!("Received gossip event at round -1, queuing for later");
                             state.msg_queue.push_back(Msg::GossipEvent(event));
-                        } else if state.driver.height() < msg_height {
+                        } else if state.driver.height().as_u64() < msg_height {
                             debug!("Received gossip event for higher height");
                             state.msg_queue.push_back(Msg::GossipEvent(event));
-                        } else if state.driver.height() == msg_height {
+                        } else if state.driver.height().as_u64() == msg_height {
                             self.handle_gossip_event(event.as_ref(), myself, state)
                                 .await?;
                         }

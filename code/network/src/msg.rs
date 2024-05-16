@@ -19,6 +19,13 @@ impl Msg {
     pub fn to_network_bytes(&self) -> Result<Vec<u8>, ProtoError> {
         Protobuf::to_bytes(self)
     }
+
+    pub fn msg_height(&self) -> Option<u64> {
+        match self {
+            Msg::Vote(msg) => Some(msg.vote.as_ref()?.height.as_ref()?.value),
+            Msg::Proposal(msg) => Some(msg.proposal.as_ref()?.height.as_ref()?.value),
+        }
+    }
 }
 
 impl Protobuf for Msg {
