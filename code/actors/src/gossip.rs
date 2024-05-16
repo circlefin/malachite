@@ -130,12 +130,12 @@ impl Actor for Gossip {
             Msg::Subscribe(subscriber) => subscribers.push(subscriber),
             Msg::Broadcast(channel, data) => ctrl_handle.broadcast(channel, data).await?,
             Msg::NewEvent(event) => {
-                match &event {
+                match event {
                     Event::PeerConnected(peer_id) => {
-                        peers.insert(*peer_id);
+                        peers.insert(peer_id);
                     }
                     Event::PeerDisconnected(peer_id) => {
-                        peers.remove(peer_id);
+                        peers.remove(&peer_id);
                     }
                     _ => {}
                 }
