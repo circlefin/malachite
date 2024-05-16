@@ -138,7 +138,7 @@ impl Args {
         self.load_json_file(&self.get_genesis_file_path()?)
     }
 
-    /// load_private_key returns the private key either from the command-line paramter ot
+    /// load_private_key returns the private key either from the command-line parameter or
     /// from the priv_validator_key.json file.
     pub fn load_private_key(&self) -> Result<PrivateKey, ConfyError> {
         if self.private_key.is_empty()
