@@ -93,7 +93,32 @@ impl ThresholdParam {
 
     /// Check whether the threshold is met.
     pub const fn is_met(&self, weight: Weight, total: Weight) -> bool {
-        // FIXME: Deal with overflows
-        weight * self.denominator > total * self.numerator
+        // neither Option::<T>::unwrap() nor expect() is stable for const fn
+        match weight.checked_mul(self.denominator) {
+            None => panic!("overflow trying to meet threshold"),
+            Some(weight_times_denominator) => match total.checked_mul(self.numerator) {
+                None => panic!("overflow trying to meet threshold"),
+                Some(total_times_numerator) => weight_times_denominator > total_times_numerator,
+            },
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn threshold_param_is_met() {
+        assert!(ThresholdParam::TWO_F_PLUS_ONE.is_met(7, 10));
+        assert!(!ThresholdParam::TWO_F_PLUS_ONE.is_met(6, 10));
+        assert!(ThresholdParam::F_PLUS_ONE.is_met(4, 10));
+        assert!(!ThresholdParam::F_PLUS_ONE.is_met(3, 10));
+    }
+
+    #[test]
+    #[should_panic(expected = "overflow trying to meet threshold")]
+    fn threshold_param_is_met_overflow() {
+        assert!(!ThresholdParam::TWO_F_PLUS_ONE.is_met(1, Weight::MAX));
     }
 }
