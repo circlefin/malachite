@@ -24,7 +24,9 @@ impl<Value> ValuesWeights<Value> {
         Value: Ord,
     {
         let entry = self.value_weights.entry(value).or_insert(0);
-        *entry = entry.checked_add(weight).expect("attempt to add with overflow");
+        *entry = entry
+            .checked_add(weight)
+            .expect("attempt to add with overflow");
         *entry
     }
 
@@ -40,7 +42,9 @@ impl<Value> ValuesWeights<Value> {
     pub fn sum(&self) -> Weight {
         let mut weight: Weight = 0;
         for w in self.value_weights.values() {
-            weight = weight.checked_add(*w).expect("attempt to sum with overflow");
+            weight = weight
+                .checked_add(*w)
+                .expect("attempt to sum with overflow");
         }
         weight
     }
