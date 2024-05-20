@@ -60,7 +60,7 @@ pretty_assertions  = "1.4"
 prost              = "0.12.3"
 prost-build        = "0.12.3"
 prost-types        = "0.12.3"
-ractor             = "0.9.6"
+ractor             = "0.10.0"
 ractor_actors      = { version = "0.4.0", default-features= false }
 rand               = { version = "0.8.5", features = ["std_rng"] }
 rand_chacha        = "0.3.1"
