@@ -53,7 +53,7 @@ futures            = "0.3"
 glob               = "0.3.0"
 hex                = { version = "0.4.3", features = ["serde"] }
 humantime-serde    = "1.1.1"
-itertools          = "0.12"
+itertools          = "0.13"
 itf                = "0.2.3"
 libp2p             = { version = "0.53.2", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "quic", "tls", "gossipsub"] }
 libp2p-gossipsub   = { version = "0.46.1" }
@@ -64,7 +64,7 @@ pretty_assertions  = "1.4"
 prost              = "0.12.3"
 prost-build        = "0.12.3"
 prost-types        = "0.12.3"
-ractor             = "0.9.6"
+ractor             = "0.10.0"
 ractor_actors      = { version = "0.4.0", default-features= false }
 rand               = { version = "0.8.5", features = ["std_rng"] }
 rand_chacha        = "0.3.1"
