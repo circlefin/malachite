@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::Path;
 
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{eyre, Context, Result};
 use tracing::{info, warn};
 
 use malachite_node::config::Config;
@@ -80,9 +80,9 @@ fn save(path: &Path, data: &str) -> Result<()> {
     use std::io::Write;
 
     if let Some(parent_dir) = path.parent() {
-        fs::create_dir_all(parent_dir).map_err(|e| {
+        fs::create_dir_all(parent_dir).wrap_err_with(|| {
             eyre!(
-                "Failed to create parent directory {:?}: {e:?}",
+                "Failed to create parent directory {:?}",
                 parent_dir.display()
             )
         })?;
@@ -93,19 +93,10 @@ fn save(path: &Path, data: &str) -> Result<()> {
         .create(true)
         .truncate(true)
         .open(path)
-        .map_err(|e| {
-            eyre!(
-                "Failed to crate configuration file at {:?}: {e:?}",
-                path.display()
-            )
-        })?;
+        .wrap_err_with(|| eyre!("Failed to crate configuration file at {:?}", path.display()))?;
 
-    f.write_all(data.as_bytes()).map_err(|e| {
-        eyre!(
-            "Failed to write configuration to {:?}: {e:?}",
-            path.display()
-        )
-    })?;
+    f.write_all(data.as_bytes())
+        .wrap_err_with(|| eyre!("Failed to write configuration to {:?}", path.display()))?;
 
     Ok(())
 }

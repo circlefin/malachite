@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use clap::{Parser, Subcommand};
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{eyre, Context, Result};
 use directories::BaseDirs;
 use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
@@ -150,30 +150,22 @@ fn load_json_file<T>(file: &Path) -> Result<T>
 where
     T: for<'de> serde::Deserialize<'de>,
 {
-    let content = std::fs::read_to_string(file).map_err(|e| {
-        eyre!(
-            "Failed to read configuration file at {}: {e:?}",
-            file.display()
-        )
-    })?;
+    let content = std::fs::read_to_string(file)
+        .wrap_err_with(|| eyre!("Failed to read configuration file at {}", file.display()))?;
 
     serde_json::from_str(&content)
-        .map_err(|e| eyre!("Failed to load configuration at {}: {e:?}", file.display(),))
+        .wrap_err_with(|| eyre!("Failed to load configuration at {}", file.display(),))
 }
 
 fn load_toml_file<T>(file: &Path) -> Result<T>
 where
     T: for<'de> serde::Deserialize<'de>,
 {
-    let content = std::fs::read_to_string(file).map_err(|e| {
-        eyre!(
-            "Failed to read configuration file at {}: {e:?}",
-            file.display()
-        )
-    })?;
+    let content = std::fs::read_to_string(file)
+        .wrap_err_with(|| eyre!("Failed to read configuration file at {}", file.display()))?;
 
     toml::from_str(&content)
-        .map_err(|e| eyre!("Failed to load configuration at {}: {e:?}", file.display(),))
+        .wrap_err_with(|| eyre!("Failed to load configuration at {}", file.display(),))
 }
 
 #[cfg(test)]
