@@ -1,11 +1,13 @@
+use color_eyre::eyre::Result;
+use rand::rngs::OsRng;
+use tracing::{debug, info};
+
 use malachite_actors::util::make_node_actor;
 use malachite_node::config::Config;
 use malachite_test::{Address, PrivateKey, ValidatorSet};
-use rand::rngs::OsRng;
 
 use args::Commands;
 use example::{generate_config, generate_genesis, generate_private_key};
-use tracing::{debug, info};
 
 use crate::logging::LogLevel;
 
@@ -15,7 +17,7 @@ mod init;
 mod logging;
 
 #[tokio::main(flavor = "current_thread")]
-pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn main() -> Result<()> {
     let args = args::Args::new();
 
     logging::init(LogLevel::Debug, &args.debug);
@@ -27,7 +29,8 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
             args.get_genesis_file_path()?,
             args.get_priv_validator_key_file_path()?,
             args.index.unwrap_or(0),
-        );
+        )?;
+
         return Ok(());
     }
 
@@ -35,12 +38,14 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => args.load_config()?,
         Some(index) => generate_config(index),
     };
+
     let sk: PrivateKey = match args.index {
         None => args
             .load_private_key()
             .unwrap_or_else(|_| PrivateKey::generate(OsRng)),
         Some(index) => generate_private_key(index),
     };
+
     let vs: ValidatorSet = match args.index {
         None => args.load_genesis()?,
         Some(_) => generate_genesis(),

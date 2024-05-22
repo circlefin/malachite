@@ -7,17 +7,17 @@
 //! `clap` parses the command-line parameters into this structure.
 //!
 
-use crate::logging::DebugSection;
+use std::path::{Path, PathBuf};
+
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use clap::{Parser, Subcommand};
-use confy::ConfyError;
+use color_eyre::eyre::{eyre, Result};
 use directories::BaseDirs;
 use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
-use std::fs::File;
-use std::io::Read;
-use std::path::PathBuf;
+
+use crate::logging::DebugSection;
 
 const APP_FOLDER: &str = ".malachite";
 const CONFIG_FILE: &str = "config.json";
@@ -73,23 +73,21 @@ impl Args {
 
     /// get_home_dir returns the application home folder.
     /// Typically, `$HOME/.malachite`, dependent on the operating system.
-    pub fn get_home_dir(&self) -> Result<PathBuf, ConfyError> {
+    pub fn get_home_dir(&self) -> Result<PathBuf> {
         Ok(BaseDirs::new()
-            .ok_or(ConfyError::BadConfigDirectory(
-                "could not determine home directory path".to_string(),
-            ))?
+            .ok_or_else(|| eyre!("could not determine home directory path"))?
             .home_dir()
             .join(APP_FOLDER))
     }
 
     /// get_config_dir returns the configuration folder based on the home folder.
-    pub fn get_config_dir(&self) -> Result<PathBuf, ConfyError> {
+    pub fn get_config_dir(&self) -> Result<PathBuf> {
         Ok(self.get_home_dir()?.join("config"))
     }
 
     /// get_config_file_path returns the configuration file path based on the command-ine arguments
     /// and the configuration folder.
-    pub fn get_config_file_path(&self) -> Result<PathBuf, ConfyError> {
+    pub fn get_config_file_path(&self) -> Result<PathBuf> {
         Ok(match &self.config {
             Some(path) => path.clone(),
             None => self.get_config_dir()?.join(CONFIG_FILE),
@@ -98,7 +96,7 @@ impl Args {
 
     /// get_genesis_file_path returns the genesis file path based on the command-line arguments and
     /// the configuration folder.
-    pub fn get_genesis_file_path(&self) -> Result<PathBuf, ConfyError> {
+    pub fn get_genesis_file_path(&self) -> Result<PathBuf> {
         Ok(match &self.genesis {
             Some(path) => path.clone(),
             None => self.get_config_dir()?.join(GENESIS_FILE),
@@ -107,26 +105,14 @@ impl Args {
 
     /// get_priv_validator_key_file_path returns the private validator key file path based on the
     /// configuration folder.
-    pub fn get_priv_validator_key_file_path(&self) -> Result<PathBuf, ConfyError> {
+    pub fn get_priv_validator_key_file_path(&self) -> Result<PathBuf> {
         Ok(self.get_config_dir()?.join(PRIV_VALIDATOR_KEY_FILE))
     }
 
-    fn load_json_file<T>(&self, file: &PathBuf) -> Result<T, ConfyError>
-    where
-        T: for<'de> serde::Deserialize<'de>,
-    {
-        let mut content = String::new();
-        File::open(file)
-            .map_err(ConfyError::OpenConfigurationFileError)?
-            .read_to_string(&mut content)
-            .map_err(ConfyError::ReadConfigurationFileError)?;
-        serde_json::from_str(&content).map_err(|e| ConfyError::GeneralLoadError(e.into()))
-    }
-
     /// load_config returns a configuration compiled from the input parameters
-    pub fn load_config(&self) -> Result<Config, ConfyError> {
+    pub fn load_config(&self) -> Result<Config> {
         let config_file = self.get_config_file_path()?;
-        let mut config: Config = confy::load_path(config_file)?;
+        let mut config: Config = load_toml_file(&config_file)?;
         if let Some(index) = self.index {
             config.moniker = format!("test-{}", index);
         }
@@ -134,18 +120,18 @@ impl Args {
     }
 
     /// load_genesis returns the validator set from the genesis file
-    pub fn load_genesis(&self) -> Result<ValidatorSet, ConfyError> {
-        self.load_json_file(&self.get_genesis_file_path()?)
+    pub fn load_genesis(&self) -> Result<ValidatorSet> {
+        load_json_file(&self.get_genesis_file_path()?)
     }
 
     /// load_private_key returns the private key either from the command-line parameter or
     /// from the priv_validator_key.json file.
-    pub fn load_private_key(&self) -> Result<PrivateKey, ConfyError> {
+    pub fn load_private_key(&self) -> Result<PrivateKey> {
         if self.private_key.is_empty()
             || self.private_key == vec![0u8; 32]
             || self.private_key.len() < 32
         {
-            self.load_json_file(&self.get_priv_validator_key_file_path()?)
+            load_json_file(&self.get_priv_validator_key_file_path()?)
         } else {
             let mut key: [u8; 32] = [0; 32];
             key.copy_from_slice(&self.private_key);
