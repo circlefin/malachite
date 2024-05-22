@@ -140,21 +140,51 @@ impl Args {
     }
 }
 
+fn load_json_file<T>(file: &Path) -> Result<T>
+where
+    T: for<'de> serde::Deserialize<'de>,
+{
+    let content = std::fs::read_to_string(file).map_err(|e| {
+        eyre!(
+            "Failed to read configuration file at {}: {e:?}",
+            file.display()
+        )
+    })?;
+
+    serde_json::from_str(&content)
+        .map_err(|e| eyre!("Failed to load configuration at {}: {e:?}", file.display(),))
+}
+
+fn load_toml_file<T>(file: &Path) -> Result<T>
+where
+    T: for<'de> serde::Deserialize<'de>,
+{
+    let content = std::fs::read_to_string(file).map_err(|e| {
+        eyre!(
+            "Failed to read configuration file at {}: {e:?}",
+            file.display()
+        )
+    })?;
+
+    toml::from_str(&content)
+        .map_err(|e| eyre!("Failed to load configuration at {}: {e:?}", file.display(),))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn args_struct() {
-        let args = Args::parse_from(&["test", "--debug", "ractor", "init"]);
+        let args = Args::parse_from(["test", "--debug", "ractor", "init"]);
         assert_eq!(args.debug, vec![DebugSection::Ractor]);
         assert_eq!(args.command, Commands::Init);
 
-        let args = Args::parse_from(&["test", "start"]);
+        let args = Args::parse_from(["test", "start"]);
         assert_eq!(args.debug, vec![]);
         assert_eq!(args.command, Commands::Start);
 
-        let args = Args::parse_from(&[
+        let args = Args::parse_from([
             "test",
             "--config",
             "myconfig.toml",
@@ -180,29 +210,25 @@ mod tests {
         #[derive(serde::Deserialize)]
         struct TestStruct {}
 
-        let args = Args::parse_from(&["test", "start"]);
+        let args = Args::parse_from(["test", "start"]);
         assert!(args.get_config_file_path().is_ok());
         assert!(args.get_genesis_file_path().is_ok());
-        assert!(args
-            .load_json_file::<TestStruct>(&PathBuf::from("nonexistent.json"))
-            .is_err());
+        assert!(load_json_file::<TestStruct>(&PathBuf::from("nonexistent.json")).is_err());
 
         let tmpfile = NamedTempFile::new().unwrap();
         let mut file = tmpfile.as_file();
         writeln!(file, "{{}}").unwrap();
-        assert!(args
-            .load_json_file::<TestStruct>(&PathBuf::from(tmpfile.path()))
-            .is_ok());
+        assert!(load_json_file::<TestStruct>(&PathBuf::from(tmpfile.path())).is_ok());
     }
 
     #[test]
     fn args_load_config() {
-        let args = Args::parse_from(&["test", "--config", "../config.toml", "start"]);
+        let args = Args::parse_from(["test", "--config", "../config.toml", "start"]);
         let config = args.load_config().unwrap();
         assert_eq!(config.moniker, "malachite");
 
         // Testnet configuration
-        let args = Args::parse_from(&[
+        let args = Args::parse_from([
             "test",
             "--config",
             "../config.toml",
@@ -216,20 +242,20 @@ mod tests {
 
     #[test]
     fn args_load_genesis() {
-        let args = Args::parse_from(&["test", "--genesis", "../genesis.json", "start"]);
+        let args = Args::parse_from(["test", "--genesis", "../genesis.json", "start"]);
         assert!(args.load_genesis().is_err());
     }
 
     #[test]
     fn args_private_key() {
-        let args = Args::parse_from(&["test", "start"]);
+        let args = Args::parse_from(["test", "start"]);
         assert!(args.load_private_key().is_err());
         assert!(args.private_key.is_empty());
 
-        let args = Args::parse_from(&["test", "--private-key", "c2VjcmV0", "start"]);
+        let args = Args::parse_from(["test", "--private-key", "c2VjcmV0", "start"]);
         assert!(args.load_private_key().is_err());
 
-        let args = Args::parse_from(&[
+        let args = Args::parse_from([
             "test",
             "--private-key",
             "c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0MDA=",
