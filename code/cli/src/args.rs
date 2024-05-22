@@ -37,7 +37,14 @@ pub struct Args {
     pub genesis: Option<PathBuf>,
 
     /// Base64-encoded private key
-    #[clap(long, default_value="", hide_default_value=true, value_name = "BASE64_STRING", env="PRIVATE_KEY", value_parser = |s: &str| {BASE64_STANDARD.decode(s)})]
+    #[clap(
+        long,
+        default_value = "",
+        hide_default_value = true,
+        value_name = "BASE64_STRING",
+        env = "PRIVATE_KEY",
+        value_parser = |s: &str| BASE64_STANDARD.decode(s)
+    )]
     pub private_key: std::vec::Vec<u8>, // Keep the fully qualified path for Vec<u8> or else clap will not be able to parse it: https://github.com/clap-rs/clap/issues/4481.
 
     /// Validator index in Romain's test network
@@ -247,11 +254,15 @@ mod tests {
     #[test]
     fn args_private_key() {
         let args = Args::parse_from(["test", "start"]);
-        assert!(args.load_private_key().is_err());
-        assert!(args.private_key.is_empty());
+        if !args.get_priv_validator_key_file_path().unwrap().exists() {
+            assert!(args.load_private_key().is_err());
+            assert!(args.private_key.is_empty());
+        }
 
         let args = Args::parse_from(["test", "--private-key", "c2VjcmV0", "start"]);
-        assert!(args.load_private_key().is_err());
+        if !args.get_priv_validator_key_file_path().unwrap().exists() {
+            assert!(args.load_private_key().is_err());
+        }
 
         let args = Args::parse_from([
             "test",
