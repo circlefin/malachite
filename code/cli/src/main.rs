@@ -1,39 +1,43 @@
 use color_eyre::eyre::Result;
 use rand::rngs::OsRng;
-use tracing::{debug, info};
+use tracing::debug;
 
-use malachite_actors::util::make_node_actor;
 use malachite_node::config::Config;
-use malachite_test::{Address, PrivateKey, ValidatorSet};
+use malachite_test::{PrivateKey, ValidatorSet};
 
-use args::Commands;
-use example::{generate_config, generate_genesis, generate_private_key};
-
+use crate::args::{Args, Commands};
+use crate::example::{generate_config, generate_genesis, generate_private_key};
 use crate::logging::LogLevel;
 
 mod args;
+mod cmd;
 mod example;
-mod init;
 mod logging;
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() -> Result<()> {
-    let args = args::Args::new();
+    let args = Args::new();
 
     logging::init(LogLevel::Debug, &args.debug);
-    debug!("Command-line parameters: {:?}", args);
 
-    if let Commands::Init = args.command {
-        init::run(
-            args.get_config_file_path()?,
-            args.get_genesis_file_path()?,
-            args.get_priv_validator_key_file_path()?,
-            args.index.unwrap_or(0),
-        )?;
+    debug!("Command-line parameters: {args:?}");
 
-        return Ok(());
+    match args.command {
+        Commands::Init => init(&args),
+        Commands::Start => start(&args).await,
     }
+}
 
+fn init(args: &Args) -> Result<()> {
+    cmd::init::run(
+        &args.get_config_file_path()?,
+        &args.get_genesis_file_path()?,
+        &args.get_priv_validator_key_file_path()?,
+        args.index.unwrap_or(0),
+    )
+}
+
+async fn start(args: &Args) -> Result<()> {
     let cfg: Config = match args.index {
         None => args.load_config()?,
         Some(index) => generate_config(index),
@@ -51,31 +55,5 @@ pub async fn main() -> Result<()> {
         Some(_) => generate_genesis(),
     };
 
-    let val_address = Address::from_public_key(&sk.public_key());
-    let moniker = cfg.moniker.clone();
-
-    info!("[{}] Starting...", &cfg.moniker);
-
-    let (tx_decision, mut rx_decision) = tokio::sync::mpsc::channel(32);
-    let (actor, handle) = make_node_actor(vs, sk, val_address, tx_decision).await;
-
-    tokio::spawn({
-        let actor = actor.clone();
-        async move {
-            tokio::signal::ctrl_c().await.unwrap();
-            info!("[{moniker}] Shutting down...");
-            actor.stop(None);
-        }
-    });
-
-    while let Some((height, round, value)) = rx_decision.recv().await {
-        info!(
-            "[{}] Decision at height {height} and round {round}: {value:?}",
-            &cfg.moniker
-        );
-    }
-
-    handle.await?;
-
-    Ok(())
+    cmd::start::run(sk, cfg, vs).await
 }

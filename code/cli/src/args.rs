@@ -16,6 +16,7 @@ use color_eyre::eyre::{eyre, Result};
 use directories::BaseDirs;
 use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
+use tracing::info;
 
 use crate::logging::DebugSection;
 
@@ -112,6 +113,7 @@ impl Args {
     /// load_config returns a configuration compiled from the input parameters
     pub fn load_config(&self) -> Result<Config> {
         let config_file = self.get_config_file_path()?;
+        info!("Loading configuration from {:?}", config_file.display());
         let mut config: Config = load_toml_file(&config_file)?;
         if let Some(index) = self.index {
             config.moniker = format!("test-{}", index);
@@ -121,7 +123,9 @@ impl Args {
 
     /// load_genesis returns the validator set from the genesis file
     pub fn load_genesis(&self) -> Result<ValidatorSet> {
-        load_json_file(&self.get_genesis_file_path()?)
+        let genesis_file = self.get_genesis_file_path()?;
+        info!("Loading genesis from {:?}", genesis_file.display());
+        load_json_file(&genesis_file)
     }
 
     /// load_private_key returns the private key either from the command-line parameter or
@@ -131,7 +135,9 @@ impl Args {
             || self.private_key == vec![0u8; 32]
             || self.private_key.len() < 32
         {
-            load_json_file(&self.get_priv_validator_key_file_path()?)
+            let priv_key_file = self.get_priv_validator_key_file_path()?;
+            info!("Loading private key from {:?}", priv_key_file.display());
+            load_json_file(&priv_key_file)
         } else {
             let mut key: [u8; 32] = [0; 32];
             key.copy_from_slice(&self.private_key);
