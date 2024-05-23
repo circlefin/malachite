@@ -13,6 +13,7 @@ use crate::signing::*;
 use crate::validator_set::*;
 use crate::value::*;
 use crate::vote::*;
+use crate::BlockPart;
 
 #[derive(Clone, Debug)]
 pub struct TestContext {
@@ -29,6 +30,7 @@ impl TestContext {
 
 impl Context for TestContext {
     type Address = Address;
+    type BlockPart = BlockPart;
     type Height = Height;
     type Proposal = Proposal;
     type ValidatorSet = ValidatorSet;

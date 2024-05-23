@@ -56,3 +56,15 @@ message SignedProposal {
 message Transaction {
     optional bytes value = 1;
 }
+
+message BlockPart {
+    Height height = 1;
+    Round round = 2;
+    uint64 sequence = 3;
+    repeated Transaction block_part = 4; // TODO use google.protobuf.Any for different impls
+}
+
+message SignedBlockPart {
+    BlockPart block_part = 1;
+    bytes signature = 2;
+}

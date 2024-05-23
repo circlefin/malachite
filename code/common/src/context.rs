@@ -1,5 +1,5 @@
 use crate::{
-    Address, Height, NilOrVal, Proposal, PublicKey, Round, SignedProposal, SignedVote,
+    Address, BlockPart, Height, NilOrVal, Proposal, PublicKey, Round, SignedProposal, SignedVote,
     SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
 };
 
@@ -9,6 +9,9 @@ pub trait Context
 where
     Self: Sized + Clone + Send + Sync + 'static,
 {
+    /// The type of block part
+    type BlockPart: BlockPart<Self>;
+
     /// The type of address of a validator.
     type Address: Address;
 

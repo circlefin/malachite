@@ -150,13 +150,24 @@ where
         myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
-        if let GossipEvent::Message(from, Channel::Consensus, data) = event {
-            let from = PeerId::new(from.to_string());
-            let msg = NetworkMsg::from_network_bytes(data).unwrap();
+        match event {
+            GossipEvent::Message(from, Channel::Consensus, data) => {
+                let from = PeerId::new(from.to_string());
+                let msg = NetworkMsg::from_network_bytes(data).unwrap();
 
-            info!("Received message from peer {from}: {msg:?}");
+                info!("Received consensus message from peer {from}: {msg:?}");
 
-            self.handle_network_msg(from, msg, myself, state).await?;
+                self.handle_network_msg(from, msg, myself, state).await?;
+            }
+            GossipEvent::Message(from, Channel::BlockParts, data) => {
+                let from = PeerId::new(from.to_string());
+                let msg = NetworkMsg::from_network_bytes(data).unwrap();
+
+                info!("Received block part message from peer {from}: {msg:?}");
+
+                self.handle_network_msg(from, msg, myself, state).await?;
+            }
+            _ => {}
         }
 
         Ok(())
@@ -206,6 +217,9 @@ where
                     return Ok(());
                 };
 
+                // TODO - proposals with invalid signatures should be dropped.
+                // For well signed we should validate the proposal against the block parts (if all received).
+                // Add `valid()` to Context.
                 let valid = self
                     .ctx
                     .verify_signed_proposal(&signed_proposal, validator.public_key());
@@ -218,6 +232,7 @@ where
                     Validity::from_valid(valid),
                 )))?;
             }
+            NetworkMsg::BlockPart(_) => {}
         }
 
         Ok(())
@@ -678,7 +693,7 @@ where
                             debug!("Received gossip event at round -1, queuing for later");
                             state.msg_queue.push_back(Msg::GossipEvent(event));
                         } else if state.driver.height().as_u64() < msg_height {
-                            debug!("Received gossip event for higher height");
+                            debug!("Received gossip event for higher height, queuing for later");
                             state.msg_queue.push_back(Msg::GossipEvent(event));
                         } else if state.driver.height().as_u64() == msg_height {
                             self.handle_gossip_event(event.as_ref(), myself, state)

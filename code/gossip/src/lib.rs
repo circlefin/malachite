@@ -21,11 +21,12 @@ use handle::Handle;
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Channel {
     Consensus,
+    BlockParts,
 }
 
 impl Channel {
     pub fn all() -> &'static [Channel] {
-        &[Channel::Consensus]
+        &[Channel::Consensus, Channel::BlockParts]
     }
 
     pub fn to_topic(self) -> gossipsub::IdentTopic {
@@ -39,6 +40,7 @@ impl Channel {
     pub fn as_str(&self) -> &'static str {
         match self {
             Channel::Consensus => "/consensus",
+            Channel::BlockParts => "/blockparts",
         }
     }
 
@@ -51,6 +53,7 @@ impl Channel {
     pub fn from_topic_hash(topic: &gossipsub::TopicHash) -> Option<Self> {
         match topic.as_str() {
             "/consensus" => Some(Channel::Consensus),
+            "/blockparts" => Some(Channel::BlockParts),
             _ => None,
         }
     }
