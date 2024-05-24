@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Malachite configuration options
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
-    /// A custom human readable name for this node
+    /// A custom human-readable name for this node
     pub moniker: String,
     /// P2P configuration options
     pub p2p: P2pConfig,
@@ -24,11 +24,30 @@ pub struct P2pConfig {
     pub persistent_peers: Vec<Multiaddr>,
 }
 
+impl Default for P2pConfig {
+    fn default() -> Self {
+        Self {
+            listen_addr: Multiaddr::empty(),
+            persistent_peers: vec![],
+        }
+    }
+}
+
 /// Consensus configuration options
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ConsensusConfig {
     #[serde(flatten)]
     pub timeouts: TimeoutConfig,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            moniker: "node-007".to_string(),
+            p2p: Default::default(),
+            consensus: Default::default(),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]

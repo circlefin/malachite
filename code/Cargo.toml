@@ -46,12 +46,15 @@ malachite-test    = { version = "0.1.0", path = "test" }
 malachite-vote    = { version = "0.1.0", path = "vote" }
 
 async-trait        = "0.1.77"
-clap               = { version = "4.5.4", features = ["derive"] }
+base64             = "0.22.0"
+clap               = "4.5.4"
 color-eyre         = "0.6"
 derive-where       = "1.2.7"
+directories        = "5.0.1"
 ed25519-consensus  = "2.1.0"
 futures            = "0.3"
 glob               = "0.3.0"
+hex                = { version = "0.4.3", features = ["serde"] }
 humantime-serde    = "1.1.1"
 itertools          = "0.13"
 itf                = "0.2.3"
@@ -78,3 +81,4 @@ tokio-stream       = "0.1"
 toml               = "0.8.10"
 tracing            = "0.1.40"
 tracing-subscriber = "0.3.18"
+tempfile           = "3.10.1"
