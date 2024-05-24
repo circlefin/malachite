@@ -273,8 +273,7 @@ pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: Fork
 // Functions for Provers
 //
 
-pure def makeProof (l2: List[L2Block], to_height: Height, l1: List[L1Block]) : L2Proof = 
-    val from_height = l1.last().provenHeight + 1
+pure def makeProof (l2: List[L2Block], from_height: Height, to_height: Height) : L2Proof = 
     if (from_height <= to_height and to_height < l2.length())
         val listToProve = l2.slice(from_height, to_height + 1)
         val provable = listToProve.foldl(true, (s, x) => s and x.provable)

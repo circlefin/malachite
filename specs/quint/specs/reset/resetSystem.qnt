@@ -84,6 +84,28 @@ def InvalidRegistrationProofRejectedInv =
         }
     implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
 
+// If there is no (valid) proof or the proof is for a lower height, then the proof should
+// be rejected (provenHeight should remain unchanged)
+def OldProofRejectedInv =
+    L1.length() > 1 and 
+        match L1.last().newProof {
+            | None => true
+            | Invalid => true
+            | Proof(p) => p.from_height <= L1[L1.length() -2].provenHeight
+        }
+    implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
+
+// If there is no (valid) proof or the proof is for a too large height, then the proof should
+// be rejected (provenHeight should remain unchanged)
+def FutureProofRejectedInv =
+    L1.length() > 1 and 
+        match L1.last().newProof {
+            | None => true
+            | Invalid => true
+            | Proof(p) => p.from_height > L1[L1.length() -2].provenHeight + 1
+        }
+    implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
+
 
 //
 // Local L2 invariants
@@ -111,11 +133,10 @@ def strictlyMonotonicHeightInv =
 // first line important: we only have unstanged registrations which have seq_num
 // greater than highest_staged_seq_num
 // this ensures that we don't apply a registration twice
-// TODO test
-def stagedInv = all {
+def stagedInv = and (
     L2.last().unstagedUpdates.forall(r => r.seq_num > L2.last().highest_staged_seq_num),
     L2.last().stagedUpdates.forall(r => r.seq_num <= L2.last().highest_staged_seq_num)
-} 
+)
 
 
 //
@@ -174,7 +195,13 @@ def staleWitness = not(L1.last().existsStaleInBlock())
 
 // forkID of last element is 0
 // if used as invariant and violated, we have an example with a reset
-def ResetWitness = L2.last().forkID == 0
+def resetWitness = L2.last().forkID == 0
+
+// as above, but ensures that before the reset a proof was accepted at L1
+def resetAfterProofWitness = or (
+    L2.last().forkID == 0,
+    L1.last().provenHeight == 0
+)
 
 // Witness that a proof for a forked L2 is accepted on L1
 // doesn't work with --step "stepNoRegs"
@@ -239,9 +266,6 @@ def InvalidRegReachesL1Witness =
 // comes in just in time. The registrations actually don't become stale
 // This trace does not exists. The problem is that the "not(existsStale(..." condition
 // increases the expected forkID, while the proof was constructed for the previous Eth time
-// TODO: discuss and potentially turn into an invariant. (Perhaps we could use the previous
-// forkID in proofOK, but we decided that we shouldn't do it, as this would violate
-// noStaleWithProofInv)
 // The run lastPossibleL1BlockWitnessRun shows the behavior
 def lastPossibleL1BlockWitnessCanidate = 
     (L1.length() > 1 and validProof(L1[L1.length() - 1], L1[L1.length() - 2]))
@@ -305,26 +329,43 @@ def processedRegConfirmedNoForkWitness =
     }
 
 
-// Should fail if transition system allows invalid transactions to be added to L2
-// transition relation "Step or addL2BlockInvalidReg"
+
 // there is a proof with invalid registration, and the proof is rejected.    
-// TODO: figure out
-def InvalidRegistrationProofAcceptedWitness =
+// needs --step "stepWithInvalidRegs"
+def InvalidRegistrationProofRejectedWitness =
     and (
         L1.length() > 1, 
-        L1.last().newProof != None, 
-        L1.last().newProof != Invalid,
-    match L1.last().newProof {
-        | None => true
-        | Invalid => true
-        | Proof(p) => p.confirmedRegs.contains( { amount: 0, eth_epoch: 0, seq_num: 0, starknet_addr: "INVALID" })
-    })
-    implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
+        match L1.last().newProof {
+            | None => false
+            | Invalid => false
+            | Proof(p) => p.confirmedRegs.contains( { amount: 0, eth_epoch: 0, seq_num: 0, starknet_addr: "INVALID" })
+        }
+    )
+    implies L1.last().provenHeight > L1[L1.length() -2].provenHeight   
 
 // Generates a trace where an unprovable block is dismissed with --step "step"
 // fails to do so under quint --step "stepNoRegs"
 def UnprovableBlockDismissedWitness = 
     prevDeletedL2blocks.select(x => not(x.provable)).length() == 0
+
+def OldProofRejectedWitness =
+    L1.length() > 1 and 
+        match L1.last().newProof {
+            | None => false
+            | Invalid => false
+            | Proof(p) => p.from_height <= L1[L1.length() -2].provenHeight 
+                            and p.from_height > 1 // to make the witness more interesting
+        }
+    implies L1.last().provenHeight > L1[L1.length() -2].provenHeight   
+
+def FutureProofRejectedWitness =
+    L1.length() > 1 and 
+        match L1.last().newProof {
+            | None => false
+            | Invalid => false
+            | Proof(p) => p.from_height > L1[L1.length() -2].provenHeight + 1
+        }
+    implies L1.last().provenHeight > L1[L1.length() -2].provenHeight   
 
 
 // TODO: deadlock?
@@ -349,7 +390,7 @@ def invalidated (b: L2Block) : bool =
     L1.last().l2forkID > b.forkID
 
 def valid (b: L2Block) : bool = 
-    match makeProof(L2, b.height, L1) {
+    match makeProof(L2, L1.last().provenHeight + 1, b.height) {
         | Invalid => false
         | None => false
         | Proof(bp) => proofOK (L1.last().provenHeight, 
@@ -441,7 +482,7 @@ action init =
                 unfulfilled_updates: Set(),
                 provenHeight: 0, // initial state proven?
                 l2forkID: 0,
-                latestProvenL2BlockHash: initialL2Block, // TODO: the initialization seems to need a specific proof
+                latestProvenL2BlockHash: initialL2Block, // Remark: the initialization seems to need a specific proof
                 highest_sub_seq_num: 0,
                 }),
     L2' = List(initialL2Block),
@@ -468,7 +509,7 @@ action addRegistration = all {
 action addL1Block = all {
     nondet someHeight = SafeL2Range(-1, L2.length() - 1).oneOf() 
     nondet blocktimeDelta = 1.to(MaxEthBlockTime).oneOf()
-    val newproof = makeProof(L2, someHeight, L1)   
+    val newproof = makeProof(L2, L1.last().provenHeight + 1, someHeight)   
         // if someheight < provenHeight this will give Invalid proof
         // this can potentially generate a proof that is valid now, but because blocktimeDelta
         // pushes L1 to the next epoch, the proof will actually not be accepted.
@@ -494,9 +535,6 @@ action addL2Block = all {
 action reset = all {
     nondet provable = Set(true, false).oneOf()  
     if (existsStaleInBlock(L1.last()) and L2.last().forkID != L1.last().l2forkID)
-        // TODO debug to make sure L1 last forkID and stale are handled on the right L1 block
-        // there is an off by one issue. 
-        // AND last block on L2 must have old fork id TODO: important
         all{
             L2' = L2.slice(0, L1.last().provenHeight + 1)
                     .append(forkBlock(
@@ -525,7 +563,25 @@ action step = any {
     reset               // this is asynchronous now. We should link it to L1 block generation
 }
 
-action stepProvableL2Blocks = any {
+action stepWithPotentiallyOldProofs = any {
+    addRegistration,    
+    addL1Block,
+    addL1BlockWithOldProof,
+    addL2Block, 
+    reset      
+}
+
+action stepWithPotentiallyFutureProofs = any {
+    addRegistration,    
+    addL1Block,
+    addL1BlockWithFutureProof,
+    addL2Block, 
+    reset      
+}
+
+
+
+action stepProvableL2BlocksOnly = any {
     addRegistration,    
     addL1Block,         
     nondet regs = L1.last().unfulfilled_updates.powerset().oneOf()
@@ -551,19 +607,45 @@ action addL1BlockNoProof (blocktimeDelta) = all {
     prevDeletedL2blocks' = prevDeletedL2blocks,
 }        
 
-// TODO action that generates a proof 
-// And the L1 actions will then try to get this proof onto the chain
+// Remark: We could change the encoding so that an action generates a proof and
+// stores it in a state, and then later an L1 actions will then try to get this 
+// proof onto the chain. At the moment, I don't see what additional behavior we
+// can get. Proofs can already expire in the current encod
 
 // for repl and writing tests
 action addL1BlockProofWithHeight(h, blocktimeDelta) = all {
-    val newproof = makeProof(L2, h, L1)
+    val newproof = makeProof(L2, L1.last().provenHeight + 1, h)
     L1' = L1.append(newL1Block(L1.last(), envRegs, newproof, blocktimeDelta)),
     L2' = L2,
     envRegs' = Set(),
     prevDeletedL2blocks' = prevDeletedL2blocks,
 }        
 
+action addL1BlockWithOldProof = all {
+    nondet blocktimeDelta = 1.to(MaxEthBlockTime).oneOf()
+    nondet from_height = 0.to(L1.last().provenHeight).oneOf()
+    nondet to_height = L1.last().provenHeight.to(L2.length() - 1).oneOf()
+    val newproof = makeProof(L2, from_height, to_height)
+    L1' = L1.append(newL1Block(L1.last(), envRegs, newproof, blocktimeDelta)),
+    L2' = L2,
+    envRegs' = Set(),
+    prevDeletedL2blocks' = prevDeletedL2blocks,
+}        
 
+action addL1BlockWithFutureProof = all {
+    // precondition
+    L2.length() > 2,
+    L1.last().provenHeight+2 <= L2.length() - 1,
+    // action
+    nondet blocktimeDelta = 1.to(MaxEthBlockTime).oneOf()
+    nondet from_height =  (L1.last().provenHeight+2).to(L2.length() - 1).oneOf()
+    nondet to_height = from_height.to(L2.length() - 1).oneOf()
+    val newproof = makeProof(L2, from_height, to_height)
+    L1' = L1.append(newL1Block(L1.last(), envRegs, newproof, blocktimeDelta)),
+    L2' = L2,
+    envRegs' = Set(),
+    prevDeletedL2blocks' = prevDeletedL2blocks,
+}        
 
 // for repl and writing tests
 action addL2BlockParams (regs: Set[Registration], provable: bool) : bool = all {

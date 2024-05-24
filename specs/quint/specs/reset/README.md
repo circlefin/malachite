@@ -9,6 +9,8 @@ We used `quint run` to conduct random simulation, and checked that the invariant
     - `provenHeightMonotonic`: provenHeight on L1 is non-decreasing
     - `L1ForkIDMonotonic`: ForkID on L1 is non-decreasing
     - `InvalidRegistrationProofRejectedInv`: If there is no (valid) proof or the proof contains an invalid registration, then the proof should be rejected, by checking that provenHeight remains unchanged  (checked also for `--step "stepWithInvalidRegs"`)
+    - `OldProofRejectedInv`: If the proof starts from a block smaller than provenHeight it is rejected. (checked also with step `stepWithPotentiallyOldProofs`)
+    - `FutureProofRejectedInv`: If the proof starts from a block with height greater than provenHeight + 1 it is rejected. (checked also with step `stepWithPotentiallyFutureProofs`)
 
 - Local L2 invariants
     - `monotonicForkIDInv`: ForkID on L2 is non-decreasing
@@ -31,7 +33,8 @@ This also means that the invariants hold under `--step "stepNoRegs"` (as there a
 We used `quint run` so that random simulation reaches a violation of the properties. The resulting trace ends in an interesting state (that is defined by the negation of the property; in the text below we describe the reached state directly)
 
 - `staleWitness`: generates a trace where the last block on L1 contains a stale registration
-- `ResetWitness`: generates a trace where the last block on L2 comes after a reset (new forkID)
+- `resetWitness`: generates a trace where the last block on L2 comes after a reset (new forkID)
+- `resetAfterProofWitness`: as above, but before the reset a proof was accepted on L1 (i.e., provenHeight > 0)
 - `forkProvedWitness`: generates a trace where after a fork the proof is accepted on L1
 - `ConfirmedWitness`: generates a trace where in the last L1 block a registration was confirmed
 - `ProofNotAcceptedWitness`: generates a trace where the proof submitted to L1 was not accepted
@@ -50,6 +53,10 @@ TODO: this is a corner case. Experiments showed that it doesn't exists. See disc
 - `processedRegConfirmedWitness`: generates a trace where a registration is confirmed on L1 but not any more in staged or unstaged (or it never has been in these sets in case of the registration was added into L2 in a fork block)
 - `processedRegConfirmedNoForkWitness`: similar to previous, but last L2 block is no fork block
 
+- `OldProofRejectedWitness`: A proof that starts from a smaller L2 height than the proven height stored on L1 gets rejected; needs `--step "stepWithPotentiallyOldProofs"`
+
+- `FutureProofRejectedWitness`. Similar as above with larger height; needs `--step "stepWithPotentiallyFutureProofs"`
+
 ### No registrations
 
 Registrations are crucial for progress. Using `--step "stepNoRegs"` we can generate traces without registrations. We see that the following witnesses from above actually don't appear:
@@ -60,13 +67,14 @@ Registrations are crucial for progress. Using `--step "stepNoRegs"` we can gener
 - `ProofNotAcceptedWitness` (No registrations can become stale, and the property doesn't capture non-accepted invalid proofs, or no proofs)
 - `unsuccessfulResetWitness`
 
- The main reason is that without registrations there are no resets, and all witness that are linked to resets cannot be reproduced.
+The main reason is that without registrations there are no resets, and all witness that are linked to resets cannot be reproduced.
 
-The witness `ProofAcceptedWitness` still works.
+The witness `ProofAcceptedWitness` still works without registrations.
 
 ### Injected invalid registrations
 
-- `InvalidRegReachesL1Witness` generates a trace ( with `--step "stepWithInvalidRegs"`, while with the standard step, it is an invariant) where a proof is rejected on L1 because there is an invalid registration in the proof. 
+- `InvalidRegReachesL1Witness` generates a trace ( with `--step "stepWithInvalidRegs"`, while with the standard step, it is an invariant) where an invalid registration reaches L1. 
+- `InvalidRegistrationProofRejectedWitness` as above, but also asserts that proof is rejected
 
 ## Temporal properties
 
