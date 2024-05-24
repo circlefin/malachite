@@ -178,6 +178,12 @@ def atMostOneResetPerForkIDInv =
             .forall (i => l[i].forkID != l[i+1].forkID or l[i].height <= l[i+1].height)
 
 
+def noProvenRegistrationsUnfulfilledInv =
+    val provenPrefix = L2.select(x => x.height <= L1.last().provenHeight)
+    val received_regs = provenPrefix.foldl(Set(), (s,x) => s.union(x.registrations))
+    L1.last().unfulfilled_updates.intersect(received_regs) == Set()
+
+
 //
 // Interesting reachable states
 //

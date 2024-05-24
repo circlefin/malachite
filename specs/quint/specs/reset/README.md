@@ -25,7 +25,8 @@ We used `quint run` to conduct random simulation, and checked that the invariant
     - `finalizationInv`: L2 is never rolled-back below provenHeight stored on L1
     - `oneForkIDperProofInv`: all L2 blocks that are proven within one proof on L1, have the same forkID
     - `atMostOneResetPerForkIDInv`: L2 chain shouldn't roll back twice one same forkID 
-
+    - `noProvenRegistrationsUnfulfilledInv`: If a registration is in the proven prefix of L2, it must not be unfulfilled on L1
+    
 This also means that the invariants hold under `--step "stepNoRegs"` (as there are less behaviors).
 
 ## Interesting properties

@@ -64,6 +64,7 @@ run splitBrainDeadlock =
     init
     .then(moveOneRegToL1ToL2) 
     .then(addL1BlockSplitBrainProof)
+    .expect(not(noProvenRegistrationsUnfulfilledInv)) // invariant violated
 
 
 run simpleTest = 
