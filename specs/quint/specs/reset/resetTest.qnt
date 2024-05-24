@@ -60,12 +60,17 @@ run invalidRegistrationTest =
     .expect(L1.last().provenHeight == 0)    // proof rejected /  provenHeight still 0
 
 
+run splitBrainDeadlock = 
+    init
+    .then(moveOneRegToL1ToL2) 
+    .then(addL1BlockSplitBrainProof)
+
 
 run simpleTest = 
     init
     .then(all{assert(L1.length() == 1), addL1Block})
     .then(all{assert(L1.length() == 2), addL1Block})
-
+    .then(addL1BlockNoProof(5))
 
 
 }

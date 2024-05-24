@@ -506,6 +506,14 @@ action addRegistration = all {
     prevDeletedL2blocks' = prevDeletedL2blocks,
 }
 
+action addL1BlockParams (proof, blocktimeDelta) = all {
+    L1' = L1.append(newL1Block(L1.last(), envRegs, proof, blocktimeDelta)),
+    L2' = L2,
+    envRegs' = Set(),
+    prevDeletedL2blocks' = prevDeletedL2blocks,
+}
+
+
 action addL1Block = all {
     nondet someHeight = SafeL2Range(-1, L2.length() - 1).oneOf() 
     nondet blocktimeDelta = 1.to(MaxEthBlockTime).oneOf()
@@ -514,18 +522,16 @@ action addL1Block = all {
         // this can potentially generate a proof that is valid now, but because blocktimeDelta
         // pushes L1 to the next epoch, the proof will actually not be accepted.
     nondet submProof = Set(newproof, None).oneOf()
-    L1' = L1.append(newL1Block(L1.last(), envRegs, submProof, blocktimeDelta)),
-    L2' = L2,
-    envRegs' = Set(),
-    prevDeletedL2blocks' = prevDeletedL2blocks,
+    addL1BlockParams(submProof, blocktimeDelta)
 }
 
 action addL2Block = all {
-    nondet regs = L1.last().unfulfilled_updates.powerset().oneOf()
-    nondet provable = Set(true, false).oneOf()  
+    val previously_rcvd_regs = L2.foldl(Set(), (s, x) => s.union(x.registrations)) // to ensure at-most-once
+    val potential_regs = L1.last().unfulfilled_updates.exclude(previously_rcvd_regs)
+    nondet regs = potential_regs.powerset().oneOf()
         // This doesn't replay confirmed registrations
-        // And it doesn't ensure at most once semantics for transferring registrations
         // And it doesn't allow to add invalid registrations, that is, ones that are not in L1.
+    nondet provable = Set(true, false).oneOf()  
     L2' = L2.append(newL2Block(L2, regs, provable)),
     L1' = L1,
     envRegs' = envRegs,
@@ -543,7 +549,6 @@ action reset = all {
                             L1.last().provenHeight + 1, 
                             L1.last().l2forkID,
                             provable)), 
-                // TODO: write more involved test that fails old_reset
             prevDeletedL2blocks' = prevDeletedL2blocks
                                     .concat(L2.slice(L1.last().provenHeight + 1, L2.length())), 
         }
@@ -599,13 +604,6 @@ action stepNoRegs = any {
 // Extra actions to drive tests in a fine-grained way
 //
 
-// for repl and writing tests
-action addL1BlockNoProof (blocktimeDelta) = all {             
-    L1' = L1.append(newL1Block(L1.last(), envRegs, None, blocktimeDelta)),
-    L2' = L2,
-    envRegs' = Set(),
-    prevDeletedL2blocks' = prevDeletedL2blocks,
-}        
 
 // Remark: We could change the encoding so that an action generates a proof and
 // stores it in a state, and then later an L1 actions will then try to get this 
@@ -613,12 +611,39 @@ action addL1BlockNoProof (blocktimeDelta) = all {
 // can get. Proofs can already expire in the current encod
 
 // for repl and writing tests
+action addL1BlockNoProof (blocktimeDelta) = all {             
+        addL1BlockParams(None, blocktimeDelta)
+}        
+
+val badL2Block = {
+    height: -1,
+    forkID: -1, 
+    registrations: Set(),
+    valset: Map(), 
+    stagedUpdates: Set(),
+    unstagedUpdates: Set(),
+    highest_staged_seq_num: -1,
+    provable: true, 
+}
+
+action addL1BlockSplitBrainProof = all{
+    nondet someHeight = SafeL2Range(L1.last().provenHeight + 1, L2.length() - 1).oneOf() 
+    nondet blocktimeDelta = 1.to(MaxEthBlockTime).oneOf()
+    val newproof = makeProof(L2, L1.last().provenHeight + 1, someHeight)   
+    val submProof = match newproof {
+        | None => None
+        | Invalid => Invalid
+        | Proof(p) => Proof({... p, confirmedRegs: Set(), resultingBlock: badL2Block})
+    }
+    addL1BlockParams(submProof, blocktimeDelta)
+}
+
+
+
+// for repl and writing tests
 action addL1BlockProofWithHeight(h, blocktimeDelta) = all {
     val newproof = makeProof(L2, L1.last().provenHeight + 1, h)
-    L1' = L1.append(newL1Block(L1.last(), envRegs, newproof, blocktimeDelta)),
-    L2' = L2,
-    envRegs' = Set(),
-    prevDeletedL2blocks' = prevDeletedL2blocks,
+    addL1BlockParams(newproof, blocktimeDelta)
 }        
 
 action addL1BlockWithOldProof = all {
@@ -626,10 +651,7 @@ action addL1BlockWithOldProof = all {
     nondet from_height = 0.to(L1.last().provenHeight).oneOf()
     nondet to_height = L1.last().provenHeight.to(L2.length() - 1).oneOf()
     val newproof = makeProof(L2, from_height, to_height)
-    L1' = L1.append(newL1Block(L1.last(), envRegs, newproof, blocktimeDelta)),
-    L2' = L2,
-    envRegs' = Set(),
-    prevDeletedL2blocks' = prevDeletedL2blocks,
+    addL1BlockParams(newproof, blocktimeDelta)
 }        
 
 action addL1BlockWithFutureProof = all {
@@ -641,11 +663,10 @@ action addL1BlockWithFutureProof = all {
     nondet from_height =  (L1.last().provenHeight+2).to(L2.length() - 1).oneOf()
     nondet to_height = from_height.to(L2.length() - 1).oneOf()
     val newproof = makeProof(L2, from_height, to_height)
-    L1' = L1.append(newL1Block(L1.last(), envRegs, newproof, blocktimeDelta)),
-    L2' = L2,
-    envRegs' = Set(),
-    prevDeletedL2blocks' = prevDeletedL2blocks,
+    addL1BlockParams(newproof, blocktimeDelta)
 }        
+
+
 
 // for repl and writing tests
 action addL2BlockParams (regs: Set[Registration], provable: bool) : bool = all {
