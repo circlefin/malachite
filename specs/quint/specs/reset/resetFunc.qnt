@@ -77,6 +77,7 @@ type L2Block = {
     unstagedUpdates: Set[Registration],
     highest_staged_seq_num: int, // we need this explicitly in case the stagedUpdates becomes empty
     // proofs not modelled here
+    provable: bool, // this models that something went wrong on block production
 }
 
 //
@@ -210,7 +211,7 @@ pure def denseSubset (regs: Set[Registration], highest: int) : Set[Registration]
 // Compute an L2 block in the normal case (no reset)
 // block is computed on top of the L2 chain, with new registrations
 //
-pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block = 
+pure def newL2Block (chain: List[L2Block], regs: Set[Registration], provable: bool) : L2Block = 
     val prev = last(chain)
     if (chain.length() % L2EpochSize == 0) // new epoch
         val toStaged = prev.unstagedUpdates.denseSubset(prev.highest_staged_seq_num)
@@ -226,6 +227,7 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
             forkID: prev.forkID,
             registrations: regs, 
             highest_staged_seq_num: highest,
+            provable: provable,
         }   
     else
         {   valset: prev.valset, 
@@ -237,6 +239,7 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
             forkID: prev.forkID,
             registrations: regs, 
             highest_staged_seq_num: prev.highest_staged_seq_num,
+            provable: provable,
         }
 
 
@@ -246,7 +249,7 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration]) : L2Block =
 // TODO: test with forkBlock that misses stale registrations
 // Question: Is it the case that the forkblock must not include any unstale registrations? 
 //           The current encoding allows unstale registrations, as long as there are no gaps.
-pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: ForkID) : L2Block =
+pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: ForkID, provable: bool) : L2Block =
     val allRegs = prev.unstagedUpdates.union(prev.stagedUpdates).union(regs) 
         // we clarified this point with Matan on the Google doc, that initially only taked about 
         // staged and stale, but didn't consider unstaged
@@ -261,6 +264,7 @@ pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: Fork
         stagedUpdates: Set(),
         unstagedUpdates: toUnstaged, 
         highest_staged_seq_num: highest,
+        provable: provable,
     }
 
 
@@ -273,20 +277,17 @@ pure def makeProof (l2: List[L2Block], to_height: Height, l1: List[L1Block]) : L
     val from_height = l1.last().provenHeight + 1
     if (from_height <= to_height and to_height < l2.length())
         val listToProve = l2.slice(from_height, to_height + 1)
-        val regs = listToProve.foldl (Set(), (s, x) => s.union(x.registrations))
-        val newforkID = listToProve.last().forkID
-        Proof({ from_height: from_height,
-                to_height: to_height,
-                confirmedRegs: regs,
-                forkID: newforkID,
-                resultingBlock: l2[to_height]})
+        val provable = listToProve.foldl(true, (s, x) => s and x.provable)
+        if (not(provable)) None
+        else
+            val regs = listToProve.foldl (Set(), (s, x) => s.union(x.registrations)) // collect all registrations
+            val newforkID = listToProve.last().forkID
+            Proof({ from_height: from_height,
+                    to_height: to_height,
+                    confirmedRegs: regs,
+                    forkID: newforkID,
+                    resultingBlock: l2[to_height]})
     else
         Invalid
-
-
-
-
-
-
 
 }

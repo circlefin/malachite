@@ -14,7 +14,7 @@ export resetFunc.*
 //
 //
 
-var L1: List[L1Block] // this is a super simplification and doesn't consider non-finalized Eth blocks
+var L1: List[L1Block] // this is a simplification and doesn't consider non-finalized Eth blocks
 var L2: List[L2Block]
 var envRegs: Set[Registration]
 var prevDeletedL2blocks: List[L2Block] 
@@ -23,9 +23,9 @@ var prevDeletedL2blocks: List[L2Block]
 // Auxiliary functions to limit ranges to allow verification with Apalache
 // see https://apalache.informal.systems/docs/apalache/known-issues.html#integer-ranges-with-non-constant-bounds
 //
-val minL2Height = -1
-val maxL2Height = 100
-val maxDeletedL2Height = 100
+pure val minL2Height = -1
+pure val maxL2Height = 100
+pure val maxDeletedL2Height = 100
 
 def SafeL2Range(a,b) = 
     minL2Height.to(maxL2Height).filter(i => a <= i and i <= b)
@@ -176,16 +176,32 @@ def staleWitness = not(L1.last().existsStaleInBlock())
 // if used as invariant and violated, we have an example with a reset
 def ResetWitness = L2.last().forkID == 0
 
+// Witness that a proof for a forked L2 is accepted on L1
+// doesn't work with --step "stepNoRegs"
+def forkProvedWitness = 
+    (L1.length() > 2) implies 
+    (L1.last().provenHeight > L1[L1.length() -2].provenHeight implies
+        match L1.last().newProof {
+            | None => true
+            | Invalid => true
+            | Proof(p) => p.forkID == 0
+    }
+    )
+
+
 // No registration is ever confirmed (i.e., removed from unfulfilled_updates)
 // if used as invariant and violated, we have an example where a registration
 // is removed from pending
-def ConfirmedWitness = (
-    L1.length() > 2) implies 
+def ConfirmedWitness = 
+    (L1.length() > 2) implies 
     L1[L1.length() - 2].unfulfilled_updates.subseteq(L1.last().unfulfilled_updates) 
 
 // fails if incorrect proof is submitted to L1 
 // (e.g., if a stale registration is not confirmed)
 // it fails if there is a proof in the L1 block but the provenHeight has not increased 
+// Use 
+// quint run --invariant "ProofNotAcceptedWitness" --seed=0x71e774273d5b9 resetTest.qnt 
+// to reproduce for wrong forkID.
 def ProofNotAcceptedWitness = 
     and (
         L1.length() > 1, 
@@ -205,7 +221,8 @@ def unsuccessfulResetWitness =
 
 
 
-
+// reaches a state where the proof submitted to L1 contains an invalid registration
+// needs --step "stepWithInvalidRegs" to find a trace
 def InvalidRegReachesL1Witness = 
     match L1.last().newProof {
         | None => true
@@ -304,6 +321,17 @@ def InvalidRegistrationProofAcceptedWitness =
     })
     implies L1.last().provenHeight == L1[L1.length() -2].provenHeight   
 
+// Generates a trace where an unprovable block is dismissed with --step "step"
+// fails to do so under quint --step "stepNoRegs"
+def UnprovableBlockDismissedWitness = 
+    prevDeletedL2blocks.select(x => not(x.provable)).length() == 0
+
+
+// TODO: deadlock?
+// TODO: splitbrain
+// TODO: bugs are possible. issues on consensus level. faulty participant.
+
+
 
 //
 // Block properties
@@ -332,6 +360,15 @@ def valid (b: L2Block) : bool =
     }
 
 
+// The following temporal properties below are just here for documentation. Apalache
+// has some basic temporal model checking capabilities, but does not support the 
+// logic fragement in which these properties are expressed, e.g., alternations of
+// temporal operators (i.e., always and eventually), and set quantifieres (forall).
+// We should
+// either find human arguments to support them, or write some test cases to capture
+// intuition. Also, strictly speaking, most of the temporal properties are violated
+// as they would require underlying fairness, e.g., that infinitely often a block is
+// added to L1 and to L2.
 
 // If a block is finalized it stays finalized (that is, it is never removed from L2)
 temporal stableFinalized = always(
@@ -364,6 +401,11 @@ temporal validProgress = always(
         (valid(b) implies eventually(finalized(b) or invalidated(b))))
 )
 
+// unprovable block leads to fork
+temporal UnprovableBlock = always (
+    L2.toSet().forall(x => not(x.provable) implies eventually(L2.last().forkID > x.forkID))
+)
+
 
 // For every height there is eventually a finalized block of that height
 temporal finalizedLiveness = 
@@ -389,6 +431,7 @@ action init =
         stagedUpdates: Set(),
         unstagedUpdates: Set(),
         highest_staged_seq_num: 0,
+        provable: true,
         //receivedRegistrations: Set(),
     }
     all {
@@ -411,7 +454,7 @@ action addRegistration = all {
     nondet newVal = ValAddresses.oneOf()
     nondet power = minReg.to(maxReg).oneOf()
     val newReg = {
-        eth_epoch: -1, //TODO: put -1 here and set epoch when put into L1 Block
+        eth_epoch: -1, // we put -1 here and set epoch when put into L1 Block
         seq_num: L1.last().highest_sub_seq_num + envRegs.size() + 1, // encodes unique registration index
         starknet_addr: newVal,
         amount: power
@@ -437,31 +480,34 @@ action addL1Block = all {
 }
 
 action addL2Block = all {
-    nondet regs = L1.last().unfulfilled_updates.powerset().oneOf()  
+    nondet regs = L1.last().unfulfilled_updates.powerset().oneOf()
+    nondet provable = Set(true, false).oneOf()  
         // This doesn't replay confirmed registrations
         // And it doesn't ensure at most once semantics for transferring registrations
         // And it doesn't allow to add invalid registrations, that is, ones that are not in L1.
-    L2' = L2.append(newL2Block(L2, regs)),
+    L2' = L2.append(newL2Block(L2, regs, provable)),
     L1' = L1,
     envRegs' = envRegs,
     prevDeletedL2blocks' = prevDeletedL2blocks,
 }
 
 action reset = all {
+    nondet provable = Set(true, false).oneOf()  
     if (existsStaleInBlock(L1.last()) and L2.last().forkID != L1.last().l2forkID)
         // TODO debug to make sure L1 last forkID and stale are handled on the right L1 block
         // there is an off by one issue. 
         // AND last block on L2 must have old fork id TODO: important
         all{
             L2' = L2.slice(0, L1.last().provenHeight + 1)
-                .append(forkBlock(
+                    .append(forkBlock(
                             L2[L1.last().provenHeight], 
                             L1.last().staleRegsInBlock(), 
                             L1.last().provenHeight + 1, 
-                            L1.last().l2forkID)), 
+                            L1.last().l2forkID,
+                            provable)), 
                 // TODO: write more involved test that fails old_reset
-            prevDeletedL2blocks' = prevDeletedL2blocks.concat(
-                                L2.slice(L1.last().provenHeight + 1, L2.length())), 
+            prevDeletedL2blocks' = prevDeletedL2blocks
+                                    .concat(L2.slice(L1.last().provenHeight + 1, L2.length())), 
         }
     else
         all {
@@ -470,7 +516,6 @@ action reset = all {
         }, 
     L1' =  L1,
     envRegs' = envRegs,
-    
 }
 
 action step = any {
@@ -480,7 +525,19 @@ action step = any {
     reset               // this is asynchronous now. We should link it to L1 block generation
 }
 
+action stepProvableL2Blocks = any {
+    addRegistration,    
+    addL1Block,         
+    nondet regs = L1.last().unfulfilled_updates.powerset().oneOf()
+    addL2BlockParams(regs, true), 
+    reset               
+}
 
+action stepNoRegs = any {
+    addL1Block,
+    addL2Block,
+    reset   
+}
 
 //
 // Extra actions to drive tests in a fine-grained way
@@ -509,8 +566,8 @@ action addL1BlockProofWithHeight(h, blocktimeDelta) = all {
 
 
 // for repl and writing tests
-action addL2BlockRegs (regs: Set[Registration]) : bool = all {
-    L2' = L2.append(newL2Block(L2, regs)),
+action addL2BlockParams (regs: Set[Registration], provable: bool) : bool = all {
+    L2' = L2.append(newL2Block(L2, regs, provable)),
     L1' = L1,
     envRegs' = envRegs,
     prevDeletedL2blocks' = prevDeletedL2blocks,
@@ -524,7 +581,7 @@ action addL2BlockInvalidReg = all {
     starknet_addr: "INVALID",
     amount: 0,
     }
-    addL2BlockRegs(Set(inv))
+    addL2BlockParams(Set(inv), true)
 }
 
 action stepWithInvalidRegs = any {
@@ -546,7 +603,8 @@ action old_reset = all {
                         L2.last(), 
                         L1.last().staleRegsInBlock(), 
                         L1.last().provenHeight + 1, 
-                        L1.last().l2forkID)) // TODO: fix from PR
+                        L1.last().l2forkID, 
+                        true)) // TODO: fix from PR
     else
         L2' = L2,
     L1' =  L1,

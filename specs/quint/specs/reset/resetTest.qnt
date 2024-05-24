@@ -39,7 +39,7 @@ run ResetwithProofonL1Test =
 run moveOneRegToL1ToL2 = 
     addRegistration
     .then(addL1BlockNoProof(1))
-    .then(addL2BlockRegs(L1[L1.length()-1].newRegistrations))
+    .then(addL2BlockParams(L1[L1.length()-1].newRegistrations, true))
 
 run lastPossibleL1BlockWitnessRun = 
     init
