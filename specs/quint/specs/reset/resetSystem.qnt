@@ -544,8 +544,7 @@ action addL2Block = all {
     prevDeletedL2blocks' = prevDeletedL2blocks,
 }
 
-action reset = all {
-    nondet provable = Set(true, false).oneOf()  
+action resetParam (provable) = all {
     if (existsStaleInBlock(L1.last()) and L2.last().forkID != L1.last().l2forkID)
         all{
             L2' = L2.slice(0, L1.last().provenHeight + 1)
@@ -565,6 +564,12 @@ action reset = all {
         }, 
     L1' =  L1,
     envRegs' = envRegs,
+}
+
+
+action reset = all {
+    nondet provable = Set(true, false).oneOf()  
+    resetParam(provable)
 }
 
 action step = any {
