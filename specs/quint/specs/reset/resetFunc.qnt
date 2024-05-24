@@ -39,7 +39,8 @@ type L2BlockProof = {
     to_height: Height,
     confirmedRegs: Set[Registration],
     forkID: ForkID,
-    resultingBlock: L2Block, // Block of to_height
+    baseBlock: L2Block,         // Block of from_height - 1
+    resultingBlock: L2Block,    // Block of to_height
 }
 
 type L2Proof = 
@@ -128,6 +129,7 @@ pure def confirmedRegistrations (vp: L2Proof) : Set[Registration] =
 // Proof verification
 //
 pure def proofOK (  provenHeight: Height, 
+                    baseBlockHash: L2Block,
                     expForkID: int, 
                     regs: Set[Registration], 
                     p: L2BlockProof,
@@ -136,6 +138,7 @@ pure def proofOK (  provenHeight: Height,
             p.forkID == expForkID,                  // the forkID is right, and
             not(existsStale(regs.exclude(p.confirmedRegs), t)), // there are no stale registrations left
             p.confirmedRegs.subseteq(regs),         // check for invalid registrations IMPORTANT
+            p.baseBlock == baseBlockHash,
     }
 
 //
@@ -147,7 +150,7 @@ pure def newL1Block (prev: L1Block, regs: Set[Registration], proof: L2Proof, del
     val pending = prev.unfulfilled_updates.union(epochedRegs)
     val forkID = expectedForkID(prev.l2forkID, pending, newTime)
     val accepted = match proof {
-            | Proof(p) =>   if (proofOK(prev.provenHeight, forkID, pending, p, newTime)) proof 
+            | Proof(p) =>   if (proofOK(prev.provenHeight, prev.latestProvenL2BlockHash, forkID, pending, p, newTime)) proof 
                             else None       
             | None => None
             | Invalid => None
@@ -285,6 +288,7 @@ pure def makeProof (l2: List[L2Block], from_height: Height, to_height: Height) :
                     to_height: to_height,
                     confirmedRegs: regs,
                     forkID: newforkID,
+                    baseBlock: l2[from_height - 1],
                     resultingBlock: l2[to_height]})
     else
         Invalid

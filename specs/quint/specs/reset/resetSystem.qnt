@@ -47,8 +47,8 @@ pure def validProof (b : L1Block, prev: L1Block) : bool =
     val pending = prev.unfulfilled_updates.union(epochedRegs)
     val forkID = expectedForkID(prev.l2forkID, pending, b.time)
     match b.newProof {
-            | Proof(p) =>   if (proofOK(prev.provenHeight, forkID, pending, p, b.time)) true 
-                            else false       
+            | Proof(p) => (proofOK( prev.provenHeight, 
+                                    prev.latestProvenL2BlockHash, forkID, pending, p, b.time))
             | None => false
             | Invalid => false
     }
@@ -374,9 +374,8 @@ def FutureProofRejectedWitness =
     implies L1.last().provenHeight > L1[L1.length() -2].provenHeight   
 
 
-// TODO: deadlock?
-// TODO: splitbrain
-// TODO: bugs are possible. issues on consensus level. faulty participant.
+
+
 
 
 
@@ -400,6 +399,7 @@ def valid (b: L2Block) : bool =
         | Invalid => false
         | None => false
         | Proof(bp) => proofOK (L1.last().provenHeight, 
+                                L1.last().latestProvenL2BlockHash,
                                 L1.last().l2forkID,
                                 L1.last().unfulfilled_updates, 
                                 bp,
@@ -626,6 +626,7 @@ action addL1BlockNoProof (blocktimeDelta) = all {
         addL1BlockParams(None, blocktimeDelta)
 }        
 
+
 val badL2Block = {
     height: -1,
     forkID: -1, 
@@ -637,6 +638,11 @@ val badL2Block = {
     provable: true, 
 }
 
+// Capturing a form of equivovation. We generate a proof that can be validated on L1, 
+// but it doesn't capture the L2 history. In particular, we set the confirmed registration
+// to the empty set, and put the resulting block to a default bad block. 
+// This allows us to generate traces where a bad proof is accepted on L1, and then good
+// proofs cannot be submitted on top of it.
 action addL1BlockSplitBrainProof = all{
     nondet someHeight = SafeL2Range(L1.last().provenHeight + 1, L2.length() - 1).oneOf() 
     nondet blocktimeDelta = 1.to(MaxEthBlockTime).oneOf()

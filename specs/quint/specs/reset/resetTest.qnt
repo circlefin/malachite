@@ -67,21 +67,13 @@ run splitBrainBadBlock =
     .expect(not(noProvenRegistrationsUnfulfilledInv)
             and not(proofStateInv)) // invariants violated
     .then(addL1BlockNoProof(10))
-    .then(reset)
+    .then(resetParam(true))
     .then(addL1BlockProofWithHeight(2,1))
-    .expect(L2.last().provable implies noProvenRegistrationsUnfulfilledInv) // if forkblock provable invariant OK
+    .expect(not(noProvenRegistrationsUnfulfilledInv)) 
+    // invariant still violated. Bad accepted proof has become the truth and L2 cannot overright it
+    
 
 
-run splitBrainBadBlockUnprovable = 
-    init
-    .then(moveOneRegToL1ToL2) 
-    .then(addL1BlockSplitBrainProof)
-    .expect(not(noProvenRegistrationsUnfulfilledInv)
-            and not(proofStateInv)) // invariants violated
-    .then(addL1BlockNoProof(10))
-    .then(resetParam(false))
-    .then(addL1BlockProofWithHeight(2,1))
-    .expect(not(noProvenRegistrationsUnfulfilledInv))
 
 // The run below shows a scenario where a reset block is unprovable. The system would be
 // deadlocked without additional registrations.  The second reset wouldn't do anything
