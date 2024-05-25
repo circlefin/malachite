@@ -1,7 +1,8 @@
 use std::time::Duration;
+use tracing::info;
 
-use malachite_common::{Context, Round};
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
+use malachite_common::{BlockPart, Context, Round};
 
 use crate::util::ValueBuilder;
 
@@ -18,7 +19,9 @@ pub enum Msg<Ctx: Context> {
         round: Round,
         timeout_duration: Duration,
         reply: RpcReplyPort<ProposedValue<Ctx>>,
+        address: Ctx::Address,
     },
+    BlockPart(Ctx::BlockPart),
 }
 
 pub struct ProposalBuilder<Ctx: Context> {
@@ -42,10 +45,11 @@ impl<Ctx: Context> ProposalBuilder<Ctx> {
         height: Ctx::Height,
         round: Round,
         timeout_duration: Duration,
+        address: Ctx::Address, // TODO remove
     ) -> Result<ProposedValue<Ctx>, ActorProcessingErr> {
         let value = self
             .value_builder
-            .build_value(height, timeout_duration)
+            .build_value(height, round, timeout_duration, address)
             .await;
 
         Ok(ProposedValue {
@@ -53,6 +57,13 @@ impl<Ctx: Context> ProposalBuilder<Ctx> {
             round,
             value,
         })
+    }
+
+    async fn build_value(
+        &self,
+        _block_part: Ctx::BlockPart,
+    ) -> Result<ProposedValue<Ctx>, ActorProcessingErr> {
+        todo!()
     }
 }
 
@@ -67,6 +78,7 @@ impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
         _myself: ActorRef<Self::Msg>,
         _: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
+        //Ok(self.value_builder.pre_start(myself).await?)
         Ok(())
     }
 
@@ -82,9 +94,23 @@ impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
                 round,
                 timeout_duration,
                 reply,
+                address,
             } => {
-                let value = self.get_value(height, round, timeout_duration).await?;
+                let value = self
+                    .get_value(height, round, timeout_duration, address)
+                    .await?;
                 reply.send(value)?;
+            }
+
+            Msg::BlockPart(block_part) => {
+                info!(
+                    "Proposal Builder received a block part (h: {}, r:{}, seq: {})",
+                    block_part.height(),
+                    block_part.round(),
+                    block_part.sequence()
+                );
+
+                self.build_value(block_part).await?;
             }
         }
 

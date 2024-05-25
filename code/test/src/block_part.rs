@@ -1,6 +1,9 @@
-use crate::{Height, TestContext};
-use malachite_common::{Round, Transaction};
+use signature::Signer;
+
+use malachite_common::{Round, SignedBlockPart, Transaction};
 use malachite_proto::{self as proto};
+
+use crate::{Address, Height, PrivateKey, TestContext};
 
 /// A proposal for a value in a round
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -9,6 +12,7 @@ pub struct BlockPart {
     pub round: Round,
     pub sequence: u64,
     pub transactions: Vec<Transaction>,
+    pub validator_address: Address,
 }
 
 impl BlockPart {
@@ -17,36 +21,51 @@ impl BlockPart {
         round: Round,
         sequence: u64,
         transactions: Vec<Transaction>,
+        validator_address: Address,
     ) -> Self {
         Self {
             height,
             round,
             sequence,
             transactions,
+            validator_address,
         }
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
         proto::Protobuf::to_bytes(self).unwrap()
     }
+
+    pub fn signed(self, private_key: &PrivateKey) -> SignedBlockPart<TestContext> {
+        let signature = private_key.sign(&self.to_bytes());
+
+        SignedBlockPart {
+            block_part: self,
+            signature,
+        }
+    }
 }
 
 impl malachite_common::BlockPart<TestContext> for BlockPart {
-    fn part_sequence(&self) -> u64 {
-        self.sequence
-    }
-
-    fn part_height(&self) -> Height {
+    fn height(&self) -> Height {
         self.height
     }
 
-    fn part_round(&self) -> Round {
+    fn round(&self) -> Round {
         self.round
+    }
+
+    fn sequence(&self) -> u64 {
+        self.sequence
+    }
+
+    fn validator_address(&self) -> &Address {
+        &self.validator_address
     }
 }
 
 impl proto::Protobuf for BlockPart {
-    type Proto = malachite_proto::BlockPart;
+    type Proto = proto::BlockPart;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self {
@@ -66,6 +85,11 @@ impl proto::Protobuf for BlockPart {
                 .iter()
                 .map(|t| Transaction::from_proto(t.clone()).unwrap())
                 .collect(),
+            validator_address: Address::from_proto(
+                proto.validator_address.ok_or_else(|| {
+                    proto::Error::missing_field::<Self::Proto>("validator_address")
+                })?,
+            )?,
         })
     }
 
@@ -79,6 +103,7 @@ impl proto::Protobuf for BlockPart {
                 .iter()
                 .map(|t| t.to_proto().unwrap())
                 .collect(),
+            validator_address: Some(self.validator_address.to_proto()?),
         })
     }
 }

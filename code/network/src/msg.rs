@@ -25,7 +25,7 @@ impl Msg {
         match self {
             Msg::Vote(msg) => Some(msg.vote.as_ref()?.height.as_ref()?.value),
             Msg::Proposal(msg) => Some(msg.proposal.as_ref()?.height.as_ref()?.value),
-            Msg::BlockPart(_) => None,
+            Msg::BlockPart(msg) => Some(msg.block_part.as_ref()?.height.as_ref()?.value),
         }
     }
 }
@@ -40,6 +40,9 @@ impl Protobuf for Msg {
         } else if proto.type_url == SignedProposal::type_url() {
             let proposal = SignedProposal::decode(proto.value.as_slice())?;
             Ok(Msg::Proposal(proposal))
+        } else if proto.type_url == SignedBlockPart::type_url() {
+            let block_part = SignedBlockPart::decode(proto.value.as_slice())?;
+            Ok(Msg::BlockPart(block_part))
         } else {
             Err(ProtoError::UnknownMessageType {
                 type_url: proto.type_url,

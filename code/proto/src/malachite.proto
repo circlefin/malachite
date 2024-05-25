@@ -62,6 +62,7 @@ message BlockPart {
     Round round = 2;
     uint64 sequence = 3;
     repeated Transaction block_part = 4; // TODO use google.protobuf.Any for different impls
+    Address validator_address = 5;
 }
 
 message SignedBlockPart {

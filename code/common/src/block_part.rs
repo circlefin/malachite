@@ -1,5 +1,6 @@
-use crate::{Context, Round};
 use core::fmt::Debug;
+
+use crate::{Context, Round};
 
 /// Defines the requirements for a block part type.
 
@@ -8,12 +9,15 @@ where
     Self: Debug + Eq + Send + Sync + 'static,
     Ctx: Context,
 {
-    /// The part sequence
-    fn part_sequence(&self) -> u64;
-
     /// The part height
-    fn part_height(&self) -> Ctx::Height;
+    fn height(&self) -> Ctx::Height;
 
     /// The part round
-    fn part_round(&self) -> Round;
+    fn round(&self) -> Round;
+
+    /// The part sequence
+    fn sequence(&self) -> u64;
+
+    /// Address of the validator who created this block part
+    fn validator_address(&self) -> &Ctx::Address;
 }
