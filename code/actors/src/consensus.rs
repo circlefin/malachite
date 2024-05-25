@@ -10,7 +10,7 @@ use tracing::{debug, info, trace, warn};
 
 use malachite_common::{
     BlockPart, Context, Height, NilOrVal, Proposal, Round, SignedBlockPart, SignedProposal,
-    SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, ValueId, Vote, VoteType,
+    SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value, ValueId, Vote, VoteType,
 };
 use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
@@ -158,7 +158,7 @@ where
             let from = PeerId::new(from.to_string());
             let msg = NetworkMsg::from_network_bytes(data).unwrap();
 
-            info!("Received message from peer {from}: {msg:?}");
+            //info!("Received message from peer {from}: {msg:?}");
 
             self.handle_network_msg(from, msg, myself, state).await?;
         }
@@ -203,7 +203,8 @@ where
                 let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap();
                 let validator_address = signed_proposal.proposal.validator_address();
 
-                info!(%from, %validator_address, "Received proposal: {:?}", signed_proposal.proposal);
+                info!(%from, %validator_address, "Received proposal: (h: {}, r: {}, id: {:?})",
+                    signed_proposal.proposal.height(), signed_proposal.proposal.round(), signed_proposal.proposal.value().id());
 
                 let Some(validator) = state.validator_set.get_by_address(validator_address) else {
                     warn!(%from, %validator_address, "Received proposal from unknown validator");
@@ -405,8 +406,8 @@ where
 
             DriverOutput::Propose(proposal) => {
                 info!(
-                    "Proposing value {:?} at round {}",
-                    proposal.value(),
+                    "Proposing value with id: {:?}, at round {}",
+                    proposal.value().id(),
                     proposal.round()
                 );
 
@@ -446,7 +447,7 @@ where
             }
 
             DriverOutput::Decide(round, value) => {
-                info!("Decided on value {value:?} at round {round}");
+                info!("Decided on value {:?} at round {round}", value.id());
 
                 let _ = self
                     .tx_decision
@@ -663,7 +664,10 @@ where
             }
 
             Msg::Decided(height, round, value) => {
-                info!("Decided on value {value:?} at height {height} and round {round}");
+                info!(
+                    "Decided on value {:?} at height {height} and round {round}",
+                    value.id()
+                );
             }
 
             Msg::GossipEvent(event) => {

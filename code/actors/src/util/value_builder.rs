@@ -1,7 +1,7 @@
-use std::marker::PhantomData;
-use std::time::Duration;
-
 use async_trait::async_trait;
+use std::marker::PhantomData;
+use std::time::{Duration, Instant};
+use tracing::info;
 
 use malachite_common::{Context, Round};
 
@@ -17,6 +17,8 @@ pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
 }
 
 pub mod test {
+    const NUM_TXES_PER_PART: u64 = 2; // TODO - parameterize
+    const TIME_ALLOWANCE_FACTOR: f32 = 0.66; // TODO - parameterize
     use super::*;
 
     use malachite_test::{Address, BlockPart, Height, TestContext, Value};
@@ -51,39 +53,63 @@ pub mod test {
             &self,
             height: Height,
             round: Round,
-            _timeout_duration: Duration,
+            timeout_duration: Duration,
             validator_address: Address,
         ) -> Option<Value> {
-            // TODO - loop, execute, stop on timeout and send blockID
-            let txes = self
-                .tx_streamer
-                .call(
-                    |reply| crate::mempool::Msg::TxStream {
-                        height: height.as_u64(),
-                        reply,
-                    },
-                    None,
-                ) // TODO timeout
-                .await
-                .ok()?
-                .unwrap();
+            let finish_time = Instant::now() + timeout_duration.mul_f32(TIME_ALLOWANCE_FACTOR);
 
-            let block_part = BlockPart {
-                height,
-                round,
-                sequence: 1,
-                transactions: txes.clone(),
-                validator_address,
-            };
+            let mut tx_batch = vec![];
+            let mut sequence = 1;
+            loop {
+                let mut txes = self
+                    .tx_streamer
+                    .call(
+                        |reply| crate::mempool::Msg::TxStream {
+                            height: height.as_u64(),
+                            num_txes: NUM_TXES_PER_PART,
+                            reply,
+                        },
+                        None,
+                    ) // TODO timeout
+                    .await
+                    .ok()?
+                    .unwrap();
 
-            self.batch_gossip
-                .as_ref()
-                .unwrap()
-                .cast(crate::consensus::Msg::BuilderBlockPart(block_part))
-                .unwrap(); // FIXME
+                if txes.is_empty() {
+                    break;
+                }
+                // Simulate execution
+                tokio::time::sleep(Duration::from_millis(1)).await;
 
-            tokio::time::sleep(Duration::from_millis(10)).await;
-            Some(Value::new(txes))
+                // Send the batch in a BlockPart
+                let block_part = BlockPart {
+                    height,
+                    round,
+                    sequence,
+                    transactions: txes.clone(),
+                    validator_address,
+                };
+
+                if self.batch_gossip.as_ref().is_some() {
+                    self.batch_gossip
+                        .as_ref()
+                        .unwrap()
+                        .cast(crate::consensus::Msg::BuilderBlockPart(block_part))
+                        .unwrap(); // FIXME
+                }
+
+                tx_batch.append(&mut txes);
+
+                if Instant::now().gt(&finish_time) {
+                    break;
+                }
+                sequence += 1;
+            }
+            info!(
+                "Value Builder created a block with {} tx-es",
+                tx_batch.len()
+            );
+            Some(Value::new(tx_batch))
         }
     }
 }

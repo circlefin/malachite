@@ -31,6 +31,7 @@ pub enum Msg {
     Input(Transaction),
     TxStream {
         height: u64,
+        num_txes: u64,
         reply: RpcReplyPort<Vec<Transaction>>,
     },
 }
@@ -171,7 +172,7 @@ impl Actor for Mempool {
                         .cast(GossipMsg::Broadcast(Channel::Mempool, bytes))?;
                 }
             }
-            Msg::TxStream { height: _, reply } => {
+            Msg::TxStream { reply, .. } => {
                 reply.send(state.transactions.clone())?;
             }
         }

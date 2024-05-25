@@ -71,7 +71,10 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     while let Some((height, round, value)) = rx_decision.recv().await {
-        info!("[{index}] Decision at height {height} and round {round}: {value:?}",);
+        info!(
+            "[{index}] Decision at height {height} and round {round}: {:?}",
+            value.id()
+        );
     }
 
     handle.await?;

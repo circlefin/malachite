@@ -1,8 +1,8 @@
 use std::time::Duration;
 use tracing::info;
 
-use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use malachite_common::{BlockPart, Context, Round};
+use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 
 use crate::util::ValueBuilder;
 
