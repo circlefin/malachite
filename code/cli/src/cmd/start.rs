@@ -12,7 +12,7 @@ pub async fn run(sk: PrivateKey, cfg: Config, vs: ValidatorSet) -> Result<()> {
     info!("[{}] Starting...", &cfg.moniker);
 
     let (tx_decision, mut rx_decision) = tokio::sync::mpsc::channel(32);
-    let (actor, handle) = make_node_actor(vs, sk, val_address, tx_decision).await;
+    let (actor, handle) = make_node_actor(vs, sk.clone(), sk, val_address, tx_decision).await;
 
     tokio::spawn({
         let actor = actor.clone();

@@ -4,11 +4,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::mpsc;
-use tokio::time::Duration;
+use tokio::time::{sleep, Duration};
 use tracing::{error, info};
 
 use malachite_common::{Round, VotingPower};
-use malachite_test::utils::{make_mempool_nodes, make_validators, make_value};
+use malachite_test::utils::{make_validators, make_value};
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet};
 
 use malachite_actors::util::make_node_actor;
@@ -23,23 +23,19 @@ pub struct Test<const N: usize> {
     pub nodes: [TestNode; N],
     pub validator_set: ValidatorSet,
     pub vals_and_keys: [(Validator, PrivateKey); N],
-    pub mempool_nodes: [PrivateKey; N],
     pub expected_decisions: usize,
 }
 
 impl<const N: usize> Test<N> {
     pub fn new(nodes: [TestNode; N], expected_decisions: usize) -> Self {
-        let voting_powers = Self::voting_powers(&nodes);
-        let vals_and_keys = make_validators(voting_powers);
+        let vals_and_keys = make_validators(Self::voting_powers(&nodes));
         let validators = vals_and_keys.iter().map(|(v, _)| v).cloned();
         let validator_set = ValidatorSet::new(validators);
-        let mempool_nodes = make_mempool_nodes();
 
         Self {
             nodes,
             validator_set,
             vals_and_keys,
-            mempool_nodes,
             expected_decisions,
         }
     }
@@ -92,56 +88,30 @@ impl TestNode {
     }
 }
 
-fn init_logging() {
-    use tracing_subscriber::util::SubscriberInitExt;
-    use tracing_subscriber::FmtSubscriber;
-
-    let builder = FmtSubscriber::builder()
-        .with_target(false)
-        .with_env_filter("malachite=trace")
-        .with_thread_ids(false);
-
-    let subscriber = builder.finish();
-    subscriber.init();
-}
-
 pub async fn run_test<const N: usize>(test: Test<N>) {
-    init_logging();
+    tracing_subscriber::fmt::init();
 
     let mut handles = Vec::with_capacity(N);
 
-    let val_keys: Vec<PrivateKey> = test
-        .vals_and_keys
-        .iter()
-        .map(|(_, pk)| pk.clone())
-        .collect();
-
     for i in 0..N {
         if test.nodes[i].faults.contains(&Fault::NoStart) {
-            info!("Not spawning faulty node {i} because it should not start");
             continue;
         }
-
         let (v, sk) = &test.vals_and_keys[i];
         let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
-        let node_sk = &test.mempool_nodes[i];
+
         let node = tokio::spawn(make_node_actor(
             test.validator_set.clone(),
-            val_keys.clone(),
             sk.clone(),
-            test.mempool_nodes.to_vec(),
-            node_sk.clone(),
+            sk.clone(),
             v.address,
             tx_decision,
         ));
 
-        info!(
-            "Spawned node {i} with voting power {}",
-            test.nodes[i].voting_power
-        );
-
         handles.push((node, rx_decision));
     }
+
+    sleep(Duration::from_secs(5)).await;
 
     let mut nodes = Vec::with_capacity(handles.len());
     for (i, (handle, rx)) in handles.into_iter().enumerate() {
@@ -168,8 +138,6 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
 
         tokio::spawn(async move {
             for height in START_HEIGHT.as_u64()..=END_HEIGHT.as_u64() {
-                info!("[{i}] Height {height}/{HEIGHTS} starting");
-
                 if node_test.crashes_at(height) {
                     info!("[{i}] Faulty node {i} has crashed");
                     actor_ref.kill();

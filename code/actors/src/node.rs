@@ -4,7 +4,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use malachite_common::{Context, Round};
-use malachite_gossip::{Multiaddr, PeerId};
+use malachite_gossip::Multiaddr;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
@@ -22,7 +22,6 @@ use crate::util::ValueBuilder;
 pub struct Params<Ctx: Context> {
     pub address: Ctx::Address,
     pub initial_validator_set: Ctx::ValidatorSet,
-    pub validator_peer_ids: Vec<PeerId>,
     pub keypair: malachite_gossip::Keypair,
     pub start_height: Ctx::Height,
     pub threshold_params: ThresholdParams,
@@ -56,15 +55,9 @@ where
     let addr: Multiaddr = "/ip4/0.0.0.0/udp/0/quic-v1".parse().unwrap();
     let config = malachite_gossip::Config::default();
 
-    let gossip = Gossip::spawn(
-        params.keypair,
-        addr.clone(),
-        params.validator_peer_ids,
-        config,
-        None,
-    )
-    .await
-    .unwrap();
+    let gossip = Gossip::spawn(params.keypair, addr.clone(), config, None)
+        .await
+        .unwrap();
 
     let consensus = Consensus::spawn(
         ctx.clone(),
