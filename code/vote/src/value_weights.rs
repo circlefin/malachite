@@ -24,7 +24,9 @@ impl<Value> ValuesWeights<Value> {
         Value: Ord,
     {
         let entry = self.value_weights.entry(value).or_insert(0);
-        *entry += weight; // FIXME: Deal with overflows
+        *entry = entry
+            .checked_add(weight)
+            .expect("attempt to add with overflow");
         *entry
     }
 
@@ -38,7 +40,13 @@ impl<Value> ValuesWeights<Value> {
 
     /// Return the sum of the weights of all values.
     pub fn sum(&self) -> Weight {
-        self.value_weights.values().sum() // FIXME: Deal with overflows
+        let mut weight: Weight = 0;
+        for w in self.value_weights.values() {
+            weight = weight
+                .checked_add(*w)
+                .expect("attempt to sum with overflow");
+        }
+        weight
     }
 }
 
@@ -79,7 +87,22 @@ mod tests {
         assert_eq!(vw.get(&None), 2);
         assert_eq!(vw.get(&Some(1)), 2);
         assert_eq!(vw.get(&Some(2)), 1);
+    }
 
-        // FIXME: Test for and deal with overflows
+    #[test]
+    #[should_panic(expected = "attempt to add with overflow")]
+    fn values_weight_add_overflow() {
+        let mut vw: ValuesWeights<Option<u64>> = ValuesWeights::new();
+        vw.add(None, Weight::MAX);
+        vw.add(None, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to sum with overflow")]
+    fn values_weight_sum_overflow() {
+        let mut vw: ValuesWeights<Option<u64>> = ValuesWeights::new();
+        vw.add(None, Weight::MAX);
+        vw.add(Some(1), 1);
+        vw.sum();
     }
 }

@@ -21,14 +21,12 @@ impl Gossip {
     pub async fn spawn(
         keypair: Keypair,
         addr: Multiaddr,
-        peer_ids: Vec<PeerId>,
         config: Config,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg>, ractor::SpawnErr> {
         let args = Args {
             keypair,
             addr,
-            peer_ids,
             config,
         };
 
@@ -45,7 +43,6 @@ impl Gossip {
 pub struct Args {
     pub keypair: Keypair,
     pub addr: Multiaddr,
-    pub peer_ids: Vec<PeerId>,
     pub config: Config,
 }
 

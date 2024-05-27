@@ -4,7 +4,6 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use malachite_common::{Context, Round};
-use malachite_gossip::PeerId;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
@@ -20,7 +19,6 @@ use crate::util::ValueBuilder;
 pub struct Params<Ctx: Context> {
     pub address: Ctx::Address,
     pub initial_validator_set: Ctx::ValidatorSet,
-    pub validator_peer_ids: Vec<PeerId>,
     pub keypair: malachite_gossip::Keypair,
     pub start_height: Ctx::Height,
     pub threshold_params: ThresholdParams,

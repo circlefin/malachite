@@ -10,6 +10,7 @@ mod block_part;
 mod context;
 mod height;
 mod proposal;
+mod serialization;
 mod signing;
 mod validator_set;
 mod value;

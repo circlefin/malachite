@@ -3,7 +3,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use malachite_common::Round;
-use malachite_gossip::{Keypair, PeerId};
+use malachite_gossip::Keypair;
 use malachite_gossip_mempool::Multiaddr;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 
@@ -19,9 +19,7 @@ use crate::util::TestValueBuilder;
 
 pub async fn make_node_actor(
     initial_validator_set: ValidatorSet,
-    validator_pks: Vec<PrivateKey>,
     validator_pk: PrivateKey,
-    nodes_pks: Vec<PrivateKey>,
     node_pk: PrivateKey,
     address: Address,
     tx_decision: mpsc::Sender<(Height, Round, Value)>,
@@ -32,19 +30,9 @@ pub async fn make_node_actor(
     let config_gossip_mempool = malachite_gossip_mempool::Config::default();
     let node_keypair = Keypair::ed25519_from_bytes(node_pk.inner().to_bytes()).unwrap();
 
-    let node_keypairs: Vec<Keypair> = nodes_pks
-        .iter()
-        .map(|pk| Keypair::ed25519_from_bytes(pk.inner().to_bytes()).unwrap())
-        .collect();
-    let node_peer_ids = node_keypairs
-        .iter()
-        .map(|pk| PeerId::from_public_key(&pk.public()))
-        .collect();
-
     let gossip_mempool = GossipMempool::spawn(
         node_keypair.clone(),
         addr.clone(),
-        node_peer_ids,
         config_gossip_mempool,
         None,
     )
@@ -72,26 +60,11 @@ pub async fn make_node_actor(
     // Spawn consensus and its gossip
     let validator_keypair = Keypair::ed25519_from_bytes(validator_pk.inner().to_bytes()).unwrap();
 
-    let validator_keypairs: Vec<Keypair> = validator_pks
-        .iter()
-        .map(|pk| Keypair::ed25519_from_bytes(pk.inner().to_bytes()).unwrap())
-        .collect();
-    let validator_peer_ids: Vec<PeerId> = validator_keypairs
-        .iter()
-        .map(|pk| PeerId::from_public_key(&pk.public()))
-        .collect();
-
     let config_gossip = malachite_gossip::Config::default();
 
-    let gossip_consensus = Gossip::spawn(
-        validator_keypair.clone(),
-        addr,
-        validator_peer_ids.clone(),
-        config_gossip,
-        None,
-    )
-    .await
-    .unwrap();
+    let gossip_consensus = Gossip::spawn(validator_keypair.clone(), addr, config_gossip, None)
+        .await
+        .unwrap();
 
     let timers_config = TimersConfig::default();
 

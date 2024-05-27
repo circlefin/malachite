@@ -1,11 +1,19 @@
 use core::fmt;
+use serde::{Deserialize, Serialize};
 
 use malachite_proto as proto;
 
 use crate::signing::PublicKey;
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Address([u8; Self::LENGTH]);
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Address(
+    #[serde(
+        serialize_with = "hex::serde::serialize_upper",
+        deserialize_with = "hex::serde::deserialize"
+    )]
+    [u8; Self::LENGTH],
+);
 
 impl Address {
     const LENGTH: usize = 20;

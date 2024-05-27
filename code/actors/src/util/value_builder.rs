@@ -93,10 +93,12 @@ pub mod test {
                 };
 
                 if self.batch_gossip.as_ref().is_some() {
+                    // TODO - this will never be reached due to init problems with batch_gossip
+                    // Once fixed remove the if and the Option from batch_gossip.
                     self.batch_gossip
                         .as_ref()
                         .unwrap()
-                        .cast(crate::consensus::Msg::BuilderBlockPart(block_part))
+                        .cast(crate::consensus::Msg::BuilderBlockPart(block_part.clone()))
                         .unwrap(); // FIXME
                 }
 
