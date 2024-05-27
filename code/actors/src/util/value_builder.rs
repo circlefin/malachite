@@ -17,8 +17,10 @@ pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
 }
 
 pub mod test {
-    const NUM_TXES_PER_PART: u64 = 2; // TODO - parameterize
-    const TIME_ALLOWANCE_FACTOR: f32 = 0.66; // TODO - parameterize
+    // TODO - parameterize
+    const NUM_TXES_PER_PART: u64 = 2;
+    const TIME_ALLOWANCE_FACTOR: f32 = 0.75;
+    const EXEC_TIME_MICROSEC_PER_PART: u64 = 500;
     use super::*;
 
     use malachite_test::{Address, BlockPart, Height, TestContext, Value};
@@ -79,7 +81,7 @@ pub mod test {
                     break;
                 }
                 // Simulate execution
-                tokio::time::sleep(Duration::from_millis(1)).await;
+                tokio::time::sleep(Duration::from_micros(EXEC_TIME_MICROSEC_PER_PART)).await;
 
                 // Send the batch in a BlockPart
                 let block_part = BlockPart {
