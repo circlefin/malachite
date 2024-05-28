@@ -145,7 +145,7 @@ pub mod test {
             // - store the part:
             //     self.store(block_part);
             // - determine if all parts have been received
-            //   - need a final part (for starkware should be the one that contains the proof, sate, and number
+            //   - need a final part (for starkware should be the one that contains the proof, state, and number
             //     of parts
             // - reduce attack vector
             //   - these have been signed by sender and verified by consensus before being forwarded here
