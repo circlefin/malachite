@@ -97,10 +97,7 @@ pub mod test {
                 if txes.is_empty() {
                     break;
                 }
-                // Simulate execution
-                tokio::time::sleep(Duration::from_micros(EXEC_TIME_MICROSEC_PER_PART)).await;
 
-                // TODO - uncommenting this at this point pretty much stops consensus, needs investigation.
                 // Send the batch in a BlockPart
                 let block_part = BlockPart {
                     height,
@@ -118,6 +115,8 @@ pub mod test {
                     ))
                     .unwrap();
 
+                // Simulate execution
+                tokio::time::sleep(Duration::from_micros(EXEC_TIME_MICROSEC_PER_PART)).await;
                 tx_batch.append(&mut txes);
 
                 if Instant::now().gt(&finish_time) {
@@ -136,7 +135,7 @@ pub mod test {
             &self,
             block_part: BlockPart,
         ) -> Option<<TestContext as malachite_common::Context>::Value> {
-            if block_part.sequence % 100 == 0 {
+            if block_part.sequence % 10 == 0 {
                 info!(
                     "Received block part (h: {}, r: {}, seq: {}",
                     block_part.height, block_part.round, block_part.sequence
