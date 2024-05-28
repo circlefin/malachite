@@ -25,8 +25,9 @@ pub async fn run(sk: PrivateKey, cfg: Config, vs: ValidatorSet) -> Result<()> {
 
     while let Some((height, round, value)) = rx_decision.recv().await {
         info!(
-            "[{}] Decision at height {height} and round {round}: {value:?}",
-            &cfg.moniker
+            "[{}] Decision at height {height} and round {round}: {:?}",
+            &cfg.moniker,
+            value.id()
         );
     }
 

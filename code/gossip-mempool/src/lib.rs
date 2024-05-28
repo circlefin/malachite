@@ -258,7 +258,7 @@ async fn handle_swarm_event(
             message,
         })) => {
             let Some(channel) = Channel::from_topic_hash(&message.topic) else {
-                debug!(
+                trace!(
                     "Received message {message_id} from {peer_id} on different channel: {}",
                     message.topic
                 );
@@ -266,7 +266,7 @@ async fn handle_swarm_event(
                 return ControlFlow::Continue(());
             };
 
-            debug!(
+            trace!(
                 "Received message {message_id} from {peer_id} on channel {} of {} bytes",
                 channel,
                 message.data.len()

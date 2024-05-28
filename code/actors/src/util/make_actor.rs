@@ -1,16 +1,19 @@
 use ractor::ActorRef;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use malachite_common::Round;
 use malachite_gossip::Keypair;
-
-use crate::gossip_mempool::GossipMempool;
-use crate::mempool::Mempool;
 use malachite_gossip_mempool::Multiaddr;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
-use tokio::task::JoinHandle;
 
-use crate::node::{Msg as NodeMsg, Params as NodeParams};
+use crate::cal::CAL;
+use crate::consensus::Consensus;
+use crate::gossip::Gossip;
+use crate::gossip_mempool::GossipMempool;
+use crate::mempool::Mempool;
+use crate::node::{Msg as NodeMsg, Msg, Node};
+use crate::proposal_builder::ProposalBuilder;
 use crate::timers::Config as TimersConfig;
 use crate::util::TestValueBuilder;
 
@@ -22,40 +25,86 @@ pub async fn make_node_actor(
     tx_decision: mpsc::Sender<(Height, Round, Value)>,
 ) -> (ActorRef<NodeMsg>, JoinHandle<()>) {
     let addr: Multiaddr = "/ip4/0.0.0.0/udp/0/quic-v1".parse().unwrap();
-    let config_mempool = malachite_gossip_mempool::Config::default();
 
+    // Spawn mempool and its gossip
+    let config_gossip_mempool = malachite_gossip_mempool::Config::default();
     let node_keypair = Keypair::ed25519_from_bytes(node_pk.inner().to_bytes()).unwrap();
 
-    let gossip_mempool = GossipMempool::spawn(node_keypair.clone(), addr, config_mempool, None)
-        .await
-        .unwrap();
+    let gossip_mempool = GossipMempool::spawn(
+        node_keypair.clone(),
+        addr.clone(),
+        config_gossip_mempool,
+        None,
+    )
+    .await
+    .unwrap();
 
     let mempool = Mempool::spawn(crate::mempool::Params {}, gossip_mempool.clone(), None)
         .await
         .unwrap();
 
+    // Spawn the proposal builder
     let builder = TestValueBuilder::<TestContext>::new(mempool.clone());
-    let value_builder = Box::new(builder);
+    let value_builder = Box::new(builder.clone());
 
+    let ctx = TestContext::new(validator_pk.clone());
+    let proposal_builder = ProposalBuilder::spawn(ctx.clone(), value_builder)
+        .await
+        .unwrap();
+
+    // Spawn the CAL actor
+    let cal = CAL::spawn(ctx.clone(), initial_validator_set.clone())
+        .await
+        .unwrap();
+
+    // Spawn consensus and its gossip
     let validator_keypair = Keypair::ed25519_from_bytes(validator_pk.inner().to_bytes()).unwrap();
 
-    let start_height = Height::new(1);
-    let ctx = TestContext::new(validator_pk.clone());
+    let config_gossip = malachite_gossip::Config::default();
+
+    let gossip_consensus = Gossip::spawn(validator_keypair.clone(), addr, config_gossip, None)
+        .await
+        .unwrap();
 
     let timers_config = TimersConfig::default();
 
-    let params = NodeParams {
-        address,
-        initial_validator_set,
-        keypair: validator_keypair.clone(),
+    let start_height = Height::new(1);
+
+    let consensus_params = crate::consensus::Params {
         start_height,
+        initial_validator_set,
+        address,
         threshold_params: Default::default(),
-        timers_config,
-        tx_decision,
-        value_builder,
-        gossip_mempool,
-        mempool,
     };
 
-    crate::node::spawn(ctx, params).await.unwrap()
+    let consensus = Consensus::spawn(
+        ctx.clone(),
+        consensus_params,
+        timers_config,
+        gossip_consensus.clone(),
+        cal.clone(),
+        proposal_builder.clone(),
+        tx_decision,
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Spawn the node actor
+    let node = Node::new(
+        ctx,
+        cal,
+        gossip_consensus,
+        consensus.clone(),
+        gossip_mempool,
+        mempool,
+        proposal_builder,
+        start_height,
+    );
+
+    let result = node.spawn().await.unwrap();
+    let actor = result.0.clone();
+    let _ = actor.cast(Msg::Start);
+
+    result
 }

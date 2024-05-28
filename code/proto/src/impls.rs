@@ -1,5 +1,6 @@
 use malachite_common::{
-    Context, Round, SignedProposal, SignedVote, SigningScheme, Transaction, VoteType,
+    Context, Round, SignedBlockPart, SignedProposal, SignedVote, SigningScheme, Transaction,
+    VoteType,
 };
 
 use crate::{self as proto, Error, Protobuf};
@@ -39,6 +40,32 @@ where
     fn to_proto(&self) -> Result<Self::Proto, Error> {
         Ok(proto::SignedVote {
             vote: Some(self.vote.to_proto()?),
+            signature: Ctx::SigningScheme::encode_signature(&self.signature),
+        })
+    }
+}
+
+impl<Ctx: Context> Protobuf for SignedBlockPart<Ctx>
+where
+    Ctx::BlockPart: Protobuf<Proto = proto::BlockPart>,
+{
+    type Proto = proto::SignedBlockPart;
+
+    fn from_proto(proto: Self::Proto) -> Result<Self, Error> {
+        let block_part = proto
+            .block_part
+            .ok_or_else(|| Error::missing_field::<proto::BlockPart>("block_part"))?;
+
+        Ok(Self {
+            block_part: Ctx::BlockPart::from_proto(block_part)?,
+            signature: Ctx::SigningScheme::decode_signature(&proto.signature)
+                .map_err(|e| Error::Other(format!("Failed to decode signature: {e}")))?,
+        })
+    }
+
+    fn to_proto(&self) -> Result<Self::Proto, Error> {
+        Ok(proto::SignedBlockPart {
+            block_part: Some(self.block_part.to_proto()?),
             signature: Ctx::SigningScheme::encode_signature(&self.signature),
         })
     }
