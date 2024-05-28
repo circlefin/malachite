@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use ractor::ActorRef;
 use std::marker::PhantomData;
 use std::time::{Duration, Instant};
 use tracing::info;
@@ -7,21 +8,28 @@ use malachite_common::{Context, Round};
 
 #[async_trait]
 pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
-    async fn build_value(
+    async fn build_value_locally(
         &self,
         height: Ctx::Height,
         round: Round,
         timeout_duration: Duration,
         address: Ctx::Address,
+        gossip_actor: Option<ActorRef<crate::consensus::Msg<Ctx>>>,
     ) -> Option<Ctx::Value>;
+
+    async fn build_value_from_block_parts(&self, block_part: Ctx::BlockPart) -> Option<Ctx::Value>;
 }
 
 pub mod test {
     // TODO - parameterize
-    const NUM_TXES_PER_PART: u64 = 2;
-    const TIME_ALLOWANCE_FACTOR: f32 = 0.75;
-    const EXEC_TIME_MICROSEC_PER_PART: u64 = 500;
+    // If based on the propose_timeout and the constants below we end up with more than 300 parts then consensus
+    // is never reached in a round and we keep moving to the next one.
+    const NUM_TXES_PER_PART: u64 = 300;
+    const TIME_ALLOWANCE_FACTOR: f32 = 0.5;
+    const EXEC_TIME_MICROSEC_PER_PART: u64 = 100000;
+
     use super::*;
+    use std::collections::BTreeMap;
 
     use malachite_test::{Address, BlockPart, Height, TestContext, Value};
     use ractor::ActorRef;
@@ -30,33 +38,42 @@ pub mod test {
     pub struct TestValueBuilder<Ctx: Context> {
         _phantom: PhantomData<Ctx>,
         tx_streamer: ActorRef<crate::mempool::Msg>,
-        pub batch_gossip: Option<ActorRef<crate::consensus::Msg<Ctx>>>,
+        part_map: BTreeMap<(Height, Round, u64), BlockPart>,
     }
 
     impl<Ctx> TestValueBuilder<Ctx>
     where
         Ctx: Context,
     {
-        pub fn new(
-            tx_streamer: ActorRef<crate::mempool::Msg>,
-            batch_gossip: Option<ActorRef<crate::consensus::Msg<Ctx>>>,
-        ) -> Self {
+        pub fn new(tx_streamer: ActorRef<crate::mempool::Msg>) -> Self {
             Self {
                 _phantom: Default::default(),
                 tx_streamer,
-                batch_gossip,
+                part_map: BTreeMap::new(),
             }
+        }
+        pub fn get(&self, height: Height, round: Round, sequence: u64) -> Option<&BlockPart> {
+            self.part_map.get(&(height, round, sequence))
+        }
+        pub fn store(&mut self, block_part: BlockPart) {
+            let height = block_part.height;
+            let round = block_part.round;
+            let sequence = block_part.sequence;
+            self.part_map
+                .entry((height, round, sequence))
+                .or_insert(block_part);
         }
     }
 
     #[async_trait]
     impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
-        async fn build_value(
+        async fn build_value_locally(
             &self,
             height: Height,
             round: Round,
             timeout_duration: Duration,
             validator_address: Address,
+            gossip_actor: Option<ActorRef<crate::consensus::Msg<TestContext>>>,
         ) -> Option<Value> {
             let finish_time = Instant::now() + timeout_duration.mul_f32(TIME_ALLOWANCE_FACTOR);
 
@@ -83,6 +100,7 @@ pub mod test {
                 // Simulate execution
                 tokio::time::sleep(Duration::from_micros(EXEC_TIME_MICROSEC_PER_PART)).await;
 
+                // TODO - uncommenting this at this point pretty much stops consensus, needs investigation.
                 // Send the batch in a BlockPart
                 let block_part = BlockPart {
                     height,
@@ -92,15 +110,13 @@ pub mod test {
                     validator_address,
                 };
 
-                if self.batch_gossip.as_ref().is_some() {
-                    // TODO - this will never be reached due to init problems with batch_gossip
-                    // Once fixed remove the if and the Option from batch_gossip.
-                    self.batch_gossip
-                        .as_ref()
-                        .unwrap()
-                        .cast(crate::consensus::Msg::BuilderBlockPart(block_part.clone()))
-                        .unwrap(); // FIXME
-                }
+                gossip_actor
+                    .as_ref()
+                    .unwrap()
+                    .cast(crate::consensus::Msg::<TestContext>::BuilderBlockPart(
+                        block_part.clone(),
+                    ))
+                    .unwrap();
 
                 tx_batch.append(&mut txes);
 
@@ -114,6 +130,30 @@ pub mod test {
                 tx_batch.len()
             );
             Some(Value::new(tx_batch))
+        }
+
+        async fn build_value_from_block_parts(
+            &self,
+            block_part: BlockPart,
+        ) -> Option<<TestContext as malachite_common::Context>::Value> {
+            if block_part.sequence % 100 == 0 {
+                info!(
+                    "Received block part (h: {}, r: {}, seq: {}",
+                    block_part.height, block_part.round, block_part.sequence
+                );
+            }
+            // TODO - implement block part logic
+            // - store the part:
+            //     self.store(block_part);
+            // - determine if all parts have been received
+            //   - need a final part (for starkware should be the one that contains the proof, sate, and number
+            //     of parts
+            // - reduce attack vector
+            //   - these have been signed by sender and verified by consensus before being forwarded here
+            //   - still there should be limits put in place
+            // - should support multiple proposals in parallel
+            // - should fix the APIs to confirm with the "Context APIs" from Starkware
+            None
         }
     }
 }

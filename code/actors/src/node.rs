@@ -160,7 +160,13 @@ where
         _state: &mut (),
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
-            Msg::Start => self.mempool.cast(crate::mempool::Msg::Start)?,
+            Msg::Start => {
+                self.proposal_builder
+                    .cast(crate::proposal_builder::Msg::Init {
+                        gossip_actor: self.consensus.clone(),
+                    })?;
+                self.mempool.cast(crate::mempool::Msg::Start)?
+            }
         }
 
         Ok(())

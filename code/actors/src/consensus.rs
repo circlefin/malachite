@@ -9,8 +9,8 @@ use tokio::sync::mpsc;
 use tracing::{debug, info, trace, warn};
 
 use malachite_common::{
-    BlockPart, Context, Height, NilOrVal, Proposal, Round, SignedBlockPart, SignedProposal,
-    SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Value, ValueId, Vote, VoteType,
+    Context, Height, NilOrVal, Proposal, Round, SignedBlockPart, SignedProposal, SignedVote,
+    Timeout, TimeoutStep, Validator, ValidatorSet, Value, ValueId, Vote, VoteType,
 };
 use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
@@ -229,9 +229,6 @@ where
             NetworkMsg::BlockPart(block_part) => {
                 let signed_block_part = SignedBlockPart::<Ctx>::from_proto(block_part).unwrap();
                 let validator_address = signed_block_part.validator_address();
-
-                info!(%from, %validator_address, "Received block part for height: {}, round: {}, sequence: {} ",
-                    signed_block_part.block_part.height(), signed_block_part.block_part.round(), signed_block_part.block_part.sequence());
 
                 let Some(validator) = state.validator_set.get_by_address(validator_address) else {
                     warn!(%from, %validator_address, "Received block part from unknown validator");
@@ -738,12 +735,6 @@ where
             }
 
             Msg::BuilderBlockPart(block_part) => {
-                info!(
-                    "Received BlockPart (h:{}, r:{}, seq:{} from proposal builder, sign and gossip",
-                    block_part.height(),
-                    block_part.round(),
-                    block_part.sequence()
-                );
                 let signed_block_part = self.ctx.sign_block_part(block_part);
                 let proto = signed_block_part.to_proto().unwrap(); // FIXME
                 let msg = NetworkMsg::BlockPart(proto);

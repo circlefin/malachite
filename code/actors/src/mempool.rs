@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::Rng;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::gossip_mempool::Msg as GossipMsg;
 use crate::util::forward;
@@ -83,7 +83,7 @@ impl Mempool {
                 let from = PeerId::new(from.to_string());
                 let msg = NetworkMsg::from_network_bytes(data);
 
-                info!("Mempool - Received message from peer {from}: {msg:?}");
+                debug!("Mempool - Received message from peer {from}: {msg:?}");
 
                 self.handle_network_msg(from, msg, myself, state).await?;
             }
@@ -134,7 +134,7 @@ impl Actor for Mempool {
         let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
         self.gossip.cast(GossipMsg::Subscribe(forward))?;
         let mut transactions = vec![];
-        for _i in 1..3 {
+        for _i in 0..2 {
             let bytes = rand::thread_rng().gen::<[u8; 4]>();
             transactions.push(Transaction::new(bytes.into()));
         }
@@ -172,8 +172,15 @@ impl Actor for Mempool {
                         .cast(GossipMsg::Broadcast(Channel::Mempool, bytes))?;
                 }
             }
-            Msg::TxStream { reply, .. } => {
-                reply.send(state.transactions.clone())?;
+            Msg::TxStream {
+                reply, num_txes, ..
+            } => {
+                let txes_len = state.transactions.len();
+                let mut txes = vec![];
+                for _i in 0..num_txes as usize / txes_len {
+                    txes.extend(state.transactions.clone());
+                }
+                reply.send(txes)?;
             }
         }
 

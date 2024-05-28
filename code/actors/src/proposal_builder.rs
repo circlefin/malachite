@@ -1,7 +1,7 @@
 use std::time::Duration;
 use tracing::info;
 
-use malachite_common::{BlockPart, Context, Round};
+use malachite_common::{Context, Round};
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 
 use crate::util::ValueBuilder;
@@ -13,7 +13,12 @@ pub struct ProposedValue<Ctx: Context> {
 }
 
 pub enum Msg<Ctx: Context> {
-    // request from Driver
+    // Initialize the builder state with the gossip actor
+    Init {
+        gossip_actor: ActorRef<crate::consensus::Msg<Ctx>>,
+    },
+
+    // Request for a value from Driver
     GetValue {
         height: Ctx::Height,
         round: Round,
@@ -21,7 +26,16 @@ pub enum Msg<Ctx: Context> {
         reply: RpcReplyPort<ProposedValue<Ctx>>,
         address: Ctx::Address,
     },
+
+    // BlockPart received <-- consensus <-- gossip
     BlockPart(Ctx::BlockPart),
+}
+
+pub struct State<Ctx>
+where
+    Ctx: Context,
+{
+    gossip_actor: Option<ActorRef<crate::consensus::Msg<Ctx>>>,
 }
 
 pub struct ProposalBuilder<Ctx: Context> {
@@ -45,11 +59,12 @@ impl<Ctx: Context> ProposalBuilder<Ctx> {
         height: Ctx::Height,
         round: Round,
         timeout_duration: Duration,
-        address: Ctx::Address, // TODO remove
+        address: Ctx::Address,
+        gossip_actor: Option<ActorRef<crate::consensus::Msg<Ctx>>>,
     ) -> Result<ProposedValue<Ctx>, ActorProcessingErr> {
         let value = self
             .value_builder
-            .build_value(height, round, timeout_duration, address)
+            .build_value_locally(height, round, timeout_duration, address, gossip_actor)
             .await;
 
         Ok(ProposedValue {
@@ -61,16 +76,21 @@ impl<Ctx: Context> ProposalBuilder<Ctx> {
 
     async fn build_value(
         &self,
-        _block_part: Ctx::BlockPart,
-    ) -> Result<ProposedValue<Ctx>, ActorProcessingErr> {
-        todo!()
+        block_part: Ctx::BlockPart,
+    ) -> Result<Option<ProposedValue<Ctx>>, ActorProcessingErr> {
+        // TODO
+        let _ = self
+            .value_builder
+            .build_value_from_block_parts(block_part)
+            .await;
+        Ok(None)
     }
 }
 
 #[async_trait]
 impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
     type Msg = Msg<Ctx>;
-    type State = ();
+    type State = State<Ctx>;
     type Arguments = ();
 
     async fn pre_start(
@@ -78,17 +98,21 @@ impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
         _myself: ActorRef<Self::Msg>,
         _: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
-        //Ok(self.value_builder.pre_start(myself).await?)
-        Ok(())
+        Ok(State { gossip_actor: None })
     }
 
     async fn handle(
         &self,
         _myself: ActorRef<Self::Msg>,
         msg: Self::Msg,
-        _state: &mut Self::State,
+        state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
+            Msg::Init { gossip_actor } => {
+                info!("Setting gossip actor in the builder state");
+                state.gossip_actor = Some(gossip_actor);
+            }
+
             Msg::GetValue {
                 height,
                 round,
@@ -97,19 +121,18 @@ impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
                 address,
             } => {
                 let value = self
-                    .get_value(height, round, timeout_duration, address)
+                    .get_value(
+                        height,
+                        round,
+                        timeout_duration,
+                        address,
+                        state.gossip_actor.clone(),
+                    )
                     .await?;
                 reply.send(value)?;
             }
 
             Msg::BlockPart(block_part) => {
-                info!(
-                    "Proposal Builder received a block part (h: {}, r:{}, seq: {})",
-                    block_part.height(),
-                    block_part.round(),
-                    block_part.sequence()
-                );
-
                 self.build_value(block_part).await?;
             }
         }

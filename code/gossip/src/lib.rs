@@ -171,7 +171,7 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
 
             match result {
                 Ok(message_id) => {
-                    debug!("Broadcasted message {message_id} of {msg_size} bytes");
+                    trace!("Broadcasted message {message_id} of {msg_size} bytes");
                 }
                 Err(e) => {
                     error!("Error broadcasting message: {e}");
@@ -277,7 +277,7 @@ async fn handle_swarm_event(
             message,
         })) => {
             let Some(channel) = Channel::from_topic_hash(&message.topic) else {
-                debug!(
+                trace!(
                     "Received message {message_id} from {peer_id} on different channel: {}",
                     message.topic
                 );
@@ -285,7 +285,7 @@ async fn handle_swarm_event(
                 return ControlFlow::Continue(());
             };
 
-            debug!(
+            trace!(
                 "Received message {message_id} from {peer_id} on channel {} of {} bytes",
                 channel,
                 message.data.len()

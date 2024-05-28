@@ -12,7 +12,7 @@ use crate::consensus::Consensus;
 use crate::gossip::Gossip;
 use crate::gossip_mempool::GossipMempool;
 use crate::mempool::Mempool;
-use crate::node::{Msg as NodeMsg, Node};
+use crate::node::{Msg as NodeMsg, Msg, Node};
 use crate::proposal_builder::ProposalBuilder;
 use crate::timers::Config as TimersConfig;
 use crate::util::TestValueBuilder;
@@ -44,7 +44,7 @@ pub async fn make_node_actor(
         .unwrap();
 
     // Spawn the proposal builder
-    let mut builder = TestValueBuilder::<TestContext>::new(mempool.clone(), None);
+    let builder = TestValueBuilder::<TestContext>::new(mempool.clone());
     let value_builder = Box::new(builder.clone());
 
     let ctx = TestContext::new(validator_pk.clone());
@@ -90,11 +90,8 @@ pub async fn make_node_actor(
     .await
     .unwrap();
 
-    // ??? circular dependencies - no effect since proposal builder is using a clone
-    builder.batch_gossip = Some(consensus.clone());
-
     // Spawn the node actor
-    Node::new(
+    let node = Node::new(
         ctx,
         cal,
         gossip_consensus,
@@ -103,8 +100,11 @@ pub async fn make_node_actor(
         mempool,
         proposal_builder,
         start_height,
-    )
-    .spawn()
-    .await
-    .unwrap()
+    );
+
+    let result = node.spawn().await.unwrap();
+    let actor = result.0.clone();
+    let _ = actor.cast(Msg::Start);
+
+    result
 }
