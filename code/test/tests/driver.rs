@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
-use malachite_test::utils::{
-    make_validators, make_value, FixedProposer, ProposerSelector, RotateProposer,
-};
+use malachite_test::utils::{make_validators, FixedProposer, ProposerSelector, RotateProposer};
 
 use malachite_common::{NilOrVal, Round, Timeout, TimeoutStep};
 use malachite_driver::{Driver, Error, Input, Output, Validity};
 use malachite_round::state::{RoundValue, State, Step};
-use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Vote};
+use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value, Vote};
 
 pub struct TestStep {
     desc: &'static str,
@@ -38,7 +36,7 @@ pub fn output_to_input(
 
 #[test]
 fn driver_steps_proposer() {
-    let value = make_value([9999]);
+    let value = Value::new(9999);
 
     let [(v1, sk1), (v2, _sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
     let (my_sk, my_addr) = (sk1, v1.address);
@@ -53,7 +51,7 @@ fn driver_steps_proposer() {
     let proposal = Proposal::new(
         Height::new(1),
         Round::new(0),
-        value.clone(),
+        value,
         Round::new(-1),
         my_addr,
     );
@@ -82,7 +80,7 @@ fn driver_steps_proposer() {
         },
         TestStep {
             desc: "Feed a value to propose, propose that value",
-            input: Some(Input::ProposeValue(Round::new(0), value.clone())),
+            input: Some(Input::ProposeValue(Round::new(0), value)),
             expected_outputs: vec![Output::Propose(proposal.clone())],
             expected_round: Round::new(0),
             new_state: State {
@@ -166,11 +164,11 @@ fn driver_steps_proposer() {
                 round: Round::new(0),
                 step: Step::Precommit,
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 decision: None,
@@ -186,11 +184,11 @@ fn driver_steps_proposer() {
                 round: Round::new(0),
                 step: Step::Precommit,
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 decision: None,
@@ -211,11 +209,11 @@ fn driver_steps_proposer() {
                 round: Round::new(0),
                 step: Step::Precommit,
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 decision: None,
@@ -229,18 +227,18 @@ fn driver_steps_proposer() {
                 NilOrVal::Val(value.id()),
                 v3.address,
             ))),
-            expected_outputs: vec![Output::Decide(Round::new(0), value.clone())],
+            expected_outputs: vec![Output::Decide(Round::new(0), value)],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Commit,
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 decision: Some(value),
@@ -311,7 +309,7 @@ fn driver_steps_proposer_timeout_get_value() {
 
 #[test]
 fn driver_steps_not_proposer_valid() {
-    let value = make_value([9999]);
+    let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
 
@@ -328,7 +326,7 @@ fn driver_steps_not_proposer_valid() {
     let proposal = Proposal::new(
         Height::new(1),
         Round::new(0),
-        value.clone(),
+        value,
         Round::new(-1),
         v1.address,
     );
@@ -424,11 +422,11 @@ fn driver_steps_not_proposer_valid() {
                 round: Round::new(0),
                 step: Step::Precommit,
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 decision: None,
@@ -444,11 +442,11 @@ fn driver_steps_not_proposer_valid() {
                 round: Round::new(0),
                 step: Step::Precommit,
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 decision: None,
@@ -469,11 +467,11 @@ fn driver_steps_not_proposer_valid() {
                 round: Round::new(0),
                 step: Step::Precommit,
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 decision: None,
@@ -487,18 +485,18 @@ fn driver_steps_not_proposer_valid() {
                 NilOrVal::Val(value.id()),
                 v3.address,
             ))),
-            expected_outputs: vec![Output::Decide(Round::new(0), value.clone())],
+            expected_outputs: vec![Output::Decide(Round::new(0), value)],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Commit,
                 locked: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 valid: Some(RoundValue {
-                    value: value.clone(),
+                    value,
                     round: Round::new(0),
                 }),
                 decision: Some(value),
@@ -511,7 +509,7 @@ fn driver_steps_not_proposer_valid() {
 
 #[test]
 fn driver_steps_not_proposer_invalid() {
-    let value = make_value([9999]);
+    let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, sk2), (v3, _sk3)] = make_validators([1, 2, 3]);
 
@@ -528,7 +526,7 @@ fn driver_steps_not_proposer_invalid() {
     let proposal = Proposal::new(
         Height::new(1),
         Round::new(0),
-        value.clone(),
+        value,
         Round::new(-1),
         v1.address,
     );
@@ -633,7 +631,7 @@ fn driver_steps_not_proposer_invalid() {
 
 #[test]
 fn driver_steps_not_proposer_other_height() {
-    let value = make_value([9999]);
+    let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, sk2)] = make_validators([1, 2]);
 
@@ -701,7 +699,7 @@ fn driver_steps_not_proposer_other_height() {
 
 #[test]
 fn driver_steps_not_proposer_other_round() {
-    let value = make_value([9999]);
+    let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, sk2)] = make_validators([1, 2]);
 
@@ -760,7 +758,7 @@ fn driver_steps_not_proposer_other_round() {
 
 #[test]
 fn driver_steps_not_proposer_timeout_multiple_rounds() {
-    let value = make_value([9999]);
+    let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([1, 3, 1]);
 
@@ -1010,7 +1008,7 @@ fn driver_steps_proposer_not_found() {
 
 #[test]
 fn driver_steps_validator_not_found() {
-    let value = make_value([9999]);
+    let value = Value::new(9999);
 
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([1, 2, 3]);
 
@@ -1043,7 +1041,7 @@ fn driver_steps_validator_not_found() {
 
 #[test]
 fn driver_steps_skip_round_skip_threshold() {
-    let value = make_value([9999]);
+    let value = Value::new(9999);
 
     let sel = Arc::new(RotateProposer);
 
@@ -1156,7 +1154,7 @@ fn driver_steps_skip_round_skip_threshold() {
 
 #[test]
 fn driver_steps_skip_round_quorum_threshold() {
-    let value = make_value([9999]);
+    let value = Value::new(9999);
 
     let sel = Arc::new(RotateProposer);
 

@@ -1,7 +1,7 @@
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use malachite_common::{Context, NilOrVal, Round, Timeout, Transaction, VotingPower};
+use malachite_common::{Context, NilOrVal, Round, Timeout, VotingPower};
 use malachite_driver::{Input, Output, Validity};
 use malachite_round::state::{RoundValue, State, Step};
 
@@ -89,18 +89,6 @@ pub fn make_validators<const N: usize>(
     validators.try_into().expect("N validators")
 }
 
-pub fn make_mempool_nodes<const N: usize>() -> [PrivateKey; N] {
-    let mut rng = StdRng::seed_from_u64(0x43);
-    let mut nodes = Vec::with_capacity(N);
-
-    for _i in 0..N {
-        let sk = PrivateKey::generate(&mut rng);
-        nodes.push(sk);
-    }
-
-    nodes.try_into().expect("N validators")
-}
-
 pub fn new_round_input(round: Round, proposer: Address) -> Input<TestContext> {
     Input::NewRound(Height::new(1), round, proposer)
 }
@@ -131,7 +119,7 @@ pub fn proposal_input(
 }
 
 pub fn prevote_output(round: Round, addr: &Address) -> Output<TestContext> {
-    let value = make_value([9999]);
+    let value = Value::new(9999);
 
     Output::Vote(Vote::new_prevote(
         Height::new(1),
@@ -151,7 +139,7 @@ pub fn prevote_nil_output(round: Round, addr: &Address) -> Output<TestContext> {
 }
 
 pub fn prevote_input(addr: &Address) -> Input<TestContext> {
-    let value = make_value([9999]);
+    let value = Value::new(9999);
 
     Input::Vote(Vote::new_prevote(
         Height::new(1),
@@ -171,7 +159,7 @@ pub fn prevote_nil_input(addr: &Address) -> Input<TestContext> {
 }
 
 pub fn prevote_input_at(round: Round, addr: &Address) -> Input<TestContext> {
-    let value = make_value([9999]);
+    let value = Value::new(9999);
 
     Input::Vote(Vote::new_prevote(
         Height::new(1),
@@ -274,7 +262,7 @@ pub fn propose_state_with_proposal_and_locked_and_valid(
         round,
         step: Step::Propose,
         valid: Some(RoundValue {
-            value: proposal.value.clone(),
+            value: proposal.value,
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
@@ -323,7 +311,7 @@ pub fn prevote_state_with_proposal_and_locked_and_valid(
         round,
         step: Step::Prevote,
         valid: Some(RoundValue {
-            value: proposal.value.clone(),
+            value: proposal.value,
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
@@ -343,7 +331,7 @@ pub fn precommit_state_with_proposal_and_locked_and_valid(
         round,
         step: Step::Precommit,
         valid: Some(RoundValue {
-            value: proposal.value.clone(),
+            value: proposal.value,
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
@@ -417,7 +405,7 @@ pub fn new_round_with_proposal_and_locked_and_valid(
         round,
         step: Step::Unstarted,
         valid: Some(RoundValue {
-            value: proposal.value.clone(),
+            value: proposal.value,
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
@@ -448,21 +436,13 @@ pub fn decided_state_with_proposal_and_locked_and_valid(
         round,
         step: Step::Commit,
         valid: Some(RoundValue {
-            value: proposal.value.clone(),
+            value: proposal.value,
             round: Round::new(0),
         }),
         locked: Some(RoundValue {
-            value: proposal.value.clone(),
+            value: proposal.value,
             round: Round::new(0),
         }),
         decision: Some(proposal.value),
     }
-}
-
-pub fn make_value<const N: usize>(items: [u64; N]) -> Value {
-    let txes = items
-        .iter()
-        .map(|el| Transaction(Vec::from(el.to_be_bytes())))
-        .collect();
-    Value::new(txes)
 }

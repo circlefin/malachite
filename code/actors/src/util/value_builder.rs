@@ -31,7 +31,9 @@ pub mod test {
     use super::*;
     use std::collections::BTreeMap;
 
-    use malachite_test::{Address, BlockPart, Height, TestContext, Value};
+    use malachite_test::{
+        Address, BlockMetadata, BlockPart, Content, Height, TestContext, TransactionBatch, Value,
+    };
     use ractor::ActorRef;
 
     #[derive(Clone)]
@@ -56,9 +58,9 @@ pub mod test {
             self.part_map.get(&(height, round, sequence))
         }
         pub fn store(&mut self, block_part: BlockPart) {
-            let height = block_part.height;
-            let round = block_part.round;
-            let sequence = block_part.sequence;
+            let height = block_part.height();
+            let round = block_part.round();
+            let sequence = block_part.sequence();
             self.part_map
                 .entry((height, round, sequence))
                 .or_insert(block_part);
@@ -75,6 +77,7 @@ pub mod test {
             validator_address: Address,
             gossip_actor: Option<ActorRef<crate::consensus::Msg<TestContext>>>,
         ) -> Option<Value> {
+            let mut result = None;
             let finish_time = Instant::now() + timeout_duration.mul_f32(TIME_ALLOWANCE_FACTOR);
 
             let mut tx_batch = vec![];
@@ -98,14 +101,18 @@ pub mod test {
                     break;
                 }
 
-                // Send the batch in a BlockPart
-                let block_part = BlockPart {
+                // Create, store and gossip the batch in a BlockPart
+                let block_part = BlockPart::new(
                     height,
                     round,
                     sequence,
-                    transactions: txes.clone(),
                     validator_address,
-                };
+                    Content::new(TransactionBatch::new(txes.clone()), None),
+                );
+
+                // TODO:
+                // ^^^^ `__self` is a `&` reference, so the data it refers to cannot be borrowed as mutable
+                //self.store(block_part.clone());
 
                 gossip_actor
                     .as_ref()
@@ -119,34 +126,62 @@ pub mod test {
                 tokio::time::sleep(Duration::from_micros(EXEC_TIME_MICROSEC_PER_PART)).await;
                 tx_batch.append(&mut txes);
 
+                sequence += 1;
+
                 if Instant::now().gt(&finish_time) {
+                    // Create, store and gossip the BlockMetadata in a BlockPart
+                    let value = Value::new_from_transactions(tx_batch.clone());
+                    result = Some(value);
+                    let block_part = BlockPart::new(
+                        height,
+                        round,
+                        sequence,
+                        validator_address,
+                        Content::new(
+                            TransactionBatch::new(vec![]),
+                            Some(BlockMetadata::new(vec![], value)),
+                        ),
+                    );
+
+                    //self.store(block_part.clone());
+
+                    gossip_actor
+                        .as_ref()
+                        .unwrap()
+                        .cast(crate::consensus::Msg::<TestContext>::BuilderBlockPart(
+                            block_part.clone(),
+                        ))
+                        .unwrap();
+
                     break;
                 }
-                sequence += 1;
             }
             info!(
-                "Value Builder created a block with {} tx-es",
-                tx_batch.len()
+                "Value Builder created a block with {} tx-es, block hash (consensus value) {:?} ",
+                tx_batch.len(),
+                result.clone()
             );
-            Some(Value::new(tx_batch))
+
+            result
         }
 
         async fn build_value_from_block_parts(
             &self,
             block_part: BlockPart,
         ) -> Option<<TestContext as malachite_common::Context>::Value> {
-            if block_part.sequence % 10 == 0 {
+            if block_part.sequence() % 10 == 0 {
                 info!(
                     "Received block part (h: {}, r: {}, seq: {}",
-                    block_part.height, block_part.round, block_part.sequence
+                    block_part.height(),
+                    block_part.round(),
+                    block_part.sequence()
                 );
             }
             // TODO - implement block part logic
             // - store the part:
             //     self.store(block_part);
             // - determine if all parts have been received
-            //   - need a final part (for starkware should be the one that contains the proof, state, and number
-            //     of parts
+            //   - the BlockMetadata sequence is the total number of parts
             // - reduce attack vector
             //   - these have been signed by sender and verified by consensus before being forwarded here
             //   - still there should be limits put in place

@@ -214,7 +214,7 @@ impl ItfRunner for ConsensusRunner {
                     assert_eq!(proposal.round.as_i64(), expected_proposal.round);
                     assert_eq!(proposal.pol_round.as_i64(), expected_proposal.valid_round);
                     assert_eq!(
-                        Some(proposal.value.clone()),
+                        Some(proposal.value),
                         value_from_string(&expected_proposal.proposal),
                         "unexpected proposal value"
                     );
@@ -260,7 +260,7 @@ impl ItfRunner for ConsensusRunner {
 
                 (Output::Decision(decision), ModelOutput::Decided(expected_decided_value)) => {
                     assert_eq!(
-                        Some(decision.value.clone()),
+                        Some(decision.value),
                         value_from_model(expected_decided_value),
                         "unexpected decided value"
                     );

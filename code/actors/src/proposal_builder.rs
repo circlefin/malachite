@@ -1,5 +1,4 @@
 use std::time::Duration;
-use tracing::info;
 
 use malachite_common::{Context, Round};
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
@@ -109,7 +108,6 @@ impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::Init { gossip_actor } => {
-                info!("Setting gossip actor in the builder state");
                 state.gossip_actor = Some(gossip_actor);
             }
 

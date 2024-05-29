@@ -6,14 +6,8 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 pub struct ValueId(u64);
 
 impl ValueId {
-    pub fn new_from_value(value: Value) -> Self {
-        let mut hash = DefaultHasher::new();
-        let txs = value.0;
-        txs.hash(&mut hash);
-        ValueId(hash.finish())
-    }
-    pub fn new_from_u64(id: u64) -> Self {
-        ValueId(id)
+    pub const fn new(id: u64) -> Self {
+        Self(id)
     }
 
     pub const fn as_u64(&self) -> u64 {
@@ -21,9 +15,9 @@ impl ValueId {
     }
 }
 
-impl From<Value> for ValueId {
-    fn from(block: Value) -> Self {
-        Self::new_from_value(block)
+impl From<u64> for ValueId {
+    fn from(value: u64) -> Self {
+        Self::new(value)
     }
 }
 
@@ -38,7 +32,7 @@ impl proto::Protobuf for ValueId {
         let bytes = <[u8; 8]>::try_from(bytes)
             .map_err(|_| proto::Error::Other("Invalid value length".to_string()))?;
 
-        Ok(ValueId(u64::from_be_bytes(bytes)))
+        Ok(ValueId::new(u64::from_be_bytes(bytes)))
     }
 
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
@@ -49,21 +43,26 @@ impl proto::Protobuf for ValueId {
 }
 
 /// The value to decide on
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Value(Vec<Transaction>);
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Value(u64);
 
 impl Value {
-    pub fn new(txes: Vec<Transaction>) -> Self {
-        Self(txes)
+    pub const fn new(value: u64) -> Self {
+        Self(value)
     }
-    pub fn id(&self) -> ValueId {
+
+    pub fn new_from_transactions(txes: Vec<Transaction>) -> Self {
         let mut hash = DefaultHasher::new();
-        let txs = &self.0;
-        txs.hash(&mut hash);
-        ValueId(hash.finish())
+        txes.hash(&mut hash);
+        Value::new(hash.finish())
     }
-    pub fn is_empty(&self) -> bool {
-        self.0.len() == 0
+
+    pub const fn as_u64(&self) -> u64 {
+        self.0
+    }
+
+    pub const fn id(&self) -> ValueId {
+        ValueId(self.0)
     }
 }
 
@@ -79,19 +78,19 @@ impl proto::Protobuf for Value {
     type Proto = proto::Value;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
-        let mut txes = vec![];
-        for raw_tx in proto.value.iter() {
-            txes.push(Transaction::new(raw_tx.to_vec()));
-        }
+        let bytes = proto
+            .value
+            .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
 
-        Ok(Value::new(txes))
+        let bytes = <[u8; 8]>::try_from(bytes)
+            .map_err(|_| proto::Error::Other("Invalid value length".to_string()))?;
+
+        Ok(Value::new(u64::from_be_bytes(bytes)))
     }
 
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        let mut raw_txes = vec![];
-        for tx in self.0.iter() {
-            raw_txes.push(tx.to_bytes());
-        }
-        Ok(proto::Value { value: raw_txes })
+        Ok(proto::Value {
+            value: Some(self.0.to_be_bytes().to_vec()),
+        })
     }
 }

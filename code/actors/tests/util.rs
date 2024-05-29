@@ -8,7 +8,7 @@ use tokio::time::{sleep, Duration};
 use tracing::{error, info};
 
 use malachite_common::{Round, VotingPower};
-use malachite_test::utils::{make_validators, make_value};
+use malachite_test::utils::make_validators;
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet};
 
 use malachite_actors::util::make_node_actor;
@@ -149,17 +149,13 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
                 // TODO - the value proposed comes from a set of mempool Tx-es which are currently different for each proposer
                 // Also heights can go to higher rounds.
                 // Therefore removing the round and value check for now
-                let value = make_value([40 + height]);
-
-                let expected = Some((Height::new(height), Round::new(0), value));
-
                 match decision {
-                    Some((h, _r, v)) if h == Height::new(height) && !v.is_empty() => {
+                    Some((h, r, _)) if h == Height::new(height) && r == Round::new(0) => {
                         info!("[{i}] {height}/{HEIGHTS} correct decision");
                         correct_decisions.fetch_add(1, Ordering::Relaxed);
                     }
                     _ => {
-                        error!("[{i}] {height}/{HEIGHTS} incorrect decision: expected {expected:?}, got {decision:?}")
+                        error!("[{i}] {height}/{HEIGHTS} no decision")
                     }
                 }
             }

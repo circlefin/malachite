@@ -11,7 +11,7 @@ message Address {
 }
 
 message Value {
-    repeated bytes value = 1;
+    optional bytes value = 1;
 }
 
 message ValueId {
@@ -57,12 +57,27 @@ message Transaction {
     optional bytes value = 1;
 }
 
+message TransactionBatch {
+    repeated Transaction transactions = 1;
+}
+
+message BlockMetadata {
+    bytes proof = 1;
+    Value value = 2;
+}
+
+// TODO - use oneof
+message Content {
+    TransactionBatch tx_batch = 90;
+    optional BlockMetadata metadata = 91;
+}
+
 message BlockPart {
     Height height = 1;
     Round round = 2;
     uint64 sequence = 3;
-    repeated Transaction block_part = 4; // TODO use google.protobuf.Any for different impls
-    Address validator_address = 5;
+    Address validator_address = 4;
+    Content content = 5;
 }
 
 message SignedBlockPart {
