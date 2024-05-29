@@ -1,0 +1,98 @@
+// -*- mode: Bluespec; -*-
+
+// This is a protocol specification of "Leader & Proof Scheduling", 
+// targeting writing invariants and temporal properties and allowing
+// us to generate interesting scenarios.
+//
+// For details of "Leader & Proof Scheduling", see:
+// https://docs.google.com/document/d/1qjngaq9GoMWa5UJOrTlKNqwi_pI0aHt8iULWD9Gy9hE/edit
+
+
+module proofs {
+    
+// const numStrands : int // K: number of strands
+// const maxMissingProofs: int // P
+
+val numStrands = 3  // K: number of strands
+val maxMissingProofs = 5 // P
+
+type Address = str
+type Height = int
+type Time = int
+type ForkID = int
+
+type BlockProof = 
+    | Proof (Height)
+    | None 
+
+
+type Block = {
+    // meta data
+    height: int,
+    //forkID: ForkID, 
+    txs: bool,    
+    proof: BlockProof,
+}
+
+type StrandInfo = int -> int
+
+pure def strand(H: Height, K: int) : int = H % K
+
+pure def last(l) = l[l.length() - 1]
+
+pure def newBlockProof (H: Height, K: int) : BlockProof =
+    if (H < K) None
+    else Proof(H-K)
+
+pure def require_proof (H: Height, K: int, strandInfo: StrandInfo, maxMissing: int) : bool =
+    strandInfo.get(strand(H, K)) == maxMissing
+
+
+
+var chain: List[Block]
+var num_missing_proofs: StrandInfo
+
+def transactionNeedsProof = 
+    chain.last().txs implies chain.last().proof != None
+
+
+action init = all {
+    chain' = List({
+        height: 0,
+        //forkID: 0,
+        txs: false,
+        proof: None
+    }),
+    num_missing_proofs' = 0.to(numStrands-1).mapBy(x => 0)
+}
+
+action step = {
+    val newHeight = chain.last().height + 1
+    val newProof = newBlockProof(newHeight, numStrands)
+    nondet newTxs = Set(true, false).oneOf()
+    if (require_proof(newHeight, numStrands, num_missing_proofs, maxMissingProofs))
+        all {
+        chain' = chain.append({height: newHeight, txs: newTxs, proof: newProof}),
+        num_missing_proofs' = num_missing_proofs.set(strand(newHeight, numStrands), 0)
+        }
+    else
+        nondet addedProof = Set(None, newProof).oneOf()
+        all{
+            
+            if (addedProof == None) all {
+                chain' = chain.append({height: newHeight, txs: false, proof: addedProof}),
+                num_missing_proofs' = num_missing_proofs.set(   strand(newHeight, numStrands), 
+                                                                num_missing_proofs.get(strand(newHeight, numStrands)) +1 )
+                }
+            else all {
+                chain' = chain.append({height: newHeight, txs: newTxs, proof: addedProof}),
+                num_missing_proofs' = num_missing_proofs.set(strand(newHeight, numStrands), 0)
+            }
+        }
+
+}
+
+}
+
+
+
