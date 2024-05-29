@@ -6,7 +6,8 @@
 //
 // For details of "Leader & Proof Scheduling", see:
 // https://docs.google.com/document/d/1qjngaq9GoMWa5UJOrTlKNqwi_pI0aHt8iULWD9Gy9hE/edit
-
+//
+// Josef Widder, Informal Systems, 2024
 
 module proofs {
     
@@ -21,8 +22,13 @@ type Height = int
 type Time = int
 type ForkID = int
 
+type L2Proof = {
+    provenBlock: int,
+    emptyBlocks: Set[int],
+}
+
 type BlockProof = 
-    | Proof (Height)
+    | Proof (L2Proof)
     | None 
 
 
@@ -38,13 +44,26 @@ type StrandInfo = int -> int
 
 pure def strand(H: Height, K: int) : int = H % K
 
+pure def strandBlocks(c: List[Block], strandID: int, K: int ) : List[Block] =
+    c.select(x => strand(x.height,K) == strandID)
+
 pure def last(l) = l[l.length() - 1]
 
-pure def newBlockProof (H: Height, K: int) : BlockProof =
-    if (H < K) None
-    else Proof(H-K)
 
-pure def require_proof (H: Height, K: int, strandInfo: StrandInfo, maxMissing: int) : bool =
+    
+
+
+pure def newBlockProof (s: List[Block], H: Height, K: int) : BlockProof =
+    if (H < K) None
+    else 
+        val proofStart = s.foldl(head(s).height, (s, x) =>  if (x.height > s and x.proof != None) x.height
+                                                            else s)
+        val empty = s   .select(x => x.height > proofStart)
+                        .foldl(Set(), (s, x) => s.union(Set(x.height)))
+        Proof({provenBlock: proofStart, emptyBlocks: empty})
+
+
+pure def requireProof (H: Height, K: int, strandInfo: StrandInfo, maxMissing: int) : bool =
     strandInfo.get(strand(H, K)) == maxMissing
 
 
@@ -52,8 +71,33 @@ pure def require_proof (H: Height, K: int, strandInfo: StrandInfo, maxMissing: i
 var chain: List[Block]
 var num_missing_proofs: StrandInfo
 
-def transactionNeedsProof = 
+// Invariants
+
+def transactionNeedsProofInv = 
     chain.last().txs implies chain.last().proof != None
+
+def NotTooManyEmptyInv = 
+    match chain.last().proof {
+        | None => true
+        | Proof(p) => p.emptyBlocks.size() <= maxMissingProofs
+    }
+
+
+// Witness
+
+// An example with empty blocks proven
+def emptyBlocksProvenWitness = 
+    match chain.last().proof {
+        | None => true
+        | Proof(p) => p.emptyBlocks == Set()
+    }
+
+// An example with a lot of empty blocks proven
+def MaxEmptyWitness = 
+    match chain.last().proof {
+        | None => true
+        | Proof(p) => p.emptyBlocks.size() != maxMissingProofs
+    }
 
 
 action init = all {
@@ -68,9 +112,12 @@ action init = all {
 
 action step = {
     val newHeight = chain.last().height + 1
-    val newProof = newBlockProof(newHeight, numStrands)
+    val sBlocks =  strandBlocks(chain, strand(newHeight, numStrands), numStrands)
+    val newProof = newBlockProof(   sBlocks,
+                                    newHeight, 
+                                    numStrands)
     nondet newTxs = Set(true, false).oneOf()
-    if (require_proof(newHeight, numStrands, num_missing_proofs, maxMissingProofs))
+    if (requireProof(newHeight, numStrands, num_missing_proofs, maxMissingProofs))
         all {
         chain' = chain.append({height: newHeight, txs: newTxs, proof: newProof}),
         num_missing_proofs' = num_missing_proofs.set(strand(newHeight, numStrands), 0)
