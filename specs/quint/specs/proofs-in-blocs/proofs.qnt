@@ -51,7 +51,13 @@ pure def last(l) = l[l.length() - 1]
 
 
     
-
+pure def emptySuffix (s: List[Block]) : Set[Height] =
+    if (s == List()) Set()
+    else
+    val proofStart = s.foldl(head(s).height, (s, x) =>  if (x.height > s and x.proof != None) x.height
+                                                            else s)
+    s   .select(x => x.height > proofStart)
+        .foldl(Set(), (s, x) => s.union(Set(x.height)))
 
 pure def newBlockProof (s: List[Block], H: Height, K: int) : BlockProof =
     if (H < K) None
@@ -78,8 +84,8 @@ def transactionNeedsProofInv =
 
 def NotTooManyEmptyInv = 
     match chain.last().proof {
-        | None => true
         | Proof(p) => p.emptyBlocks.size() <= maxMissingProofs
+        | None => true
     }
 
 
@@ -88,17 +94,37 @@ def NotTooManyEmptyInv =
 // An example with empty blocks proven
 def emptyBlocksProvenWitness = 
     match chain.last().proof {
-        | None => true
         | Proof(p) => p.emptyBlocks == Set()
+        | None => true
     }
 
 // An example with a lot of empty blocks proven
 def MaxEmptyWitness = 
     match chain.last().proof {
-        | None => true
         | Proof(p) => p.emptyBlocks.size() != maxMissingProofs
+        | None => true
     }
 
+
+def addMaximalProofWitness = 
+    val s = strand(chain.last().height, numStrands)
+    val bs = strandBlocks(chain.slice(0, chain.length()-1), s, numStrands)
+    bs.emptySuffix().size() == maxMissingProofs implies
+        chain.last().proof == None
+        
+
+// Found an issue (7143ms).
+// Use --seed=0xdc7a687c5dae7 to reproduce.
+def ManyProofsInARowMissingWitness =
+    not ( 
+        num_missing_proofs.keys().forall( x =>
+            num_missing_proofs.get(x) == maxMissingProofs) 
+            //and chain.length() > 22
+    )
+
+
+
+// State Machine
 
 action init = all {
     chain' = List({
