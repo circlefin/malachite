@@ -105,13 +105,13 @@ def MaxEmptyWitness =
         | None => true
     }
 
-
+// a proof with maximal empty blocks is added
 def addMaximalProofWitness = 
     val s = strand(chain.last().height, numStrands)
     val bs = strandBlocks(chain.slice(0, chain.length()-1), s, numStrands)
     bs.emptySuffix().size() == maxMissingProofs implies
         chain.last().proof == None
-        
+
 
 // Found an issue (7143ms).
 // Use --seed=0xdc7a687c5dae7 to reproduce.
