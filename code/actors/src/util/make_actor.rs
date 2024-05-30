@@ -15,6 +15,7 @@ use crate::mempool::Mempool;
 use crate::node::{Msg as NodeMsg, Msg, Node};
 use crate::proposal_builder::ProposalBuilder;
 use crate::timers::Config as TimersConfig;
+use crate::util::value_builder::test::PartStore;
 use crate::util::TestValueBuilder;
 
 pub async fn make_node_actor(
@@ -43,12 +44,11 @@ pub async fn make_node_actor(
         .await
         .unwrap();
 
-    // Spawn the proposal builder
-    let builder = TestValueBuilder::<TestContext>::new(mempool.clone());
-    let value_builder = Box::new(builder.clone());
-
     let ctx = TestContext::new(validator_pk.clone());
-    let proposal_builder = ProposalBuilder::spawn(ctx.clone(), value_builder)
+
+    // Spawn the proposal builder
+    let value_builder = Box::new(TestValueBuilder::<TestContext>::new(mempool.clone()));
+    let proposal_builder = ProposalBuilder::spawn(value_builder, PartStore::new())
         .await
         .unwrap();
 
