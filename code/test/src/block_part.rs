@@ -16,6 +16,10 @@ impl BlockMetadata {
         Self { proof, value }
     }
 
+    pub fn value(&self) -> Value {
+        self.value
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         proto::Protobuf::to_bytes(self).unwrap()
     }
@@ -179,6 +183,9 @@ impl BlockPart {
             block_part: self,
             signature,
         }
+    }
+    pub fn metadata(&self) -> Option<BlockMetadata> {
+        self.content.block_metadata.clone()
     }
 }
 

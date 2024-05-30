@@ -15,7 +15,6 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 extern crate alloc;
-
 mod block_part;
 mod context;
 mod height;

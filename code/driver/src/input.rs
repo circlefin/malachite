@@ -24,4 +24,7 @@ where
 
     /// Receive a timeout
     TimeoutElapsed(Timeout),
+
+    /// Receive a block hash/ value assembed from block parts that was verified
+    BlockReceived(Ctx::Height, Round, Ctx::Value, Validity),
 }

@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use ractor::rpc::{call_and_forward, CallResult};
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use malachite_common::{
     Context, Height, NilOrVal, Proposal, Round, SignedBlockPart, SignedProposal, SignedVote,
@@ -14,6 +14,7 @@ use malachite_common::{
 };
 use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
+use malachite_driver::Input::BlockReceived;
 use malachite_driver::Output as DriverOutput;
 use malachite_driver::Validity;
 use malachite_gossip::{Channel, Event as GossipEvent};
@@ -25,7 +26,9 @@ use malachite_vote::{Threshold, ThresholdParams};
 
 use crate::cal::Msg as CALMsg;
 use crate::gossip::Msg as GossipMsg;
-use crate::proposal_builder::{Msg as ProposalBuilderMsg, ProposedValue};
+use crate::proposal_builder::{
+    LocallyProposedValue, Msg as ProposalBuilderMsg, ReceivedProposedValue,
+};
 use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers};
 use crate::util::forward;
 
@@ -72,6 +75,7 @@ pub enum Msg<Ctx: Context> {
     ProposeValue(Ctx::Height, Round, Option<Ctx::Value>),
     // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
     BuilderBlockPart(Ctx::BlockPart),
+    BlockReceived(ReceivedProposedValue<Ctx>),
 }
 
 impl<Ctx: Context> From<TimeoutElapsed> for Msg<Ctx> {
@@ -93,7 +97,7 @@ where
 
 impl<Ctx> Consensus<Ctx>
 where
-    Ctx: Context,
+    Ctx: Context + std::fmt::Debug,
     Ctx::Vote: Protobuf<Proto = proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
     Ctx::BlockPart: Protobuf<Proto = proto::BlockPart>,
@@ -214,17 +218,47 @@ where
                 // TODO - proposals with invalid signatures should be dropped.
                 // For well signed we should validate the proposal against the block parts (if all received).
                 // Add `valid()` to Context.
-                let valid = self
-                    .ctx
-                    .verify_signed_proposal(&signed_proposal, validator.public_key());
+                let proposal = &signed_proposal.proposal;
+                let proposal_height = proposal.height();
+                let proposal_round = proposal.round();
 
-                let proposal_height = signed_proposal.proposal.height();
+                if !self
+                    .ctx
+                    .verify_signed_proposal(&signed_proposal, validator.public_key())
+                {
+                    error!(
+                        "Received invalid signature for proposal ({}, {}, {:?}",
+                        proposal_height,
+                        proposal_round,
+                        proposal.value()
+                    )
+                }
                 assert!(proposal_height == state.driver.height());
 
-                myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
-                    signed_proposal.proposal,
-                    Validity::from_valid(valid),
-                )))?;
+                let received_block = state
+                    .driver
+                    .received_blocks
+                    .iter()
+                    .find(|&x| x.0 == proposal_height && x.1 == proposal_round);
+
+                match received_block {
+                    Some(block) => {
+                        let valid = block.3;
+                        myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
+                            proposal.clone(),
+                            valid,
+                        )))?;
+                    }
+                    None => {
+                        // Store the proposal and wait for all block parts
+                        // TODO - or maybe integrate with receive-proposal() here? will this block until all parts are received?
+                        info!(
+                            "Received proposal {:?} before all block parts --STORING",
+                            proposal
+                        );
+                        state.driver.proposal = Some(proposal.clone());
+                    }
+                }
             }
             NetworkMsg::BlockPart(block_part) => {
                 let signed_block_part = SignedBlockPart::<Ctx>::from_proto(block_part).unwrap();
@@ -304,6 +338,9 @@ where
 
             DriverInput::Vote(_) => (),
             DriverInput::TimeoutElapsed(_) => (),
+            DriverInput::BlockReceived(..) => {
+                debug!("Received full block {:?}", input);
+            }
         }
 
         let check_threshold = if let DriverInput::Vote(vote) = &input {
@@ -491,7 +528,7 @@ where
                 reply,
             },
             myself.get_cell(),
-            |proposed: ProposedValue<Ctx>| {
+            |proposed: LocallyProposedValue<Ctx>| {
                 Msg::<Ctx>::ProposeValue(proposed.height, proposed.round, proposed.value)
             },
             None,
@@ -543,7 +580,7 @@ where
 #[async_trait]
 impl<Ctx> Actor for Consensus<Ctx>
 where
-    Ctx: Context,
+    Ctx: Context + std::fmt::Debug,
     Ctx::Height: Display,
     Ctx::Vote: Protobuf<Proto = proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
@@ -741,6 +778,18 @@ where
                 let bytes = msg.to_network_bytes().unwrap(); // FIXME
                 self.gossip
                     .cast(GossipMsg::Broadcast(Channel::BlockParts, bytes))?;
+            }
+            Msg::BlockReceived(value) => {
+                info!("BLOCK RECEIVED {:?}", value);
+
+                if let Some(v) = value.value {
+                    self.send_driver_input(
+                        BlockReceived(value.height, value.round, v, value.valid),
+                        myself,
+                        state,
+                    )
+                    .await?;
+                }
             }
         }
 

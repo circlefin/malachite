@@ -2,8 +2,10 @@ use async_trait::async_trait;
 use ractor::ActorRef;
 use std::marker::PhantomData;
 use std::time::{Duration, Instant};
-use tracing::info;
+use tracing::{error, info, trace};
 
+use crate::proposal_builder::{LocallyProposedValue, ReceivedProposedValue};
+use crate::util::value_builder::test::PartStore;
 use malachite_common::{Context, Round};
 
 #[async_trait]
@@ -15,22 +17,35 @@ pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
         timeout_duration: Duration,
         address: Ctx::Address,
         gossip_actor: Option<ActorRef<crate::consensus::Msg<Ctx>>>,
-    ) -> Option<Ctx::Value>;
+        part_map: &mut PartStore,
+    ) -> Option<LocallyProposedValue<Ctx>>;
 
-    async fn build_value_from_block_parts(&self, block_part: Ctx::BlockPart) -> Option<Ctx::Value>;
+    async fn build_value_from_block_parts(
+        &self,
+        block_part: Ctx::BlockPart,
+        part_store: &mut PartStore,
+    ) -> Option<ReceivedProposedValue<Ctx>>;
+
+    async fn maybe_received_value(
+        &self,
+        height: Ctx::Height,
+        round: Round,
+        part_store: &mut PartStore,
+    ) -> Option<ReceivedProposedValue<Ctx>>;
 }
 
 pub mod test {
     // TODO - parameterize
     // If based on the propose_timeout and the constants below we end up with more than 300 parts then consensus
     // is never reached in a round and we keep moving to the next one.
-    const NUM_TXES_PER_PART: u64 = 300;
+    const NUM_TXES_PER_PART: u64 = 400;
     const TIME_ALLOWANCE_FACTOR: f32 = 0.5;
     const EXEC_TIME_MICROSEC_PER_PART: u64 = 100000;
 
     use super::*;
     use std::collections::BTreeMap;
 
+    use malachite_driver::Validity;
     use malachite_test::{
         Address, BlockMetadata, BlockPart, Content, Height, TestContext, TransactionBatch, Value,
     };
@@ -40,7 +55,6 @@ pub mod test {
     pub struct TestValueBuilder<Ctx: Context> {
         _phantom: PhantomData<Ctx>,
         tx_streamer: ActorRef<crate::mempool::Msg>,
-        part_map: BTreeMap<(Height, Round, u64), BlockPart>,
     }
 
     impl<Ctx> TestValueBuilder<Ctx>
@@ -51,19 +65,7 @@ pub mod test {
             Self {
                 _phantom: Default::default(),
                 tx_streamer,
-                part_map: BTreeMap::new(),
             }
-        }
-        pub fn get(&self, height: Height, round: Round, sequence: u64) -> Option<&BlockPart> {
-            self.part_map.get(&(height, round, sequence))
-        }
-        pub fn store(&mut self, block_part: BlockPart) {
-            let height = block_part.height();
-            let round = block_part.round();
-            let sequence = block_part.sequence();
-            self.part_map
-                .entry((height, round, sequence))
-                .or_insert(block_part);
         }
     }
 
@@ -76,13 +78,23 @@ pub mod test {
             timeout_duration: Duration,
             validator_address: Address,
             gossip_actor: Option<ActorRef<crate::consensus::Msg<TestContext>>>,
-        ) -> Option<Value> {
+            part_store: &mut PartStore,
+        ) -> Option<LocallyProposedValue<TestContext>> {
             let mut result = None;
-            let finish_time = Instant::now() + timeout_duration.mul_f32(TIME_ALLOWANCE_FACTOR);
+            let now = Instant::now();
+            let deadline = now + timeout_duration.mul_f32(TIME_ALLOWANCE_FACTOR);
+            let expiration_time = now + timeout_duration;
 
             let mut tx_batch = vec![];
             let mut sequence = 1;
+
             loop {
+                trace!(
+                    "Build local value for h:{}, r:{}, s:{}",
+                    height,
+                    round,
+                    sequence
+                );
                 let mut txes = self
                     .tx_streamer
                     .call(
@@ -110,9 +122,7 @@ pub mod test {
                     Content::new(TransactionBatch::new(txes.clone()), None),
                 );
 
-                // TODO:
-                // ^^^^ `__self` is a `&` reference, so the data it refers to cannot be borrowed as mutable
-                //self.store(block_part.clone());
+                part_store.store(block_part.clone());
 
                 gossip_actor
                     .as_ref()
@@ -128,10 +138,21 @@ pub mod test {
 
                 sequence += 1;
 
-                if Instant::now().gt(&finish_time) {
+                if Instant::now().gt(&expiration_time) {
+                    error!(
+                        "Value Builder started at {:?} but failed to complete by expiration time {:?}", now, expiration_time);
+                    result = None;
+                    break;
+                }
+
+                if Instant::now().gt(&deadline) {
                     // Create, store and gossip the BlockMetadata in a BlockPart
                     let value = Value::new_from_transactions(tx_batch.clone());
-                    result = Some(value);
+                    result = Some(LocallyProposedValue {
+                        height,
+                        round,
+                        value: Some(value),
+                    });
                     let block_part = BlockPart::new(
                         height,
                         round,
@@ -143,7 +164,7 @@ pub mod test {
                         ),
                     );
 
-                    //self.store(block_part.clone());
+                    part_store.store(block_part.clone());
 
                     gossip_actor
                         .as_ref()
@@ -153,14 +174,14 @@ pub mod test {
                         ))
                         .unwrap();
 
+                    info!(
+                        "Value Builder created a block with {} tx-es, block hash (consensus value) {:?} ",
+                        tx_batch.len(),
+                        result
+                    );
                     break;
                 }
             }
-            info!(
-                "Value Builder created a block with {} tx-es, block hash (consensus value) {:?} ",
-                tx_batch.len(),
-                result.clone()
-            );
 
             result
         }
@@ -168,26 +189,111 @@ pub mod test {
         async fn build_value_from_block_parts(
             &self,
             block_part: BlockPart,
-        ) -> Option<<TestContext as malachite_common::Context>::Value> {
-            if block_part.sequence() % 10 == 0 {
-                info!(
-                    "Received block part (h: {}, r: {}, seq: {}",
-                    block_part.height(),
-                    block_part.round(),
-                    block_part.sequence()
-                );
+            part_store: &mut PartStore,
+        ) -> Option<ReceivedProposedValue<TestContext>> {
+            let height = block_part.height();
+            let round = block_part.round();
+            let sequence = block_part.sequence();
+
+            part_store.store(block_part.clone());
+            let num_parts = part_store.all_parts(height, round).len();
+            trace!("({num_parts}):Received block part (h: {height}, r: {round}, seq: {sequence}");
+
+            // Simulate Tx execution and proof verification (assumes success)
+            // TODO - add config knob for invalid blocks
+            tokio::time::sleep(Duration::from_micros(EXEC_TIME_MICROSEC_PER_PART)).await;
+
+            // Get the "last" part, the one with highest sequence.
+            // Block parts may not be received in order.
+            if let Some(last_part) =
+                part_store.get(block_part.height(), block_part.round(), num_parts as u64)
+            {
+                // If the "last" part includes a metadata then this is truly the last part.
+                // So in this case all block parts have been received, including the metadata that includes
+                // the block hash/ value. This can be returned as the block is complete.
+                // TODO - the logic here is weak, we assume earlier parts don't include metadata
+                // Should change once we implement `oneof`/ proper enum in protobuf but good enough for now test code
+                match last_part.metadata() {
+                    Some(meta) => {
+                        info!(
+                            "Value Builder received last block part for heigh:{}, round:{}, num_parts: {num_parts}",
+                            last_part.height(),
+                            last_part.round(),
+                        );
+                        Some(ReceivedProposedValue {
+                            validator_address: *last_part.validator_address(),
+                            height: last_part.height(),
+                            round: last_part.round(),
+                            value: Some(meta.value()),
+                            valid: Validity::Valid,
+                        })
+                    }
+                    None => None,
+                }
+            } else {
+                None
             }
-            // TODO - implement block part logic
-            // - store the part:
-            //     self.store(block_part);
-            // - determine if all parts have been received
-            //   - the BlockMetadata sequence is the total number of parts
-            // - reduce attack vector
-            //   - these have been signed by sender and verified by consensus before being forwarded here
-            //   - still there should be limits put in place
-            // - should support multiple proposals in parallel
-            // - should fix the APIs to confirm with the "Context APIs" from Starkware
-            None
+        }
+
+        async fn maybe_received_value(
+            &self,
+            height: Height,
+            round: Round,
+            part_store: &mut PartStore,
+        ) -> Option<ReceivedProposedValue<TestContext>> {
+            let block_parts = part_store.all_parts(height, round);
+            let num_parts = block_parts.len();
+            let last_part = block_parts[num_parts - 1];
+            last_part.metadata().map(|metadata| ReceivedProposedValue {
+                validator_address: *last_part.validator_address(),
+                height,
+                round,
+                value: Some(metadata.value()),
+                valid: Validity::Valid,
+            })
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct PartStore {
+        pub map: BTreeMap<(Height, Round, u64), BlockPart>,
+    }
+
+    impl Default for PartStore {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl PartStore {
+        pub fn new() -> Self {
+            Self {
+                map: BTreeMap::new(),
+            }
+        }
+
+        pub fn get(&self, height: Height, round: Round, sequence: u64) -> Option<&BlockPart> {
+            self.map.get(&(height, round, sequence))
+        }
+
+        pub fn all_parts(&self, height: Height, round: Round) -> Vec<&BlockPart> {
+            let mut block_parts: Vec<&BlockPart> = self
+                .map
+                .iter()
+                .filter(|((h, r, _), _)| *h == height && *r == round)
+                .map(|(_, b)| b)
+                .collect();
+            block_parts.sort_by_key(|b| std::cmp::Reverse(b.sequence()));
+            block_parts
+        }
+
+        pub fn store(&mut self, block_part: BlockPart) {
+            let height = block_part.height();
+            let round = block_part.round();
+            let sequence = block_part.sequence();
+            self.map
+                .entry((height, round, sequence))
+                .or_insert(block_part);
         }
     }
 }
