@@ -277,8 +277,10 @@ where
                     return Ok(());
                 }
 
-                self.proposal_builder
-                    .cast(ProposalBuilderMsg::BlockPart(signed_block_part.block_part))?
+                self.proposal_builder.cast(ProposalBuilderMsg::BlockPart {
+                    block_part: signed_block_part.block_part,
+                    reply_to: myself.clone(),
+                })?
             }
         }
 
@@ -525,6 +527,7 @@ where
                 round,
                 timeout_duration,
                 address: self.params.address.clone(),
+                consensus: myself.clone(),
                 reply,
             },
             myself.get_cell(),

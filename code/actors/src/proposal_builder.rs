@@ -1,13 +1,14 @@
-use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::time::Duration;
-use tracing::info;
 
 use derive_where::derive_where;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
+use tracing::info;
 
 use malachite_common::{Context, Round};
 use malachite_driver::Validity;
 
+use crate::consensus::Msg as ConsensusMsg;
 use crate::util::value_builder::test::PartStore;
 use crate::util::ValueBuilder;
 
@@ -29,23 +30,21 @@ pub struct ReceivedProposedValue<Ctx: Context> {
 }
 
 pub enum Msg<Ctx: Context> {
-    // Initialize the builder state with the gossip actor
-    Init {
-        gossip_actor: ActorRef<crate::consensus::Msg<Ctx>>,
-        part_store: PartStore,
-    },
-
     // Request to build a local block/ value from Driver
     GetValue {
         height: Ctx::Height,
         round: Round,
         timeout_duration: Duration,
-        reply: RpcReplyPort<LocallyProposedValue<Ctx>>,
+        consensus: ActorRef<ConsensusMsg<Ctx>>,
         address: Ctx::Address,
+        reply: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
 
     // BlockPart received <-- consensus <-- gossip
-    BlockPart(Ctx::BlockPart),
+    BlockPart {
+        block_part: Ctx::BlockPart,
+        reply_to: ActorRef<ConsensusMsg<Ctx>>,
+    },
 
     // Retrieve a block/ value for which all parts have been received
     GetReceivedValue {
@@ -55,31 +54,34 @@ pub enum Msg<Ctx: Context> {
     },
 }
 
-pub struct State<Ctx: Context> {
-    gossip_actor: Option<ActorRef<crate::consensus::Msg<Ctx>>>,
+pub struct State {
+    part_store: PartStore,
+}
+
+pub struct Args {
     part_store: PartStore,
 }
 
 pub struct ProposalBuilder<Ctx: Context> {
-    _ctx: Ctx,
     value_builder: Box<dyn ValueBuilder<Ctx>>,
+    marker: PhantomData<Ctx>,
 }
 
 impl<Ctx> ProposalBuilder<Ctx>
 where
-    Ctx: Context + Debug,
+    Ctx: Context,
 {
     pub async fn spawn(
-        ctx: Ctx,
         value_builder: Box<dyn ValueBuilder<Ctx>>,
+        part_store: PartStore,
     ) -> Result<ActorRef<Msg<Ctx>>, ActorProcessingErr> {
         let (actor_ref, _) = Actor::spawn(
             None,
             Self {
-                _ctx: ctx,
                 value_builder,
+                marker: PhantomData,
             },
-            (),
+            Args { part_store },
         )
         .await?;
 
@@ -92,7 +94,7 @@ where
         round: Round,
         timeout_duration: Duration,
         address: Ctx::Address,
-        gossip_actor: Option<ActorRef<crate::consensus::Msg<Ctx>>>,
+        consensus: ActorRef<ConsensusMsg<Ctx>>,
         part_store: &mut PartStore,
     ) -> Result<LocallyProposedValue<Ctx>, ActorProcessingErr> {
         let value = self
@@ -102,7 +104,7 @@ where
                 round,
                 timeout_duration,
                 address,
-                gossip_actor,
+                consensus,
                 part_store,
             )
             .await;
@@ -124,30 +126,28 @@ where
             .value_builder
             .build_value_from_block_parts(block_part, part_store)
             .await;
-        if value.is_some() {
-            info!(
-                "Value Builder received all parts, produced value {:?} for proposal",
-                value
-            );
+
+        if let Some(value) = &value {
+            info!("Value Builder received all parts, produced value for proposal: {value:?}",);
         }
+
         Ok(value)
     }
 }
 
 #[async_trait]
-impl<Ctx: Context + std::fmt::Debug> Actor for ProposalBuilder<Ctx> {
+impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
     type Msg = Msg<Ctx>;
-    type State = State<Ctx>;
-    type Arguments = ();
+    type State = State;
+    type Arguments = Args;
 
     async fn pre_start(
         &self,
         _myself: ActorRef<Self::Msg>,
-        _: Self::Arguments,
+        args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
         Ok(State {
-            gossip_actor: None,
-            part_store: PartStore::new(),
+            part_store: args.part_store,
         })
     }
 
@@ -158,18 +158,11 @@ impl<Ctx: Context + std::fmt::Debug> Actor for ProposalBuilder<Ctx> {
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            Msg::Init {
-                gossip_actor,
-                part_store,
-            } => {
-                state.gossip_actor = Some(gossip_actor);
-                state.part_store = part_store
-            }
-
             Msg::GetValue {
                 height,
                 round,
                 timeout_duration,
+                consensus,
                 reply,
                 address,
             } => {
@@ -179,23 +172,23 @@ impl<Ctx: Context + std::fmt::Debug> Actor for ProposalBuilder<Ctx> {
                         round,
                         timeout_duration,
                         address,
-                        state.gossip_actor.clone(),
+                        consensus,
                         &mut state.part_store,
                     )
                     .await?;
+
                 reply.send(value)?;
             }
 
-            Msg::BlockPart(block_part) => {
+            Msg::BlockPart {
+                block_part,
+                reply_to,
+            } => {
                 let maybe_block = self.build_value(block_part, &mut state.part_store).await?;
+
                 // Send the proposed value (from blockparts) to consensus/ Driver
                 if let Some(value_assembled) = maybe_block {
-                    state
-                        .gossip_actor
-                        .as_ref()
-                        .unwrap()
-                        .cast(crate::consensus::Msg::<Ctx>::BlockReceived(value_assembled))
-                        .unwrap();
+                    reply_to.cast(ConsensusMsg::BlockReceived(value_assembled))?;
                 }
             }
 
@@ -208,6 +201,7 @@ impl<Ctx: Context + std::fmt::Debug> Actor for ProposalBuilder<Ctx> {
                     .value_builder
                     .maybe_received_value(height, round, &mut state.part_store)
                     .await;
+
                 reply.send(value)?;
             }
         }

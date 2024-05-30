@@ -1,12 +1,15 @@
-use async_trait::async_trait;
-use ractor::ActorRef;
 use std::marker::PhantomData;
 use std::time::{Duration, Instant};
+
+use async_trait::async_trait;
+use ractor::ActorRef;
 use tracing::{error, info, trace};
 
+use malachite_common::{Context, Round};
+
+use crate::consensus::Msg as ConsensusMsg;
 use crate::proposal_builder::{LocallyProposedValue, ReceivedProposedValue};
 use crate::util::value_builder::test::PartStore;
-use malachite_common::{Context, Round};
 
 #[async_trait]
 pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
@@ -16,7 +19,7 @@ pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
         round: Round,
         timeout_duration: Duration,
         address: Ctx::Address,
-        gossip_actor: Option<ActorRef<crate::consensus::Msg<Ctx>>>,
+        consensus: ActorRef<ConsensusMsg<Ctx>>,
         part_store: &mut PartStore,
     ) -> Option<LocallyProposedValue<Ctx>>;
 
@@ -77,16 +80,16 @@ pub mod test {
             round: Round,
             timeout_duration: Duration,
             validator_address: Address,
-            gossip_actor: Option<ActorRef<crate::consensus::Msg<TestContext>>>,
+            consensus: ActorRef<ConsensusMsg<TestContext>>,
             part_store: &mut PartStore,
         ) -> Option<LocallyProposedValue<TestContext>> {
-            let mut result = None;
             let now = Instant::now();
             let deadline = now + timeout_duration.mul_f32(TIME_ALLOWANCE_FACTOR);
             let expiration_time = now + timeout_duration;
 
             let mut tx_batch = vec![];
             let mut sequence = 1;
+            let mut result = None;
 
             loop {
                 trace!(
@@ -95,6 +98,7 @@ pub mod test {
                     round,
                     sequence
                 );
+
                 let mut txes = self
                     .tx_streamer
                     .call(
@@ -124,12 +128,8 @@ pub mod test {
 
                 part_store.store(block_part.clone());
 
-                gossip_actor
-                    .as_ref()
-                    .unwrap()
-                    .cast(crate::consensus::Msg::<TestContext>::BuilderBlockPart(
-                        block_part.clone(),
-                    ))
+                consensus
+                    .cast(ConsensusMsg::BuilderBlockPart(block_part.clone()))
                     .unwrap();
 
                 // Simulate execution
@@ -138,21 +138,22 @@ pub mod test {
 
                 sequence += 1;
 
-                if Instant::now().gt(&expiration_time) {
-                    error!(
-                        "Value Builder started at {:?} but failed to complete by expiration time {:?}", now, expiration_time);
+                if Instant::now() > expiration_time {
+                    error!( "Value Builder started at {now:?} but failed to complete by expiration time {expiration_time:?}");
                     result = None;
                     break;
                 }
 
-                if Instant::now().gt(&deadline) {
+                if Instant::now() > deadline {
                     // Create, store and gossip the BlockMetadata in a BlockPart
                     let value = Value::new_from_transactions(tx_batch.clone());
+
                     result = Some(LocallyProposedValue {
                         height,
                         round,
                         value: Some(value),
                     });
+
                     let block_part = BlockPart::new(
                         height,
                         round,
@@ -166,12 +167,8 @@ pub mod test {
 
                     part_store.store(block_part.clone());
 
-                    gossip_actor
-                        .as_ref()
-                        .unwrap()
-                        .cast(crate::consensus::Msg::<TestContext>::BuilderBlockPart(
-                            block_part.clone(),
-                        ))
+                    consensus
+                        .cast(ConsensusMsg::BuilderBlockPart(block_part.clone()))
                         .unwrap();
 
                     info!(
@@ -179,6 +176,7 @@ pub mod test {
                         tx_batch.len(),
                         result
                     );
+
                     break;
                 }
             }

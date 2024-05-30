@@ -14,7 +14,6 @@ use crate::gossip_mempool::Msg as GossipMempoolMsg;
 use crate::mempool::Msg as MempoolMsg;
 use crate::proposal_builder::Msg as ProposalBuilderMsg;
 use crate::timers::Config as TimersConfig;
-use crate::util;
 use crate::util::ValueBuilder;
 
 pub struct Params<Ctx: Context> {
@@ -161,15 +160,7 @@ where
         _state: &mut (),
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
-            Msg::Start => {
-                let part_store = util::value_builder::test::PartStore::default();
-                self.proposal_builder
-                    .cast(crate::proposal_builder::Msg::Init {
-                        gossip_actor: self.consensus.clone(),
-                        part_store,
-                    })?;
-                self.mempool.cast(crate::mempool::Msg::Start)?
-            }
+            Msg::Start => self.mempool.cast(crate::mempool::Msg::Start)?,
         }
 
         Ok(())
