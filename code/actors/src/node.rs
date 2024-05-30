@@ -163,11 +163,13 @@ where
         match msg {
             Msg::Start => {
                 let part_store = util::value_builder::test::PartStore::default();
+
                 self.proposal_builder
                     .cast(crate::proposal_builder::Msg::Init {
-                        gossip_actor: self.consensus.clone(),
+                        consensus: self.consensus.clone(),
                         part_store,
                     })?;
+
                 self.mempool.cast(crate::mempool::Msg::Start)?
             }
         }

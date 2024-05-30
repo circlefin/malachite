@@ -8,6 +8,7 @@ use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use malachite_common::{Context, Round};
 use malachite_driver::Validity;
 
+use crate::consensus::Msg as ConsensusMsg;
 use crate::util::value_builder::test::PartStore;
 use crate::util::ValueBuilder;
 
@@ -31,7 +32,7 @@ pub struct ReceivedProposedValue<Ctx: Context> {
 pub enum Msg<Ctx: Context> {
     // Initialize the builder state with the gossip actor
     Init {
-        gossip_actor: ActorRef<crate::consensus::Msg<Ctx>>,
+        consensus: ActorRef<ConsensusMsg<Ctx>>,
         part_store: PartStore,
     },
 
@@ -56,7 +57,7 @@ pub enum Msg<Ctx: Context> {
 }
 
 pub struct State<Ctx: Context> {
-    gossip_actor: Option<ActorRef<crate::consensus::Msg<Ctx>>>,
+    consensus: Option<ActorRef<ConsensusMsg<Ctx>>>,
     part_store: PartStore,
 }
 
@@ -92,7 +93,7 @@ where
         round: Round,
         timeout_duration: Duration,
         address: Ctx::Address,
-        gossip_actor: Option<ActorRef<crate::consensus::Msg<Ctx>>>,
+        gossip_actor: Option<ActorRef<ConsensusMsg<Ctx>>>,
         part_store: &mut PartStore,
     ) -> Result<LocallyProposedValue<Ctx>, ActorProcessingErr> {
         let value = self
@@ -124,12 +125,11 @@ where
             .value_builder
             .build_value_from_block_parts(block_part, part_store)
             .await;
-        if value.is_some() {
-            info!(
-                "Value Builder received all parts, produced value {:?} for proposal",
-                value
-            );
+
+        if let Some(value) = &value {
+            info!("Value Builder received all parts, produced value for proposal: {value:?}",);
         }
+
         Ok(value)
     }
 }
@@ -146,7 +146,7 @@ impl<Ctx: Context + std::fmt::Debug> Actor for ProposalBuilder<Ctx> {
         _: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
         Ok(State {
-            gossip_actor: None,
+            consensus: None,
             part_store: PartStore::new(),
         })
     }
@@ -159,10 +159,10 @@ impl<Ctx: Context + std::fmt::Debug> Actor for ProposalBuilder<Ctx> {
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::Init {
-                gossip_actor,
+                consensus,
                 part_store,
             } => {
-                state.gossip_actor = Some(gossip_actor);
+                state.consensus = Some(consensus);
                 state.part_store = part_store
             }
 
@@ -179,7 +179,7 @@ impl<Ctx: Context + std::fmt::Debug> Actor for ProposalBuilder<Ctx> {
                         round,
                         timeout_duration,
                         address,
-                        state.gossip_actor.clone(),
+                        state.consensus.clone(),
                         &mut state.part_store,
                     )
                     .await?;
@@ -191,10 +191,10 @@ impl<Ctx: Context + std::fmt::Debug> Actor for ProposalBuilder<Ctx> {
                 // Send the proposed value (from blockparts) to consensus/ Driver
                 if let Some(value_assembled) = maybe_block {
                     state
-                        .gossip_actor
+                        .consensus
                         .as_ref()
                         .unwrap()
-                        .cast(crate::consensus::Msg::<Ctx>::BlockReceived(value_assembled))
+                        .cast(ConsensusMsg::<Ctx>::BlockReceived(value_assembled))
                         .unwrap();
                 }
             }
