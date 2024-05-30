@@ -215,9 +215,7 @@ where
                     return Ok(());
                 };
 
-                // TODO - proposals with invalid signatures should be dropped.
-                // For well signed we should validate the proposal against the block parts (if all received).
-                // Add `valid()` to Context.
+                // TODO - verify that the proposal was signed by the proposer for the height and round, drop otherwise.
                 let proposal = &signed_proposal.proposal;
                 let proposal_height = proposal.height();
                 let proposal_round = proposal.round();
@@ -231,7 +229,8 @@ where
                         proposal_height,
                         proposal_round,
                         proposal.value()
-                    )
+                    );
+                    return Ok(());
                 }
                 assert!(proposal_height == state.driver.height());
 
@@ -277,6 +276,7 @@ where
                     return Ok(());
                 }
 
+                // TODO - verify that the proposal was signed by the proposer for the height and round, drop otherwise.
                 self.proposal_builder.cast(ProposalBuilderMsg::BlockPart {
                     block_part: signed_block_part.block_part,
                     reply_to: myself.clone(),

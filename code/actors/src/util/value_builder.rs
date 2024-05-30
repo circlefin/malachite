@@ -252,6 +252,12 @@ pub mod test {
         }
     }
 
+    // This is a temporary store implementation for block parts
+    // TODO-s:
+    // - make it context generic
+    // - add Address to key
+    //   - not sure if this is required as consensus should verify that only the parts signed by the proposer for
+    //     the height and round should be forwarded here (see the TODOs in consensus)
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct PartStore {
         pub map: BTreeMap<(Height, Round, u64), BlockPart>,
