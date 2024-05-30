@@ -97,7 +97,7 @@ where
 
 impl<Ctx> Consensus<Ctx>
 where
-    Ctx: Context + std::fmt::Debug,
+    Ctx: Context,
     Ctx::Vote: Protobuf<Proto = proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
     Ctx::BlockPart: Protobuf<Proto = proto::BlockPart>,
@@ -580,7 +580,7 @@ where
 #[async_trait]
 impl<Ctx> Actor for Consensus<Ctx>
 where
-    Ctx: Context + std::fmt::Debug,
+    Ctx: Context,
     Ctx::Height: Display,
     Ctx::Vote: Protobuf<Proto = proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = proto::Proposal>,

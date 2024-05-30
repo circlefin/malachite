@@ -2,21 +2,24 @@ use std::fmt::Debug;
 use std::time::Duration;
 use tracing::info;
 
-use crate::util::value_builder::test::PartStore;
-use malachite_common::{Context, Round};
-use malachite_driver::Validity;
+use derive_where::derive_where;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 
+use malachite_common::{Context, Round};
+use malachite_driver::Validity;
+
+use crate::util::value_builder::test::PartStore;
 use crate::util::ValueBuilder;
 
-#[derive(Debug)]
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct LocallyProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
     pub value: Option<Ctx::Value>, // todo - should we remove?
 }
 
-#[derive(Debug)]
+/// Input to the round state machine.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct ReceivedProposedValue<Ctx: Context> {
     pub validator_address: Ctx::Address,
     pub height: Ctx::Height,
@@ -57,9 +60,8 @@ pub struct State<Ctx: Context> {
     part_store: PartStore,
 }
 
-pub struct ProposalBuilder<Ctx: Context + std::fmt::Debug> {
-    #[allow(dead_code)]
-    ctx: Ctx,
+pub struct ProposalBuilder<Ctx: Context> {
+    _ctx: Ctx,
     value_builder: Box<dyn ValueBuilder<Ctx>>,
 }
 
@@ -71,7 +73,15 @@ where
         ctx: Ctx,
         value_builder: Box<dyn ValueBuilder<Ctx>>,
     ) -> Result<ActorRef<Msg<Ctx>>, ActorProcessingErr> {
-        let (actor_ref, _) = Actor::spawn(None, Self { ctx, value_builder }, ()).await?;
+        let (actor_ref, _) = Actor::spawn(
+            None,
+            Self {
+                _ctx: ctx,
+                value_builder,
+            },
+            (),
+        )
+        .await?;
 
         Ok(actor_ref)
     }
