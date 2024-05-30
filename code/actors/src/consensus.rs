@@ -243,7 +243,7 @@ where
 
                 match received_block {
                     Some(block) => {
-                        let valid = block.3;
+                        let valid = block.3; // TODO - struct
                         myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
                             proposal.clone(),
                             valid,

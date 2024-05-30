@@ -48,6 +48,8 @@ where
     pub proposal: Option<Ctx::Proposal>,
 
     /// The Value and validity of received blocks.
+    /// TODO struct, consider move to consensus actor state
+    /// depending on the Context API integration
     pub received_blocks: Vec<(Ctx::Height, Round, Ctx::Value, Validity)>,
 
     /// The pending input to be processed next, if any.

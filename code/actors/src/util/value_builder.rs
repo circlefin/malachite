@@ -17,7 +17,7 @@ pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
         timeout_duration: Duration,
         address: Ctx::Address,
         gossip_actor: Option<ActorRef<crate::consensus::Msg<Ctx>>>,
-        part_map: &mut PartStore,
+        part_store: &mut PartStore,
     ) -> Option<LocallyProposedValue<Ctx>>;
 
     async fn build_value_from_block_parts(
@@ -216,7 +216,7 @@ pub mod test {
                 match last_part.metadata() {
                     Some(meta) => {
                         info!(
-                            "Value Builder received last block part for heigh:{}, round:{}, num_parts: {num_parts}",
+                            "Value Builder received last block part for height:{}, round:{}, num_parts: {num_parts}",
                             last_part.height(),
                             last_part.round(),
                         );

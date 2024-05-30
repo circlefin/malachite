@@ -178,8 +178,7 @@ impl<Ctx: Context + std::fmt::Debug> Actor for ProposalBuilder<Ctx> {
 
             Msg::BlockPart(block_part) => {
                 let maybe_block = self.build_value(block_part, &mut state.part_store).await?;
-                // TODO - Send the proposed value (from blockparts) to Driver
-                // to be maybe multiplexed with the proposal (from consensus)
+                // Send the proposed value (from blockparts) to consensus/ Driver
                 if let Some(value_assembled) = maybe_block {
                     state
                         .gossip_actor
