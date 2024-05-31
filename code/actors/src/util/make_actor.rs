@@ -7,15 +7,14 @@ use malachite_gossip::Keypair;
 use malachite_gossip_mempool::Multiaddr;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 
-use crate::cal::CAL;
 use crate::consensus::Consensus;
 use crate::gossip::Gossip;
 use crate::gossip_mempool::GossipMempool;
+use crate::host::Host;
 use crate::mempool::Mempool;
 use crate::node::{Msg as NodeMsg, Msg, Node};
-use crate::proposal_builder::ProposalBuilder;
 use crate::timers::Config as TimersConfig;
-use crate::util::value_builder::test::PartStore;
+use crate::util::PartStore;
 use crate::util::TestValueBuilder;
 
 pub async fn make_node_actor(
@@ -46,16 +45,15 @@ pub async fn make_node_actor(
 
     let ctx = TestContext::new(validator_pk.clone());
 
-    // Spawn the proposal builder
+    // Spawn the host actor
     let value_builder = Box::new(TestValueBuilder::<TestContext>::new(mempool.clone()));
-    let proposal_builder = ProposalBuilder::spawn(value_builder, PartStore::new())
-        .await
-        .unwrap();
-
-    // Spawn the CAL actor
-    let cal = CAL::spawn(ctx.clone(), initial_validator_set.clone())
-        .await
-        .unwrap();
+    let host = Host::spawn(
+        value_builder,
+        PartStore::new(),
+        initial_validator_set.clone(),
+    )
+    .await
+    .unwrap();
 
     // Spawn consensus and its gossip
     let validator_keypair = Keypair::ed25519_from_bytes(validator_pk.inner().to_bytes()).unwrap();
@@ -82,8 +80,7 @@ pub async fn make_node_actor(
         consensus_params,
         timers_config,
         gossip_consensus.clone(),
-        cal.clone(),
-        proposal_builder.clone(),
+        host.clone(),
         tx_decision,
         None,
     )
@@ -93,12 +90,11 @@ pub async fn make_node_actor(
     // Spawn the node actor
     let node = Node::new(
         ctx,
-        cal,
         gossip_consensus,
         consensus.clone(),
         gossip_mempool,
         mempool,
-        proposal_builder,
+        host,
         start_height,
     );
 

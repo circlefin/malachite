@@ -7,12 +7,11 @@ use malachite_common::{Context, Round};
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
-use crate::cal::Msg as CALMsg;
 use crate::consensus::Msg as ConsensusMsg;
 use crate::gossip::Msg as GossipMsg;
 use crate::gossip_mempool::Msg as GossipMempoolMsg;
+use crate::host::Msg as HostMsg;
 use crate::mempool::Msg as MempoolMsg;
-use crate::proposal_builder::Msg as ProposalBuilderMsg;
 use crate::timers::Config as TimersConfig;
 use crate::util::ValueBuilder;
 
@@ -79,12 +78,11 @@ pub struct Params<Ctx: Context> {
 #[allow(dead_code)]
 pub struct Node<Ctx: Context> {
     ctx: Ctx,
-    cal: ActorRef<CALMsg<Ctx>>,
     gossip: ActorRef<GossipMsg>,
     consensus: ActorRef<ConsensusMsg<Ctx>>,
     gossip_mempool: ActorRef<GossipMempoolMsg>,
     mempool: ActorRef<MempoolMsg>,
-    proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
+    host: ActorRef<HostMsg<Ctx>>,
     start_height: Ctx::Height,
 }
 
@@ -97,22 +95,20 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         ctx: Ctx,
-        cal: ActorRef<CALMsg<Ctx>>,
         gossip: ActorRef<GossipMsg>,
         consensus: ActorRef<ConsensusMsg<Ctx>>,
         gossip_mempool: ActorRef<GossipMempoolMsg>,
         mempool: ActorRef<MempoolMsg>,
-        proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
+        host: ActorRef<HostMsg<Ctx>>,
         start_height: Ctx::Height,
     ) -> Self {
         Self {
             ctx,
-            cal,
             gossip,
             consensus,
             gossip_mempool,
             mempool,
-            proposal_builder,
+            host,
             start_height,
         }
     }
@@ -143,12 +139,11 @@ where
         _args: (),
     ) -> Result<(), ractor::ActorProcessingErr> {
         // Set ourselves as the supervisor of the other actors
-        self.cal.link(myself.get_cell());
         self.gossip.link(myself.get_cell());
         self.consensus.link(myself.get_cell());
         self.gossip_mempool.link(myself.get_cell());
         self.mempool.link(myself.get_cell());
-        self.proposal_builder.link(myself.get_cell());
+        self.host.link(myself.get_cell());
 
         Ok(())
     }

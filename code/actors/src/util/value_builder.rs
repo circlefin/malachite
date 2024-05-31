@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
@@ -8,8 +7,8 @@ use tracing::{error, info, trace};
 use malachite_common::{Context, Round};
 
 use crate::consensus::Msg as ConsensusMsg;
-use crate::proposal_builder::{LocallyProposedValue, ReceivedProposedValue};
-use crate::util::value_builder::test::PartStore;
+use crate::host::{LocallyProposedValue, ReceivedProposedValue};
+use crate::util::PartStore;
 
 #[async_trait]
 pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
@@ -20,20 +19,20 @@ pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
         timeout_duration: Duration,
         address: Ctx::Address,
         consensus: ActorRef<ConsensusMsg<Ctx>>,
-        part_store: &mut PartStore,
+        part_store: &mut PartStore<Ctx>,
     ) -> Option<LocallyProposedValue<Ctx>>;
 
     async fn build_value_from_block_parts(
         &self,
         block_part: Ctx::BlockPart,
-        part_store: &mut PartStore,
+        part_store: &mut PartStore<Ctx>,
     ) -> Option<ReceivedProposedValue<Ctx>>;
 
     async fn maybe_received_value(
         &self,
         height: Ctx::Height,
         round: Round,
-        part_store: &mut PartStore,
+        part_store: &mut PartStore<Ctx>,
     ) -> Option<ReceivedProposedValue<Ctx>>;
 }
 
@@ -45,14 +44,16 @@ pub mod test {
     const TIME_ALLOWANCE_FACTOR: f32 = 0.5;
     const EXEC_TIME_MICROSEC_PER_PART: u64 = 100000;
 
-    use super::*;
-    use std::collections::BTreeMap;
+    use std::marker::PhantomData;
 
+    use malachite_common::Context;
     use malachite_driver::Validity;
     use malachite_test::{
         Address, BlockMetadata, BlockPart, Content, Height, TestContext, TransactionBatch, Value,
     };
     use ractor::ActorRef;
+
+    use super::*;
 
     #[derive(Clone)]
     pub struct TestValueBuilder<Ctx: Context> {
@@ -81,7 +82,7 @@ pub mod test {
             timeout_duration: Duration,
             validator_address: Address,
             consensus: ActorRef<ConsensusMsg<TestContext>>,
-            part_store: &mut PartStore,
+            part_store: &mut PartStore<TestContext>,
         ) -> Option<LocallyProposedValue<TestContext>> {
             let now = Instant::now();
             let deadline = now + timeout_duration.mul_f32(TIME_ALLOWANCE_FACTOR);
@@ -187,7 +188,7 @@ pub mod test {
         async fn build_value_from_block_parts(
             &self,
             block_part: BlockPart,
-            part_store: &mut PartStore,
+            part_store: &mut PartStore<TestContext>,
         ) -> Option<ReceivedProposedValue<TestContext>> {
             let height = block_part.height();
             let round = block_part.round();
@@ -237,7 +238,7 @@ pub mod test {
             &self,
             height: Height,
             round: Round,
-            part_store: &mut PartStore,
+            part_store: &mut PartStore<TestContext>,
         ) -> Option<ReceivedProposedValue<TestContext>> {
             let block_parts = part_store.all_parts(height, round);
             let num_parts = block_parts.len();
@@ -249,55 +250,6 @@ pub mod test {
                 value: Some(metadata.value()),
                 valid: Validity::Valid,
             })
-        }
-    }
-
-    // This is a temporary store implementation for block parts
-    // TODO-s:
-    // - make it context generic
-    // - add Address to key
-    //   - not sure if this is required as consensus should verify that only the parts signed by the proposer for
-    //     the height and round should be forwarded here (see the TODOs in consensus)
-    #[derive(Clone, Debug, PartialEq, Eq)]
-    pub struct PartStore {
-        pub map: BTreeMap<(Height, Round, u64), BlockPart>,
-    }
-
-    impl Default for PartStore {
-        fn default() -> Self {
-            Self::new()
-        }
-    }
-
-    impl PartStore {
-        pub fn new() -> Self {
-            Self {
-                map: BTreeMap::new(),
-            }
-        }
-
-        pub fn get(&self, height: Height, round: Round, sequence: u64) -> Option<&BlockPart> {
-            self.map.get(&(height, round, sequence))
-        }
-
-        pub fn all_parts(&self, height: Height, round: Round) -> Vec<&BlockPart> {
-            let mut block_parts: Vec<&BlockPart> = self
-                .map
-                .iter()
-                .filter(|((h, r, _), _)| *h == height && *r == round)
-                .map(|(_, b)| b)
-                .collect();
-            block_parts.sort_by_key(|b| std::cmp::Reverse(b.sequence()));
-            block_parts
-        }
-
-        pub fn store(&mut self, block_part: BlockPart) {
-            let height = block_part.height();
-            let round = block_part.round();
-            let sequence = block_part.sequence();
-            self.map
-                .entry((height, round, sequence))
-                .or_insert(block_part);
         }
     }
 }

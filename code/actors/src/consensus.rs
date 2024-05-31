@@ -24,11 +24,8 @@ use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::{Threshold, ThresholdParams};
 
-use crate::cal::Msg as CALMsg;
 use crate::gossip::Msg as GossipMsg;
-use crate::proposal_builder::{
-    LocallyProposedValue, Msg as ProposalBuilderMsg, ReceivedProposedValue,
-};
+use crate::host::{LocallyProposedValue, Msg as HostMsg, ReceivedProposedValue};
 use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers};
 use crate::util::forward;
 
@@ -55,8 +52,7 @@ where
     params: Params<Ctx>,
     timers_config: TimersConfig,
     gossip: ActorRef<GossipMsg>,
-    cal: ActorRef<CALMsg<Ctx>>,
-    proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
+    host: ActorRef<HostMsg<Ctx>>,
     tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
 }
 
@@ -107,8 +103,7 @@ where
         params: Params<Ctx>,
         timers_config: TimersConfig,
         gossip: ActorRef<GossipMsg>,
-        cal: ActorRef<CALMsg<Ctx>>,
-        proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
+        host: ActorRef<HostMsg<Ctx>>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
     ) -> Self {
         Self {
@@ -116,8 +111,7 @@ where
             params,
             timers_config,
             gossip,
-            cal,
-            proposal_builder,
+            host,
             tx_decision,
         }
     }
@@ -128,20 +122,11 @@ where
         params: Params<Ctx>,
         timers_config: TimersConfig,
         gossip: ActorRef<GossipMsg>,
-        cal: ActorRef<CALMsg<Ctx>>,
-        proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
+        host: ActorRef<HostMsg<Ctx>>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
-        let node = Self::new(
-            ctx,
-            params,
-            timers_config,
-            gossip,
-            cal,
-            proposal_builder,
-            tx_decision,
-        );
+        let node = Self::new(ctx, params, timers_config, gossip, host, tx_decision);
 
         let (actor_ref, _) = if let Some(supervisor) = supervisor {
             Actor::spawn_linked(None, node, (), supervisor).await?
@@ -277,7 +262,7 @@ where
                 }
 
                 // TODO - verify that the proposal was signed by the proposer for the height and round, drop otherwise.
-                self.proposal_builder.cast(ProposalBuilderMsg::BlockPart {
+                self.host.cast(HostMsg::BlockPart {
                     block_part: signed_block_part.block_part,
                     reply_to: myself.clone(),
                 })?
@@ -521,8 +506,8 @@ where
         // Call `GetValue` on the CAL actor, and forward the reply to the current actor,
         // wrapping it in `Msg::ProposeValue`.
         call_and_forward(
-            &self.proposal_builder.get_cell(),
-            |reply| ProposalBuilderMsg::GetValue {
+            &self.host.get_cell(),
+            |reply| HostMsg::GetValue {
                 height,
                 round,
                 timeout_duration,
@@ -563,8 +548,11 @@ where
         height: Ctx::Height,
     ) -> Result<Ctx::ValidatorSet, ActorProcessingErr> {
         let result = self
-            .cal
-            .call(|reply| CALMsg::GetValidatorSet { height, reply }, None)
+            .host
+            .call(
+                |reply_to| HostMsg::GetValidatorSet { height, reply_to },
+                None,
+            )
             .await?;
 
         // TODO: Figure out better way to handle this:

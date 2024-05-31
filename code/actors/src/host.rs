@@ -9,7 +9,7 @@ use malachite_common::{Context, Round};
 use malachite_driver::Validity;
 
 use crate::consensus::Msg as ConsensusMsg;
-use crate::util::value_builder::test::PartStore;
+use crate::util::PartStore;
 use crate::util::ValueBuilder;
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -50,30 +50,38 @@ pub enum Msg<Ctx: Context> {
     GetReceivedValue {
         height: Ctx::Height,
         round: Round,
-        reply: RpcReplyPort<Option<ReceivedProposedValue<Ctx>>>,
+        reply_to: RpcReplyPort<Option<ReceivedProposedValue<Ctx>>>,
+    },
+
+    GetValidatorSet {
+        height: Ctx::Height,
+        reply_to: RpcReplyPort<Ctx::ValidatorSet>,
     },
 }
 
-pub struct State {
-    part_store: PartStore,
+pub struct State<Ctx: Context> {
+    part_store: PartStore<Ctx>,
+    validator_set: Ctx::ValidatorSet,
 }
 
-pub struct Args {
-    part_store: PartStore,
+pub struct Args<Ctx: Context> {
+    part_store: PartStore<Ctx>,
+    validator_set: Ctx::ValidatorSet,
 }
 
-pub struct ProposalBuilder<Ctx: Context> {
+pub struct Host<Ctx: Context> {
     value_builder: Box<dyn ValueBuilder<Ctx>>,
     marker: PhantomData<Ctx>,
 }
 
-impl<Ctx> ProposalBuilder<Ctx>
+impl<Ctx> Host<Ctx>
 where
     Ctx: Context,
 {
     pub async fn spawn(
         value_builder: Box<dyn ValueBuilder<Ctx>>,
-        part_store: PartStore,
+        part_store: PartStore<Ctx>,
+        validator_set: Ctx::ValidatorSet,
     ) -> Result<ActorRef<Msg<Ctx>>, ActorProcessingErr> {
         let (actor_ref, _) = Actor::spawn(
             None,
@@ -81,7 +89,10 @@ where
                 value_builder,
                 marker: PhantomData,
             },
-            Args { part_store },
+            Args {
+                part_store,
+                validator_set,
+            },
         )
         .await?;
 
@@ -95,7 +106,7 @@ where
         timeout_duration: Duration,
         address: Ctx::Address,
         consensus: ActorRef<ConsensusMsg<Ctx>>,
-        part_store: &mut PartStore,
+        part_store: &mut PartStore<Ctx>,
     ) -> Result<LocallyProposedValue<Ctx>, ActorProcessingErr> {
         let value = self
             .value_builder
@@ -120,7 +131,7 @@ where
     async fn build_value(
         &self,
         block_part: Ctx::BlockPart,
-        part_store: &mut PartStore,
+        part_store: &mut PartStore<Ctx>,
     ) -> Result<Option<ReceivedProposedValue<Ctx>>, ActorProcessingErr> {
         let value = self
             .value_builder
@@ -136,10 +147,10 @@ where
 }
 
 #[async_trait]
-impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
+impl<Ctx: Context> Actor for Host<Ctx> {
     type Msg = Msg<Ctx>;
-    type State = State;
-    type Arguments = Args;
+    type State = State<Ctx>;
+    type Arguments = Args<Ctx>;
 
     async fn pre_start(
         &self,
@@ -148,6 +159,7 @@ impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
     ) -> Result<Self::State, ActorProcessingErr> {
         Ok(State {
             part_store: args.part_store,
+            validator_set: args.validator_set,
         })
     }
 
@@ -195,14 +207,23 @@ impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
             Msg::GetReceivedValue {
                 height,
                 round,
-                reply,
+                reply_to,
             } => {
                 let value = self
                     .value_builder
                     .maybe_received_value(height, round, &mut state.part_store)
                     .await;
 
-                reply.send(value)?;
+                reply_to.send(value)?;
+            }
+
+            Msg::GetValidatorSet {
+                height: _,
+                reply_to,
+            } => {
+                // FIXME: This is just a stub
+                let validator_set = state.validator_set.clone();
+                reply_to.send(validator_set)?;
             }
         }
 

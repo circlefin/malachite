@@ -1,10 +1,9 @@
-pub mod cal;
 pub mod consensus;
 pub mod gossip;
 pub mod gossip_mempool;
+pub mod host;
 pub mod mempool;
 pub mod node;
 pub mod prelude;
-pub mod proposal_builder;
 pub mod timers;
 pub mod util;
