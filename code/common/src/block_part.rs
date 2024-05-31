@@ -6,7 +6,7 @@ use crate::{Context, Round};
 
 pub trait BlockPart<Ctx>
 where
-    Self: Debug + Eq + Send + Sync + 'static,
+    Self: Clone + Debug + Eq + Send + Sync + 'static,
     Ctx: Context,
 {
     /// The part height
