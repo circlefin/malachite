@@ -69,12 +69,12 @@ pub struct Args<Ctx: Context> {
     validator_set: Ctx::ValidatorSet,
 }
 
-pub struct ProposalBuilder<Ctx: Context> {
+pub struct Host<Ctx: Context> {
     value_builder: Box<dyn ValueBuilder<Ctx>>,
     marker: PhantomData<Ctx>,
 }
 
-impl<Ctx> ProposalBuilder<Ctx>
+impl<Ctx> Host<Ctx>
 where
     Ctx: Context,
 {
@@ -147,7 +147,7 @@ where
 }
 
 #[async_trait]
-impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
+impl<Ctx: Context> Actor for Host<Ctx> {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
     type Arguments = Args<Ctx>;

@@ -8,7 +8,7 @@ use tracing::{error, info, trace};
 use malachite_common::{Context, Round};
 
 use crate::consensus::Msg as ConsensusMsg;
-use crate::proposal_builder::{LocallyProposedValue, ReceivedProposedValue};
+use crate::host::{LocallyProposedValue, ReceivedProposedValue};
 use crate::util::value_builder::test::PartStore;
 
 #[async_trait]

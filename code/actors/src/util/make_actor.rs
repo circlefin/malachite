@@ -10,9 +10,9 @@ use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Val
 use crate::consensus::Consensus;
 use crate::gossip::Gossip;
 use crate::gossip_mempool::GossipMempool;
+use crate::host::Host;
 use crate::mempool::Mempool;
 use crate::node::{Msg as NodeMsg, Msg, Node};
-use crate::proposal_builder::ProposalBuilder;
 use crate::timers::Config as TimersConfig;
 use crate::util::value_builder::test::PartStore;
 use crate::util::TestValueBuilder;
@@ -45,9 +45,9 @@ pub async fn make_node_actor(
 
     let ctx = TestContext::new(validator_pk.clone());
 
-    // Spawn the proposal builder
+    // Spawn the host actor
     let value_builder = Box::new(TestValueBuilder::<TestContext>::new(mempool.clone()));
-    let proposal_builder = ProposalBuilder::spawn(
+    let host = Host::spawn(
         value_builder,
         PartStore::new(),
         initial_validator_set.clone(),
@@ -80,7 +80,7 @@ pub async fn make_node_actor(
         consensus_params,
         timers_config,
         gossip_consensus.clone(),
-        proposal_builder.clone(),
+        host.clone(),
         tx_decision,
         None,
     )
@@ -94,7 +94,7 @@ pub async fn make_node_actor(
         consensus.clone(),
         gossip_mempool,
         mempool,
-        proposal_builder,
+        host,
         start_height,
     );
 

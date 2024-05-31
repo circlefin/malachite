@@ -10,8 +10,8 @@ use malachite_vote::ThresholdParams;
 use crate::consensus::Msg as ConsensusMsg;
 use crate::gossip::Msg as GossipMsg;
 use crate::gossip_mempool::Msg as GossipMempoolMsg;
+use crate::host::Msg as HostMsg;
 use crate::mempool::Msg as MempoolMsg;
-use crate::proposal_builder::Msg as ProposalBuilderMsg;
 use crate::timers::Config as TimersConfig;
 use crate::util::ValueBuilder;
 
@@ -82,7 +82,7 @@ pub struct Node<Ctx: Context> {
     consensus: ActorRef<ConsensusMsg<Ctx>>,
     gossip_mempool: ActorRef<GossipMempoolMsg>,
     mempool: ActorRef<MempoolMsg>,
-    proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
+    host: ActorRef<HostMsg<Ctx>>,
     start_height: Ctx::Height,
 }
 
@@ -99,7 +99,7 @@ where
         consensus: ActorRef<ConsensusMsg<Ctx>>,
         gossip_mempool: ActorRef<GossipMempoolMsg>,
         mempool: ActorRef<MempoolMsg>,
-        proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
+        host: ActorRef<HostMsg<Ctx>>,
         start_height: Ctx::Height,
     ) -> Self {
         Self {
@@ -108,7 +108,7 @@ where
             consensus,
             gossip_mempool,
             mempool,
-            proposal_builder,
+            host,
             start_height,
         }
     }
@@ -143,7 +143,7 @@ where
         self.consensus.link(myself.get_cell());
         self.gossip_mempool.link(myself.get_cell());
         self.mempool.link(myself.get_cell());
-        self.proposal_builder.link(myself.get_cell());
+        self.host.link(myself.get_cell());
 
         Ok(())
     }
