@@ -3,7 +3,7 @@ use core::fmt;
 use malachite_proto as proto;
 
 /// A blockchain height
-#[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Height(u64);
 
 impl Height {

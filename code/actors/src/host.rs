@@ -9,7 +9,7 @@ use malachite_common::{Context, Round};
 use malachite_driver::Validity;
 
 use crate::consensus::Msg as ConsensusMsg;
-use crate::util::value_builder::test::PartStore;
+use crate::util::PartStore;
 use crate::util::ValueBuilder;
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -60,12 +60,12 @@ pub enum Msg<Ctx: Context> {
 }
 
 pub struct State<Ctx: Context> {
-    part_store: PartStore,
+    part_store: PartStore<Ctx>,
     validator_set: Ctx::ValidatorSet,
 }
 
 pub struct Args<Ctx: Context> {
-    part_store: PartStore,
+    part_store: PartStore<Ctx>,
     validator_set: Ctx::ValidatorSet,
 }
 
@@ -80,7 +80,7 @@ where
 {
     pub async fn spawn(
         value_builder: Box<dyn ValueBuilder<Ctx>>,
-        part_store: PartStore,
+        part_store: PartStore<Ctx>,
         validator_set: Ctx::ValidatorSet,
     ) -> Result<ActorRef<Msg<Ctx>>, ActorProcessingErr> {
         let (actor_ref, _) = Actor::spawn(
@@ -106,7 +106,7 @@ where
         timeout_duration: Duration,
         address: Ctx::Address,
         consensus: ActorRef<ConsensusMsg<Ctx>>,
-        part_store: &mut PartStore,
+        part_store: &mut PartStore<Ctx>,
     ) -> Result<LocallyProposedValue<Ctx>, ActorProcessingErr> {
         let value = self
             .value_builder
@@ -131,7 +131,7 @@ where
     async fn build_value(
         &self,
         block_part: Ctx::BlockPart,
-        part_store: &mut PartStore,
+        part_store: &mut PartStore<Ctx>,
     ) -> Result<Option<ReceivedProposedValue<Ctx>>, ActorProcessingErr> {
         let value = self
             .value_builder

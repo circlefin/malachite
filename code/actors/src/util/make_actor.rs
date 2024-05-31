@@ -14,7 +14,7 @@ use crate::host::Host;
 use crate::mempool::Mempool;
 use crate::node::{Msg as NodeMsg, Msg, Node};
 use crate::timers::Config as TimersConfig;
-use crate::util::value_builder::test::PartStore;
+use crate::util::PartStore;
 use crate::util::TestValueBuilder;
 
 pub async fn make_node_actor(
