@@ -50,16 +50,23 @@ pub enum Msg<Ctx: Context> {
     GetReceivedValue {
         height: Ctx::Height,
         round: Round,
-        reply: RpcReplyPort<Option<ReceivedProposedValue<Ctx>>>,
+        reply_to: RpcReplyPort<Option<ReceivedProposedValue<Ctx>>>,
+    },
+
+    GetValidatorSet {
+        height: Ctx::Height,
+        reply_to: RpcReplyPort<Ctx::ValidatorSet>,
     },
 }
 
-pub struct State {
+pub struct State<Ctx: Context> {
     part_store: PartStore,
+    validator_set: Ctx::ValidatorSet,
 }
 
-pub struct Args {
+pub struct Args<Ctx: Context> {
     part_store: PartStore,
+    validator_set: Ctx::ValidatorSet,
 }
 
 pub struct ProposalBuilder<Ctx: Context> {
@@ -74,6 +81,7 @@ where
     pub async fn spawn(
         value_builder: Box<dyn ValueBuilder<Ctx>>,
         part_store: PartStore,
+        validator_set: Ctx::ValidatorSet,
     ) -> Result<ActorRef<Msg<Ctx>>, ActorProcessingErr> {
         let (actor_ref, _) = Actor::spawn(
             None,
@@ -81,7 +89,10 @@ where
                 value_builder,
                 marker: PhantomData,
             },
-            Args { part_store },
+            Args {
+                part_store,
+                validator_set,
+            },
         )
         .await?;
 
@@ -138,8 +149,8 @@ where
 #[async_trait]
 impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
     type Msg = Msg<Ctx>;
-    type State = State;
-    type Arguments = Args;
+    type State = State<Ctx>;
+    type Arguments = Args<Ctx>;
 
     async fn pre_start(
         &self,
@@ -148,6 +159,7 @@ impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
     ) -> Result<Self::State, ActorProcessingErr> {
         Ok(State {
             part_store: args.part_store,
+            validator_set: args.validator_set,
         })
     }
 
@@ -195,14 +207,23 @@ impl<Ctx: Context> Actor for ProposalBuilder<Ctx> {
             Msg::GetReceivedValue {
                 height,
                 round,
-                reply,
+                reply_to,
             } => {
                 let value = self
                     .value_builder
                     .maybe_received_value(height, round, &mut state.part_store)
                     .await;
 
-                reply.send(value)?;
+                reply_to.send(value)?;
+            }
+
+            Msg::GetValidatorSet {
+                height: _,
+                reply_to,
+            } => {
+                // FIXME: This is just a stub
+                let validator_set = state.validator_set.clone();
+                reply_to.send(validator_set)?;
             }
         }
 

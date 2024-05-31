@@ -24,7 +24,6 @@ use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::{Threshold, ThresholdParams};
 
-use crate::cal::Msg as CALMsg;
 use crate::gossip::Msg as GossipMsg;
 use crate::proposal_builder::{
     LocallyProposedValue, Msg as ProposalBuilderMsg, ReceivedProposedValue,
@@ -55,7 +54,6 @@ where
     params: Params<Ctx>,
     timers_config: TimersConfig,
     gossip: ActorRef<GossipMsg>,
-    cal: ActorRef<CALMsg<Ctx>>,
     proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
     tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
 }
@@ -107,7 +105,6 @@ where
         params: Params<Ctx>,
         timers_config: TimersConfig,
         gossip: ActorRef<GossipMsg>,
-        cal: ActorRef<CALMsg<Ctx>>,
         proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
     ) -> Self {
@@ -116,7 +113,6 @@ where
             params,
             timers_config,
             gossip,
-            cal,
             proposal_builder,
             tx_decision,
         }
@@ -128,7 +124,6 @@ where
         params: Params<Ctx>,
         timers_config: TimersConfig,
         gossip: ActorRef<GossipMsg>,
-        cal: ActorRef<CALMsg<Ctx>>,
         proposal_builder: ActorRef<ProposalBuilderMsg<Ctx>>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
         supervisor: Option<ActorCell>,
@@ -138,7 +133,6 @@ where
             params,
             timers_config,
             gossip,
-            cal,
             proposal_builder,
             tx_decision,
         );
@@ -563,8 +557,11 @@ where
         height: Ctx::Height,
     ) -> Result<Ctx::ValidatorSet, ActorProcessingErr> {
         let result = self
-            .cal
-            .call(|reply| CALMsg::GetValidatorSet { height, reply }, None)
+            .proposal_builder
+            .call(
+                |reply_to| ProposalBuilderMsg::GetValidatorSet { height, reply_to },
+                None,
+            )
             .await?;
 
         // TODO: Figure out better way to handle this:
