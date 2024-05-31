@@ -6,11 +6,12 @@ use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::Rng;
 use tracing::{debug, info};
 
-use crate::gossip_mempool::Msg as GossipMsg;
-use crate::util::forward;
 use malachite_common::Transaction;
 use malachite_gossip_mempool::{Channel, Event as GossipEvent, Event};
 use malachite_network_mempool::{Msg as NetworkMsg, PeerId};
+
+use crate::gossip_mempool::Msg as GossipMsg;
+use crate::util::forward;
 
 pub enum Next {
     None,
@@ -133,12 +134,15 @@ impl Actor for Mempool {
     ) -> Result<State, ractor::ActorProcessingErr> {
         let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
         self.gossip.cast(GossipMsg::Subscribe(forward))?;
+
         let mut transactions = vec![];
+
         for _i in 0..2 {
             let bytes = rand::thread_rng().gen::<[u8; 4]>();
             transactions.push(Transaction::new(bytes.into()));
         }
-        info!("Generated mempool txes {:?}", transactions);
+
+        info!("Generated mempool txes: {transactions:?}");
 
         Ok(State {
             msg_queue: VecDeque::new(),
@@ -164,6 +168,7 @@ impl Actor for Mempool {
             Msg::Input(tx) => {
                 self.send_input(tx, state).await?;
             }
+
             Msg::Start => {
                 for tx in state.transactions.iter() {
                     let msg = NetworkMsg::Transaction(tx.to_bytes());
@@ -172,6 +177,7 @@ impl Actor for Mempool {
                         .cast(GossipMsg::Broadcast(Channel::Mempool, bytes))?;
                 }
             }
+
             Msg::TxStream {
                 reply, num_txes, ..
             } => {

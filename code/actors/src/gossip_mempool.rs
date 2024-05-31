@@ -4,8 +4,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use libp2p::identity::Keypair;
 use libp2p::Multiaddr;
-use malachite_gossip_mempool::Channel;
-use malachite_gossip_mempool::PeerId;
 use ractor::ActorCell;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
@@ -13,8 +11,7 @@ use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
 
 use malachite_gossip_mempool::handle::CtrlHandle;
-use malachite_gossip_mempool::Config;
-use malachite_gossip_mempool::Event;
+use malachite_gossip_mempool::{Channel, Config, Event, PeerId};
 
 pub struct GossipMempool;
 

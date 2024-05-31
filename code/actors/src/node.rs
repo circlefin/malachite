@@ -160,7 +160,7 @@ where
         _state: &mut (),
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
-            Msg::Start => self.mempool.cast(crate::mempool::Msg::Start)?,
+            Msg::Start => self.mempool.cast(MempoolMsg::Start)?,
         }
 
         Ok(())
