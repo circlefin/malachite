@@ -223,16 +223,16 @@ async fn handle_swarm_event(
                     "Connecting to peer {peer_id} using protocol {:?}",
                     info.protocol_version
                 );
+
+                state.peers.insert(peer_id, info);
+
+                swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
             } else {
                 debug!(
                     "Peer {peer_id} is using incompatible protocol version: {:?}",
                     info.protocol_version
                 );
             }
-
-            state.peers.insert(peer_id, info);
-
-            swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
         }
 
         SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Subscribed {
