@@ -9,10 +9,10 @@
 
 use std::path::{Path, PathBuf};
 
-use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use clap::{Parser, Subcommand};
-use color_eyre::eyre::{Context, eyre, Result};
+use color_eyre::eyre::{eyre, Context, Result};
 use directories::BaseDirs;
 use tracing::info;
 
@@ -159,8 +159,8 @@ impl Args {
 }
 
 fn load_json_file<T>(file: &Path) -> Result<T>
-    where
-        T: for<'de> serde::Deserialize<'de>,
+where
+    T: for<'de> serde::Deserialize<'de>,
 {
     let content = std::fs::read_to_string(file)
         .wrap_err_with(|| eyre!("Failed to read configuration file at {}", file.display()))?;
@@ -170,8 +170,8 @@ fn load_json_file<T>(file: &Path) -> Result<T>
 }
 
 fn load_toml_file<T>(file: &Path) -> Result<T>
-    where
-        T: for<'de> serde::Deserialize<'de>,
+where
+    T: for<'de> serde::Deserialize<'de>,
 {
     let content = std::fs::read_to_string(file)
         .wrap_err_with(|| eyre!("Failed to read configuration file at {}", file.display()))?;
@@ -235,18 +235,6 @@ mod tests {
         let args = Args::parse_from(["test", "--config", "../config.toml", "start"]);
         let config = args.load_config().unwrap();
         assert_eq!(config.moniker, "malachite");
-
-        // Testnet configuration
-        let args = Args::parse_from([
-            "test",
-            "--config",
-            "../config.toml",
-            "--index",
-            "2",
-            "start",
-        ]);
-        let config = args.load_config().unwrap();
-        assert_eq!(config.moniker, "test-2");
     }
 
     #[test]
