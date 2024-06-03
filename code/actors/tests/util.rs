@@ -3,6 +3,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use rand::Rng;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info};
@@ -25,6 +26,8 @@ pub struct Test<const N: usize> {
     pub validator_set: ValidatorSet,
     pub vals_and_keys: [(Validator, PrivateKey); N],
     pub expected_decisions: usize,
+    pub consensus_base_port: usize,
+    pub mempool_base_port: usize,
 }
 
 impl<const N: usize> Test<N> {
@@ -38,6 +41,8 @@ impl<const N: usize> Test<N> {
             validator_set,
             vals_and_keys,
             expected_decisions,
+            consensus_base_port: rand::thread_rng().gen_range(20000..30000),
+            mempool_base_port: rand::thread_rng().gen_range(30000..40000),
         }
     }
 
@@ -98,36 +103,46 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
         if test.nodes[i].faults.contains(&Fault::NoStart) {
             continue;
         }
+
         let (v, sk) = &test.vals_and_keys[i];
         let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
 
         let node_config = malachite_node::config::Config {
-            moniker: format!("node-{}", i),
+            moniker: format!("node-{i}"),
             consensus: ConsensusConfig {
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
-                    listen_addr: format!("/ip4/127.0.0.1/udp/{}/quic-v1", 27000 + i)
-                        .parse()
-                        .unwrap(),
+                    listen_addr: format!(
+                        "/ip4/127.0.0.1/udp/{}/quic-v1",
+                        test.consensus_base_port + i
+                    )
+                    .parse()
+                    .unwrap(),
                     persistent_peers: (0..N)
                         .filter(|j| i != *j)
                         .map(|j| {
-                            format!("/ip4/127.0.0.1/udp/{}/quic-v1", 27000 + j)
-                                .parse()
-                                .unwrap()
+                            format!(
+                                "/ip4/127.0.0.1/udp/{}/quic-v1",
+                                test.consensus_base_port + j
+                            )
+                            .parse()
+                            .unwrap()
                         })
                         .collect(),
                 },
             },
             mempool: MempoolConfig {
                 p2p: P2pConfig {
-                    listen_addr: format!("/ip4/127.0.0.1/udp/{}/quic-v1", 28000 + i)
-                        .parse()
-                        .unwrap(),
+                    listen_addr: format!(
+                        "/ip4/127.0.0.1/udp/{}/quic-v1",
+                        test.mempool_base_port + i
+                    )
+                    .parse()
+                    .unwrap(),
                     persistent_peers: (0..N)
                         .filter(|j| i != *j)
                         .map(|j| {
-                            format!("/ip4/127.0.0.1/udp/{}/quic-v1", 28000 + j)
+                            format!("/ip4/127.0.0.1/udp/{}/quic-v1", test.mempool_base_port + j)
                                 .parse()
                                 .unwrap()
                         })
