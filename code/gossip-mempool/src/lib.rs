@@ -113,27 +113,36 @@ pub async fn spawn(keypair: Keypair, config: Config) -> Result<Handle, BoxError>
             .subscribe(&channel.to_topic())?;
     }
 
-    swarm.listen_on(config.listen_addr)?;
-
-    for persistent_peer in config.persistent_peers {
-        swarm.dial(persistent_peer)?;
-    }
-
     let (tx_event, rx_event) = mpsc::channel(32);
     let (tx_ctrl, rx_ctrl) = mpsc::channel(32);
 
     let peer_id = swarm.local_peer_id();
     let span = error_span!("gossip-mempool", peer = %peer_id);
-    let task_handle = tokio::task::spawn(run(swarm, rx_ctrl, tx_event).instrument(span));
+    let task_handle = tokio::task::spawn(run(config, swarm, rx_ctrl, tx_event).instrument(span));
 
     Ok(Handle::new(tx_ctrl, rx_event, task_handle))
 }
 
 async fn run(
+    config: Config,
     mut swarm: swarm::Swarm<Behaviour>,
     mut rx_ctrl: mpsc::Receiver<CtrlMsg>,
     tx_event: mpsc::Sender<Event>,
 ) {
+    if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
+        error!("Error listening on {}: {e}", config.listen_addr);
+        return;
+    };
+
+    for persistent_peer in config.persistent_peers {
+        debug!("Dialing persistent peer: {persistent_peer}");
+
+        match swarm.dial(persistent_peer.clone()) {
+            Ok(()) => (),
+            Err(e) => error!("Error dialing persistent peer {persistent_peer}: {e}"),
+        }
+    }
+
     let mut state = State::default();
 
     loop {
