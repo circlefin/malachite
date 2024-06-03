@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use libp2p::identity::Keypair;
-use libp2p::Multiaddr;
 use ractor::ActorCell;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
@@ -18,15 +17,10 @@ pub struct GossipMempool;
 impl GossipMempool {
     pub async fn spawn(
         keypair: Keypair,
-        addr: Multiaddr,
         config: Config,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg>, ractor::SpawnErr> {
-        let args = Args {
-            keypair,
-            addr,
-            config,
-        };
+        let args = Args { keypair, config };
 
         let (actor_ref, _) = if let Some(supervisor) = supervisor {
             Actor::spawn_linked(None, Self, args, supervisor).await?
@@ -40,7 +34,6 @@ impl GossipMempool {
 
 pub struct Args {
     pub keypair: Keypair,
-    pub addr: Multiaddr,
     pub config: Config,
 }
 
@@ -78,7 +71,7 @@ impl Actor for GossipMempool {
         myself: ActorRef<Msg>,
         args: Args,
     ) -> Result<State, ActorProcessingErr> {
-        let handle = malachite_gossip_mempool::spawn(args.keypair, args.addr, args.config).await?;
+        let handle = malachite_gossip_mempool::spawn(args.keypair, args.config).await?;
         let (mut recv_handle, ctrl_handle) = handle.split();
 
         let recv_task = tokio::spawn({

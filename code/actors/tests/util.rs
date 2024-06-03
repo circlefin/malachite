@@ -8,6 +8,7 @@ use tokio::time::{sleep, Duration};
 use tracing::{error, info};
 
 use malachite_common::{Round, VotingPower};
+use malachite_node::config::{ConsensusConfig, MempoolConfig, P2pConfig, TimeoutConfig};
 use malachite_test::utils::make_validators;
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet};
 
@@ -100,7 +101,43 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
         let (v, sk) = &test.vals_and_keys[i];
         let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
 
+        let node_config = malachite_node::config::Config {
+            moniker: format!("node-{}", i),
+            consensus: ConsensusConfig {
+                timeouts: TimeoutConfig::default(),
+                p2p: P2pConfig {
+                    listen_addr: format!("/ip4/127.0.0.1/udp/{}/quic-v1", 27000 + i)
+                        .parse()
+                        .unwrap(),
+                    persistent_peers: (0..N)
+                        .filter(|j| i != *j)
+                        .map(|j| {
+                            format!("/ip4/127.0.0.1/udp/{}/quic-v1", 27000 + j)
+                                .parse()
+                                .unwrap()
+                        })
+                        .collect(),
+                },
+            },
+            mempool: MempoolConfig {
+                p2p: P2pConfig {
+                    listen_addr: format!("/ip4/127.0.0.1/udp/{}/quic-v1", 28000 + i)
+                        .parse()
+                        .unwrap(),
+                    persistent_peers: (0..N)
+                        .filter(|j| i != *j)
+                        .map(|j| {
+                            format!("/ip4/127.0.0.1/udp/{}/quic-v1", 28000 + j)
+                                .parse()
+                                .unwrap()
+                        })
+                        .collect(),
+                },
+            },
+        };
+
         let node = tokio::spawn(make_node_actor(
+            node_config,
             test.validator_set.clone(),
             sk.clone(),
             sk.clone(),

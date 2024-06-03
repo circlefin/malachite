@@ -5,8 +5,9 @@ use std::ops::ControlFlow;
 use std::time::Duration;
 
 use futures::StreamExt;
+use libp2p::swarm::dial_opts::DialOpts;
 use libp2p::swarm::{self, SwarmEvent};
-use libp2p::{gossipsub, identify, mdns, SwarmBuilder};
+use libp2p::{gossipsub, identify, SwarmBuilder};
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
@@ -71,20 +72,14 @@ pub type BoxError = Box<dyn Error + Send + Sync + 'static>;
 
 #[derive(Clone, Debug)]
 pub struct Config {
-    idle_connection_timeout: Duration,
+    pub listen_addr: Multiaddr,
+    pub persistent_peers: Vec<Multiaddr>,
+    pub idle_connection_timeout: Duration,
 }
 
 impl Config {
-    fn apply(self, cfg: swarm::Config) -> swarm::Config {
+    fn apply(&self, cfg: swarm::Config) -> swarm::Config {
         cfg.with_idle_connection_timeout(self.idle_connection_timeout)
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            idle_connection_timeout: Duration::from_secs(30),
-        }
     }
 }
 
@@ -107,7 +102,7 @@ pub struct State {
     pub peers: HashMap<PeerId, identify::Info>,
 }
 
-pub async fn spawn(keypair: Keypair, addr: Multiaddr, config: Config) -> Result<Handle, BoxError> {
+pub async fn spawn(keypair: Keypair, config: Config) -> Result<Handle, BoxError> {
     let mut swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
         .with_quic()
@@ -122,7 +117,27 @@ pub async fn spawn(keypair: Keypair, addr: Multiaddr, config: Config) -> Result<
             .subscribe(&channel.to_topic())?;
     }
 
-    swarm.listen_on(addr)?;
+    swarm.listen_on(config.listen_addr)?;
+
+    for persistent_peer in config.persistent_peers {
+        debug!("Dialing persistent peer: {persistent_peer}");
+
+        let dial_opts = DialOpts::from(persistent_peer);
+        dbg!(&dial_opts);
+        let Some(peer_id) = dial_opts.get_peer_id() else {
+            continue;
+        };
+
+        match swarm.dial(dial_opts) {
+            Ok(()) => {
+                debug!("Dialed persistent peer {peer_id}");
+                swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
+            }
+            Err(e) => {
+                error!("Error dialing persistent peer {peer_id}: {e}");
+            }
+        }
+    }
 
     let (tx_event, rx_event) = mpsc::channel(32);
     let (tx_ctrl, rx_ctrl) = mpsc::channel(32);
@@ -227,14 +242,8 @@ async fn handle_swarm_event(
             }
 
             state.peers.insert(peer_id, info);
-        }
 
-        SwarmEvent::Behaviour(NetworkEvent::Mdns(mdns::Event::Discovered(peers))) => {
-            for (peer_id, addr) in &peers {
-                trace!("Discovered peer {peer_id} at {addr}");
-
-                swarm.behaviour_mut().gossipsub.add_explicit_peer(peer_id);
-            }
+            swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
         }
 
         SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Subscribed {

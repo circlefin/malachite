@@ -21,7 +21,7 @@ use tracing::info;
 use crate::logging::DebugSection;
 
 const APP_FOLDER: &str = ".malachite";
-const CONFIG_FILE: &str = "config.json";
+const CONFIG_FILE: &str = "config.toml";
 const GENESIS_FILE: &str = "genesis.json";
 const PRIV_VALIDATOR_KEY_FILE: &str = "priv_validator_key.json";
 
@@ -29,11 +29,15 @@ const PRIV_VALIDATOR_KEY_FILE: &str = "priv_validator_key.json";
 #[command(version, about, long_about = None)]
 pub struct Args {
     /// Config file path
-    #[arg(short, long, value_name = "FILE")]
+    #[arg(long, value_name = "HOME_DIR")]
+    pub home: Option<PathBuf>,
+
+    /// Config file path
+    #[arg(short, long, value_name = "CONFIG_FILE")]
     pub config: Option<PathBuf>,
 
     /// Genesis file path
-    #[arg(short, long, value_name = "FILE")]
+    #[arg(short, long, value_name = "GENESIS_FILE")]
     pub genesis: Option<PathBuf>,
 
     /// Base64-encoded private key
@@ -82,10 +86,13 @@ impl Args {
     /// get_home_dir returns the application home folder.
     /// Typically, `$HOME/.malachite`, dependent on the operating system.
     pub fn get_home_dir(&self) -> Result<PathBuf> {
-        Ok(BaseDirs::new()
-            .ok_or_else(|| eyre!("could not determine home directory path"))?
-            .home_dir()
-            .join(APP_FOLDER))
+        match self.home {
+            Some(ref path) => Ok(path.clone()),
+            None => Ok(BaseDirs::new()
+                .ok_or_else(|| eyre!("could not determine home directory path"))?
+                .home_dir()
+                .join(APP_FOLDER)),
+        }
     }
 
     /// get_config_dir returns the configuration folder based on the home folder.
