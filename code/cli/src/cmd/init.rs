@@ -3,22 +3,17 @@
 use std::fs;
 use std::path::Path;
 
-use color_eyre::eyre::{eyre, Context, Result};
+use color_eyre::eyre::{Context, eyre, Result};
 use tracing::{info, warn};
 
 use malachite_node::config::Config;
 use malachite_test::PrivateKey;
 use malachite_test::ValidatorSet as Genesis;
 
-use crate::example::{generate_config, generate_genesis, generate_private_key};
+use crate::cmd::testnet::{generate_config, generate_genesis, generate_private_keys};
 
 /// Execute the init command
-pub fn run(
-    config_file: &Path,
-    genesis_file: &Path,
-    priv_validator_key_file: &Path,
-    index: usize,
-) -> Result<()> {
+pub fn run(config_file: &Path, genesis_file: &Path, priv_validator_key_file: &Path) -> Result<()> {
     // Save default configuration
     if config_file.exists() {
         warn!(
@@ -27,7 +22,7 @@ pub fn run(
         )
     } else {
         info!("Saving configuration to {:?}.", config_file);
-        save_config(config_file, &generate_config(index))?;
+        save_config(config_file, &generate_config(0, 1))?;
     }
 
     // Save default genesis
@@ -37,8 +32,11 @@ pub fn run(
             genesis_file.display()
         )
     } else {
+        let private_keys = generate_private_keys(1, true);
+        let public_keys = private_keys.iter().map(|pk| pk.public_key()).collect();
+        let genesis = generate_genesis(public_keys, true);
         info!("Saving test genesis to {:?}.", genesis_file);
-        save_genesis(genesis_file, &generate_genesis())?;
+        save_genesis(genesis_file, &genesis)?;
     }
 
     // Save default priv_validator_key
@@ -49,7 +47,7 @@ pub fn run(
         )
     } else {
         info!("Saving private key to {:?}.", priv_validator_key_file);
-        save_priv_validator_key(priv_validator_key_file, &generate_private_key(index))?;
+        save_priv_validator_key(priv_validator_key_file, &generate_private_keys(1, false)[0])?;
     }
 
     Ok(())

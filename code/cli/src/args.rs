@@ -52,10 +52,6 @@ pub struct Args {
     )]
     pub private_key: std::vec::Vec<u8>, // Keep the fully qualified path for Vec<u8> or else clap will not be able to parse it: https://github.com/clap-rs/clap/issues/4481.
 
-    /// Validator index only for the init command
-    #[clap(short, long, value_name = "INDEX", env = "INDEX")]
-    pub index: Option<usize>,
-
     #[clap(
         short,
         long = "debug",
@@ -72,11 +68,22 @@ pub struct Args {
 #[derive(Subcommand, Clone, Debug, Default, PartialEq)]
 pub enum Commands {
     /// Initialize configuration
-    ///
     Init,
     /// Start node
     #[default]
     Start,
+    /// Testnet configuration
+    Testnet(TestnetArgs),
+}
+
+#[derive(Parser, Debug, Clone, PartialEq)]
+pub struct TestnetArgs {
+    /// Number of validator nodes in the testnet
+    #[clap(short, long)]
+    pub nodes: usize,
+    /// Deterministic private keys are always the same
+    #[clap(short, long)]
+    pub deterministic: bool,
 }
 
 impl Args {

@@ -5,12 +5,11 @@ use tracing::debug;
 use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
 
-use crate::args::{Args, Commands};
+use crate::args::{Args, Commands, TestnetArgs};
 use crate::logging::LogLevel;
 
 mod args;
 mod cmd;
-mod example;
 mod logging;
 
 #[tokio::main(flavor = "current_thread")]
@@ -24,6 +23,7 @@ pub async fn main() -> Result<()> {
     match args.command {
         Commands::Init => init(&args),
         Commands::Start => start(&args).await,
+        Commands::Testnet(ref testnet_args) => testnet(&args, testnet_args).await,
     }
 }
 
@@ -32,7 +32,6 @@ fn init(args: &Args) -> Result<()> {
         &args.get_config_file_path()?,
         &args.get_genesis_file_path()?,
         &args.get_priv_validator_key_file_path()?,
-        args.index.unwrap_or(0),
     )
 }
 
@@ -46,6 +45,14 @@ async fn start(args: &Args) -> Result<()> {
     let vs: ValidatorSet = args.load_genesis()?;
 
     cmd::start::run(sk, cfg, vs).await
+}
+
+async fn testnet(args: &Args, testnet_args: &TestnetArgs) -> Result<()> {
+    cmd::testnet::run(
+        &args.get_home_dir()?,
+        testnet_args.nodes,
+        testnet_args.deterministic,
+    )
 }
 
 #[cfg(test)]
