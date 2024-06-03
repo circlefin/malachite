@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use bytesize::ByteSize;
+use clap::Parser;
 use color_eyre::eyre::Result;
 use rand::prelude::StdRng;
 use rand::rngs::OsRng;
@@ -20,41 +21,57 @@ use crate::priv_key::PrivValidatorKey;
 const MIN_VOTING_POWER: u64 = 8;
 const MAX_VOTING_POWER: u64 = 15;
 
-/// Execute the testnet command
-pub fn run(home_dir: &Path, nodes: usize, deterministic: bool) -> Result<()> {
-    let private_keys = generate_private_keys(nodes, deterministic);
-    let public_keys = private_keys.iter().map(|pk| pk.public_key()).collect();
-    let genesis = generate_genesis(public_keys, deterministic);
+#[derive(Parser, Debug, Clone, PartialEq)]
+pub struct TestnetCmd {
+    /// Number of validator nodes in the testnet
+    #[clap(short, long)]
+    pub nodes: usize,
 
-    for (i, private_key) in private_keys.iter().enumerate().take(nodes) {
-        // Use home directory `home_dir/<index>`
-        let node_home_dir = home_dir.join(i.to_string());
+    /// Generate deterministic private keys for reproducibility
+    #[clap(short, long)]
+    pub deterministic: bool,
+}
 
-        info!(
-            "Generating configuration for node {i} at `{}`...",
-            node_home_dir.display()
-        );
+impl TestnetCmd {
+    /// Execute the testnet command
+    pub fn run(&self, home_dir: &Path) -> Result<()> {
+        let private_keys = generate_private_keys(self.nodes, self.deterministic);
+        let public_keys = private_keys.iter().map(|pk| pk.public_key()).collect();
+        let genesis = generate_genesis(public_keys, self.deterministic);
 
-        // Set the destination folder
-        let args = Args {
-            home: Some(node_home_dir),
-            ..Args::default()
-        };
+        for (i, private_key) in private_keys.iter().enumerate().take(self.nodes) {
+            // Use home directory `home_dir/<index>`
+            let node_home_dir = home_dir.join(i.to_string());
 
-        // Save private key
-        let priv_validator_key = PrivValidatorKey::from(private_key.clone());
-        save_priv_validator_key(
-            &args.get_priv_validator_key_file_path()?,
-            &priv_validator_key,
-        )?;
+            info!(
+                "Generating configuration for node {i} at `{}`...",
+                node_home_dir.display()
+            );
 
-        // Save genesis
-        save_genesis(&args.get_genesis_file_path()?, &genesis)?;
+            // Set the destination folder
+            let args = Args {
+                home: Some(node_home_dir),
+                ..Args::default()
+            };
 
-        // Save config
-        save_config(&args.get_config_file_path()?, &generate_config(i, nodes))?;
+            // Save private key
+            let priv_validator_key = PrivValidatorKey::from(private_key.clone());
+            save_priv_validator_key(
+                &args.get_priv_validator_key_file_path()?,
+                &priv_validator_key,
+            )?;
+
+            // Save genesis
+            save_genesis(&args.get_genesis_file_path()?, &genesis)?;
+
+            // Save config
+            save_config(
+                &args.get_config_file_path()?,
+                &generate_config(i, self.nodes),
+            )?;
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 /// Generate private keys. Random or deterministic for different use-cases.

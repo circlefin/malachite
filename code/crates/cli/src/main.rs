@@ -4,7 +4,9 @@ use tracing::debug;
 use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
 
-use crate::args::{Args, Commands, TestnetArgs};
+use crate::args::{Args, Commands};
+use crate::cmd::keys::KeysCmd;
+use crate::cmd::testnet::TestnetCmd;
 use crate::logging::LogLevel;
 
 mod args;
@@ -20,10 +22,11 @@ pub async fn main() -> Result<()> {
 
     debug!("Command-line parameters: {args:?}");
 
-    match args.command {
+    match &args.command {
         Commands::Start => start(&args).await,
         Commands::Init => init(&args),
-        Commands::Testnet(ref testnet_args) => testnet(&args, testnet_args),
+        Commands::Keys(cmd) => keys(&args, cmd),
+        Commands::Testnet(cmd) => testnet(&args, cmd),
     }
 }
 
@@ -43,12 +46,12 @@ fn init(args: &Args) -> Result<()> {
     )
 }
 
-fn testnet(args: &Args, testnet_args: &TestnetArgs) -> Result<()> {
-    cmd::testnet::run(
-        &args.get_home_dir()?,
-        testnet_args.nodes,
-        testnet_args.deterministic,
-    )
+fn keys(args: &Args, cmd: &KeysCmd) -> Result<()> {
+    cmd.run(args)
+}
+
+fn testnet(args: &Args, cmd: &TestnetCmd) -> Result<()> {
+    cmd.run(&args.get_home_dir()?)
 }
 
 #[cfg(test)]
