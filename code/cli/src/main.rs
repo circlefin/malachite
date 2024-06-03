@@ -39,11 +39,9 @@ fn init(args: &Args) -> Result<()> {
 async fn start(args: &Args) -> Result<()> {
     let cfg: Config = args.load_config()?;
 
-    let sk: PrivateKey =
-        args
-            .load_private_key()
-            .unwrap_or_else(|_| PrivateKey::generate(OsRng))
-        ;
+    let sk: PrivateKey = args
+        .load_private_key()
+        .unwrap_or_else(|_| PrivateKey::generate(OsRng));
 
     let vs: ValidatorSet = args.load_genesis()?;
 
