@@ -9,14 +9,15 @@
 
 use std::path::{Path, PathBuf};
 
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use clap::{Parser, Subcommand};
-use color_eyre::eyre::{eyre, Context, Result};
+use color_eyre::eyre::{Context, eyre, Result};
 use directories::BaseDirs;
+use tracing::info;
+
 use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
-use tracing::info;
 
 use crate::logging::DebugSection;
 
@@ -47,11 +48,11 @@ pub struct Args {
         hide_default_value = true,
         value_name = "BASE64_STRING",
         env = "PRIVATE_KEY",
-        value_parser = |s: &str| BASE64_STANDARD.decode(s)
+        value_parser = | s: & str | BASE64_STANDARD.decode(s)
     )]
     pub private_key: std::vec::Vec<u8>, // Keep the fully qualified path for Vec<u8> or else clap will not be able to parse it: https://github.com/clap-rs/clap/issues/4481.
 
-    /// Validator index in Romain's test network
+    /// Validator index only for the init command
     #[clap(short, long, value_name = "INDEX", env = "INDEX")]
     pub index: Option<usize>,
 
@@ -71,6 +72,7 @@ pub struct Args {
 #[derive(Subcommand, Clone, Debug, Default, PartialEq)]
 pub enum Commands {
     /// Initialize configuration
+    ///
     Init,
     /// Start node
     #[default]
@@ -128,11 +130,7 @@ impl Args {
     pub fn load_config(&self) -> Result<Config> {
         let config_file = self.get_config_file_path()?;
         info!("Loading configuration from {:?}", config_file.display());
-        let mut config: Config = load_toml_file(&config_file)?;
-        if let Some(index) = self.index {
-            config.moniker = format!("test-{}", index);
-        }
-        Ok(config)
+        load_toml_file(&config_file)
     }
 
     /// load_genesis returns the validator set from the genesis file
@@ -161,8 +159,8 @@ impl Args {
 }
 
 fn load_json_file<T>(file: &Path) -> Result<T>
-where
-    T: for<'de> serde::Deserialize<'de>,
+    where
+        T: for<'de> serde::Deserialize<'de>,
 {
     let content = std::fs::read_to_string(file)
         .wrap_err_with(|| eyre!("Failed to read configuration file at {}", file.display()))?;
@@ -172,8 +170,8 @@ where
 }
 
 fn load_toml_file<T>(file: &Path) -> Result<T>
-where
-    T: for<'de> serde::Deserialize<'de>,
+    where
+        T: for<'de> serde::Deserialize<'de>,
 {
     let content = std::fs::read_to_string(file)
         .wrap_err_with(|| eyre!("Failed to read configuration file at {}", file.display()))?;
@@ -209,7 +207,6 @@ mod tests {
         assert_eq!(args.config, Some(PathBuf::from("myconfig.toml")));
         assert_eq!(args.genesis, Some(PathBuf::from("mygenesis.json")));
         assert_eq!(args.private_key, b"secret");
-        assert_eq!(args.index, None);
         assert!(args.get_home_dir().is_ok());
         assert!(args.get_config_dir().is_ok());
     }

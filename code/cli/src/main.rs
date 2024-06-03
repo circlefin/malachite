@@ -6,7 +6,6 @@ use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
 
 use crate::args::{Args, Commands};
-use crate::example::{generate_config, generate_genesis, generate_private_key};
 use crate::logging::LogLevel;
 
 mod args;
@@ -38,32 +37,26 @@ fn init(args: &Args) -> Result<()> {
 }
 
 async fn start(args: &Args) -> Result<()> {
-    let cfg: Config = match args.index {
-        None => args.load_config()?,
-        Some(index) => generate_config(index),
-    };
+    let cfg: Config = args.load_config()?;
 
-    let sk: PrivateKey = match args.index {
-        None => args
+    let sk: PrivateKey =
+        args
             .load_private_key()
-            .unwrap_or_else(|_| PrivateKey::generate(OsRng)),
-        Some(index) => generate_private_key(index),
-    };
+            .unwrap_or_else(|_| PrivateKey::generate(OsRng))
+        ;
 
-    let vs: ValidatorSet = match args.index {
-        None => args.load_genesis()?,
-        Some(_) => generate_genesis(),
-    };
+    let vs: ValidatorSet = args.load_genesis()?;
 
     cmd::start::run(sk, cfg, vs).await
 }
 
 #[cfg(test)]
 mod tests {
-    use clap::Parser;
-    use color_eyre::eyre;
     use std::fs;
     use std::path::PathBuf;
+
+    use clap::Parser;
+    use color_eyre::eyre;
 
     use super::*;
 
