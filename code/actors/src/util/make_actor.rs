@@ -1,4 +1,5 @@
 use ractor::ActorRef;
+use std::hash::{DefaultHasher, Hasher};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -24,7 +25,18 @@ pub async fn make_node_actor(
     address: Address,
     tx_decision: mpsc::Sender<(Height, Round, Value)>,
 ) -> (ActorRef<NodeMsg>, JoinHandle<()>) {
-    let addr: Multiaddr = "/ip4/0.0.0.0/udp/0/quic-v1".parse().unwrap();
+    // Hash validator_pk into a number between 27000 and 28000 for port
+    let pk_bytes = validator_pk.inner().to_bytes();
+    let mut hasher = DefaultHasher::new();
+    hasher.write_u64(u64::from_le_bytes(pk_bytes[0..8].try_into().unwrap()));
+    let port: u64 = hasher.finish() % 1000 + 27000;
+
+    let addr: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port)
+        .parse()
+        .unwrap();
+    let mempool_addr: Multiaddr = format!("/ip4/127.0.0.1/udp/{}/quic-v1", port + 1)
+        .parse()
+        .unwrap();
 
     // Spawn mempool and its gossip
     let config_gossip_mempool = malachite_gossip_mempool::Config::default();
@@ -32,7 +44,7 @@ pub async fn make_node_actor(
 
     let gossip_mempool = GossipMempool::spawn(
         node_keypair.clone(),
-        addr.clone(),
+        mempool_addr,
         config_gossip_mempool,
         None,
     )
