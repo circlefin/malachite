@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use bytesize::ByteSize;
 use color_eyre::eyre::Result;
 use rand::prelude::StdRng;
 use rand::rngs::OsRng;
@@ -101,6 +102,7 @@ pub fn generate_config(index: usize, total: usize) -> Config {
     Config {
         moniker: format!("test-{}", index),
         consensus: ConsensusConfig {
+            max_block_size: ByteSize::mib(1),
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 listen_addr: format!("/ip4/127.0.0.1/udp/{consensus_port}/quic-v1")

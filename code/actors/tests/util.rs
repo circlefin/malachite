@@ -3,6 +3,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use bytesize::ByteSize;
 use rand::Rng;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -110,6 +111,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
         let node_config = malachite_node::config::Config {
             moniker: format!("node-{i}"),
             consensus: ConsensusConfig {
+                max_block_size: ByteSize::mib(1),
                 timeouts: TimeoutConfig::default(),
                 p2p: P2pConfig {
                     listen_addr: format!(

@@ -18,6 +18,7 @@ malachite-network-mempool.workspace = true
 malachite-test.workspace    = true
 
 async-trait       = { workspace = true }
+bytesize          = { workspace = true, features = ["serde"] }
 derive-where      = { workspace = true }
 ed25519-consensus = { workspace = true, features = ["serde"] }
 humantime-serde   = { workspace = true }

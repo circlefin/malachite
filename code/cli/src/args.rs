@@ -7,7 +7,9 @@
 //! `clap` parses the command-line parameters into this structure.
 
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
+use bytesize::ByteSize;
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::{eyre, Context, Result};
 use directories::BaseDirs;
@@ -113,7 +115,9 @@ impl Args {
     pub fn load_config(&self) -> Result<Config> {
         let config_file = self.get_config_file_path()?;
         info!("Loading configuration from {:?}", config_file.display());
-        load_toml_file(&config_file)
+        let mut config = load_toml_file(&config_file)?;
+        override_config_from_env(&mut config)?;
+        Ok(config)
     }
 
     /// load_genesis returns the validator set from the genesis file
@@ -153,6 +157,18 @@ where
 
     toml::from_str(&content)
         .wrap_err_with(|| eyre!("Failed to load configuration at {}", file.display(),))
+}
+
+fn override_config_from_env(config: &mut Config) -> Result<()> {
+    use std::env;
+
+    if let Ok(max_block_size) = env::var("MALACHITE__CONSENSUS__MAX_BLOCK_SIZE") {
+        config.consensus.max_block_size = ByteSize::from_str(&max_block_size)
+            .map_err(|e| eyre!(e))
+            .wrap_err("Invalid MALACHITE__CONSENSUS__MAX_BLOCK_SIZE")?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

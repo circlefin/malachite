@@ -46,29 +46,37 @@ pub mod test {
 
     use std::marker::PhantomData;
 
+    use bytesize::ByteSize;
+    use ractor::ActorRef;
+
+    use super::*;
     use malachite_common::Context;
     use malachite_driver::Validity;
     use malachite_test::{
         Address, BlockMetadata, BlockPart, Content, Height, TestContext, TransactionBatch, Value,
     };
-    use ractor::ActorRef;
 
-    use super::*;
+    #[derive(Copy, Clone, Debug)]
+    pub struct TestParams {
+        pub max_block_size: ByteSize,
+    }
 
     #[derive(Clone)]
     pub struct TestValueBuilder<Ctx: Context> {
         _phantom: PhantomData<Ctx>,
         tx_streamer: ActorRef<crate::mempool::Msg>,
+        params: TestParams,
     }
 
     impl<Ctx> TestValueBuilder<Ctx>
     where
         Ctx: Context,
     {
-        pub fn new(tx_streamer: ActorRef<crate::mempool::Msg>) -> Self {
+        pub fn new(tx_streamer: ActorRef<crate::mempool::Msg>, params: TestParams) -> Self {
             Self {
                 _phantom: Default::default(),
                 tx_streamer,
+                params,
             }
         }
     }
@@ -90,6 +98,7 @@ pub mod test {
 
             let mut tx_batch = vec![];
             let mut sequence = 1;
+            let mut block_size = 0;
             let mut result = None;
 
             loop {
@@ -100,7 +109,7 @@ pub mod test {
                     sequence
                 );
 
-                let mut txes = self
+                let txes = self
                     .tx_streamer
                     .call(
                         |reply| crate::mempool::Msg::TxStream {
@@ -135,12 +144,20 @@ pub mod test {
 
                 // Simulate execution
                 tokio::time::sleep(Duration::from_micros(EXEC_TIME_MICROSEC_PER_PART)).await;
-                tx_batch.append(&mut txes);
+
+                'inner: for tx in txes {
+                    if block_size + tx.size_bytes() > self.params.max_block_size.as_u64() {
+                        break 'inner;
+                    }
+
+                    block_size += tx.size_bytes();
+                    tx_batch.push(tx);
+                }
 
                 sequence += 1;
 
                 if Instant::now() > expiration_time {
-                    error!( "Value Builder started at {now:?} but failed to complete by expiration time {expiration_time:?}");
+                    error!("Value Builder started at {now:?} but failed to complete by expiration time {expiration_time:?}");
                     result = None;
                     break;
                 }
@@ -169,13 +186,14 @@ pub mod test {
                     part_store.store(block_part.clone());
 
                     consensus
-                        .cast(ConsensusMsg::BuilderBlockPart(block_part.clone()))
+                        .cast(ConsensusMsg::BuilderBlockPart(block_part))
                         .unwrap();
 
                     info!(
-                        "Value Builder created a block with {} tx-es, block hash (consensus value) {:?} ",
+                        "Value Builder created a block with {} tx-es ({}), block hash: {:?} ",
                         tx_batch.len(),
-                        result
+                        ByteSize::b(block_size),
+                        value.id()
                     );
 
                     break;
@@ -196,7 +214,7 @@ pub mod test {
 
             part_store.store(block_part.clone());
             let num_parts = part_store.all_parts(height, round).len();
-            trace!("({num_parts}):Received block part (h: {height}, r: {round}, seq: {sequence}");
+            trace!("({num_parts}): Received block part (h: {height}, r: {round}, seq: {sequence}");
 
             // Simulate Tx execution and proof verification (assumes success)
             // TODO - add config knob for invalid blocks

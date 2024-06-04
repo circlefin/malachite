@@ -22,6 +22,7 @@ malachite-test.workspace    = true
 malachite-vote.workspace    = true
 
 async-trait        = { workspace = true }
+bytesize           = { workspace = true, features = ["serde"] }
 derive-where       = { workspace = true }
 libp2p             = { workspace = true }
 ractor             = { workspace = true, features = ["async-trait"] }

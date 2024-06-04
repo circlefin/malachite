@@ -17,6 +17,7 @@ use crate::host::Host;
 use crate::mempool::Mempool;
 use crate::node::{Msg as NodeMsg, Msg, Node};
 use crate::timers::Config as TimersConfig;
+use crate::util::value_builder::test::TestParams as TestValueBuilderParams;
 use crate::util::PartStore;
 use crate::util::TestValueBuilder;
 
@@ -48,7 +49,13 @@ pub async fn make_node_actor(
     let ctx = TestContext::new(validator_pk.clone());
 
     // Spawn the host actor
-    let value_builder = Box::new(TestValueBuilder::<TestContext>::new(mempool.clone()));
+    let value_builder = Box::new(TestValueBuilder::<TestContext>::new(
+        mempool.clone(),
+        TestValueBuilderParams {
+            max_block_size: cfg.consensus.max_block_size,
+        },
+    ));
+
     let host = Host::spawn(
         value_builder,
         PartStore::new(),

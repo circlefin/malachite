@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use bytesize::ByteSize;
 use malachite_common::TimeoutStep;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
@@ -34,6 +35,9 @@ pub struct MempoolConfig {
 /// Consensus configuration options
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConsensusConfig {
+    /// Max block size
+    pub max_block_size: ByteSize,
+
     /// Timeouts
     #[serde(flatten)]
     pub timeouts: TimeoutConfig,
