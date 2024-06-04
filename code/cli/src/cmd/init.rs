@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::Path;
 
-use color_eyre::eyre::{Context, eyre, Result};
+use color_eyre::eyre::{eyre, Context, Result};
 use tracing::{info, warn};
 
 use malachite_node::config::Config;
@@ -70,7 +70,7 @@ pub fn save_priv_validator_key(
 ) -> Result<()> {
     save(
         priv_validator_key_file,
-        &serde_json::to_string_pretty(private_key)?,
+        &serde_json::to_string(private_key)?,
     )
 }
 
