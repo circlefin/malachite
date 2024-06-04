@@ -1,5 +1,4 @@
 use color_eyre::eyre::Result;
-use rand::rngs::OsRng;
 use tracing::debug;
 
 use malachite_node::config::Config;
@@ -11,6 +10,7 @@ use crate::logging::LogLevel;
 mod args;
 mod cmd;
 mod logging;
+mod priv_key;
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() -> Result<()> {
@@ -37,11 +37,7 @@ fn init(args: &Args) -> Result<()> {
 
 async fn start(args: &Args) -> Result<()> {
     let cfg: Config = args.load_config()?;
-
-    let sk: PrivateKey = args
-        .load_private_key()
-        .unwrap_or_else(|_| PrivateKey::generate(OsRng));
-
+    let sk: PrivateKey = args.load_private_key()?;
     let vs: ValidatorSet = args.load_genesis()?;
 
     cmd::start::run(sk, cfg, vs).await

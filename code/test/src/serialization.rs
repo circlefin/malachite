@@ -1,5 +1,5 @@
 /// Serde Ed25519 VerificationKey CometBFT serializer/deserializer.
-pub mod verificationkey {
+pub mod verification_key {
     use ed25519_consensus::VerificationKey;
     use serde::{Deserialize, Serialize, Serializer};
 
@@ -28,6 +28,39 @@ pub mod verificationkey {
     {
         let pk = PubKey::deserialize(de)?;
         VerificationKey::try_from(pk.value.as_slice()).map_err(serde::de::Error::custom)
+    }
+}
+
+/// Serde Ed25519 SigningKey CometBFT serializer/deserializer.
+pub mod signing_key {
+    use ed25519_consensus::SigningKey;
+    use serde::{Deserialize, Serialize, Serializer};
+
+    #[derive(Serialize, Deserialize)]
+    struct PrivKey {
+        #[serde(rename = "type")]
+        key_type: String,
+        #[serde(with = "crate::serialization::base64string")]
+        value: Vec<u8>,
+    }
+
+    pub fn serialize<S>(s: &SigningKey, ser: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        PrivKey {
+            key_type: "tendermint/PrivKeyEd25519".to_string(),
+            value: s.as_bytes().to_vec(),
+        }
+        .serialize(ser)
+    }
+
+    pub fn deserialize<'de, D>(de: D) -> Result<SigningKey, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let pk = PrivKey::deserialize(de)?;
+        SigningKey::try_from(pk.value.as_slice()).map_err(serde::de::Error::custom)
     }
 }
 

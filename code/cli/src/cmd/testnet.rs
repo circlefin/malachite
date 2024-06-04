@@ -14,6 +14,7 @@ use malachite_test::{PrivateKey, PublicKey, Validator};
 
 use crate::args::Args;
 use crate::cmd::init::{save_config, save_genesis, save_priv_validator_key};
+use crate::priv_key::PrivValidatorKey;
 
 const MIN_VOTING_POWER: u64 = 8;
 const MAX_VOTING_POWER: u64 = 15;
@@ -38,7 +39,11 @@ pub fn run(home_dir: &Path, nodes: usize, deterministic: bool) -> Result<()> {
         args.home = Some(node_home_dir);
 
         // Save private key
-        save_priv_validator_key(&args.get_priv_validator_key_file_path()?, private_key)?;
+        let priv_validator_key = PrivValidatorKey::from(private_key.clone());
+        save_priv_validator_key(
+            &args.get_priv_validator_key_file_path()?,
+            &priv_validator_key,
+        )?;
 
         // Save genesis
         save_genesis(&args.get_genesis_file_path()?, &genesis)?;

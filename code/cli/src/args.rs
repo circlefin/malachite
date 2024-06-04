@@ -17,6 +17,7 @@ use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
 
 use crate::logging::DebugSection;
+use crate::priv_key::PrivValidatorKey;
 
 const APP_FOLDER: &str = ".malachite";
 const CONFIG_FILE: &str = "config.toml";
@@ -127,7 +128,8 @@ impl Args {
     pub fn load_private_key(&self) -> Result<PrivateKey> {
         let priv_key_file = self.get_priv_validator_key_file_path()?;
         info!("Loading private key from {:?}", priv_key_file.display());
-        load_json_file(&priv_key_file)
+        let priv_validator_key: PrivValidatorKey = load_json_file(&priv_key_file)?;
+        Ok(priv_validator_key.private_key)
     }
 }
 
