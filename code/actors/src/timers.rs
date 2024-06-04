@@ -19,8 +19,8 @@ impl TimeoutElapsed {
 }
 
 pub struct Timers<M> {
-    config: Config,
     listener: ActorRef<M>,
+    initial_config: Config,
 }
 
 impl<M> Timers<M>
@@ -28,18 +28,83 @@ where
     M: From<TimeoutElapsed> + ractor::Message,
 {
     pub async fn spawn(
-        config: Config,
+        initial_config: Config,
         listener: ActorRef<M>,
     ) -> Result<(ActorRef<Msg>, JoinHandle<()>), ractor::SpawnErr> {
-        Actor::spawn(None, Self { config, listener }, ()).await
+        Actor::spawn(
+            None,
+            Self {
+                listener,
+                initial_config,
+            },
+            initial_config,
+        )
+        .await
     }
 
     pub async fn spawn_linked(
-        config: Config,
+        initial_config: Config,
         listener: ActorRef<M>,
         supervisor: ActorCell,
     ) -> Result<(ActorRef<Msg>, JoinHandle<()>), ractor::SpawnErr> {
-        Actor::spawn_linked(None, Self { config, listener }, (), supervisor).await
+        Actor::spawn_linked(
+            None,
+            Self {
+                listener,
+                initial_config,
+            },
+            initial_config,
+            supervisor,
+        )
+        .await
+    }
+}
+
+pub enum Msg {
+    /// Schedule the given timeout
+    ScheduleTimeout(Timeout),
+
+    /// Cancel the given timeout
+    CancelTimeout(Timeout),
+
+    /// Cancel all the timeouts
+    CancelAllTimeouts,
+
+    /// Reset all timeouts values to their original values
+    ResetTimeouts,
+
+    // Internal messages
+    #[doc(hidden)]
+    TimeoutElapsed(Timeout),
+}
+
+type TimerTask = JoinHandle<Result<(), MessagingErr<Msg>>>;
+
+#[derive(Default)]
+pub struct State {
+    config: Config,
+    timers: HashMap<Timeout, TimerTask>,
+}
+
+impl State {
+    pub fn timeout_elapsed(&mut self, timeout: &Timeout) {
+        self.timers.remove(timeout);
+        self.increase_timeout(&timeout.step);
+    }
+
+    pub fn increase_timeout(&mut self, step: &TimeoutStep) {
+        match step {
+            TimeoutStep::Propose => {
+                self.config.timeout_propose += self.config.timeout_propose_delta
+            }
+            TimeoutStep::Prevote => {
+                self.config.timeout_prevote += self.config.timeout_prevote_delta
+            }
+            TimeoutStep::Precommit => {
+                self.config.timeout_precommit += self.config.timeout_precommit_delta
+            }
+            TimeoutStep::Commit => (),
+        }
     }
 
     pub fn timeout_duration(&self, step: &TimeoutStep) -> Duration {
@@ -52,23 +117,6 @@ where
     }
 }
 
-pub enum Msg {
-    ScheduleTimeout(Timeout),
-    CancelTimeout(Timeout),
-    Reset,
-
-    // Internal messages
-    #[doc(hidden)]
-    TimeoutElapsed(Timeout),
-}
-
-type TimerTask = JoinHandle<Result<(), MessagingErr<Msg>>>;
-
-#[derive(Default)]
-pub struct State {
-    timers: HashMap<Timeout, TimerTask>,
-}
-
 #[async_trait]
 impl<M> Actor for Timers<M>
 where
@@ -76,14 +124,17 @@ where
 {
     type Msg = Msg;
     type State = State;
-    type Arguments = ();
+    type Arguments = Config;
 
     async fn pre_start(
         &self,
         _myself: ActorRef<Msg>,
-        _args: (),
+        config: Config,
     ) -> Result<State, ActorProcessingErr> {
-        Ok(State::default())
+        Ok(State {
+            config,
+            ..Default::default()
+        })
     }
 
     async fn handle(
@@ -94,7 +145,7 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::ScheduleTimeout(timeout) => {
-                let duration = self.timeout_duration(&timeout.step);
+                let duration = state.timeout_duration(&timeout.step);
                 let task = send_after(duration, myself.get_cell(), move || {
                     Msg::TimeoutElapsed(timeout)
                 });
@@ -108,15 +159,21 @@ where
                 }
             }
 
-            Msg::Reset => {
+            Msg::TimeoutElapsed(timeout) => {
+                state.timeout_elapsed(&timeout);
+                self.listener.cast(TimeoutElapsed(timeout).into())?;
+            }
+
+            Msg::CancelAllTimeouts => {
+                // Cancel all the timers
                 for (_, task) in state.timers.drain() {
                     task.abort();
                 }
             }
 
-            Msg::TimeoutElapsed(timeout) => {
-                state.timers.remove(&timeout);
-                self.listener.cast(TimeoutElapsed(timeout).into())?;
+            Msg::ResetTimeouts => {
+                // Reset the timeouts to their original values
+                state.config = self.initial_config;
             }
         }
 

@@ -309,7 +309,7 @@ where
     ) -> Result<(), ractor::ActorProcessingErr> {
         match &input {
             DriverInput::NewRound(_, _, _) => {
-                state.timers.cast(TimersMsg::Reset)?;
+                state.timers.cast(TimersMsg::CancelAllTimeouts)?;
             }
 
             DriverInput::ProposeValue(round, _) => state
@@ -646,7 +646,8 @@ where
             }
 
             Msg::MoveToHeight(height) => {
-                state.timers.cast(TimersMsg::Reset)?;
+                state.timers.cast(TimersMsg::CancelAllTimeouts)?;
+                state.timers.cast(TimersMsg::ResetTimeouts)?;
 
                 let validator_set = self.get_validator_set(height).await?;
                 state.driver.move_to_height(height, validator_set);
