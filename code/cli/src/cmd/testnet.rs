@@ -6,6 +6,7 @@ use color_eyre::eyre::Result;
 use rand::prelude::StdRng;
 use rand::rngs::OsRng;
 use rand::{Rng, SeedableRng};
+use tracing::info;
 
 use malachite_node::config::{Config, ConsensusConfig, MempoolConfig, P2pConfig, TimeoutConfig};
 use malachite_test::ValidatorSet as Genesis;
@@ -24,9 +25,17 @@ pub fn run(home_dir: &Path, nodes: usize, deterministic: bool) -> Result<()> {
     let genesis = generate_genesis(public_keys, deterministic);
 
     for (i, private_key) in private_keys.iter().enumerate().take(nodes) {
-        // Find the destination folder
+        // Use home directory `home_dir/<index>`
+        let node_home_dir = home_dir.join(i.to_string());
+
+        info!(
+            "Generating configuration for node {i} at `{}`...",
+            node_home_dir.display()
+        );
+
+        // Set the destination folder
         let mut args = Args::new();
-        args.home = Some(home_dir.join(i.to_string()));
+        args.home = Some(node_home_dir);
 
         // Save private key
         save_priv_validator_key(&args.get_priv_validator_key_file_path()?, private_key)?;
