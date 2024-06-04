@@ -1,17 +1,16 @@
 use color_eyre::eyre::Result;
-use rand::rngs::OsRng;
 use tracing::debug;
 
 use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
 
-use crate::args::{Args, Commands};
+use crate::args::{Args, Commands, TestnetArgs};
 use crate::logging::LogLevel;
 
 mod args;
 mod cmd;
-mod example;
 mod logging;
+mod priv_key;
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() -> Result<()> {
@@ -22,9 +21,18 @@ pub async fn main() -> Result<()> {
     debug!("Command-line parameters: {args:?}");
 
     match args.command {
-        Commands::Init => init(&args),
         Commands::Start => start(&args).await,
+        Commands::Init => init(&args),
+        Commands::Testnet(ref testnet_args) => testnet(&args, testnet_args),
     }
+}
+
+async fn start(args: &Args) -> Result<()> {
+    let cfg: Config = args.load_config()?;
+    let sk: PrivateKey = args.load_private_key()?;
+    let vs: ValidatorSet = args.load_genesis()?;
+
+    cmd::start::run(sk, cfg, vs).await
 }
 
 fn init(args: &Args) -> Result<()> {
@@ -32,20 +40,15 @@ fn init(args: &Args) -> Result<()> {
         &args.get_config_file_path()?,
         &args.get_genesis_file_path()?,
         &args.get_priv_validator_key_file_path()?,
-        args.index.unwrap_or(0),
     )
 }
 
-async fn start(args: &Args) -> Result<()> {
-    let cfg: Config = args.load_config()?;
-
-    let sk: PrivateKey = args
-        .load_private_key()
-        .unwrap_or_else(|_| PrivateKey::generate(OsRng));
-
-    let vs: ValidatorSet = args.load_genesis()?;
-
-    cmd::start::run(sk, cfg, vs).await
+fn testnet(args: &Args, testnet_args: &TestnetArgs) -> Result<()> {
+    cmd::testnet::run(
+        &args.get_home_dir()?,
+        testnet_args.nodes,
+        testnet_args.deterministic,
+    )
 }
 
 #[cfg(test)]
@@ -61,25 +64,61 @@ mod tests {
     #[test]
     fn running_init_creates_config_files() -> eyre::Result<()> {
         let tmp = tempfile::tempdir()?;
+        let config_dir = tmp.path().join("config");
 
-        let config = tmp.path().join("config.toml");
-        let genesis = tmp.path().join("genesis.json");
-
-        let args = Args::parse_from([
-            "test",
-            "--config",
-            &config.display().to_string(),
-            "--genesis",
-            &genesis.display().to_string(),
-            "init",
-        ]);
+        let args = Args::parse_from(["test", "--home", tmp.path().to_str().unwrap(), "init"]);
 
         init(&args)?;
 
-        let files = fs::read_dir(tmp.path())?.flatten().collect::<Vec<_>>();
+        let files = fs::read_dir(&config_dir)?.flatten().collect::<Vec<_>>();
 
-        assert!(has_file(&files, &config));
-        assert!(has_file(&files, &genesis));
+        dbg!(&files);
+
+        assert!(has_file(&files, &config_dir.join("config.toml")));
+        assert!(has_file(&files, &config_dir.join("genesis.json")));
+        assert!(has_file(
+            &files,
+            &config_dir.join("priv_validator_key.json")
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn running_testnet_creates_all_configs() -> eyre::Result<()> {
+        let tmp = tempfile::tempdir()?;
+
+        let args = Args::parse_from([
+            "test",
+            "--home",
+            tmp.path().to_str().unwrap(),
+            "testnet",
+            "--nodes",
+            "3",
+        ]);
+
+        let Commands::Testnet(ref testnet_args) = args.command else {
+            panic!("not testnet command");
+        };
+
+        testnet(&args, testnet_args)?;
+
+        let files = fs::read_dir(&tmp)?.flatten().collect::<Vec<_>>();
+
+        assert_eq!(files.len(), 3);
+
+        assert!(has_file(&files, &tmp.path().join("0")));
+        assert!(has_file(&files, &tmp.path().join("1")));
+        assert!(has_file(&files, &tmp.path().join("2")));
+
+        for node in 0..3 {
+            let node_dir = tmp.path().join(node.to_string()).join("config");
+            let files = fs::read_dir(&node_dir)?.flatten().collect::<Vec<_>>();
+
+            assert!(has_file(&files, &node_dir.join("config.toml")));
+            assert!(has_file(&files, &node_dir.join("genesis.json")));
+            assert!(has_file(&files, &node_dir.join("priv_validator_key.json")));
+        }
 
         Ok(())
     }

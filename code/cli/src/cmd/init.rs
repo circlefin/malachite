@@ -7,49 +7,49 @@ use color_eyre::eyre::{eyre, Context, Result};
 use tracing::{info, warn};
 
 use malachite_node::config::Config;
-use malachite_test::PrivateKey;
 use malachite_test::ValidatorSet as Genesis;
 
-use crate::example::{generate_config, generate_genesis, generate_private_key};
+use crate::cmd::testnet::{generate_config, generate_genesis, generate_private_keys};
+use crate::priv_key::PrivValidatorKey;
 
 /// Execute the init command
-pub fn run(
-    config_file: &Path,
-    genesis_file: &Path,
-    priv_validator_key_file: &Path,
-    index: usize,
-) -> Result<()> {
+pub fn run(config_file: &Path, genesis_file: &Path, priv_validator_key_file: &Path) -> Result<()> {
     // Save default configuration
     if config_file.exists() {
         warn!(
-            "Configuration file already exists at {:?}, skipping.",
+            "Configuration file already exists at {:?}, skipping",
             config_file.display()
         )
     } else {
-        info!("Saving configuration to {:?}.", config_file);
-        save_config(config_file, &generate_config(index))?;
+        info!("Saving configuration to {:?}", config_file);
+        save_config(config_file, &generate_config(0, 1))?;
     }
 
     // Save default genesis
     if genesis_file.exists() {
         warn!(
-            "Genesis file already exists at {:?}, skipping.",
+            "Genesis file already exists at {:?}, skipping",
             genesis_file.display()
         )
     } else {
+        let private_keys = generate_private_keys(1, true);
+        let public_keys = private_keys.iter().map(|pk| pk.public_key()).collect();
+        let genesis = generate_genesis(public_keys, true);
         info!("Saving test genesis to {:?}.", genesis_file);
-        save_genesis(genesis_file, &generate_genesis())?;
+        save_genesis(genesis_file, &genesis)?;
     }
 
     // Save default priv_validator_key
     if priv_validator_key_file.exists() {
         warn!(
-            "Private key file already exists at {:?}, skipping.",
+            "Private key file already exists at {:?}, skipping",
             priv_validator_key_file.display()
         )
     } else {
-        info!("Saving private key to {:?}.", priv_validator_key_file);
-        save_priv_validator_key(priv_validator_key_file, &generate_private_key(index))?;
+        info!("Saving private key to {:?}", priv_validator_key_file);
+        let private_keys = generate_private_keys(1, false);
+        let priv_validator_key = PrivValidatorKey::from(private_keys[0].clone());
+        save_priv_validator_key(priv_validator_key_file, &priv_validator_key)?;
     }
 
     Ok(())
@@ -68,11 +68,11 @@ pub fn save_genesis(genesis_file: &Path, genesis: &Genesis) -> Result<()> {
 /// Save private_key validator key to file
 pub fn save_priv_validator_key(
     priv_validator_key_file: &Path,
-    private_key: &PrivateKey,
+    priv_validator_key: &PrivValidatorKey,
 ) -> Result<()> {
     save(
         priv_validator_key_file,
-        &serde_json::to_string_pretty(private_key)?,
+        &serde_json::to_string_pretty(priv_validator_key)?,
     )
 }
 

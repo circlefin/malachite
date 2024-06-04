@@ -36,7 +36,9 @@ impl SigningScheme for Ed25519 {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct PrivateKey(ed25519_consensus::SigningKey);
+pub struct PrivateKey(
+    #[serde(with = "crate::serialization::signing_key")] ed25519_consensus::SigningKey,
+);
 
 impl PrivateKey {
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -83,7 +85,7 @@ impl Keypair for PrivateKey {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PublicKey(
-    #[serde(with = "crate::serialization::verificationkey")] ed25519_consensus::VerificationKey,
+    #[serde(with = "crate::serialization::verification_key")] ed25519_consensus::VerificationKey,
 );
 
 impl PublicKey {
