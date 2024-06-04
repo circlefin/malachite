@@ -9,10 +9,16 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     /// A custom human-readable name for this node
     pub moniker: String,
+
     /// Consensus configuration options
     pub consensus: ConsensusConfig,
+
     /// Mempool configuration options
     pub mempool: MempoolConfig,
+
+    /// Test configuration
+    #[serde(default)]
+    pub test: TestConfig,
 }
 
 /// P2P configuration options
@@ -106,6 +112,24 @@ impl Default for TimeoutConfig {
             timeout_precommit: Duration::from_secs(1),
             timeout_precommit_delta: Duration::from_millis(500),
             timeout_commit: Duration::from_secs(1),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub struct TestConfig {
+    pub txs_per_part: u64,
+    pub time_allowance_factor: f32,
+    #[serde(with = "humantime_serde")]
+    pub exec_time_per_part: Duration,
+}
+
+impl Default for TestConfig {
+    fn default() -> Self {
+        Self {
+            txs_per_part: 400,
+            time_allowance_factor: 0.5,
+            exec_time_per_part: Duration::from_micros(100000),
         }
     }
 }

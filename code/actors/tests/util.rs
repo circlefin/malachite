@@ -149,6 +149,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
                         .collect(),
                 },
             },
+            test: Default::default(),
         };
 
         let node = tokio::spawn(make_node_actor(

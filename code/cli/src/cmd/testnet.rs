@@ -131,5 +131,6 @@ pub fn generate_config(index: usize, total: usize) -> Config {
                     .collect(),
             },
         },
+        test: Default::default(),
     }
 }

@@ -113,7 +113,9 @@ impl Args {
     pub fn load_config(&self) -> Result<Config> {
         let config_file = self.get_config_file_path()?;
         info!("Loading configuration from {:?}", config_file.display());
-        load_toml_file(&config_file)
+        let mut config = load_toml_file(&config_file)?;
+        override_config_from_env(&mut config)?;
+        Ok(config)
     }
 
     /// load_genesis returns the validator set from the genesis file
@@ -153,6 +155,49 @@ where
 
     toml::from_str(&content)
         .wrap_err_with(|| eyre!("Failed to load configuration at {}", file.display(),))
+}
+
+fn override_config_from_env(config: &mut Config) -> Result<()> {
+    use std::env;
+
+    if let Ok(timeout_propose) = env::var("MALACHITE__CONSENSUS__TIMEOUT_PROPOSE") {
+        config.consensus.timeouts.timeout_propose = humantime::parse_duration(&timeout_propose)
+            .wrap_err("Invalid MALACHITE__CONSENSUS__TIMEOUT_PROPOSE")?;
+    }
+
+    if let Ok(timeout_prevote) = env::var("MALACHITE__CONSENSUS__TIMEOUT_PREVOTE") {
+        config.consensus.timeouts.timeout_prevote = humantime::parse_duration(&timeout_prevote)
+            .wrap_err("Invalid MALACHITE__CONSENSUS__TIMEOUT_PREVOTE")?;
+    }
+
+    if let Ok(timeout_precommit) = env::var("MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT") {
+        config.consensus.timeouts.timeout_precommit = humantime::parse_duration(&timeout_precommit)
+            .wrap_err("Invalid MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT")?;
+    }
+
+    if let Ok(timeout_commit) = env::var("MALACHITE__CONSENSUS__TIMEOUT_COMMIT") {
+        config.consensus.timeouts.timeout_commit = humantime::parse_duration(&timeout_commit)
+            .wrap_err("Invalid MALACHITE__CONSENSUS__TIMEOUT_COMMIT")?;
+    }
+
+    if let Ok(txs_per_part) = env::var("MALACHITE__TEST__TXS_PER_PART") {
+        config.test.txs_per_part = txs_per_part
+            .parse()
+            .wrap_err("Invalid MALACHITE__TEST__TXS_PER_PART")?;
+    }
+
+    if let Ok(time_allowance_factor) = env::var("MALACHITE__TEST__TIME_ALLOWANCE_FACTOR") {
+        config.test.time_allowance_factor = time_allowance_factor
+            .parse()
+            .wrap_err("Invalid MALACHITE__TEST__TIME_ALLOWANCE_FACTOR")?;
+    }
+
+    if let Ok(exec_time_per_part) = env::var("MALACHITE__TEST__EXEC_TIME_PER_PART") {
+        config.test.exec_time_per_part = humantime::parse_duration(&exec_time_per_part)
+            .wrap_err("Invalid MALACHITE__TEST__EXEC_TIME_PER_PART")?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
