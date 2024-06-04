@@ -69,9 +69,11 @@ pub struct Args {
 pub enum Commands {
     /// Initialize configuration
     Init,
+
     /// Start node
     #[default]
     Start,
+
     /// Testnet configuration
     Testnet(TestnetArgs),
 }
@@ -81,7 +83,8 @@ pub struct TestnetArgs {
     /// Number of validator nodes in the testnet
     #[clap(short, long)]
     pub nodes: usize,
-    /// Deterministic private keys are always the same
+
+    /// Generate deterministic private keys for reproducibility
     #[clap(short, long)]
     pub deterministic: bool,
 }
