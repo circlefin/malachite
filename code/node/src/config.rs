@@ -9,10 +9,10 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     /// A custom human-readable name for this node
     pub moniker: String,
-    /// P2P configuration options
-    pub p2p: P2pConfig,
     /// Consensus configuration options
     pub consensus: ConsensusConfig,
+    /// Mempool configuration options
+    pub mempool: MempoolConfig,
 }
 
 /// P2P configuration options
@@ -24,32 +24,25 @@ pub struct P2pConfig {
     pub persistent_peers: Vec<Multiaddr>,
 }
 
-impl Default for P2pConfig {
-    fn default() -> Self {
-        Self {
-            listen_addr: Multiaddr::empty(),
-            persistent_peers: vec![],
-        }
-    }
+/// Mempool configuration options
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MempoolConfig {
+    /// P2P configuration options
+    pub p2p: P2pConfig,
 }
 
 /// Consensus configuration options
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConsensusConfig {
+    /// Timeouts
     #[serde(flatten)]
     pub timeouts: TimeoutConfig,
+
+    /// P2P configuration options
+    pub p2p: P2pConfig,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            moniker: "node-007".to_string(),
-            p2p: Default::default(),
-            consensus: Default::default(),
-        }
-    }
-}
-
+/// Timeouts
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct TimeoutConfig {
     /// How long we wait for a proposal block before prevoting nil

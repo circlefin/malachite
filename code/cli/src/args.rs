@@ -14,14 +14,15 @@ use base64::Engine;
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::{eyre, Context, Result};
 use directories::BaseDirs;
+use tracing::info;
+
 use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
-use tracing::info;
 
 use crate::logging::DebugSection;
 
 const APP_FOLDER: &str = ".malachite";
-const CONFIG_FILE: &str = "config.json";
+const CONFIG_FILE: &str = "config.toml";
 const GENESIS_FILE: &str = "genesis.json";
 const PRIV_VALIDATOR_KEY_FILE: &str = "priv_validator_key.json";
 
@@ -29,11 +30,15 @@ const PRIV_VALIDATOR_KEY_FILE: &str = "priv_validator_key.json";
 #[command(version, about, long_about = None)]
 pub struct Args {
     /// Config file path
-    #[arg(short, long, value_name = "FILE")]
+    #[arg(long, value_name = "HOME_DIR")]
+    pub home: Option<PathBuf>,
+
+    /// Config file path
+    #[arg(short, long, value_name = "CONFIG_FILE")]
     pub config: Option<PathBuf>,
 
     /// Genesis file path
-    #[arg(short, long, value_name = "FILE")]
+    #[arg(short, long, value_name = "GENESIS_FILE")]
     pub genesis: Option<PathBuf>,
 
     /// Base64-encoded private key
@@ -43,11 +48,11 @@ pub struct Args {
         hide_default_value = true,
         value_name = "BASE64_STRING",
         env = "PRIVATE_KEY",
-        value_parser = |s: &str| BASE64_STANDARD.decode(s)
+        value_parser = | s: & str | BASE64_STANDARD.decode(s)
     )]
     pub private_key: std::vec::Vec<u8>, // Keep the fully qualified path for Vec<u8> or else clap will not be able to parse it: https://github.com/clap-rs/clap/issues/4481.
 
-    /// Validator index in Romain's test network
+    /// Validator index only for the init command
     #[clap(short, long, value_name = "INDEX", env = "INDEX")]
     pub index: Option<usize>,
 
@@ -67,6 +72,7 @@ pub struct Args {
 #[derive(Subcommand, Clone, Debug, Default, PartialEq)]
 pub enum Commands {
     /// Initialize configuration
+    ///
     Init,
     /// Start node
     #[default]
@@ -82,10 +88,13 @@ impl Args {
     /// get_home_dir returns the application home folder.
     /// Typically, `$HOME/.malachite`, dependent on the operating system.
     pub fn get_home_dir(&self) -> Result<PathBuf> {
-        Ok(BaseDirs::new()
-            .ok_or_else(|| eyre!("could not determine home directory path"))?
-            .home_dir()
-            .join(APP_FOLDER))
+        match self.home {
+            Some(ref path) => Ok(path.clone()),
+            None => Ok(BaseDirs::new()
+                .ok_or_else(|| eyre!("could not determine home directory path"))?
+                .home_dir()
+                .join(APP_FOLDER)),
+        }
     }
 
     /// get_config_dir returns the configuration folder based on the home folder.
@@ -121,11 +130,7 @@ impl Args {
     pub fn load_config(&self) -> Result<Config> {
         let config_file = self.get_config_file_path()?;
         info!("Loading configuration from {:?}", config_file.display());
-        let mut config: Config = load_toml_file(&config_file)?;
-        if let Some(index) = self.index {
-            config.moniker = format!("test-{}", index);
-        }
-        Ok(config)
+        load_toml_file(&config_file)
     }
 
     /// load_genesis returns the validator set from the genesis file
@@ -202,7 +207,6 @@ mod tests {
         assert_eq!(args.config, Some(PathBuf::from("myconfig.toml")));
         assert_eq!(args.genesis, Some(PathBuf::from("mygenesis.json")));
         assert_eq!(args.private_key, b"secret");
-        assert_eq!(args.index, None);
         assert!(args.get_home_dir().is_ok());
         assert!(args.get_config_dir().is_ok());
     }
@@ -231,18 +235,6 @@ mod tests {
         let args = Args::parse_from(["test", "--config", "../config.toml", "start"]);
         let config = args.load_config().unwrap();
         assert_eq!(config.moniker, "malachite");
-
-        // Testnet configuration
-        let args = Args::parse_from([
-            "test",
-            "--config",
-            "../config.toml",
-            "--index",
-            "2",
-            "start",
-        ]);
-        let config = args.load_config().unwrap();
-        assert_eq!(config.moniker, "test-2");
     }
 
     #[test]

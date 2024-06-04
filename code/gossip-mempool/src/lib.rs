@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use libp2p::swarm::{self, SwarmEvent};
-use libp2p::{gossipsub, identify, mdns, SwarmBuilder};
+use libp2p::{gossipsub, identify, SwarmBuilder};
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
@@ -68,20 +68,14 @@ pub type BoxError = Box<dyn Error + Send + Sync + 'static>;
 
 #[derive(Clone, Debug)]
 pub struct Config {
-    idle_connection_timeout: Duration,
+    pub listen_addr: Multiaddr,
+    pub persistent_peers: Vec<Multiaddr>,
+    pub idle_connection_timeout: Duration,
 }
 
 impl Config {
-    fn apply(self, cfg: swarm::Config) -> swarm::Config {
+    fn apply(&self, cfg: swarm::Config) -> swarm::Config {
         cfg.with_idle_connection_timeout(self.idle_connection_timeout)
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            idle_connection_timeout: Duration::from_secs(30),
-        }
     }
 }
 
@@ -104,7 +98,7 @@ pub enum CtrlMsg {
     Shutdown,
 }
 
-pub async fn spawn(keypair: Keypair, addr: Multiaddr, config: Config) -> Result<Handle, BoxError> {
+pub async fn spawn(keypair: Keypair, config: Config) -> Result<Handle, BoxError> {
     let mut swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
         .with_quic()
@@ -119,23 +113,36 @@ pub async fn spawn(keypair: Keypair, addr: Multiaddr, config: Config) -> Result<
             .subscribe(&channel.to_topic())?;
     }
 
-    swarm.listen_on(addr)?;
-
     let (tx_event, rx_event) = mpsc::channel(32);
     let (tx_ctrl, rx_ctrl) = mpsc::channel(32);
 
     let peer_id = swarm.local_peer_id();
     let span = error_span!("gossip-mempool", peer = %peer_id);
-    let task_handle = tokio::task::spawn(run(swarm, rx_ctrl, tx_event).instrument(span));
+    let task_handle = tokio::task::spawn(run(config, swarm, rx_ctrl, tx_event).instrument(span));
 
     Ok(Handle::new(tx_ctrl, rx_event, task_handle))
 }
 
 async fn run(
+    config: Config,
     mut swarm: swarm::Swarm<Behaviour>,
     mut rx_ctrl: mpsc::Receiver<CtrlMsg>,
     tx_event: mpsc::Sender<Event>,
 ) {
+    if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
+        error!("Error listening on {}: {e}", config.listen_addr);
+        return;
+    };
+
+    for persistent_peer in config.persistent_peers {
+        debug!("Dialing persistent peer: {persistent_peer}");
+
+        match swarm.dial(persistent_peer.clone()) {
+            Ok(()) => (),
+            Err(e) => error!("Error dialing persistent peer {persistent_peer}: {e}"),
+        }
+    }
+
     let mut state = State::default();
 
     loop {
@@ -216,21 +223,15 @@ async fn handle_swarm_event(
                     "Connecting to peer {peer_id} using protocol {:?}",
                     info.protocol_version
                 );
+
+                state.peers.insert(peer_id, info);
+
+                swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
             } else {
                 debug!(
                     "Peer {peer_id} is using incompatible protocol version: {:?}",
                     info.protocol_version
                 );
-            }
-
-            state.peers.insert(peer_id, info);
-        }
-
-        SwarmEvent::Behaviour(NetworkEvent::Mdns(mdns::Event::Discovered(peers))) => {
-            for (peer_id, addr) in peers {
-                trace!("Discovered peer {peer_id} at {addr}");
-
-                swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
             }
         }
 

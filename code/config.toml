@@ -6,20 +6,9 @@
 moniker = "malachite"
 
 #######################################################
-###           P2P Configuration Options             ###
-#######################################################
-[p2p]
-
-# Address to listen for incoming connections
-listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
-# List of nodes to keep persistent connections to
-persistent_peers = []
-
-#######################################################
 ###         Consensus Configuration Options         ###
 #######################################################
 [consensus]
-
 # How long we wait for a proposal block before prevoting nil
 timeout_propose = "3s"
 # How much timeout_propose increases with each round
@@ -36,3 +25,28 @@ timeout_precommit_delta = "500ms"
 # height (this gives us a chance to receive some more precommits, even
 # though we already have +2/3).
 timeout_commit = "1s"
+
+#######################################################
+###       Consensus P2P Configuration Options       ###
+#######################################################
+[consensus.p2p]
+# Address to listen for incoming connections
+listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
+# List of nodes to keep persistent connections to
+persistent_peers = []
+
+
+#######################################################
+###          Mempool Configuration Options          ###
+#######################################################
+[mempool]
+
+#######################################################
+###       Mempool P2P Configuration Options       ###
+#######################################################
+[mempool.p2p]
+# Address to listen for incoming connections
+listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
+# List of nodes to keep persistent connections to
+persistent_peers = []
+
