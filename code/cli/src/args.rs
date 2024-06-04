@@ -46,14 +46,14 @@ pub struct Args {
 
 #[derive(Subcommand, Clone, Debug, Default, PartialEq)]
 pub enum Commands {
-    /// Initialize configuration
-    Init,
-
     /// Start node
     #[default]
     Start,
 
-    /// Testnet configuration
+    /// Initialize configuration
+    Init,
+
+    /// Generate testnet configuration
     Testnet(TestnetArgs),
 }
 

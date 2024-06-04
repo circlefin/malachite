@@ -21,18 +21,10 @@ pub async fn main() -> Result<()> {
     debug!("Command-line parameters: {args:?}");
 
     match args.command {
-        Commands::Init => init(&args),
         Commands::Start => start(&args).await,
-        Commands::Testnet(ref testnet_args) => testnet(&args, testnet_args).await,
+        Commands::Init => init(&args),
+        Commands::Testnet(ref testnet_args) => testnet(&args, testnet_args),
     }
-}
-
-fn init(args: &Args) -> Result<()> {
-    cmd::init::run(
-        &args.get_config_file_path()?,
-        &args.get_genesis_file_path()?,
-        &args.get_priv_validator_key_file_path()?,
-    )
 }
 
 async fn start(args: &Args) -> Result<()> {
@@ -43,7 +35,15 @@ async fn start(args: &Args) -> Result<()> {
     cmd::start::run(sk, cfg, vs).await
 }
 
-async fn testnet(args: &Args, testnet_args: &TestnetArgs) -> Result<()> {
+fn init(args: &Args) -> Result<()> {
+    cmd::init::run(
+        &args.get_config_file_path()?,
+        &args.get_genesis_file_path()?,
+        &args.get_priv_validator_key_file_path()?,
+    )
+}
+
+fn testnet(args: &Args, testnet_args: &TestnetArgs) -> Result<()> {
     cmd::testnet::run(
         &args.get_home_dir()?,
         testnet_args.nodes,
@@ -80,6 +80,45 @@ mod tests {
             &files,
             &config_dir.join("priv_validator_key.json")
         ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn running_testnet_creates_all_configs() -> eyre::Result<()> {
+        let tmp = tempfile::tempdir()?;
+
+        let args = Args::parse_from([
+            "test",
+            "--home",
+            tmp.path().to_str().unwrap(),
+            "testnet",
+            "--nodes",
+            "3",
+        ]);
+
+        let Commands::Testnet(ref testnet_args) = args.command else {
+            panic!("not testnet command");
+        };
+
+        testnet(&args, testnet_args)?;
+
+        let files = fs::read_dir(&tmp)?.flatten().collect::<Vec<_>>();
+
+        assert_eq!(files.len(), 3);
+
+        assert!(has_file(&files, &tmp.path().join("0")));
+        assert!(has_file(&files, &tmp.path().join("1")));
+        assert!(has_file(&files, &tmp.path().join("2")));
+
+        for node in 0..3 {
+            let node_dir = tmp.path().join(node.to_string()).join("config");
+            let files = fs::read_dir(&node_dir)?.flatten().collect::<Vec<_>>();
+
+            assert!(has_file(&files, &node_dir.join("config.toml")));
+            assert!(has_file(&files, &node_dir.join("genesis.json")));
+            assert!(has_file(&files, &node_dir.join("priv_validator_key.json")));
+        }
 
         Ok(())
     }

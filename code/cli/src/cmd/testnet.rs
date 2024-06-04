@@ -35,8 +35,10 @@ pub fn run(home_dir: &Path, nodes: usize, deterministic: bool) -> Result<()> {
         );
 
         // Set the destination folder
-        let mut args = Args::new();
-        args.home = Some(node_home_dir);
+        let args = Args {
+            home: Some(node_home_dir),
+            ..Args::default()
+        };
 
         // Save private key
         let priv_validator_key = PrivValidatorKey::from(private_key.clone());
