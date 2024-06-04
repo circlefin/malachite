@@ -372,12 +372,13 @@ where
                     VoteType::Precommit => Timeout::precommit(round),
                 };
 
-                info!("Threshold met for {threshold:?} at round {round}, cancelling {timeout}");
                 // TODO - check on this. For L47 (PrecommitAny) the spec says:
                 // upon 2f + 1 (PRECOMMIT, hp, roundp, *) for the first time do
                 //   schedule OnTimeoutPrecommit(hp , roundp) to be executed after timeoutPrecommit(roundp)
                 // If we cancel the timeout we will not move to next round
-                state.timers.cast(TimersMsg::CancelTimeout(timeout))?;
+                //
+                // info!("Threshold met for {threshold:?} at round {round}, cancelling {timeout}");
+                // state.timers.cast(TimersMsg::CancelTimeout(timeout))?;
             }
         }
 
