@@ -68,25 +68,22 @@ mod tests {
     #[test]
     fn running_init_creates_config_files() -> eyre::Result<()> {
         let tmp = tempfile::tempdir()?;
+        let config_dir = tmp.path().join("config");
 
-        let config = tmp.path().join("config.toml");
-        let genesis = tmp.path().join("genesis.json");
-
-        let args = Args::parse_from([
-            "test",
-            "--config",
-            &config.display().to_string(),
-            "--genesis",
-            &genesis.display().to_string(),
-            "init",
-        ]);
+        let args = Args::parse_from(["test", "--home", tmp.path().to_str().unwrap(), "init"]);
 
         init(&args)?;
 
-        let files = fs::read_dir(tmp.path())?.flatten().collect::<Vec<_>>();
+        let files = fs::read_dir(&config_dir)?.flatten().collect::<Vec<_>>();
 
-        assert!(has_file(&files, &config));
-        assert!(has_file(&files, &genesis));
+        dbg!(&files);
+
+        assert!(has_file(&files, &config_dir.join("config.toml")));
+        assert!(has_file(&files, &config_dir.join("genesis.json")));
+        assert!(has_file(
+            &files,
+            &config_dir.join("priv_validator_key.json")
+        ));
 
         Ok(())
     }

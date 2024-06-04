@@ -14,7 +14,6 @@ malachite-actors.workspace = true
 malachite-node.workspace   = true
 malachite-test.workspace   = true
 
-base64             = { workspace = true }
 clap               = { workspace = true, features = ["derive", "env"] }
 color-eyre         = { workspace = true }
 directories        = { workspace = true }
