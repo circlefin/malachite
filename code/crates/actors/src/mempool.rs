@@ -2,44 +2,43 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytesize::ByteSize;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::distributions::Uniform;
 use rand::Rng;
-use tracing::{debug, info};
+use tracing::{debug, info, trace};
 
-use malachite_common::Transaction;
+use malachite_common::{MempoolTransactionBatch, Transaction, TransactionBatch};
 use malachite_gossip_mempool::{Channel, Event as GossipEvent, PeerId};
+use malachite_node::config::{MempoolConfig, TestConfig};
+use malachite_proto::Protobuf;
 
 use crate::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use crate::util::forward;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum NetworkMsg {
-    Transaction(Vec<u8>),
+    TransactionBatch(MempoolTransactionBatch),
 }
 
 impl NetworkMsg {
     pub fn from_network_bytes(bytes: &[u8]) -> Self {
-        NetworkMsg::Transaction(bytes.to_vec())
+        let batch = Protobuf::from_bytes(bytes).unwrap();
+        NetworkMsg::TransactionBatch(batch)
     }
 
-    pub fn to_network_bytes(&self) -> Vec<u8> {
+    pub fn to_network_bytes(&self) -> malachite_proto::MempoolTransactionBatch {
         match self {
-            NetworkMsg::Transaction(bytes) => bytes.to_vec(),
+            NetworkMsg::TransactionBatch(batch) => batch.to_proto().unwrap(),
         }
     }
-}
-
-pub enum Next {
-    None,
-    Transaction(Transaction),
 }
 
 pub type MempoolRef = ActorRef<Msg>;
 
 pub struct Mempool {
     gossip_mempool: GossipMempoolRef,
+    mempool_config: MempoolConfig, // todo - pick only what's needed
+    test_config: TestConfig,       // todo - pick only the mempool related
 }
 
 pub enum Msg {
@@ -47,7 +46,6 @@ pub enum Msg {
     Input(Transaction),
     TxStream {
         height: u64,
-        tx_size: ByteSize,
         num_txes: u64,
         reply: RpcReplyPort<Vec<Transaction>>,
     },
@@ -60,15 +58,25 @@ pub struct State {
 }
 
 impl Mempool {
-    pub fn new(gossip_mempool: GossipMempoolRef) -> Self {
-        Self { gossip_mempool }
+    pub fn new(
+        gossip_mempool: GossipMempoolRef,
+        mempool_config: MempoolConfig,
+        test_config: TestConfig,
+    ) -> Self {
+        Self {
+            gossip_mempool,
+            mempool_config,
+            test_config,
+        }
     }
 
     pub async fn spawn(
         gossip_mempool: GossipMempoolRef,
+        mempool_config: &MempoolConfig,
+        test_config: &TestConfig,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg>, ractor::SpawnErr> {
-        let node = Self::new(gossip_mempool);
+        let node = Self::new(gossip_mempool, mempool_config.clone(), *test_config);
 
         let (actor_ref, _) = if let Some(supervisor) = supervisor {
             Actor::spawn_linked(None, node, (), supervisor).await?
@@ -98,7 +106,8 @@ impl Mempool {
             GossipEvent::Message(from, Channel::Mempool, data) => {
                 let msg = NetworkMsg::from_network_bytes(data);
 
-                debug!("Mempool - Received message from peer {from}: {msg:?}");
+                // todo - very verbose, print type, len etc
+                trace!("Mempool - Received message from peer {from}: {msg:?}");
 
                 self.handle_network_msg(from, msg, myself, state).await?;
             }
@@ -115,10 +124,11 @@ impl Mempool {
         _state: &mut State,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
-            NetworkMsg::Transaction(bytes) => {
-                info!(%from, "Received transaction: {:?}", bytes);
-
-                myself.cast(Msg::Input(Transaction::new(bytes)))?;
+            NetworkMsg::TransactionBatch(batch) => {
+                info!(%from, "Received batch with {} transactions", batch.len());
+                for tx in batch.transactions().transactions() {
+                    myself.cast(Msg::Input(tx.clone()))?;
+                }
             }
         }
 
@@ -160,27 +170,36 @@ impl Actor for Mempool {
             }
 
             Msg::Input(tx) => {
-                state.transactions.push(tx);
+                if state.transactions.len() < self.mempool_config.max_size {
+                    state.transactions.push(tx);
+                } else {
+                    trace!("Mempool full, dropping transaction")
+                }
             }
 
             Msg::TxStream {
-                reply,
-                tx_size,
-                num_txes,
-                ..
+                reply, num_txes, ..
             } => {
                 let mut transactions = vec![];
-
+                let mut tx_batch: Vec<Transaction> = vec![];
                 let mut rng = rand::thread_rng();
                 for _i in 0..num_txes {
                     // Generate transaction
                     let range = Uniform::new(32, 64);
-                    let tx: Vec<u8> = (0..tx_size.as_u64()).map(|_| rng.sample(range)).collect();
-                    // TODO - Gossip, remove on decided block
-                    // let msg = NetworkMsg::Transaction(tx.clone());
-                    // let bytes = msg.to_network_bytes();
-                    // self.gossip_mempool
-                    //     .cast(GossipMempoolMsg::Broadcast(Channel::Mempool, bytes))?;
+                    let tx: Vec<u8> = (0..self.test_config.tx_size.as_u64())
+                        .map(|_| rng.sample(range))
+                        .collect();
+                    // TODO - Remove tx-es on decided block
+                    tx_batch.push(Transaction::new(tx.clone()));
+                    if tx_batch.len() > self.test_config.mempool_gossip_batch_size {
+                        let mempool_batch =
+                            MempoolTransactionBatch::new(TransactionBatch::new(tx_batch));
+                        let _ = self
+                            .gossip_mempool
+                            .cast(GossipMempoolMsg::Broadcast(Channel::Mempool, mempool_batch));
+                        tx_batch = vec![];
+                    }
+
                     transactions.push(Transaction::new(tx));
                 }
 

@@ -6,7 +6,7 @@ use tokio::task::JoinHandle;
 use malachite_common::Round;
 use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
-use malachite_node::config::Config as NodeConfig;
+use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig};
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 
 use crate::consensus::{Consensus, ConsensusParams, ConsensusRef};
@@ -31,7 +31,7 @@ pub async fn spawn_node_actor(
 
     // Spawn mempool and its gossip layer
     let gossip_mempool = spawn_gossip_mempool_actor(&cfg, node_pk).await;
-    let mempool = spawn_mempool_actor(gossip_mempool.clone()).await;
+    let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test).await;
 
     // Configure the value builder
     let value_builder = make_test_value_builder(mempool.clone(), &cfg);
@@ -146,8 +146,14 @@ fn make_test_value_builder(mempool: MempoolRef, cfg: &NodeConfig) -> TestValueBu
     )
 }
 
-async fn spawn_mempool_actor(gossip_mempool: GossipMempoolRef) -> MempoolRef {
-    Mempool::spawn(gossip_mempool, None).await.unwrap()
+async fn spawn_mempool_actor(
+    gossip_mempool: GossipMempoolRef,
+    mempool_config: &MempoolConfig,
+    test_config: &TestConfig,
+) -> MempoolRef {
+    Mempool::spawn(gossip_mempool, mempool_config, test_config, None)
+        .await
+        .unwrap()
 }
 
 async fn spawn_gossip_mempool_actor(cfg: &NodeConfig, node_pk: PrivateKey) -> GossipMempoolRef {

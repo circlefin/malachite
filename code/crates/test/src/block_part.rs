@@ -1,6 +1,6 @@
 use signature::Signer;
 
-use malachite_common::{Round, SignedBlockPart, Transaction};
+use malachite_common::{Round, SignedBlockPart, TransactionBatch};
 use malachite_proto::{self as proto};
 
 use crate::{Address, Height, PrivateKey, TestContext, Value};
@@ -43,45 +43,6 @@ impl proto::Protobuf for BlockMetadata {
         Ok(proto::BlockMetadata {
             proof: self.proof.clone(),
             value: Option::from(self.value.to_proto().unwrap()),
-        })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TransactionBatch {
-    transactions: Vec<Transaction>,
-}
-
-impl TransactionBatch {
-    pub fn new(transactions: Vec<Transaction>) -> Self {
-        TransactionBatch { transactions }
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        proto::Protobuf::to_bytes(self).unwrap()
-    }
-}
-
-impl proto::Protobuf for TransactionBatch {
-    type Proto = proto::TransactionBatch;
-
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
-        Ok(Self {
-            transactions: proto
-                .transactions
-                .iter()
-                .map(|t| Transaction::from_proto(t.clone()).unwrap())
-                .collect(),
-        })
-    }
-
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        Ok(proto::TransactionBatch {
-            transactions: self
-                .transactions
-                .iter()
-                .map(|t| t.to_proto().unwrap())
-                .collect(),
         })
     }
 }

@@ -21,3 +21,45 @@ impl Transaction {
         self.0.len() as u64
     }
 }
+
+/// Transaction batch (used by mempool and block part)
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TransactionBatch(Vec<Transaction>);
+
+impl TransactionBatch {
+    /// Create a new transaction batch
+    pub fn new(transactions: Vec<Transaction>) -> Self {
+        TransactionBatch(transactions)
+    }
+    /// Get transactions from a batch
+    pub fn transactions(&self) -> &Vec<Transaction> {
+        &self.0
+    }
+}
+
+/// Mempool transaction batch
+// TODO move to different file
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MempoolTransactionBatch {
+    // May add more fields to this structure
+    transaction_batch: TransactionBatch,
+}
+
+impl MempoolTransactionBatch {
+    /// Create a new transaction batch
+    pub fn new(transaction_batch: TransactionBatch) -> Self {
+        MempoolTransactionBatch { transaction_batch }
+    }
+    /// Get transactions from a batch
+    pub fn transactions(&self) -> &TransactionBatch {
+        &self.transaction_batch
+    }
+    /// Get the number of transactions in the batch
+    pub fn len(&self) -> usize {
+        self.transaction_batch.transactions().len()
+    }
+    /// Implement is_empty
+    pub fn is_empty(&self) -> bool {
+        self.transaction_batch.transactions().is_empty()
+    }
+}

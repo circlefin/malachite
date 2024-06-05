@@ -55,6 +55,9 @@ persistent_peers = []
 ###          Mempool Configuration Options          ###
 #######################################################
 [mempool]
+# Maximum number of transactions in the mempool
+# Override with MALACHITE__TEST__TX_SIZE env variable
+size = 10000
 
 #######################################################
 ###       Mempool P2P Configuration Options       ###
@@ -68,8 +71,10 @@ persistent_peers = []
 [test]
 # Override with MALACHITE__TEST__TX_SIZE env variable
 tx_size = "256 B"
+# Override with MALACHITE__TEST__MEMPOOL_GOSSIP_BATCH_SIZE
+mempool_gossip_batch_size = 100
 # Override with MALACHITE__TEST__TXS_PER_PART env variable
-txs_per_part = 400
+txs_per_part = 200
 # Override with MALACHITE__TEST__TIME_ALLOWANCE_FACTOR env variable
 time_allowance_factor = 0.7
 # Override with MALACHITE__TEST__EXEC_TIME_PER_PART env variable

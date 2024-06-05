@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use libp2p::identity::Keypair;
+use malachite_common::MempoolTransactionBatch;
 use ractor::ActorCell;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
@@ -11,6 +12,7 @@ use tokio::task::JoinHandle;
 
 use malachite_gossip_mempool::handle::CtrlHandle;
 use malachite_gossip_mempool::{Channel, Config, Event, PeerId};
+use malachite_proto::Protobuf;
 
 pub type GossipMempoolRef = ActorRef<Msg>;
 
@@ -54,7 +56,7 @@ pub enum Msg {
     Subscribe(ActorRef<Arc<Event>>),
 
     /// Broadcast a message to all peers
-    Broadcast(Channel, Vec<u8>),
+    Broadcast(Channel, MempoolTransactionBatch),
 
     /// Request the number of connected peers
     GetState { reply: RpcReplyPort<usize> },
@@ -120,7 +122,10 @@ impl Actor for GossipMempool {
 
         match msg {
             Msg::Subscribe(subscriber) => subscribers.push(subscriber),
-            Msg::Broadcast(channel, data) => ctrl_handle.broadcast(channel, data).await?,
+            Msg::Broadcast(channel, batch) => {
+                let bytes = batch.to_bytes().unwrap();
+                ctrl_handle.broadcast(channel, bytes).await?
+            }
             Msg::NewEvent(event) => {
                 match event {
                     Event::PeerConnected(peer_id) => {

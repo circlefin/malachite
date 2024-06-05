@@ -42,11 +42,9 @@ pub mod test {
 
     use bytesize::ByteSize;
 
-    use malachite_common::Context;
+    use malachite_common::{Context, TransactionBatch};
     use malachite_driver::Validity;
-    use malachite_test::{
-        Address, BlockMetadata, BlockPart, Content, Height, TestContext, TransactionBatch, Value,
-    };
+    use malachite_test::{Address, BlockMetadata, BlockPart, Content, Height, TestContext, Value};
 
     use crate::mempool::{MempoolRef, Msg as MempoolMsg};
 
@@ -112,7 +110,6 @@ pub mod test {
                     .call(
                         |reply| MempoolMsg::TxStream {
                             height: height.as_u64(),
-                            tx_size: self.params.tx_size,
                             num_txes: self.params.txs_per_part,
                             reply,
                         },

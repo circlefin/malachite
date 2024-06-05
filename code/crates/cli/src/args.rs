@@ -188,10 +188,22 @@ fn override_config_from_env(config: &mut Config) -> Result<()> {
             .wrap_err("Invalid MALACHITE__CONSENSUS__TIMEOUT_COMMIT")?;
     }
 
+    if let Ok(max_size) = env::var("MALACHITE__MEMPOOL__MAX_SIZE") {
+        config.mempool.max_size = max_size
+            .parse()
+            .wrap_err("Invalid MALACHITE__MEMPOOL__MAX_SIZE")?;
+    }
+
     if let Ok(tx_size) = env::var("MALACHITE__TEST__TX_SIZE") {
         config.test.tx_size = ByteSize::from_str(&tx_size)
             .map_err(|e| eyre!(e))
             .wrap_err("Invalid MALACHITE__TEST__TX_SIZE")?;
+    }
+
+    if let Ok(mempool_gossip_batch_size) = env::var("MALACHITE__TEST__MEMPOOL_GOSSIP_BATCH_SIZE") {
+        config.test.mempool_gossip_batch_size = mempool_gossip_batch_size
+            .parse()
+            .wrap_err("Invalid MALACHITE__TEST__MEMPOOL_GOSSIP_BATCH_SIZE")?;
     }
 
     if let Ok(txs_per_part) = env::var("MALACHITE__TEST__TXS_PER_PART") {

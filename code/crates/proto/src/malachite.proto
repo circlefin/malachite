@@ -61,6 +61,10 @@ message TransactionBatch {
     repeated Transaction transactions = 1;
 }
 
+message MempoolTransactionBatch {
+    TransactionBatch transaction_batch = 1;
+}
+
 message BlockMetadata {
     bytes proof = 1;
     Value value = 2;

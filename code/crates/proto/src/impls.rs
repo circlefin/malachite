@@ -1,6 +1,6 @@
 use malachite_common::{
-    Context, Round, SignedBlockPart, SignedProposal, SignedVote, SigningScheme, Transaction,
-    VoteType,
+    Context, MempoolTransactionBatch, Round, SignedBlockPart, SignedProposal, SignedVote,
+    SigningScheme, Transaction, TransactionBatch, VoteType,
 };
 
 use crate::{self as proto, Error, Protobuf};
@@ -129,5 +129,47 @@ impl Protobuf for Transaction {
     fn to_proto(&self) -> Result<Self::Proto, Error> {
         let value = self.to_bytes();
         Ok(proto::Transaction { value: Some(value) })
+    }
+}
+
+impl Protobuf for TransactionBatch {
+    type Proto = proto::TransactionBatch;
+
+    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+        Ok(TransactionBatch::new(
+            proto
+                .transactions
+                .iter()
+                .map(|t| Transaction::from_proto(t.clone()).unwrap())
+                .collect(),
+        ))
+    }
+
+    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+        Ok(proto::TransactionBatch {
+            transactions: self
+                .transactions()
+                .iter()
+                .map(|t| t.to_proto().unwrap())
+                .collect(),
+        })
+    }
+}
+
+impl Protobuf for MempoolTransactionBatch {
+    type Proto = proto::MempoolTransactionBatch;
+
+    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+        Ok(MempoolTransactionBatch::new(TransactionBatch::from_proto(
+            proto
+                .transaction_batch
+                .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("content"))?,
+        )?))
+    }
+
+    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+        Ok(proto::MempoolTransactionBatch {
+            transaction_batch: Some(self.transactions().to_proto()?),
+        })
     }
 }

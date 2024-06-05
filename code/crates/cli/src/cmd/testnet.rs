@@ -132,6 +132,7 @@ pub fn generate_config(index: usize, total: usize) -> Config {
                     })
                     .collect(),
             },
+            max_size: 10000,
         },
         test: Default::default(),
     }
