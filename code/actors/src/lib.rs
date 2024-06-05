@@ -1,5 +1,5 @@
 pub mod consensus;
-pub mod gossip;
+pub mod gossip_consensus;
 pub mod gossip_mempool;
 pub mod host;
 pub mod mempool;

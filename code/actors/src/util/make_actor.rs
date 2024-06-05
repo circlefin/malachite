@@ -11,7 +11,7 @@ use malachite_node::config::Config as NodeConfig;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 
 use crate::consensus::Consensus;
-use crate::gossip::Gossip;
+use crate::gossip_consensus::GossipConsensus;
 use crate::gossip_mempool::GossipMempool;
 use crate::host::Host;
 use crate::mempool::Mempool;
@@ -74,7 +74,7 @@ pub async fn make_node_actor(
 
     let validator_keypair = Keypair::ed25519_from_bytes(validator_pk.inner().to_bytes()).unwrap();
 
-    let gossip_consensus = Gossip::spawn(validator_keypair.clone(), config_gossip, None)
+    let gossip_consensus = GossipConsensus::spawn(validator_keypair.clone(), config_gossip, None)
         .await
         .unwrap();
 

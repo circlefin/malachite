@@ -22,7 +22,7 @@ use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
-use crate::gossip::Msg as GossipMsg;
+use crate::gossip_consensus::Msg as GossipConsensusMsg;
 use crate::host::{LocallyProposedValue, Msg as HostMsg, ReceivedProposedValue};
 use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers};
 use crate::util::forward;
@@ -52,7 +52,7 @@ where
     ctx: Ctx,
     params: Params<Ctx>,
     timers_config: TimersConfig,
-    gossip: ActorRef<GossipMsg>,
+    gossip: ActorRef<GossipConsensusMsg>,
     host: ActorRef<HostMsg<Ctx>>,
     tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
 }
@@ -100,7 +100,7 @@ where
         ctx: Ctx,
         params: Params<Ctx>,
         timers_config: TimersConfig,
-        gossip: ActorRef<GossipMsg>,
+        gossip: ActorRef<GossipConsensusMsg>,
         host: ActorRef<HostMsg<Ctx>>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
     ) -> Self {
@@ -119,7 +119,7 @@ where
         ctx: Ctx,
         params: Params<Ctx>,
         timers_config: TimersConfig,
-        gossip: ActorRef<GossipMsg>,
+        gossip: ActorRef<GossipConsensusMsg>,
         host: ActorRef<HostMsg<Ctx>>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
         supervisor: Option<ActorCell>,
@@ -402,7 +402,7 @@ where
                 let msg = NetworkMsg::Proposal(proto);
                 let bytes = msg.to_network_bytes().unwrap(); // FIXME
                 self.gossip
-                    .cast(GossipMsg::Broadcast(Channel::Consensus, bytes))?;
+                    .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
 
                 Ok(Next::Input(DriverInput::Proposal(
                     signed_proposal.proposal,
@@ -425,7 +425,7 @@ where
                 let msg = NetworkMsg::Vote(proto);
                 let bytes = msg.to_network_bytes().unwrap(); // FIXME
                 self.gossip
-                    .cast(GossipMsg::Broadcast(Channel::Consensus, bytes))?;
+                    .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
 
                 Ok(Next::Input(DriverInput::Vote(signed_vote.vote)))
             }
@@ -553,7 +553,7 @@ where
             Timers::spawn_linked(self.timers_config, myself.clone(), myself.get_cell()).await?;
 
         let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
-        self.gossip.cast(GossipMsg::Subscribe(forward))?;
+        self.gossip.cast(GossipConsensusMsg::Subscribe(forward))?;
 
         let driver = Driver::new(
             self.ctx.clone(),
@@ -731,7 +731,7 @@ where
                 let msg = NetworkMsg::BlockPart(proto);
                 let bytes = msg.to_network_bytes().unwrap(); // FIXME
                 self.gossip
-                    .cast(GossipMsg::Broadcast(Channel::BlockParts, bytes))?;
+                    .cast(GossipConsensusMsg::Broadcast(Channel::BlockParts, bytes))?;
             }
             Msg::BlockReceived(value) => {
                 info!("BLOCK RECEIVED {:?}", value);

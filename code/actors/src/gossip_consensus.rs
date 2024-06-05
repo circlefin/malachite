@@ -12,9 +12,9 @@ use tokio::task::JoinHandle;
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, PeerId};
 
-pub struct Gossip;
+pub struct GossipConsensus;
 
-impl Gossip {
+impl GossipConsensus {
     pub async fn spawn(
         keypair: Keypair,
         config: Config,
@@ -61,7 +61,7 @@ pub enum Msg {
 }
 
 #[async_trait]
-impl Actor for Gossip {
+impl Actor for GossipConsensus {
     type Msg = Msg;
     type State = State;
     type Arguments = Args;
