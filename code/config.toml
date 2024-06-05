@@ -67,10 +67,10 @@ persistent_peers = []
 
 [test]
 # Override with MALACHITE__TEST__TX_SIZE env variable
-tx_size = 256
+tx_size = "256 B"
 # Override with MALACHITE__TEST__TXS_PER_PART env variable
 txs_per_part = 400
 # Override with MALACHITE__TEST__TIME_ALLOWANCE_FACTOR env variable
-time_allowance_factor = 0.5
+time_allowance_factor = 0.7
 # Override with MALACHITE__TEST__EXEC_TIME_PER_PART env variable
 exec_time_per_part = 1000
