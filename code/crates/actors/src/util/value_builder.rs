@@ -53,6 +53,7 @@ pub mod test {
     #[derive(Copy, Clone, Debug)]
     pub struct TestParams {
         pub max_block_size: ByteSize,
+        pub tx_size: u64,
         pub txs_per_part: u64,
         pub time_allowance_factor: f32,
         pub exec_time_per_part: Duration,
@@ -111,6 +112,7 @@ pub mod test {
                     .call(
                         |reply| MempoolMsg::TxStream {
                             height: height.as_u64(),
+                            tx_size: self.params.tx_size,
                             num_txes: self.params.txs_per_part,
                             reply,
                         },

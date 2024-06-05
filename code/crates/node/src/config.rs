@@ -122,6 +122,7 @@ impl Default for TimeoutConfig {
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct TestConfig {
+    pub tx_size: u64,
     pub txs_per_part: u64,
     pub time_allowance_factor: f32,
     #[serde(with = "humantime_serde")]
@@ -131,8 +132,9 @@ pub struct TestConfig {
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
-            txs_per_part: 400,
-            time_allowance_factor: 0.5,
+            tx_size: 256,
+            txs_per_part: 200,
+            time_allowance_factor: 0.7,
             exec_time_per_part: Duration::from_micros(100000),
         }
     }
