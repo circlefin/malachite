@@ -8,7 +8,7 @@ use tracing::info;
 use malachite_common::{Context, Round};
 use malachite_driver::Validity;
 
-use crate::consensus::Msg as ConsensusMsg;
+use crate::consensus::{ConsensusRef, Msg as ConsensusMsg};
 use crate::util::PartStore;
 use crate::util::ValueBuilder;
 
@@ -29,13 +29,15 @@ pub struct ReceivedProposedValue<Ctx: Context> {
     pub valid: Validity,
 }
 
+pub type HostRef<Ctx> = ActorRef<Msg<Ctx>>;
+
 pub enum Msg<Ctx: Context> {
     // Request to build a local block/ value from Driver
     GetValue {
         height: Ctx::Height,
         round: Round,
         timeout_duration: Duration,
-        consensus: ActorRef<ConsensusMsg<Ctx>>,
+        consensus: ConsensusRef<Ctx>,
         address: Ctx::Address,
         reply: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
@@ -43,7 +45,7 @@ pub enum Msg<Ctx: Context> {
     // BlockPart received <-- consensus <-- gossip
     BlockPart {
         block_part: Ctx::BlockPart,
-        reply_to: ActorRef<ConsensusMsg<Ctx>>,
+        reply_to: ConsensusRef<Ctx>,
     },
 
     // Retrieve a block/ value for which all parts have been received
@@ -105,7 +107,7 @@ where
         round: Round,
         timeout_duration: Duration,
         address: Ctx::Address,
-        consensus: ActorRef<ConsensusMsg<Ctx>>,
+        consensus: ConsensusRef<Ctx>,
         part_store: &mut PartStore<Ctx>,
     ) -> Result<LocallyProposedValue<Ctx>, ActorProcessingErr> {
         let value = self

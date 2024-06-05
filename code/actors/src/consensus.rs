@@ -22,9 +22,9 @@ use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
-use crate::gossip_consensus::Msg as GossipConsensusMsg;
-use crate::host::{LocallyProposedValue, Msg as HostMsg, ReceivedProposedValue};
-use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers};
+use crate::gossip_consensus::{GossipConsensusRef, Msg as GossipConsensusMsg};
+use crate::host::{HostRef, LocallyProposedValue, Msg as HostMsg, ReceivedProposedValue};
+use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers, TimersRef};
 use crate::util::forward;
 
 mod network;
@@ -36,24 +36,24 @@ pub enum Next<Ctx: Context> {
     Decided(Round, Ctx::Value),
 }
 
-pub struct Params<Ctx: Context> {
+pub struct ConsensusParams<Ctx: Context> {
     pub start_height: Ctx::Height,
     pub initial_validator_set: Ctx::ValidatorSet,
     pub address: Ctx::Address,
     pub threshold_params: ThresholdParams,
 }
 
-// type Ref<T> = ActorRef<<T as Actor>::Msg>;
+pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
 pub struct Consensus<Ctx>
 where
     Ctx: Context,
 {
     ctx: Ctx,
-    params: Params<Ctx>,
+    params: ConsensusParams<Ctx>,
     timers_config: TimersConfig,
-    gossip: ActorRef<GossipConsensusMsg>,
-    host: ActorRef<HostMsg<Ctx>>,
+    gossip_consensus: GossipConsensusRef,
+    host: HostRef<Ctx>,
     tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
 }
 
@@ -83,7 +83,7 @@ where
     Ctx: Context,
 {
     driver: Driver<Ctx>,
-    timers: ActorRef<TimersMsg>,
+    timers: TimersRef,
     msg_queue: VecDeque<Msg<Ctx>>,
     validator_set: Ctx::ValidatorSet,
     connected_peers: BTreeSet<PeerId>,
@@ -98,17 +98,17 @@ where
 {
     pub fn new(
         ctx: Ctx,
-        params: Params<Ctx>,
+        params: ConsensusParams<Ctx>,
         timers_config: TimersConfig,
-        gossip: ActorRef<GossipConsensusMsg>,
-        host: ActorRef<HostMsg<Ctx>>,
+        gossip_consensus: GossipConsensusRef,
+        host: HostRef<Ctx>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
     ) -> Self {
         Self {
             ctx,
             params,
             timers_config,
-            gossip,
+            gossip_consensus,
             host,
             tx_decision,
         }
@@ -117,14 +117,21 @@ where
     #[allow(clippy::too_many_arguments)]
     pub async fn spawn(
         ctx: Ctx,
-        params: Params<Ctx>,
+        params: ConsensusParams<Ctx>,
         timers_config: TimersConfig,
-        gossip: ActorRef<GossipConsensusMsg>,
-        host: ActorRef<HostMsg<Ctx>>,
+        gossip_consensus: GossipConsensusRef,
+        host: HostRef<Ctx>,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
-        let node = Self::new(ctx, params, timers_config, gossip, host, tx_decision);
+        let node = Self::new(
+            ctx,
+            params,
+            timers_config,
+            gossip_consensus,
+            host,
+            tx_decision,
+        );
 
         let (actor_ref, _) = if let Some(supervisor) = supervisor {
             Actor::spawn_linked(None, node, (), supervisor).await?
@@ -401,7 +408,7 @@ where
                 let proto = signed_proposal.to_proto().unwrap(); // FIXME
                 let msg = NetworkMsg::Proposal(proto);
                 let bytes = msg.to_network_bytes().unwrap(); // FIXME
-                self.gossip
+                self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
 
                 Ok(Next::Input(DriverInput::Proposal(
@@ -424,7 +431,7 @@ where
                 let proto = signed_vote.to_proto().unwrap(); // FIXME
                 let msg = NetworkMsg::Vote(proto);
                 let bytes = msg.to_network_bytes().unwrap(); // FIXME
-                self.gossip
+                self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
 
                 Ok(Next::Input(DriverInput::Vote(signed_vote.vote)))
@@ -553,7 +560,8 @@ where
             Timers::spawn_linked(self.timers_config, myself.clone(), myself.get_cell()).await?;
 
         let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
-        self.gossip.cast(GossipConsensusMsg::Subscribe(forward))?;
+        self.gossip_consensus
+            .cast(GossipConsensusMsg::Subscribe(forward))?;
 
         let driver = Driver::new(
             self.ctx.clone(),
@@ -730,7 +738,7 @@ where
                 let proto = signed_block_part.to_proto().unwrap(); // FIXME
                 let msg = NetworkMsg::BlockPart(proto);
                 let bytes = msg.to_network_bytes().unwrap(); // FIXME
-                self.gossip
+                self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::BlockParts, bytes))?;
             }
             Msg::BlockReceived(value) => {

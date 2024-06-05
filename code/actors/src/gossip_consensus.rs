@@ -12,6 +12,8 @@ use tokio::task::JoinHandle;
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, PeerId};
 
+pub type GossipConsensusRef = ActorRef<Msg>;
+
 pub struct GossipConsensus;
 
 impl GossipConsensus {

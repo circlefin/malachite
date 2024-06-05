@@ -1,21 +1,20 @@
 use std::time::Duration;
 
-use ractor::ActorRef;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use malachite_common::Round;
-use malachite_gossip_consensus::Keypair;
+use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_node::config::Config as NodeConfig;
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 
-use crate::consensus::Consensus;
-use crate::gossip_consensus::{GossipConsensus, Msg as GossipConsensusMsg};
-use crate::gossip_mempool::{GossipMempool, Msg as GossipMempoolMsg};
-use crate::host::{Host, Msg as HostMsg};
-use crate::mempool::{Mempool, Msg as MempoolMsg};
-use crate::node::{Msg as NodeMsg, Node};
+use crate::consensus::{Consensus, ConsensusParams, ConsensusRef};
+use crate::gossip_consensus::{GossipConsensus, GossipConsensusRef};
+use crate::gossip_mempool::{GossipMempool, GossipMempoolRef};
+use crate::host::{Host, HostRef};
+use crate::mempool::{Mempool, MempoolRef};
+use crate::node::{Msg as NodeMsg, Node, NodeRef};
 use crate::util::value_builder::test::TestParams as TestValueBuilderParams;
 use crate::util::PartStore;
 use crate::util::TestValueBuilder;
@@ -27,7 +26,7 @@ pub async fn spawn_node_actor(
     node_pk: PrivateKey,
     address: Address,
     tx_decision: mpsc::Sender<(Height, Round, Value)>,
-) -> (ActorRef<NodeMsg>, JoinHandle<()>) {
+) -> (NodeRef, JoinHandle<()>) {
     let ctx = TestContext::new(validator_pk.clone());
 
     // Spawn mempool and its gossip layer
@@ -81,11 +80,11 @@ async fn spawn_consensus_actor(
     address: Address,
     ctx: TestContext,
     cfg: NodeConfig,
-    gossip_consensus: ActorRef<GossipConsensusMsg>,
-    host: ActorRef<HostMsg<TestContext>>,
+    gossip_consensus: GossipConsensusRef,
+    host: HostRef<TestContext>,
     tx_decision: mpsc::Sender<(Height, Round, Value)>,
-) -> ActorRef<crate::consensus::Msg<TestContext>> {
-    let consensus_params = crate::consensus::Params {
+) -> ConsensusRef<TestContext> {
+    let consensus_params = ConsensusParams {
         start_height,
         initial_validator_set,
         address,
@@ -108,8 +107,8 @@ async fn spawn_consensus_actor(
 async fn spawn_gossip_consensus_actor(
     cfg: &NodeConfig,
     validator_pk: PrivateKey,
-) -> ActorRef<GossipConsensusMsg> {
-    let config_gossip = malachite_gossip_consensus::Config {
+) -> GossipConsensusRef {
+    let config_gossip = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
         idle_connection_timeout: Duration::from_secs(60),
@@ -125,7 +124,7 @@ async fn spawn_gossip_consensus_actor(
 async fn spawn_host_actor(
     value_builder: TestValueBuilder<TestContext>,
     initial_validator_set: &ValidatorSet,
-) -> ActorRef<HostMsg<TestContext>> {
+) -> HostRef<TestContext> {
     Host::spawn(
         Box::new(value_builder),
         PartStore::new(),
@@ -135,11 +134,8 @@ async fn spawn_host_actor(
     .unwrap()
 }
 
-fn make_test_value_builder(
-    mempool: ActorRef<crate::mempool::Msg>,
-    cfg: &NodeConfig,
-) -> TestValueBuilder<TestContext> {
-    TestValueBuilder::<TestContext>::new(
+fn make_test_value_builder(mempool: MempoolRef, cfg: &NodeConfig) -> TestValueBuilder<TestContext> {
+    TestValueBuilder::new(
         mempool,
         TestValueBuilderParams {
             max_block_size: cfg.consensus.max_block_size,
@@ -150,14 +146,11 @@ fn make_test_value_builder(
     )
 }
 
-async fn spawn_mempool_actor(gossip_mempool: ActorRef<GossipMempoolMsg>) -> ActorRef<MempoolMsg> {
+async fn spawn_mempool_actor(gossip_mempool: GossipMempoolRef) -> MempoolRef {
     Mempool::spawn(gossip_mempool, None).await.unwrap()
 }
 
-async fn spawn_gossip_mempool_actor(
-    cfg: &NodeConfig,
-    node_pk: PrivateKey,
-) -> ActorRef<GossipMempoolMsg> {
+async fn spawn_gossip_mempool_actor(cfg: &NodeConfig, node_pk: PrivateKey) -> GossipMempoolRef {
     let config_gossip_mempool = GossipMempoolConfig {
         listen_addr: cfg.mempool.p2p.listen_addr.clone(),
         persistent_peers: cfg.mempool.p2p.persistent_peers.clone(),

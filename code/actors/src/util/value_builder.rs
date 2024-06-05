@@ -1,12 +1,11 @@
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
-use ractor::ActorRef;
 use tracing::{error, info, trace};
 
 use malachite_common::{Context, Round};
 
-use crate::consensus::Msg as ConsensusMsg;
+use crate::consensus::{ConsensusRef, Msg as ConsensusMsg};
 use crate::host::{LocallyProposedValue, ReceivedProposedValue};
 use crate::util::PartStore;
 
@@ -18,7 +17,7 @@ pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
         round: Round,
         timeout_duration: Duration,
         address: Ctx::Address,
-        consensus: ActorRef<ConsensusMsg<Ctx>>,
+        consensus: ConsensusRef<Ctx>,
         part_store: &mut PartStore<Ctx>,
     ) -> Option<LocallyProposedValue<Ctx>>;
 
@@ -42,7 +41,6 @@ pub mod test {
     use std::marker::PhantomData;
 
     use bytesize::ByteSize;
-    use ractor::ActorRef;
 
     use malachite_common::Context;
     use malachite_driver::Validity;
@@ -50,7 +48,7 @@ pub mod test {
         Address, BlockMetadata, BlockPart, Content, Height, TestContext, TransactionBatch, Value,
     };
 
-    use crate::mempool::Msg as MempoolMsg;
+    use crate::mempool::{MempoolRef, Msg as MempoolMsg};
 
     #[derive(Copy, Clone, Debug)]
     pub struct TestParams {
@@ -62,7 +60,7 @@ pub mod test {
 
     #[derive(Clone)]
     pub struct TestValueBuilder<Ctx: Context> {
-        tx_streamer: ActorRef<MempoolMsg>,
+        tx_streamer: MempoolRef,
         params: TestParams,
         _phantom: PhantomData<Ctx>,
     }
@@ -71,7 +69,7 @@ pub mod test {
     where
         Ctx: Context,
     {
-        pub fn new(tx_streamer: ActorRef<MempoolMsg>, params: TestParams) -> Self {
+        pub fn new(tx_streamer: MempoolRef, params: TestParams) -> Self {
             Self {
                 tx_streamer,
                 params,
@@ -88,7 +86,7 @@ pub mod test {
             round: Round,
             timeout_duration: Duration,
             validator_address: Address,
-            consensus: ActorRef<ConsensusMsg<TestContext>>,
+            consensus: ConsensusRef<TestContext>,
             part_store: &mut PartStore<TestContext>,
         ) -> Option<LocallyProposedValue<TestContext>> {
             let now = Instant::now();

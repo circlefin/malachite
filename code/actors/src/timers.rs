@@ -18,6 +18,8 @@ impl TimeoutElapsed {
     }
 }
 
+pub type TimersRef = ActorRef<Msg>;
+
 pub struct Timers<M> {
     listener: ActorRef<M>,
     initial_config: Config,

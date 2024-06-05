@@ -9,7 +9,7 @@ use tracing::{debug, info};
 use malachite_common::Transaction;
 use malachite_gossip_mempool::{Channel, Event as GossipEvent, PeerId};
 
-use crate::gossip_mempool::Msg as GossipMsg;
+use crate::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use crate::util::forward;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -34,8 +34,10 @@ pub enum Next {
     Transaction(Transaction),
 }
 
+pub type MempoolRef = ActorRef<Msg>;
+
 pub struct Mempool {
-    gossip: ActorRef<GossipMsg>,
+    gossip_mempool: GossipMempoolRef,
 }
 
 pub enum Msg {
@@ -56,15 +58,15 @@ pub struct State {
 }
 
 impl Mempool {
-    pub fn new(gossip: ActorRef<GossipMsg>) -> Self {
-        Self { gossip }
+    pub fn new(gossip_mempool: GossipMempoolRef) -> Self {
+        Self { gossip_mempool }
     }
 
     pub async fn spawn(
-        gossip: ActorRef<GossipMsg>,
+        gossip_mempool: GossipMempoolRef,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg>, ractor::SpawnErr> {
-        let node = Self::new(gossip);
+        let node = Self::new(gossip_mempool);
 
         let (actor_ref, _) = if let Some(supervisor) = supervisor {
             Actor::spawn_linked(None, node, (), supervisor).await?
@@ -134,7 +136,8 @@ impl Actor for Mempool {
         _args: (),
     ) -> Result<State, ractor::ActorProcessingErr> {
         let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
-        self.gossip.cast(GossipMsg::Subscribe(forward))?;
+        self.gossip_mempool
+            .cast(GossipMempoolMsg::Subscribe(forward))?;
 
         let mut transactions = vec![];
 
@@ -171,8 +174,8 @@ impl Actor for Mempool {
                 for tx in state.transactions.iter() {
                     let msg = NetworkMsg::Transaction(tx.to_bytes());
                     let bytes = msg.to_network_bytes();
-                    self.gossip
-                        .cast(GossipMsg::Broadcast(Channel::Mempool, bytes))?;
+                    self.gossip_mempool
+                        .cast(GossipMempoolMsg::Broadcast(Channel::Mempool, bytes))?;
                 }
             }
 
