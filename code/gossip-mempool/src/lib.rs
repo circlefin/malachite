@@ -135,7 +135,7 @@ async fn run(
     };
 
     for persistent_peer in config.persistent_peers {
-        debug!("Dialing persistent peer: {persistent_peer}");
+        trace!("Dialing persistent peer: {persistent_peer}");
 
         match swarm.dial(persistent_peer.clone()) {
             Ok(()) => (),
@@ -175,7 +175,7 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
 
             match result {
                 Ok(message_id) => {
-                    debug!("Broadcasted message {message_id} of {msg_size} bytes");
+                    trace!("Broadcasted message {message_id} of {msg_size} bytes");
                 }
                 Err(e) => {
                     error!("Error broadcasting message: {e}");
@@ -206,7 +206,7 @@ async fn handle_swarm_event(
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent { peer_id })) => {
-            debug!("Sent identity to {peer_id}");
+            trace!("Sent identity to {peer_id}");
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Received {
@@ -219,7 +219,7 @@ async fn handle_swarm_event(
             );
 
             if info.protocol_version == PROTOCOL_VERSION {
-                debug!(
+                trace!(
                     "Connecting to peer {peer_id} using protocol {:?}",
                     info.protocol_version
                 );
@@ -228,7 +228,7 @@ async fn handle_swarm_event(
 
                 swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
             } else {
-                debug!(
+                trace!(
                     "Peer {peer_id} is using incompatible protocol version: {:?}",
                     info.protocol_version
                 );
@@ -240,12 +240,12 @@ async fn handle_swarm_event(
             topic: topic_hash,
         })) => {
             if !Channel::has_topic(&topic_hash) {
-                debug!("Peer {peer_id} tried to subscribe to unknown topic: {topic_hash}");
+                trace!("Peer {peer_id} tried to subscribe to unknown topic: {topic_hash}");
 
                 return ControlFlow::Continue(());
             }
 
-            debug!("Peer {peer_id} subscribed to {topic_hash}");
+            trace!("Peer {peer_id} subscribed to {topic_hash}");
 
             if let Err(e) = tx_event.send(Event::PeerConnected(peer_id)).await {
                 error!("Error sending peer connected event to handle: {e}");

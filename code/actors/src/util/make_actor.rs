@@ -48,14 +48,17 @@ pub async fn make_node_actor(
 
     let ctx = TestContext::new(validator_pk.clone());
 
-    // Spawn the host actor
     let value_builder = Box::new(TestValueBuilder::<TestContext>::new(
         mempool.clone(),
         TestValueBuilderParams {
             max_block_size: cfg.consensus.max_block_size,
+            txs_per_part: cfg.test.txs_per_part,
+            time_allowance_factor: cfg.test.time_allowance_factor,
+            exec_time_per_part: cfg.test.exec_time_per_part,
         },
     ));
 
+    // Spawn the host actor
     let host = Host::spawn(
         value_builder,
         PartStore::new(),
