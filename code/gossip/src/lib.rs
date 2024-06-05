@@ -5,18 +5,19 @@ use std::ops::ControlFlow;
 use std::time::Duration;
 
 use futures::StreamExt;
-pub use libp2p::identity::Keypair;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
-pub use libp2p::{Multiaddr, PeerId};
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
-use behaviour::{Behaviour, NetworkEvent};
-use handle::Handle;
+pub use libp2p::identity::Keypair;
+pub use libp2p::{Multiaddr, PeerId};
 
 pub mod behaviour;
 pub mod handle;
+
+use behaviour::{Behaviour, NetworkEvent};
+use handle::Handle;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Channel {
