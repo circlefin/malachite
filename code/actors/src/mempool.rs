@@ -18,11 +18,7 @@ pub enum Next {
     Transaction(Transaction),
 }
 
-pub struct Params {}
-
-#[allow(dead_code)]
 pub struct Mempool {
-    params: Params,
     gossip: ActorRef<GossipMsg>,
 }
 
@@ -44,16 +40,15 @@ pub struct State {
 }
 
 impl Mempool {
-    pub fn new(params: Params, gossip: ActorRef<GossipMsg>) -> Self {
-        Self { params, gossip }
+    pub fn new(gossip: ActorRef<GossipMsg>) -> Self {
+        Self { gossip }
     }
 
     pub async fn spawn(
-        params: Params,
         gossip: ActorRef<GossipMsg>,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg>, ractor::SpawnErr> {
-        let node = Self::new(params, gossip);
+        let node = Self::new(gossip);
 
         let (actor_ref, _) = if let Some(supervisor) = supervisor {
             Actor::spawn_linked(None, node, (), supervisor).await?

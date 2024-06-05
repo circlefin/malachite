@@ -48,16 +48,18 @@ pub enum State {
 }
 
 pub enum Msg {
+    /// Subscribe to gossip events
     Subscribe(ActorRef<Arc<Event>>),
+
+    /// Broadcast a message to all peers
     Broadcast(Channel, Vec<u8>),
+
+    /// Request the number of connected peers
+    GetState { reply: RpcReplyPort<usize> },
 
     // Internal message
     #[doc(hidden)]
     NewEvent(Event),
-    // Request for number of peers from mempool gossip
-    GetState {
-        reply: RpcReplyPort<usize>,
-    },
 }
 
 #[async_trait]
