@@ -14,7 +14,7 @@ use malachite_node::config::{ConsensusConfig, MempoolConfig, P2pConfig, TimeoutC
 use malachite_test::utils::make_validators;
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet};
 
-use malachite_actors::util::make_node_actor;
+use malachite_actors::util::spawn_node_actor;
 
 pub const SEED: u64 = 42;
 pub const HEIGHTS: u64 = 3;
@@ -154,7 +154,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
             test: Default::default(),
         };
 
-        let node = tokio::spawn(make_node_actor(
+        let node = tokio::spawn(spawn_node_actor(
             node_config,
             test.validator_set.clone(),
             sk.clone(),

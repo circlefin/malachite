@@ -1,6 +1,6 @@
 use color_eyre::eyre::Result;
 
-use malachite_actors::util::make_node_actor;
+use malachite_actors::util::spawn_node_actor;
 use malachite_node::config::Config;
 use malachite_test::{Address, PrivateKey, ValidatorSet};
 use tracing::info;
@@ -12,7 +12,7 @@ pub async fn run(sk: PrivateKey, cfg: Config, vs: ValidatorSet) -> Result<()> {
     info!("[{moniker}] Starting...");
 
     let (tx_decision, mut rx_decision) = tokio::sync::mpsc::channel(32);
-    let (actor, handle) = make_node_actor(cfg, vs, sk.clone(), sk, val_address, tx_decision).await;
+    let (actor, handle) = spawn_node_actor(cfg, vs, sk.clone(), sk, val_address, tx_decision).await;
 
     tokio::spawn({
         let actor = actor.clone();
