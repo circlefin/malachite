@@ -66,7 +66,7 @@ impl fmt::Display for Channel {
     }
 }
 
-const PROTOCOL_VERSION: &str = "malachite-gossip/v1beta1";
+const PROTOCOL_VERSION: &str = "malachite-gossip-consensus/v1beta1";
 
 pub type BoxError = Box<dyn Error + Send + Sync + 'static>;
 

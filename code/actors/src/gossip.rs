@@ -9,8 +9,8 @@ use ractor::ActorRef;
 use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
 
-use malachite_gossip::handle::CtrlHandle;
-use malachite_gossip::{Channel, Config, Event, PeerId};
+use malachite_gossip_consensus::handle::CtrlHandle;
+use malachite_gossip_consensus::{Channel, Config, Event, PeerId};
 
 pub struct Gossip;
 
@@ -71,7 +71,7 @@ impl Actor for Gossip {
         myself: ActorRef<Msg>,
         args: Args,
     ) -> Result<State, ActorProcessingErr> {
-        let handle = malachite_gossip::spawn(args.keypair, args.config).await?;
+        let handle = malachite_gossip_consensus::spawn(args.keypair, args.config).await?;
         let (mut recv_handle, ctrl_handle) = handle.split();
 
         let recv_task = tokio::spawn({

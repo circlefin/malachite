@@ -17,7 +17,7 @@ use malachite_driver::Input as DriverInput;
 use malachite_driver::Input::BlockReceived;
 use malachite_driver::Output as DriverOutput;
 use malachite_driver::Validity;
-use malachite_gossip::{Channel, Event as GossipEvent, PeerId};
+use malachite_gossip_consensus::{Channel, Event as GossipEvent, PeerId};
 use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;

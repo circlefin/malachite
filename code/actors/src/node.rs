@@ -18,7 +18,7 @@ use crate::util::ValueBuilder;
 pub struct Params<Ctx: Context> {
     pub address: Ctx::Address,
     pub initial_validator_set: Ctx::ValidatorSet,
-    pub keypair: malachite_gossip::Keypair,
+    pub keypair: malachite_gossip_consensus::Keypair,
     pub start_height: Ctx::Height,
     pub threshold_params: ThresholdParams,
     pub timers_config: TimersConfig,

@@ -10,14 +10,14 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
-malachite-common.workspace  = true
-malachite-driver.workspace  = true
-malachite-gossip.workspace  = true
-malachite-gossip-mempool.workspace  = true
-malachite-node.workspace    = true
-malachite-proto.workspace   = true
-malachite-test.workspace    = true
-malachite-vote.workspace    = true
+malachite-common.workspace           = true
+malachite-driver.workspace           = true
+malachite-gossip-consensus.workspace = true
+malachite-gossip-mempool.workspace   = true
+malachite-node.workspace             = true
+malachite-proto.workspace            = true
+malachite-test.workspace             = true
+malachite-vote.workspace             = true
 
 async-trait        = { workspace = true }
 bytesize           = { workspace = true, features = ["serde"] }
