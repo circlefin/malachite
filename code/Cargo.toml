@@ -2,18 +2,7 @@
 resolver = "2"
 
 members = [
-  "actors", 
-  "cli",
-  "common",
-  "driver", 
-  "gossip-consensus",
-  "gossip-mempool",
-  "itf",
-  "node", 
-  "proto",
-  "round",
-  "test",
-  "vote",
+  "crates/*"
 ]
 
 [workspace.package]
@@ -28,18 +17,18 @@ rust-version = "1.77"
 # unused_crate_dependencies = "warn"
 
 [workspace.dependencies]
-malachite-actors           = { version = "0.1.0", path = "actors" }
-malachite-cli              = { version = "0.1.0", path = "cli" }
-malachite-common           = { version = "0.1.0", path = "common" }
-malachite-driver           = { version = "0.1.0", path = "driver" }
-malachite-gossip-consensus = { version = "0.1.0", path = "gossip-consensus" }
-malachite-gossip-mempool   = { version = "0.1.0", path = "gossip-mempool" }
-malachite-itf              = { version = "0.1.0", path = "itf" }
-malachite-node             = { version = "0.1.0", path = "node" }
-malachite-proto            = { version = "0.1.0", path = "proto" }
-malachite-round            = { version = "0.1.0", path = "round" }
-malachite-test             = { version = "0.1.0", path = "test" }
-malachite-vote             = { version = "0.1.0", path = "vote" }
+malachite-actors           = { version = "0.1.0", path = "crates/actors" }
+malachite-cli              = { version = "0.1.0", path = "crates/cli" }
+malachite-common           = { version = "0.1.0", path = "crates/common" }
+malachite-driver           = { version = "0.1.0", path = "crates/driver" }
+malachite-gossip-consensus = { version = "0.1.0", path = "crates/gossip-consensus" }
+malachite-gossip-mempool   = { version = "0.1.0", path = "crates/gossip-mempool" }
+malachite-itf              = { version = "0.1.0", path = "crates/itf" }
+malachite-node             = { version = "0.1.0", path = "crates/node" }
+malachite-proto            = { version = "0.1.0", path = "crates/proto" }
+malachite-round            = { version = "0.1.0", path = "crates/round" }
+malachite-test             = { version = "0.1.0", path = "crates/test" }
+malachite-vote             = { version = "0.1.0", path = "crates/vote" }
 
 async-trait        = "0.1.77"
 base64             = "0.22.0"
