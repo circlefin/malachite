@@ -42,7 +42,6 @@ pub struct Mempool {
 }
 
 pub enum Msg {
-    Start,
     GossipEvent(Arc<GossipEvent>),
     Input(Transaction),
     TxStream {
@@ -163,15 +162,6 @@ impl Actor for Mempool {
                 state.transactions.push(tx);
             }
 
-            Msg::Start => {
-                for tx in state.transactions.iter() {
-                    let msg = NetworkMsg::Transaction(tx.to_bytes());
-                    let bytes = msg.to_network_bytes();
-                    self.gossip_mempool
-                        .cast(GossipMempoolMsg::Broadcast(Channel::Mempool, bytes))?;
-                }
-            }
-
             Msg::TxStream {
                 reply,
                 tx_size,
@@ -184,7 +174,7 @@ impl Actor for Mempool {
                 for _i in 0..num_txes {
                     // Generate transaction
                     let range = Uniform::new(32, 64);
-                    let tx: Vec<u8> = (0..tx_size).map(|_| rng.sample(&range)).collect();
+                    let tx: Vec<u8> = (0..tx_size).map(|_| rng.sample(range)).collect();
                     // TODO - Gossip, remove on decided block
                     // let msg = NetworkMsg::Transaction(tx.clone());
                     // let bytes = msg.to_network_bytes();

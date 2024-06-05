@@ -11,11 +11,11 @@ use crate::consensus::ConsensusRef;
 use crate::gossip_consensus::GossipConsensusRef;
 use crate::gossip_mempool::GossipMempoolRef;
 use crate::host::HostRef;
-use crate::mempool::{MempoolRef, Msg as MempoolMsg};
+use crate::mempool::MempoolRef;
 use crate::timers::Config as TimersConfig;
 use crate::util::ValueBuilder;
 
-pub type NodeRef = ActorRef<Msg>;
+pub type NodeRef = ActorRef<()>;
 
 pub struct Params<Ctx: Context> {
     pub address: Ctx::Address,
@@ -68,13 +68,9 @@ where
         }
     }
 
-    pub async fn spawn(self) -> Result<(ActorRef<Msg>, JoinHandle<()>), ractor::SpawnErr> {
+    pub async fn spawn(self) -> Result<(ActorRef<()>, JoinHandle<()>), ractor::SpawnErr> {
         Actor::spawn(None, self, ()).await
     }
-}
-
-pub enum Msg {
-    Start,
 }
 
 #[async_trait]
@@ -84,7 +80,7 @@ where
     Ctx::Vote: Protobuf<Proto = malachite_proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = malachite_proto::Proposal>,
 {
-    type Msg = Msg;
+    type Msg = ();
     type State = ();
     type Arguments = ();
 
@@ -106,13 +102,9 @@ where
     async fn handle(
         &self,
         _myself: ActorRef<Self::Msg>,
-        msg: Self::Msg,
+        _msg: Self::Msg,
         _state: &mut (),
     ) -> Result<(), ractor::ActorProcessingErr> {
-        match msg {
-            Msg::Start => self.mempool.cast(MempoolMsg::Start)?,
-        }
-
         Ok(())
     }
 }

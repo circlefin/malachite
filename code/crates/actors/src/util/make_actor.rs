@@ -14,7 +14,7 @@ use crate::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use crate::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use crate::host::{Host, HostRef};
 use crate::mempool::{Mempool, MempoolRef};
-use crate::node::{Msg as NodeMsg, Node, NodeRef};
+use crate::node::{Node, NodeRef};
 use crate::util::value_builder::test::TestParams as TestValueBuilderParams;
 use crate::util::PartStore;
 use crate::util::TestValueBuilder;
@@ -68,7 +68,6 @@ pub async fn spawn_node_actor(
     );
 
     let (actor_ref, handle) = node.spawn().await.unwrap();
-    actor_ref.cast(NodeMsg::Start).unwrap();
 
     (actor_ref, handle)
 }
