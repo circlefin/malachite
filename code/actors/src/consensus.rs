@@ -18,7 +18,6 @@ use malachite_driver::Input::BlockReceived;
 use malachite_driver::Output as DriverOutput;
 use malachite_driver::Validity;
 use malachite_gossip::{Channel, Event as GossipEvent, PeerId};
-use malachite_network::Msg as NetworkMsg;
 use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
@@ -27,6 +26,9 @@ use crate::gossip::Msg as GossipMsg;
 use crate::host::{LocallyProposedValue, Msg as HostMsg, ReceivedProposedValue};
 use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers};
 use crate::util::forward;
+
+mod network;
+use network::NetworkMsg;
 
 pub enum Next<Ctx: Context> {
     None,
@@ -239,6 +241,7 @@ where
                     }
                 }
             }
+
             NetworkMsg::BlockPart(block_part) => {
                 let signed_block_part = SignedBlockPart::<Ctx>::from_proto(block_part).unwrap();
                 let validator_address = signed_block_part.validator_address();

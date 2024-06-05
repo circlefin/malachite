@@ -13,7 +13,6 @@ workspace = true
 
 [dependencies]
 malachite-common.workspace  = true
-malachite-network.workspace = true
 malachite-test.workspace    = true
 
 async-trait       = { workspace = true }
