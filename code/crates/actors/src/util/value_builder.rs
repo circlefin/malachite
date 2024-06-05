@@ -53,7 +53,7 @@ pub mod test {
     #[derive(Copy, Clone, Debug)]
     pub struct TestParams {
         pub max_block_size: ByteSize,
-        pub tx_size: u64,
+        pub tx_size: ByteSize,
         pub txs_per_part: u64,
         pub time_allowance_factor: f32,
         pub exec_time_per_part: Duration,

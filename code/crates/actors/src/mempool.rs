@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytesize::ByteSize;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::distributions::Uniform;
 use rand::Rng;
@@ -46,7 +47,7 @@ pub enum Msg {
     Input(Transaction),
     TxStream {
         height: u64,
-        tx_size: u64,
+        tx_size: ByteSize,
         num_txes: u64,
         reply: RpcReplyPort<Vec<Transaction>>,
     },
@@ -174,7 +175,7 @@ impl Actor for Mempool {
                 for _i in 0..num_txes {
                     // Generate transaction
                     let range = Uniform::new(32, 64);
-                    let tx: Vec<u8> = (0..tx_size).map(|_| rng.sample(range)).collect();
+                    let tx: Vec<u8> = (0..tx_size.as_u64()).map(|_| rng.sample(range)).collect();
                     // TODO - Gossip, remove on decided block
                     // let msg = NetworkMsg::Transaction(tx.clone());
                     // let bytes = msg.to_network_bytes();
