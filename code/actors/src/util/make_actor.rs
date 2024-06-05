@@ -16,7 +16,6 @@ use crate::gossip_mempool::GossipMempool;
 use crate::host::Host;
 use crate::mempool::Mempool;
 use crate::node::{Msg as NodeMsg, Msg, Node};
-use crate::timers::Config as TimersConfig;
 use crate::util::value_builder::test::TestParams as TestValueBuilderParams;
 use crate::util::PartStore;
 use crate::util::TestValueBuilder;
@@ -29,25 +28,24 @@ pub async fn make_node_actor(
     address: Address,
     tx_decision: mpsc::Sender<(Height, Round, Value)>,
 ) -> (ActorRef<NodeMsg>, JoinHandle<()>) {
-    // Spawn mempool and its gossip
-    let node_keypair = Keypair::ed25519_from_bytes(node_pk.inner().to_bytes()).unwrap();
+    let ctx = TestContext::new(validator_pk.clone());
 
+    // Spawn mempool and its gossip
     let config_gossip_mempool = GossipMempoolConfig {
         listen_addr: cfg.mempool.p2p.listen_addr.clone(),
         persistent_peers: cfg.mempool.p2p.persistent_peers.clone(),
         idle_connection_timeout: Duration::from_secs(60),
     };
 
+    let node_keypair = Keypair::ed25519_from_bytes(node_pk.inner().to_bytes()).unwrap();
+
     let gossip_mempool = GossipMempool::spawn(node_keypair.clone(), config_gossip_mempool, None)
         .await
         .unwrap();
 
-    let mempool = Mempool::spawn(crate::mempool::Params {}, gossip_mempool.clone(), None)
-        .await
-        .unwrap();
+    let mempool = Mempool::spawn(gossip_mempool.clone(), None).await.unwrap();
 
-    let ctx = TestContext::new(validator_pk.clone());
-
+    // Configure the value builder
     let value_builder = Box::new(TestValueBuilder::<TestContext>::new(
         mempool.clone(),
         TestValueBuilderParams {
@@ -68,19 +66,17 @@ pub async fn make_node_actor(
     .unwrap();
 
     // Spawn consensus and its gossip
-    let validator_keypair = Keypair::ed25519_from_bytes(validator_pk.inner().to_bytes()).unwrap();
-
     let config_gossip = malachite_gossip::Config {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
         idle_connection_timeout: Duration::from_secs(60),
     };
 
+    let validator_keypair = Keypair::ed25519_from_bytes(validator_pk.inner().to_bytes()).unwrap();
+
     let gossip_consensus = Gossip::spawn(validator_keypair.clone(), config_gossip, None)
         .await
         .unwrap();
-
-    let timers_config = TimersConfig::default();
 
     let start_height = Height::new(1);
 
@@ -94,7 +90,7 @@ pub async fn make_node_actor(
     let consensus = Consensus::spawn(
         ctx.clone(),
         consensus_params,
-        timers_config,
+        cfg.consensus.timeouts,
         gossip_consensus.clone(),
         host.clone(),
         tx_decision,
@@ -107,16 +103,15 @@ pub async fn make_node_actor(
     let node = Node::new(
         ctx,
         gossip_consensus,
-        consensus.clone(),
+        consensus,
         gossip_mempool,
         mempool,
         host,
         start_height,
     );
 
-    let result = node.spawn().await.unwrap();
-    let actor = result.0.clone();
-    let _ = actor.cast(Msg::Start);
+    let (actor_ref, handle) = node.spawn().await.unwrap();
+    actor_ref.cast(Msg::Start).unwrap();
 
-    result
+    (actor_ref, handle)
 }
