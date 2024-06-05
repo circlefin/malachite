@@ -37,38 +37,55 @@ pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
 }
 
 pub mod test {
-    // TODO - parameterize
-    // If based on the propose_timeout and the constants below we end up with more than 300 parts then consensus
-    // is never reached in a round and we keep moving to the next one.
-    const NUM_TXES_PER_PART: u64 = 400;
-    const TIME_ALLOWANCE_FACTOR: f32 = 0.5;
-    const EXEC_TIME_MICROSEC_PER_PART: u64 = 100000;
 
     use std::marker::PhantomData;
+
+    use malachite_node::config::TestConfig;
+    use ractor::ActorRef;
 
     use malachite_common::Context;
     use malachite_driver::Validity;
     use malachite_test::{
         Address, BlockMetadata, BlockPart, Content, Height, TestContext, TransactionBatch, Value,
     };
-    use ractor::ActorRef;
+
+    use crate::mempool::Msg as MempoolMsg;
 
     use super::*;
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct TestParams {
+        pub txs_per_part: u64,
+        pub time_allowance_factor: f32,
+        pub exec_time_per_part: Duration,
+    }
+
+    impl From<TestConfig> for TestParams {
+        fn from(cfg: TestConfig) -> Self {
+            Self {
+                txs_per_part: cfg.txs_per_part,
+                time_allowance_factor: cfg.time_allowance_factor,
+                exec_time_per_part: cfg.exec_time_per_part,
+            }
+        }
+    }
 
     #[derive(Clone)]
     pub struct TestValueBuilder<Ctx: Context> {
         _phantom: PhantomData<Ctx>,
-        tx_streamer: ActorRef<crate::mempool::Msg>,
+        tx_streamer: ActorRef<MempoolMsg>,
+        params: TestParams,
     }
 
     impl<Ctx> TestValueBuilder<Ctx>
     where
         Ctx: Context,
     {
-        pub fn new(tx_streamer: ActorRef<crate::mempool::Msg>) -> Self {
+        pub fn new(tx_streamer: ActorRef<MempoolMsg>, params: TestParams) -> Self {
             Self {
                 _phantom: Default::default(),
                 tx_streamer,
+                params,
             }
         }
     }
@@ -85,7 +102,7 @@ pub mod test {
             part_store: &mut PartStore<TestContext>,
         ) -> Option<LocallyProposedValue<TestContext>> {
             let now = Instant::now();
-            let deadline = now + timeout_duration.mul_f32(TIME_ALLOWANCE_FACTOR);
+            let deadline = now + timeout_duration.mul_f32(self.params.time_allowance_factor);
             let expiration_time = now + timeout_duration;
 
             let mut tx_batch = vec![];
@@ -103,9 +120,9 @@ pub mod test {
                 let mut txes = self
                     .tx_streamer
                     .call(
-                        |reply| crate::mempool::Msg::TxStream {
+                        |reply| MempoolMsg::TxStream {
                             height: height.as_u64(),
-                            num_txes: NUM_TXES_PER_PART,
+                            num_txes: self.params.txs_per_part,
                             reply,
                         },
                         None,
@@ -134,7 +151,7 @@ pub mod test {
                     .unwrap();
 
                 // Simulate execution
-                tokio::time::sleep(Duration::from_micros(EXEC_TIME_MICROSEC_PER_PART)).await;
+                tokio::time::sleep(self.params.exec_time_per_part).await;
                 tx_batch.append(&mut txes);
 
                 sequence += 1;
@@ -200,7 +217,7 @@ pub mod test {
 
             // Simulate Tx execution and proof verification (assumes success)
             // TODO - add config knob for invalid blocks
-            tokio::time::sleep(Duration::from_micros(EXEC_TIME_MICROSEC_PER_PART)).await;
+            tokio::time::sleep(self.params.exec_time_per_part).await;
 
             // Get the "last" part, the one with highest sequence.
             // Block parts may not be received in order.

@@ -50,3 +50,10 @@ listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
 # List of nodes to keep persistent connections to
 persistent_peers = []
 
+[test]
+# Override with MALACHITE__TEST__TXS_PER_PART env variable
+txs_per_part = 400
+# Override with MALACHITE__TEST__TIME_ALLOWANCE_FACTOR env variable
+time_allowance_factor = 0.5
+# Override with MALACHITE__TEST__EXEC_TIME_PER_PART env variable
+exec_time_per_part = 1000
