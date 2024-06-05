@@ -5,18 +5,18 @@ use std::ops::ControlFlow;
 use std::time::Duration;
 
 use futures::StreamExt;
+pub use libp2p::identity::Keypair;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
+pub use libp2p::{Multiaddr, PeerId};
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
-pub use libp2p::identity::Keypair;
-pub use libp2p::{Multiaddr, PeerId};
+use behaviour::{Behaviour, NetworkEvent};
+use handle::Handle;
 
 pub mod behaviour;
 pub mod handle;
-use behaviour::{Behaviour, NetworkEvent};
-use handle::Handle;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Channel {
@@ -105,6 +105,7 @@ pub async fn spawn(keypair: Keypair, config: Config) -> Result<Handle, BoxError>
     let mut swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
         .with_quic()
+        .with_dns()?
         .with_behaviour(Behaviour::new)?
         .with_swarm_config(|cfg| config.apply(cfg))
         .build();

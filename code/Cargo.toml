@@ -58,7 +58,7 @@ hex                = { version = "0.4.3", features = ["serde"] }
 humantime-serde    = "1.1.1"
 itertools          = "0.13"
 itf                = "0.2.3"
-libp2p             = { version = "0.53.2", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "quic", "tls", "gossipsub"] }
+libp2p             = { version = "0.53.2", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "quic", "tls", "gossipsub", "dns"] }
 multiaddr          = "0.18.1"
 num-bigint         = "0.4.4"
 num-traits         = "0.2.17"
