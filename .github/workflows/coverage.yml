@@ -49,7 +49,7 @@ jobs:
           cargo llvm-cov nextest \
             --workspace \
             --exclude malachite-itf \
-            --ignore-filename-regex node/bin \
+            --ignore-filename-regex crates/cli \
             --all-features \
             --ignore-run-fail \
             --lcov \

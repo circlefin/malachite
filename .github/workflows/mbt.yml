@@ -42,10 +42,10 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
       - name: Build code
-        working-directory: code/itf
+        working-directory: code/crates/itf
         run: cargo nextest run --workspace --all-features --no-run
       - name: Current time as random seed for Quint
         run: echo "QUINT_SEED=$(date +%s)" >> $GITHUB_ENV
       - name: Run tests from traces (with random seed)
-        working-directory: code/itf
+        working-directory: code/crates/itf
         run: cargo nextest run -p malachite-itf --all-features
