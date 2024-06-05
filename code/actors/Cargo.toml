@@ -15,7 +15,6 @@ malachite-driver.workspace  = true
 malachite-gossip.workspace  = true
 malachite-gossip-mempool.workspace  = true
 malachite-network.workspace = true
-malachite-network-mempool.workspace = true
 malachite-node.workspace    = true
 malachite-proto.workspace   = true
 malachite-test.workspace    = true

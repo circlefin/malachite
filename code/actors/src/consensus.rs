@@ -17,9 +17,8 @@ use malachite_driver::Input as DriverInput;
 use malachite_driver::Input::BlockReceived;
 use malachite_driver::Output as DriverOutput;
 use malachite_driver::Validity;
-use malachite_gossip::{Channel, Event as GossipEvent};
+use malachite_gossip::{Channel, Event as GossipEvent, PeerId};
 use malachite_network::Msg as NetworkMsg;
-use malachite_network::PeerId;
 use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
@@ -141,7 +140,6 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
         if let GossipEvent::Message(from, _, data) = event {
-            let from = PeerId::new(from.to_string());
             let msg = NetworkMsg::from_network_bytes(data).unwrap();
 
             //info!("Received message from peer {from}: {msg:?}");
@@ -154,7 +152,7 @@ where
 
     pub async fn handle_network_msg(
         &self,
-        from: PeerId,
+        from: &PeerId,
         msg: NetworkMsg,
         myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
@@ -667,7 +665,7 @@ where
                     GossipEvent::PeerConnected(peer_id) => {
                         info!("Connected to peer {peer_id}");
 
-                        state.connected_peers.insert(PeerId::new(peer_id));
+                        state.connected_peers.insert(*peer_id);
 
                         if state.connected_peers.len() == state.validator_set.count() - 1 {
                             info!(
@@ -682,7 +680,7 @@ where
                     GossipEvent::PeerDisconnected(peer_id) => {
                         info!("Disconnected from peer {peer_id}");
 
-                        state.connected_peers.remove(&PeerId::new(peer_id));
+                        state.connected_peers.remove(peer_id);
 
                         // TODO: pause/stop consensus, if necessary
                     }

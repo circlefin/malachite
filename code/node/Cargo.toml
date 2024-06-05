@@ -14,7 +14,6 @@ workspace = true
 [dependencies]
 malachite-common.workspace  = true
 malachite-network.workspace = true
-malachite-network-mempool.workspace = true
 malachite-test.workspace    = true
 
 async-trait       = { workspace = true }

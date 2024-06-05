@@ -10,7 +10,6 @@ members = [
   "gossip-mempool",
   "itf",
   "network",
-  "network-mempool",
   "node", 
   "proto",
   "round",
@@ -35,9 +34,8 @@ malachite-cli     = { version = "0.1.0", path = "cli" }
 malachite-common  = { version = "0.1.0", path = "common" }
 malachite-driver  = { version = "0.1.0", path = "driver" }
 malachite-gossip  = { version = "0.1.0", path = "gossip" }
-malachite-gossip-mempool  = { version = "0.1.0", path = "gossip-mempool" }
+malachite-gossip-mempool = { version = "0.1.0", path = "gossip-mempool" }
 malachite-network = { version = "0.1.0", path = "network" }
-malachite-network-mempool = { version = "0.1.0", path = "network-mempool" }
 malachite-itf     = { version = "0.1.0", path = "itf" }
 malachite-node    = { version = "0.1.0", path = "node" }
 malachite-proto   = { version = "0.1.0", path = "proto" }
