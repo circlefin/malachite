@@ -127,7 +127,7 @@ pub struct TestConfig {
     pub tx_size: ByteSize,
     // TODO - move to mempool config??
     pub mempool_gossip_batch_size: usize,
-    pub txs_per_part: u64,
+    pub txs_per_part: usize,
     pub time_allowance_factor: f32,
     #[serde(with = "humantime_serde")]
     pub exec_time_per_tx: Duration,

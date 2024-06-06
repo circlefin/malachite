@@ -46,7 +46,7 @@ pub enum Msg {
     Input(Transaction),
     TxStream {
         height: u64,
-        num_txes: u64,
+        num_txes: usize,
         reply: RpcReplyPort<Vec<Transaction>>,
     },
 }
@@ -177,37 +177,21 @@ impl Actor for Mempool {
                 if state.transactions.len() < self.mempool_config.max_tx_count {
                     state.transactions.push(tx);
                 } else {
-                    trace!("Mempool full, dropping transaction")
+                    debug!("Mempool is full, dropping transaction")
                 }
             }
 
             Msg::TxStream {
                 reply, num_txes, ..
             } => {
-                let mut transactions = vec![];
-                let mut tx_batch: Vec<Transaction> = vec![];
-                let mut rng = rand::thread_rng();
-                for _i in 0..num_txes {
-                    // Generate transaction
-                    let range = Uniform::new(32, 64);
-                    let tx: Vec<u8> = (0..self.test_config.tx_size.as_u64())
-                        .map(|_| rng.sample(range))
-                        .collect();
-                    // TODO - Remove tx-es on decided block
-                    tx_batch.push(Transaction::new(tx.clone()));
-                    if tx_batch.len() >= self.test_config.mempool_gossip_batch_size {
-                        let mempool_batch =
-                            MempoolTransactionBatch::new(TransactionBatch::new(tx_batch));
-                        let _ = self
-                            .gossip_mempool
-                            .cast(GossipMempoolMsg::Broadcast(Channel::Mempool, mempool_batch));
-                        tx_batch = vec![];
-                    }
+                let txes = generate_txes(
+                    num_txes,
+                    self.test_config.tx_size.as_u64(),
+                    self.test_config.mempool_gossip_batch_size,
+                    &self.gossip_mempool,
+                )?;
 
-                    transactions.push(Transaction::new(tx));
-                }
-
-                reply.send(transactions)?;
+                reply.send(txes)?;
             }
         }
 
@@ -223,4 +207,34 @@ impl Actor for Mempool {
 
         Ok(())
     }
+}
+
+fn generate_txes(
+    count: usize,
+    size: u64,
+    batch_size: usize,
+    gossip_mempool: &GossipMempoolRef,
+) -> Result<Vec<Transaction>, ActorProcessingErr> {
+    let mut transactions = vec![];
+    let mut tx_batch = TransactionBatch::default();
+    let mut rng = rand::thread_rng();
+
+    for _ in 0..count {
+        // Generate transaction
+        let range = Uniform::new(32, 64);
+        let tx_bytes: Vec<u8> = (0..size).map(|_| rng.sample(range)).collect();
+        let tx = Transaction::new(tx_bytes);
+
+        // TODO: Remove tx-es on decided block
+        tx_batch.push(tx.clone());
+
+        if tx_batch.len() >= batch_size {
+            let mempool_batch = MempoolTransactionBatch::new(std::mem::take(&mut tx_batch));
+            gossip_mempool.cast(GossipMempoolMsg::Broadcast(Channel::Mempool, mempool_batch))?;
+        }
+
+        transactions.push(tx);
+    }
+
+    Ok(transactions)
 }

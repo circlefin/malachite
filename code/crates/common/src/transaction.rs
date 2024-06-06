@@ -2,7 +2,6 @@ use alloc::vec::Vec;
 use core::fmt::Debug;
 
 /// Transaction
-/// TODO: Define this in the Context
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct Transaction(pub Vec<u8>);
 
@@ -24,8 +23,7 @@ impl Transaction {
 }
 
 /// Transaction batch (used by mempool and block part)
-/// TODO: Parametrize by the Context
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TransactionBatch(Vec<Transaction>);
 
 impl TransactionBatch {
@@ -33,8 +31,29 @@ impl TransactionBatch {
     pub fn new(transactions: Vec<Transaction>) -> Self {
         TransactionBatch(transactions)
     }
+
+    /// Add a transaction to the batch
+    pub fn push(&mut self, transaction: Transaction) {
+        self.0.push(transaction);
+    }
+
+    /// Get the number of transactions in the batch
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Whether or not the batch is empty
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// Get transactions from a batch
-    pub fn transactions(&self) -> &Vec<Transaction> {
+    pub fn into_transactions(self) -> Vec<Transaction> {
+        self.0
+    }
+
+    /// Get transactions from a batch
+    pub fn transactions(&self) -> &[Transaction] {
         &self.0
     }
 }
