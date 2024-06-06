@@ -23,3 +23,6 @@ humantime-serde   = { workspace = true }
 multiaddr         = { workspace = true }
 tokio             = { workspace = true, features = ["full"] }
 serde             = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+toml.workspace = true

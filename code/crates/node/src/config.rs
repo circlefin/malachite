@@ -6,7 +6,7 @@ use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 
 /// Malachite configuration options
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     /// A custom human-readable name for this node
     pub moniker: String,
@@ -23,7 +23,7 @@ pub struct Config {
 }
 
 /// P2P configuration options
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct P2pConfig {
     // Address to listen for incoming connections
     pub listen_addr: Multiaddr,
@@ -32,7 +32,7 @@ pub struct P2pConfig {
 }
 
 /// Mempool configuration options
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MempoolConfig {
     /// P2P configuration options
     pub p2p: P2pConfig,
@@ -41,7 +41,7 @@ pub struct MempoolConfig {
 }
 
 /// Consensus configuration options
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
     /// Max block size
     pub max_block_size: ByteSize,
@@ -55,7 +55,7 @@ pub struct ConsensusConfig {
 }
 
 /// Timeouts
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TimeoutConfig {
     /// How long we wait for a proposal block before prevoting nil
     #[serde(with = "humantime_serde")]
@@ -122,7 +122,7 @@ impl Default for TimeoutConfig {
     }
 }
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestConfig {
     pub tx_size: ByteSize,
     // TODO - move to mempool config??
@@ -142,5 +142,18 @@ impl Default for TestConfig {
             time_allowance_factor: 0.7,
             exec_time_per_tx: Duration::from_millis(1),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_default_config_file() {
+        let file = include_str!("../../../config.toml");
+        let config = toml::from_str::<Config>(file).unwrap();
+        assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
+        assert_eq!(config.test, TestConfig::default());
     }
 }
