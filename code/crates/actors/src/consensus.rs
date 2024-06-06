@@ -30,6 +30,9 @@ use crate::util::forward;
 mod network;
 use network::NetworkMsg;
 
+mod metrics;
+use metrics::Metrics;
+
 pub enum Next<Ctx: Context> {
     None,
     Input(DriverInput<Ctx>),
@@ -55,6 +58,7 @@ where
     gossip_consensus: GossipConsensusRef,
     host: HostRef<Ctx>,
     tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
+    metrics: Metrics,
 }
 
 pub enum Msg<Ctx: Context> {
@@ -111,6 +115,7 @@ where
             gossip_consensus,
             host,
             tx_decision,
+            metrics: Metrics::register(),
         }
     }
 
@@ -230,20 +235,17 @@ where
                     .find(|&x| x.0 == proposal_height && x.1 == proposal_round);
 
                 match received_block {
-                    Some(block) => {
-                        let valid = block.3; // TODO - struct
+                    Some((_height, _round, _value, valid)) => {
                         myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
                             proposal.clone(),
-                            valid,
+                            *valid,
                         )))?;
                     }
                     None => {
                         // Store the proposal and wait for all block parts
                         // TODO - or maybe integrate with receive-proposal() here? will this block until all parts are received?
-                        info!(
-                            "Received proposal {:?} before all block parts --STORING",
-                            proposal
-                        );
+                        info!("Received proposal before all block parts, storing it: {proposal:?}",);
+
                         state.driver.proposal = Some(proposal.clone());
                     }
                 }
@@ -665,6 +667,11 @@ where
                     "Decided on value {:?} at height {height} and round {round}",
                     value.id()
                 );
+
+                self.metrics.finalized_blocks.inc();
+                self.metrics
+                    .rounds_per_block
+                    .observe((round.as_i64() + 1) as f64);
             }
 
             Msg::GossipEvent(event) => {
@@ -676,7 +683,12 @@ where
                     GossipEvent::PeerConnected(peer_id) => {
                         info!("Connected to peer {peer_id}");
 
-                        state.connected_peers.insert(*peer_id);
+                        if !state.connected_peers.insert(*peer_id) {
+                            // We already saw that peer, ignoring...
+                            return Ok(());
+                        }
+
+                        self.metrics.connected_peers.inc();
 
                         if state.connected_peers.len() == state.validator_set.count() - 1 {
                             info!(
@@ -691,9 +703,11 @@ where
                     GossipEvent::PeerDisconnected(peer_id) => {
                         info!("Disconnected from peer {peer_id}");
 
-                        state.connected_peers.remove(peer_id);
+                        if state.connected_peers.remove(peer_id) {
+                            self.metrics.connected_peers.dec();
 
-                        // TODO: pause/stop consensus, if necessary
+                            // TODO: pause/stop consensus, if necessary
+                        }
                     }
 
                     GossipEvent::Message(_, _, data) => {

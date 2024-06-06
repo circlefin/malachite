@@ -24,6 +24,7 @@ malachite-driver           = { version = "0.1.0", path = "crates/driver" }
 malachite-gossip-consensus = { version = "0.1.0", path = "crates/gossip-consensus" }
 malachite-gossip-mempool   = { version = "0.1.0", path = "crates/gossip-mempool" }
 malachite-itf              = { version = "0.1.0", path = "crates/itf" }
+malachite-metrics          = { version = "0.1.0", path = "crates/metrics" }
 malachite-node             = { version = "0.1.0", path = "crates/node" }
 malachite-proto            = { version = "0.1.0", path = "crates/proto" }
 malachite-round            = { version = "0.1.0", path = "crates/round" }
@@ -31,6 +32,7 @@ malachite-test             = { version = "0.1.0", path = "crates/test" }
 malachite-vote             = { version = "0.1.0", path = "crates/vote" }
 
 async-trait        = "0.1.77"
+axum               = "0.7"
 base64             = "0.22.0"
 bytesize           = "1.3"
 clap               = "4.5.4"
@@ -46,7 +48,7 @@ humantime          = "2.1.0"
 humantime-serde    = "1.1.1"
 itertools          = "0.13"
 itf                = "0.2.3"
-libp2p             = { version = "0.53.2", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "quic", "tls", "gossipsub", "dns"] }
+libp2p             = { version = "0.53.2", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "quic", "tls", "gossipsub", "dns", "metrics"] }
 multiaddr          = "0.18.1"
 num-bigint         = "0.4.4"
 num-traits         = "0.2.17"
@@ -54,6 +56,7 @@ pretty_assertions  = "1.4"
 prost              = "0.12.3"
 prost-build        = "0.12.3"
 prost-types        = "0.12.3"
+prometheus-client  = "0.22"
 ractor             = "0.10.0"
 ractor_actors      = { version = "0.4.0", default-features= false }
 rand               = { version = "0.8.5", features = ["std_rng"] }

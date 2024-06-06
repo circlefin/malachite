@@ -9,7 +9,9 @@ use rand::rngs::OsRng;
 use rand::{Rng, SeedableRng};
 use tracing::info;
 
-use malachite_node::config::{Config, ConsensusConfig, MempoolConfig, P2pConfig, TimeoutConfig};
+use malachite_node::config::{
+    Config, ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, TimeoutConfig,
+};
 use malachite_test::ValidatorSet as Genesis;
 use malachite_test::{PrivateKey, PublicKey, Validator};
 
@@ -93,11 +95,13 @@ pub fn generate_genesis(pks: Vec<PublicKey>, deterministic: bool) -> Genesis {
 
 const CONSENSUS_BASE_PORT: usize = 27000;
 const MEMPOOL_BASE_PORT: usize = 28000;
+const METRICS_BASE_PORT: usize = 29000;
 
 /// Generate configuration for node "index" out of "total" number of nodes.
 pub fn generate_config(index: usize, total: usize) -> Config {
     let consensus_port = CONSENSUS_BASE_PORT + index;
     let mempool_port = MEMPOOL_BASE_PORT + index;
+    let metrics_port = METRICS_BASE_PORT + index;
 
     Config {
         moniker: format!("test-{}", index),
@@ -134,6 +138,9 @@ pub fn generate_config(index: usize, total: usize) -> Config {
             },
             max_tx_count: 10000,
             gossip_batch_size: 100,
+        },
+        metrics: MetricsConfig {
+            listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
         },
         test: Default::default(),
     }

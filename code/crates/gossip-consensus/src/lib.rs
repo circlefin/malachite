@@ -107,7 +107,7 @@ pub async fn spawn(keypair: Keypair, config: Config) -> Result<Handle, BoxError>
         .with_tokio()
         .with_quic()
         .with_dns()?
-        .with_behaviour(Behaviour::new)?
+        .with_behaviour(Behaviour::new_with_metrics)?
         .with_swarm_config(|cfg| config.apply(cfg))
         .build();
 

@@ -10,10 +10,12 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
-malachite-actors.workspace = true
-malachite-node.workspace   = true
-malachite-test.workspace   = true
+malachite-actors.workspace  = true
+malachite-metrics.workspace = true
+malachite-node.workspace    = true
+malachite-test.workspace    = true
 
+axum               = { workspace = true }
 bytesize           = { workspace = true }
 clap               = { workspace = true, features = ["derive", "env"] }
 color-eyre         = { workspace = true }

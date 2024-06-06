@@ -10,7 +10,9 @@ use tokio::time::{sleep, Duration};
 use tracing::{error, info};
 
 use malachite_common::{Round, VotingPower};
-use malachite_node::config::{ConsensusConfig, MempoolConfig, P2pConfig, TimeoutConfig};
+use malachite_node::config::{
+    ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, TimeoutConfig,
+};
 use malachite_test::utils::make_validators;
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet};
 
@@ -29,6 +31,7 @@ pub struct Test<const N: usize> {
     pub expected_decisions: usize,
     pub consensus_base_port: usize,
     pub mempool_base_port: usize,
+    pub metrics_base_port: usize,
 }
 
 impl<const N: usize> Test<N> {
@@ -42,8 +45,9 @@ impl<const N: usize> Test<N> {
             validator_set,
             vals_and_keys,
             expected_decisions,
-            consensus_base_port: rand::thread_rng().gen_range(20000..30000),
-            mempool_base_port: rand::thread_rng().gen_range(30000..40000),
+            consensus_base_port: rand::thread_rng().gen_range(21000..30000),
+            mempool_base_port: rand::thread_rng().gen_range(31000..40000),
+            metrics_base_port: rand::thread_rng().gen_range(41000..50000),
         }
     }
 
@@ -175,6 +179,11 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
                 },
                 max_tx_count: 10000,
                 gossip_batch_size: 100,
+            },
+            metrics: MetricsConfig {
+                listen_addr: format!("127.0.0.1:{}", test.metrics_base_port + i)
+                    .parse()
+                    .unwrap(),
             },
             test: Default::default(),
         };

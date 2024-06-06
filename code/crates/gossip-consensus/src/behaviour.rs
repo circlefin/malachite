@@ -27,6 +27,24 @@ impl Behaviour {
             .unwrap(),
         }
     }
+
+    pub fn new_with_metrics(keypair: &Keypair) -> Self {
+        let mut registry = malachite_metrics::global_registry().lock().unwrap();
+
+        Self {
+            identify: identify::Behaviour::new(identify::Config::new(
+                PROTOCOL_VERSION.to_string(),
+                keypair.public(),
+            )),
+            gossipsub: gossipsub::Behaviour::new_with_metrics(
+                gossipsub::MessageAuthenticity::Signed(keypair.clone()),
+                gossipsub::Config::default(),
+                &mut registry,
+                Default::default(),
+            )
+            .unwrap(),
+        }
+    }
 }
 
 #[derive(Debug)]

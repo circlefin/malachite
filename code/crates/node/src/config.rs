@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use bytesize::ByteSize;
@@ -16,6 +17,9 @@ pub struct Config {
 
     /// Mempool configuration options
     pub mempool: MempoolConfig,
+
+    /// Metrics configuration options
+    pub metrics: MetricsConfig,
 
     /// Test configuration
     #[serde(default)]
@@ -124,6 +128,12 @@ impl Default for TimeoutConfig {
             timeout_commit: Duration::from_secs(1),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MetricsConfig {
+    /// Address at which to serve the metrics at
+    pub listen_addr: SocketAddr,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
