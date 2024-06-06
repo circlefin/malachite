@@ -2,6 +2,7 @@ use alloc::vec::Vec;
 use core::fmt::Debug;
 
 /// Transaction
+/// TODO: Define this in the Context
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct Transaction(pub Vec<u8>);
 
@@ -23,6 +24,7 @@ impl Transaction {
 }
 
 /// Transaction batch (used by mempool and block part)
+/// TODO: Parametrize by the Context
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TransactionBatch(Vec<Transaction>);
 
@@ -38,7 +40,7 @@ impl TransactionBatch {
 }
 
 /// Mempool transaction batch
-// TODO move to different file
+// TODO: Move to different file
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MempoolTransactionBatch {
     // May add more fields to this structure
