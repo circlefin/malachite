@@ -41,6 +41,7 @@ pub mod test {
     use std::marker::PhantomData;
 
     use bytesize::ByteSize;
+    use tracing::debug;
 
     use malachite_common::{Context, TransactionBatch};
     use malachite_driver::Validity;
@@ -79,6 +80,14 @@ pub mod test {
 
     #[async_trait]
     impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
+        #[tracing::instrument(
+            name = "value_builder.locally",
+            skip_all,
+            fields(
+                height = %height,
+                round = %round,
+            )
+        )]
         async fn build_value_locally(
             &self,
             height: Height,
@@ -95,7 +104,6 @@ pub mod test {
             let mut tx_batch = vec![];
             let mut sequence = 1;
             let mut block_size = 0;
-            let mut result = None;
 
             loop {
                 trace!(
@@ -120,7 +128,7 @@ pub mod test {
                     .unwrap();
 
                 if txes.is_empty() {
-                    break;
+                    return None;
                 }
 
                 // Create, store and gossip the batch in a BlockPart
@@ -170,7 +178,7 @@ pub mod test {
                     // Create, store and gossip the BlockMetadata in a BlockPart
                     let value = Value::new_from_transactions(tx_batch.clone());
 
-                    result = Some(LocallyProposedValue {
+                    let result = Some(LocallyProposedValue {
                         height,
                         round,
                         value: Some(value),
@@ -194,19 +202,27 @@ pub mod test {
                         .unwrap();
 
                     info!(
-                        "Value Builder created a block with {} tx-es ({}), block hash: {:?} ",
+                        "Value Builder created a block with {} tx-es of size {} in {:?} with hash {:?} ",
                         tx_batch.len(),
                         ByteSize::b(block_size),
+                        Instant::now() - start,
                         value.id()
                     );
 
-                    break;
+                    return result;
                 }
             }
-
-            result
         }
 
+        #[tracing::instrument(
+            name = "value_builder.from_block_parts",
+            skip_all,
+            fields(
+                height = %block_part.height(),
+                round = %block_part.round(),
+                sequence = %block_part.sequence()
+            )
+        )]
         async fn build_value_from_block_parts(
             &self,
             block_part: BlockPart,
