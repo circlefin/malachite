@@ -72,6 +72,13 @@ listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
 # List of nodes to keep persistent connections to
 persistent_peers = []
 
+#######################################################
+###          Metrics Configuration Options          ###
+#######################################################
+[metrics]
+# Metrics are exported at `http://127.0.0.1:9000/metrics`
+listen_addr = "127.0.0.1:9000"
+
 [test]
 # Override with MALACHITE__TEST__TX_SIZE env variable
 tx_size = "256 B"

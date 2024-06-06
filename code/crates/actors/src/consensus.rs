@@ -598,6 +598,8 @@ where
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             Msg::StartHeight(height) => {
+                self.metrics.block_start();
+
                 let round = Round::new(0);
                 info!("Starting height {height} at round {round}");
 
@@ -668,6 +670,7 @@ where
                     value.id()
                 );
 
+                self.metrics.block_end();
                 self.metrics.finalized_blocks.inc();
                 self.metrics
                     .rounds_per_block
