@@ -157,7 +157,7 @@ impl Actor for Mempool {
         })
     }
 
-    #[tracing::instrument(name = "node", skip(self, myself, msg, state))]
+    #[tracing::instrument(name = "mempool", skip(self, myself, msg, state))]
     async fn handle(
         &self,
         myself: ActorRef<Msg>,
