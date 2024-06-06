@@ -169,7 +169,7 @@ impl Protobuf for MempoolTransactionBatch {
 
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(proto::MempoolTransactionBatch {
-            transaction_batch: Some(self.transactions().to_proto()?),
+            transaction_batch: Some(self.transaction_batch.to_proto()?),
         })
     }
 }

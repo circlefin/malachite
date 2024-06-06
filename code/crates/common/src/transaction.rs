@@ -62,25 +62,24 @@ impl TransactionBatch {
 // TODO: Move to different file
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MempoolTransactionBatch {
+    /// The batch of transactions
+    pub transaction_batch: TransactionBatch,
     // May add more fields to this structure
-    transaction_batch: TransactionBatch,
 }
 
 impl MempoolTransactionBatch {
     /// Create a new transaction batch
     pub fn new(transaction_batch: TransactionBatch) -> Self {
-        MempoolTransactionBatch { transaction_batch }
+        Self { transaction_batch }
     }
-    /// Get transactions from a batch
-    pub fn transactions(&self) -> &TransactionBatch {
-        &self.transaction_batch
-    }
+
     /// Get the number of transactions in the batch
     pub fn len(&self) -> usize {
-        self.transaction_batch.transactions().len()
+        self.transaction_batch.len()
     }
+
     /// Implement is_empty
     pub fn is_empty(&self) -> bool {
-        self.transaction_batch.transactions().is_empty()
+        self.transaction_batch.is_empty()
     }
 }

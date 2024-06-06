@@ -104,15 +104,9 @@ impl Mempool {
                 info!("Disconnected from peer {peer_id}");
             }
             GossipEvent::Message(from, Channel::Mempool, data) => {
-                let size = data.len();
+                trace!(%from, "Received message of size {} bytes", data.len());
+
                 let msg = NetworkMsg::from_network_bytes(data);
-
-                match &msg {
-                    NetworkMsg::TransactionBatch(batch) => {
-                        trace!(%from, "Received message of size {size} bytes containing a batch with {} transactions", batch.len());
-                    }
-                }
-
                 self.handle_network_msg(from, msg, myself, state).await?;
             }
         }
@@ -130,8 +124,9 @@ impl Mempool {
         match msg {
             NetworkMsg::TransactionBatch(batch) => {
                 debug!(%from, "Received batch with {} transactions", batch.len());
-                for tx in batch.transactions().transactions() {
-                    myself.cast(Msg::Input(tx.clone()))?;
+
+                for tx in batch.transaction_batch.into_transactions() {
+                    myself.cast(Msg::Input(tx))?;
                 }
             }
         }
@@ -177,7 +172,7 @@ impl Actor for Mempool {
                 if state.transactions.len() < self.mempool_config.max_tx_count {
                     state.transactions.push(tx);
                 } else {
-                    debug!("Mempool is full, dropping transaction")
+                    debug!("Mempool is full, dropping transaction");
                 }
             }
 
