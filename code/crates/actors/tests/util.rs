@@ -7,7 +7,7 @@ use bytesize::ByteSize;
 use rand::Rng;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
-use tracing::{error, info};
+use tracing::{error, info, Instrument};
 
 use malachite_common::{Round, VotingPower};
 use malachite_node::config::{ConsensusConfig, MempoolConfig, P2pConfig, TimeoutConfig};
@@ -99,7 +99,9 @@ fn init_logging() {
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
-    let filter = EnvFilter::builder().parse("malachite=debug").unwrap();
+    let filter = EnvFilter::builder()
+        .parse("info,malachite=debug,ractor=error")
+        .unwrap();
 
     pub fn enable_ansi() -> bool {
         use std::io::IsTerminal;
@@ -131,53 +133,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
         let (v, sk) = &test.vals_and_keys[i];
         let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
 
-        let node_config = malachite_node::config::Config {
-            moniker: format!("node-{i}"),
-            consensus: ConsensusConfig {
-                max_block_size: ByteSize::mib(1),
-                timeouts: TimeoutConfig::default(),
-                p2p: P2pConfig {
-                    listen_addr: format!(
-                        "/ip4/127.0.0.1/udp/{}/quic-v1",
-                        test.consensus_base_port + i
-                    )
-                    .parse()
-                    .unwrap(),
-                    persistent_peers: (0..N)
-                        .filter(|j| i != *j)
-                        .map(|j| {
-                            format!(
-                                "/ip4/127.0.0.1/udp/{}/quic-v1",
-                                test.consensus_base_port + j
-                            )
-                            .parse()
-                            .unwrap()
-                        })
-                        .collect(),
-                },
-            },
-            mempool: MempoolConfig {
-                p2p: P2pConfig {
-                    listen_addr: format!(
-                        "/ip4/127.0.0.1/udp/{}/quic-v1",
-                        test.mempool_base_port + i
-                    )
-                    .parse()
-                    .unwrap(),
-                    persistent_peers: (0..N)
-                        .filter(|j| i != *j)
-                        .map(|j| {
-                            format!("/ip4/127.0.0.1/udp/{}/quic-v1", test.mempool_base_port + j)
-                                .parse()
-                                .unwrap()
-                        })
-                        .collect(),
-                },
-                max_tx_count: 10000,
-                gossip_batch_size: 100,
-            },
-            test: Default::default(),
-        };
+        let node_config = make_node_config(&test, i);
 
         let node = tokio::spawn(spawn_node_actor(
             node_config,
@@ -216,30 +172,33 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
         let node_test = test.nodes[i].clone();
         let actor_ref = actors[i].clone();
 
-        tokio::spawn(async move {
-            for height in START_HEIGHT.as_u64()..=END_HEIGHT.as_u64() {
-                if node_test.crashes_at(height) {
-                    info!("[{i}] Faulty node {i} has crashed");
-                    actor_ref.kill();
-                    break;
-                }
-
-                let decision = rx_decision.recv().await;
-
-                // TODO - the value proposed comes from a set of mempool Tx-es which are currently different for each proposer
-                // Also heights can go to higher rounds.
-                // Therefore removing the round and value check for now
-                match decision {
-                    Some((h, r, _)) if h == Height::new(height) && r == Round::new(0) => {
-                        info!("[{i}] {height}/{HEIGHTS} correct decision");
-                        correct_decisions.fetch_add(1, Ordering::Relaxed);
+        tokio::spawn(
+            async move {
+                for height in START_HEIGHT.as_u64()..=END_HEIGHT.as_u64() {
+                    if node_test.crashes_at(height) {
+                        info!("Faulty node has crashed");
+                        actor_ref.kill();
+                        break;
                     }
-                    _ => {
-                        error!("[{i}] {height}/{HEIGHTS} no decision")
+
+                    let decision = rx_decision.recv().await;
+
+                    // TODO - the value proposed comes from a set of mempool Tx-es which are currently different for each proposer
+                    // Also heights can go to higher rounds.
+                    // Therefore removing the round and value check for now
+                    match decision {
+                        Some((h, r, _)) if h == Height::new(height) && r == Round::new(0) => {
+                            info!("{height}/{HEIGHTS} correct decision");
+                            correct_decisions.fetch_add(1, Ordering::Relaxed);
+                        }
+                        _ => {
+                            error!("{height}/{HEIGHTS} no decision")
+                        }
                     }
                 }
             }
-        });
+            .instrument(tracing::error_span!("node", i)),
+        );
     }
 
     tokio::time::sleep(TEST_TIMEOUT).await;
@@ -255,5 +214,52 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
 
     for actor in actors {
         let _ = actor.stop_and_wait(None, None).await;
+    }
+}
+
+fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> malachite_node::config::Config {
+    malachite_node::config::Config {
+        moniker: format!("node-{i}"),
+        consensus: ConsensusConfig {
+            max_block_size: ByteSize::mib(1),
+            timeouts: TimeoutConfig::default(),
+            p2p: P2pConfig {
+                listen_addr: format!(
+                    "/ip4/127.0.0.1/udp/{}/quic-v1",
+                    test.consensus_base_port + i
+                )
+                .parse()
+                .unwrap(),
+                persistent_peers: (0..N)
+                    .filter(|j| i != *j)
+                    .map(|j| {
+                        format!(
+                            "/ip4/127.0.0.1/udp/{}/quic-v1",
+                            test.consensus_base_port + j
+                        )
+                        .parse()
+                        .unwrap()
+                    })
+                    .collect(),
+            },
+        },
+        mempool: MempoolConfig {
+            p2p: P2pConfig {
+                listen_addr: format!("/ip4/127.0.0.1/udp/{}/quic-v1", test.mempool_base_port + i)
+                    .parse()
+                    .unwrap(),
+                persistent_peers: (0..N)
+                    .filter(|j| i != *j)
+                    .map(|j| {
+                        format!("/ip4/127.0.0.1/udp/{}/quic-v1", test.mempool_base_port + j)
+                            .parse()
+                            .unwrap()
+                    })
+                    .collect(),
+            },
+            max_tx_count: 10000,
+            gossip_batch_size: 100,
+        },
+        test: Default::default(),
     }
 }
