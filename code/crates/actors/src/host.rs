@@ -124,7 +124,7 @@ where
 
         match value {
             Some(value) => Ok(value),
-            None => Err(eyre::eyre!("Value Builderr failed to produce a value").into()),
+            None => Err(eyre::eyre!("Value Builder failed to produce a value").into()),
         }
     }
 
