@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::distributions::Uniform;
 use rand::Rng;
-use tracing::{info, trace};
+use tracing::{debug, info, trace};
 
 use malachite_common::{MempoolTransactionBatch, Transaction, TransactionBatch};
 use malachite_gossip_mempool::{Channel, Event as GossipEvent, PeerId};
@@ -125,7 +125,7 @@ impl Mempool {
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::TransactionBatch(batch) => {
-                info!(%from, "Received batch with {} transactions", batch.len());
+                debug!(%from, "Received batch with {} transactions", batch.len());
                 for tx in batch.transactions().transactions() {
                     myself.cast(Msg::Input(tx.clone()))?;
                 }
@@ -191,7 +191,7 @@ impl Actor for Mempool {
                         .collect();
                     // TODO - Remove tx-es on decided block
                     tx_batch.push(Transaction::new(tx.clone()));
-                    if tx_batch.len() > self.test_config.mempool_gossip_batch_size {
+                    if tx_batch.len() >= self.test_config.mempool_gossip_batch_size {
                         let mempool_batch =
                             MempoolTransactionBatch::new(TransactionBatch::new(tx_batch));
                         let _ = self
