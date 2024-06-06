@@ -88,9 +88,9 @@ pub mod test {
             consensus: ConsensusRef<TestContext>,
             part_store: &mut PartStore<TestContext>,
         ) -> Option<LocallyProposedValue<TestContext>> {
-            let now = Instant::now();
-            let deadline = now + timeout_duration.mul_f32(self.params.time_allowance_factor);
-            let expiration_time = now + timeout_duration;
+            let start = Instant::now();
+            let deadline = start + timeout_duration.mul_f32(self.params.time_allowance_factor);
+            let expiration_time = start + timeout_duration;
 
             let mut tx_batch = vec![];
             let mut sequence = 1;
@@ -138,6 +138,8 @@ pub mod test {
                     .cast(ConsensusMsg::BuilderBlockPart(block_part.clone()))
                     .unwrap();
 
+                let mut tx_count = 0;
+
                 'inner: for tx in txes {
                     if block_size + tx.size_bytes() > self.params.max_block_size.as_u64() {
                         break 'inner;
@@ -145,18 +147,24 @@ pub mod test {
 
                     block_size += tx.size_bytes();
                     tx_batch.push(tx);
+                    tx_count += 1;
+                }
 
-                    // Simulate execution
-                    tokio::time::sleep(self.params.exec_time_per_tx).await;
+                // Simulate execution of reaped txes
+                let exec_time = self.params.exec_time_per_tx * tx_count;
+                debug!("Simulating tx execution for {tx_count} tx-es, sleeping for {exec_time:?}");
+                tokio::time::sleep(exec_time).await;
+
+                if Instant::now() > expiration_time {
+                    error!(
+                            "Value Builder failed to complete in given interval ({timeout_duration:?}), took {:?}",
+                            Instant::now() - start,
+                        );
+
+                    return None;
                 }
 
                 sequence += 1;
-
-                if Instant::now() > expiration_time {
-                    error!("Value Builder started at {now:?} but failed to complete by expiration time {expiration_time:?}");
-                    result = None;
-                    break;
-                }
 
                 if Instant::now() > deadline {
                     // Create, store and gossip the BlockMetadata in a BlockPart

@@ -140,7 +140,7 @@ impl Default for TestConfig {
             mempool_gossip_batch_size: 100,
             txs_per_part: 200,
             time_allowance_factor: 0.7,
-            exec_time_per_tx: Duration::from_micros(100000),
+            exec_time_per_tx: Duration::from_millis(1),
         }
     }
 }
