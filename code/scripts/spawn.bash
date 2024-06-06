@@ -43,6 +43,9 @@ export MALACHITE__TEST__TXS_PER_PART=200
 export MALACHITE__TEST__TIME_ALLOWANCE_FACTOR=0.7
 export MALACHITE__TEST__EXEC_TIME_PER_TX="1ms"
 
+echo "Compiling Malachite..."
+cargo build
+
 # Create nodes and logs directories, run nodes
 for NODE in $(seq 0 $((NODES_COUNT - 1))); do
     mkdir -p "$NODES_HOME/$NODE/logs"
