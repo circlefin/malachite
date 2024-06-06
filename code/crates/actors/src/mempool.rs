@@ -170,7 +170,7 @@ impl Actor for Mempool {
             }
 
             Msg::Input(tx) => {
-                if state.transactions.len() < self.mempool_config.max_size {
+                if state.transactions.len() < self.mempool_config.max_tx_count {
                     state.transactions.push(tx);
                 } else {
                     trace!("Mempool full, dropping transaction")

@@ -37,7 +37,7 @@ pub struct MempoolConfig {
     /// P2P configuration options
     pub p2p: P2pConfig,
     /// Maximum number of transactions
-    pub max_size: usize,
+    pub max_tx_count: usize,
 }
 
 /// Consensus configuration options

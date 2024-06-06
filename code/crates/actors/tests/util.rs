@@ -173,7 +173,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
                         })
                         .collect(),
                 },
-                max_size: 10000,
+                max_tx_count: 10000,
             },
             test: Default::default(),
         };

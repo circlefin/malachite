@@ -188,10 +188,10 @@ fn override_config_from_env(config: &mut Config) -> Result<()> {
             .wrap_err("Invalid MALACHITE__CONSENSUS__TIMEOUT_COMMIT")?;
     }
 
-    if let Ok(max_size) = env::var("MALACHITE__MEMPOOL__MAX_SIZE") {
-        config.mempool.max_size = max_size
+    if let Ok(max_tx_count) = env::var("MALACHITE__MEMPOOL__MAX_TX_COUNT") {
+        config.mempool.max_tx_count = max_tx_count
             .parse()
-            .wrap_err("Invalid MALACHITE__MEMPOOL__MAX_SIZE")?;
+            .wrap_err("Invalid MALACHITE__MEMPOOL__MAX_TX_COUNT")?;
     }
 
     if let Ok(tx_size) = env::var("MALACHITE__TEST__TX_SIZE") {
