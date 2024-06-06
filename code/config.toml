@@ -77,5 +77,5 @@ mempool_gossip_batch_size = 100
 txs_per_part = 200
 # Override with MALACHITE__TEST__TIME_ALLOWANCE_FACTOR env variable
 time_allowance_factor = 0.7
-# Override with MALACHITE__TEST__EXEC_TIME_PER_PART env variable
-exec_time_per_part = 1000
+# Override with MALACHITE__TEST__EXEC_TIME_PER_TX env variable
+exec_time_per_tx = "1ms"

@@ -54,7 +54,7 @@ pub mod test {
         pub tx_size: ByteSize,
         pub txs_per_part: u64,
         pub time_allowance_factor: f32,
-        pub exec_time_per_part: Duration,
+        pub exec_time_per_tx: Duration,
     }
 
     #[derive(Clone)]
@@ -138,9 +138,6 @@ pub mod test {
                     .cast(ConsensusMsg::BuilderBlockPart(block_part.clone()))
                     .unwrap();
 
-                // Simulate execution
-                tokio::time::sleep(self.params.exec_time_per_part).await;
-
                 'inner: for tx in txes {
                     if block_size + tx.size_bytes() > self.params.max_block_size.as_u64() {
                         break 'inner;
@@ -148,6 +145,9 @@ pub mod test {
 
                     block_size += tx.size_bytes();
                     tx_batch.push(tx);
+
+                    // Simulate execution
+                    tokio::time::sleep(self.params.exec_time_per_tx).await;
                 }
 
                 sequence += 1;
@@ -214,7 +214,7 @@ pub mod test {
 
             // Simulate Tx execution and proof verification (assumes success)
             // TODO - add config knob for invalid blocks
-            tokio::time::sleep(self.params.exec_time_per_part).await;
+            tokio::time::sleep(self.params.exec_time_per_tx).await;
 
             // Get the "last" part, the one with highest sequence.
             // Block parts may not be received in order.

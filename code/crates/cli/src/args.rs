@@ -218,9 +218,9 @@ fn override_config_from_env(config: &mut Config) -> Result<()> {
             .wrap_err("Invalid MALACHITE__TEST__TIME_ALLOWANCE_FACTOR")?;
     }
 
-    if let Ok(exec_time_per_part) = env::var("MALACHITE__TEST__EXEC_TIME_PER_PART") {
-        config.test.exec_time_per_part = humantime::parse_duration(&exec_time_per_part)
-            .wrap_err("Invalid MALACHITE__TEST__EXEC_TIME_PER_PART")?;
+    if let Ok(exec_time_per_tx) = env::var("MALACHITE__TEST__EXEC_TIME_PER_TX") {
+        config.test.exec_time_per_tx = humantime::parse_duration(&exec_time_per_tx)
+            .wrap_err("Invalid MALACHITE__TEST__EXEC_TIME_PER_TX")?;
     }
 
     Ok(())

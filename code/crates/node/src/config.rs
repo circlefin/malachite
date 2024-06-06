@@ -130,18 +130,17 @@ pub struct TestConfig {
     pub txs_per_part: u64,
     pub time_allowance_factor: f32,
     #[serde(with = "humantime_serde")]
-    // TODO - change to exec_time_per_tx
-    pub exec_time_per_part: Duration,
+    pub exec_time_per_tx: Duration,
 }
 
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
-            tx_size: ByteSize(256),
+            tx_size: ByteSize::b(256),
             mempool_gossip_batch_size: 100,
             txs_per_part: 200,
-            time_allowance_factor: 0.5,
-            exec_time_per_part: Duration::from_micros(100000),
+            time_allowance_factor: 0.7,
+            exec_time_per_tx: Duration::from_micros(100000),
         }
     }
 }

@@ -141,7 +141,7 @@ fn make_test_value_builder(mempool: MempoolRef, cfg: &NodeConfig) -> TestValueBu
             tx_size: cfg.test.tx_size,
             txs_per_part: cfg.test.txs_per_part,
             time_allowance_factor: cfg.test.time_allowance_factor,
-            exec_time_per_part: cfg.test.exec_time_per_part,
+            exec_time_per_tx: cfg.test.exec_time_per_tx,
         },
     )
 }
