@@ -3,6 +3,7 @@ use libp2p::{gossipsub, identify};
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
+use malachite_metrics::Registry;
 
 use crate::PROTOCOL_VERSION;
 
@@ -28,9 +29,7 @@ impl Behaviour {
         }
     }
 
-    pub fn new_with_metrics(keypair: &Keypair) -> Self {
-        let mut registry = malachite_metrics::global_registry().lock().unwrap();
-
+    pub fn new_with_metrics(keypair: &Keypair, registry: &mut Registry) -> Self {
         Self {
             identify: identify::Behaviour::new(identify::Config::new(
                 PROTOCOL_VERSION.to_string(),
@@ -39,7 +38,7 @@ impl Behaviour {
             gossipsub: gossipsub::Behaviour::new_with_metrics(
                 gossipsub::MessageAuthenticity::Signed(keypair.clone()),
                 gossipsub::Config::default(),
-                &mut registry,
+                registry,
                 Default::default(),
             )
             .unwrap(),

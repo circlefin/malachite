@@ -103,13 +103,16 @@ pub struct State {
 }
 
 pub async fn spawn(keypair: Keypair, config: Config) -> Result<Handle, BoxError> {
-    let mut swarm = SwarmBuilder::with_existing_identity(keypair)
-        .with_tokio()
-        .with_quic()
-        .with_dns()?
-        .with_behaviour(Behaviour::new_with_metrics)?
-        .with_swarm_config(|cfg| config.apply(cfg))
-        .build();
+    let mut swarm = malachite_metrics::with_registry(|registry| -> Result<_, BoxError> {
+        Ok(SwarmBuilder::with_existing_identity(keypair)
+            .with_tokio()
+            .with_quic()
+            .with_dns()?
+            .with_bandwidth_metrics(registry)
+            .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
+            .with_swarm_config(|cfg| config.apply(cfg))
+            .build())
+    })?;
 
     for channel in Channel::all() {
         swarm

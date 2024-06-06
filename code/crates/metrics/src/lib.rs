@@ -11,8 +11,8 @@ pub fn global_registry() -> &'static Arc<Mutex<Registry>> {
     REGISTRY.get_or_init(|| Arc::new(Mutex::new(Registry::default())))
 }
 
-pub fn with_registry(f: impl FnOnce(&mut Registry)) {
-    f(&mut global_registry().lock().unwrap());
+pub fn with_registry<A>(f: impl FnOnce(&mut Registry) -> A) -> A {
+    f(&mut global_registry().lock().unwrap())
 }
 
 pub fn export<W: core::fmt::Write>(writer: &mut W) {
