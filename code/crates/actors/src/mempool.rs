@@ -22,13 +22,13 @@ pub enum NetworkMsg {
 
 impl NetworkMsg {
     pub fn from_network_bytes(bytes: &[u8]) -> Self {
-        let batch = Protobuf::from_bytes(bytes).unwrap();
+        let batch = Protobuf::from_bytes(bytes).unwrap(); // FIXME: Error handling
         NetworkMsg::TransactionBatch(batch)
     }
 
     pub fn to_network_bytes(&self) -> malachite_proto::MempoolTransactionBatch {
         match self {
-            NetworkMsg::TransactionBatch(batch) => batch.to_proto().unwrap(),
+            NetworkMsg::TransactionBatch(batch) => batch.to_proto().unwrap(), // FXME: Error handling
         }
     }
 }
@@ -104,10 +104,14 @@ impl Mempool {
                 info!("Disconnected from peer {peer_id}");
             }
             GossipEvent::Message(from, Channel::Mempool, data) => {
+                let size = data.len();
                 let msg = NetworkMsg::from_network_bytes(data);
 
-                // todo - very verbose, print type, len etc
-                trace!("Mempool - Received message from peer {from}: {msg:?}");
+                match &msg {
+                    NetworkMsg::TransactionBatch(batch) => {
+                        trace!(%from, "Received message of size {size} bytes containing a batch with {} transactions", batch.len());
+                    }
+                }
 
                 self.handle_network_msg(from, msg, myself, state).await?;
             }
