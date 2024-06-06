@@ -182,7 +182,7 @@ impl Actor for Mempool {
                 let txes = generate_txes(
                     num_txes,
                     self.test_config.tx_size.as_u64(),
-                    self.test_config.mempool_gossip_batch_size,
+                    self.mempool_config.gossip_batch_size,
                     &self.gossip_mempool,
                 )?;
 

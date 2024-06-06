@@ -36,8 +36,12 @@ pub struct P2pConfig {
 pub struct MempoolConfig {
     /// P2P configuration options
     pub p2p: P2pConfig,
+
     /// Maximum number of transactions
     pub max_tx_count: usize,
+
+    /// Maximum number of transactions to gossip at once in a batch
+    pub gossip_batch_size: usize,
 }
 
 /// Consensus configuration options
@@ -125,8 +129,6 @@ impl Default for TimeoutConfig {
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestConfig {
     pub tx_size: ByteSize,
-    // TODO - move to mempool config??
-    pub mempool_gossip_batch_size: usize,
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,
     #[serde(with = "humantime_serde")]
@@ -137,7 +139,6 @@ impl Default for TestConfig {
     fn default() -> Self {
         Self {
             tx_size: ByteSize::b(256),
-            mempool_gossip_batch_size: 100,
             txs_per_part: 200,
             time_allowance_factor: 0.7,
             exec_time_per_tx: Duration::from_millis(1),

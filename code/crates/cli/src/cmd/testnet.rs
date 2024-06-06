@@ -133,6 +133,7 @@ pub fn generate_config(index: usize, total: usize) -> Config {
                     .collect(),
             },
             max_tx_count: 10000,
+            gossip_batch_size: 100,
         },
         test: Default::default(),
     }
