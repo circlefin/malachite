@@ -95,8 +95,31 @@ impl TestNode {
     }
 }
 
+fn init_logging() {
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::{EnvFilter, FmtSubscriber};
+
+    let filter = EnvFilter::builder().parse("malachite=debug").unwrap();
+
+    pub fn enable_ansi() -> bool {
+        use std::io::IsTerminal;
+        std::io::stdout().is_terminal() && std::io::stderr().is_terminal()
+    }
+
+    // Construct a tracing subscriber with the supplied filter and enable reloading.
+    let builder = FmtSubscriber::builder()
+        .with_target(false)
+        .with_env_filter(filter)
+        .with_writer(std::io::stdout)
+        .with_ansi(enable_ansi())
+        .with_thread_ids(false);
+
+    let subscriber = builder.finish();
+    subscriber.init();
+}
+
 pub async fn run_test<const N: usize>(test: Test<N>) {
-    tracing_subscriber::fmt::init();
+    init_logging();
 
     let mut handles = Vec::with_capacity(N);
 
