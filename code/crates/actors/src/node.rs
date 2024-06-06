@@ -99,6 +99,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(name = "node", skip(self, _myself, _msg, _state))]
     async fn handle(
         &self,
         _myself: ActorRef<Self::Msg>,

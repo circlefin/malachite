@@ -104,6 +104,7 @@ impl Actor for GossipMempool {
         Ok(())
     }
 
+    #[tracing::instrument(name = "gossip.mempool", skip(self, _myself, msg, state))]
     async fn handle(
         &self,
         _myself: ActorRef<Msg>,

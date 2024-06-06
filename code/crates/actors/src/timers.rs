@@ -139,6 +139,7 @@ where
         })
     }
 
+    #[tracing::instrument(name = "timers", skip(self, myself, msg, state))]
     async fn handle(
         &self,
         myself: ActorRef<Msg>,

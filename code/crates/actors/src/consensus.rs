@@ -581,7 +581,7 @@ where
     }
 
     #[tracing::instrument(
-        name = "node", 
+        name = "consensus",
         skip(self, myself, msg, state),
         fields(
             height = %state.driver.height(),

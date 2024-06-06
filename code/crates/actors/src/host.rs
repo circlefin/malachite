@@ -165,6 +165,7 @@ impl<Ctx: Context> Actor for Host<Ctx> {
         })
     }
 
+    #[tracing::instrument(name = "host", skip(self, _myself, msg, state))]
     async fn handle(
         &self,
         _myself: ActorRef<Self::Msg>,

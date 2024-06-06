@@ -100,6 +100,7 @@ impl Actor for GossipConsensus {
         Ok(())
     }
 
+    #[tracing::instrument(name = "gossip.consensus", skip(self, _myself, msg, state))]
     async fn handle(
         &self,
         _myself: ActorRef<Msg>,
