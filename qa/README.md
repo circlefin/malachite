@@ -161,7 +161,7 @@ deployed onto the cc server and it is used as part of the DNS service there.
 
 # commands.sh file
 
-A [commands.sh](terraform/comands.sh) file is created with suggested commands for CLI-based configuration and node
+A [commands.sh](terraform/commands.sh) file is created with suggested commands for CLI-based configuration and node
 management. You can run `source commands.sh` and use the functions in your shell. The descriptions of commands are
 listed in the top comment of the file. The file is copied over to `cc` during `update_cc` and invoked automatically
 when you SSH into the server.
