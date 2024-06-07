@@ -13,6 +13,9 @@ license      = "Apache-2.0"
 publish      = false
 rust-version = "1.77"
 
+[profile.release]
+overflow-checks = true
+
 [workspace.lints.rust]
 # unused_crate_dependencies = "warn"
 
