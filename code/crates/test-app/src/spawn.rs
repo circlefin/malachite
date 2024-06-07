@@ -3,6 +3,12 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
+use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef, Metrics};
+use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
+use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
+use malachite_actors::host::{Host, HostRef};
+use malachite_actors::mempool::{Mempool, MempoolRef};
+use malachite_actors::node::{Node, NodeRef};
 use malachite_common::Round;
 use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
@@ -10,15 +16,8 @@ use malachite_metrics::SharedRegistry;
 use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig};
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 
-use crate::consensus::{Consensus, ConsensusParams, ConsensusRef, Metrics};
-use crate::gossip_consensus::{GossipConsensus, GossipConsensusRef};
-use crate::gossip_mempool::{GossipMempool, GossipMempoolRef};
-use crate::host::{Host, HostRef};
-use crate::mempool::{Mempool, MempoolRef};
-use crate::node::{Node, NodeRef};
-use crate::util::value_builder::test::TestParams as TestValueBuilderParams;
-use crate::util::PartStore;
-use crate::util::TestValueBuilder;
+use crate::part_store::PartStore;
+use crate::value_builder::{TestParams as TestValueBuilderParams, TestValueBuilder};
 
 pub async fn spawn_node_actor(
     cfg: NodeConfig,
@@ -133,35 +132,6 @@ async fn spawn_gossip_consensus_actor(
     .unwrap()
 }
 
-async fn spawn_host_actor(
-    value_builder: TestValueBuilder<TestContext>,
-    initial_validator_set: &ValidatorSet,
-) -> HostRef<TestContext> {
-    Host::spawn(
-        Box::new(value_builder),
-        PartStore::new(),
-        initial_validator_set.clone(),
-    )
-    .await
-    .unwrap()
-}
-
-fn make_test_value_builder(
-    mempool: MempoolRef,
-    metrics: Metrics,
-    cfg: &NodeConfig,
-) -> TestValueBuilder<TestContext> {
-    let params = TestValueBuilderParams {
-        max_block_size: cfg.consensus.max_block_size,
-        tx_size: cfg.test.tx_size,
-        txs_per_part: cfg.test.txs_per_part,
-        time_allowance_factor: cfg.test.time_allowance_factor,
-        exec_time_per_tx: cfg.test.exec_time_per_tx,
-    };
-
-    TestValueBuilder::new(mempool, params, metrics)
-}
-
 async fn spawn_mempool_actor(
     gossip_mempool: GossipMempoolRef,
     mempool_config: &MempoolConfig,
@@ -193,4 +163,31 @@ async fn spawn_gossip_mempool_actor(
     )
     .await
     .unwrap()
+}
+
+async fn spawn_host_actor(
+    value_builder: TestValueBuilder<TestContext>,
+    initial_validator_set: &ValidatorSet,
+) -> HostRef<TestContext> {
+    Host::spawn(Box::new(value_builder), initial_validator_set.clone())
+        .await
+        .unwrap()
+}
+
+fn make_test_value_builder(
+    mempool: MempoolRef,
+    metrics: Metrics,
+    cfg: &NodeConfig,
+) -> TestValueBuilder<TestContext> {
+    let params = TestValueBuilderParams {
+        max_block_size: cfg.consensus.max_block_size,
+        tx_size: cfg.test.tx_size,
+        txs_per_part: cfg.test.txs_per_part,
+        time_allowance_factor: cfg.test.time_allowance_factor,
+        exec_time_per_tx: cfg.test.exec_time_per_tx,
+    };
+
+    let part_store = PartStore::new();
+
+    TestValueBuilder::new(mempool, params, part_store, metrics)
 }

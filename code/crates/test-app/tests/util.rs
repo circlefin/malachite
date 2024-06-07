@@ -15,8 +15,7 @@ use malachite_node::config::{
 };
 use malachite_test::utils::make_validators;
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet};
-
-use malachite_actors::util::spawn_node_actor;
+use malachite_test_app::spawn::spawn_node_actor;
 
 pub const SEED: u64 = 42;
 pub const HEIGHTS: u64 = 3;

@@ -3,9 +3,9 @@ use color_eyre::eyre::Result;
 use tokio::sync::mpsc;
 use tracing::{info, Instrument};
 
-use malachite_actors::util::spawn_node_actor;
 use malachite_node::config::Config;
 use malachite_test::{Address, PrivateKey, ValidatorSet};
+use malachite_test_app::spawn::spawn_node_actor;
 
 use crate::metrics;
 
