@@ -7,9 +7,10 @@ use std::time::Duration;
 use futures::StreamExt;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
-use malachite_metrics::SharedRegistry;
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
+
+use malachite_metrics::SharedRegistry;
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
