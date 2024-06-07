@@ -149,7 +149,8 @@ RUST_LOG=debug cnode-run 1
 dnode-stop all
 ```
 
-You can use `dnode-log`, `dnode-stop` to manage the docker container. `dnode` is a generic command to run docker
+You can use `dnode-run`, `dnode-log` and `dnode-stop` to manage the docker container. `dnode` is a generic command to
+run docker
 commands remotely.
 
 # hosts file
