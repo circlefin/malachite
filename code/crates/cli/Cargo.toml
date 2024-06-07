@@ -17,6 +17,7 @@ malachite-test.workspace   = true
 bytesize           = { workspace = true }
 clap               = { workspace = true, features = ["derive", "env"] }
 color-eyre         = { workspace = true }
+config             = { workspace = true }
 directories        = { workspace = true }
 humantime          = { workspace = true }
 itertools          = { workspace = true }

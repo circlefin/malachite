@@ -7,9 +7,7 @@
 //! `clap` parses the command-line parameters into this structure.
 
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
-use bytesize::ByteSize;
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::{eyre, Context, Result};
 use directories::BaseDirs;
@@ -115,8 +113,13 @@ impl Args {
     pub fn load_config(&self) -> Result<Config> {
         let config_file = self.get_config_file_path()?;
         info!("Loading configuration from {:?}", config_file.display());
-        let mut config = load_toml_file(&config_file)?;
-        override_config_from_env(&mut config)?;
+
+        let config = config::Config::builder()
+            .add_source(config::File::from(config_file))
+            .add_source(config::Environment::with_prefix("MALACHITE").separator("__"))
+            .build()?
+            .try_deserialize()?;
+
         Ok(config)
     }
 
@@ -146,84 +149,6 @@ where
 
     serde_json::from_str(&content)
         .wrap_err_with(|| eyre!("Failed to load configuration at {}", file.display(),))
-}
-
-fn load_toml_file<T>(file: &Path) -> Result<T>
-where
-    T: for<'de> serde::Deserialize<'de>,
-{
-    let content = std::fs::read_to_string(file)
-        .wrap_err_with(|| eyre!("Failed to read configuration file at {}", file.display()))?;
-
-    toml::from_str(&content)
-        .wrap_err_with(|| eyre!("Failed to load configuration at {}", file.display(),))
-}
-
-fn override_config_from_env(config: &mut Config) -> Result<()> {
-    use std::env;
-
-    if let Ok(max_block_size) = env::var("MALACHITE__CONSENSUS__MAX_BLOCK_SIZE") {
-        config.consensus.max_block_size = ByteSize::from_str(&max_block_size)
-            .map_err(|e| eyre!(e))
-            .wrap_err("Invalid MALACHITE__CONSENSUS__MAX_BLOCK_SIZE")?;
-    }
-
-    if let Ok(timeout_propose) = env::var("MALACHITE__CONSENSUS__TIMEOUT_PROPOSE") {
-        config.consensus.timeouts.timeout_propose = humantime::parse_duration(&timeout_propose)
-            .wrap_err("Invalid MALACHITE__CONSENSUS__TIMEOUT_PROPOSE")?;
-    }
-
-    if let Ok(timeout_prevote) = env::var("MALACHITE__CONSENSUS__TIMEOUT_PREVOTE") {
-        config.consensus.timeouts.timeout_prevote = humantime::parse_duration(&timeout_prevote)
-            .wrap_err("Invalid MALACHITE__CONSENSUS__TIMEOUT_PREVOTE")?;
-    }
-
-    if let Ok(timeout_precommit) = env::var("MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT") {
-        config.consensus.timeouts.timeout_precommit = humantime::parse_duration(&timeout_precommit)
-            .wrap_err("Invalid MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT")?;
-    }
-
-    if let Ok(timeout_commit) = env::var("MALACHITE__CONSENSUS__TIMEOUT_COMMIT") {
-        config.consensus.timeouts.timeout_commit = humantime::parse_duration(&timeout_commit)
-            .wrap_err("Invalid MALACHITE__CONSENSUS__TIMEOUT_COMMIT")?;
-    }
-
-    if let Ok(max_tx_count) = env::var("MALACHITE__MEMPOOL__MAX_TX_COUNT") {
-        config.mempool.max_tx_count = max_tx_count
-            .parse()
-            .wrap_err("Invalid MALACHITE__MEMPOOL__MAX_TX_COUNT")?;
-    }
-
-    if let Ok(gossip_batch_size) = env::var("MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE") {
-        config.mempool.gossip_batch_size = gossip_batch_size
-            .parse()
-            .wrap_err("Invalid MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE")?;
-    }
-
-    if let Ok(tx_size) = env::var("MALACHITE__TEST__TX_SIZE") {
-        config.test.tx_size = ByteSize::from_str(&tx_size)
-            .map_err(|e| eyre!(e))
-            .wrap_err("Invalid MALACHITE__TEST__TX_SIZE")?;
-    }
-
-    if let Ok(txs_per_part) = env::var("MALACHITE__TEST__TXS_PER_PART") {
-        config.test.txs_per_part = txs_per_part
-            .parse()
-            .wrap_err("Invalid MALACHITE__TEST__TXS_PER_PART")?;
-    }
-
-    if let Ok(time_allowance_factor) = env::var("MALACHITE__TEST__TIME_ALLOWANCE_FACTOR") {
-        config.test.time_allowance_factor = time_allowance_factor
-            .parse()
-            .wrap_err("Invalid MALACHITE__TEST__TIME_ALLOWANCE_FACTOR")?;
-    }
-
-    if let Ok(exec_time_per_tx) = env::var("MALACHITE__TEST__EXEC_TIME_PER_TX") {
-        config.test.exec_time_per_tx = humantime::parse_duration(&exec_time_per_tx)
-            .wrap_err("Invalid MALACHITE__TEST__EXEC_TIME_PER_TX")?;
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
