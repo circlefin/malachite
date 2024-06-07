@@ -6,21 +6,37 @@ pub use prometheus_client::metrics::gauge::Gauge;
 pub use prometheus_client::metrics::histogram::{linear_buckets, Histogram};
 pub use prometheus_client::registry::Registry;
 
-fn global_registry() -> &'static Arc<Mutex<Registry>> {
-    static REGISTRY: OnceLock<Arc<Mutex<Registry>>> = OnceLock::new();
-    REGISTRY.get_or_init(|| Arc::new(Mutex::new(Registry::default())))
+#[derive(Clone)]
+pub struct SharedRegistry(Arc<Mutex<Registry>>);
+
+impl SharedRegistry {
+    pub fn new(registry: Registry) -> Self {
+        Self(Arc::new(Mutex::new(registry)))
+    }
+
+    pub fn global() -> &'static Self {
+        global_registry()
+    }
+
+    pub fn lock(&self) -> std::sync::MutexGuard<'_, Registry> {
+        self.0.lock().unwrap()
+    }
+
+    pub fn with<A>(&self, f: impl FnOnce(&mut Registry) -> A) -> A {
+        f(&mut self.lock())
+    }
+
+    pub fn with_prefix<A>(&self, prefix: impl AsRef<str>, f: impl FnOnce(&mut Registry) -> A) -> A {
+        f(self.lock().sub_registry_with_prefix(prefix))
+    }
 }
 
-pub fn with_global_registry<A>(f: impl FnOnce(&mut Registry) -> A) -> A {
-    f(&mut global_registry().lock().unwrap())
+fn global_registry() -> &'static SharedRegistry {
+    static REGISTRY: OnceLock<SharedRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(|| SharedRegistry::new(Registry::default()))
 }
-
-pub fn with_registry_prefixed<A>(prefix: impl AsRef<str>, f: impl FnOnce(&mut Registry) -> A) -> A {
-    with_global_registry(|registry| f(registry.sub_registry_with_prefix(prefix)))
-}
-
 pub fn export<W: core::fmt::Write>(writer: &mut W) {
-    with_global_registry(|registry| {
-        prometheus_client::encoding::text::encode(writer, registry).unwrap()
-    })
+    use prometheus_client::encoding::text::encode;
+
+    SharedRegistry::global().with(|registry| encode(writer, registry).unwrap())
 }

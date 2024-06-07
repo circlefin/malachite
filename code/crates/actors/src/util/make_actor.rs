@@ -6,6 +6,7 @@ use tokio::task::JoinHandle;
 use malachite_common::Round;
 use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
+use malachite_metrics::SharedRegistry;
 use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig};
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 
@@ -29,10 +30,11 @@ pub async fn spawn_node_actor(
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = TestContext::new(validator_pk.clone());
 
-    let metrics = Metrics::register();
+    let registry = SharedRegistry::global();
+    let metrics = Metrics::register(registry);
 
     // Spawn mempool and its gossip layer
-    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, node_pk).await;
+    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, node_pk, registry).await;
     let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test).await;
 
     // Configure the value builder
@@ -42,7 +44,7 @@ pub async fn spawn_node_actor(
     let host = spawn_host_actor(value_builder, &initial_validator_set).await;
 
     // Spawn consensus and its gossip
-    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, validator_pk).await;
+    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, validator_pk, registry).await;
 
     let start_height = Height::new(1);
 
@@ -111,6 +113,7 @@ async fn spawn_consensus_actor(
 async fn spawn_gossip_consensus_actor(
     cfg: &NodeConfig,
     validator_pk: PrivateKey,
+    registry: &SharedRegistry,
 ) -> GossipConsensusRef {
     let config_gossip = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
@@ -120,9 +123,14 @@ async fn spawn_gossip_consensus_actor(
 
     let validator_keypair = Keypair::ed25519_from_bytes(validator_pk.inner().to_bytes()).unwrap();
 
-    GossipConsensus::spawn(validator_keypair.clone(), config_gossip, None)
-        .await
-        .unwrap()
+    GossipConsensus::spawn(
+        validator_keypair.clone(),
+        config_gossip,
+        registry.clone(),
+        None,
+    )
+    .await
+    .unwrap()
 }
 
 async fn spawn_host_actor(
@@ -164,7 +172,11 @@ async fn spawn_mempool_actor(
         .unwrap()
 }
 
-async fn spawn_gossip_mempool_actor(cfg: &NodeConfig, node_pk: PrivateKey) -> GossipMempoolRef {
+async fn spawn_gossip_mempool_actor(
+    cfg: &NodeConfig,
+    node_pk: PrivateKey,
+    registry: &SharedRegistry,
+) -> GossipMempoolRef {
     let config_gossip_mempool = GossipMempoolConfig {
         listen_addr: cfg.mempool.p2p.listen_addr.clone(),
         persistent_peers: cfg.mempool.p2p.persistent_peers.clone(),
@@ -173,7 +185,12 @@ async fn spawn_gossip_mempool_actor(cfg: &NodeConfig, node_pk: PrivateKey) -> Go
 
     let node_keypair = Keypair::ed25519_from_bytes(node_pk.inner().to_bytes()).unwrap();
 
-    GossipMempool::spawn(node_keypair.clone(), config_gossip_mempool, None)
-        .await
-        .unwrap()
+    GossipMempool::spawn(
+        node_keypair.clone(),
+        config_gossip_mempool,
+        registry.clone(),
+        None,
+    )
+    .await
+    .unwrap()
 }

@@ -7,6 +7,7 @@ use std::time::Duration;
 use futures::StreamExt;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
+use malachite_metrics::SharedRegistry;
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
@@ -98,20 +99,21 @@ pub enum CtrlMsg {
     Shutdown,
 }
 
-pub async fn spawn(keypair: Keypair, config: Config) -> Result<Handle, BoxError> {
-    let mut swarm = malachite_metrics::with_registry_prefixed(
-        "malachite_gossip_mempool",
-        |registry| -> Result<_, BoxError> {
-            Ok(SwarmBuilder::with_existing_identity(keypair)
-                .with_tokio()
-                .with_quic()
-                .with_dns()?
-                .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
-                .with_swarm_config(|cfg| config.apply(cfg))
-                .build())
-        },
-    )?;
+pub async fn spawn(
+    keypair: Keypair,
+    config: Config,
+    registry: SharedRegistry,
+) -> Result<Handle, BoxError> {
+    let mut swarm = registry.with_prefix("gossip_mempool", |registry| -> Result<_, BoxError> {
+        Ok(SwarmBuilder::with_existing_identity(keypair)
+            .with_tokio()
+            .with_quic()
+            .with_dns()?
+            .with_bandwidth_metrics(registry)
+            .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
+            .with_swarm_config(|cfg| config.apply(cfg))
+            .build())
+    })?;
 
     for channel in Channel::all() {
         swarm

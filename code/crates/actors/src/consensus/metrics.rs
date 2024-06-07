@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
-use malachite_metrics::{linear_buckets, Counter, Gauge, Histogram};
+use malachite_metrics::{linear_buckets, Counter, Gauge, Histogram, SharedRegistry};
 
 #[derive(Clone, Debug)]
 pub struct Metrics(Arc<Inner>);
@@ -55,10 +55,10 @@ impl Metrics {
         }))
     }
 
-    pub fn register() -> Self {
+    pub fn register(registry: &SharedRegistry) -> Self {
         let metrics = Self::new();
 
-        malachite_metrics::with_registry_prefixed("malachite_consensus", |registry| {
+        registry.with_prefix("malachite_consensus", |registry| {
             registry.register(
                 "finalized_blocks",
                 "Number of blocks finalized",
