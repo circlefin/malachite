@@ -15,7 +15,7 @@ module proofs {
 // const maxMissingProofs: int // P
 
 val numStrands = 3  // K: number of strands
-val maxMissingProofs = 5 // P
+val maxMissingProofs = 2 // P
 
 type Address = str
 type Height = int
@@ -82,11 +82,29 @@ var num_missing_proofs: StrandInfo
 def transactionNeedsProofInv = 
     chain.last().txs implies chain.last().proof != None
 
-def NotTooManyEmptyInv = 
+def NotTooManyEmptyBlocksInProofInv = 
     match chain.last().proof {
         | Proof(p) => p.emptyBlocks.size() <= maxMissingProofs
         | None => true
     }
+
+pure def followersProven(h: Block, s: Set[Block]) : bool =
+    val relevantHeights = 1.to(maxMissingProofs - 1).map(x => h.height + x * numStrands)
+    val relevantBlocks = s.filter(x => x.height.in(relevantHeights))
+    (h.proof == None) implies 
+    // if the proof is missing, there is a upcoming block in the strand with a proof (or the height doesn't exist and we are at the end of the strand)
+        (
+            relevantBlocks.size() < maxMissingProofs or
+            not(relevantBlocks.forall(b => b.proof == None))
+        )
+        
+def NotTooManyEmptyBlocksInChainInv =
+    0.to(numStrands - 1).forall(st =>
+        val sb = chain  .select(x => (x.height % numStrands) == st)
+                        .foldl(Set(), (s, x) => s.union(Set(x)))
+        sb.forall(h => followersProven(h, sb))
+    )
+
 
 
 // Witness
