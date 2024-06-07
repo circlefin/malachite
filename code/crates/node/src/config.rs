@@ -132,6 +132,9 @@ impl Default for TimeoutConfig {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MetricsConfig {
+    /// Enable the metrics server
+    pub enabled: bool,
+
     /// Address at which to serve the metrics at
     pub listen_addr: SocketAddr,
 }

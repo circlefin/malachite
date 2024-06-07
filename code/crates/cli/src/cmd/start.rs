@@ -1,24 +1,28 @@
 use color_eyre::eyre::Result;
 
+use tokio::sync::mpsc;
+use tracing::{info, Instrument};
+
 use malachite_actors::util::spawn_node_actor;
 use malachite_node::config::Config;
 use malachite_test::{Address, PrivateKey, ValidatorSet};
-use tracing::{info, Instrument};
 
-use crate::metrics::serve_metrics;
+use crate::metrics;
 
 pub async fn run(sk: PrivateKey, cfg: Config, vs: ValidatorSet) -> Result<()> {
     let val_address = Address::from_public_key(&sk.public_key());
     let moniker = cfg.moniker.clone();
 
-    let span = tracing::error_span!("node", moniker = %moniker);
+    let span = tracing::error_span!("node", %moniker);
     let _enter = span.enter();
 
-    tokio::spawn(serve_metrics(cfg.metrics.clone()).instrument(span.clone()));
+    if cfg.metrics.enabled {
+        tokio::spawn(metrics::serve(cfg.metrics.clone()).instrument(span.clone()));
+    }
 
     info!("Node is starting...");
 
-    let (tx_decision, mut rx_decision) = tokio::sync::mpsc::channel(32);
+    let (tx_decision, mut rx_decision) = mpsc::channel(32);
     let (actor, handle) = spawn_node_actor(cfg, vs, sk.clone(), sk, val_address, tx_decision).await;
 
     tokio::spawn({

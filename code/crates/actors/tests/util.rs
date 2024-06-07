@@ -265,6 +265,7 @@ fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> malachite_node:
             gossip_batch_size: 100,
         },
         metrics: MetricsConfig {
+            enabled: false,
             listen_addr: format!("127.0.0.1:{}", test.metrics_base_port + i)
                 .parse()
                 .unwrap(),

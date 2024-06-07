@@ -140,6 +140,7 @@ pub fn generate_config(index: usize, total: usize) -> Config {
             gossip_batch_size: 100,
         },
         metrics: MetricsConfig {
+            enabled: true,
             listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
         },
         test: Default::default(),
