@@ -5,6 +5,7 @@ use tracing::{error, info, trace};
 
 use malachite_common::{Context, Round};
 
+use crate::consensus::Metrics;
 use crate::consensus::{ConsensusRef, Msg as ConsensusMsg};
 use crate::host::{LocallyProposedValue, ReceivedProposedValue};
 use crate::util::PartStore;
@@ -62,6 +63,7 @@ pub mod test {
     pub struct TestValueBuilder<Ctx: Context> {
         tx_streamer: MempoolRef,
         params: TestParams,
+        metrics: Metrics,
         _phantom: PhantomData<Ctx>,
     }
 
@@ -69,10 +71,11 @@ pub mod test {
     where
         Ctx: Context,
     {
-        pub fn new(tx_streamer: MempoolRef, params: TestParams) -> Self {
+        pub fn new(tx_streamer: MempoolRef, params: TestParams, metrics: Metrics) -> Self {
             Self {
                 tx_streamer,
                 params,
+                metrics,
                 _phantom: PhantomData,
             }
         }
@@ -149,7 +152,7 @@ pub mod test {
                 let mut tx_count = 0;
 
                 'inner: for tx in txes {
-                    if block_size + tx.size_bytes() > self.params.max_block_size.as_u64() {
+                    if block_size + tx.size_bytes() > self.params.max_block_size.as_u64() as usize {
                         break 'inner;
                     }
 
@@ -204,7 +207,7 @@ pub mod test {
                     info!(
                         "Value Builder created a block with {} tx-es of size {} in {:?} with hash {:?} ",
                         tx_batch.len(),
-                        ByteSize::b(block_size),
+                        ByteSize::b(block_size as u64),
                         Instant::now() - start,
                         value.id()
                     );
@@ -218,9 +221,9 @@ pub mod test {
             name = "value_builder.from_block_parts",
             skip_all,
             fields(
-                height = %block_part.height(),
-                round = %block_part.round(),
-                sequence = %block_part.sequence()
+                height = %block_part.height,
+                round = %block_part.round,
+                sequence = %block_part.sequence
             )
         )]
         async fn build_value_from_block_parts(
@@ -228,23 +231,25 @@ pub mod test {
             block_part: BlockPart,
             part_store: &mut PartStore<TestContext>,
         ) -> Option<ReceivedProposedValue<TestContext>> {
-            let height = block_part.height();
-            let round = block_part.round();
-            let sequence = block_part.sequence();
+            let height = block_part.height;
+            let round = block_part.round;
+            let sequence = block_part.sequence;
 
             part_store.store(block_part.clone());
-            let num_parts = part_store.all_parts(height, round).len();
-            trace!("({num_parts}): Received block part (h: {height}, r: {round}, seq: {sequence}");
+            let all_parts = part_store.all_parts(height, round);
+
+            trace!(%height, %round, %sequence, "Received block part");
 
             // Simulate Tx execution and proof verification (assumes success)
             // TODO - add config knob for invalid blocks
-            tokio::time::sleep(self.params.exec_time_per_tx).await;
+            let num_txes = block_part.content.transaction_batch.len() as u32;
+            tokio::time::sleep(self.params.exec_time_per_tx * num_txes).await;
 
             // Get the "last" part, the one with highest sequence.
             // Block parts may not be received in order.
-            if let Some(last_part) =
-                part_store.get(block_part.height(), block_part.round(), num_parts as u64)
-            {
+            let highest_sequence = all_parts.len() as u64;
+
+            if let Some(last_part) = part_store.get(height, round, highest_sequence) {
                 // If the "last" part includes a metadata then this is truly the last part.
                 // So in this case all block parts have been received, including the metadata that includes
                 // the block hash/ value. This can be returned as the block is complete.
@@ -252,15 +257,29 @@ pub mod test {
                 // Should change once we implement `oneof`/ proper enum in protobuf but good enough for now test code
                 match last_part.metadata() {
                     Some(meta) => {
+                        let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
+                        let tx_count: usize = all_parts
+                            .iter()
+                            .map(|p| p.content.transaction_batch.len())
+                            .sum();
+
                         info!(
-                            "Value Builder received last block part for height:{}, round:{}, num_parts: {num_parts}",
-                            last_part.height(),
-                            last_part.round(),
+                            height = %last_part.height,
+                            round = %last_part.round,
+                            tx_count = %tx_count,
+                            block_size = %block_size,
+                            num_parts = %all_parts.len(),
+                            "Value Builder received last block part",
                         );
+
+                        self.metrics.block_tx_count.observe(tx_count as f64);
+                        self.metrics.block_size_bytes.observe(block_size as f64);
+                        self.metrics.finalized_txes.inc_by(tx_count as u64);
+
                         Some(ReceivedProposedValue {
-                            validator_address: *last_part.validator_address(),
-                            height: last_part.height(),
-                            round: last_part.round(),
+                            validator_address: last_part.validator_address,
+                            height: last_part.height,
+                            round: last_part.round,
                             value: Some(meta.value()),
                             valid: Validity::Valid,
                         })
@@ -281,8 +300,9 @@ pub mod test {
             let block_parts = part_store.all_parts(height, round);
             let num_parts = block_parts.len();
             let last_part = block_parts[num_parts - 1];
+
             last_part.metadata().map(|metadata| ReceivedProposedValue {
-                validator_address: *last_part.validator_address(),
+                validator_address: last_part.validator_address,
                 height,
                 round,
                 value: Some(metadata.value()),

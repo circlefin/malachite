@@ -1,9 +1,21 @@
+use std::ops::Deref;
 use std::sync::Arc;
 
 use malachite_metrics::{linear_buckets, Counter, Gauge, Histogram};
 
 #[derive(Clone, Debug)]
-pub struct Metrics {
+pub struct Metrics(Arc<Inner>);
+
+impl Deref for Metrics {
+    type Target = Inner;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Inner {
     /// Number of blocks finalized
     pub finalized_blocks: Counter,
 
@@ -14,10 +26,10 @@ pub struct Metrics {
     pub time_per_block: Histogram,
 
     /// Block size in terms of # of transactions
-    pub block_size: Histogram,
+    pub block_tx_count: Histogram,
 
     /// Size of each block in bytes
-    pub block_bytes: Histogram,
+    pub block_size_bytes: Histogram,
 
     /// Consensus rounds, ie. how many rounds did each block need to reach finalization
     pub rounds_per_block: Histogram,
@@ -31,16 +43,16 @@ pub struct Metrics {
 
 impl Metrics {
     pub fn new() -> Self {
-        Self {
+        Self(Arc::new(Inner {
             finalized_blocks: Counter::default(),
             finalized_txes: Counter::default(),
             time_per_block: Histogram::new(linear_buckets(0.0, 1.0, 20)),
-            block_size: Histogram::new(linear_buckets(0.0, 32.0, 128)),
-            block_bytes: Histogram::new(linear_buckets(0.0, 64.0 * 1024.0, 128)),
+            block_tx_count: Histogram::new(linear_buckets(0.0, 32.0, 128)),
+            block_size_bytes: Histogram::new(linear_buckets(0.0, 64.0 * 1024.0, 128)),
             rounds_per_block: Histogram::new(linear_buckets(0.0, 1.0, 20)),
             connected_peers: Gauge::default(),
             instant_block_started: Arc::new(AtomicInstant::empty()),
-        }
+        }))
     }
 
     pub fn register() -> Self {
@@ -67,15 +79,15 @@ impl Metrics {
         );
 
         registry.register(
-            "malachite_consensus_block_size",
+            "malachite_consensus_block_tx_count",
             "Block size in terms of # of transactions",
-            metrics.block_size.clone(),
+            metrics.block_tx_count.clone(),
         );
 
         registry.register(
-            "malachite_consensus_block_bytes",
+            "malachite_consensus_block_size_bytes",
             "Size of each block in bytes",
-            metrics.block_bytes.clone(),
+            metrics.block_size_bytes.clone(),
         );
 
         registry.register(
@@ -104,6 +116,12 @@ impl Metrics {
 
             self.instant_block_started.set_millis(0);
         }
+    }
+}
+
+impl Default for Metrics {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

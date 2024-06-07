@@ -9,7 +9,7 @@ use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig};
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 
-use crate::consensus::{Consensus, ConsensusParams, ConsensusRef};
+use crate::consensus::{Consensus, ConsensusParams, ConsensusRef, Metrics};
 use crate::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use crate::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use crate::host::{Host, HostRef};
@@ -29,12 +29,14 @@ pub async fn spawn_node_actor(
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = TestContext::new(validator_pk.clone());
 
+    let metrics = Metrics::register();
+
     // Spawn mempool and its gossip layer
     let gossip_mempool = spawn_gossip_mempool_actor(&cfg, node_pk).await;
     let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test).await;
 
     // Configure the value builder
-    let value_builder = make_test_value_builder(mempool.clone(), &cfg);
+    let value_builder = make_test_value_builder(mempool.clone(), metrics.clone(), &cfg);
 
     // Spawn the host actor
     let host = spawn_host_actor(value_builder, &initial_validator_set).await;
@@ -52,6 +54,7 @@ pub async fn spawn_node_actor(
         cfg,
         gossip_consensus.clone(),
         host.clone(),
+        metrics,
         tx_decision,
     )
     .await;
@@ -81,6 +84,7 @@ async fn spawn_consensus_actor(
     cfg: NodeConfig,
     gossip_consensus: GossipConsensusRef,
     host: HostRef<TestContext>,
+    metrics: Metrics,
     tx_decision: mpsc::Sender<(Height, Round, Value)>,
 ) -> ConsensusRef<TestContext> {
     let consensus_params = ConsensusParams {
@@ -96,6 +100,7 @@ async fn spawn_consensus_actor(
         cfg.consensus.timeouts,
         gossip_consensus,
         host,
+        metrics,
         tx_decision,
         None,
     )
@@ -133,17 +138,20 @@ async fn spawn_host_actor(
     .unwrap()
 }
 
-fn make_test_value_builder(mempool: MempoolRef, cfg: &NodeConfig) -> TestValueBuilder<TestContext> {
-    TestValueBuilder::new(
-        mempool,
-        TestValueBuilderParams {
-            max_block_size: cfg.consensus.max_block_size,
-            tx_size: cfg.test.tx_size,
-            txs_per_part: cfg.test.txs_per_part,
-            time_allowance_factor: cfg.test.time_allowance_factor,
-            exec_time_per_tx: cfg.test.exec_time_per_tx,
-        },
-    )
+fn make_test_value_builder(
+    mempool: MempoolRef,
+    metrics: Metrics,
+    cfg: &NodeConfig,
+) -> TestValueBuilder<TestContext> {
+    let params = TestValueBuilderParams {
+        max_block_size: cfg.consensus.max_block_size,
+        tx_size: cfg.test.tx_size,
+        txs_per_part: cfg.test.txs_per_part,
+        time_allowance_factor: cfg.test.time_allowance_factor,
+        exec_time_per_tx: cfg.test.exec_time_per_tx,
+    };
+
+    TestValueBuilder::new(mempool, params, metrics)
 }
 
 async fn spawn_mempool_actor(

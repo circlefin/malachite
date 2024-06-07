@@ -23,6 +23,10 @@ impl BlockMetadata {
     pub fn to_bytes(&self) -> Vec<u8> {
         proto::Protobuf::to_bytes(self).unwrap()
     }
+
+    pub fn size_bytes(&self) -> usize {
+        self.proof.len() + self.value.size_bytes()
+    }
 }
 
 impl proto::Protobuf for BlockMetadata {
@@ -49,8 +53,8 @@ impl proto::Protobuf for BlockMetadata {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Content {
-    transaction_batch: TransactionBatch,
-    block_metadata: Option<BlockMetadata>,
+    pub transaction_batch: TransactionBatch,
+    pub block_metadata: Option<BlockMetadata>,
 }
 
 impl Content {
@@ -59,6 +63,23 @@ impl Content {
             transaction_batch,
             block_metadata,
         }
+    }
+
+    pub fn size_bytes(&self) -> usize {
+        let txes_size = self
+            .transaction_batch
+            .transactions()
+            .iter()
+            .map(|tx| tx.size_bytes())
+            .sum::<usize>();
+
+        let meta_size = self
+            .block_metadata
+            .as_ref()
+            .map(|meta| meta.to_bytes().len())
+            .unwrap_or(0);
+
+        txes_size + meta_size
     }
 }
 
@@ -93,11 +114,11 @@ impl proto::Protobuf for Content {
 /// A part of a value for a height, round. Identified in this scope by the sequence.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockPart {
-    height: Height,
-    round: Round,
-    sequence: u64,
-    content: Content,
-    validator_address: Address,
+    pub height: Height,
+    pub round: Round,
+    pub sequence: u64,
+    pub content: Content,
+    pub validator_address: Address,
 }
 
 impl BlockPart {
@@ -117,22 +138,6 @@ impl BlockPart {
         }
     }
 
-    pub fn height(&self) -> Height {
-        self.height
-    }
-
-    pub fn round(&self) -> Round {
-        self.round
-    }
-
-    pub fn sequence(&self) -> u64 {
-        self.sequence
-    }
-
-    pub fn validator_address(&self) -> &Address {
-        &self.validator_address
-    }
-
     pub fn to_bytes(&self) -> Vec<u8> {
         proto::Protobuf::to_bytes(self).unwrap()
     }
@@ -145,26 +150,35 @@ impl BlockPart {
             signature,
         }
     }
+
     pub fn metadata(&self) -> Option<BlockMetadata> {
         self.content.block_metadata.clone()
+    }
+
+    pub fn size_bytes(&self) -> usize {
+        self.content.size_bytes()
+    }
+
+    pub fn tx_count(&self) -> usize {
+        self.content.transaction_batch.len()
     }
 }
 
 impl malachite_common::BlockPart<TestContext> for BlockPart {
     fn height(&self) -> Height {
-        self.height()
+        self.height
     }
 
     fn round(&self) -> Round {
-        self.round()
+        self.round
     }
 
     fn sequence(&self) -> u64 {
-        self.sequence()
+        self.sequence
     }
 
     fn validator_address(&self) -> &Address {
-        self.validator_address()
+        &self.validator_address
     }
 }
 
