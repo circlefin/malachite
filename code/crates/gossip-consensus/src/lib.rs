@@ -109,8 +109,9 @@ pub async fn spawn(
     config: Config,
     registry: SharedRegistry,
 ) -> Result<Handle, BoxError> {
-    let mut swarm =
-        registry.with_prefix("gossip_consensus", |registry| -> Result<_, BoxError> {
+    let mut swarm = registry.with_prefix(
+        "malachite_gossip_consensus",
+        |registry| -> Result<_, BoxError> {
             Ok(SwarmBuilder::with_existing_identity(keypair)
                 .with_tokio()
                 .with_quic()
@@ -119,7 +120,8 @@ pub async fn spawn(
                 .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
                 .with_swarm_config(|cfg| config.apply(cfg))
                 .build())
-        })?;
+        },
+    )?;
 
     for channel in Channel::all() {
         swarm

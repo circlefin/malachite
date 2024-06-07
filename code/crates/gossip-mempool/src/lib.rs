@@ -105,16 +105,19 @@ pub async fn spawn(
     config: Config,
     registry: SharedRegistry,
 ) -> Result<Handle, BoxError> {
-    let mut swarm = registry.with_prefix("gossip_mempool", |registry| -> Result<_, BoxError> {
-        Ok(SwarmBuilder::with_existing_identity(keypair)
-            .with_tokio()
-            .with_quic()
-            .with_dns()?
-            .with_bandwidth_metrics(registry)
-            .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
-            .with_swarm_config(|cfg| config.apply(cfg))
-            .build())
-    })?;
+    let mut swarm = registry.with_prefix(
+        "malachite_gossip_mempool",
+        |registry| -> Result<_, BoxError> {
+            Ok(SwarmBuilder::with_existing_identity(keypair)
+                .with_tokio()
+                .with_quic()
+                .with_dns()?
+                .with_bandwidth_metrics(registry)
+                .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
+                .with_swarm_config(|cfg| config.apply(cfg))
+                .build())
+        },
+    )?;
 
     for channel in Channel::all() {
         swarm
