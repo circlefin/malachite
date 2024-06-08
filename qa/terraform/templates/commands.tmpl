@@ -17,6 +17,7 @@
 # keyscan_cc - add the CC server SSH key to your known_hosts file
 # keyscan_all_servers - add all new server SSH keys to your known_hosts file
 # ok_cc - check if the CC server is ready to be used
+# ok_all - check if all servers are ready to be used (scanning the SSH keys could take a while)
 # update_cc - update the CC server (hosts, commands.sh, etc)
 # deploy_cc - deploys the local source code to the cc server, builds the node image and pushes it to the registry
 # setup_config - create configuration on the cc server
@@ -24,6 +25,7 @@
 # dnode-run - run the application on a node server. Accepts list of IDs. (example: dnode-run 0 1 2)
 # dnode-log - get the logs of the application from a node server (example: cnode-log 0)
 # dnode-stop - stop the application on a node server (example: cnode-stop 0)
+# download_data - download the prometheus data from the cc server (it will stop prometheus while exporting)
 ##
 
 export CANDC="${cc.ip}"
@@ -82,6 +84,11 @@ ok_cc() {
   PSSH_P=1 PSSH_H=${cc.ip} xssh cat /etc/done
 }
 
+ok_all() {
+  keyscan_all_servers 2> /dev/null
+  xssh cat /etc/done
+}
+
 update_cc() {
   keyscan_cc 2> /dev/null
   scp -q "$${1:-$${QA_DIR}/terraform/hosts}" root@${cc.ip}:/etc/hosts && \
@@ -117,7 +124,7 @@ _change_config() {
       "moniker=test-$1" \
       "consensus.p2p.listen_addr=/ip4/0.0.0.0/udp/27000/quic-v1" \
       "mempool.p2p.listen_addr=/ip4/0.0.0.0/udp/28000/quic-v1" \
-      "metrics.listen_addr=${cc.ip}:9000" && \
+      "metrics.listen_addr=0.0.0.0:9000" && \
     sconfig "$file" -t stringSlice \
       "consensus.p2p.persistent_peers=$(_persistent_peers)" \
       "mempool.p2p.persistent_peers=$(_persistent_peers 28000)" &
@@ -151,8 +158,7 @@ dnode() {
 }
 
 dnode-run() {
-  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp --name node --cap-add=NET_ADMIN --pull always $D_RM --dns ${cc.internal_ip} -v /data:/data -v /config:/config -e RUST_LOG ${cc.internal_ip}/node --home /config start
-  #pssh -l root -p $PSSH_P -H "$PSSH_X" docker run -d -p 27000:27000/udp -p 28000:28000/udp --name node --cap-add=NET_ADMIN --pull always $D_RM --dns ${cc.internal_ip} -v /data:/data -v /config:/config -e RUST_LOG ${cc.internal_ip}/node --home /config start
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --pull always $D_RM --dns ${cc.internal_ip} -v /data:/data -v /config:/config -e RUST_LOG ${cc.internal_ip}/node --home /config start
 }
 
 dnode-log() {
@@ -196,4 +202,12 @@ update_commands() { # for internal use
 
 fetch_logs() {
   PSSH_H="$(_parse_multiple_hosts "$@")" xssh -o node_log_out -e node_log_err "docker logs node"
+}
+
+download_data() { # needs to run on the local machine for scp to have any use
+  ssh-cc systemctl stop prometheus
+  ssh-cc rm prometheus.tgz 2> /dev/null
+  ssh-cc tar -cvzf prometheus.tgz -C /var/lib/prometheus .
+  scp -r root@$CANDC:prometheus.tgz .
+  ssh-cc systemctl start prometheus
 }

@@ -13,7 +13,7 @@ variable "region" {
   default = "fra1"
 }
 
-output "next_steps_cheat_sheet" {
+output "next_steps" {
   value = <<EOT
 source commands.sh
 cheat_sheet
