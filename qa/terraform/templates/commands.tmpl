@@ -205,9 +205,12 @@ fetch_logs() {
 }
 
 download_data() { # needs to run on the local machine for scp to have any use
-  ssh-cc systemctl stop prometheus
-  ssh-cc rm prometheus.tgz 2> /dev/null
-  ssh-cc tar -cvzf prometheus.tgz -C /var/lib/prometheus .
+  ssh-cc <<EOF
+    systemctl stop prometheus
+     rm prometheus.tgz 2> /dev/null
+     echo "Database export date: $(date)" > /var/lib/prometheus/date.txt
+     tar -cvzf prometheus.tgz -C /var/lib/prometheus .
+    systemctl start prometheus
+EOF
   scp -r root@$CANDC:prometheus.tgz .
-  ssh-cc systemctl start prometheus
 }
