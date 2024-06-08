@@ -5,7 +5,7 @@
 # PSSH_H - space-separated list of all the node server IP addresses for pssh input
 # PSSH_P - the number of parallel processes to run with pssh
 # D_RM - flag to remove the container after it stops
-# QA_DIR - the path to the QA directory
+# MALACHITE_DIR - the path to the malachite repository directory
 ##
 # Aliases for easy manual access to the servers (don't use these in scripts)
 # (servername) - the "docker" command but executes on the server (candc for the cc server)
@@ -38,7 +38,7 @@ export D_LARGE="${length(large)}"
 export PSSH_H="${join(" ",ips)}"
 export PSSH_P="15"
 export D_RM="--rm"
-export QA_DIR="$(dirname ${path})"
+export MALACHITE_DIR="$(dirname $(dirname ${path}))"
 
 alias candc="docker -H ssh://root@${cc.ip}"
 %{~ for i,n in concat(small, large) }
@@ -91,14 +91,14 @@ ok_all() {
 
 update_cc() {
   keyscan_cc 2> /dev/null
-  scp -q "$${1:-$${QA_DIR}/terraform/hosts}" root@${cc.ip}:/etc/hosts && \
+  scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/hosts}" root@${cc.ip}:/etc/hosts && \
   ssh root@${cc.ip} "systemctl restart dnsmasq"
-  scp -q "$${1:-$${QA_DIR}/terraform/commands.sh}" root@${cc.ip}:/etc/profile.d/commands.sh
+  scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh}" root@${cc.ip}:/etc/profile.d/commands.sh
   ssh root@${cc.ip} "source /etc/profile.d/commands.sh && keyscan_all_servers 2> /dev/null"
 }
 
 deploy_cc() {
-  docker -H ssh://root@${cc.ip} build --push -t cc.testnet/node --build-context code=$QA_DIR/../code $QA_DIR/docker
+  docker -H ssh://root@${cc.ip} build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
 }
 
 _persistent_peers() {
@@ -197,7 +197,7 @@ EOF
 update_commands() { # for internal use
   echo terraform apply -var small_nodes=$D_SMALL -var large_nodes=$D_LARGE
   echo source commands.sh
-  echo scp -q "$${1:-$${QA_DIR}/terraform/commands.sh}" root@${cc.ip}:/etc/profile.d/commands.sh
+  echo scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh}" root@${cc.ip}:/etc/profile.d/commands.sh
 }
 
 fetch_logs() {
