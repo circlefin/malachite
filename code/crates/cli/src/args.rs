@@ -16,6 +16,8 @@ use tracing::info;
 use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
 
+use crate::cmd::keys::KeysCmd;
+use crate::cmd::testnet::TestnetCmd;
 use crate::logging::DebugSection;
 use crate::priv_key::PrivValidatorKey;
 
@@ -44,7 +46,7 @@ pub struct Args {
     pub command: Commands,
 }
 
-#[derive(Subcommand, Clone, Debug, Default, PartialEq)]
+#[derive(Subcommand, Clone, Debug, Default)]
 pub enum Commands {
     /// Start node
     #[default]
@@ -53,19 +55,12 @@ pub enum Commands {
     /// Initialize configuration
     Init,
 
+    /// Manage keys
+    #[command(subcommand)]
+    Keys(KeysCmd),
+
     /// Generate testnet configuration
-    Testnet(TestnetArgs),
-}
-
-#[derive(Parser, Debug, Clone, PartialEq)]
-pub struct TestnetArgs {
-    /// Number of validator nodes in the testnet
-    #[clap(short, long)]
-    pub nodes: usize,
-
-    /// Generate deterministic private keys for reproducibility
-    #[clap(short, long)]
-    pub deterministic: bool,
+    Testnet(TestnetCmd),
 }
 
 impl Args {
@@ -159,11 +154,11 @@ mod tests {
     fn args_struct() {
         let args = Args::parse_from(["test", "--debug", "ractor", "init"]);
         assert_eq!(args.debug, vec![DebugSection::Ractor]);
-        assert_eq!(args.command, Commands::Init);
+        assert!(matches!(args.command, Commands::Init));
 
         let args = Args::parse_from(["test", "start"]);
         assert_eq!(args.debug, vec![]);
-        assert_eq!(args.command, Commands::Start);
+        assert!(matches!(args.command, Commands::Start));
     }
 
     #[test]
