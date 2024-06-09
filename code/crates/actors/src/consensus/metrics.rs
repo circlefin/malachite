@@ -1,9 +1,21 @@
+use std::ops::Deref;
 use std::sync::Arc;
 
-use malachite_metrics::{linear_buckets, Counter, Gauge, Histogram};
+use malachite_metrics::{linear_buckets, Counter, Gauge, Histogram, SharedRegistry};
 
 #[derive(Clone, Debug)]
-pub struct Metrics {
+pub struct Metrics(Arc<Inner>);
+
+impl Deref for Metrics {
+    type Target = Inner;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Inner {
     /// Number of blocks finalized
     pub finalized_blocks: Counter,
 
@@ -14,10 +26,10 @@ pub struct Metrics {
     pub time_per_block: Histogram,
 
     /// Block size in terms of # of transactions
-    pub block_size: Histogram,
+    pub block_tx_count: Histogram,
 
     /// Size of each block in bytes
-    pub block_bytes: Histogram,
+    pub block_size_bytes: Histogram,
 
     /// Consensus rounds, ie. how many rounds did each block need to reach finalization
     pub rounds_per_block: Histogram,
@@ -31,64 +43,64 @@ pub struct Metrics {
 
 impl Metrics {
     pub fn new() -> Self {
-        Self {
+        Self(Arc::new(Inner {
             finalized_blocks: Counter::default(),
             finalized_txes: Counter::default(),
             time_per_block: Histogram::new(linear_buckets(0.0, 1.0, 20)),
-            block_size: Histogram::new(linear_buckets(0.0, 32.0, 128)),
-            block_bytes: Histogram::new(linear_buckets(0.0, 64.0 * 1024.0, 128)),
+            block_tx_count: Histogram::new(linear_buckets(0.0, 32.0, 128)),
+            block_size_bytes: Histogram::new(linear_buckets(0.0, 64.0 * 1024.0, 128)),
             rounds_per_block: Histogram::new(linear_buckets(0.0, 1.0, 20)),
             connected_peers: Gauge::default(),
             instant_block_started: Arc::new(AtomicInstant::empty()),
-        }
+        }))
     }
 
-    pub fn register() -> Self {
+    pub fn register(registry: &SharedRegistry) -> Self {
         let metrics = Self::new();
 
-        let mut registry = malachite_metrics::global_registry().lock().unwrap();
+        registry.with_prefix("malachite_consensus", |registry| {
+            registry.register(
+                "finalized_blocks",
+                "Number of blocks finalized",
+                metrics.finalized_blocks.clone(),
+            );
 
-        registry.register(
-            "malachite_consensus_finalized_blocks",
-            "Number of blocks finalized",
-            metrics.finalized_blocks.clone(),
-        );
+            registry.register(
+                "finalized_txes",
+                "Number of transactions finalized",
+                metrics.finalized_txes.clone(),
+            );
 
-        registry.register(
-            "malachite_consensus_finalized_txes",
-            "Number of transactions finalized",
-            metrics.finalized_txes.clone(),
-        );
+            registry.register(
+                "time_per_block",
+                "Time taken to finalize a block, in seconds",
+                metrics.time_per_block.clone(),
+            );
 
-        registry.register(
-            "malachite_consensus_time_per_block",
-            "Time taken to finalize a block, in seconds",
-            metrics.time_per_block.clone(),
-        );
+            registry.register(
+                "block_tx_count",
+                "Block size in terms of # of transactions",
+                metrics.block_tx_count.clone(),
+            );
 
-        registry.register(
-            "malachite_consensus_block_size",
-            "Block size in terms of # of transactions",
-            metrics.block_size.clone(),
-        );
+            registry.register(
+                "block_size_bytes",
+                "Size of each block in bytes",
+                metrics.block_size_bytes.clone(),
+            );
 
-        registry.register(
-            "malachite_consensus_block_bytes",
-            "Size of each block in bytes",
-            metrics.block_bytes.clone(),
-        );
+            registry.register(
+                "rounds_per_block",
+                "Consensus rounds, ie. how many rounds did each block need to reach finalization",
+                metrics.rounds_per_block.clone(),
+            );
 
-        registry.register(
-            "malachite_consensus_rounds_per_block",
-            "Consensus rounds, ie. how many rounds did each block need to reach finalization",
-            metrics.rounds_per_block.clone(),
-        );
-
-        registry.register(
-            "malachite_consensus_connected_peers",
-            "Number of connected peers, ie. for each consensus node, how many peers is it connected to",
-            metrics.connected_peers.clone(),
-        );
+            registry.register(
+                "connected_peers",
+                "Number of connected peers, ie. for each consensus node, how many peers is it connected to",
+                metrics.connected_peers.clone(),
+            );
+        });
 
         metrics
     }
@@ -104,6 +116,12 @@ impl Metrics {
 
             self.instant_block_started.set_millis(0);
         }
+    }
+}
+
+impl Default for Metrics {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

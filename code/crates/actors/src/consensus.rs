@@ -31,7 +31,7 @@ mod network;
 use network::NetworkMsg;
 
 mod metrics;
-use metrics::Metrics;
+pub use metrics::Metrics;
 
 pub enum Next<Ctx: Context> {
     None,
@@ -57,8 +57,8 @@ where
     timers_config: TimersConfig,
     gossip_consensus: GossipConsensusRef,
     host: HostRef<Ctx>,
-    tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
     metrics: Metrics,
+    tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
 }
 
 pub enum Msg<Ctx: Context> {
@@ -106,6 +106,7 @@ where
         timers_config: TimersConfig,
         gossip_consensus: GossipConsensusRef,
         host: HostRef<Ctx>,
+        metrics: Metrics,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
     ) -> Self {
         Self {
@@ -114,8 +115,8 @@ where
             timers_config,
             gossip_consensus,
             host,
+            metrics,
             tx_decision,
-            metrics: Metrics::register(),
         }
     }
 
@@ -126,6 +127,7 @@ where
         timers_config: TimersConfig,
         gossip_consensus: GossipConsensusRef,
         host: HostRef<Ctx>,
+        metrics: Metrics,
         tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
@@ -135,6 +137,7 @@ where
             timers_config,
             gossip_consensus,
             host,
+            metrics,
             tx_decision,
         );
 
@@ -758,8 +761,9 @@ where
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::BlockParts, bytes))?;
             }
+
             Msg::BlockReceived(value) => {
-                info!("BLOCK RECEIVED {:?}", value);
+                info!("Received block: {value:?}");
 
                 if let Some(v) = value.value {
                     self.send_driver_input(

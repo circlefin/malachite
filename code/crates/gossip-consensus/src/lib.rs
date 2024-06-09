@@ -10,6 +10,8 @@ use libp2p::{gossipsub, identify, SwarmBuilder};
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
+use malachite_metrics::SharedRegistry;
+
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
@@ -102,17 +104,24 @@ pub struct State {
     pub peers: HashMap<PeerId, identify::Info>,
 }
 
-pub async fn spawn(keypair: Keypair, config: Config) -> Result<Handle, BoxError> {
-    let mut swarm = malachite_metrics::with_registry(|registry| -> Result<_, BoxError> {
-        Ok(SwarmBuilder::with_existing_identity(keypair)
-            .with_tokio()
-            .with_quic()
-            .with_dns()?
-            .with_bandwidth_metrics(registry)
-            .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
-            .with_swarm_config(|cfg| config.apply(cfg))
-            .build())
-    })?;
+pub async fn spawn(
+    keypair: Keypair,
+    config: Config,
+    registry: SharedRegistry,
+) -> Result<Handle, BoxError> {
+    let mut swarm = registry.with_prefix(
+        "malachite_gossip_consensus",
+        |registry| -> Result<_, BoxError> {
+            Ok(SwarmBuilder::with_existing_identity(keypair)
+                .with_tokio()
+                .with_quic()
+                .with_dns()?
+                .with_bandwidth_metrics(registry)
+                .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
+                .with_swarm_config(|cfg| config.apply(cfg))
+                .build())
+        },
+    )?;
 
     for channel in Channel::all() {
         swarm
@@ -125,7 +134,7 @@ pub async fn spawn(keypair: Keypair, config: Config) -> Result<Handle, BoxError>
     let (tx_ctrl, rx_ctrl) = mpsc::channel(32);
 
     let peer_id = swarm.local_peer_id();
-    let span = error_span!("gossip", peer = %peer_id);
+    let span = error_span!("gossip-consensus", peer = %peer_id);
     let task_handle = tokio::task::spawn(run(config, swarm, rx_ctrl, tx_event).instrument(span));
 
     Ok(Handle::new(tx_ctrl, rx_event, task_handle))

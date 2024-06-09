@@ -64,6 +64,10 @@ impl Value {
     pub const fn id(&self) -> ValueId {
         ValueId(self.0)
     }
+
+    pub fn size_bytes(&self) -> usize {
+        8
+    }
 }
 
 impl malachite_common::Value for Value {

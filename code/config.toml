@@ -76,6 +76,9 @@ persistent_peers = []
 ###          Metrics Configuration Options          ###
 #######################################################
 [metrics]
+# Enable the metrics server
+enabled = true
+
 # Metrics are exported at `http://127.0.0.1:9000/metrics`
 listen_addr = "127.0.0.1:9000"
 

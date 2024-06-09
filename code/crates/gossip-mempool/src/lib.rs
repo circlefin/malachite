@@ -10,6 +10,8 @@ use libp2p::{gossipsub, identify, SwarmBuilder};
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
+use malachite_metrics::SharedRegistry;
+
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
@@ -98,14 +100,24 @@ pub enum CtrlMsg {
     Shutdown,
 }
 
-pub async fn spawn(keypair: Keypair, config: Config) -> Result<Handle, BoxError> {
-    let mut swarm = SwarmBuilder::with_existing_identity(keypair)
-        .with_tokio()
-        .with_quic()
-        .with_dns()?
-        .with_behaviour(Behaviour::new)?
-        .with_swarm_config(|cfg| config.apply(cfg))
-        .build();
+pub async fn spawn(
+    keypair: Keypair,
+    config: Config,
+    registry: SharedRegistry,
+) -> Result<Handle, BoxError> {
+    let mut swarm = registry.with_prefix(
+        "malachite_gossip_mempool",
+        |registry| -> Result<_, BoxError> {
+            Ok(SwarmBuilder::with_existing_identity(keypair)
+                .with_tokio()
+                .with_quic()
+                .with_dns()?
+                .with_bandwidth_metrics(registry)
+                .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
+                .with_swarm_config(|cfg| config.apply(cfg))
+                .build())
+        },
+    )?;
 
     for channel in Channel::all() {
         swarm

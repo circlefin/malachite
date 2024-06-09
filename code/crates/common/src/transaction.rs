@@ -17,8 +17,8 @@ impl Transaction {
     }
 
     /// Size of this transaction in bytes
-    pub fn size_bytes(&self) -> u64 {
-        self.0.len() as u64
+    pub fn size_bytes(&self) -> usize {
+        self.0.len()
     }
 }
 

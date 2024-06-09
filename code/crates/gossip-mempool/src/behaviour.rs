@@ -1,6 +1,8 @@
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{gossipsub, identify};
 
+use malachite_metrics::Registry;
+
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
@@ -23,6 +25,22 @@ impl Behaviour {
             gossipsub: gossipsub::Behaviour::new(
                 gossipsub::MessageAuthenticity::Signed(keypair.clone()),
                 gossipsub::Config::default(),
+            )
+            .unwrap(),
+        }
+    }
+
+    pub fn new_with_metrics(keypair: &Keypair, registry: &mut Registry) -> Self {
+        Self {
+            identify: identify::Behaviour::new(identify::Config::new(
+                PROTOCOL_VERSION.to_string(),
+                keypair.public(),
+            )),
+            gossipsub: gossipsub::Behaviour::new_with_metrics(
+                gossipsub::MessageAuthenticity::Signed(keypair.clone()),
+                gossipsub::Config::default(),
+                registry,
+                Default::default(),
             )
             .unwrap(),
         }

@@ -13,6 +13,9 @@ license      = "Apache-2.0"
 publish      = false
 rust-version = "1.77"
 
+[profile.release]
+overflow-checks = true
+
 [workspace.lints.rust]
 # unused_crate_dependencies = "warn"
 
@@ -37,6 +40,7 @@ base64             = "0.22.0"
 bytesize           = "1.3"
 clap               = "4.5.4"
 color-eyre         = "0.6"
+config             = { version = "0.14", features = ["toml"], default-features = false }
 eyre               = "0.6"
 derive-where       = "1.2.7"
 directories        = "5.0.1"
