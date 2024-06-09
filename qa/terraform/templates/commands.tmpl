@@ -23,6 +23,7 @@
 # dnode-log - get the logs of the application from a node server (example: cnode-log 0)
 # dnode-stop - stop the application on a node server (example: cnode-stop 0)
 # download_data - download the prometheus data from the cc server (it will stop prometheus while exporting)
+# fetch_log - fetch the logs from all the node servers (example: fetch_log 0 1 2)
 ##
 
 export CANDC="${cc.ip}"
@@ -141,7 +142,7 @@ setup_config() {
 
 _parse_multiple_hosts() {
   PSSH_X=""
-  if [ "$1" = "all" ]; then
+  if [ "$1" = "all" ] || [ $# -eq 0 ]; then
     PSSH_X="$PSSH_H"
   else
     while (( "$#" ));
@@ -187,12 +188,15 @@ cat <<EOF
     deploy_cc # you can run this on cc too, if you have the source code in /root/malachite
 
     ssh-cc
-    ok_all
     setup_config # depends on deploy_cc
 
+    ok_all
     dnode-run all
 
     download_data
+    fetch_log all
+
+    dnode-stop all
 EOF
 }
 
@@ -202,7 +206,7 @@ update_commands() { # for internal developer use, when you change commands.sh to
   echo scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh}" root@${cc.ip}:/etc/profile.d/commands.sh
 }
 
-fetch_logs() {
+fetch_log() {
   PSSH_H="$(_parse_multiple_hosts "$@")" xssh -o node_log_out -e node_log_err "docker logs node"
 }
 
@@ -210,16 +214,9 @@ download_data() { # needs to run on the local machine for scp to have any use
   ssh-cc <<EOF
     systemctl stop prometheus
      rm prometheus.tgz 2> /dev/null
-     echo "Database export date: $(date)" > /var/lib/prometheus/date.txt
-     tar -cvzf prometheus.tgz -C /var/lib/prometheus .
+     echo "Database export date: $(date)" > /var/lib/prometheus/metrics2/date.txt
+     tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 .
     systemctl start prometheus
 EOF
   scp -r root@$CANDC:prometheus.tgz .
-}
-
-for_sure() {
-    set -eu
-    terraform apply -var small_nodes=$D_SMALL -var large_nodes=$D_LARGE -var region=$D_REGION -auto-approve
-    source commands.sh
-    ok_cc
 }

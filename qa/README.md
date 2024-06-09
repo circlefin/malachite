@@ -68,21 +68,21 @@ from your local machine if you feel the servers are close enough and the network
 source commands.sh # do this in all new terminal window on your machine. No need to do this on the CC server.
 
 ok_cc
-
 deploy_cc # Takes 4-5 minutes. Continue in a different window while this is running.
           # You can run it on cc server as well, but you have to manually put the source code at /root/malachite.
 
 ssh-cc # (optional) move to the CC server and run the rest of the commands closer to the QA servers.
-
-ok_all
-
 setup_config # depends on deploy_cc, only run it if that finished.
 
+ok_all
 dnode-run all
 
 # Wait some time to generate data
 
 download_data # this has to run on the machine where you want the data to end up. Usually, your local machine.
+fetch_log all
+
+dnode-stop all
 ```
 
 ### 1. Import custom commands

@@ -5,7 +5,7 @@ extract:
 	mkdir data-prometheus
 	tar -xvzf $(FILE) -C data-prometheus
 
-start: config-grafana/provisioning/alerting config-grafana/provisioning/notifiers config-grafana/provisioning/plugins
+start: config-grafana/provisioning/alerting config-grafana/provisioning/notifiers config-grafana/provisioning/plugins data-prometheus data-grafana
 	docker compose up -d
 
 stop:
@@ -18,4 +18,8 @@ config-grafana/provisioning/notifiers:
 	mkdir config-grafana/provisioning/notifiers
 config-grafana/provisioning/plugins:
 	mkdir config-grafana/provisioning/plugins
+data-prometheus:
+	mkdir data-prometheus
+data-grafana:
+	mkdir data-grafana
 

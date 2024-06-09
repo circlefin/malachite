@@ -1,6 +1,7 @@
 services:
   prometheus:
-    image: prom/prometheus:v2.42.0 # Debian 12 seems to use a fairly old version of prometheus
+    image: prom/prometheus
+    #image: prom/prometheus:v2.42.0 # Debian 12 seems to use a fairly old version of prometheus
     container_name: prometheus
     ports:
       - 127.0.0.1:9090:9090
