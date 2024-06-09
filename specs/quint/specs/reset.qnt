@@ -444,7 +444,7 @@ def valid (b: L2Block) : bool =
         | Proof(bp) => proofOK (L1.last().time, 
                                 L1.last().l2forkID,
                                 L1.last().unfulfilled_updates, 
-                                bp) // whether a proof is accepted is time-dependend
+                                bp) // whether a proof is accepted is time-dependent
     }
 
 
