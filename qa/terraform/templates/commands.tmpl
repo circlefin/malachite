@@ -14,11 +14,8 @@
 # Additional functionality in shell functions (see README for more info)
 # xssh - parallel ssh command to all servers. Change PSSH_H and PSSH_P for different behavior.
 # get_ip - get the IP address of a node server for programmatic use (example: get_ip 0)
-# keyscan_cc - add the CC server SSH key to your known_hosts file
-# keyscan_all_servers - add all new server SSH keys to your known_hosts file
-# ok_cc - check if the CC server is ready to be used
+# ok_cc - check if the CC server is ready to be used and update its services (DNS hosts, commands.sh, etc)
 # ok_all - check if all servers are ready to be used (scanning the SSH keys could take a while)
-# update_cc - update the CC server (hosts, commands.sh, etc)
 # deploy_cc - deploys the local source code to the cc server, builds the node image and pushes it to the registry
 # setup_config - create configuration on the cc server
 # dnode - run a docker command on a node server (example: cnode 0 ps)
@@ -35,6 +32,7 @@ export ${upper(n.name)}="${n.ip}"
 export D_N="${length(small)+length(large)}"
 export D_SMALL="${length(small)}"
 export D_LARGE="${length(large)}"
+export D_REGION="${region}"
 export PSSH_H="${join(" ",ips)}"
 export PSSH_P="15"
 export D_RM="--rm"
@@ -64,41 +62,45 @@ get_ip() {
   echo "IP for node $I not found" && return 1
 }
 
-_get_id() {
-  cat /etc/id
+ok_all() {
+  _keyscan_all_servers 2> /dev/null
+  xssh "cat /etc/done && mount /data" # Mount /data in case a QA node came online earlier than CC
 }
 
-keyscan_cc() {
+ok_cc() {
+  _keyscan_cc 2> /dev/null
+  PSSH_P=1 PSSH_H=${cc.ip} xssh "cat /etc/done" && \
+    echo "Updating cc server..." && \
+    scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/hosts}" root@${cc.ip}:/etc/hosts && \
+    ssh root@${cc.ip} "systemctl restart dnsmasq" && \
+    scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh}" root@${cc.ip}:/etc/profile.d/commands.sh && \
+    ssh root@${cc.ip} \
+      "sed -i 's,^export MALACHITE_DIR=.*,export MALACHITE_DIR=/root/malachite,' /etc/profile.d/commands.sh && source /etc/profile.d/commands.sh && _keyscan_all_servers 2> /dev/null"
+}
+
+_keyscan_cc() {
+  ssh-keygen -R ${cc.ip} > /dev/null
   ssh-keyscan -t ed25519 ${cc.ip} >> $HOME/.ssh/known_hosts
 }
 
-keyscan_all_servers() {
-  keyscan_cc 2> /dev/null
+_keyscan_all_servers() {
+  _keyscan_cc 2> /dev/null
 %{~ for n in concat(small, large) }
+  ssh-keygen -R ${n.ip} > /dev/null
   ssh-keyscan -t ed25519 ${n.ip} >> $HOME/.ssh/known_hosts 2> /dev/null
 %{~ endfor }
 }
 
-ok_cc() {
-  keyscan_cc 2> /dev/null
-  PSSH_P=1 PSSH_H=${cc.ip} xssh cat /etc/done
-}
-
-ok_all() {
-  keyscan_all_servers 2> /dev/null
-  xssh cat /etc/done
-}
-
-update_cc() {
-  keyscan_cc 2> /dev/null
-  scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/hosts}" root@${cc.ip}:/etc/hosts && \
-  ssh root@${cc.ip} "systemctl restart dnsmasq"
-  scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh}" root@${cc.ip}:/etc/profile.d/commands.sh
-  ssh root@${cc.ip} "source /etc/profile.d/commands.sh && keyscan_all_servers 2> /dev/null"
-}
-
 deploy_cc() {
-  docker -H ssh://root@${cc.ip} build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
+  test -d $MALACHITE_DIR/code || (echo "Source code repository not found. Clone or copy manually." && return 1)
+  test -f /etc/cc || CC_SHIM="-H ssh://root@${cc.ip}"
+  docker $CC_SHIM build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
+}
+
+_deploy_cc() { # Alternative deployment, testing shows minimal speed difference
+  rsync -avz --exclude target $MALACHITE_DIR/code root@${cc.ip}:/root/malachite/code/
+  rsync -avz --exclude terraform $MALACHITE_DIR/qa root@${cc.ip}:/root/malachite/qa/
+  ssh-cc docker build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
 }
 
 _persistent_peers() {
@@ -182,19 +184,19 @@ dnode-stop() {
 cheat_sheet() {
 cat <<EOF
     ok_cc
-    update_cc
-    deploy_cc
+    deploy_cc # you can run this on cc too, if you have the source code in /root/malachite
 
     ssh-cc
-    xssh cat /etc/done
-    xssh mount /data
+    ok_all
     setup_config # depends on deploy_cc
 
     dnode-run all
+
+    download_data
 EOF
 }
 
-update_commands() { # for internal use
+update_commands() { # for internal developer use, when you change commands.sh too often
   echo terraform apply -var small_nodes=$D_SMALL -var large_nodes=$D_LARGE
   echo source commands.sh
   echo scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh}" root@${cc.ip}:/etc/profile.d/commands.sh
@@ -213,4 +215,11 @@ download_data() { # needs to run on the local machine for scp to have any use
     systemctl start prometheus
 EOF
   scp -r root@$CANDC:prometheus.tgz .
+}
+
+for_sure() {
+    set -eu
+    terraform apply -var small_nodes=$D_SMALL -var large_nodes=$D_LARGE -var region=$D_REGION -auto-approve
+    source commands.sh
+    ok_cc
 }

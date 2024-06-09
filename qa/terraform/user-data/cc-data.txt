@@ -71,7 +71,6 @@ package_update: true
 packages:
   - git
   - gcc
-  - golang-1.21-go
   - prometheus
   - prometheus-node-exporter
   - ntpstat
@@ -89,6 +88,7 @@ packages:
   - nfs-kernel-server
   - dnsmasq
   - pssh
+  - rsync
 write_files:
   - path: /etc/docker/daemon.json
     content: |
@@ -413,3 +413,5 @@ runcmd:
   - curl -s -o /usr/bin/sconfig -L https://github.com/freshautomations/sconfig/releases/download/v0.2.0/sconfig_linux_amd64
   - chmod 755 /usr/bin/sconfig
   - date > /etc/done
+  - ln /etc/done /etc/cc
+

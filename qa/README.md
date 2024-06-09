@@ -21,8 +21,8 @@ using the `deploy_cc` custom command. The QA nodes can then pull the image from 
 The developer can create the testnet configuration remotely on the `cc` server using the `setup_config` custom command.
 The configuration is stored in the `/data` folder on the server which is shared as over NFS with the QA nodes.
 
-The `cc` server also hosts a Prometheus server with Grafana for monitoring the nodes. The data can be exported using
-the `export_data` custom command. Then it can be importer to a local viewer for further analysis.
+The `cc` server also hosts a Prometheus server with Grafana for monitoring the nodes. The data can be downloaded using
+the `download_data` custom command. Then it can be imported to a local Grafana/Prometheus viewer for further analysis.
 
 Finally, the `cc` server also works as the DNS server for the QA nodes. All node IPs can be resolved by simple names on
 the servers. This is especially useful when configuring persistent peers.
@@ -68,14 +68,13 @@ from your local machine if you feel the servers are close enough and the network
 source commands.sh # do this in all new terminal window on your machine. No need to do this on the CC server.
 
 ok_cc
-update_cc # re-run this each time you change the number of servers with Terraform
 
 deploy_cc # Takes 4-5 minutes. Continue in a different window while this is running.
+          # You can run it on cc server as well, but you have to manually put the source code at /root/malachite.
 
 ssh-cc # (optional) move to the CC server and run the rest of the commands closer to the QA servers.
 
 ok_all
-xssh mount /data # only needed if some servers came up earlier than the CC server. It doesn't hurt to run it.
 
 setup_config # depends on deploy_cc, only run it if that finished.
 
@@ -83,7 +82,7 @@ dnode-run all
 
 # Wait some time to generate data
 
-export_data # this has to run on the machine where you want the data to end up. Usually, your local machine.
+download_data # this has to run on the machine where you want the data to end up. Usually, your local machine.
 ```
 
 ### 1. Import custom commands
@@ -101,16 +100,10 @@ invoked automatically when you SSH into the server.
 ok_cc
 ```
 
-This loads the SSH key into your known_hosts and checks if the cloud-init execution has finished on the CC server.
+This loads the SSH key into your known_hosts and checks if the cloud-init execution has finished on the CC server. It
+also sets up the DNS service with the created hosts and compies the `commands.sh` over for easy execution.
 
-You only need to run this after the first `terraform apply`, until the command succeeds. It will print a date if
-the server successfully finished the setup.
-
-### 3. Install infrastructure configuration on the CC server.
-
-```bash
-update_cc
-```
+It will print a date if the server successfully finished the setup.
 
 You have to run this every time you create or destroy new servers with Terraform. It copies the server IPs and the
 correct custom commands to the CC server.
@@ -127,6 +120,9 @@ This will take a few minutes. (4.5 minutes in Lausanne, connecting to a 4vCPU/8G
 
 You can continue executing the rest of the setup commands, until you want to configure the network with `setup_config`.
 You will need the application for the correct generation of the application configuration.
+
+You can also run this command on the `cc` server (see the `ssh-cc` command below). Caveat: you need to copy the source
+code over to the server
 
 ### 4.5 (optional) Connect to the CC server
 
@@ -151,24 +147,6 @@ Similar to `ok_cc` but all deployed servers are taken into account. Your `known_
 server keys and prints the date each server finished installing cloud-init. Run this multiple times until all servers
 return successfully.
 
-# 5.5 (optional) Make sure all servers have NFS access
-
-It is possible that some servers finish installation before the CC server. The CC server hosts an NFS share that has to
-be available for the QA nodes.
-
-If you suspect that some QA servers finished before the CC server, you can tell all QA servers to mount the NFS share.
-
-Multiple execution of this command has no side effects.
-
-Normally it is enough to run this command once. Just make sure all servers came online. The fix is applied automatically
-on restart.
-
-Ignore the error on the cc server, it is expected.
-
-```bash
-xssh mount /data
-```
-
 ### 6. Create the configuration data on the cc server
 
 ```bash
@@ -176,6 +154,8 @@ setup_config
 ```
 
 The configuration data is stored on the CC server under `/data`. This path is also shared with the QA nodes over NFS.
+
+Depends on an up-to-date host count. Re-run it after `ok_cc` if you changed the number of servers.
 
 ### 7. Start the nodes
 
@@ -193,10 +173,10 @@ dnode-stop all
 You can use `dnode`, `dnode-run`, `dnode-log` and `dnode-stop` to manage the docker container.
 `dnode` is a generic command to run docker commands remotely.
 
-### 8. Export data
+### 8. Download data
 
 ```bash
-export_data
+download_data
 ```
 
 This will copy the compressed prometheus database from the `cc` server to your local machine as `prometheus.tgz`.
@@ -214,7 +194,7 @@ deployed onto the cc server and it is used as part of the DNS service there.
 Terraform also creates a [commands.sh](terraform/comands.sh) file with suggested commands for CLI-based configuration
 and node
 management. You can run `source commands.sh` and use the functions in your shell. The descriptions of commands are
-listed in the top comment of the file. The file is copied over to `cc` during `update_cc` and invoked automatically
+listed in the top comment of the file. The file is copied over to `cc` during `ok_cc` and invoked automatically
 when you SSH into the server.
 
 ## prometheus.tgz file

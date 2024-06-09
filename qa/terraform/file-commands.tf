@@ -5,8 +5,9 @@ resource "local_file" "commands" {
     digitalocean_droplet.large,
   ]
   content = templatefile("templates/commands.tmpl", {
-    path = abspath(path.root),
-    ips  = [
+    path   = abspath(path.root),
+    region = var.region,
+    ips    = [
       for node in concat(digitalocean_droplet.small, digitalocean_droplet.large) : node.ipv4_address
     ],
     small = [

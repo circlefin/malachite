@@ -16,6 +16,7 @@ variable "region" {
 output "next_steps" {
   value = <<EOT
 source commands.sh
+ok_cc
 cheat_sheet
 EOT
 }
