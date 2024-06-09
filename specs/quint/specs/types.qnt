@@ -54,7 +54,7 @@ module types {
     // *************************************************************************
 
     type Proposal = {
-        srcAddress: Address,
+        srcAddress: Address, // TODO: rename to sender
         height: Height,
         round: Round,
         proposal: NonNilValue, // an actual value. All other values are id(proposal)
@@ -67,7 +67,7 @@ module types {
     type VoteType = Prevote | Precommit
     type Vote = {
         voteType: VoteType,
-        srcAddress: Address,
+        srcAddress: Address, // TODO: rename to sender
         height: Height,
         round: Round,
         valueId: ValueId,
