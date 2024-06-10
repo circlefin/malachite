@@ -59,12 +59,12 @@ impl<Ctx: Context> PartStore<Ctx> {
             .or_insert(block_part);
     }
 
-    pub fn prune(&mut self, latest_height: Ctx::Height) {
+    pub fn prune(&mut self, min_height: Ctx::Height) {
         let map = std::mem::take(&mut self.map);
 
         self.map = map
             .into_iter()
-            .filter(|((h, _, _), _)| *h >= latest_height)
+            .filter(|((h, _, _), _)| *h >= min_height)
             .collect();
     }
 }
