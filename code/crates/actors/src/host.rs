@@ -9,8 +9,7 @@ use malachite_common::{Context, Round};
 use malachite_driver::Validity;
 
 use crate::consensus::{ConsensusRef, Msg as ConsensusMsg};
-use crate::util::PartStore;
-use crate::util::ValueBuilder;
+use crate::value_builder::ValueBuilder;
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct LocallyProposedValue<Ctx: Context> {
@@ -62,17 +61,16 @@ pub enum Msg<Ctx: Context> {
 }
 
 pub struct State<Ctx: Context> {
-    part_store: PartStore<Ctx>,
     validator_set: Ctx::ValidatorSet,
+    value_builder: Box<dyn ValueBuilder<Ctx>>,
 }
 
 pub struct Args<Ctx: Context> {
-    part_store: PartStore<Ctx>,
     validator_set: Ctx::ValidatorSet,
+    value_builder: Box<dyn ValueBuilder<Ctx>>,
 }
 
 pub struct Host<Ctx: Context> {
-    value_builder: Box<dyn ValueBuilder<Ctx>>,
     marker: PhantomData<Ctx>,
 }
 
@@ -82,18 +80,16 @@ where
 {
     pub async fn spawn(
         value_builder: Box<dyn ValueBuilder<Ctx>>,
-        part_store: PartStore<Ctx>,
         validator_set: Ctx::ValidatorSet,
     ) -> Result<ActorRef<Msg<Ctx>>, ActorProcessingErr> {
         let (actor_ref, _) = Actor::spawn(
             None,
             Self {
-                value_builder,
                 marker: PhantomData,
             },
             Args {
-                part_store,
                 validator_set,
+                value_builder,
             },
         )
         .await?;
@@ -108,18 +104,10 @@ where
         timeout_duration: Duration,
         address: Ctx::Address,
         consensus: ConsensusRef<Ctx>,
-        part_store: &mut PartStore<Ctx>,
+        value_builder: &mut dyn ValueBuilder<Ctx>,
     ) -> Result<LocallyProposedValue<Ctx>, ActorProcessingErr> {
-        let value = self
-            .value_builder
-            .build_value_locally(
-                height,
-                round,
-                timeout_duration,
-                address,
-                consensus,
-                part_store,
-            )
+        let value = value_builder
+            .build_value_locally(height, round, timeout_duration, address, consensus)
             .await;
 
         match value {
@@ -131,12 +119,9 @@ where
     async fn build_value(
         &self,
         block_part: Ctx::BlockPart,
-        part_store: &mut PartStore<Ctx>,
+        value_builder: &mut dyn ValueBuilder<Ctx>,
     ) -> Result<Option<ReceivedProposedValue<Ctx>>, ActorProcessingErr> {
-        let value = self
-            .value_builder
-            .build_value_from_block_parts(block_part, part_store)
-            .await;
+        let value = value_builder.build_value_from_block_parts(block_part).await;
 
         if let Some(value) = &value {
             info!("Value Builder received all parts, produced value for proposal: {value:?}",);
@@ -158,8 +143,8 @@ impl<Ctx: Context> Actor for Host<Ctx> {
         args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
         Ok(State {
-            part_store: args.part_store,
             validator_set: args.validator_set,
+            value_builder: args.value_builder,
         })
     }
 
@@ -186,7 +171,7 @@ impl<Ctx: Context> Actor for Host<Ctx> {
                         timeout_duration,
                         address,
                         consensus,
-                        &mut state.part_store,
+                        state.value_builder.as_mut(),
                     )
                     .await?;
 
@@ -197,7 +182,9 @@ impl<Ctx: Context> Actor for Host<Ctx> {
                 block_part,
                 reply_to,
             } => {
-                let maybe_block = self.build_value(block_part, &mut state.part_store).await?;
+                let maybe_block = self
+                    .build_value(block_part, state.value_builder.as_mut())
+                    .await?;
 
                 // Send the proposed value (from blockparts) to consensus/ Driver
                 if let Some(value_assembled) = maybe_block {
@@ -210,9 +197,9 @@ impl<Ctx: Context> Actor for Host<Ctx> {
                 round,
                 reply_to,
             } => {
-                let value = self
+                let value = state
                     .value_builder
-                    .maybe_received_value(height, round, &mut state.part_store)
+                    .maybe_received_value(height, round)
                     .await;
 
                 reply_to.send(value)?;

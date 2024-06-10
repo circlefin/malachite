@@ -13,7 +13,6 @@ use crate::gossip_mempool::GossipMempoolRef;
 use crate::host::HostRef;
 use crate::mempool::MempoolRef;
 use crate::timers::Config as TimersConfig;
-use crate::util::ValueBuilder;
 
 pub type NodeRef = ActorRef<()>;
 
@@ -24,7 +23,6 @@ pub struct Params<Ctx: Context> {
     pub start_height: Ctx::Height,
     pub threshold_params: ThresholdParams,
     pub timers_config: TimersConfig,
-    pub value_builder: Box<dyn ValueBuilder<Ctx>>,
     pub gossip_mempool: GossipMempoolRef,
     pub mempool: MempoolRef,
     pub tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,

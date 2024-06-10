@@ -15,10 +15,8 @@ use malachite_node::config::{
 };
 use malachite_test::utils::make_validators;
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet};
+use malachite_test_app::spawn::spawn_node_actor;
 
-use malachite_actors::util::spawn_node_actor;
-
-pub const SEED: u64 = 42;
 pub const HEIGHTS: u64 = 3;
 pub const START_HEIGHT: Height = Height::new(1);
 pub const END_HEIGHT: Height = Height::new(START_HEIGHT.as_u64() + HEIGHTS - 1);
@@ -87,11 +85,11 @@ impl TestNode {
         }
     }
 
-    fn start_node(&self) -> bool {
+    pub fn start_node(&self) -> bool {
         !self.faults.contains(&Fault::NoStart)
     }
 
-    fn crashes_at(&self, height: u64) -> bool {
+    pub fn crashes_at(&self, height: u64) -> bool {
         self.faults.iter().any(|f| match f {
             Fault::NoStart => false,
             Fault::Crash(h) => *h == height,
