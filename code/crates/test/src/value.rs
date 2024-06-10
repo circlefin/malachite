@@ -51,7 +51,7 @@ impl Value {
         Self(value)
     }
 
-    pub fn new_from_transactions(txes: Vec<Transaction>) -> Self {
+    pub fn new_from_transactions(txes: &[Transaction]) -> Self {
         let mut hash = DefaultHasher::new();
         txes.hash(&mut hash);
         Value::new(hash.finish())

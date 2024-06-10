@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use signature::Signer;
 
 use malachite_common::{Round, SignedBlockPart, TransactionBatch};
@@ -117,7 +119,7 @@ pub struct BlockPart {
     pub height: Height,
     pub round: Round,
     pub sequence: u64,
-    pub content: Content,
+    pub content: Arc<Content>,
     pub validator_address: Address,
 }
 
@@ -133,7 +135,7 @@ impl BlockPart {
             height,
             round,
             sequence,
-            content,
+            content: Arc::new(content),
             validator_address,
         }
     }
@@ -198,11 +200,11 @@ impl proto::Protobuf for BlockPart {
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("round"))?,
             )?,
             sequence: proto.sequence,
-            content: Content::from_proto(
+            content: Arc::new(Content::from_proto(
                 proto
                     .content
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("content"))?,
-            )?,
+            )?),
             validator_address: Address::from_proto(
                 proto.validator_address.ok_or_else(|| {
                     proto::Error::missing_field::<Self::Proto>("validator_address")
