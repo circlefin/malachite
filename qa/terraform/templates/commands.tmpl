@@ -34,8 +34,9 @@ export D_N="${length(small)+length(large)}"
 export D_SMALL="${length(small)}"
 export D_LARGE="${length(large)}"
 export D_REGION="${region}"
+export D_PULL="missing" # always, missing or never pull new node image
 export PSSH_H="${join(" ",ips)}"
-export PSSH_P="15"
+export PSSH_P="30"
 export D_RM="" # Set this to "--rm" to remove the container after it stops. Logs will not be saved if the nodes crashes.
 export MALACHITE_DIR="$(dirname $(dirname ${path}))"
 
@@ -135,9 +136,20 @@ _change_config() {
   done
 }
 
+_change_config_100nodes() {
+  while (( "$#" ));
+  do
+    file="/data/$1/config/config.toml"
+    sconfig "$file" \
+      "test.time_allowance_factor=0.5" \
+      "test.exec_time_per_tx=500us"
+    shift
+  done
+}
+
 setup_config() {
   docker -H ssh://root@${cc.ip} run -d --pull always --dns ${cc.internal_ip} -v /data:/data -e RUST_LOG ${cc.internal_ip}/node --home /data testnet --nodes ${length(small)+length(large)} --deterministic
-  ssh root@${cc.ip} "source /etc/profile.d/commands.sh && _change_config \$(seq 0 ${length(small)+length(large)-1})"
+  ssh root@${cc.ip} "source /etc/profile.d/commands.sh && _change_config \$(seq 0 ${length(small)+length(large)-1}) && _change_config_100nodes \$(seq 0 ${length(small)+length(large)-1})"
 }
 
 _parse_multiple_hosts() {
@@ -160,8 +172,12 @@ dnode() {
   docker -H ssh://root@$(get_ip "$ID") "$@"
 }
 
+dnode-pull() {
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker pull ${cc.internal_ip}/node
+}
+
 dnode-run() {
-  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --pull always $D_RM --dns ${cc.internal_ip} -v /data:/data -v /config:/config -e RUST_LOG ${cc.internal_ip}/node --home /config start
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --pull $D_PULL $D_RM --dns ${cc.internal_ip} -v /data:/data -v /config:/config -e RUST_LOG ${cc.internal_ip}/node --home /config start
 }
 
 dnode-log() {
@@ -215,13 +231,7 @@ fetch_log() {
 }
 
 download_data() { # needs to run on the local machine for scp to have any use
-  ssh-cc <<EOF
-    systemctl stop prometheus
-     rm prometheus.tgz 2> /dev/null
-     echo "Database export date: $(date)" > /var/lib/prometheus/metrics2/date.txt
-     tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 .
-    systemctl start prometheus
-EOF
+  ssh-cc "systemctl stop prometheus && rm prometheus.tgz 2> /dev/null && tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 . ; systemctl start prometheus"
   scp -r root@$CANDC:prometheus.tgz .
 }
 
@@ -233,3 +243,6 @@ cpu_usage() {
     PSSH_H="$(_parse_multiple_hosts "$@")" xssh "ps -e -o pid,user,%cpu,cmd --sort=-%cpu | head -2 | tail -1"
 }
 
+reset_prometheus_db() {
+  ssh-cc "systemctl stop prometheus && rm -rf /var/lib/prometheus/metrics2/*; systemctl start prometheus"
+}
