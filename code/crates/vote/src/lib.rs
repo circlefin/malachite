@@ -1,4 +1,4 @@
-//! Infrastructre for tallying votes within the consensus engine.
+//! Infrastructure for tallying votes within the consensus engine.
 
 #![no_std]
 #![forbid(unsafe_code)]

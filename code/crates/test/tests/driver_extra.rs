@@ -28,7 +28,7 @@ use malachite_test::utils::*;
 //      `driver_steps_polka_previous_with_locked()
 //
 // - L44 with previously received polkaNil and entering prevote (due to timeoutPropose)
-//      `driver_steps_polka_nil_and_timout_propose()`
+//      `driver_steps_polka_nil_and_timeout_propose()`
 //
 // - L36 with previoustly received polkaValue and proposal, and entering prevote (due to received proposal)
 //      `driver_steps_polka_value_then_proposal()`
@@ -846,7 +846,7 @@ fn driver_steps_polka_previous_with_no_locked() {
 // L57 - v3 receives timeout propose, prevotes for nil (step prevote)
 // L44 - polkaNil is replayed and v3 precommits for nil (step precommit)
 #[test]
-fn driver_steps_polka_nil_and_timout_propose() {
+fn driver_steps_polka_nil_and_timeout_propose() {
     let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
     let (my_sk, my_addr) = (sk3.clone(), v3.address);
 

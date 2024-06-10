@@ -31,8 +31,8 @@ module consensusTest {
         }
 
     action step =
-        nondet h = 1 //oneOf(1.to(4))
-        nondet r = 0 //oneOf(1.to(4))
+        nondet h = oneOf(1.to(4))
+        nondet r = oneOf(1.to(4))
         nondet v = oneOf(Set("A", "B", "C"))
         nondet vr = oneOf(Set(-1, 1, 2, 3, 4))
         any {

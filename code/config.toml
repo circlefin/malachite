@@ -59,7 +59,7 @@ persistent_peers = []
 # Override with MALACHITE__MEMPOOL__MAX_TX_COUNT env variable
 max_tx_count = 10000
 
-# Maximum number of transactions to gossip at once in a batch
+# Maximum number of transactions to gossip at once in a batch. If set to 0, mempool does not gossip the transactions.
 # Override with MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE
 gossip_batch_size = 100
 

@@ -223,7 +223,7 @@ fn generate_txes(
         // TODO: Remove tx-es on decided block
         tx_batch.push(tx.clone());
 
-        if tx_batch.len() >= batch_size {
+        if batch_size > 0 && tx_batch.len() >= batch_size {
             let mempool_batch = MempoolTransactionBatch::new(std::mem::take(&mut tx_batch));
             gossip_mempool.cast(GossipMempoolMsg::Broadcast(Channel::Mempool, mempool_batch))?;
         }

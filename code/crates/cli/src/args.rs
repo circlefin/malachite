@@ -86,7 +86,7 @@ impl Args {
         Ok(self.get_home_dir()?.join("config"))
     }
 
-    /// get_config_file_path returns the configuration file path based on the command-ine arguments
+    /// get_config_file_path returns the configuration file path based on the command-line arguments
     /// and the configuration folder.
     pub fn get_config_file_path(&self) -> Result<PathBuf> {
         Ok(self.get_config_dir()?.join(CONFIG_FILE))
