@@ -272,6 +272,8 @@ pub mod test {
                             "Value Builder received last block part",
                         );
 
+                        // FIXME: At this point we don't know if this block (and its txes) will be decided on.
+                        //        So these need to be moved after the block is decided.
                         self.metrics.block_tx_count.observe(tx_count as f64);
                         self.metrics.block_size_bytes.observe(block_size as f64);
                         self.metrics.finalized_txes.inc_by(tx_count as u64);
