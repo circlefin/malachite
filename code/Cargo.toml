@@ -16,6 +16,10 @@ rust-version = "1.77"
 [profile.release]
 overflow-checks = true
 
+[profile.profiling]
+inherits = "release"
+debug = true
+
 [workspace.lints.rust]
 unused_crate_dependencies = "warn"
 
