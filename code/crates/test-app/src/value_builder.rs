@@ -208,6 +208,9 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
         let round = block_part.round;
         let sequence = block_part.sequence;
 
+        // Prune all block parts for heights lower than `height - 1`
+        self.part_store.prune(height.decrement().unwrap_or(height));
+
         self.part_store.store(block_part.clone());
         let all_parts = self.part_store.all_parts(height, round);
 
