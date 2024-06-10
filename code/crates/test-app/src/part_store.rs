@@ -60,11 +60,6 @@ impl<Ctx: Context> PartStore<Ctx> {
     }
 
     pub fn prune(&mut self, min_height: Ctx::Height) {
-        let map = std::mem::take(&mut self.map);
-
-        self.map = map
-            .into_iter()
-            .filter(|((h, _, _), _)| *h >= min_height)
-            .collect();
+        self.map.retain(|(height, _, _), _| *height >= min_height);
     }
 }
