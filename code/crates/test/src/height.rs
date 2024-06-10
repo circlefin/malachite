@@ -14,6 +14,14 @@ impl Height {
     pub const fn as_u64(&self) -> u64 {
         self.0
     }
+
+    pub fn increment(&self) -> Self {
+        Self(self.0 + 1)
+    }
+
+    pub fn decrement(&self) -> Option<Self> {
+        self.0.checked_sub(1).map(Self)
+    }
 }
 
 impl fmt::Display for Height {

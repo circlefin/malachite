@@ -58,4 +58,13 @@ impl<Ctx: Context> PartStore<Ctx> {
             .entry((height, round, sequence))
             .or_insert(block_part);
     }
+
+    pub fn prune(&mut self, latest_height: Ctx::Height) {
+        let map = std::mem::take(&mut self.map);
+
+        self.map = map
+            .into_iter()
+            .filter(|((h, _, _), _)| *h >= latest_height)
+            .collect();
+    }
 }
