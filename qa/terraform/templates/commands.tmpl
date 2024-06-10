@@ -36,7 +36,7 @@ export D_LARGE="${length(large)}"
 export D_REGION="${region}"
 export PSSH_H="${join(" ",ips)}"
 export PSSH_P="15"
-export D_RM="--rm"
+export D_RM="" # Set this to "--rm" to remove the container after it stops. Logs will not be saved if the nodes crashes.
 export MALACHITE_DIR="$(dirname $(dirname ${path}))"
 
 alias candc="docker -H ssh://root@${cc.ip}"
@@ -182,6 +182,10 @@ dnode-stop() {
   PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker stop node
 }
 
+dnode-rm() {
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh "docker stop node 2> /dev/null; docker rm node"
+}
+
 cheat_sheet() {
 cat <<EOF
     ok_cc
@@ -220,3 +224,12 @@ download_data() { # needs to run on the local machine for scp to have any use
 EOF
   scp -r root@$CANDC:prometheus.tgz .
 }
+
+mem_usage() {
+    PSSH_H="$(_parse_multiple_hosts "$@")" xssh "ps -e -o pid,user,%mem,cmd --sort=-%mem | head -2 | tail -1"
+}
+
+cpu_usage() {
+    PSSH_H="$(_parse_multiple_hosts "$@")" xssh "ps -e -o pid,user,%cpu,cmd --sort=-%cpu | head -2 | tail -1"
+}
+
