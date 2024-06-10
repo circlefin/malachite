@@ -17,11 +17,9 @@ malachite-gossip-mempool.workspace   = true
 malachite-metrics.workspace          = true
 malachite-node.workspace             = true
 malachite-proto.workspace            = true
-malachite-test.workspace             = true
 malachite-vote.workspace             = true
 
 async-trait        = { workspace = true }
-bytesize           = { workspace = true, features = ["serde"] }
 eyre               = { workspace = true }
 derive-where       = { workspace = true }
 libp2p             = { workspace = true }

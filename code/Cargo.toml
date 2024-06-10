@@ -17,7 +17,7 @@ rust-version = "1.77"
 overflow-checks = true
 
 [workspace.lints.rust]
-# unused_crate_dependencies = "warn"
+unused_crate_dependencies = "warn"
 
 [workspace.dependencies]
 malachite-actors           = { version = "0.1.0", path = "crates/actors" }

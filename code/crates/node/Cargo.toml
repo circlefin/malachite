@@ -13,15 +13,10 @@ workspace = true
 
 [dependencies]
 malachite-common.workspace  = true
-malachite-test.workspace    = true
 
-async-trait       = { workspace = true }
 bytesize          = { workspace = true, features = ["serde"] }
-derive-where      = { workspace = true }
-ed25519-consensus = { workspace = true, features = ["serde"] }
 humantime-serde   = { workspace = true }
 multiaddr         = { workspace = true }
-tokio             = { workspace = true, features = ["full"] }
 serde             = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

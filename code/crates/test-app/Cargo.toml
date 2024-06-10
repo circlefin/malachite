@@ -30,4 +30,4 @@ rand_chacha        = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [lints]
-workspace = true
+# workspace = true
