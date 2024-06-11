@@ -6,9 +6,10 @@ using custom commands to simplify the language used to describe the process of r
 ## Prerequisites
 
 * [pssh](https://linux.die.net/man/1/pssh)(Mac) or [parallel-ssh](https://manpages.org/parallel-ssh)(Linux) on your
-  local machine. If you use parallel-ssh, create a symlink to `pssh` in your path.
+  local machine.
+* If you use parallel-ssh, create a symlink to `pssh` in your path.
 
-Usually, `ln /usr/bin/parallel-ssh /usr/bin/pssh` will do the trick.
+* Usually, `ln /usr/bin/parallel-ssh /usr/bin/pssh` will do the trick.
 
 ## The command & control server
 
@@ -22,7 +23,8 @@ The developer can create the testnet configuration remotely on the `cc` server u
 The configuration is stored in the `/data` folder on the server which is shared as over NFS with the QA nodes.
 
 The `cc` server also hosts a Prometheus server with Grafana for monitoring the nodes. The data can be downloaded using
-the `download_data` custom command. Then it can be imported to a local Grafana/Prometheus viewer for further analysis.
+the `get_prometheus_data` custom command. Then it can be imported to a local Grafana/Prometheus viewer for further
+analysis.
 
 Finally, the `cc` server also works as the DNS server for the QA nodes. All node IPs can be resolved by simple names on
 the servers. This is especially useful when configuring persistent peers.
@@ -36,16 +38,14 @@ After creating your DO access (see the CometBFT QA infra
 cd terraform
 terraform init
 terraform apply -var small_nodes=0 # optional. This will create the cc server only.
-terraform apply -var small_nodes=4 # the cc server will not be deleted if you scale the nodes.
+terraform apply -var small_nodes=4 -var large_nodes=3 # the cc server will not be deleted if you scale the nodes.
 ```
 
 By running terraform with zero nodes first, you create the `cc` server ahead of time. You can skip that step and create
 the `cc` server with the QA nodes in one go.
 
-The above will create a 4-node Digital Ocean QA environment a `hosts` file and a `commands.sh` file with the custom
+The above will create a 7-node Digital Ocean QA environment a `hosts` file and a `commands.sh` file with the custom
 commands.
-
-The servers are called `small0`, `small1`, `small2`, and `small3`, respectively.
 
 Most of the node setup is done automatically in cloud-init. When terraform finishes, the servers are still installing
 packages and setting up their environment. One of the first commands we will run will check if the servers have
@@ -55,7 +55,7 @@ finished building.
 
 There are a few custom commands to make managing the nodes easier. They are explained in the `commands.sh` file.
 
-Note: most of these commands require SSH authentication and if you use a Yubikey for SSH authentication, you can
+Note: most of these commands require SSH authentication. If you use a Yubikey for SSH authentication, you can
 saturate your machine's SSH connection with the default settings. Use a key file and `ssh-agent` or change
 connection settings.
 
@@ -67,22 +67,24 @@ from your local machine if you feel the servers are close enough and the network
 ```bash
 source commands.sh # do this in all new terminal window on your machine. No need to do this on the CC server.
 
-ok_cc
+ok_cc # make sure the CC server has finished initial setup.
 deploy_cc # Takes 4-5 minutes. Continue in a different window while this is running.
           # You can run it on cc server as well, but you have to manually put the source code at /root/malachite.
 
-ssh-cc # (optional) move to the CC server and run the rest of the commands closer to the QA servers.
+ssh-cc # (optional) move to the CC server and run the rest of the commands closer to the QA nodes.
 setup_config # depends on deploy_cc, only run it if that finished.
 
-ok_all
-dnode-run all
+ok_all # make sure all QA servers have finished initial setup
+dnode-run all # run malachite on all QA servers
 
 # Wait some time to generate data
 
-download_data # this has to run on the machine where you want the data to end up. Usually, your local machine.
-fetch_log all
+dnode-stop all # stop all malachite nodes. It does not remove the docker container so the logs can be viewed.
 
-dnode-stop all
+get_prometheus_data # this has to run on the machine where you want the data to end up. Usually, your local machine.
+fetch_log all # fetch he logs of malachite-cli from each QA node
+
+dnode-rm all # remove the docker container "node" from the servers so the application can be re-run
 ```
 
 ### 1. Import custom commands
@@ -173,10 +175,10 @@ dnode-stop all
 You can use `dnode`, `dnode-run`, `dnode-log` and `dnode-stop` to manage the docker container.
 `dnode` is a generic command to run docker commands remotely.
 
-### 8. Download data
+### 8. Get the data from Prometheus
 
 ```bash
-download_data
+get_prometheus_data
 ```
 
 This will copy the compressed prometheus database from the `cc` server to your local machine as `prometheus.tgz`.
@@ -199,7 +201,7 @@ when you SSH into the server.
 
 ## prometheus.tgz file
 
-This file gets exported using the `export_data` command. Import it in the viewer for further analysis.
+This file gets exported using the `get_prometheus_data` command. Import it in the viewer for further analysis.
 
 # Viewer
 
