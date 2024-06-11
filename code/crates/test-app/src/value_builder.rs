@@ -79,9 +79,6 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
         let mut sequence = 1;
         let mut block_size = 0;
 
-        // Prune the PartStore of all parts for heights lower than `height - 1`
-        self.part_store.prune(height.decrement().unwrap_or(height));
-
         loop {
             trace!(
                 "Build local value for h:{}, r:{}, s:{}",
@@ -207,9 +204,6 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
         let height = block_part.height;
         let round = block_part.round;
         let sequence = block_part.sequence;
-
-        // Prune all block parts for heights lower than `height - 1`
-        self.part_store.prune(height.decrement().unwrap_or(height));
 
         self.part_store.store(block_part.clone());
         let all_parts = self.part_store.all_parts(height, round);
