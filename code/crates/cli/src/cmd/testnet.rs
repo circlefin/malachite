@@ -11,7 +11,7 @@ use rand::{Rng, SeedableRng};
 use tracing::info;
 
 use malachite_node::config::{
-    Config, ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, TimeoutConfig,
+    Config, ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
 };
 use malachite_test::ValidatorSet as Genesis;
 use malachite_test::{PrivateKey, PublicKey, Validator};
@@ -160,6 +160,7 @@ pub fn generate_config(index: usize, total: usize) -> Config {
             enabled: true,
             listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
         },
+        runtime: RuntimeConfig::single_threaded(),
         test: Default::default(),
     }
 }

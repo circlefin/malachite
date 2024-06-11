@@ -21,6 +21,9 @@ pub struct Config {
     /// Metrics configuration options
     pub metrics: MetricsConfig,
 
+    /// Runtime configuration options
+    pub runtime: RuntimeConfig,
+
     /// Test configuration
     #[serde(default)]
     pub test: TestConfig,
@@ -137,6 +140,30 @@ pub struct MetricsConfig {
 
     /// Address at which to serve the metrics at
     pub listen_addr: SocketAddr,
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum RuntimeConfig {
+    /// Single-threaded runtime
+    #[default]
+    SingleThreaded,
+
+    /// Multi-threaded runtime
+    MultiThreaded {
+        /// Number of worker threads
+        worker_threads: usize,
+    },
+}
+
+impl RuntimeConfig {
+    pub fn single_threaded() -> Self {
+        Self::SingleThreaded
+    }
+
+    pub fn multi_threaded(worker_threads: usize) -> Self {
+        Self::MultiThreaded { worker_threads }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
