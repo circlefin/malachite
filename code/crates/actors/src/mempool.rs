@@ -236,7 +236,6 @@ impl Actor for Mempool {
     }
 }
 
-// TOOD - consider moving to impl State?
 fn generate_and_broadcast_txes(
     count: usize,
     size: u64,
