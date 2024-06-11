@@ -58,6 +58,13 @@ pub enum Msg<Ctx: Context> {
         height: Ctx::Height,
         reply_to: RpcReplyPort<Ctx::ValidatorSet>,
     },
+
+    // Decided value
+    DecidedOnValue {
+        height: Ctx::Height,
+        round: Round,
+        value: Ctx::Value,
+    },
 }
 
 pub struct State<Ctx: Context> {
@@ -203,6 +210,18 @@ impl<Ctx: Context> Actor for Host<Ctx> {
                     .await;
 
                 reply_to.send(value)?;
+            }
+
+            Msg::DecidedOnValue {
+                height,
+                round,
+                value,
+            } => {
+                info!("what");
+                let _v = state
+                    .value_builder
+                    .decided_on_value(height, round, value)
+                    .await;
             }
 
             Msg::GetValidatorSet {
