@@ -1,3 +1,4 @@
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 use std::time::{Duration, Instant};
 
@@ -298,7 +299,18 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
         self.metrics.block_size_bytes.observe(block_size as f64);
         self.metrics.finalized_txes.inc_by(tx_count as u64);
 
-        // TODO - remove all the tx-es included in the block from mempool
+        // Send Update to mempool to remove all the tx-es included in the block.
+        let mut tx_hashes = vec![];
+        for part in all_parts {
+            if let Content::TxBatch(transaction_batch) = part.content.as_ref() {
+                tx_hashes.extend(transaction_batch.transactions().iter().map(|tx| {
+                    let mut hash = DefaultHasher::new();
+                    tx.0.hash(&mut hash);
+                    hash.finish()
+                }));
+            }
+        }
+        let _ = self.tx_streamer.cast(MempoolMsg::Update { tx_hashes });
 
         // Prune the PartStore of all parts for heights lower than `height - 1`
         self.part_store.prune(height.decrement().unwrap_or(height));
