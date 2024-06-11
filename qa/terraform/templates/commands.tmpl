@@ -31,7 +31,7 @@
 
 export CANDC="${cc.ip}"
 %{~ for i, n in concat(small, large) }
-export NODE$i="${n.ip}"
+export NODE${i}="${n.ip}"
 %{~ endfor }
 export D_N="${length(small)+length(large)}"
 export D_REGION="${region}"
@@ -188,10 +188,20 @@ _keyscan_all_servers() {
 %{~ endfor }
 }
 
-_deploy_cc() { # Alternative deployment from local machine, testing shows negligible speed difference
-  rsync -avz --exclude target $MALACHITE_DIR/code root@$${CANDC}:/root/malachite/code/
-  rsync -avz --exclude terraform $MALACHITE_DIR/qa root@$${CANDC}:/root/malachite/qa/
-  ssh-cc docker build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
+_deploy_sync_code() {
+  rsync -avz --exclude target $MALACHITE_DIR/code root@$${CANDC}:/root/malachite/
+}
+
+_deploy_sync_qa() {
+  rsync -avz --exclude terraform --exclude viewer $MALACHITE_DIR/qa root@$${CANDC}:/root/malachite/
+}
+
+_deploy_build() {
+  if _is_cc; then
+    docker build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
+  else
+    ssh-cc docker build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
+  fi
 }
 
 _compose_persistent_peers() {
