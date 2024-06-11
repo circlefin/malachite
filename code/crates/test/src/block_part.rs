@@ -32,7 +32,7 @@ impl BlockMetadata {
 }
 
 impl proto::Protobuf for BlockMetadata {
-    type Proto = proto::BlockMetadata;
+    type Proto = crate::proto::BlockMetadata;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self {
@@ -46,7 +46,7 @@ impl proto::Protobuf for BlockMetadata {
     }
 
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        Ok(proto::BlockMetadata {
+        Ok(crate::proto::BlockMetadata {
             proof: self.proof.clone(),
             value: Option::from(self.value.to_proto().unwrap()),
         })
@@ -86,7 +86,7 @@ impl Content {
 }
 
 impl proto::Protobuf for Content {
-    type Proto = proto::Content;
+    type Proto = crate::proto::Content;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         let block_metadata = match proto.metadata {
@@ -106,7 +106,8 @@ impl proto::Protobuf for Content {
             Some(meta) => Some(meta.to_proto()?),
             None => None,
         };
-        Ok(proto::Content {
+
+        Ok(crate::proto::Content {
             tx_batch: Some(self.transaction_batch.to_proto()?),
             metadata,
         })
@@ -200,8 +201,8 @@ impl proto::Protobuf for BlockPart {
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("round"))?,
             )?,
             sequence: proto.sequence,
-            content: Arc::new(Content::from_proto(
-                proto
+            content: Arc::new(Content::from_any(
+                &proto
                     .content
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("content"))?,
             )?),
@@ -218,7 +219,7 @@ impl proto::Protobuf for BlockPart {
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),
             sequence: self.sequence,
-            content: Some(self.content.to_proto()?),
+            content: Some(self.content.to_any()?),
             validator_address: Some(self.validator_address.to_proto()?),
         })
     }

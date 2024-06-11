@@ -12,10 +12,11 @@ malachite-actors.workspace           = true
 malachite-common.workspace           = true
 malachite-driver.workspace           = true
 malachite-node.workspace             = true
-malachite-metrics.workspace             = true
+malachite-metrics.workspace          = true 
 malachite-gossip-consensus.workspace = true
 malachite-gossip-mempool.workspace   = true
 malachite-test.workspace             = true
+malachite-proto.workspace            = true
 
 async-trait.workspace                = true
 bytesize.workspace                   = true

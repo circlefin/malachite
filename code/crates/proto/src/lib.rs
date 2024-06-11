@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 
+use prost_types::Any;
 use thiserror::Error;
 
 use prost::{DecodeError, EncodeError, Message};
@@ -64,5 +65,19 @@ pub trait Protobuf: Sized {
     fn to_bytes(&self) -> Result<Vec<u8>, Error> {
         let proto = self.to_proto()?;
         Ok(proto.encode_to_vec())
+    }
+
+    fn from_any(any: &Any) -> Result<Self, Error>
+    where
+        Self::Proto: prost::Name,
+    {
+        Self::from_proto(any.to_msg::<Self::Proto>()?)
+    }
+
+    fn to_any(&self) -> Result<Any, Error>
+    where
+        Self::Proto: prost::Name,
+    {
+        Ok(Any::from_msg(&self.to_proto()?)?)
     }
 }
