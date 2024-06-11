@@ -114,7 +114,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                 round,
                 sequence,
                 validator_address,
-                Content::new(TransactionBatch::new(txes.clone()), None),
+                Content::TxBatch(TransactionBatch::new(txes.clone())),
             );
 
             self.part_store.store(block_part.clone());
@@ -166,10 +166,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                     round,
                     sequence,
                     validator_address,
-                    Content::new(
-                        TransactionBatch::new(vec![]),
-                        Some(BlockMetadata::new(vec![], value)),
-                    ),
+                    Content::Metadata(BlockMetadata::new(vec![], value)),
                 );
 
                 self.part_store.store(block_part.clone());
@@ -218,7 +215,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
 
         // Simulate Tx execution and proof verification (assumes success)
         // TODO - add config knob for invalid blocks
-        let num_txes = block_part.content.transaction_batch.len() as u32;
+        let num_txes = block_part.content.tx_count().unwrap_or(0) as u32;
         tokio::time::sleep(self.params.exec_time_per_tx * num_txes).await;
 
         // Get the "last" part, the one with highest sequence.
@@ -236,7 +233,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                     let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
                     let tx_count: usize = all_parts
                         .iter()
-                        .map(|p| p.content.transaction_batch.len())
+                        .map(|p| p.content.tx_count().unwrap_or(0))
                         .sum();
 
                     info!(

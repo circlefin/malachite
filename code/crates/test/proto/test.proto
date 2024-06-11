@@ -9,9 +9,10 @@ message BlockMetadata {
     malachite.Value value = 2;
 }
 
-// TODO - use oneof
 message Content {
-    malachite.TransactionBatch tx_batch = 90;
-    optional BlockMetadata metadata = 91;
+    oneof value {
+        malachite.TransactionBatch tx_batch = 90;
+        BlockMetadata metadata = 91;
+    }
 }
 

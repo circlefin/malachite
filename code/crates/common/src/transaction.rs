@@ -56,6 +56,14 @@ impl TransactionBatch {
     pub fn transactions(&self) -> &[Transaction] {
         &self.0
     }
+
+    /// The size of this batch in bytes
+    pub fn size_bytes(&self) -> usize {
+        self.transactions()
+            .iter()
+            .map(|tx| tx.size_bytes())
+            .sum::<usize>()
+    }
 }
 
 /// Mempool transaction batch
