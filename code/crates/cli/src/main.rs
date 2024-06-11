@@ -31,29 +31,25 @@ pub fn main() -> Result<()> {
 }
 
 fn start(args: &Args) -> Result<()> {
+    use tokio::runtime::Builder as RtBuilder;
+
     let cfg: Config = args.load_config()?;
     let sk: PrivateKey = args.load_private_key()?;
     let vs: ValidatorSet = args.load_genesis()?;
 
-    dbg!(cfg.runtime);
-
     let mut builder = match cfg.runtime {
-        RuntimeConfig::SingleThreaded => tokio::runtime::Builder::new_current_thread(),
-        RuntimeConfig::MultiThreaded { worker_threads: 0 } => {
-            tokio::runtime::Builder::new_multi_thread()
-        }
+        RuntimeConfig::SingleThreaded => RtBuilder::new_current_thread(),
         RuntimeConfig::MultiThreaded { worker_threads } => {
-            let mut builder = tokio::runtime::Builder::new_multi_thread();
-            builder.worker_threads(worker_threads);
+            let mut builder = RtBuilder::new_multi_thread();
+            if worker_threads > 0 {
+                builder.worker_threads(worker_threads);
+            }
             builder
         }
     };
 
-    builder
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(cmd::start::run(sk, cfg, vs))
+    let rt = builder.enable_all().build()?;
+    rt.block_on(cmd::start::run(sk, cfg, vs))
 }
 
 fn init(args: &Args) -> Result<()> {
