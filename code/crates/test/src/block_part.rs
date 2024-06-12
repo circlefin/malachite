@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use signature::Signer;
 
 use malachite_common::{Round, SignedBlockPart, TransactionBatch};
@@ -30,7 +32,7 @@ impl BlockMetadata {
 }
 
 impl proto::Protobuf for BlockMetadata {
-    type Proto = proto::BlockMetadata;
+    type Proto = crate::proto::BlockMetadata;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self {
@@ -44,7 +46,7 @@ impl proto::Protobuf for BlockMetadata {
     }
 
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        Ok(proto::BlockMetadata {
+        Ok(crate::proto::BlockMetadata {
             proof: self.proof.clone(),
             value: Option::from(self.value.to_proto().unwrap()),
         })
@@ -52,62 +54,54 @@ impl proto::Protobuf for BlockMetadata {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Content {
-    pub transaction_batch: TransactionBatch,
-    pub block_metadata: Option<BlockMetadata>,
+pub enum Content {
+    TxBatch(TransactionBatch),
+    Metadata(BlockMetadata),
 }
 
 impl Content {
-    pub fn new(transaction_batch: TransactionBatch, block_metadata: Option<BlockMetadata>) -> Self {
-        Self {
-            transaction_batch,
-            block_metadata,
+    pub fn size_bytes(&self) -> usize {
+        match self {
+            Content::TxBatch(batch) => batch.size_bytes(),
+            Content::Metadata(meta) => meta.size_bytes(),
         }
     }
 
-    pub fn size_bytes(&self) -> usize {
-        let txes_size = self
-            .transaction_batch
-            .transactions()
-            .iter()
-            .map(|tx| tx.size_bytes())
-            .sum::<usize>();
-
-        let meta_size = self
-            .block_metadata
-            .as_ref()
-            .map(|meta| meta.to_bytes().len())
-            .unwrap_or(0);
-
-        txes_size + meta_size
+    pub fn tx_count(&self) -> Option<usize> {
+        match self {
+            Content::TxBatch(batch) => Some(batch.transactions().len()),
+            Content::Metadata(_) => None,
+        }
     }
 }
 
 impl proto::Protobuf for Content {
-    type Proto = proto::Content;
+    type Proto = crate::proto::Content;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
-        let block_metadata = match proto.metadata {
-            Some(meta) => Some(BlockMetadata::from_proto(meta)?),
-            None => None,
-        };
+        let content = proto
+            .value
+            .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
 
-        Ok(Content {
-            transaction_batch: TransactionBatch::from_proto(proto.tx_batch.unwrap())?,
-            block_metadata,
-        })
+        match content {
+            crate::proto::content::Value::TxBatch(batch) => {
+                TransactionBatch::from_proto(batch).map(Content::TxBatch)
+            }
+            crate::proto::content::Value::Metadata(metadata) => {
+                BlockMetadata::from_proto(metadata).map(Content::Metadata)
+            }
+        }
     }
 
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        //TODO fix
-        let metadata = match self.block_metadata.clone() {
-            Some(meta) => Some(meta.to_proto()?),
-            None => None,
-        };
-        Ok(proto::Content {
-            tx_batch: Some(self.transaction_batch.to_proto()?),
-            metadata,
-        })
+        match self {
+            Content::TxBatch(batch) => Ok(crate::proto::Content {
+                value: Some(crate::proto::content::Value::TxBatch(batch.to_proto()?)),
+            }),
+            Content::Metadata(metadata) => Ok(crate::proto::Content {
+                value: Some(crate::proto::content::Value::Metadata(metadata.to_proto()?)),
+            }),
+        }
     }
 }
 
@@ -117,7 +111,7 @@ pub struct BlockPart {
     pub height: Height,
     pub round: Round,
     pub sequence: u64,
-    pub content: Content,
+    pub content: Arc<Content>,
     pub validator_address: Address,
 }
 
@@ -133,7 +127,7 @@ impl BlockPart {
             height,
             round,
             sequence,
-            content,
+            content: Arc::new(content),
             validator_address,
         }
     }
@@ -151,16 +145,19 @@ impl BlockPart {
         }
     }
 
-    pub fn metadata(&self) -> Option<BlockMetadata> {
-        self.content.block_metadata.clone()
+    pub fn metadata(&self) -> Option<&BlockMetadata> {
+        match self.content.as_ref() {
+            Content::Metadata(metadata) => Some(metadata),
+            Content::TxBatch(_) => None,
+        }
+    }
+
+    pub fn tx_count(&self) -> Option<usize> {
+        self.content.tx_count()
     }
 
     pub fn size_bytes(&self) -> usize {
         self.content.size_bytes()
-    }
-
-    pub fn tx_count(&self) -> usize {
-        self.content.transaction_batch.len()
     }
 }
 
@@ -198,11 +195,11 @@ impl proto::Protobuf for BlockPart {
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("round"))?,
             )?,
             sequence: proto.sequence,
-            content: Content::from_proto(
-                proto
+            content: Arc::new(Content::from_any(
+                &proto
                     .content
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("content"))?,
-            )?,
+            )?),
             validator_address: Address::from_proto(
                 proto.validator_address.ok_or_else(|| {
                     proto::Error::missing_field::<Self::Proto>("validator_address")
@@ -216,7 +213,7 @@ impl proto::Protobuf for BlockPart {
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),
             sequence: self.sequence,
-            content: Some(self.content.to_proto()?),
+            content: Some(self.content.to_any()?),
             validator_address: Some(self.validator_address.to_proto()?),
         })
     }

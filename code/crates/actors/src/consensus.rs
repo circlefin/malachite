@@ -673,6 +673,12 @@ where
                     value.id()
                 );
 
+                self.host.cast(HostMsg::DecidedOnValue {
+                    height,
+                    round,
+                    value,
+                })?;
+
                 self.metrics.block_end();
                 self.metrics.finalized_blocks.inc();
                 self.metrics

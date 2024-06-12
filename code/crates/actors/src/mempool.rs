@@ -1,4 +1,5 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -49,12 +50,41 @@ pub enum Msg {
         num_txes: usize,
         reply: RpcReplyPort<Vec<Transaction>>,
     },
+    Update {
+        tx_hashes: Vec<u64>,
+    },
 }
 
 #[allow(dead_code)]
 pub struct State {
     msg_queue: VecDeque<Msg>,
-    transactions: Vec<Transaction>,
+    pub transactions: BTreeMap<u64, Transaction>,
+}
+
+impl State {
+    pub fn new() -> Self {
+        Self {
+            msg_queue: VecDeque::new(),
+            transactions: BTreeMap::new(),
+        }
+    }
+
+    pub fn add_tx(&mut self, tx: &Transaction) {
+        let mut hash = DefaultHasher::new();
+        tx.0.hash(&mut hash);
+        let key = hash.finish();
+        self.transactions.entry(key).or_insert(tx.clone());
+    }
+
+    pub fn remove_tx(&mut self, hash: &u64) {
+        self.transactions.remove_entry(hash);
+    }
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Mempool {
@@ -150,10 +180,7 @@ impl Actor for Mempool {
         self.gossip_mempool
             .cast(GossipMempoolMsg::Subscribe(forward))?;
 
-        Ok(State {
-            msg_queue: VecDeque::new(),
-            transactions: vec![],
-        })
+        Ok(State::new())
     }
 
     #[tracing::instrument(name = "mempool", skip(self, myself, msg, state))]
@@ -170,7 +197,7 @@ impl Actor for Mempool {
 
             Msg::Input(tx) => {
                 if state.transactions.len() < self.mempool_config.max_tx_count {
-                    state.transactions.push(tx);
+                    state.add_tx(&tx);
                 } else {
                     trace!("Mempool is full, dropping transaction");
                 }
@@ -179,14 +206,19 @@ impl Actor for Mempool {
             Msg::TxStream {
                 reply, num_txes, ..
             } => {
-                let txes = generate_txes(
+                let txes = generate_and_broadcast_txes(
                     num_txes,
                     self.test_config.tx_size.as_u64(),
-                    self.mempool_config.gossip_batch_size,
+                    &self.mempool_config,
+                    state,
                     &self.gossip_mempool,
                 )?;
 
                 reply.send(txes)?;
+            }
+
+            Msg::Update { tx_hashes } => {
+                tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
             }
         }
 
@@ -204,10 +236,11 @@ impl Actor for Mempool {
     }
 }
 
-fn generate_txes(
+fn generate_and_broadcast_txes(
     count: usize,
     size: u64,
-    batch_size: usize,
+    config: &MempoolConfig,
+    state: &mut State,
     gossip_mempool: &GossipMempoolRef,
 ) -> Result<Vec<Transaction>, ActorProcessingErr> {
     let mut transactions = vec![];
@@ -220,10 +253,14 @@ fn generate_txes(
         let tx_bytes: Vec<u8> = (0..size).map(|_| rng.sample(range)).collect();
         let tx = Transaction::new(tx_bytes);
 
-        // TODO: Remove tx-es on decided block
+        // Add transaction to state
+        if state.transactions.len() < config.max_tx_count {
+            state.add_tx(&tx);
+        }
         tx_batch.push(tx.clone());
 
-        if batch_size > 0 && tx_batch.len() >= batch_size {
+        // Gossip tx-es to peers in batches
+        if config.gossip_batch_size > 0 && tx_batch.len() >= config.gossip_batch_size {
             let mempool_batch = MempoolTransactionBatch::new(std::mem::take(&mut tx_batch));
             gossip_mempool.cast(GossipMempoolMsg::Broadcast(Channel::Mempool, mempool_batch))?;
         }

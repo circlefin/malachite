@@ -1,3 +1,4 @@
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 use std::time::{Duration, Instant};
 
@@ -111,13 +112,13 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                 round,
                 sequence,
                 validator_address,
-                Content::new(TransactionBatch::new(txes.clone()), None),
+                Content::TxBatch(TransactionBatch::new(txes.clone())),
             );
 
             self.part_store.store(block_part.clone());
 
             consensus
-                .cast(ConsensusMsg::BuilderBlockPart(block_part.clone()))
+                .cast(ConsensusMsg::BuilderBlockPart(block_part))
                 .unwrap();
 
             let mut tx_count = 0;
@@ -139,9 +140,9 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
 
             if Instant::now() > expiration_time {
                 error!(
-                            "Value Builder failed to complete in given interval ({timeout_duration:?}), took {:?}",
-                            Instant::now() - start,
-                        );
+                    "Value Builder failed to complete in given interval ({timeout_duration:?}), took {:?}",
+                    Instant::now() - start,
+                );
 
                 return None;
             }
@@ -150,7 +151,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
 
             if Instant::now() > deadline {
                 // Create, store and gossip the BlockMetadata in a BlockPart
-                let value = Value::new_from_transactions(tx_batch.clone());
+                let value = Value::new_from_transactions(&tx_batch);
 
                 let result = Some(LocallyProposedValue {
                     height,
@@ -163,10 +164,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                     round,
                     sequence,
                     validator_address,
-                    Content::new(
-                        TransactionBatch::new(vec![]),
-                        Some(BlockMetadata::new(vec![], value)),
-                    ),
+                    Content::Metadata(BlockMetadata::new(vec![], value)),
                 );
 
                 self.part_store.store(block_part.clone());
@@ -212,7 +210,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
 
         // Simulate Tx execution and proof verification (assumes success)
         // TODO - add config knob for invalid blocks
-        let num_txes = block_part.content.transaction_batch.len() as u32;
+        let num_txes = block_part.content.tx_count().unwrap_or(0) as u32;
         tokio::time::sleep(self.params.exec_time_per_tx * num_txes).await;
 
         // Get the "last" part, the one with highest sequence.
@@ -230,7 +228,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                     let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
                     let tx_count: usize = all_parts
                         .iter()
-                        .map(|p| p.content.transaction_batch.len())
+                        .map(|p| p.content.tx_count().unwrap_or(0))
                         .sum();
 
                     info!(
@@ -241,12 +239,6 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                         num_parts = %all_parts.len(),
                         "Value Builder received last block part",
                     );
-
-                    // FIXME: At this point we don't know if this block (and its txes) will be decided on.
-                    //        So these need to be moved after the block is decided.
-                    self.metrics.block_tx_count.observe(tx_count as f64);
-                    self.metrics.block_size_bytes.observe(block_size as f64);
-                    self.metrics.finalized_txes.inc_by(tx_count as u64);
 
                     Some(ReceivedProposedValue {
                         validator_address: last_part.validator_address,
@@ -279,5 +271,48 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
             value: Some(metadata.value()),
             valid: Validity::Valid,
         })
+    }
+
+    #[tracing::instrument(
+            name = "value_builder.decided",
+            skip_all,
+            fields(
+            height = %height,
+            round = %round,
+            )
+        )]
+    async fn decided_on_value(&mut self, height: Height, round: Round, value: Value) {
+        info!("Build and store block with hash {value:?}");
+
+        let all_parts = self.part_store.all_parts(height, round);
+
+        // TODO - build the block from block parts and store it
+
+        // Update metrics
+        let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
+        let tx_count: usize = all_parts
+            .iter()
+            .map(|p| p.content.tx_count().unwrap_or(0))
+            .sum();
+
+        self.metrics.block_tx_count.observe(tx_count as f64);
+        self.metrics.block_size_bytes.observe(block_size as f64);
+        self.metrics.finalized_txes.inc_by(tx_count as u64);
+
+        // Send Update to mempool to remove all the tx-es included in the block.
+        let mut tx_hashes = vec![];
+        for part in all_parts {
+            if let Content::TxBatch(transaction_batch) = part.content.as_ref() {
+                tx_hashes.extend(transaction_batch.transactions().iter().map(|tx| {
+                    let mut hash = DefaultHasher::new();
+                    tx.0.hash(&mut hash);
+                    hash.finish()
+                }));
+            }
+        }
+        let _ = self.tx_streamer.cast(MempoolMsg::Update { tx_hashes });
+
+        // Prune the PartStore of all parts for heights lower than `height - 1`
+        self.part_store.prune(height.decrement().unwrap_or(height));
     }
 }

@@ -1,7 +1,7 @@
 use color_eyre::eyre::Result;
 use tracing::debug;
 
-use malachite_node::config::Config;
+use malachite_node::config::{Config, RuntimeConfig};
 use malachite_test::{PrivateKey, ValidatorSet};
 
 use crate::args::{Args, Commands};
@@ -15,8 +15,7 @@ mod logging;
 mod metrics;
 mod priv_key;
 
-#[tokio::main(flavor = "current_thread")]
-pub async fn main() -> Result<()> {
+pub fn main() -> Result<()> {
     let args = Args::new();
 
     logging::init(LogLevel::Debug, &args.debug);
@@ -24,19 +23,33 @@ pub async fn main() -> Result<()> {
     debug!("Command-line parameters: {args:?}");
 
     match &args.command {
-        Commands::Start => start(&args).await,
+        Commands::Start => start(&args),
         Commands::Init => init(&args),
         Commands::Keys(cmd) => keys(&args, cmd),
         Commands::Testnet(cmd) => testnet(&args, cmd),
     }
 }
 
-async fn start(args: &Args) -> Result<()> {
+fn start(args: &Args) -> Result<()> {
+    use tokio::runtime::Builder as RtBuilder;
+
     let cfg: Config = args.load_config()?;
     let sk: PrivateKey = args.load_private_key()?;
     let vs: ValidatorSet = args.load_genesis()?;
 
-    cmd::start::run(sk, cfg, vs).await
+    let mut builder = match cfg.runtime {
+        RuntimeConfig::SingleThreaded => RtBuilder::new_current_thread(),
+        RuntimeConfig::MultiThreaded { worker_threads } => {
+            let mut builder = RtBuilder::new_multi_thread();
+            if worker_threads > 0 {
+                builder.worker_threads(worker_threads);
+            }
+            builder
+        }
+    };
+
+    let rt = builder.enable_all().build()?;
+    rt.block_on(cmd::start::run(sk, cfg, vs))
 }
 
 fn init(args: &Args) -> Result<()> {

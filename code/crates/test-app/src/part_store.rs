@@ -58,4 +58,8 @@ impl<Ctx: Context> PartStore<Ctx> {
             .entry((height, round, sequence))
             .or_insert(block_part);
     }
+
+    pub fn prune(&mut self, min_height: Ctx::Height) {
+        self.map.retain(|(height, _, _), _| *height >= min_height);
+    }
 }

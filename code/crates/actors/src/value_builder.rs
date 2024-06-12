@@ -28,4 +28,6 @@ pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
         height: Ctx::Height,
         round: Round,
     ) -> Option<ReceivedProposedValue<Ctx>>;
+
+    async fn decided_on_value(&mut self, height: Ctx::Height, round: Round, value: Ctx::Value);
 }
