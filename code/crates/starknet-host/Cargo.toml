@@ -8,13 +8,24 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
+malachite-actors.workspace = true
 malachite-common.workspace = true
 malachite-test.workspace   = true
 malachite-proto.workspace  = true
 
 async-trait.workspace     = true
+bytesize.workspace        = true
+derive-where.workspace    = true
+parking_lot.workspace     = true
+prost.workspace           = true
+ractor.workspace          = true
+signature.workspace       = true
 subtle-encoding.workspace = true
 tokio.workspace           = true
+tracing.workspace         = true
+
+[build-dependencies]
+prost-build.workspace = true
 
 [lints]
 workspace = true

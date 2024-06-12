@@ -3,4 +3,7 @@
 mod host;
 pub use host::Host;
 
+pub mod actor;
+pub mod hash;
 pub mod mock;
+pub mod proto;

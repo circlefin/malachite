@@ -20,7 +20,6 @@ malachite-proto.workspace            = true
 malachite-vote.workspace             = true
 
 async-trait        = { workspace = true }
-eyre               = { workspace = true }
 derive-where       = { workspace = true }
 libp2p             = { workspace = true }
 prost              = { workspace = true }

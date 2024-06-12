@@ -1,24 +1,7 @@
-use malachite_common::{NilOrVal, Round, VoteType};
+use malachite_common::{self as common, NilOrVal, Round, VoteType};
 use malachite_proto as proto;
 
-use crate::mock::hash;
-
-pub type StarknetContext = malachite_test::TestContext;
-
-pub type Height = malachite_test::Height;
-pub type Validator = malachite_test::Validator;
-pub type ValidatorSet = malachite_test::ValidatorSet;
-pub type Address = malachite_test::Address;
-pub type SigningScheme = malachite_test::Ed25519;
-pub type BlockPart = malachite_test::BlockPart;
-pub type ProposalContent = malachite_test::Content;
-pub type Hash = hash::Hash;
-pub type MessageHash = hash::MessageHash;
-pub type BlockHash = hash::BlockHash;
-pub type Precommit = Vote;
-
-pub type Signature = malachite_test::Signature;
-pub type PublicKey = malachite_test::PublicKey;
+use crate::mock::types::{Address, BlockHash, Height, StarknetContext};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Vote {
@@ -30,8 +13,64 @@ pub struct Vote {
 }
 
 impl Vote {
+    pub fn new_prevote(
+        height: Height,
+        round: Round,
+        value: NilOrVal<BlockHash>,
+        validator_address: Address,
+    ) -> Self {
+        Self {
+            vote_type: VoteType::Prevote,
+            height,
+            round,
+            value,
+            validator_address,
+        }
+    }
+
+    pub fn new_precommit(
+        height: Height,
+        round: Round,
+        value: NilOrVal<BlockHash>,
+        address: Address,
+    ) -> Self {
+        Self {
+            vote_type: VoteType::Precommit,
+            height,
+            round,
+            value,
+            validator_address: address,
+        }
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         malachite_proto::Protobuf::to_bytes(self).unwrap()
+    }
+}
+
+impl common::Vote<StarknetContext> for Vote {
+    fn height(&self) -> Height {
+        self.height
+    }
+
+    fn round(&self) -> Round {
+        self.round
+    }
+
+    fn value(&self) -> &NilOrVal<BlockHash> {
+        &self.value
+    }
+
+    fn take_value(self) -> NilOrVal<BlockHash> {
+        self.value
+    }
+
+    fn vote_type(&self) -> VoteType {
+        self.vote_type
+    }
+
+    fn validator_address(&self) -> &Address {
+        &self.validator_address
     }
 }
 
@@ -53,7 +92,13 @@ impl proto::Protobuf for Vote {
                     .ok_or_else(|| proto::Error::missing_field::<proto::Vote>("round"))?,
             )?,
             value: match proto.value {
-                Some(value) => NilOrVal::Val(BlockHash::from_proto(value)?),
+                Some(value) => {
+                    let value = value
+                        .value
+                        .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
+
+                    NilOrVal::Val(BlockHash::from_bytes(&value)?)
+                }
                 None => NilOrVal::Nil,
             },
             validator_address: Address::from_proto(
@@ -72,7 +117,9 @@ impl proto::Protobuf for Vote {
             round: Some(self.round.to_proto()?),
             value: match &self.value {
                 NilOrVal::Nil => None,
-                NilOrVal::Val(v) => Some(v.to_proto()?),
+                NilOrVal::Val(v) => Some(proto::ValueId {
+                    value: Some(v.to_bytes()?),
+                }),
             },
             validator_address: Some(self.validator_address.to_proto()?),
         })

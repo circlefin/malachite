@@ -1,14 +1,14 @@
 use malachite_common::Round;
-use malachite_proto::{self as proto};
+use malachite_proto as proto;
 
-use crate::{Address, Height, TestContext, Value};
+use crate::mock::types::{Address, Content, Height, StarknetContext};
 
 /// A proposal for a value in a round
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Proposal {
     pub height: Height,
     pub round: Round,
-    pub value: Value,
+    pub value: Content,
     pub pol_round: Round,
     pub validator_address: Address,
 }
@@ -17,7 +17,7 @@ impl Proposal {
     pub fn new(
         height: Height,
         round: Round,
-        value: Value,
+        value: Content,
         pol_round: Round,
         validator_address: Address,
     ) -> Self {
@@ -35,7 +35,7 @@ impl Proposal {
     }
 }
 
-impl malachite_common::Proposal<TestContext> for Proposal {
+impl malachite_common::Proposal<StarknetContext> for Proposal {
     fn height(&self) -> Height {
         self.height
     }
@@ -44,7 +44,7 @@ impl malachite_common::Proposal<TestContext> for Proposal {
         self.round
     }
 
-    fn value(&self) -> &Value {
+    fn value(&self) -> &Content {
         &self.value
     }
 
@@ -84,9 +84,10 @@ impl proto::Protobuf for Proposal {
                     .round
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("round"))?,
             )?,
-            value: Value::from_proto(
-                proto
+            value: Content::from_bytes(
+                &proto
                     .value
+                    .and_then(|v| v.value)
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?,
             )?,
             pol_round: Round::from_proto(

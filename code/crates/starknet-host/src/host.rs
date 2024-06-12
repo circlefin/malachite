@@ -4,11 +4,13 @@ use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 
+use malachite_common::Round;
+
 #[async_trait]
 pub trait Host {
     type Height;
     type BlockHash;
-    type ProposalContent;
+    type ProposalPart;
     type MessageHash;
     type Signature;
     type PublicKey;
@@ -33,10 +35,11 @@ pub trait Host {
     /// - block_hash - ID of the content in the block.
     async fn build_new_proposal(
         &self,
-        deadline: Instant,
         height: Self::Height,
+        round: Round,
+        deadline: Instant,
     ) -> (
-        mpsc::Receiver<Self::ProposalContent>,
+        mpsc::Receiver<Self::ProposalPart>,
         oneshot::Receiver<Self::BlockHash>,
     );
 
@@ -56,7 +59,7 @@ pub trait Host {
     /// - block_hash - ID of the content in the block.
     async fn receive_proposal(
         &self,
-        content: mpsc::Receiver<Self::ProposalContent>,
+        content: mpsc::Receiver<Self::ProposalPart>,
         height: Self::Height,
     ) -> oneshot::Receiver<Self::BlockHash>;
 
@@ -70,7 +73,7 @@ pub trait Host {
     async fn send_known_proposal(
         &self,
         block_hash: Self::BlockHash,
-    ) -> mpsc::Sender<Self::ProposalContent>;
+    ) -> mpsc::Sender<Self::ProposalPart>;
 
     /// The set of validators for a given block height. What do we need?
     /// - address      - tells the networking layer where to send messages.

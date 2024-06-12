@@ -9,7 +9,7 @@ use tracing::{debug, error, info, trace};
 use malachite_actors::consensus::Metrics;
 use malachite_actors::consensus::{ConsensusRef, Msg as ConsensusMsg};
 use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
-use malachite_actors::mempool::{MempoolRef, Msg as MempoolMsg};
+use malachite_actors::mempool::{MempoolMsg, MempoolRef};
 use malachite_actors::value_builder::ValueBuilder;
 use malachite_common::{Context, Round, SignedVote, TransactionBatch};
 use malachite_driver::Validity;

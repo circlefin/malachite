@@ -23,7 +23,7 @@ use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
 use crate::gossip_consensus::{GossipConsensusRef, Msg as GossipConsensusMsg};
-use crate::host::{HostRef, LocallyProposedValue, Msg as HostMsg, ReceivedProposedValue};
+use crate::host::{HostMsg, HostRef, LocallyProposedValue, ReceivedProposedValue};
 use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers, TimersRef};
 use crate::util::forward;
 
