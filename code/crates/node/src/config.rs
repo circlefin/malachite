@@ -143,7 +143,7 @@ pub struct MetricsConfig {
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "flavor", rename_all = "snake_case")]
 pub enum RuntimeConfig {
     /// Single-threaded runtime
     #[default]

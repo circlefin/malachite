@@ -86,11 +86,11 @@ listen_addr = "127.0.0.1:9000"
 ###          Runtime Configuration Options          ###
 #######################################################
 [runtime]
-# The type of Tokio runtime to use.
+# The flavor of Tokio runtime to use.
 # Possible values:
 # - "single_threaded": A single threaded runtime (default)
 # - "multi_threaded":  A multi-threaded runtime
-type = "single_threaded"
+flavor = "single_threaded"
 
 # For the multi-threaded runtime only.
 # Sets the number of worker threads the Runtime will use.
