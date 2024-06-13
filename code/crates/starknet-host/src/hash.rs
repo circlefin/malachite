@@ -16,6 +16,7 @@ impl Hash {
         &self.0
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub const fn len(&self) -> usize {
         self.0.len()
     }

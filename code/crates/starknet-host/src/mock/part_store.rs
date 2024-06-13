@@ -47,19 +47,17 @@ impl<Ctx: Context> PartStore<Ctx> {
     }
 
     pub fn all_parts(&self, height: Ctx::Height, round: Round) -> Vec<Arc<Ctx::BlockPart>> {
+        use itertools::Itertools;
         use malachite_common::BlockPart;
 
-        let mut block_parts: Vec<_> = self
-            .map
+        self.map
             .read()
             .iter()
             .filter(|((h, r, _), _)| *h == height && *r == round)
             .map(|(_, b)| b)
             .cloned()
-            .collect();
-
-        block_parts.sort_by_key(|b| std::cmp::Reverse(b.sequence()));
-        block_parts
+            .sorted_by_key(|b| std::cmp::Reverse(b.sequence()))
+            .collect()
     }
 
     pub fn store(&self, block_part: Ctx::BlockPart) {

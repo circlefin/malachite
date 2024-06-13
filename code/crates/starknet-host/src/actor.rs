@@ -1,15 +1,17 @@
 #![allow(unused_variables)]
 
-use malachite_actors::consensus::ConsensusMsg;
-use malachite_actors::host::LocallyProposedValue;
-use malachite_common::TransactionBatch;
+use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr};
 use tokio::time::Instant;
+
+use malachite_actors::consensus::ConsensusMsg;
+use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
+use malachite_common::{Round, TransactionBatch, Validity};
 
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
 use crate::mock::part_store::PartStore;
-use crate::mock::types::{BlockPart, Content, ProposalPart};
+use crate::mock::types::{Address, BlockPart, Content, Height, ProposalPart, ValidatorSet};
 use crate::Host;
 
 pub struct StarknetHost {
@@ -22,6 +24,67 @@ pub struct HostState {
 
 pub type HostRef = malachite_actors::host::HostRef<MockContext>;
 pub type HostMsg = malachite_actors::host::HostMsg<MockContext>;
+
+impl StarknetHost {
+    pub fn new(host: MockHost) -> Self {
+        Self { host }
+    }
+
+    pub fn build_content_from_block_parts(
+        &self,
+        state: &mut HostState,
+        height: Height,
+        round: Round,
+    ) -> Option<(Content, Address)> {
+        let block_parts = state.part_store.all_parts(height, round);
+
+        if block_parts.is_empty() {
+            return None;
+        }
+
+        let last_part = block_parts.last().expect("block_parts is not empty");
+
+        let mut metadata = None;
+        let mut tx_batches = Vec::new();
+
+        for block_part in &block_parts {
+            match block_part.part.as_ref() {
+                ProposalPart::TxBatch(_, tx_batch) => {
+                    tx_batches.extend(tx_batch.transactions().iter().cloned())
+                }
+                ProposalPart::Metadata(_, meta) => metadata = Some(meta.clone()),
+            }
+        }
+
+        metadata.map(|metadata| {
+            (
+                Content {
+                    tx_batch: TransactionBatch::new(tx_batches),
+                    metadata,
+                },
+                last_part.validator_address,
+            )
+        })
+    }
+
+    pub fn build_proposed_value_from_block_parts(
+        &self,
+        state: &mut HostState,
+        height: Height,
+        round: Round,
+    ) -> Option<ReceivedProposedValue<MockContext>> {
+        let (value, validator_address) =
+            self.build_content_from_block_parts(state, height, round)?;
+
+        Some(ReceivedProposedValue {
+            validator_address,
+            height,
+            round,
+            value,
+            valid: Validity::Valid, // TODO: Check validity
+        })
+    }
+}
 
 #[async_trait]
 impl Actor for StarknetHost {
@@ -57,19 +120,7 @@ impl Actor for StarknetHost {
                 let (mut rx_part, rx_hash) =
                     self.host.build_new_proposal(height, round, deadline).await;
 
-                let mut tx_batch = Vec::new();
-                let mut metadata = None;
-
                 while let Some(part) = rx_part.recv().await {
-                    match &part {
-                        ProposalPart::TxBatch(_, batch) => {
-                            tx_batch.extend(batch.transactions().iter().cloned());
-                        }
-                        ProposalPart::Metadata(_, meta) => {
-                            metadata = Some(meta.clone());
-                        }
-                    }
-
                     let block_part = BlockPart::new(height, round, part.sequence(), address, part);
                     state.part_store.store(block_part.clone());
 
@@ -79,18 +130,11 @@ impl Actor for StarknetHost {
                 // Wait until we receive the block hash, even if we have no use for it yet.
                 let _block_hash = rx_hash.await?;
 
-                let value = metadata.map(|metadata| Content {
-                    tx_batch: TransactionBatch::new(tx_batch),
-                    metadata,
-                });
-
-                let proposed_value = LocallyProposedValue {
-                    height,
-                    round,
-                    value,
-                };
-
-                reply.send(proposed_value)?;
+                if let Some((value, _)) = self.build_content_from_block_parts(state, height, round)
+                {
+                    let proposed_value = LocallyProposedValue::new(height, round, value);
+                    reply.send(proposed_value)?;
+                }
 
                 Ok(())
             }
@@ -104,9 +148,25 @@ impl Actor for StarknetHost {
                 height,
                 round,
                 reply_to,
-            } => todo!(),
+            } => {
+                let proposed_value =
+                    self.build_proposed_value_from_block_parts(state, height, round);
+                reply_to.send(proposed_value)?;
+                Ok(())
+            }
 
-            HostMsg::GetValidatorSet { height, reply_to } => todo!(),
+            HostMsg::GetValidatorSet { height, reply_to } => {
+                if let Some(validators) = self.host.validators(height).await {
+                    reply_to.send(ValidatorSet::new(validators))?;
+                    Ok(())
+                } else {
+                    Err(eyre!("No validator set found for the given height {height}").into())
+                }
+            }
+
+            HostMsg::DecidedOnValue { .. } => {
+                todo!()
+            }
         }
     }
 }

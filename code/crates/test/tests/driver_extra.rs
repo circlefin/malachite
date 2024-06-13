@@ -1,5 +1,5 @@
-use malachite_common::Round;
-use malachite_driver::{Driver, Input, Output, Validity};
+use malachite_common::{Round, Validity};
+use malachite_driver::{Driver, Input, Output};
 use malachite_round::state::State;
 
 use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value};

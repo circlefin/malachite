@@ -1,8 +1,8 @@
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use malachite_common::{Context, NilOrVal, Round, Timeout, VotingPower};
-use malachite_driver::{Input, Output, Validity};
+use malachite_common::{Context, NilOrVal, Round, Timeout, Validity, VotingPower};
+use malachite_driver::{Input, Output};
 use malachite_round::state::{RoundValue, State, Step};
 
 use crate::{

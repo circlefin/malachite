@@ -3,8 +3,7 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachite_common::{Context, Round, SignedVote};
-use malachite_driver::Validity;
+use malachite_common::{Context, Round, SignedVote, Validity};
 
 use crate::consensus::ConsensusRef;
 
@@ -13,6 +12,16 @@ pub struct LocallyProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
     pub value: Ctx::Value,
+}
+
+impl<Ctx: Context> LocallyProposedValue<Ctx> {
+    pub fn new(height: Ctx::Height, round: Round, value: Ctx::Value) -> Self {
+        Self {
+            height,
+            round,
+            value,
+        }
+    }
 }
 
 /// Input to the round state machine.

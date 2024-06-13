@@ -11,12 +11,11 @@ use tracing::{debug, error, info, trace, warn};
 
 use malachite_common::{
     Context, Height, Proposal, Round, SignedBlockPart, SignedProposal, SignedVote, Timeout,
-    TimeoutStep, Validator, ValidatorSet, Value, Vote, VoteType,
+    TimeoutStep, Validator, ValidatorSet, Validity, Value, Vote, VoteType,
 };
 use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
-use malachite_driver::Validity;
 use malachite_gossip_consensus::{Channel, Event as GossipEvent, PeerId};
 use malachite_proto as proto;
 use malachite_proto::Protobuf;

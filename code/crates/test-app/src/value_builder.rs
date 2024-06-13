@@ -11,8 +11,7 @@ use malachite_actors::consensus::{ConsensusRef, Msg as ConsensusMsg};
 use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
 use malachite_actors::mempool::{MempoolMsg, MempoolRef};
 use malachite_actors::value_builder::ValueBuilder;
-use malachite_common::{Context, Round, SignedVote, TransactionBatch};
-use malachite_driver::Validity;
+use malachite_common::{Context, Round, SignedVote, TransactionBatch, Validity};
 use malachite_test::{Address, BlockMetadata, BlockPart, Content, Height, TestContext, Value};
 
 use crate::part_store::PartStore;

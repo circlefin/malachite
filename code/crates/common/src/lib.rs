@@ -49,7 +49,7 @@ pub type Signature<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::Si
 pub use block_part::BlockPart;
 pub use context::Context;
 pub use height::Height;
-pub use proposal::Proposal;
+pub use proposal::{Proposal, Validity};
 pub use round::Round;
 pub use signed_block_part::SignedBlockPart;
 pub use signed_proposal::SignedProposal;

@@ -92,19 +92,25 @@ impl BlockPart {
         }
     }
 
-    pub fn metadata(&self) -> &BlockMetadata {
-        todo!()
-        // &self.part.metadata
+    pub fn metadata(&self) -> Option<&BlockMetadata> {
+        match self.part.as_ref() {
+            ProposalPart::Metadata(_, metadata) => Some(metadata),
+            _ => None,
+        }
     }
 
-    pub fn tx_count(&self) -> usize {
-        todo!()
-        // self.part.tx_count()
+    pub fn tx_count(&self) -> Option<usize> {
+        match self.part.as_ref() {
+            ProposalPart::TxBatch(_, batch) => Some(batch.transactions().len()),
+            _ => None,
+        }
     }
 
     pub fn size_bytes(&self) -> usize {
-        todo!()
-        // self.part.size_bytes()
+        match self.part.as_ref() {
+            ProposalPart::TxBatch(_, batch) => batch.size_bytes(),
+            ProposalPart::Metadata(_, metadata) => metadata.size_bytes(),
+        }
     }
 }
 

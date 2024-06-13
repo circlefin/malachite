@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use malachite_test::utils::{make_validators, FixedProposer, ProposerSelector, RotateProposer};
 
-use malachite_common::{NilOrVal, Round, Timeout, TimeoutStep};
-use malachite_driver::{Driver, Error, Input, Output, Validity};
+use malachite_common::{NilOrVal, Round, Timeout, TimeoutStep, Validity};
+use malachite_driver::{Driver, Error, Input, Output};
 use malachite_round::state::{RoundValue, State, Step};
 use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value, Vote};
 

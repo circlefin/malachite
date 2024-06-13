@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use core::fmt;
 
 use malachite_common::{
-    Context, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Vote,
+    Context, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Validity, Vote,
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
@@ -15,7 +15,6 @@ use malachite_vote::ThresholdParams;
 use crate::input::Input;
 use crate::output::Output;
 use crate::Error;
-use crate::Validity;
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
 pub struct Driver<Ctx>
