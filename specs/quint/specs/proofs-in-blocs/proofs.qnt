@@ -88,15 +88,18 @@ def NotTooManyEmptyBlocksInProofInv =
         | None => true
     }
 
+
 pure def followersProven(h: Block, s: Set[Block]) : bool =
     val relevantHeights = 1.to(maxMissingProofs - 1).map(x => h.height + x * numStrands)
     val relevantBlocks = s.filter(x => x.height.in(relevantHeights))
     (h.proof == None) implies 
-    // if the proof is missing, there is a upcoming block in the strand with a proof (or the height doesn't exist and we are at the end of the strand)
+    // if the proof is missing, there is a upcoming block in the strand with a proof 
+    // (or the height doesn't exist and we are at the end of the strand)
         (
             relevantBlocks.size() < maxMissingProofs or
             not(relevantBlocks.forall(b => b.proof == None))
         )
+       
         
 def NotTooManyEmptyBlocksInChainInv =
     0.to(numStrands - 1).forall(st =>
