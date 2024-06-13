@@ -1,0 +1,417 @@
+#cloud-config
+manage_etc_hosts: false
+apt:
+  sources:
+    source1:
+      source: "deb https://download.docker.com/linux/debian $RELEASE stable"
+      key: |
+        -----BEGIN PGP PUBLIC KEY BLOCK-----
+
+        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
+        YT90qFF93M3v01BbxP+EIY2/9tiIPbrd
+        =0YYh
+        -----END PGP PUBLIC KEY BLOCK-----
+package_update: true
+packages:
+  - git
+  - gcc
+  - prometheus
+  - prometheus-node-exporter
+  - ntpstat
+  - jq
+  - ufw
+  - tmux
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg-agent
+  - software-properties-common
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - nfs-kernel-server
+  - dnsmasq
+  - pssh
+  - rsync
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "insecure-registries" : ["0.0.0.0/0"]
+      }
+  - path: /etc/systemd/resolved.conf.d/DigitalOcean.conf
+    content: |
+      [Resolve]
+      DNS=127.0.0.1
+      DNSStubListener=no
+  - path: /etc/exports
+    content: |
+      /data 10.0.0.0/8(ro,sync,no_subtree_check)
+      /data 172.16.0.0/12(ro,sync,no_subtree_check)
+      /data 192.168.0.0/16(ro,sync,no_subtree_check)
+  - path: /etc/dnsmasq.d/servers.conf
+    content: |
+      server=1.0.0.1
+      server=1.1.1.1
+      bogus-priv
+      expand-hosts
+      domain=testnet
+      cache-size=1000
+  - path: /etc/prometheus/prometheus.yml
+    content: |
+      global:
+        scrape_interval: 5s
+        evaluation_interval: 10s
+      scrape_configs:
+        - job_name: 'qa'
+          static_configs:
+            - targets: [
+            'small0:9000',
+            'small1:9000',
+            'small2:9000',
+            'small3:9000',
+            'small4:9000',
+            'small5:9000',
+            'small6:9000',
+            'small7:9000',
+            'small8:9000',
+            'small9:9000',
+            'small10:9000',
+            'small11:9000',
+            'small12:9000',
+            'small13:9000',
+            'small14:9000',
+            'small15:9000',
+            'small16:9000',
+            'small17:9000',
+            'small18:9000',
+            'small19:9000',
+            'small20:9000',
+            'small21:9000',
+            'small22:9000',
+            'small23:9000',
+            'small24:9000',
+            'small25:9000',
+            'small26:9000',
+            'small27:9000',
+            'small28:9000',
+            'small29:9000',
+            'small30:9000',
+            'small31:9000',
+            'small32:9000',
+            'small33:9000',
+            'small34:9000',
+            'small35:9000',
+            'small36:9000',
+            'small37:9000',
+            'small38:9000',
+            'small39:9000',
+            'small40:9000',
+            'small41:9000',
+            'small42:9000',
+            'small43:9000',
+            'small44:9000',
+            'small45:9000',
+            'small46:9000',
+            'small47:9000',
+            'small48:9000',
+            'small49:9000',
+            'small50:9000',
+            'small51:9000',
+            'small52:9000',
+            'small53:9000',
+            'small54:9000',
+            'small55:9000',
+            'small56:9000',
+            'small57:9000',
+            'small58:9000',
+            'small59:9000',
+            'small60:9000',
+            'small61:9000',
+            'small62:9000',
+            'small63:9000',
+            'small64:9000',
+            'small65:9000',
+            'small66:9000',
+            'small67:9000',
+            'small68:9000',
+            'small69:9000',
+            'small70:9000',
+            'small71:9000',
+            'small72:9000',
+            'small73:9000',
+            'small74:9000',
+            'small75:9000',
+            'small76:9000',
+            'small77:9000',
+            'small78:9000',
+            'small79:9000',
+            'small80:9000',
+            'small81:9000',
+            'small82:9000',
+            'small83:9000',
+            'small84:9000',
+            'small85:9000',
+            'small86:9000',
+            'small87:9000',
+            'small88:9000',
+            'small89:9000',
+            'small90:9000',
+            'small91:9000',
+            'small92:9000',
+            'small93:9000',
+            'small94:9000',
+            'small95:9000',
+            'small96:9000',
+            'small97:9000',
+            'small98:9000',
+            'small99:9000',
+            'large0:9000',
+            'large1:9000',
+            'large2:9000',
+            'large3:9000',
+            'large4:9000',
+            'large5:9000',
+            'large6:9000',
+            'large7:9000',
+            'large8:9000',
+            'large9:9000',
+            'large10:9000',
+            'large11:9000',
+            'large12:9000',
+            'large13:9000',
+            'large14:9000',
+            'large15:9000',
+            'large16:9000',
+            'large17:9000',
+            'large18:9000',
+            'large19:9000',
+            'large20:9000',
+            'large21:9000',
+            'large22:9000',
+            'large23:9000',
+            'large24:9000',
+            'large25:9000',
+            'large26:9000',
+            'large27:9000',
+            'large28:9000',
+            'large29:9000',
+            'large30:9000',
+            'large31:9000',
+            'large32:9000',
+            'large33:9000',
+            'large34:9000',
+            'large35:9000',
+            'large36:9000',
+            'large37:9000',
+            'large38:9000',
+            'large39:9000',
+            'large40:9000',
+            'large41:9000',
+            'large42:9000',
+            'large43:9000',
+            'large44:9000',
+            'large45:9000',
+            'large46:9000',
+            'large47:9000',
+            'large48:9000',
+            'large49:9000',
+            'large50:9000',
+            'large51:9000',
+            'large52:9000',
+            'large53:9000',
+            'large54:9000',
+            'large55:9000',
+            'large56:9000',
+            'large57:9000',
+            'large58:9000',
+            'large59:9000',
+            'large60:9000',
+            'large61:9000',
+            'large62:9000',
+            'large63:9000',
+            'large64:9000',
+            'large65:9000',
+            'large66:9000',
+            'large67:9000',
+            'large68:9000',
+            'large69:9000',
+            'large70:9000',
+            'large71:9000',
+            'large72:9000',
+            'large73:9000',
+            'large74:9000',
+            'large75:9000',
+            'large76:9000',
+            'large77:9000',
+            'large78:9000',
+            'large79:9000',
+            'large80:9000',
+            'large81:9000',
+            'large82:9000',
+            'large83:9000',
+            'large84:9000',
+            'large85:9000',
+            'large86:9000',
+            'large87:9000',
+            'large88:9000',
+            'large89:9000',
+            'large90:9000',
+            'large91:9000',
+            'large92:9000',
+            'large93:9000',
+            'large94:9000',
+            'large95:9000',
+            'large96:9000',
+            'large97:9000',
+            'large98:9000',
+            'large99:9000'
+            ]
+          scrape_interval: 1s
+  - path: /root/grafana.yml
+    content: |
+      apiVersion: 1
+      datasources:
+        - name: prometheus
+          uid: prometheus
+          type: prometheus
+          url: http://host.docker.internal:9090
+          is_default: true
+          editable: true
+  - path: /etc/nsswitch.conf
+    content: |
+      passwd:         files
+      group:          files
+      shadow:         files
+      gshadow:        files
+      hosts:          dns
+      networks:       files
+      protocols:      db files
+      services:       db files
+      ethers:         db files
+      rpc:            db files
+      netgroup:       nis
+  - path: /root/compose.yml
+    content: |
+      services:
+        registry:
+          container_name: registry
+          image: registry:2
+          ports:
+            - 0.0.0.0:80:5000
+          volumes:
+            - registry:/var/lib/registry
+          environment:
+            REGISTRY_HTTP_SECRET: siSRSRTHSRTHSERGehrgjsoiejrg45625623452345isejrgisejrgsergserg
+          restart: on-failure
+        grafana:
+          container_name: grafana
+          image: grafana/grafana-oss
+          volumes:
+            - /root/grafana.yml:/etc/grafana/provisioning/datasources/prometheus.yml
+            - grafana:/var/lib/grafana
+          ports:
+            - 0.0.0.0:3000:3000
+          environment:
+            GF_SECURITY_ADMIN_USER: testnet
+            GF_SECURITY_ADMIN_PASSWORD: militant-souvenir-dash-teleview
+            GF_LOG_LEVEL: error
+            GF_ANALYTICS_ENABLED: false
+            GF_ANALYTICS_REPORTING_ENABLED: false
+            GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: false
+            GF_ANALYTICS_CHECK_FOR_UPDATES: false
+            GF_ANALYTICS_FEEDBACK_LINKS_ENABLED: false
+            GF_SECURITY_DISABLE_GRAVATAR: true
+            GF_USERS_DEFAULT_THEME: system
+            GF_USERS_EDITORS_CAN_ADMIN: true
+            GF_AUTH_ANONYMOUS_ENABLED: true
+            GF_AUTH_ANONYMOUS_ORG_ROLE: Editor
+            GF_AUTH_BASIC_ENABLED: false
+            GF_NEWS_NEWS_FEED_ENABLED: false
+            GF_RENDERING_RENDERER_TOKEN: "-"
+            GF_RENDERING_SERVER_URL: http://grafana-image-renderer:8081/render
+            GF_RENDERING_CALLBACK_URL: http://grafana:3000/
+            GF_LOG_FILTERS: rendering:debug
+          extra_hosts:
+            - "host.docker.internal:host-gateway"
+        grafana-image-renderer:
+          image: grafana/grafana-image-renderer
+          container_name: grafana-image-renderer
+      volumes:
+        registry:
+        grafana:
+runcmd:
+  - ln /usr/bin/parallel-ssh /usr/bin/pssh
+  - mkdir /data
+  - chown nobody:nogroup /data
+  - systemctl daemon-reload
+  - systemctl restart systemd-resolved
+  - systemctl enable prometheus-node-exporter
+  - systemctl start prometheus-node-exporter
+  - systemctl enable docker
+  - systemctl start docker
+  - systemctl enable nfs-kernel-server
+  - systemctl start nfs-kernel-server
+  - systemctl restart systemd-journald
+  - docker compose -f /root/compose.yml up -d
+  - curl -s -o /usr/bin/sconfig -L https://github.com/freshautomations/sconfig/releases/download/v0.2.0/sconfig_linux_amd64
+  - chmod 755 /usr/bin/sconfig
+  - date > /etc/done
+  - ln /etc/done /etc/cc
+
