@@ -115,16 +115,25 @@ async fn run_build_proposal_task(
             now - start,
         );
 
-        let part = ProposalPart::TxBatch(TransactionBatch::new(std::mem::take(&mut tx_batch)));
+        let part = ProposalPart::TxBatch(
+            sequence,
+            TransactionBatch::new(std::mem::take(&mut tx_batch)),
+        );
 
         tx_part.send(part).await?;
 
         if now > deadline {
-            let part = ProposalPart::Proof(vec![42]); // // TODO: Compute proof dependent on value
-            tx_part.send(part).await?;
+            // TODO: Compute actual "proof"
+            let proof = vec![42];
 
             let hash = block_hasher.finalize();
             let block_hash = BlockHash::new(hash.into());
+            let block_metadata = BlockMetadata::new(proof, block_hash);
+            let part = ProposalPart::Metadata(sequence, block_metadata);
+
+            // Send and then close the channel
+            tx_part.send(part).await?;
+            drop(tx_part);
 
             tx_block_hash
                 .send(block_hash)

@@ -14,6 +14,14 @@ message Content {
     BlockMetadata metadata = 2;
 }
 
+message ProposalPart {
+    uint64 sequence = 1;
+    oneof part {
+        malachite.TransactionBatch tx_batch = 2;
+        BlockMetadata metadata = 3;
+    }
+}
+
 message Hash {
     bytes hash = 1;
 }

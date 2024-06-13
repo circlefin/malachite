@@ -6,7 +6,7 @@ use malachite_common::{Round, SignedBlockPart};
 use malachite_proto::{self as proto};
 
 use crate::mock::context::MockContext;
-use crate::mock::types::{Address, BlockHash, Content, Height, PrivateKey, StarknetContext};
+use crate::mock::types::{Address, BlockHash, Height, PrivateKey, ProposalPart, StarknetContext};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockMetadata {
@@ -58,7 +58,7 @@ pub struct BlockPart {
     pub height: Height,
     pub round: Round,
     pub sequence: u64,
-    pub content: Arc<Content>,
+    pub part: Arc<ProposalPart>,
     pub validator_address: Address,
 }
 
@@ -68,13 +68,13 @@ impl BlockPart {
         round: Round,
         sequence: u64,
         validator_address: Address,
-        content: Content,
+        part: ProposalPart,
     ) -> Self {
         Self {
             height,
             round,
             sequence,
-            content: Arc::new(content),
+            part: Arc::new(part),
             validator_address,
         }
     }
@@ -93,15 +93,18 @@ impl BlockPart {
     }
 
     pub fn metadata(&self) -> &BlockMetadata {
-        &self.content.metadata
+        todo!()
+        // &self.part.metadata
     }
 
     pub fn tx_count(&self) -> usize {
-        self.content.tx_count()
+        todo!()
+        // self.part.tx_count()
     }
 
     pub fn size_bytes(&self) -> usize {
-        self.content.size_bytes()
+        todo!()
+        // self.part.size_bytes()
     }
 }
 
@@ -140,11 +143,9 @@ impl proto::Protobuf for BlockPart {
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("round"))?,
             )?,
             sequence: proto.sequence,
-            content: Arc::new(Content::from_any(
-                &proto
-                    .content
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("content"))?,
-            )?),
+            part: Arc::new(ProposalPart::from_any(&proto.content.ok_or_else(
+                || proto::Error::missing_field::<Self::Proto>("content"),
+            )?)?),
             validator_address: Address::from_proto(
                 proto.validator_address.ok_or_else(|| {
                     proto::Error::missing_field::<Self::Proto>("validator_address")
@@ -159,7 +160,7 @@ impl proto::Protobuf for BlockPart {
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),
             sequence: self.sequence,
-            content: Some(self.content.to_any()?),
+            content: Some(self.part.to_any()?),
             validator_address: Some(self.validator_address.to_proto()?),
         })
     }

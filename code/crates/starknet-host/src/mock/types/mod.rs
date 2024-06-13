@@ -2,7 +2,7 @@ use crate::hash;
 use crate::mock::context::MockContext;
 
 mod block_part;
-pub use block_part::BlockPart;
+pub use block_part::{BlockMetadata, BlockPart};
 
 mod content;
 pub use content::Content;

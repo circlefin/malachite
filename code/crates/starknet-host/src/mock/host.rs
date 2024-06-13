@@ -62,8 +62,9 @@ impl Host for MockHost {
         let (tx_part, rx_content) = mpsc::channel(self.params.txs_per_part);
         let (tx_block_hash, rx_block_hash) = oneshot::channel();
 
-        let (params, mempool) = (self.params, self.mempool.clone());
         let span = tracing::error_span!("build_new_proposal", %height, %round);
+        let (params, mempool) = (self.params, self.mempool.clone());
+
         tokio::spawn(
             build_proposal_task(
                 height,

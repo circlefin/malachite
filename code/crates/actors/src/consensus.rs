@@ -61,6 +61,8 @@ where
     tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
 }
 
+pub type ConsensusMsg<Ctx> = Msg<Ctx>;
+
 pub enum Msg<Ctx: Context> {
     StartHeight(Ctx::Height),
     MoveToHeight(Ctx::Height),
