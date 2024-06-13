@@ -11,7 +11,7 @@ use malachite_actors::consensus::{ConsensusRef, Msg as ConsensusMsg};
 use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
 use malachite_actors::mempool::{MempoolRef, Msg as MempoolMsg};
 use malachite_actors::value_builder::ValueBuilder;
-use malachite_common::{Context, Round, TransactionBatch};
+use malachite_common::{Context, Round, SignedVote, TransactionBatch};
 use malachite_driver::Validity;
 use malachite_test::{Address, BlockMetadata, BlockPart, Content, Height, TestContext, Value};
 
@@ -281,12 +281,18 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
             round = %round,
             )
         )]
-    async fn decided_on_value(&mut self, height: Height, round: Round, value: Value) {
+    async fn decided_on_value(
+        &mut self,
+        height: Height,
+        round: Round,
+        value: Value,
+        _commits: Vec<SignedVote<TestContext>>,
+    ) {
         info!("Build and store block with hash {value:?}");
 
         let all_parts = self.part_store.all_parts(height, round);
 
-        // TODO - build the block from block parts and store it
+        // TODO - build the block from block parts and commits and store it
 
         // Update metrics
         let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();

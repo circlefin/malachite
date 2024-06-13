@@ -1,4 +1,5 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -10,7 +11,7 @@ use tracing::{debug, error, info, trace, warn};
 
 use malachite_common::{
     Context, Height, Proposal, Round, SignedBlockPart, SignedProposal, SignedVote, Timeout,
-    TimeoutStep, Validator, ValidatorSet, Value, Vote,
+    TimeoutStep, Validator, ValidatorSet, Value, Vote, VoteType,
 };
 use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
@@ -93,6 +94,9 @@ where
 
     /// The Value and validity of received blocks.
     pub received_blocks: Vec<(Ctx::Height, Round, Ctx::Value, Validity)>,
+
+    /// Store Precommit Votes to be sent along the decision to the host
+    pub signed_precommits: BTreeMap<(Ctx::Height, Round), Vec<SignedVote<Ctx>>>,
 }
 
 impl<Ctx> State<Ctx>
@@ -102,6 +106,31 @@ where
     pub fn remove_received_block(&mut self, height: Ctx::Height, round: Round) {
         self.received_blocks
             .retain(|&(h, r, ..)| h != height && r != round);
+    }
+
+    pub fn store_signed_precommit(&mut self, precommit: &SignedVote<Ctx>) {
+        assert!(precommit.vote.vote_type() == VoteType::Precommit);
+        let height = precommit.vote.height();
+        let round = precommit.vote.round();
+
+        match self.signed_precommits.entry((height, round)) {
+            Entry::Vacant(e) => {
+                e.insert(vec![precommit.clone()]);
+            }
+            Entry::Occupied(mut e) => {
+                e.get_mut().push(precommit.clone());
+            }
+        }
+    }
+
+    pub fn restore_precommits(
+        &mut self,
+        height: Ctx::Height,
+        round: Round,
+    ) -> Vec<SignedVote<Ctx>> {
+        self.signed_precommits
+            .remove(&(height, round))
+            .unwrap_or_default()
     }
 }
 
@@ -207,6 +236,9 @@ where
                 let vote_height = signed_vote.vote.height();
                 assert!(vote_height == state.driver.height());
 
+                if signed_vote.vote.vote_type() == VoteType::Precommit {
+                    state.store_signed_precommit(&signed_vote);
+                }
                 myself.cast(Msg::SendDriverInput(DriverInput::Vote(signed_vote.vote)))?;
             }
 
@@ -590,6 +622,7 @@ where
             validator_set: self.params.initial_validator_set.clone(),
             connected_peers: BTreeSet::new(),
             received_blocks: vec![],
+            signed_precommits: Default::default(),
         })
     }
 
@@ -674,12 +707,17 @@ where
                     value.id()
                 );
 
+                // Remove the block information as it is not needed anymore
                 state.remove_received_block(height, round);
+
+                // Restore the commits. Note that they will be removed from `state`
+                let commits = state.restore_precommits(height, round);
 
                 self.host.cast(HostMsg::DecidedOnValue {
                     height,
                     round,
                     value,
+                    commits,
                 })?;
 
                 self.metrics.block_end();

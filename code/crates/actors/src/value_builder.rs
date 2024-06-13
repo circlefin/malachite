@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 
-use malachite_common::{Context, Round};
+use malachite_common::{Context, Round, SignedVote};
 
 use crate::consensus::ConsensusRef;
 use crate::host::{LocallyProposedValue, ReceivedProposedValue};
@@ -29,5 +29,11 @@ pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {
         round: Round,
     ) -> Option<ReceivedProposedValue<Ctx>>;
 
-    async fn decided_on_value(&mut self, height: Ctx::Height, round: Round, value: Ctx::Value);
+    async fn decided_on_value(
+        &mut self,
+        height: Ctx::Height,
+        round: Round,
+        value: Ctx::Value,
+        commits: Vec<SignedVote<Ctx>>,
+    );
 }

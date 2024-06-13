@@ -5,7 +5,7 @@ use derive_where::derive_where;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tracing::info;
 
-use malachite_common::{Context, Round};
+use malachite_common::{Context, Round, SignedVote};
 use malachite_driver::Validity;
 
 use crate::consensus::{ConsensusRef, Msg as ConsensusMsg};
@@ -64,6 +64,7 @@ pub enum Msg<Ctx: Context> {
         height: Ctx::Height,
         round: Round,
         value: Ctx::Value,
+        commits: Vec<SignedVote<Ctx>>,
     },
 }
 
@@ -216,11 +217,11 @@ impl<Ctx: Context> Actor for Host<Ctx> {
                 height,
                 round,
                 value,
+                commits,
             } => {
-                info!("what");
                 let _v = state
                     .value_builder
-                    .decided_on_value(height, round, value)
+                    .decided_on_value(height, round, value, commits)
                     .await;
             }
 
