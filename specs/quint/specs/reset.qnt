@@ -444,7 +444,7 @@ def valid (b: L2Block) : bool =
         | Proof(bp) => proofOK (L1.last().time, 
                                 L1.last().l2forkID,
                                 L1.last().unfulfilled_updates, 
-                                bp) // whether a proof is accepted is time-dependend
+                                bp) // whether a proof is accepted is time-dependent
     }
 
 
@@ -535,7 +535,7 @@ action addL1Block = all {
     nondet someHeight = (-1).to(L2.length() - 1).oneOf() 
     nondet blocktimeDelta = 1.to(MaxEthBlockTime).oneOf()
     val newproof = makeProof(L2, someHeight, L1)    // if someheight < provenHeight this will give Invalid proof
-    val submProof = Set(newproof, None).oneOf()
+    nondet submProof = Set(newproof, None).oneOf()
     L1' = L1.append(newL1Block(L1.last(), envRegs, submProof, blocktimeDelta)),
     L2' = L2,
     envRegs' = Set(),
