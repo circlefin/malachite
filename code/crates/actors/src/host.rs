@@ -15,7 +15,7 @@ use crate::value_builder::ValueBuilder;
 pub struct LocallyProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
-    pub value: Option<Ctx::Value>, // todo - should we remove?
+    pub value: Ctx::Value,
 }
 
 /// Input to the round state machine.
@@ -24,7 +24,7 @@ pub struct ReceivedProposedValue<Ctx: Context> {
     pub validator_address: Ctx::Address,
     pub height: Ctx::Height,
     pub round: Round,
-    pub value: Option<Ctx::Value>,
+    pub value: Ctx::Value,
     pub valid: Validity,
 }
 

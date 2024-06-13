@@ -156,7 +156,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                 let result = Some(LocallyProposedValue {
                     height,
                     round,
-                    value: Some(value),
+                    value,
                 });
 
                 let block_part = BlockPart::new(
@@ -244,7 +244,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                         validator_address: last_part.validator_address,
                         height: last_part.height,
                         round: last_part.round,
-                        value: Some(meta.value()),
+                        value: meta.value(),
                         valid: Validity::Valid,
                     })
                 }
@@ -268,7 +268,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
             validator_address: last_part.validator_address,
             height,
             round,
-            value: Some(metadata.value()),
+            value: metadata.value(),
             valid: Validity::Valid,
         })
     }

@@ -69,7 +69,7 @@ pub enum Msg<Ctx: Context> {
     Decided(Ctx::Height, Round, Ctx::Value),
     ProcessDriverOutputs(Vec<DriverOutput<Ctx>>),
     // The proposal builder has built a value and can be used in a new proposal consensus message
-    ProposeValue(Ctx::Height, Round, Option<Ctx::Value>),
+    ProposeValue(Ctx::Height, Round, Ctx::Value),
     // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
     BuilderBlockPart(Ctx::BlockPart),
     BlockReceived(ReceivedProposedValue<Ctx>),
@@ -652,16 +652,7 @@ where
                     return Ok(());
                 }
 
-                match value {
-                    Some(value) => myself.cast(Msg::SendDriverInput(DriverInput::ProposeValue(
-                        round, value,
-                    )))?,
-
-                    None => warn!(
-                        %height, %round,
-                        "Proposal builder failed to build a value within the deadline"
-                    ),
-                }
+                myself.cast(Msg::SendDriverInput(DriverInput::ProposeValue(round, value)))?
             }
 
             Msg::Decided(height, round, value) => {
@@ -769,28 +760,26 @@ where
                 let ReceivedProposedValue {
                     height,
                     round,
-                    value: maybe_value,
+                    value,
                     valid,
                     ..
                 } = block;
 
-                if let Some(value) = maybe_value {
-                    info!("Received block: {value:?}");
+                info!("Received block: {value:?}");
 
-                    // Store the block and validity information. It will be removed when a decision is reached for that height.
-                    state
-                        .driver
-                        .received_blocks
-                        .push((height, round, value.clone(), valid));
+                // Store the block and validity information. It will be removed when a decision is reached for that height.
+                state
+                    .driver
+                    .received_blocks
+                    .push((height, round, value.clone(), valid));
 
-                    if let Some(proposal) = state.driver.proposal.clone() {
-                        if height == proposal.height() && round == proposal.round() {
-                            let validity = value == *proposal.value() && valid.is_valid();
-                            myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
-                                proposal,
-                                Validity::from_valid(validity),
-                            )))?;
-                        }
+                if let Some(proposal) = state.driver.proposal.clone() {
+                    if height == proposal.height() && round == proposal.round() {
+                        let validity = value == *proposal.value() && valid.is_valid();
+                        myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
+                            proposal,
+                            Validity::from_valid(validity),
+                        )))?;
                     }
                 }
             }
