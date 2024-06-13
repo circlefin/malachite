@@ -36,6 +36,10 @@ impl MockHost {
     pub fn new(params: MockParams, mempool: MempoolRef) -> Self {
         Self { params, mempool }
     }
+
+    pub fn params(&self) -> MockParams {
+        self.params
+    }
 }
 
 #[async_trait]

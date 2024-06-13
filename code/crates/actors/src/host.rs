@@ -46,13 +46,13 @@ pub enum HostMsg<Ctx: Context> {
         timeout_duration: Duration,
         consensus: ConsensusRef<Ctx>,
         address: Ctx::Address,
-        reply: RpcReplyPort<LocallyProposedValue<Ctx>>,
+        reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
 
     /// BlockPart received <-- consensus <-- gossip
-    BlockPart {
+    ReceivedBlockPart {
         block_part: Ctx::BlockPart,
-        reply_to: ConsensusRef<Ctx>,
+        reply_to: RpcReplyPort<Option<ReceivedProposedValue<Ctx>>>,
     },
 
     /// Retrieve a block/value for which all parts have been received

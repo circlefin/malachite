@@ -117,7 +117,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
             self.part_store.store(block_part.clone());
 
             consensus
-                .cast(ConsensusMsg::BuilderBlockPart(block_part))
+                .cast(ConsensusMsg::GossipBlockPart(block_part))
                 .unwrap();
 
             let mut tx_count = 0;
@@ -169,7 +169,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                 self.part_store.store(block_part.clone());
 
                 consensus
-                    .cast(ConsensusMsg::BuilderBlockPart(block_part))
+                    .cast(ConsensusMsg::GossipBlockPart(block_part))
                     .unwrap();
 
                 info!(

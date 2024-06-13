@@ -73,7 +73,7 @@ pub enum Msg<Ctx: Context> {
     // The proposal builder has built a value and can be used in a new proposal consensus message
     ProposeValue(Ctx::Height, Round, Ctx::Value),
     // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
-    BuilderBlockPart(Ctx::BlockPart),
+    GossipBlockPart(Ctx::BlockPart),
     BlockReceived(ReceivedProposedValue<Ctx>),
 }
 
@@ -314,11 +314,19 @@ where
                     return Ok(());
                 }
 
-                // TODO - verify that the proposal was signed by the proposer for the height and round, drop otherwise.
-                self.host.cast(HostMsg::BlockPart {
-                    block_part: signed_block_part.block_part,
-                    reply_to: myself.clone(),
-                })?
+                // TODO: Verify that the proposal was signed by the proposer for the height and round, drop otherwise.
+                call_and_forward(
+                    &self.host.get_cell(),
+                    |reply_to| HostMsg::<Ctx>::ReceivedBlockPart {
+                        block_part: signed_block_part.block_part,
+                        reply_to,
+                    },
+                    myself.get_cell(),
+                    |_maybe_value| {
+                        // FIXME: What to do here?
+                    },
+                    None,
+                )?;
             }
         }
 
@@ -529,7 +537,7 @@ where
                 timeout_duration,
                 address: self.params.address.clone(),
                 consensus: myself.clone(),
-                reply,
+                reply_to: reply,
             },
             myself.get_cell(),
             |proposed: LocallyProposedValue<Ctx>| {
@@ -802,7 +810,7 @@ where
                 self.process_driver_outputs(outputs, myself, state).await?;
             }
 
-            Msg::BuilderBlockPart(block_part) => {
+            Msg::GossipBlockPart(block_part) => {
                 let signed_block_part = self.ctx.sign_block_part(block_part);
                 let proto = signed_block_part.to_proto().unwrap(); // FIXME
                 let msg = NetworkMsg::BlockPart(proto);

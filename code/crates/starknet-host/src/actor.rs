@@ -4,9 +4,10 @@ use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr};
 use tokio::time::Instant;
 
-use malachite_actors::consensus::ConsensusMsg;
+use malachite_actors::consensus::{ConsensusMsg, Metrics};
 use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
 use malachite_common::{Round, TransactionBatch, Validity};
+use tracing::{info, trace};
 
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
@@ -16,6 +17,7 @@ use crate::Host;
 
 pub struct StarknetHost {
     host: MockHost,
+    metrics: Metrics,
 }
 
 pub struct HostState {
@@ -26,11 +28,11 @@ pub type HostRef = malachite_actors::host::HostRef<MockContext>;
 pub type HostMsg = malachite_actors::host::HostMsg<MockContext>;
 
 impl StarknetHost {
-    pub fn new(host: MockHost) -> Self {
-        Self { host }
+    pub fn new(host: MockHost, metrics: Metrics) -> Self {
+        Self { host, metrics }
     }
 
-    pub fn build_content_from_block_parts(
+    pub fn build_proposal_content(
         &self,
         state: &mut HostState,
         height: Height,
@@ -67,14 +69,13 @@ impl StarknetHost {
         })
     }
 
-    pub fn build_proposed_value_from_block_parts(
+    pub fn build_value(
         &self,
         state: &mut HostState,
         height: Height,
         round: Round,
     ) -> Option<ReceivedProposedValue<MockContext>> {
-        let (value, validator_address) =
-            self.build_content_from_block_parts(state, height, round)?;
+        let (value, validator_address) = self.build_proposal_content(state, height, round)?;
 
         Some(ReceivedProposedValue {
             validator_address,
@@ -83,6 +84,73 @@ impl StarknetHost {
             value,
             valid: Validity::Valid, // TODO: Check validity
         })
+    }
+
+    async fn build_value_from_block_part(
+        &self,
+        state: &mut HostState,
+        block_part: BlockPart,
+    ) -> Option<ReceivedProposedValue<MockContext>> {
+        let height = block_part.height;
+        let round = block_part.round;
+        let sequence = block_part.sequence;
+
+        trace!(%height, %round, %sequence, "Received block part");
+
+        // Prune all block parts for heights lower than `height - 1`
+        state.part_store.prune(height.decrement().unwrap_or(height));
+        state.part_store.store(block_part.clone());
+
+        let all_parts = state.part_store.all_parts(height, round);
+
+        // Simulate Tx execution and proof verification (assumes success)
+        // TODO - add config knob for invalid blocks
+        let num_txes = block_part.tx_count().unwrap_or(0) as u32;
+        tokio::time::sleep(self.host.params().exec_time_per_tx * num_txes).await;
+
+        // Get the "last" part, the one with highest sequence.
+        // Block parts may not be received in order.
+        let highest_sequence = all_parts.len() as u64;
+
+        if let Some(last_part) = state.part_store.get(height, round, highest_sequence) {
+            // If the "last" part includes a metadata then this is truly the last part.
+            // So in this case all block parts have been received, including the metadata that includes
+            // the block hash/ value. This can be returned as the block is complete.
+            // TODO - the logic here is weak, we assume earlier parts don't include metadata
+            // Should change once we implement `oneof`/ proper enum in protobuf but good enough for now test code
+            match last_part.metadata() {
+                Some(meta) => {
+                    let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
+                    let tx_count: usize = all_parts.iter().map(|p| p.tx_count().unwrap_or(0)).sum();
+
+                    info!(
+                        height = %last_part.height,
+                        round = %last_part.round,
+                        tx_count = %tx_count,
+                        block_size = %block_size,
+                        num_parts = %all_parts.len(),
+                        "Received last block part",
+                    );
+
+                    // FIXME: At this point we don't know if this block (and its txes) will be decided on.
+                    //        So these need to be moved after the block is decided.
+                    self.metrics.block_tx_count.observe(tx_count as f64);
+                    self.metrics.block_size_bytes.observe(block_size as f64);
+                    self.metrics.finalized_txes.inc_by(tx_count as u64);
+
+                    Some(ReceivedProposedValue {
+                        validator_address: last_part.validator_address,
+                        height: last_part.height,
+                        round: last_part.round,
+                        value: todo!(), // TODO: Build the value
+                        valid: Validity::Valid,
+                    })
+                }
+                None => None,
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -113,7 +181,7 @@ impl Actor for StarknetHost {
                 timeout_duration,
                 consensus,
                 address,
-                reply,
+                reply_to,
             } => {
                 let deadline = Instant::now() + timeout_duration;
 
@@ -124,33 +192,35 @@ impl Actor for StarknetHost {
                     let block_part = BlockPart::new(height, round, part.sequence(), address, part);
                     state.part_store.store(block_part.clone());
 
-                    consensus.cast(ConsensusMsg::BuilderBlockPart(block_part))?;
+                    consensus.cast(ConsensusMsg::GossipBlockPart(block_part))?;
                 }
 
                 // Wait until we receive the block hash, even if we have no use for it yet.
                 let _block_hash = rx_hash.await?;
 
-                if let Some((value, _)) = self.build_content_from_block_parts(state, height, round)
-                {
+                if let Some((value, _)) = self.build_proposal_content(state, height, round) {
                     let proposed_value = LocallyProposedValue::new(height, round, value);
-                    reply.send(proposed_value)?;
+                    reply_to.send(proposed_value)?;
                 }
 
                 Ok(())
             }
 
-            HostMsg::BlockPart {
+            HostMsg::ReceivedBlockPart {
                 block_part,
                 reply_to,
-            } => todo!(),
+            } => {
+                let value = self.build_value_from_block_part(state, block_part).await;
+                reply_to.send(value)?;
+                Ok(())
+            }
 
             HostMsg::GetReceivedValue {
                 height,
                 round,
                 reply_to,
             } => {
-                let proposed_value =
-                    self.build_proposed_value_from_block_parts(state, height, round);
+                let proposed_value = self.build_value(state, height, round);
                 reply_to.send(proposed_value)?;
                 Ok(())
             }

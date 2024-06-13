@@ -4,7 +4,7 @@ use std::time::Duration;
 use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr};
 
-use malachite_actors::consensus::{ConsensusRef, Msg as ConsensusMsg};
+use malachite_actors::consensus::ConsensusRef;
 use malachite_actors::host::{HostMsg, LocallyProposedValue, ReceivedProposedValue};
 use malachite_actors::prelude::ActorRef;
 use malachite_actors::value_builder::ValueBuilder;
@@ -112,8 +112,8 @@ impl<Ctx: Context> Actor for Host<Ctx> {
                 round,
                 timeout_duration,
                 consensus,
-                reply,
                 address,
+                reply_to,
             } => {
                 let value = self
                     .get_value(
@@ -126,10 +126,10 @@ impl<Ctx: Context> Actor for Host<Ctx> {
                     )
                     .await?;
 
-                reply.send(value)?;
+                reply_to.send(value)?;
             }
 
-            HostMsg::BlockPart {
+            HostMsg::ReceivedBlockPart {
                 block_part,
                 reply_to,
             } => {
@@ -138,9 +138,7 @@ impl<Ctx: Context> Actor for Host<Ctx> {
                     .await?;
 
                 // Send the proposed value (from blockparts) to consensus/ Driver
-                if let Some(value_assembled) = maybe_block {
-                    reply_to.cast(ConsensusMsg::BlockReceived(value_assembled))?;
-                }
+                reply_to.send(maybe_block)?;
             }
 
             HostMsg::GetReceivedValue {
