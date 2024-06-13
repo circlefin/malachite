@@ -47,11 +47,6 @@ where
     /// The proposal to decide on, if any.
     pub proposal: Option<Ctx::Proposal>,
 
-    /// The Value and validity of received blocks.
-    /// TODO struct, consider move to consensus actor state
-    /// depending on the Context API integration
-    pub received_blocks: Vec<(Ctx::Height, Round, Ctx::Value, Validity)>,
-
     /// The pending input to be processed next, if any.
     pub pending_input: Option<(Round, RoundInput<Ctx>)>,
 }
@@ -83,7 +78,6 @@ where
             round_state,
             proposer: None,
             proposal: None,
-            received_blocks: vec![],
             pending_input: None,
         }
     }

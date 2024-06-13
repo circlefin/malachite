@@ -90,6 +90,10 @@ where
     msg_queue: VecDeque<Msg<Ctx>>,
     validator_set: Ctx::ValidatorSet,
     connected_peers: BTreeSet<PeerId>,
+
+    /// The Value and validity of received blocks.
+    /// depending on the Context API integration
+    pub received_blocks: Vec<(Ctx::Height, Round, Ctx::Value, Validity)>,
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -231,7 +235,6 @@ where
                 assert!(proposal_height == state.driver.height());
 
                 let received_block = state
-                    .driver
                     .received_blocks
                     .iter()
                     .find(|&x| x.0 == proposal_height && x.1 == proposal_round);
@@ -579,6 +582,7 @@ where
             msg_queue: VecDeque::new(),
             validator_set: self.params.initial_validator_set.clone(),
             connected_peers: BTreeSet::new(),
+            received_blocks: vec![],
         })
     }
 
@@ -652,7 +656,9 @@ where
                     return Ok(());
                 }
 
-                myself.cast(Msg::SendDriverInput(DriverInput::ProposeValue(round, value)))?
+                myself.cast(Msg::SendDriverInput(DriverInput::ProposeValue(
+                    round, value,
+                )))?
             }
 
             Msg::Decided(height, round, value) => {
@@ -769,7 +775,6 @@ where
 
                 // Store the block and validity information. It will be removed when a decision is reached for that height.
                 state
-                    .driver
                     .received_blocks
                     .push((height, round, value.clone(), valid));
 
