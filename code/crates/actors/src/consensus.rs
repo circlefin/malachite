@@ -14,7 +14,6 @@ use malachite_common::{
 };
 use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
-use malachite_driver::Input::BlockReceived;
 use malachite_driver::Output as DriverOutput;
 use malachite_driver::Validity;
 use malachite_gossip_consensus::{Channel, Event as GossipEvent, PeerId};
@@ -335,9 +334,6 @@ where
 
             DriverInput::Vote(_) => (),
             DriverInput::TimeoutElapsed(_) => (),
-            DriverInput::BlockReceived(..) => {
-                debug!("Received full block {:?}", input);
-            }
         }
 
         let outputs = state
@@ -443,6 +439,7 @@ where
             }
 
             DriverOutput::Decide(round, value) => {
+                // TODO - remove proposal, votes, block for the round
                 info!("Decided on value {:?} at round {round}", value.id());
 
                 let _ = self
@@ -768,16 +765,33 @@ where
                     .cast(GossipConsensusMsg::Broadcast(Channel::BlockParts, bytes))?;
             }
 
-            Msg::BlockReceived(value) => {
-                info!("Received block: {value:?}");
+            Msg::BlockReceived(block) => {
+                let ReceivedProposedValue {
+                    height,
+                    round,
+                    value: maybe_value,
+                    valid,
+                    ..
+                } = block;
 
-                if let Some(v) = value.value {
-                    self.send_driver_input(
-                        BlockReceived(value.height, value.round, v, value.valid),
-                        myself,
-                        state,
-                    )
-                    .await?;
+                if let Some(value) = maybe_value {
+                    info!("Received block: {value:?}");
+
+                    // Store the block and validity information. It will be removed when a decision is reached for that height.
+                    state
+                        .driver
+                        .received_blocks
+                        .push((height, round, value.clone(), valid));
+
+                    if let Some(proposal) = state.driver.proposal.clone() {
+                        if height == proposal.height() && round == proposal.round() {
+                            let validity = value == *proposal.value() && valid.is_valid();
+                            myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
+                                proposal,
+                                Validity::from_valid(validity),
+                            )))?;
+                        }
+                    }
                 }
             }
         }
