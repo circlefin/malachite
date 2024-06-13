@@ -109,7 +109,8 @@ where
     }
 
     pub fn store_signed_precommit(&mut self, precommit: &SignedVote<Ctx>) {
-        assert!(precommit.vote.vote_type() == VoteType::Precommit);
+        assert_eq!(precommit.vote.vote_type(), VoteType::Precommit);
+
         let height = precommit.vote.height();
         let round = precommit.vote.round();
 
