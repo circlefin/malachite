@@ -60,6 +60,7 @@ impl malachite_common::Proposal<StarknetContext> for Proposal {
 impl proto::Protobuf for Proposal {
     type Proto = malachite_proto::Proposal;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(proto::Proposal {
             height: Some(self.height.to_proto()?),
@@ -72,6 +73,7 @@ impl proto::Protobuf for Proposal {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self {
             height: Height::from_proto(

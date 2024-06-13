@@ -47,6 +47,7 @@ impl common::Value for Content {
 impl proto::Protobuf for Content {
     type Proto = crate::proto::mock::Content;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         let tx_batch = proto
             .tx_batch
@@ -62,7 +63,11 @@ impl proto::Protobuf for Content {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        todo!()
+        Ok(crate::proto::mock::Content {
+            tx_batch: Some(self.tx_batch.to_proto()?),
+            metadata: Some(self.metadata.to_proto()?),
+        })
     }
 }

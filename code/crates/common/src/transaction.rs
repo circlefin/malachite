@@ -16,6 +16,11 @@ impl Transaction {
         self.0.to_vec()
     }
 
+    /// Get bytes from a transaction
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+
     /// Size of this transaction in bytes
     pub fn size_bytes(&self) -> usize {
         self.0.len()

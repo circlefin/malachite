@@ -20,6 +20,7 @@ parking_lot.workspace     = true
 prost.workspace           = true
 ractor.workspace          = true
 signature.workspace       = true
+sha2.workspace            = true
 subtle-encoding.workspace = true
 tokio.workspace           = true
 tracing.workspace         = true

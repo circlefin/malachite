@@ -17,16 +17,3 @@ message Content {
 message Hash {
     bytes hash = 1;
 }
-
-// message Transaction {
-//     bytes value = 1;
-// }
-//
-// message TransactionBatch {
-//     repeated Transaction transactions = 1;
-// }
-//
-// message MempoolTransactionBatch {
-//     TransactionBatch tx_batch = 1;
-// }
-//
