@@ -96,6 +96,16 @@ where
     pub received_blocks: Vec<(Ctx::Height, Round, Ctx::Value, Validity)>,
 }
 
+impl<Ctx> State<Ctx>
+where
+    Ctx: Context,
+{
+    pub fn remove_received_block(&mut self, height: Ctx::Height, round: Round) {
+        self.received_blocks
+            .retain(|&(h, r, ..)| h != height && r != round);
+    }
+}
+
 impl<Ctx> Consensus<Ctx>
 where
     Ctx: Context,
@@ -666,6 +676,8 @@ where
                     "Decided on value {:?} at height {height} and round {round}",
                     value.id()
                 );
+
+                state.remove_received_block(height, round);
 
                 self.host.cast(HostMsg::DecidedOnValue {
                     height,
