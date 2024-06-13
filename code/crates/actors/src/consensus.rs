@@ -92,7 +92,6 @@ where
     connected_peers: BTreeSet<PeerId>,
 
     /// The Value and validity of received blocks.
-    /// depending on the Context API integration
     pub received_blocks: Vec<(Ctx::Height, Round, Ctx::Value, Validity)>,
 }
 
@@ -171,8 +170,6 @@ where
     ) -> Result<(), ractor::ActorProcessingErr> {
         if let GossipEvent::Message(from, _, data) = event {
             let msg = NetworkMsg::from_network_bytes(data).unwrap();
-
-            //info!("Received message from peer {from}: {msg:?}");
 
             self.handle_network_msg(from, msg, myself, state).await?;
         }
