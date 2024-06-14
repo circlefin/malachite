@@ -149,7 +149,9 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
 
             sequence += 1;
 
-            if Instant::now() > deadline {
+            if Instant::now() > deadline
+                || block_size >= self.params.max_block_size.as_u64() as usize
+            {
                 // Create, store and gossip the BlockMetadata in a BlockPart
                 let value = Value::new_from_transactions(&tx_batch);
 
