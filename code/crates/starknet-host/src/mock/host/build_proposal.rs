@@ -4,7 +4,7 @@ use bytesize::ByteSize;
 use sha2::{Digest, Sha256};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
-use tracing::{debug, error};
+use tracing::{error, trace};
 
 use malachite_actors::mempool::{MempoolMsg, MempoolRef};
 use malachite_common::Round;
@@ -46,10 +46,7 @@ async fn run_build_proposal_task(
     tx_block_hash: oneshot::Sender<BlockHash>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
-    let interval = deadline - start;
-
-    let build_duration = interval.mul_f32(params.time_allowance_factor);
-    let build_deadline = start + build_duration;
+    let build_duration = (deadline - start).mul_f32(params.time_allowance_factor);
 
     let mut tx_batch = Vec::new();
     let mut sequence = 1;
@@ -57,7 +54,7 @@ async fn run_build_proposal_task(
     let mut block_hasher = Sha256::new();
 
     loop {
-        debug!(%height, %round, %sequence, "Building local value");
+        trace!(%height, %round, %sequence, "Building local value");
 
         let txes = mempool
             .call(
@@ -71,13 +68,11 @@ async fn run_build_proposal_task(
             .await?
             .success_or("Failed to get tx-es from the mempool")?;
 
-        debug!("Reaped {} tx-es from the mempool", txes.len());
+        trace!("Reaped {} tx-es from the mempool", txes.len());
 
         if txes.is_empty() {
             break;
         }
-
-        let mut tx_count = 0;
 
         'inner: for tx in txes {
             if block_size + tx.size_bytes() > params.max_block_size.as_u64() as usize {
@@ -87,31 +82,21 @@ async fn run_build_proposal_task(
             block_size += tx.size_bytes();
             block_hasher.update(tx.as_bytes());
             tx_batch.push(tx);
-            tx_count += 1;
-        }
 
-        // Simulate execution of reaped txes
-        let exec_time = params.exec_time_per_tx * tx_count;
-        debug!("Simulating tx execution for {tx_count} tx-es, sleeping for {exec_time:?}");
-        tokio::time::sleep(exec_time).await;
+            tokio::time::sleep(params.exec_time_per_tx).await;
 
-        let now = Instant::now();
-        if now > build_deadline {
-            error!(
-                "Failed to complete in given interval ({build_duration:?}), took {:?}",
-                now - start,
-            );
-
-            break;
+            if start.elapsed() > build_duration {
+                break 'inner;
+            }
         }
 
         sequence += 1;
 
-        debug!(
+        trace!(
             "Created a tx batch with {} tx-es of size {} in {:?}",
             tx_batch.len(),
             ByteSize::b(block_size as u64),
-            now - start,
+            start.elapsed()
         );
 
         let part = ProposalPart::TxBatch(
@@ -120,6 +105,10 @@ async fn run_build_proposal_task(
         );
 
         tx_part.send(part).await?;
+
+        if Instant::now() > deadline {
+            break;
+        }
     }
 
     // TODO: Compute actual "proof"
@@ -128,7 +117,9 @@ async fn run_build_proposal_task(
     let hash = block_hasher.finalize();
     let block_hash = BlockHash::new(hash.into());
     let block_metadata = BlockMetadata::new(proof, block_hash);
-    let part = ProposalPart::Metadata(sequence, block_metadata);
+    let part = ProposalPart::Metadata(sequence + 1, block_metadata);
+
+    debug!("Built block with hash: {block_hash}");
 
     // Send and then close the channel
     tx_part.send(part).await?;

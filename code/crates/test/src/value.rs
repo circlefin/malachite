@@ -1,6 +1,8 @@
+use core::fmt;
+use std::hash::{DefaultHasher, Hash, Hasher};
+
 use malachite_common::Transaction;
 use malachite_proto::{self as proto};
-use std::hash::{DefaultHasher, Hash, Hasher};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Copy)]
 pub struct ValueId(u64);
@@ -18,6 +20,12 @@ impl ValueId {
 impl From<u64> for ValueId {
     fn from(value: u64) -> Self {
         Self::new(value)
+    }
+}
+
+impl fmt::Display for ValueId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:x}", self.0)
     }
 }
 

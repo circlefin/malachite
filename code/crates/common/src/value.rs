@@ -1,4 +1,4 @@
-use core::fmt::Debug;
+use core::fmt::{Debug, Display};
 
 /// Represents either `Nil` or a value of type `Value`.
 ///
@@ -60,7 +60,7 @@ where
 {
     /// The type of the ID of the value.
     /// Typically a representation of the value with a lower memory footprint.
-    type Id: Clone + Debug + PartialEq + Eq + PartialOrd + Ord + Send + Sync;
+    type Id: Clone + Debug + Display + PartialEq + Eq + PartialOrd + Ord + Send + Sync;
 
     /// The ID of the value.
     fn id(&self) -> Self::Id;

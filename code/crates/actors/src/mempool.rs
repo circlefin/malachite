@@ -153,7 +153,7 @@ impl Mempool {
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::TransactionBatch(batch) => {
-                debug!(%from, "Received batch with {} transactions", batch.len());
+                trace!(%from, "Received batch with {} transactions", batch.len());
 
                 for tx in batch.transaction_batch.into_transactions() {
                     myself.cast(MempoolMsg::Input(tx))?;

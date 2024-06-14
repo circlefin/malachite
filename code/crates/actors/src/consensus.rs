@@ -289,8 +289,13 @@ where
                     }
                     None => {
                         // Store the proposal and wait for all block parts
-                        // TODO - or maybe integrate with receive-proposal() here? will this block until all parts are received?
-                        info!("Received proposal before all block parts, storing it: {proposal:?}",);
+                        // TODO: or maybe integrate with receive-proposal() here? will this block until all parts are received?
+
+                        info!(
+                            height = %proposal.height(),
+                            round = %proposal.round(),
+                            "Received proposal before all block parts, storing it"
+                        );
 
                         state.driver.proposal = Some(proposal.clone());
                     }
@@ -450,7 +455,7 @@ where
 
             DriverOutput::Propose(proposal) => {
                 info!(
-                    "Proposing value with id: {:?}, at round {}",
+                    "Proposing value with id: {}, at round {}",
                     proposal.value().id(),
                     proposal.round()
                 );

@@ -8,6 +8,8 @@ pub use libp2p::{Multiaddr, PeerId};
 
 use crate::PROTOCOL_VERSION;
 
+const MAX_TRANSMIT_SIZE: usize = 1_048_576; // 1 MiB
+
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "NetworkEvent")]
 pub struct Behaviour {
@@ -24,7 +26,10 @@ impl Behaviour {
             )),
             gossipsub: gossipsub::Behaviour::new(
                 gossipsub::MessageAuthenticity::Signed(keypair.clone()),
-                gossipsub::Config::default(),
+                gossipsub::ConfigBuilder::default()
+                    .max_transmit_size(MAX_TRANSMIT_SIZE)
+                    .build()
+                    .unwrap(),
             )
             .unwrap(),
         }
@@ -38,7 +43,10 @@ impl Behaviour {
             )),
             gossipsub: gossipsub::Behaviour::new_with_metrics(
                 gossipsub::MessageAuthenticity::Signed(keypair.clone()),
-                gossipsub::Config::default(),
+                gossipsub::ConfigBuilder::default()
+                    .max_transmit_size(MAX_TRANSMIT_SIZE)
+                    .build()
+                    .unwrap(),
                 registry,
                 Default::default(),
             )

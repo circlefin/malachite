@@ -10,7 +10,7 @@ use tokio::time::Instant;
 use malachite_actors::consensus::{ConsensusMsg, Metrics};
 use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
 use malachite_common::{Round, TransactionBatch, Validity};
-use tracing::{info, trace};
+use tracing::{debug, info, trace};
 
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
@@ -80,15 +80,13 @@ impl StarknetHost {
             }
         }
 
-        metadata.map(|metadata| {
-            (
-                Content {
-                    tx_batch: TransactionBatch::new(tx_batches),
-                    metadata,
-                },
-                last_part.validator_address,
-            )
-        })
+        Some((
+            Content {
+                tx_batch: TransactionBatch::new(tx_batches),
+                metadata: metadata?,
+            },
+            last_part.validator_address,
+        ))
     }
 
     pub fn build_value(
@@ -186,7 +184,7 @@ impl Actor for StarknetHost {
                 address,
                 reply_to,
             } => {
-                let deadline = Instant::now() + timeout_duration;
+                let deadline = Instant::now() + timeout_duration.mul_f32(0.8); // FIXME: Magic number
 
                 let (mut rx_part, rx_hash) =
                     self.host.build_new_proposal(height, round, deadline).await;
@@ -198,8 +196,8 @@ impl Actor for StarknetHost {
                     consensus.cast(ConsensusMsg::GossipBlockPart(block_part))?;
                 }
 
-                // Wait until we receive the block hash, even if we have no use for it yet.
-                let _block_hash = rx_hash.await?;
+                let block_hash = rx_hash.await?;
+                debug!("Got block with hash: {block_hash}");
 
                 let block_parts = state.part_store.all_parts(height, round);
                 if let Some((value, _)) = self.build_proposal_content(&block_parts, height, round) {
