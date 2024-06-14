@@ -18,7 +18,6 @@ bytesize.workspace        = true
 derive-where.workspace    = true
 eyre.workspace            = true
 itertools.workspace       = true
-parking_lot.workspace     = true
 prost.workspace           = true
 ractor.workspace          = true
 signature.workspace       = true

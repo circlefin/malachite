@@ -4,7 +4,6 @@ use std::sync::Arc;
 use derive_where::derive_where;
 
 use malachite_common::{Context, Round};
-use parking_lot::RwLock;
 
 pub type Sequence = u64;
 
@@ -21,7 +20,7 @@ type Store<Ctx> = BTreeMap<Key<<Ctx as Context>::Height>, Arc<<Ctx as Context>::
 
 #[derive_where(Clone, Debug)]
 pub struct PartStore<Ctx: Context> {
-    map: Arc<RwLock<Store<Ctx>>>,
+    store: Store<Ctx>,
 }
 
 impl<Ctx: Context> Default for PartStore<Ctx> {
@@ -33,7 +32,7 @@ impl<Ctx: Context> Default for PartStore<Ctx> {
 impl<Ctx: Context> PartStore<Ctx> {
     pub fn new() -> Self {
         Self {
-            map: Default::default(),
+            store: Default::default(),
         }
     }
 
@@ -43,7 +42,7 @@ impl<Ctx: Context> PartStore<Ctx> {
         round: Round,
         sequence: Sequence,
     ) -> Option<Arc<Ctx::BlockPart>> {
-        self.map.read().get(&(height, round, sequence)).cloned()
+        self.store.get(&(height, round, sequence)).cloned()
     }
 
     /// Return all the parts for the given height and round, sorted by sequence in ascending order
@@ -51,8 +50,7 @@ impl<Ctx: Context> PartStore<Ctx> {
         use itertools::Itertools;
         use malachite_common::BlockPart;
 
-        self.map
-            .read()
+        self.store
             .iter()
             .filter(|((h, r, _), _)| *h == height && *r == round)
             .map(|(_, b)| b)
@@ -61,22 +59,19 @@ impl<Ctx: Context> PartStore<Ctx> {
             .collect()
     }
 
-    pub fn store(&self, block_part: Ctx::BlockPart) {
+    pub fn store(&mut self, block_part: Ctx::BlockPart) {
         use malachite_common::BlockPart;
 
         let height = block_part.height();
         let round = block_part.round();
         let sequence = block_part.sequence();
 
-        self.map
-            .write()
+        self.store
             .entry((height, round, sequence))
             .or_insert(Arc::new(block_part));
     }
 
-    pub fn prune(&self, min_height: Ctx::Height) {
-        self.map
-            .write()
-            .retain(|(height, _, _), _| *height >= min_height);
+    pub fn prune(&mut self, min_height: Ctx::Height) {
+        self.store.retain(|(height, _, _), _| *height >= min_height);
     }
 }
