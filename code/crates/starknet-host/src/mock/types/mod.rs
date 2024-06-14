@@ -35,8 +35,6 @@ pub type Hash = hash::Hash;
 pub type MessageHash = hash::MessageHash;
 pub type BlockHash = hash::BlockHash;
 
-pub type Precommit = Vote;
-
 pub type Signature = malachite_test::Signature;
 pub type PublicKey = malachite_test::PublicKey;
 pub type PrivateKey = malachite_test::PrivateKey;

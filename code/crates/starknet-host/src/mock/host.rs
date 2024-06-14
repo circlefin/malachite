@@ -10,8 +10,9 @@ use tokio::time::Instant;
 use tracing::Instrument;
 
 use malachite_actors::mempool::MempoolRef;
-use malachite_common::Round;
+use malachite_common::{Round, SignedVote};
 
+use crate::mock::context::MockContext;
 use crate::mock::types::*;
 use crate::Host;
 
@@ -55,7 +56,7 @@ impl Host for MockHost {
     type ProposalPart = ProposalPart;
     type Signature = Signature;
     type PublicKey = PublicKey;
-    type Precommit = Precommit;
+    type Precommit = SignedVote<MockContext>;
     type Validator = Validator;
 
     #[tracing::instrument(skip(self, deadline))]
@@ -157,10 +158,9 @@ impl Host for MockHost {
     /// - height     - The height of the decision.
     async fn decision(
         &self,
-        block_hash: Self::BlockHash,
-        precommits: Vec<Self::Precommit>,
-        height: Self::Height,
+        _block_hash: Self::BlockHash,
+        _precommits: Vec<Self::Precommit>,
+        _height: Self::Height,
     ) {
-        todo!()
     }
 }

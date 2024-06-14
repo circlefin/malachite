@@ -278,7 +278,13 @@ impl Actor for StarknetHost {
                 // Prune the PartStore of all parts for heights lower than `height - 1`
                 state.part_store.prune(height.decrement().unwrap_or(height));
 
+                // Notify the mempool to remove corresponding txs
                 self.mempool.cast(MempoolMsg::Update { tx_hashes })?;
+
+                // Notify Starknet Host of the decision
+                self.host
+                    .decision(value.block_hash(), commits, height)
+                    .await;
 
                 Ok(())
             }
