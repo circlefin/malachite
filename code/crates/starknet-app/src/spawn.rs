@@ -182,7 +182,9 @@ async fn spawn_host_actor(
         exec_time_per_tx: cfg.test.exec_time_per_tx,
     };
 
-    let mock_host = MockHost::new(mock_params, mempool, initial_validator_set.clone());
+    let mock_host = MockHost::new(mock_params, mempool.clone(), initial_validator_set.clone());
 
-    StarknetHost::spawn(mock_host, metrics).await.unwrap()
+    StarknetHost::spawn(mock_host, mempool, metrics)
+        .await
+        .unwrap()
 }

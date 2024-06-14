@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use eyre::eyre;
+use malachite_actors::mempool::{MempoolMsg, MempoolRef};
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use tokio::time::Instant;
 
@@ -19,6 +20,7 @@ use crate::Host;
 
 pub struct StarknetHost {
     host: MockHost,
+    mempool: MempoolRef,
     metrics: Metrics,
 }
 
@@ -31,13 +33,25 @@ pub type HostRef = malachite_actors::host::HostRef<MockContext>;
 pub type HostMsg = malachite_actors::host::HostMsg<MockContext>;
 
 impl StarknetHost {
-    pub fn new(host: MockHost, metrics: Metrics) -> Self {
-        Self { host, metrics }
+    pub fn new(host: MockHost, mempool: MempoolRef, metrics: Metrics) -> Self {
+        Self {
+            host,
+            mempool,
+            metrics,
+        }
     }
 
-    pub async fn spawn(host: MockHost, metrics: Metrics) -> Result<HostRef, SpawnErr> {
-        let (actor_ref, _) =
-            Actor::spawn(None, Self::new(host, metrics), HostState::default()).await?;
+    pub async fn spawn(
+        host: MockHost,
+        mempool: MempoolRef,
+        metrics: Metrics,
+    ) -> Result<HostRef, SpawnErr> {
+        let (actor_ref, _) = Actor::spawn(
+            None,
+            Self::new(host, mempool, metrics),
+            HostState::default(),
+        )
+        .await?;
 
         Ok(actor_ref)
     }
@@ -139,12 +153,6 @@ impl StarknetHost {
             "Received last block part",
         );
 
-        // FIXME: At this point we don't know if this block (and its txes) will be decided on.
-        //        So these need to be moved after the block is decided.
-        self.metrics.block_tx_count.observe(tx_count as f64);
-        self.metrics.block_size_bytes.observe(block_size as f64);
-        self.metrics.finalized_txes.inc_by(tx_count as u64);
-
         self.build_value(&all_parts, height, round)
     }
 }
@@ -233,8 +241,46 @@ impl Actor for StarknetHost {
                 }
             }
 
-            HostMsg::DecidedOnValue { .. } => {
-                todo!()
+            HostMsg::DecidedOnValue {
+                height,
+                round,
+                value,
+                commits,
+            } => {
+                info!("Build and store block with hash {value:?}");
+
+                let all_parts = state.part_store.all_parts(height, round);
+
+                // TODO: Build the block from block parts and commits and store it
+
+                // Update metrics
+                let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
+                let tx_count: usize = all_parts.iter().map(|p| p.tx_count().unwrap_or(0)).sum();
+
+                self.metrics.block_tx_count.observe(tx_count as f64);
+                self.metrics.block_size_bytes.observe(block_size as f64);
+                self.metrics.finalized_txes.inc_by(tx_count as u64);
+
+                // Send Update to mempool to remove all the tx-es included in the block.
+                let mut tx_hashes = vec![];
+
+                for part in all_parts {
+                    if let ProposalPart::TxBatch(_, tx_batch) = part.part.as_ref() {
+                        tx_hashes.extend(tx_batch.transactions().iter().map(|tx| {
+                            use std::hash::{Hash, Hasher};
+                            let mut hash = std::hash::DefaultHasher::new();
+                            tx.0.hash(&mut hash);
+                            hash.finish()
+                        }));
+                    }
+                }
+
+                // Prune the PartStore of all parts for heights lower than `height - 1`
+                state.part_store.prune(height.decrement().unwrap_or(height));
+
+                self.mempool.cast(MempoolMsg::Update { tx_hashes })?;
+
+                Ok(())
             }
         }
     }
