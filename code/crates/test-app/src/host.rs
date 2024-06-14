@@ -3,13 +3,14 @@ use std::time::Duration;
 
 use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr};
+use tracing::info;
 
 use malachite_actors::consensus::ConsensusRef;
 use malachite_actors::host::{HostMsg, LocallyProposedValue, ReceivedProposedValue};
 use malachite_actors::prelude::ActorRef;
-use malachite_actors::value_builder::ValueBuilder;
 use malachite_common::{Context, Round};
-use tracing::info;
+
+use crate::value_builder::ValueBuilder;
 
 pub struct State<Ctx: Context> {
     validator_set: Ctx::ValidatorSet,
