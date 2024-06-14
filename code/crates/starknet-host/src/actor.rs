@@ -22,6 +22,7 @@ pub struct StarknetHost {
     metrics: Metrics,
 }
 
+#[derive(Default)]
 pub struct HostState {
     part_store: PartStore<MockContext>,
 }

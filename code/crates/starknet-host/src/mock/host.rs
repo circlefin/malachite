@@ -30,11 +30,16 @@ pub struct MockParams {
 pub struct MockHost {
     params: MockParams,
     mempool: MempoolRef,
+    validator_set: ValidatorSet,
 }
 
 impl MockHost {
-    pub fn new(params: MockParams, mempool: MempoolRef) -> Self {
-        Self { params, mempool }
+    pub fn new(params: MockParams, mempool: MempoolRef, validator_set: ValidatorSet) -> Self {
+        Self {
+            params,
+            mempool,
+            validator_set,
+        }
     }
 
     pub fn params(&self) -> MockParams {
@@ -126,7 +131,7 @@ impl Host for MockHost {
     /// - public_key   - used for signature verification and identification.
     /// - voting_power - used for quorum calculations.
     async fn validators(&self, height: Self::Height) -> Option<BTreeSet<Self::Validator>> {
-        todo!()
+        Some(self.validator_set.validators.iter().cloned().collect())
     }
 
     // NOTE: Signing of message are left to the `Context` for now
