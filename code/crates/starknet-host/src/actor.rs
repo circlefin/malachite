@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use eyre::eyre;
-use ractor::{async_trait, Actor, ActorProcessingErr};
+use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use tokio::time::Instant;
 
 use malachite_actors::consensus::{ConsensusMsg, Metrics};
@@ -33,6 +33,13 @@ pub type HostMsg = malachite_actors::host::HostMsg<MockContext>;
 impl StarknetHost {
     pub fn new(host: MockHost, metrics: Metrics) -> Self {
         Self { host, metrics }
+    }
+
+    pub async fn spawn(host: MockHost, metrics: Metrics) -> Result<HostRef, SpawnErr> {
+        let (actor_ref, _) =
+            Actor::spawn(None, Self::new(host, metrics), HostState::default()).await?;
+
+        Ok(actor_ref)
     }
 
     pub fn build_proposal_content(

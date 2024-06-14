@@ -16,7 +16,6 @@ malachite-gossip-consensus.workspace = true
 malachite-gossip-mempool.workspace   = true
 malachite-starknet-host.workspace    = true
 
-ractor.workspace                     = true 
 tokio.workspace                      = true
 
 [lints]

@@ -1,8 +1,5 @@
 use std::time::Duration;
 
-use malachite_starknet_host::actor::StarknetHost;
-use malachite_starknet_host::mock::host::{MockHost, MockParams};
-use ractor::Actor;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -17,11 +14,10 @@ use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::SharedRegistry;
 use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig};
+use malachite_starknet_host::actor::StarknetHost;
 use malachite_starknet_host::mock::context::MockContext;
+use malachite_starknet_host::mock::host::{MockHost, MockParams};
 use malachite_starknet_host::mock::types::{Address, Content, Height, PrivateKey, ValidatorSet};
-
-// use crate::part_store::PartStore;
-// use crate::value_builder::{TestParams as TestValueBuilderParams, TestValueBuilder};
 
 pub async fn spawn_node_actor(
     cfg: NodeConfig,
@@ -187,29 +183,6 @@ async fn spawn_host_actor(
     };
 
     let mock_host = MockHost::new(mock_params, mempool, initial_validator_set.clone());
-    let host = StarknetHost::new(mock_host, metrics);
 
-    let (host_ref, _) = StarknetHost::spawn(Some("Host".to_string()), host, Default::default())
-        .await
-        .unwrap();
-
-    host_ref
+    StarknetHost::spawn(mock_host, metrics).await.unwrap()
 }
-
-// fn make_test_value_builder(
-//     mempool: MempoolRef,
-//     metrics: Metrics,
-//     cfg: &NodeConfig,
-// ) -> TestValueBuilder<MockContext> {
-//     let params = TestValueBuilderParams {
-//         max_block_size: cfg.consensus.max_block_size,
-//         tx_size: cfg.test.tx_size,
-//         txs_per_part: cfg.test.txs_per_part,
-//         time_allowance_factor: cfg.test.time_allowance_factor,
-//         exec_time_per_tx: cfg.test.exec_time_per_tx,
-//     };
-//
-//     let part_store = PartStore::new();
-//
-//     TestValueBuilder::new(mempool, params, part_store, metrics)
-// }
