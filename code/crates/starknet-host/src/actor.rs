@@ -169,6 +169,7 @@ impl Actor for StarknetHost {
         Ok(initial_state)
     }
 
+    #[tracing::instrument(name = "host", skip_all)]
     async fn handle(
         &self,
         _myself: HostRef,
@@ -245,8 +246,6 @@ impl Actor for StarknetHost {
                 value,
                 commits,
             } => {
-                info!("Build and store block with hash {value:?}");
-
                 let all_parts = state.part_store.all_parts(height, round);
 
                 // TODO: Build the block from block parts and commits and store it

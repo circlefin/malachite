@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::distributions::Uniform;
 use rand::Rng;
-use tracing::{debug, info, trace};
+use tracing::{info, trace};
 
 use malachite_common::{MempoolTransactionBatch, Transaction, TransactionBatch};
 use malachite_gossip_mempool::{Channel, Event as GossipEvent, PeerId};

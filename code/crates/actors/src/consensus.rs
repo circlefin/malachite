@@ -4,7 +4,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ractor::rpc::{call_and_forward, CallResult};
+use ractor::rpc::CallResult;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
@@ -75,6 +75,9 @@ pub enum Msg<Ctx: Context> {
     // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
     GossipBlockPart(Ctx::BlockPart),
     BlockReceived(ReceivedProposedValue<Ctx>),
+
+    // FIXME: Remove
+    DoNothing,
 }
 
 impl<Ctx: Context> From<TimeoutElapsed> for Msg<Ctx> {
@@ -256,7 +259,7 @@ where
                     return Ok(());
                 };
 
-                // TODO - verify that the proposal was signed by the proposer for the height and round, drop otherwise.
+                // TODO: verify that the proposal was signed by the proposer for the height and round, drop otherwise.
                 let proposal = &signed_proposal.proposal;
                 let proposal_height = proposal.height();
                 let proposal_round = proposal.round();
@@ -266,19 +269,18 @@ where
                     .verify_signed_proposal(&signed_proposal, validator.public_key())
                 {
                     error!(
-                        "Received invalid signature for proposal ({}, {}, {:?}",
-                        proposal_height,
-                        proposal_round,
+                        "Received invalid signature for proposal ({proposal_height}, {proposal_round}, {:?}",
                         proposal.value()
                     );
+
                     return Ok(());
                 }
+
                 assert!(proposal_height == state.driver.height());
 
-                let received_block = state
-                    .received_blocks
-                    .iter()
-                    .find(|&x| x.0 == proposal_height && x.1 == proposal_round);
+                let received_block = state.received_blocks.iter().find(|(height, round, ..)| {
+                    height == &proposal_height && round == &proposal_round
+                });
 
                 match received_block {
                     Some((_height, _round, _value, valid)) => {
@@ -320,15 +322,18 @@ where
                 }
 
                 // TODO: Verify that the proposal was signed by the proposer for the height and round, drop otherwise.
-                call_and_forward(
-                    &self.host.get_cell(),
+                self.host.call_and_forward(
                     |reply_to| HostMsg::<Ctx>::ReceivedBlockPart {
                         block_part: signed_block_part.block_part,
                         reply_to,
                     },
-                    myself.get_cell(),
-                    |_maybe_value| {
-                        // FIXME: What to do here?
+                    &myself,
+                    |maybe_value| {
+                        if let Some(value) = maybe_value {
+                            Msg::<Ctx>::BlockReceived(value)
+                        } else {
+                            Msg::<Ctx>::DoNothing // FIXME
+                        }
                     },
                     None,
                 )?;
@@ -496,8 +501,8 @@ where
             }
 
             DriverOutput::Decide(round, value) => {
-                // TODO - remove proposal, votes, block for the round
-                info!("Decided on value {:?} at round {round}", value.id());
+                // TODO: remove proposal, votes, block for the round
+                info!("Decided on value {} at round {round}", value.id());
 
                 let _ = self
                     .tx_decision
@@ -534,8 +539,7 @@ where
 
         // Call `GetValue` on the CAL actor, and forward the reply to the current actor,
         // wrapping it in `Msg::ProposeValue`.
-        call_and_forward(
-            &self.host.get_cell(),
+        self.host.call_and_forward(
             |reply| HostMsg::GetValue {
                 height,
                 round,
@@ -544,7 +548,7 @@ where
                 consensus: myself.clone(),
                 reply_to: reply,
             },
-            myself.get_cell(),
+            &myself,
             |proposed: LocallyProposedValue<Ctx>| {
                 Msg::<Ctx>::ProposeValue(proposed.height, proposed.round, proposed.value)
             },
@@ -656,6 +660,8 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
+            Msg::DoNothing => (),
+
             Msg::StartHeight(height) => {
                 self.metrics.block_start();
 
@@ -833,7 +839,7 @@ where
                     ..
                 } = block;
 
-                info!("Received block: {value:?}");
+                info!(%height, %round, "Received block: {}", value.id());
 
                 // Store the block and validity information. It will be removed when a decision is reached for that height.
                 state

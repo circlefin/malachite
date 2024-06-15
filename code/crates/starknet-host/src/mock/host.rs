@@ -59,7 +59,7 @@ impl Host for MockHost {
     type Precommit = SignedVote<MockContext>;
     type Validator = Validator;
 
-    #[tracing::instrument(skip(self, deadline))]
+    #[tracing::instrument(skip_all, fields(%height, %round))]
     async fn build_new_proposal(
         &self,
         height: Self::Height,

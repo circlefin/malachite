@@ -3,7 +3,6 @@ use core::fmt::Debug;
 use crate::{Context, Round};
 
 /// Defines the requirements for a block part type.
-
 pub trait BlockPart<Ctx>
 where
     Self: Clone + Debug + Eq + Send + Sync + 'static,
