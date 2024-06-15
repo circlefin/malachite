@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use bytesize::ByteSize;
-use tracing::{debug, error, info, trace};
+use tracing::{error, info, trace};
 
 use malachite_actors::consensus::Metrics;
 use malachite_actors::consensus::{ConsensusRef, Msg as ConsensusMsg};
@@ -135,7 +135,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
 
             // Simulate execution of reaped txes
             let exec_time = self.params.exec_time_per_tx * tx_count;
-            debug!("Simulating tx execution for {tx_count} tx-es, sleeping for {exec_time:?}");
+            trace!("Simulating tx execution for {tx_count} tx-es, sleeping for {exec_time:?}");
             tokio::time::sleep(exec_time).await;
 
             if Instant::now() > expiration_time {
@@ -149,7 +149,9 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
 
             sequence += 1;
 
-            if Instant::now() > deadline {
+            if Instant::now() > deadline
+                || block_size >= self.params.max_block_size.as_u64() as usize
+            {
                 // Create, store and gossip the BlockMetadata in a BlockPart
                 let value = Value::new_from_transactions(&tx_batch);
 
