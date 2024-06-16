@@ -2,10 +2,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 
-use malachite_common::{Context, Round, SignedVote};
-
 use malachite_actors::consensus::ConsensusRef;
 use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
+use malachite_common::{Context, Round, SignedVote};
 
 #[async_trait]
 pub trait ValueBuilder<Ctx: Context>: Send + Sync + 'static {

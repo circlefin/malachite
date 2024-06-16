@@ -10,8 +10,8 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 
 use malachite_common::{
-    Context, Height, Proposal, Round, SignedBlockPart, SignedProposal, SignedVote, Timeout,
-    TimeoutStep, Validator, ValidatorSet, Validity, Value, Vote, VoteType,
+    Context, Height, NilOrVal, Proposal, Round, SignedBlockPart, SignedProposal, SignedVote,
+    Timeout, TimeoutStep, Validator, ValidatorSet, Validity, Value, Vote, VoteType,
 };
 use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
@@ -132,10 +132,19 @@ where
         &mut self,
         height: Ctx::Height,
         round: Round,
+        value: &Ctx::Value,
     ) -> Vec<SignedVote<Ctx>> {
-        self.signed_precommits
+        // Get the commits for the height and round.
+        let mut commits_for_height_and_round = self
+            .signed_precommits
             .remove(&(height, round))
-            .unwrap_or_default()
+            .unwrap_or_default();
+
+        // Keep the commits for the specified value.
+        // For now we ignore equivocating votes if present.
+        commits_for_height_and_round.retain(|c| c.vote.value() == &NilOrVal::Val(value.id()));
+
+        commits_for_height_and_round
     }
 }
 
@@ -241,7 +250,10 @@ where
                 let vote_height = signed_vote.vote.height();
                 assert!(vote_height == state.driver.height());
 
-                if signed_vote.vote.vote_type() == VoteType::Precommit {
+                // Store the non-nil Precommits.
+                if signed_vote.vote.vote_type() == VoteType::Precommit
+                    && signed_vote.vote.value().is_val()
+                {
                     state.store_signed_precommit(&signed_vote);
                 }
                 myself.cast(Msg::SendDriverInput(DriverInput::Vote(signed_vote.vote)))?;
@@ -732,7 +744,7 @@ where
                 state.remove_received_block(height, round);
 
                 // Restore the commits. Note that they will be removed from `state`
-                let commits = state.restore_precommits(height, round);
+                let commits = state.restore_precommits(height, round, &value);
 
                 self.host.cast(HostMsg::DecidedOnValue {
                     height,
@@ -740,6 +752,10 @@ where
                     value,
                     commits,
                 })?;
+
+                // Reinitialize to remove any previous round or equivocating precommits.
+                // TODO - revise when evidence module is added.
+                state.signed_precommits = Default::default();
 
                 self.metrics.block_end();
                 self.metrics.finalized_blocks.inc();

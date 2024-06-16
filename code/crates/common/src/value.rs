@@ -14,15 +14,15 @@ pub enum NilOrVal<Value> {
 }
 
 impl<Value> NilOrVal<Value> {
-    // /// Whether this is `nil`.
-    // pub fn is_nil(&self) -> bool {
-    //     matches!(self, Self::Nil)
-    // }
-    //
-    // /// Whether this is an actual value.
-    // pub fn is_val(&self) -> bool {
-    //     matches!(self, Self::Val(_))
-    // }
+    /// Whether this is `nil`.
+    pub fn is_nil(&self) -> bool {
+        matches!(self, Self::Nil)
+    }
+
+    /// Whether this is an actual value.
+    pub fn is_val(&self) -> bool {
+        matches!(self, Self::Val(_))
+    }
 
     /// Apply the given function to the value if it is not `nil`.
     pub fn map<NewValue, F: FnOnce(Value) -> NewValue>(self, f: F) -> NilOrVal<NewValue> {
