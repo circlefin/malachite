@@ -260,7 +260,6 @@ where
             }
 
             NetworkMsg::Proposal(proposal) => {
-                dbg!(&proposal);
                 let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap(); // FIXME:Unwrap
                 let validator_address = signed_proposal.proposal.validator_address();
 

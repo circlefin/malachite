@@ -64,9 +64,7 @@ impl proto::Protobuf for Proposal {
         Ok(proto::Proposal {
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),
-            value: Some(proto::Value {
-                value: Some(self.value.to_bytes()?),
-            }),
+            value: Some(self.value.to_proto()?),
             pol_round: Some(self.pol_round.to_proto()?),
             validator_address: Some(self.validator_address.to_proto()?),
         })

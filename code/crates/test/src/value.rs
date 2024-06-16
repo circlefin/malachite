@@ -37,8 +37,13 @@ impl proto::Protobuf for ValueId {
             .value
             .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
 
-        let bytes = <[u8; 8]>::try_from(bytes)
-            .map_err(|_| proto::Error::Other("Invalid value length".to_string()))?;
+        let len = bytes.len();
+        let bytes = <[u8; 8]>::try_from(bytes).map_err(|_| {
+            proto::Error::Other(format!(
+                "Invalid value length, got {len} bytes expected {}",
+                u64::BITS / 8
+            ))
+        })?;
 
         Ok(ValueId::new(u64::from_be_bytes(bytes)))
     }
@@ -94,8 +99,13 @@ impl proto::Protobuf for Value {
             .value
             .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
 
-        let bytes = <[u8; 8]>::try_from(bytes)
-            .map_err(|_| proto::Error::Other("Invalid value length".to_string()))?;
+        let len = bytes.len();
+        let bytes = <[u8; 8]>::try_from(bytes).map_err(|_| {
+            proto::Error::Other(format!(
+                "Invalid value length, got {len} bytes expected {}",
+                u64::BITS / 8
+            ))
+        })?;
 
         Ok(Value::new(u64::from_be_bytes(bytes)))
     }
