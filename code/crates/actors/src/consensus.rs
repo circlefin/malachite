@@ -212,7 +212,7 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
         if let GossipEvent::Message(from, _, data) = event {
-            let msg = NetworkMsg::from_network_bytes(data).unwrap();
+            let msg = NetworkMsg::from_network_bytes(data).unwrap(); // FIXME: Unwrap
 
             self.handle_network_msg(from, msg, myself, state).await?;
         }
@@ -229,7 +229,7 @@ where
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::Vote(signed_vote) => {
-                let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap(); // FIXME
+                let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap(); // FIXME: Unwrap
                 let validator_address = signed_vote.validator_address();
 
                 info!(%from, %validator_address, "Received vote: {:?}", signed_vote.vote);
@@ -260,7 +260,8 @@ where
             }
 
             NetworkMsg::Proposal(proposal) => {
-                let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap();
+                dbg!(&proposal);
+                let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap(); // FIXME:Unwrap
                 let validator_address = signed_proposal.proposal.validator_address();
 
                 info!(%from, %validator_address, "Received proposal: (h: {}, r: {}, id: {:?})",
@@ -317,7 +318,7 @@ where
             }
 
             NetworkMsg::BlockPart(block_part) => {
-                let signed_block_part = SignedBlockPart::<Ctx>::from_proto(block_part).unwrap();
+                let signed_block_part = SignedBlockPart::<Ctx>::from_proto(block_part).unwrap(); // FIXME: Unwrap
                 let validator_address = signed_block_part.validator_address();
 
                 let Some(validator) = state.validator_set.get_by_address(validator_address) else {
@@ -480,9 +481,9 @@ where
                 let signed_proposal = self.ctx.sign_proposal(proposal);
 
                 // TODO: Refactor to helper method
-                let proto = signed_proposal.to_proto().unwrap(); // FIXME
+                let proto = signed_proposal.to_proto().unwrap(); // FIXME: Unwrap
                 let msg = NetworkMsg::Proposal(proto);
-                let bytes = msg.to_network_bytes().unwrap(); // FIXME
+                let bytes = msg.to_network_bytes().unwrap(); // FIXME: Unwrap
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
 
@@ -503,9 +504,9 @@ where
                 let signed_vote = self.ctx.sign_vote(vote);
 
                 // TODO: Refactor to helper method
-                let proto = signed_vote.to_proto().unwrap(); // FIXME
+                let proto = signed_vote.to_proto().unwrap(); // FIXME: Unwrap
                 let msg = NetworkMsg::Vote(proto);
-                let bytes = msg.to_network_bytes().unwrap(); // FIXME
+                let bytes = msg.to_network_bytes().unwrap(); // FIXME: Unwrap
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
 
@@ -583,7 +584,9 @@ where
         let round = round.as_i64() as usize;
 
         let proposer_index = (height - 1 + round) % validator_set.count();
-        let proposer = validator_set.get_by_index(proposer_index).unwrap();
+        let proposer = validator_set
+            .get_by_index(proposer_index)
+            .expect("proposer not found");
 
         Ok(proposer.address().clone())
     }
@@ -801,7 +804,7 @@ where
                     }
 
                     GossipEvent::Message(_, _, data) => {
-                        let msg = NetworkMsg::from_network_bytes(data).unwrap(); // FIXME
+                        let msg = NetworkMsg::from_network_bytes(data).unwrap(); // FIXME: Unwrap
 
                         let Some(msg_height) = msg.msg_height() else {
                             trace!("Received message without height, dropping");
@@ -839,9 +842,9 @@ where
 
             Msg::GossipBlockPart(block_part) => {
                 let signed_block_part = self.ctx.sign_block_part(block_part);
-                let proto = signed_block_part.to_proto().unwrap(); // FIXME
+                let proto = signed_block_part.to_proto().unwrap(); // FIXME: Unwrap
                 let msg = NetworkMsg::BlockPart(proto);
-                let bytes = msg.to_network_bytes().unwrap(); // FIXME
+                let bytes = msg.to_network_bytes().unwrap(); // FIXME: Unwrap
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::BlockParts, bytes))?;
             }
