@@ -4,7 +4,7 @@ use bytesize::ByteSize;
 use sha2::{Digest, Sha256};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 
 use malachite_actors::mempool::{MempoolMsg, MempoolRef};
 use malachite_common::Round;
@@ -54,8 +54,6 @@ async fn run_build_proposal_task(
     let mut block_tx_count = 0;
     let mut block_hasher = Sha256::new();
 
-    debug!("Params: {params:?}");
-
     loop {
         trace!(%height, %round, %sequence, "Building local value");
 
@@ -71,7 +69,7 @@ async fn run_build_proposal_task(
             .await?
             .success_or("Failed to get tx-es from the mempool")?;
 
-        debug!("Reaped {} tx-es from the mempool", txes.len());
+        trace!("Reaped {} tx-es from the mempool", txes.len());
 
         if txes.is_empty() {
             break;
@@ -93,28 +91,25 @@ async fn run_build_proposal_task(
         tokio::time::sleep(tx_count * params.exec_time_per_tx).await;
 
         if start.elapsed() > build_duration {
-            debug!("Time allowance exceeded, stopping tx generation");
+            trace!("Time allowance exceeded, stopping tx generation");
             break;
         }
 
         if tx_count == 0 {
-            debug!("No tx-es fit in the block, stopping tx generation");
+            trace!("No tx-es fit in the block, stopping tx generation");
             break;
         }
 
         block_tx_count += tx_count;
 
-        debug!("Block size:     {}", ByteSize::b(block_size as u64));
-        debug!("Block tx count: {}", block_tx_count);
-
-        sequence += 1;
-
-        debug!(
+        trace!(
             "Created a tx batch with {} tx-es of size {} in {:?}",
             tx_batch.len(),
             ByteSize::b(tx_batch.iter().map(|tx| tx.size_bytes()).sum::<usize>() as u64),
             start.elapsed()
         );
+
+        sequence += 1;
 
         let part = ProposalPart::TxBatch(
             sequence,
@@ -136,8 +131,9 @@ async fn run_build_proposal_task(
     let block_hash = BlockHash::new(hash.into());
     let block_metadata = BlockMetadata::new(proof, block_hash);
     let part = ProposalPart::Metadata(sequence + 1, block_metadata);
+    let block_size = ByteSize::b(block_size as u64);
 
-    debug!("Built block with {block_tx_count} txes and hash: {block_hash}");
+    trace!("Built block with {block_tx_count} tx-es of size {block_size} and hash: {block_hash}");
 
     // Send and then close the channel
     tx_part.send(part).await?;
