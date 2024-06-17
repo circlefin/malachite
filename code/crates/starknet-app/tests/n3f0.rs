@@ -17,4 +17,3 @@ pub async fn all_correct_nodes() {
 
     run_test(nodes).await
 }
-
