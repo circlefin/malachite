@@ -18,6 +18,10 @@ pub struct InitCmd {
     /// The name of the application to run
     #[clap(long, default_value_t = App::default())]
     pub app: App,
+
+    /// Overwrite existing configuration files
+    #[clap(long)]
+    pub overwrite: bool,
 }
 
 impl InitCmd {
@@ -29,7 +33,7 @@ impl InitCmd {
         priv_validator_key_file: &Path,
     ) -> Result<()> {
         // Save default configuration
-        if config_file.exists() {
+        if config_file.exists() && !self.overwrite {
             warn!(
                 "Configuration file already exists at {:?}, skipping",
                 config_file.display()
@@ -40,7 +44,7 @@ impl InitCmd {
         }
 
         // Save default genesis
-        if genesis_file.exists() {
+        if genesis_file.exists() && !self.overwrite {
             warn!(
                 "Genesis file already exists at {:?}, skipping",
                 genesis_file.display()
@@ -54,7 +58,7 @@ impl InitCmd {
         }
 
         // Save default priv_validator_key
-        if priv_validator_key_file.exists() {
+        if priv_validator_key_file.exists() && !self.overwrite {
             warn!(
                 "Private key file already exists at {:?}, skipping",
                 priv_validator_key_file.display()
