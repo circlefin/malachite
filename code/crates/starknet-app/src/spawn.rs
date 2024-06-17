@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use async_trait::async_trait;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -18,6 +19,33 @@ use malachite_starknet_host::actor::StarknetHost;
 use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::mock::host::{MockHost, MockParams};
 use malachite_starknet_host::mock::types::{Address, Content, Height, PrivateKey, ValidatorSet};
+use malachite_test::utils::test::SpawnNodeActor;
+
+pub struct SpawnStarknetNode;
+
+#[async_trait]
+impl SpawnNodeActor for SpawnStarknetNode {
+    type Ctx = MockContext;
+
+    async fn spawn_node_actor(
+        node_config: NodeConfig,
+        validator_set: ValidatorSet,
+        validator_pkk: PrivateKey,
+        node_pk: PrivateKey,
+        address: Address,
+        tx_decision: mpsc::Sender<(Height, Round, Content)>,
+    ) -> (NodeRef, JoinHandle<()>) {
+        spawn_node_actor(
+            node_config,
+            validator_set,
+            validator_pkk,
+            node_pk,
+            address,
+            tx_decision,
+        )
+        .await
+    }
+}
 
 pub async fn spawn_node_actor(
     cfg: NodeConfig,

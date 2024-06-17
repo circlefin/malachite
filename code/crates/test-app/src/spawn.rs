@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use malachite_test::utils::test::SpawnNodeActor;
+use ractor::async_trait;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -19,6 +21,32 @@ use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Val
 use crate::host::Host;
 use crate::part_store::PartStore;
 use crate::test_value_builder::{TestParams as TestValueBuilderParams, TestValueBuilder};
+
+pub struct SpawnTestNode;
+
+#[async_trait]
+impl SpawnNodeActor for SpawnTestNode {
+    type Ctx = TestContext;
+
+    async fn spawn_node_actor(
+        cfg: NodeConfig,
+        initial_validator_set: ValidatorSet,
+        validator_pk: PrivateKey,
+        node_pk: PrivateKey,
+        address: Address,
+        tx_decision: mpsc::Sender<(Height, Round, Value)>,
+    ) -> (NodeRef, JoinHandle<()>) {
+        spawn_node_actor(
+            cfg,
+            initial_validator_set,
+            validator_pk,
+            node_pk,
+            address,
+            tx_decision,
+        )
+        .await
+    }
+}
 
 pub async fn spawn_node_actor(
     cfg: NodeConfig,
