@@ -52,7 +52,7 @@ pub enum HostMsg<Ctx: Context> {
     /// BlockPart received <-- consensus <-- gossip
     ReceivedBlockPart {
         block_part: Ctx::BlockPart,
-        reply_to: RpcReplyPort<Option<ReceivedProposedValue<Ctx>>>,
+        reply_to: RpcReplyPort<ReceivedProposedValue<Ctx>>,
     },
 
     /// Retrieve a block/value for which all parts have been received

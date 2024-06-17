@@ -134,12 +134,13 @@ impl<Ctx: Context> Actor for Host<Ctx> {
                 block_part,
                 reply_to,
             } => {
-                let maybe_block = self
+                if let Some(value) = self
                     .build_value(block_part, state.value_builder.as_mut())
-                    .await?;
-
-                // Send the proposed value (from blockparts) to consensus/ Driver
-                reply_to.send(maybe_block)?;
+                    .await?
+                {
+                    // Send the proposed value (from blockparts) to consensus/ Driver
+                    reply_to.send(value)?;
+                }
             }
 
             HostMsg::GetReceivedValue {

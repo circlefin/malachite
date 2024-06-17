@@ -75,9 +75,6 @@ pub enum Msg<Ctx: Context> {
     // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
     GossipBlockPart(Ctx::BlockPart),
     BlockReceived(ReceivedProposedValue<Ctx>),
-
-    // FIXME: Remove
-    DoNothing,
 }
 
 impl<Ctx: Context> From<TimeoutElapsed> for Msg<Ctx> {
@@ -335,18 +332,12 @@ where
 
                 // TODO: Verify that the proposal was signed by the proposer for the height and round, drop otherwise.
                 self.host.call_and_forward(
-                    |reply_to| HostMsg::<Ctx>::ReceivedBlockPart {
+                    |reply_to| HostMsg::ReceivedBlockPart {
                         block_part: signed_block_part.block_part,
                         reply_to,
                     },
                     &myself,
-                    |maybe_value| {
-                        if let Some(value) = maybe_value {
-                            Msg::<Ctx>::BlockReceived(value)
-                        } else {
-                            Msg::<Ctx>::DoNothing // FIXME
-                        }
-                    },
+                    |value| Msg::BlockReceived(value),
                     None,
                 )?;
             }
@@ -674,8 +665,6 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
-            Msg::DoNothing => (),
-
             Msg::StartHeight(height) => {
                 self.metrics.block_start();
 

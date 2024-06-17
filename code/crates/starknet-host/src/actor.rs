@@ -213,8 +213,9 @@ impl Actor for StarknetHost {
                 block_part,
                 reply_to,
             } => {
-                let value = self.build_value_from_block_part(state, block_part).await;
-                reply_to.send(value)?;
+                if let Some(value) = self.build_value_from_block_part(state, block_part).await {
+                    reply_to.send(value)?;
+                }
 
                 Ok(())
             }
