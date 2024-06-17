@@ -16,6 +16,7 @@ use tracing::info;
 use malachite_node::config::Config;
 use malachite_test::{PrivateKey, ValidatorSet};
 
+use crate::cmd::init::InitCmd;
 use crate::cmd::keys::KeysCmd;
 use crate::cmd::testnet::TestnetCmd;
 use crate::logging::DebugSection;
@@ -53,7 +54,7 @@ pub enum Commands {
     Start,
 
     /// Initialize configuration
-    Init,
+    Init(InitCmd),
 
     /// Manage keys
     #[command(subcommand)]
@@ -154,7 +155,7 @@ mod tests {
     fn args_struct() {
         let args = Args::parse_from(["test", "--debug", "ractor", "init"]);
         assert_eq!(args.debug, vec![DebugSection::Ractor]);
-        assert!(matches!(args.command, Commands::Init));
+        assert!(matches!(args.command, Commands::Init(_)));
 
         let args = Args::parse_from(["test", "start"]);
         assert_eq!(args.debug, vec![]);

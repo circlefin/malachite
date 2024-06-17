@@ -11,7 +11,7 @@ use tracing::{error, info, Instrument};
 
 use malachite_common::{Round, VotingPower};
 use malachite_node::config::{
-    ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
+    App, ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
 };
 use malachite_test::utils::make_validators;
 use malachite_test::{Height, PrivateKey, Validator, ValidatorSet};
@@ -222,6 +222,7 @@ pub async fn run_test<const N: usize>(test: Test<N>) {
 fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> malachite_node::config::Config {
     malachite_node::config::Config {
         moniker: format!("node-{i}"),
+        app: App::Test,
         consensus: ConsensusConfig {
             max_block_size: ByteSize::mib(1),
             timeouts: TimeoutConfig::default(),

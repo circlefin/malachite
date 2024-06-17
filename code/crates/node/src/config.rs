@@ -1,4 +1,6 @@
+use core::fmt;
 use std::net::SocketAddr;
+use std::str::FromStr;
 use std::time::Duration;
 
 use bytesize::ByteSize;
@@ -6,11 +8,47 @@ use malachite_common::TimeoutStep;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub enum App {
+    #[default]
+    #[serde(rename = "starknet")]
+    Starknet,
+
+    #[serde(rename = "test")]
+    Test,
+}
+
+impl fmt::Display for App {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Starknet => write!(f, "starknet"),
+            Self::Test => write!(f, "test"),
+        }
+    }
+}
+
+impl FromStr for App {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "starknet" => Ok(Self::Starknet),
+            "test" => Ok(Self::Test),
+            _ => Err(format!(
+                "unknown application: {s}, available: starknet, test"
+            )),
+        }
+    }
+}
+
 /// Malachite configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     /// A custom human-readable name for this node
     pub moniker: String,
+
+    /// The name of the application to run
+    pub app: App,
 
     /// Consensus configuration options
     pub consensus: ConsensusConfig,
