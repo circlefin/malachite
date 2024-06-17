@@ -47,6 +47,8 @@ pub struct ConsensusParams<Ctx: Context> {
 
 pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
+pub type TxDecision<Ctx> = mpsc::Sender<(<Ctx as Context>::Height, Round, <Ctx as Context>::Value)>;
+
 pub struct Consensus<Ctx>
 where
     Ctx: Context,
@@ -57,7 +59,7 @@ where
     gossip_consensus: GossipConsensusRef,
     host: HostRef<Ctx>,
     metrics: Metrics,
-    tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
+    tx_decision: Option<TxDecision<Ctx>>,
 }
 
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
@@ -159,7 +161,7 @@ where
         gossip_consensus: GossipConsensusRef,
         host: HostRef<Ctx>,
         metrics: Metrics,
-        tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
+        tx_decision: Option<TxDecision<Ctx>>,
     ) -> Self {
         Self {
             ctx,
@@ -180,7 +182,7 @@ where
         gossip_consensus: GossipConsensusRef,
         host: HostRef<Ctx>,
         metrics: Metrics,
-        tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
+        tx_decision: Option<TxDecision<Ctx>>,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let node = Self::new(
@@ -507,10 +509,11 @@ where
                 // TODO: remove proposal, votes, block for the round
                 info!("Decided on value {} at round {round}", value.id());
 
-                let _ = self
-                    .tx_decision
-                    .send((state.driver.height(), round, value.clone()))
-                    .await;
+                if let Some(tx_decision) = &self.tx_decision {
+                    let _ = tx_decision
+                        .send((state.driver.height(), round, value.clone()))
+                        .await;
+                }
 
                 Ok(Next::Decided(round, value))
             }

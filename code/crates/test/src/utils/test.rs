@@ -75,7 +75,7 @@ impl<const N: usize> Test<N> {
                 sk.clone(),
                 sk.clone(),
                 v.address,
-                tx_decision,
+                Some(tx_decision),
             ));
 
             handles.push((node, rx_decision));
@@ -231,6 +231,6 @@ pub trait SpawnNodeActor {
         validator_pkk: PrivateKey,
         node_pk: PrivateKey,
         address: Address,
-        tx_decision: mpsc::Sender<(Height, Round, <Self::Ctx as Context>::Value)>,
+        tx_decision: Option<mpsc::Sender<(Height, Round, <Self::Ctx as Context>::Value)>>,
     ) -> (NodeRef, JoinHandle<()>);
 }

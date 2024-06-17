@@ -34,7 +34,7 @@ impl SpawnNodeActor for SpawnTestNode {
         validator_pk: PrivateKey,
         node_pk: PrivateKey,
         address: Address,
-        tx_decision: mpsc::Sender<(Height, Round, Value)>,
+        tx_decision: Option<mpsc::Sender<(Height, Round, Value)>>,
     ) -> (NodeRef, JoinHandle<()>) {
         spawn_node_actor(
             cfg,
@@ -54,7 +54,7 @@ pub async fn spawn_node_actor(
     validator_pk: PrivateKey,
     node_pk: PrivateKey,
     address: Address,
-    tx_decision: mpsc::Sender<(Height, Round, Value)>,
+    tx_decision: Option<mpsc::Sender<(Height, Round, Value)>>,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = TestContext::new(validator_pk.clone());
 
@@ -115,7 +115,7 @@ async fn spawn_consensus_actor(
     gossip_consensus: GossipConsensusRef,
     host: HostRef<TestContext>,
     metrics: Metrics,
-    tx_decision: mpsc::Sender<(Height, Round, Value)>,
+    tx_decision: Option<mpsc::Sender<(Height, Round, Value)>>,
 ) -> ConsensusRef<TestContext> {
     let consensus_params = ConsensusParams {
         start_height,

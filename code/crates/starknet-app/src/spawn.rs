@@ -33,7 +33,7 @@ impl SpawnNodeActor for SpawnStarknetNode {
         validator_pkk: PrivateKey,
         node_pk: PrivateKey,
         address: Address,
-        tx_decision: mpsc::Sender<(Height, Round, Content)>,
+        tx_decision: Option<mpsc::Sender<(Height, Round, Content)>>,
     ) -> (NodeRef, JoinHandle<()>) {
         spawn_node_actor(
             node_config,
@@ -53,7 +53,7 @@ pub async fn spawn_node_actor(
     validator_pk: PrivateKey,
     node_pk: PrivateKey,
     address: Address,
-    tx_decision: mpsc::Sender<(Height, Round, Content)>,
+    tx_decision: Option<mpsc::Sender<(Height, Round, Content)>>,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(validator_pk.clone());
 
@@ -117,7 +117,7 @@ async fn spawn_consensus_actor(
     gossip_consensus: GossipConsensusRef,
     host: HostRef<MockContext>,
     metrics: Metrics,
-    tx_decision: mpsc::Sender<(Height, Round, Content)>,
+    tx_decision: Option<mpsc::Sender<(Height, Round, Content)>>,
 ) -> ConsensusRef<MockContext> {
     let consensus_params = ConsensusParams {
         start_height,
