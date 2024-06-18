@@ -117,11 +117,9 @@ impl<const N: usize> Test<N> {
 
                         let decision = rx_decision.recv().await;
 
-                        // TODO - the value proposed comes from a set of mempool Tx-es which are currently different for each proposer
-                        // Also heights can go to higher rounds.
-                        // Therefore removing the round and value check for now
+                        // TODO: Heights can go to higher rounds, therefore removing the round and value check for now.
                         match decision {
-                            Some((h, r, _)) if h == Height::new(height) && r == Round::new(0) => {
+                            Some((h, _r, _)) if h == Height::new(height) /* && r == Round::new(0) */ => {
                                 info!("{height}/{HEIGHTS} correct decision");
                                 correct_decisions.fetch_add(1, Ordering::Relaxed);
                             }
