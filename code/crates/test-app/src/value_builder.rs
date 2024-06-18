@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use bytesize::ByteSize;
-use tracing::{error, info, trace};
+use tracing::{debug, error, info, trace};
 
 use malachite_actors::consensus::Metrics;
 use malachite_actors::consensus::{ConsensusRef, Msg as ConsensusMsg};
@@ -79,6 +79,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
         let mut tx_batch = vec![];
         let mut sequence = 1;
         let mut block_size = 0;
+        let mut max_block_size_reached = false;
 
         loop {
             trace!(
@@ -88,7 +89,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                 sequence
             );
 
-            let txes = self
+            let mut txes = self
                 .tx_streamer
                 .call(
                     |reply| MempoolMsg::TxStream {
@@ -106,6 +107,22 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                 return None;
             }
 
+            let mut tx_count = 0;
+
+            'inner: for tx in &txes {
+                if block_size + tx.size_bytes() > self.params.max_block_size.as_u64() as usize {
+                    max_block_size_reached = true;
+                    break 'inner;
+                }
+
+                block_size += tx.size_bytes();
+                tx_batch.push(tx.clone());
+                tx_count += 1;
+            }
+
+            // Trim the tx batch so it does not overflow the block.
+            txes = txes.into_iter().take(tx_count).collect();
+
             // Create, store and gossip the batch in a BlockPart
             let block_part = BlockPart::new(
                 height,
@@ -121,20 +138,8 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                 .cast(ConsensusMsg::BuilderBlockPart(block_part))
                 .unwrap();
 
-            let mut tx_count = 0;
-
-            'inner: for tx in txes {
-                if block_size + tx.size_bytes() > self.params.max_block_size.as_u64() as usize {
-                    break 'inner;
-                }
-
-                block_size += tx.size_bytes();
-                tx_batch.push(tx);
-                tx_count += 1;
-            }
-
             // Simulate execution of reaped txes
-            let exec_time = self.params.exec_time_per_tx * tx_count;
+            let exec_time = self.params.exec_time_per_tx * tx_count as u32;
             trace!("Simulating tx execution for {tx_count} tx-es, sleeping for {exec_time:?}");
             tokio::time::sleep(exec_time).await;
 
@@ -149,9 +154,13 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
 
             sequence += 1;
 
-            if Instant::now() > deadline
-                || block_size >= self.params.max_block_size.as_u64() as usize
-            {
+            if Instant::now() > deadline || max_block_size_reached {
+                if max_block_size_reached {
+                    debug!("Value Builder stopped streaming Tx-es due to max block size being reached");
+                } else {
+                    debug!("Value Builder stopped streaming Tx-es due to deadline being reached");
+                }
+
                 // Create, store and gossip the BlockMetadata in a BlockPart
                 let value = Value::new_from_transactions(&tx_batch);
 
@@ -176,11 +185,12 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                     .unwrap();
 
                 info!(
-                    "Value Builder created a block with {} tx-es of size {} in {:?} with hash {:?} ",
+                    "Value Builder created a block with {} tx-es of size {} in {:?} with hash {:?}, disseminated in {} block parts ",
                     tx_batch.len(),
                     ByteSize::b(block_size as u64),
                     Instant::now() - start,
-                    value.id()
+                    value.id(),
+                    sequence,
                 );
 
                 return result;
