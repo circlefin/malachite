@@ -128,28 +128,23 @@ For the sake of the scheduling protocol, we distinghish between two kind of bloc
 ## Protocol
 
 The proofs scheduling protocol specifies the behaviour of the **proposers** of
-rounds of the consensus protocol, which should include in the proposed blocks
-proofs of all still unproven blocks committed to the same strand.
+rounds of the consensus protocol.
 
-First, lets formally define what it is meant by unproven blocks in a strand `S`:
+### Overview
 
-- `unproven(s)` is a set of heights `H` with `strand(H) == s` and whose
-  `proof(H)` was not yet committed.
+A proposer is expected to include in its proposed block for height `H`
+**proofs for all unproven blocks** committed to the same strand as height `H`.
+A block is unproven when its proof was not yet commmitted to the blockchain.
 
-The scheduling protocol expects the **proposer** of a block at height `H` to
-include in the **proofs** field of the block it proposes the set of all proofs
-`proof(H')` for every height `H'` in the set `unproven(s)`, where `s = strand(H)`.
+If a proposer of height `H` is **able** produce or retrieve the expected set
+of proofs, for all unproven blocks belonging to `strand(H)`, then it is allowed
+to produce and propose a **full block**, i.e., a block containing transactions.
 
-If a proposer of height `H` is **able** to gather or produce the expected set
-of proofs, then it is allowed to produce a **full block**, i.e., a block
-containing transactions.
-This is the desirable and expected common-case execution.
-
-But if the proposer of height `H` is **not able** to gather or produce the
+But if the proposer of height `H` is **not able** to produce or retrieve the
 full expected set of proofs, then it is forced to produce a **empty block**,
 i.e., a block without transactions, with an empty **proofs** field.
-Notice that the proposer may have part of the proofs it is expected to include
-in the block, but they are not included in the block.
+Notice that the proposer does not include any proof on the block if it has only
+_part_ of the proofs expected to be included in that block.
 
 The reason for the last behaviour, forcing the production of empty blocks when
 the expected set of proofs is not available, is to discourage the production of
@@ -161,17 +156,28 @@ should do its best to include all required proofs in produced blocks.
 
 ### Formalization
 
-Lets define `proofs(S)`, where `S` is a set of integers, extending the
-definition of `proof(H)`:
+First, lets define what it is meant by unproven blocks in a strand `s` at a
+given state of the blockchain:
 
-- `proofs(S)` is the set of all `proof(H)` for every height `H` in the set `S`
+- `unproven(s)` is a set of heights `H` with `strand(H) == s` and whose
+  `proof(H)` was not yet committed.
 
-Then lets formally define the expected set of proofs to be included in the
-block at height `H`:
+Then, lets extend the definition of `proof(H)` to consider multiple proofs,
+or proofs from a set `S` of heights:
 
-- `expected_proofs(H) = proofs(unproven(strand(H)))`
+- `proofs(S)` is a set containing a `proof(H)` for every height `H` in the set
+  `S` of heights.
 
-From the above definitions, we have the following **invariant**:
+Finally, lets define the expected set of proofs to be included in the block at
+height `H`:
+
+    expected_proofs(H) = proofs(unproven(strand(H)))
+
+So, lets `s = strand(H)`, the set of proofs expected to be included in block `H` 
+is `proofs(unproven(s))`.
+
+From the roles presented to the operation of a proposer of height `H`, we can
+define the following **invariant**:
 
     block(H).payload != Ø => block(H).proofs == expected_proofs(H)
 
@@ -179,6 +185,8 @@ Namely, if the block carries a payload (transactions), then it must include all
 the expected proofs for its height.
 
 ### Properties
+
+**TODO**: define properties of strands, mostly already drafted below:
 
 A
 
