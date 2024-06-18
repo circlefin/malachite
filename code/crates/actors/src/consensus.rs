@@ -507,7 +507,7 @@ where
 
             DriverOutput::Decide(round, value) => {
                 // TODO: remove proposal, votes, block for the round
-                info!("Decided on value {} at round {round}", value.id());
+                info!("Decided on value {}", value.id());
 
                 if let Some(tx_decision) = &self.tx_decision {
                     let _ = tx_decision
@@ -729,11 +729,6 @@ where
             }
 
             Msg::Decided(height, round, value) => {
-                info!(
-                    "Decided on value {:?} at height {height} and round {round}",
-                    value.id()
-                );
-
                 // Remove the block information as it is not needed anymore
                 state.remove_received_block(height, round);
 
