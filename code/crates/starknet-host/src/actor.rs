@@ -3,15 +3,17 @@
 use std::sync::Arc;
 
 use eyre::eyre;
-use malachite_actors::mempool::{MempoolMsg, MempoolRef};
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
+use sha2::Digest;
 use tokio::time::Instant;
+use tracing::{debug, error, info, trace};
 
 use malachite_actors::consensus::{ConsensusMsg, Metrics};
 use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
+use malachite_actors::mempool::{MempoolMsg, MempoolRef};
 use malachite_common::{Round, TransactionBatch, Validity};
-use tracing::{debug, info, trace};
 
+use crate::hash::BlockHash;
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
 use crate::mock::part_store::PartStore;
@@ -61,32 +63,55 @@ impl StarknetHost {
         block_parts: &[Arc<BlockPart>],
         height: Height,
         round: Round,
-    ) -> Option<(Content, Address)> {
+    ) -> Option<(Content, Address, Validity)> {
         if block_parts.is_empty() {
             return None;
         }
 
         let last_part = block_parts.last().expect("block_parts is not empty");
 
+        let mut block_hasher = sha2::Sha256::new();
         let mut metadata = None;
         let mut tx_batches = Vec::new();
 
         for block_part in block_parts {
             match block_part.part.as_ref() {
                 ProposalPart::TxBatch(_, tx_batch) => {
+                    // Compute the expected block hash/value from the block parts.
+                    tx_batch.transactions().iter().for_each(|tx| {
+                        block_hasher.update(tx.as_bytes());
+                    });
+
                     tx_batches.extend(tx_batch.transactions().iter().cloned())
                 }
-                ProposalPart::Metadata(_, meta) => metadata = Some(meta.clone()),
+                // All block parts should have been received, including the metadata that has the block hash/value.
+                ProposalPart::Metadata(_, meta) => {
+                    metadata = Some(meta.clone());
+                }
             }
         }
 
-        Some((
-            Content {
-                tx_batch: TransactionBatch::new(tx_batches),
-                metadata: metadata?,
-            },
-            last_part.validator_address,
-        ))
+        let Some(metadata) = metadata else {
+            error!("Block is missing metadata");
+            return None;
+        };
+
+        let received_value = metadata.hash;
+        let expected_value = BlockHash::new(block_hasher.finalize().into());
+
+        let valid = if received_value != expected_value {
+            error!("Invalid block received with value {received_value}, expected {expected_value}");
+            Validity::Invalid
+        } else {
+            Validity::Valid
+        };
+
+        let content = Content {
+            tx_batch: TransactionBatch::new(tx_batches),
+            metadata,
+        };
+
+        Some((content, last_part.validator_address, valid))
     }
 
     pub fn build_value(
@@ -95,14 +120,15 @@ impl StarknetHost {
         height: Height,
         round: Round,
     ) -> Option<ReceivedProposedValue<MockContext>> {
-        let (value, validator_address) = self.build_proposal_content(block_parts, height, round)?;
+        let (value, validator_address, valid) =
+            self.build_proposal_content(block_parts, height, round)?;
 
         Some(ReceivedProposedValue {
             validator_address,
             height,
             round,
             value,
-            valid: Validity::Valid, // TODO: Check validity
+            valid,
         })
     }
 
@@ -122,7 +148,7 @@ impl StarknetHost {
         state.part_store.store(block_part.clone());
 
         // Simulate Tx execution and proof verification (assumes success)
-        // TODO - add config knob for invalid blocks
+        // TODO: Add config knob for invalid blocks
         let num_txes = block_part.tx_count().unwrap_or(0) as u32;
         tokio::time::sleep(self.host.params().exec_time_per_tx * num_txes).await;
 
@@ -131,12 +157,8 @@ impl StarknetHost {
         let all_parts = state.part_store.all_parts(height, round);
         let last_part = all_parts.last().expect("all_parts is not empty");
 
-        // If the "last" part includes a metadata then this is truly the last part.
-        // So in this case all block parts have been received, including the metadata that includes
-        // the block hash/ value. This can be returned as the block is complete.
-        //
-        // TODO: the logic here is weak, we assume earlier parts don't include metadata
-        // Should change once we implement `oneof`/ proper enum in protobuf but good enough for now test code
+        // Check if the part with the highest sequence number had metadata content.
+        // TODO: Do more validations, e.g. there is no higher tx block part.
         let meta = last_part.metadata()?;
 
         let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
@@ -201,7 +223,8 @@ impl Actor for StarknetHost {
                 debug!("Got block with hash: {block_hash}");
 
                 let block_parts = state.part_store.all_parts(height, round);
-                if let Some((value, _)) = self.build_proposal_content(&block_parts, height, round) {
+                if let Some((value, ..)) = self.build_proposal_content(&block_parts, height, round)
+                {
                     let proposed_value = LocallyProposedValue::new(height, round, value);
                     reply_to.send(proposed_value)?;
                 }
