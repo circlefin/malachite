@@ -217,8 +217,11 @@ impl Actor for Mempool {
                 reply.send(txes)?;
             }
 
-            Msg::Update { tx_hashes } => {
-                tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
+            Msg::Update { .. } => {
+                //tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
+                // TODO - reset the mempool for now
+                state.transactions = BTreeMap::new();
+                info!("Mempool after Update has size {}", state.transactions.len());
             }
         }
 
