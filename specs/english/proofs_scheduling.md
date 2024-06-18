@@ -4,6 +4,9 @@ The Starket architecture includes the figure of a [prover][starkprover], a node
 that produces **proofs** for blocks committed to the blockchain, in order to attest
 the correct processing of the transactions included in that block.
 
+
+## Overview
+
 Since **producing proofs is slow**, we should expect the proof for a block to
 take several blocks to be produced.
 So once a block is committed at height `H` of the blockchain, we should not
@@ -31,6 +34,7 @@ The proposer a block at height `H` is expected to include in the proposed block
 proofs of previous blocks.
 How the right provers ship proofs to the right proposers is not considered in
 this document.
+
 
 ## Strands
 
@@ -74,5 +78,136 @@ a constant `P` and require:
 So, if `proof(H)` is not included in blocks committed at heights `H' = H + i * K`,
 with `1 <= i <= P`, then height `H*` cannot be concluded until the proposed
 block that ends up being committed includes `proof(H)`.
+
+## Context
+
+Before detailing the proofs scheduling protocol implementation, we introduce
+some minimal context.
+
+### Consensus
+
+The block committed to the height `H` of the blockchain is the value decided in
+the instance `H` of the consensus protocol.
+An instance of consensus consists of one or multiple rounds `R`, always
+starting from round `R = 0`.
+We expect most heights to be decided in the first round, so the scheduling
+protocol focuses on this scenario.
+
+The instance `H` of the consensus protocol is run by a set of validators
+`valset(H)`, which is known by all nodes.
+The same validator set is adopted in all rounds of a height, but the validator
+set may change over heights.
+Nodes must known `valset(H)` before starting their participation in the
+instance `H` of the consensus protocol.
+
+There is a deterministic function `proposer(H,R)` that defines from `valset(H)`
+the validator that should propose a block in the round `R` of the instance `H`
+of the consensus protocol.
+We define, for the sake of the scheduling protocol, the **primary proposer** of
+height `H` as the proposer of its first round, i.e., `proposer(H,0)`.
+
+### Blocks
+
+Blocks proposed in a round of the consensus protocol and eventually committed
+to the blockchain are formed by:
+
+- A **header** field, containing consensus and blockchain related information
+- A **proofs** field, containing of a, possibly empty, set of proofs of previous blocks
+- A **payload** field, consisting of a, possibly empty, set transactions submitted by users
+
+For the sake of the scheduling protocol, we distinghish between two kind of blocks:
+
+- **Full blocks** carry transactions, i.e., have a non-empty payload.
+  The protocol requires full blocks to include proofs of previously committed blocks.
+  Full blocks are the typical and relevant blocks in the blockchain.
+- **Empty blocks** do not carry transactions, i.e., have an empty payload.
+  The protocol may force the production of empty blocks, which are undesired,
+  when their proposers do not have proofs to include in the block.
+
+
+## Protocol
+
+The proofs scheduling protocol specifies the behaviour of the **proposers** of
+rounds of the consensus protocol, which should include in the proposed blocks
+proofs of all still unproven blocks committed to the same strand.
+
+First, lets formally define what it is meant by unproven blocks in a strand `S`:
+
+- `unproven(s)` is a set of heights `H` with `strand(H) == s` and whose
+  `proof(H)` was not yet committed.
+
+The scheduling protocol expects the **proposer** of a block at height `H` to
+include in the **proofs** field of the block it proposes the set of all proofs
+`proof(H')` for every height `H'` in the set `unproven(s)`, where `s = strand(H)`.
+
+If a proposer of height `H` is **able** to gather or produce the expected set
+of proofs, then it is allowed to produce a **full block**, i.e., a block
+containing transactions.
+This is the desirable and expected common-case execution.
+
+But if the proposer of height `H` is **not able** to gather or produce the
+full expected set of proofs, then it is forced to produce a **empty block**,
+i.e., a block without transactions, with an empty **proofs** field.
+Notice that the proposer may have part of the proofs it is expected to include
+in the block, but they are not included in the block.
+
+The reason for the last behaviour, forcing the production of empty blocks when
+the expected set of proofs is not available, is to discourage the production of
+blocks without proofs.
+There are rewards for proposers that produce blocks that end-up committed,
+associated to the transactions included in the block.
+Producing an empty block is therefore not interesting for a proposer, that
+should do its best to include all required proofs in produced blocks.
+
+### Formalization
+
+Lets define `proofs(S)`, where `S` is a set of integers, extending the
+definition of `proof(H)`:
+
+- `proofs(S)` is the set of all `proof(H)` for every height `H` in the set `S`
+
+Then lets formally define the expected set of proofs to be included in the
+block at height `H`:
+
+- `expected_proofs(H) = proofs(unproven(strand(H)))`
+
+From the above definitions, we have the following **invariant**:
+
+    block(H).payload != Ø => block(H).proofs == expected_proofs(H)
+
+Namely, if the block carries a payload (transactions), then it must include all
+the expected proofs for its height.
+
+### Properties
+
+A
+
+- For all heights `H < K`, `expected_proofs(H) == Ø`
+- For all heights `H >= K`, `expected_proofs(H) != Ø`
+
+B
+
+If `expected_proofs(H) != Ø` then obviously `unproven(strand(H)) != Ø`.
+Lets `s == strand(H)`, we have:
+
+- Lets `Hmin` to be the minimum height present in `unproven(s)`, we have:
+  - `block(Hmin).proofs != Ø`
+  - `block(Hmin)` can be a **full block**, i.e., it can contain transactions
+- For every `H' > Hmin` in `unproven(s)`, we have:
+  - `block(H').proofs == Ø`
+  - `block(H').payload == Ø`, i.e., block `H'` is an **empty block**.
+- Every block `H'` with `strand(H') == s`, `H' >= Hmin` and `H' < H` is present in `unproven(s)`.
+- Finally, `|unproven(s) / {Hmin}| <= P`
+
+### Implementation
+
+Primary proposer of height `H`, i.e., `proposer(H,0)` is expected to produce `expected_proofs(H)`.
+Therefore it is expected to produce a full block.
+
+Other proposers of height `H`, i.e., `proposer(H,R)` with `R > 0`, are not expected to produce `expected_proofs(H)`.
+Therefore, they are expected to produce empty blocks.
+
+The exception is when `|expected_proofs(H)| == P + 1`.
+In this case, height `H` must commit a block including `expected_proofs(H)`, no matter how long it takes.
 
 [starkprover]: https://docs.starknet.io/architecture-and-concepts/network-architecture/starknet-architecture-overview/#provers
