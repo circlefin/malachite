@@ -36,6 +36,8 @@ export D_N="${length(small)+length(large)}"
 export D_REGION="${region}"
 export PSSH_H="${join(" ",ips)}"
 export PSSH_P="30"
+# Arrays require advanced shell, SSH_OPTS is not POSIX compatible
+export SSH_OPTS=(-A -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null)
 export MALACHITE_DIR="$(dirname $(dirname ${path}))"
 export IS_CC=0
 export _CC_DOCKER_SHIM="-H ssh://root@$CANDC"
@@ -43,13 +45,13 @@ if [ $IS_CC -eq 1 ]; then
   export _CC_DOCKER_SHIM=""
 fi
 
-alias ssh-cc="ssh -A root@${cc.ip}"
+alias ssh-cc="ssh $SSH_OPTS root@${cc.ip}"
 %{~ for i,n in concat(small, large) }
-alias ssh-node${i}="ssh -A root@${n.ip}"
+alias ssh-node${i}="ssh $SSH_OPTS root@${n.ip}"
 %{~ endfor }
 
 xssh() {
-  pssh -l root -i -v -p $PSSH_P -H "$PSSH_H" "$@"
+  pssh -l root -i -v -O LogLevel=ERROR -O StrictHostKeyChecking=no -O UserKnownHostsFile=/dev/null -O GlobalKnownHostsFile=/dev/null -p $PSSH_P -H "$PSSH_H" "$@"
 }
 
 get_ip() {
@@ -67,7 +69,7 @@ ok_cc() {
       put $${1:-$${MALACHITE_DIR}/qa/terraform/hosts} /etc/hosts
       put $${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh} /etc/profile.d/commands.sh
 EOF
-  ssh root@$${CANDC} "sed -i -e 's,^export MALACHITE_DIR=.*,export MALACHITE_DIR=/root/malachite,' -e 's,^export IS_CC=.*,export IS_CC=1,' /etc/profile.d/commands.sh && systemctl reload dnsmasq"
+  ssh $SSH_OPTS root@$${CANDC} "sed -i -e 's,^export MALACHITE_DIR=.*,export MALACHITE_DIR=/root/malachite,' -e 's,^export IS_CC=.*,export IS_CC=1,' /etc/profile.d/commands.sh && systemctl reload dnsmasq"
 }
 
 ok_all() {
@@ -85,7 +87,7 @@ setup_config() {
   if _is_cc; then
     _change_config all
   else
-    ssh root@$CANDC "source /etc/profile.d/commands.sh && _change_config all"
+    ssh $SSH_OPTS root@$CANDC "source /etc/profile.d/commands.sh && _change_config all"
   fi
 }
 
