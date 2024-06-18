@@ -9,8 +9,7 @@ message BlockMetadata {
     Hash hash = 2;
 }
 
-message Content {
-    malachite.TransactionBatch tx_batch = 1;
+message ProposalContent {
     BlockMetadata metadata = 2;
 }
 

@@ -5,7 +5,7 @@ use malachite_test::PrivateKey;
 
 use crate::hash::BlockHash;
 use crate::mock::types::{
-    Address, BlockPart, Content, Height, Proposal, PublicKey, SigningScheme, Validator,
+    Address, BlockPart, Height, Proposal, ProposalContent, PublicKey, SigningScheme, Validator,
     ValidatorSet, Vote,
 };
 
@@ -29,7 +29,7 @@ impl Context for MockContext {
     type Proposal = Proposal;
     type ValidatorSet = ValidatorSet;
     type Validator = Validator;
-    type Value = Content;
+    type Value = ProposalContent;
     type Vote = Vote;
     type SigningScheme = SigningScheme;
 
@@ -69,7 +69,7 @@ impl Context for MockContext {
     fn new_proposal(
         height: Height,
         round: Round,
-        value: Content,
+        value: ProposalContent,
         pol_round: Round,
         address: Address,
     ) -> Proposal {

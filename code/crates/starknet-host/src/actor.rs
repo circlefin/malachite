@@ -11,13 +11,13 @@ use tracing::{debug, error, trace};
 use malachite_actors::consensus::{ConsensusMsg, Metrics};
 use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
 use malachite_actors::mempool::{MempoolMsg, MempoolRef};
-use malachite_common::{Round, TransactionBatch, Validity};
+use malachite_common::{Round, Validity};
 
 use crate::hash::BlockHash;
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
 use crate::mock::part_store::PartStore;
-use crate::mock::types::{Address, BlockPart, Content, Height, ProposalPart, ValidatorSet};
+use crate::mock::types::{Address, BlockPart, Height, ProposalContent, ProposalPart, ValidatorSet};
 use crate::Host;
 
 pub struct StarknetHost {
@@ -63,7 +63,7 @@ impl StarknetHost {
         block_parts: &[Arc<BlockPart>],
         height: Height,
         round: Round,
-    ) -> Option<(Content, Address, Validity)> {
+    ) -> Option<(ProposalContent, Address, Validity)> {
         if block_parts.is_empty() {
             return None;
         }
@@ -72,7 +72,6 @@ impl StarknetHost {
 
         let mut block_hasher = sha2::Sha256::new();
         let mut metadata = None;
-        let mut tx_batches = Vec::new();
 
         for block_part in block_parts {
             match block_part.part.as_ref() {
@@ -81,8 +80,6 @@ impl StarknetHost {
                     tx_batch.transactions().iter().for_each(|tx| {
                         block_hasher.update(tx.as_bytes());
                     });
-
-                    tx_batches.extend(tx_batch.transactions().iter().cloned())
                 }
                 // All block parts should have been received, including the metadata that has the block hash/value.
                 ProposalPart::Metadata(_, meta) => {
@@ -106,11 +103,7 @@ impl StarknetHost {
             Validity::Valid
         };
 
-        let content = Content {
-            tx_batch: TransactionBatch::new(tx_batches),
-            metadata,
-        };
-
+        let content = ProposalContent::new(metadata);
         Some((content, last_part.validator_address, valid))
     }
 

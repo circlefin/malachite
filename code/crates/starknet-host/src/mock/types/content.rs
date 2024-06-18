@@ -2,41 +2,40 @@ use malachite_common::{self as common};
 use malachite_proto as proto;
 
 use crate::mock::types::block_part::BlockMetadata;
-use crate::mock::types::{BlockHash, TransactionBatch};
+use crate::mock::types::BlockHash;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Content {
-    pub tx_batch: TransactionBatch,
+pub struct ProposalContent {
     pub metadata: BlockMetadata,
 }
 
-impl PartialOrd for Content {
+impl PartialOrd for ProposalContent {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for Content {
+impl Ord for ProposalContent {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.block_hash().cmp(&other.block_hash())
     }
 }
 
-impl Content {
+impl ProposalContent {
+    pub fn new(metadata: BlockMetadata) -> Self {
+        Self { metadata }
+    }
+
     pub fn block_hash(&self) -> BlockHash {
         self.metadata.hash
     }
 
     pub fn size_bytes(&self) -> usize {
-        self.tx_batch.size_bytes() + self.metadata.size_bytes()
-    }
-
-    pub fn tx_count(&self) -> usize {
-        self.tx_batch.transactions().len()
+        self.metadata.size_bytes()
     }
 }
 
-impl common::Value for Content {
+impl common::Value for ProposalContent {
     type Id = BlockHash;
 
     fn id(&self) -> Self::Id {
@@ -44,29 +43,23 @@ impl common::Value for Content {
     }
 }
 
-impl proto::Protobuf for Content {
-    type Proto = crate::proto::mock::Content;
+impl proto::Protobuf for ProposalContent {
+    type Proto = crate::proto::mock::ProposalContent;
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
-        let tx_batch = proto
-            .tx_batch
-            .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("tx_batch"))?;
-
         let metadata = proto
             .metadata
             .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("metadata"))?;
 
         Ok(Self {
-            tx_batch: TransactionBatch::from_proto(tx_batch)?,
             metadata: BlockMetadata::from_proto(metadata)?,
         })
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        Ok(crate::proto::mock::Content {
-            tx_batch: Some(self.tx_batch.to_proto()?),
+        Ok(crate::proto::mock::ProposalContent {
             metadata: Some(self.metadata.to_proto()?),
         })
     }

@@ -5,7 +5,7 @@ mod block_part;
 pub use block_part::{BlockMetadata, BlockPart};
 
 mod content;
-pub use content::Content;
+pub use content::ProposalContent;
 
 mod vote;
 pub use vote::Vote;

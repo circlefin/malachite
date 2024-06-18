@@ -18,7 +18,9 @@ use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig};
 use malachite_starknet_host::actor::StarknetHost;
 use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::mock::host::{MockHost, MockParams};
-use malachite_starknet_host::mock::types::{Address, Content, Height, PrivateKey, ValidatorSet};
+use malachite_starknet_host::mock::types::{
+    Address, Height, PrivateKey, ProposalContent, ValidatorSet,
+};
 use malachite_test::utils::test::SpawnNodeActor;
 
 pub struct SpawnStarknetNode;
@@ -33,7 +35,7 @@ impl SpawnNodeActor for SpawnStarknetNode {
         validator_pkk: PrivateKey,
         node_pk: PrivateKey,
         address: Address,
-        tx_decision: Option<mpsc::Sender<(Height, Round, Content)>>,
+        tx_decision: Option<mpsc::Sender<(Height, Round, ProposalContent)>>,
     ) -> (NodeRef, JoinHandle<()>) {
         spawn_node_actor(
             node_config,
@@ -53,7 +55,7 @@ pub async fn spawn_node_actor(
     validator_pk: PrivateKey,
     node_pk: PrivateKey,
     address: Address,
-    tx_decision: Option<mpsc::Sender<(Height, Round, Content)>>,
+    tx_decision: Option<mpsc::Sender<(Height, Round, ProposalContent)>>,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(validator_pk.clone());
 
@@ -117,7 +119,7 @@ async fn spawn_consensus_actor(
     gossip_consensus: GossipConsensusRef,
     host: HostRef<MockContext>,
     metrics: Metrics,
-    tx_decision: Option<mpsc::Sender<(Height, Round, Content)>>,
+    tx_decision: Option<mpsc::Sender<(Height, Round, ProposalContent)>>,
 ) -> ConsensusRef<MockContext> {
     let consensus_params = ConsensusParams {
         start_height,
