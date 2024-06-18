@@ -222,8 +222,11 @@ impl Actor for Mempool {
                 reply.send(txes)?;
             }
 
-            MempoolMsg::Update { tx_hashes } => {
-                tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
+            MempoolMsg::Update { .. } => {
+                // tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
+
+                // FIXME: Reset the mempool for now
+                state.transactions.clear();
             }
         }
 
