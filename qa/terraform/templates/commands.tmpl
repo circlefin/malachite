@@ -123,17 +123,17 @@ dnode-rm() {
 
 cheat_sheet() {
 cat <<EOF
-Commands and their dependencies:
-    (terminal1)    |  (terminal2 run in parallel)
-                 ok_cc
-               (ssh-cc)
-    deploy_cc      |  ok_all
-              setup_config
-              dnode-run all
-             (wait for data)
-              dnode-stop all
-    fetch_log      | get_prometheus_data
-              dnode-rm all
+ok_cc
+deploy_cc
+ssh-cc
+setup_config
+(_chance_one_config_entry)
+dnode-run all
+(wait for data)
+dnode-stop all
+fetch_log
+get_prometheus_data
+dnode-rm all
 EOF
 }
 
@@ -143,22 +143,24 @@ fetch_log() {
 
 get_prometheus_data() {
   if _is_cc; then
-    systemctl stop prometheus && rm prometheus.tgz 2> /dev/null && tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 . ; systemctl start prometheus
+    rm -f prometheus.tgz
+    systemctl stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 .
+    systemctl start prometheus
   else
-    ssh-cc "systemctl stop prometheus && rm prometheus.tgz 2> /dev/null && tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 . ; systemctl start prometheus"
+    ssh-cc "rm -f prometheus.tgz; systemctl stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 . ; systemctl start prometheus"
     scp -r root@$CANDC:prometheus.tgz .
   fi
 }
 
-mem_usage() {
+_mem_usage() {
     PSSH_H="$(_parse_multiple_hosts "$@")" xssh -o mem_usage_out -e mem_usage_err "ps -e -o pid,user,%mem,cmd --sort=-%mem | head -2 | tail -1"
 }
 
-cpu_usage() {
+_cpu_usage() {
     PSSH_H="$(_parse_multiple_hosts "$@")" xssh -o cpu_usage_out -e cpu_usage_err "ps -e -o pid,user,%cpu,cmd --sort=-%cpu | head -2 | tail -1"
 }
 
-reset_prometheus_db() {
+_reset_prometheus_db() {
   if _is_cc; then
     systemctl stop prometheus
     rm -rf /var/lib/prometheus/metrics2/*
@@ -258,4 +260,9 @@ _parse_multiple_hosts() {
     done
   fi
   echo "$PSSH_X"
+}
+
+_fetch_graphs() {
+  # Test if the link is stable.
+  wget -O rounds_per_block_average.png "http://$${CANDC}:3000/d/fdo24nq8yvf28f/malachite-first-stab?orgId=1&from=1718738374423&to=1718739136256&viewPanel=5"
 }

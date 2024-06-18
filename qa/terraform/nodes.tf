@@ -18,7 +18,8 @@ resource "digitalocean_droplet" "cc" {
   #size      = "s-8vcpu-16gb"
   ssh_keys  = var.ssh_keys
   user_data = templatefile("user-data/cc-data.txt", {
-    grafana_dashboard = filebase64("../viewer/config-grafana/provisioning/dashboards-data/main.json")
+    malachite_dashboard = filebase64("../viewer/config-grafana/provisioning/dashboards-data/main.json")
+    node_dashboard      = filebase64("../viewer/config-grafana/provisioning/dashboards-data/node-exporter-full.json")
   })
 }
 
