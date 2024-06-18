@@ -167,7 +167,7 @@ reset_prometheus_db() {
 }
 
 _is_cc() {
-  return $IS_CC
+  return $((1 - IS_CC))
 }
 
 _keyscan_cc() {
