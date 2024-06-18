@@ -4,13 +4,13 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use bytesize::ByteSize;
-use tracing::{error, info, trace};
+use tracing::{debug, error, info, trace};
 
 use malachite_actors::consensus::Metrics;
 use malachite_actors::consensus::{ConsensusRef, Msg as ConsensusMsg};
 use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
 use malachite_actors::mempool::{MempoolMsg, MempoolRef};
-use malachite_common::{Context, Round, SignedVote, TransactionBatch, Validity};
+use malachite_common::{Context, Round, SignedVote, Transaction, TransactionBatch, Validity};
 use malachite_test::{Address, BlockMetadata, BlockPart, Content, Height, TestContext, Value};
 
 use crate::part_store::PartStore;
@@ -78,6 +78,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
         let mut tx_batch = vec![];
         let mut sequence = 1;
         let mut block_size = 0;
+        let mut max_block_size_reached = false;
 
         loop {
             trace!(
@@ -87,7 +88,7 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                 sequence
             );
 
-            let txes = self
+            let mut txes = self
                 .tx_streamer
                 .call(
                     |reply| MempoolMsg::TxStream {
@@ -105,6 +106,22 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                 return None;
             }
 
+            let mut tx_count = 0;
+
+            'inner: for tx in &txes {
+                if block_size + tx.size_bytes() > self.params.max_block_size.as_u64() as usize {
+                    max_block_size_reached = true;
+                    break 'inner;
+                }
+
+                block_size += tx.size_bytes();
+                tx_batch.push(tx.clone());
+                tx_count += 1;
+            }
+
+            // Trim the tx batch so it does not overflow the block.
+            txes = txes.into_iter().take(tx_count).collect();
+
             // Create, store and gossip the batch in a BlockPart
             let block_part = BlockPart::new(
                 height,
@@ -120,20 +137,8 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                 .cast(ConsensusMsg::GossipBlockPart(block_part))
                 .unwrap();
 
-            let mut tx_count = 0;
-
-            'inner: for tx in txes {
-                if block_size + tx.size_bytes() > self.params.max_block_size.as_u64() as usize {
-                    break 'inner;
-                }
-
-                block_size += tx.size_bytes();
-                tx_batch.push(tx);
-                tx_count += 1;
-            }
-
             // Simulate execution of reaped txes
-            let exec_time = self.params.exec_time_per_tx * tx_count;
+            let exec_time = self.params.exec_time_per_tx * tx_count as u32;
             trace!("Simulating tx execution for {tx_count} tx-es, sleeping for {exec_time:?}");
             tokio::time::sleep(exec_time).await;
 
@@ -148,9 +153,15 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
 
             sequence += 1;
 
-            if Instant::now() > deadline
-                || block_size >= self.params.max_block_size.as_u64() as usize
-            {
+            if Instant::now() > deadline || max_block_size_reached {
+                if max_block_size_reached {
+                    debug!(
+                        "Value Builder stopped streaming Tx-es due to max block size being reached"
+                    );
+                } else {
+                    debug!("Value Builder stopped streaming Tx-es due to deadline being reached");
+                }
+
                 // Create, store and gossip the BlockMetadata in a BlockPart
                 let value = Value::new_from_transactions(&tx_batch);
 
@@ -175,11 +186,12 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                     .unwrap();
 
                 info!(
-                    "Value Builder created a block with {} tx-es of size {} in {:?} with hash {:?} ",
+                    "Value Builder created a block with {} tx-es of size {} in {:?} with hash {:?}, disseminated in {} block parts ",
                     tx_batch.len(),
                     ByteSize::b(block_size as u64),
                     Instant::now() - start,
-                    value.id()
+                    value.id(),
+                    sequence,
                 );
 
                 return result;
@@ -219,18 +231,37 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
         let highest_sequence = all_parts.len() as u64;
 
         if let Some(last_part) = self.part_store.get(height, round, highest_sequence) {
-            // If the "last" part includes a metadata then this is truly the last part.
-            // So in this case all block parts have been received, including the metadata that includes
-            // the block hash/ value. This can be returned as the block is complete.
-            // TODO - the logic here is weak, we assume earlier parts don't include metadata
-            // Should change once we implement `oneof`/ proper enum in protobuf but good enough for now test code
+            // Check if the part with the highest sequence number had metadata content.
+            // TODO - do more validations, e.g. there is no higher tx block part.
             match last_part.metadata() {
+                // All block parts should have been received, including the metadata that has
+                // the block hash/ value.
                 Some(meta) => {
+                    // Compute the block size.
                     let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
+
+                    // Compute the number of transactions in the block.
                     let tx_count: usize = all_parts
                         .iter()
                         .map(|p| p.content.tx_count().unwrap_or(0))
                         .sum();
+
+                    let received_value = meta.value();
+
+                    // Compute the expected block hash/ value from the block parts.
+                    let all_txes: Vec<Transaction> = all_parts
+                        .iter()
+                        .flat_map(|p| match p.content.as_ref() {
+                            Content::TxBatch(tx_batch) => {
+                                info!("get txes from received part {}", p.sequence);
+                                tx_batch.transactions().to_vec()
+                            }
+                            Content::Metadata(_) => {
+                                vec![]
+                            }
+                        })
+                        .collect();
+                    let expected_value = Value::new_from_transactions(&all_txes);
 
                     info!(
                         height = %last_part.height,
@@ -241,12 +272,22 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
                         "Value Builder received last block part",
                     );
 
+                    let valid = if received_value != expected_value {
+                        error!(
+                            "Invalid block received with value {:?}, expected {:?}",
+                            received_value, expected_value
+                        );
+                        Validity::Invalid
+                    } else {
+                        Validity::Valid
+                    };
+
                     Some(ReceivedProposedValue {
                         validator_address: last_part.validator_address,
                         height: last_part.height,
                         round: last_part.round,
                         value: meta.value(),
-                        valid: Validity::Valid,
+                        valid,
                     })
                 }
                 None => None,

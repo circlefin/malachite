@@ -33,6 +33,7 @@ impl<Ctx: Context> PartStore<Ctx> {
         self.map.get(&(height, round, sequence))
     }
 
+    // Get all parts for a given height and round, sorted in sequence ascending order.
     pub fn all_parts(&self, height: Ctx::Height, round: Round) -> Vec<&Ctx::BlockPart> {
         use malachite_common::BlockPart;
 
@@ -43,7 +44,7 @@ impl<Ctx: Context> PartStore<Ctx> {
             .map(|(_, b)| b)
             .collect();
 
-        block_parts.sort_by_key(|b| std::cmp::Reverse(b.sequence()));
+        block_parts.sort_by_key(|b| b.sequence());
         block_parts
     }
 
