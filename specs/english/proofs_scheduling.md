@@ -115,7 +115,7 @@ to the blockchain are formed by:
 - A **proofs** field, containing of a, possibly empty, set of proofs of previous blocks
 - A **payload** field, consisting of a, possibly empty, set transactions submitted by users
 
-For the sake of the scheduling protocol, we distinghish between two kind of blocks:
+For the sake of the scheduling protocol, we distinguish between two kind of blocks:
 
 - **Full blocks** carry transactions, i.e., have a non-empty payload.
   The protocol requires full blocks to include proofs of previously committed blocks.
@@ -134,7 +134,7 @@ rounds of the consensus protocol.
 
 A proposer is expected to include in its proposed block for height `H`
 **proofs for all unproven blocks** committed to the same strand as height `H`.
-A block is unproven when its proof was not yet commmitted to the blockchain.
+A block is unproven when its proof was not yet committed to the blockchain.
 
 If a proposer of height `H` is **able** produce or retrieve the expected set
 of proofs, for all unproven blocks belonging to `strand(H)`, then it is allowed
@@ -194,7 +194,7 @@ proofs to be included in a new block:
 This happens because the previous height in the same strand `strand(H)`, height
 `H - K >= 0`, has not yet been proven, as there is not height between `H - K`
 and `H` belonging to the same strand as height `H`. 
-As a corolary:
+As a corollary:
 
 - For every strand `s`, either it has no blocks (i.e., blockchain height `< K`)
   or `unproven(s) != Ø`.
@@ -218,7 +218,7 @@ The intuition is that when producing a new block on a strand `s`, say block
 `H`, we have two possibilities:
 (i) the proposer of block `H` includes in the block all unproven blocks on
 strand `s`, therefore resetting `unproven(s)` to empty,
-or (ii) produces an empty block with no proofs, thus lefting `unproven(s)`
+or (ii) produces an empty block with no proofs, thus leaving `unproven(s)`
 unchanged.
 Since new block `H` is not yet proven, as just committed, it is appended to
 `unproven(s)`.
