@@ -186,36 +186,88 @@ the expected proofs for its height.
 
 ### Properties
 
-**TODO**: define properties of strands, mostly already drafted below:
+The first property shows that, except for a corner scenario, there are always
+proofs to be included in a new block:
 
-A
+- For all heights `H >= K`, there are always blocks to proof, i.e., `expected_proofs(H) != Ø`.
 
-- For all heights `H < K`, `expected_proofs(H) == Ø`
-- For all heights `H >= K`, `expected_proofs(H) != Ø`
+This happens because the previous height in the same strand `strand(H)`, height
+`H - K >= 0`, has not yet been proven, as there is not height between `H - K`
+and `H` belonging to the same strand as height `H`. 
+As a corolary:
 
-B
+- For every strand `s`, either it has no blocks (i.e., blockchain height `< K`)
+  or `unproven(s) != Ø`.
 
-If `expected_proofs(H) != Ø` then obviously `unproven(strand(H)) != Ø`.
-Lets `s == strand(H)`, we have:
+Considering now strands instead of heights, for every strand `s` we have:
 
-- Lets `Hmin` to be the minimum height present in `unproven(s)`, we have:
-  - `block(Hmin).proofs != Ø`
-  - `block(Hmin)` can be a **full block**, i.e., it can contain transactions
-- For every `H' > Hmin` in `unproven(s)`, we have:
-  - `block(H').proofs == Ø`
-  - `block(H').payload == Ø`, i.e., block `H'` is an **empty block**.
-- Every block `H'` with `strand(H') == s`, `H' >= Hmin` and `H' < H` is present in `unproven(s)`.
-- Finally, `|unproven(s) / {Hmin}| <= P`
+1. The first (lowest) height `Hmin` in `unproven(s)` is of a block that
+   contains **proofs**.
+2. Every other height `H' > Hmin` in `unproven(s)` is of an **empty block**
+   that does not contain proofs.
+3. There are no gaps in `unproven(s)`, namely for every integer `i` with
+   `0 <= i < |unproven(s)|`, the height `H(i) = Hmin + i * K` is
+   present in `unproven(s)` and, of course, `strand(H(i)) == s`.
+4. There is at most `P` heights of **empty blocks** in `unproven(s)`,
+   by the [strand scheduling](#scheduling) definition.
 
-### Implementation
+These properties can be proved by induction on `unproven(s)` and the
+strand-based static scheduling protocol.
 
-Primary proposer of height `H`, i.e., `proposer(H,0)` is expected to produce `expected_proofs(H)`.
-Therefore it is expected to produce a full block.
+The intuition is that when producing a new block on a strand `s`, say block
+`H`, we have two possibilities:
+(i) the proposer of block `H` includes in the block all unproven blocks on
+strand `s`, therefore resetting `unproven(s)` to empty,
+or (ii) produces an empty block with no proofs, thus lefting `unproven(s)`
+unchanged.
+Since new block `H` is not yet proven, as just committed, it is appended to
+`unproven(s)`.
 
-Other proposers of height `H`, i.e., `proposer(H,R)` with `R > 0`, are not expected to produce `expected_proofs(H)`.
-Therefore, they are expected to produce empty blocks.
+## Implementation
 
-The exception is when `|expected_proofs(H)| == P + 1`.
-In this case, height `H` must commit a block including `expected_proofs(H)`, no matter how long it takes.
+The proposed implementation for the previously described protocol works as follows.
+
+When block `H` is committed to the blockchain, the prover of the next height in
+strand `strand(H)` is expected to start generating a proof of block `H`.
+The prover is either `proposer(H + K, 0)` or some node associated to it.
+
+To generate the proof of block `H`, the prover needs the proof of the previous
+block in strand `strand(H)`, whose height is `H - K`.
+In the favorable scenario, `proof(H - K)` is included in block `H`, so the
+production of `proof(H)` can start immediately.
+Otherwise, the prover needs to compute `unproven(strand(H))` and follow the steps:
+
+1. Go back to the block with the first (lowest) height `Hmin` in
+   `unproven(strand(H))`, which must include proofs (by property 1.),
+   and use `block(Hmin).proofs` and `block(Hmin)` to produce `proof(Hmin)`;
+   - Notice that in the favorable scenario `H == Hmin`, and the process is done here.
+2. Go to the block `Hmin + K` and use `proof(Hmin)` and  `block(Hmin + K)` to
+   produce `proof(Hmin + K)`. This operation should be faster because
+   `block(Hmin + K)` must be empty (by property 2.).
+3. If `Hmin + K == H`, the process is done. Otherwise, set `Hmin = Hmin + K`
+   and repeat step 2.
+
+At the end of the process, the prover has produced **one** proof for a full
+block, at height `Hmin`, and possibly **some** proofs for empty blocks.
+All the produced proofs should be included in the block proposed at height `H + K`.
+
+### Additional rounds
+
+The implementation up to now considers that the primary proposer of a height
+should schedule the production of proofs.
+In other words, once height `H` starts, `proposer(H, 0)` is expected to have
+`expected_proofs(H)`.
+
+The proposers of other rounds, i.e., `proposer(H, R)` for round `R > 0`,
+do not have the same requirement.
+If they _happen_ to have `expected_proofs(H)`, they can produce and propose a
+full block, including transactions and the required proofs.
+Otherwise, which is consider the normal case, they will propose an **empty block**.
+
+There is an exception for this mechanism intended to limit the number of
+**empty blocks** in a strand.
+So, if there are `P` empty blocks in the current strand `s`, namely  if
+`|unproven(s)| > P`, the proposer of **any round** of a height `H` with
+`strand(H) == s` can only propose a block if it includes `expected_proofs(H)`.
 
 [starkprover]: https://docs.starknet.io/architecture-and-concepts/network-architecture/starknet-architecture-overview/#provers
