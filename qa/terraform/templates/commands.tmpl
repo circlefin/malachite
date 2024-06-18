@@ -6,7 +6,6 @@
 # PSSH_H - space-separated list of all the node server IP addresses for pssh input
 # PSSH_P - the number of parallel processes to run with pssh
 # MALACHITE_DIR - the path to the malachite repository directory
-# MALACHITE_DIR - the path to the malachite repository directory
 # IS_CC - 1 means we are on the CC server, 0 we are not. (Used to determine the docker -H parameter.)
 ##
 # Aliases for easy manual access to the servers (don't use these in scripts)
@@ -63,20 +62,16 @@ get_ip() {
 
 ok_cc() {
   _keyscan_cc 2> /dev/null
-  PSSH_P=1 PSSH_H=$CANDC xssh "cat /etc/done" && \
-    echo "Updating cc server..." && \
-    scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/hosts}" root@$${CANDC}:/etc/hosts && \
-    ssh root@$${CANDC} "systemctl restart dnsmasq" && \
-    scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh}" root@$${CANDC}:/etc/profile.d/commands.sh && \
-    ssh root@$${CANDC} \
-      "sed -i 's,^export MALACHITE_DIR=.*,export MALACHITE_DIR=/root/malachite,' /etc/profile.d/commands.sh && \
-       sed -i 's,^export IS_CC=.*,export IS_CC=1,' /etc/profile.d/commands.sh && \
-       source /etc/profile.d/commands.sh && \
-       _keyscan_all_servers 2> /dev/null"
+  PSSH_P=1 PSSH_H=$CANDC xssh "cat /etc/done"
+  sftp -C -q root@$${CANDC} <<EOF
+      put $${1:-$${MALACHITE_DIR}/qa/terraform/hosts} /etc/hosts
+      put $${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh} /etc/profile.d/commands.sh
+EOF
+  ssh root@$${CANDC} "sed -i -e 's,^export MALACHITE_DIR=.*,export MALACHITE_DIR=/root/malachite,' -e 's,^export IS_CC=.*,export IS_CC=1,' /etc/profile.d/commands.sh && systemctl reload dnsmasq"
 }
 
 ok_all() {
-  _keyscan_all_servers 2> /dev/null
+  _keyscan_servers 2> /dev/null
   xssh "cat /etc/done && mount /data" # Mount /data in case a QA node came online earlier than CC
 }
 
@@ -180,7 +175,7 @@ _keyscan_cc() {
   ssh-keyscan -t ed25519 $CANDC >> $HOME/.ssh/known_hosts
 }
 
-_keyscan_all_servers() {
+_keyscan_servers() {
   _keyscan_cc 2> /dev/null
 %{~ for n in concat(small, large) }
   ssh-keygen -R ${n.ip} > /dev/null
