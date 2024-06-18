@@ -68,27 +68,19 @@ impl StarknetHost {
             return None;
         }
 
-        let last_part = block_parts.last().expect("block_parts is not empty");
-
         let mut block_hasher = sha2::Sha256::new();
-        let mut metadata = None;
-
         for block_part in block_parts {
-            match block_part.part.as_ref() {
-                ProposalPart::TxBatch(_, tx_batch) => {
-                    // Compute the expected block hash/value from the block parts.
-                    tx_batch.transactions().iter().for_each(|tx| {
-                        block_hasher.update(tx.as_bytes());
-                    });
-                }
-                // All block parts should have been received, including the metadata that has the block hash/value.
-                ProposalPart::Metadata(_, meta) => {
-                    metadata = Some(meta.clone());
-                }
+            if let ProposalPart::TxBatch(_, tx_batch) = block_part.part.as_ref() {
+                // Compute the expected block hash/value from the block parts.
+                tx_batch.transactions().iter().for_each(|tx| {
+                    block_hasher.update(tx.as_bytes());
+                });
             }
         }
 
-        let Some(metadata) = metadata else {
+        let last_part = block_parts.last().expect("block_parts is not empty");
+
+        let Some(metadata) = last_part.metadata() else {
             error!("Block is missing metadata");
             return None;
         };
@@ -103,7 +95,7 @@ impl StarknetHost {
             Validity::Valid
         };
 
-        let content = ProposalContent::new(metadata);
+        let content = ProposalContent::new(metadata.clone());
         Some((content, last_part.validator_address, valid))
     }
 

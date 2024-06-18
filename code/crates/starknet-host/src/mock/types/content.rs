@@ -29,17 +29,13 @@ impl ProposalContent {
     pub fn block_hash(&self) -> BlockHash {
         self.metadata.hash
     }
-
-    pub fn size_bytes(&self) -> usize {
-        self.metadata.size_bytes()
-    }
 }
 
 impl common::Value for ProposalContent {
     type Id = BlockHash;
 
     fn id(&self) -> Self::Id {
-        self.metadata.hash
+        self.block_hash()
     }
 }
 
