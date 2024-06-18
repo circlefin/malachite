@@ -447,7 +447,7 @@ write_files:
           url: http://host.docker.internal:9090
           is_default: true
           editable: true
-  - path: /root/docker/malachite.yaml
+  - path: /root/docker/malachite.yml
     content: |
       apiVersion: 1
       providers:

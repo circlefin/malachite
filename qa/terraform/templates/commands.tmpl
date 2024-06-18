@@ -110,7 +110,7 @@ dnode-log() {
       F="-f"
     fi
   fi
-  docker -H ssh://root@$IP logs $F node
+  ssh $SSH_OPTS root@$IP docker logs $F node
 }
 
 dnode-stop() {
