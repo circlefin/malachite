@@ -156,7 +156,9 @@ impl ValueBuilder<TestContext> for TestValueBuilder<TestContext> {
 
             if Instant::now() > deadline || max_block_size_reached {
                 if max_block_size_reached {
-                    debug!("Value Builder stopped streaming Tx-es due to max block size being reached");
+                    debug!(
+                        "Value Builder stopped streaming Tx-es due to max block size being reached"
+                    );
                 } else {
                     debug!("Value Builder stopped streaming Tx-es due to deadline being reached");
                 }
