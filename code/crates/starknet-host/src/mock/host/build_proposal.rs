@@ -48,10 +48,10 @@ async fn run_build_proposal_task(
     let start = Instant::now();
     let build_duration = (deadline - start).mul_f32(params.time_allowance_factor);
 
-    let mut tx_batch = Vec::new();
     let mut sequence = 1;
     let mut block_size = 0;
     let mut block_tx_count = 0;
+    let mut max_block_size_reached = false;
     let mut block_hasher = Sha256::new();
 
     loop {
@@ -77,49 +77,39 @@ async fn run_build_proposal_task(
 
         let mut tx_count = 0;
 
-        'inner: for tx in txes {
+        'inner: for tx in &txes {
             if block_size + tx.size_bytes() > params.max_block_size.as_u64() as usize {
+                max_block_size_reached = true;
                 break 'inner;
             }
 
             block_size += tx.size_bytes();
             block_hasher.update(tx.as_bytes());
-            tx_batch.push(tx);
             tx_count += 1;
         }
 
-        tokio::time::sleep(tx_count * params.exec_time_per_tx).await;
+        let txes = txes.into_iter().take(tx_count).collect::<Vec<_>>();
 
-        if start.elapsed() > build_duration {
-            trace!("Time allowance exceeded, stopping tx generation");
-            break;
-        }
-
-        if tx_count == 0 {
-            trace!("No tx-es fit in the block, stopping tx generation");
-            break;
-        }
+        tokio::time::sleep(params.exec_time_per_tx * tx_count as u32).await;
 
         block_tx_count += tx_count;
 
         trace!(
-            "Created a tx batch with {} tx-es of size {} in {:?}",
-            tx_batch.len(),
-            ByteSize::b(tx_batch.iter().map(|tx| tx.size_bytes()).sum::<usize>() as u64),
+            "Created a tx batch with {block_tx_count} tx-es of size {} in {:?}",
+            ByteSize::b(block_size as u64),
             start.elapsed()
         );
 
         sequence += 1;
 
-        let part = ProposalPart::TxBatch(
-            sequence,
-            TransactionBatch::new(std::mem::take(&mut tx_batch)),
-        );
-
+        let part = ProposalPart::TxBatch(sequence, TransactionBatch::new(txes));
         tx_part.send(part).await?;
 
-        if start.elapsed() > build_duration || block_size >= params.max_block_size.as_u64() as usize
-        {
+        if max_block_size_reached {
+            trace!("Max block size reached, stopping tx generation");
+            break;
+        } else if start.elapsed() > build_duration {
+            trace!("Time allowance exceeded, stopping tx generation");
             break;
         }
     }
@@ -133,7 +123,7 @@ async fn run_build_proposal_task(
     let part = ProposalPart::Metadata(sequence + 1, block_metadata);
     let block_size = ByteSize::b(block_size as u64);
 
-    trace!("Built block with {block_tx_count} tx-es of size {block_size} and hash: {block_hash}");
+    trace!("Built block with {block_tx_count} tx-es of size {block_size} and hash {block_hash}, in {sequence} block parts");
 
     // Send and then close the channel
     tx_part.send(part).await?;
