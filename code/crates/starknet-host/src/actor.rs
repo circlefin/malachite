@@ -6,7 +6,7 @@ use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use sha2::Digest;
 use tokio::time::Instant;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, trace};
 
 use malachite_actors::consensus::{ConsensusMsg, Metrics};
 use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
@@ -158,22 +158,28 @@ impl StarknetHost {
         let last_part = all_parts.last().expect("all_parts is not empty");
 
         // Check if the part with the highest sequence number had metadata content.
+        // Otherwise abort, and wait for this part to be received.
         // TODO: Do more validations, e.g. there is no higher tx block part.
         let meta = last_part.metadata()?;
 
-        let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
-        let tx_count: usize = all_parts.iter().map(|p| p.tx_count().unwrap_or(0)).sum();
+        let num_parts = all_parts.len();
+        if num_parts == last_part.sequence as usize {
+            let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
+            let tx_count: usize = all_parts.iter().map(|p| p.tx_count().unwrap_or(0)).sum();
 
-        info!(
-            %height,
-            %round,
-            %tx_count,
-            %block_size,
-            num_parts = %all_parts.len(),
-            "Received last block part",
-        );
+            debug!(
+                %height,
+                %round,
+                %tx_count,
+                %block_size,
+                %num_parts,
+                "Received last block part",
+            );
 
-        self.build_value(&all_parts, height, round)
+            self.build_value(&all_parts, height, round)
+        } else {
+            None
+        }
     }
 }
 
@@ -207,7 +213,7 @@ impl Actor for StarknetHost {
                 address,
                 reply_to,
             } => {
-                let deadline = Instant::now() + timeout_duration.mul_f32(0.8); // FIXME: Magic number
+                let deadline = Instant::now() + timeout_duration;
 
                 let (mut rx_part, rx_hash) =
                     self.host.build_new_proposal(height, round, deadline).await;
@@ -290,7 +296,7 @@ impl Actor for StarknetHost {
                         tx_hashes.extend(tx_batch.transactions().iter().map(|tx| {
                             use std::hash::{Hash, Hasher};
                             let mut hash = std::hash::DefaultHasher::new();
-                            tx.0.hash(&mut hash);
+                            tx.as_bytes().hash(&mut hash);
                             hash.finish()
                         }));
                     }

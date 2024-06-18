@@ -83,8 +83,9 @@ async fn run_build_proposal_task(
                 break 'inner;
             }
 
-            block_size += tx.size_bytes();
             block_hasher.update(tx.as_bytes());
+
+            block_size += tx.size_bytes();
             tx_count += 1;
         }
 
@@ -95,15 +96,16 @@ async fn run_build_proposal_task(
         block_tx_count += tx_count;
 
         trace!(
-            "Created a tx batch with {block_tx_count} tx-es of size {} in {:?}",
+            %sequence,
+            "Created a tx batch with {tx_count} tx-es of size {} in {:?}",
             ByteSize::b(block_size as u64),
             start.elapsed()
         );
 
-        sequence += 1;
-
         let part = ProposalPart::TxBatch(sequence, TransactionBatch::new(txes));
         tx_part.send(part).await?;
+
+        sequence += 1;
 
         if max_block_size_reached {
             trace!("Max block size reached, stopping tx generation");
@@ -120,7 +122,7 @@ async fn run_build_proposal_task(
     let hash = block_hasher.finalize();
     let block_hash = BlockHash::new(hash.into());
     let block_metadata = BlockMetadata::new(proof, block_hash);
-    let part = ProposalPart::Metadata(sequence + 1, block_metadata);
+    let part = ProposalPart::Metadata(sequence, block_metadata);
     let block_size = ByteSize::b(block_size as u64);
 
     trace!("Built block with {block_tx_count} tx-es of size {block_size} and hash {block_hash}, in {sequence} block parts");
