@@ -12,10 +12,8 @@ use tracing::error;
 
 use malachite_common::MempoolTransactionBatch;
 use malachite_gossip_mempool::handle::CtrlHandle;
-use malachite_gossip_mempool::{Channel, Config, Event, PeerId};
+use malachite_gossip_mempool::{Channel, Config, Event, NetworkMsg, PeerId};
 use malachite_metrics::SharedRegistry;
-
-use crate::mempool::NetworkMsg;
 
 pub type GossipMempoolRef = ActorRef<Msg>;
 

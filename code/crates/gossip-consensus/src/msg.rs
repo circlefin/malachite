@@ -5,6 +5,8 @@ use malachite_proto::Error as ProtoError;
 use malachite_proto::Protobuf;
 use malachite_proto::{SignedBlockPart, SignedProposal, SignedVote};
 
+use crate::Channel;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum NetworkMsg {
     Vote(SignedVote),
@@ -13,6 +15,13 @@ pub enum NetworkMsg {
 }
 
 impl NetworkMsg {
+    pub fn channel(&self) -> Channel {
+        match self {
+            NetworkMsg::Vote(_) | NetworkMsg::Proposal(_) => Channel::Consensus,
+            NetworkMsg::BlockPart(_) => Channel::BlockParts,
+        }
+    }
+
     pub fn from_network_bytes(bytes: &[u8]) -> Result<Self, ProtoError> {
         Protobuf::from_bytes(bytes)
     }

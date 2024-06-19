@@ -22,6 +22,9 @@ pub use libp2p::{Multiaddr, PeerId};
 pub mod behaviour;
 pub mod handle;
 
+mod msg;
+pub use msg::NetworkMsg;
+
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
 
@@ -92,7 +95,7 @@ impl Config {
 #[derive(Debug)]
 pub enum Event {
     Listening(Multiaddr),
-    Message(PeerId, Channel, Vec<u8>),
+    Message(PeerId, NetworkMsg),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
 }
@@ -310,10 +313,12 @@ async fn handle_swarm_event(
                 message.data.len()
             );
 
-            if let Err(e) = tx_event
-                .send(Event::Message(peer_id, channel, message.data))
-                .await
-            {
+            let Ok(network_msg) = NetworkMsg::from_network_bytes(&message.data) else {
+                error!("Error decoding message {message_id} from {peer_id}: invalid format");
+                return ControlFlow::Continue(());
+            };
+
+            if let Err(e) = tx_event.send(Event::Message(peer_id, network_msg)).await {
                 error!("Error sending message to handle: {e}");
                 return ControlFlow::Break(());
             }

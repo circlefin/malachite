@@ -16,7 +16,7 @@ use malachite_common::{
 use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
-use malachite_gossip_consensus::{Channel, Event as GossipEvent, PeerId};
+use malachite_gossip_consensus::{Channel, Event as GossipEvent, NetworkMsg, PeerId};
 use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
@@ -25,9 +25,6 @@ use crate::gossip_consensus::{GossipConsensusRef, Msg as GossipConsensusMsg};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ReceivedProposedValue};
 use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers, TimersRef};
 use crate::util::forward;
-
-mod network;
-use network::NetworkMsg;
 
 mod metrics;
 pub use metrics::Metrics;
@@ -210,15 +207,9 @@ where
         myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
-        if let GossipEvent::Message(from, _, data) = event {
-            match NetworkMsg::from_network_bytes(data) {
-                Ok(msg) => {
-                    self.handle_network_msg(from, msg, myself, state).await?;
-                }
-                Err(e) => {
-                    error!(%from, "Failed to decode message: {e}");
-                }
-            }
+        if let GossipEvent::Message(from, msg) = event {
+            self.handle_network_msg(from, msg.clone(), myself, state) // FIXME: Clone
+                .await?;
         }
 
         Ok(())
@@ -819,12 +810,7 @@ where
                         }
                     }
 
-                    GossipEvent::Message(_, _, data) => {
-                        let Ok(msg) = NetworkMsg::from_network_bytes(data) else {
-                            error!("Failed to decode message");
-                            return Ok(());
-                        };
-
+                    GossipEvent::Message(_, msg) => {
                         let Some(msg_height) = msg.msg_height() else {
                             trace!("Received message without height, dropping");
                             return Ok(());
