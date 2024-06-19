@@ -12,7 +12,7 @@ use tracing::info;
 
 use malachite_node::config::{
     App, Config, ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig,
-    TimeoutConfig,
+    TestConfig, TimeoutConfig,
 };
 use malachite_test::ValidatorSet as Genesis;
 use malachite_test::{PrivateKey, PublicKey, Validator};
@@ -160,13 +160,13 @@ pub fn generate_config(app: App, index: usize, total: usize) -> Config {
                     .collect(),
             },
             max_tx_count: 10000,
-            gossip_batch_size: 100,
+            gossip_batch_size: 256,
         },
         metrics: MetricsConfig {
             enabled: true,
             listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
         },
         runtime: RuntimeConfig::single_threaded(),
-        test: Default::default(),
+        test: TestConfig::default(),
     }
 }

@@ -35,10 +35,10 @@ else
     set build_profile release
 end
 
-set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "1 MiB"
-set -x MALACHITE__TEST__TXS_PER_PART 50
-set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.7
-set -x MALACHITE__TEST__EXEC_TIME_PER_PART 10ms
+# set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "1 MiB"
+# set -x MALACHITE__TEST__TXS_PER_PART 50
+# set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.7
+# set -x MALACHITE__TEST__EXEC_TIME_PER_PART 10ms
 
 echo "Compiling Malachite..."
 cargo build --profile $build_profile
@@ -53,19 +53,22 @@ set NODES_HOME $_flag_home
 for NODE in (seq 0 $(math $NODES_COUNT - 1))
     set NODE_HOME "$NODES_HOME/$NODE"
     mkdir -p "$NODE_HOME/logs"
+    mkdir -p "$NODE_HOME/traces"
+
     rm -f "$NODE_HOME/logs/*.log"
 
-    if $profile
-        set cmd_prefix "samply record --save-only -o '$NODE_HOME/perf.json' --"
+    if test $profile # -a \( $NODE -eq 0 \)
+        set cmd_prefix "cargo instruments --profile $build_profile --template time --time-limit 60000 --output '$NODE_HOME/traces/' --"
     else
-        set cmd_prefix ""
+        set cmd_prefix "./target/$build_profile/malachite-cli"
     end
-
+    
     set pane $(tmux new-window -P -n "node-$NODE" /bin/zsh)
 
     echo "[Node $NODE] Spawning node..."
 
-    tmux send -t "$pane" "$cmd_prefix ./target/$build_profile/malachite-cli start --home '$NODE_HOME' 2>&1 > '$NODE_HOME/logs/node.log' &" Enter
+    tmux send -t "$pane" "sleep $NODE" Enter
+    tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 > '$NODE_HOME/logs/node.log' &" Enter
     tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
     tmux send -t "$pane" "tail -f '$NODE_HOME/logs/node.log'" Enter
 end

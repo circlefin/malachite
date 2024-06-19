@@ -160,13 +160,13 @@ impl TimeoutConfig {
 impl Default for TimeoutConfig {
     fn default() -> Self {
         Self {
-            timeout_propose: Duration::from_secs(3),
+            timeout_propose: Duration::from_secs(5),
             timeout_propose_delta: Duration::from_millis(500),
             timeout_prevote: Duration::from_secs(1),
             timeout_prevote_delta: Duration::from_millis(500),
             timeout_precommit: Duration::from_secs(1),
             timeout_precommit_delta: Duration::from_millis(500),
-            timeout_commit: Duration::from_secs(1),
+            timeout_commit: Duration::from_secs(0),
         }
     }
 }
@@ -216,9 +216,9 @@ pub struct TestConfig {
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
-            tx_size: ByteSize::b(256),
-            txs_per_part: 200,
-            time_allowance_factor: 0.7,
+            tx_size: ByteSize::kib(1),
+            txs_per_part: 256,
+            time_allowance_factor: 0.3,
             exec_time_per_tx: Duration::from_millis(1),
         }
     }
