@@ -233,6 +233,16 @@ where
 
                 info!(%from, %validator_address, "Received vote: {:?}", signed_vote.vote);
 
+                if signed_vote.vote.height() != state.driver.height() {
+                    warn!(
+                        "Ignoring vote for height {}, current height: {}",
+                        signed_vote.vote.height(),
+                        state.driver.height()
+                    );
+
+                    return Ok(());
+                }
+
                 let Some(validator) = state.validator_set.get_by_address(validator_address) else {
                     warn!(%from, %validator_address, "Received vote from unknown validator");
                     return Ok(());
@@ -245,9 +255,6 @@ where
                     warn!(%from, %validator_address, "Received invalid vote: {signed_vote:?}");
                     return Ok(());
                 }
-
-                let vote_height = signed_vote.vote.height();
-                assert!(vote_height == state.driver.height());
 
                 // Store the non-nil Precommits.
                 if signed_vote.vote.vote_type() == VoteType::Precommit
