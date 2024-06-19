@@ -211,9 +211,14 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
         if let GossipEvent::Message(from, _, data) = event {
-            let msg = NetworkMsg::from_network_bytes(data).unwrap(); // FIXME: Unwrap
-
-            self.handle_network_msg(from, msg, myself, state).await?;
+            match NetworkMsg::from_network_bytes(data) {
+                Ok(msg) => {
+                    self.handle_network_msg(from, msg, myself, state).await?;
+                }
+                Err(e) => {
+                    error!(%from, "Failed to decode message: {e}");
+                }
+            }
         }
 
         Ok(())
@@ -228,7 +233,11 @@ where
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::Vote(signed_vote) => {
-                let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap(); // FIXME: Unwrap
+                let Ok(signed_vote) = SignedVote::<Ctx>::from_proto(signed_vote) else {
+                    error!("Failed to decode signed vote");
+                    return Ok(());
+                };
+
                 let validator_address = signed_vote.validator_address();
 
                 info!(%from, %validator_address, "Received vote: {:?}", signed_vote.vote);
@@ -255,11 +264,16 @@ where
                 {
                     state.store_signed_precommit(&signed_vote);
                 }
+
                 myself.cast(Msg::SendDriverInput(DriverInput::Vote(signed_vote.vote)))?;
             }
 
             NetworkMsg::Proposal(proposal) => {
-                let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap(); // FIXME:Unwrap
+                let Ok(signed_proposal) = SignedProposal::<Ctx>::from_proto(proposal) else {
+                    error!("Failed to decode signed proposal");
+                    return Ok(());
+                };
+
                 let validator_address = signed_proposal.proposal.validator_address();
 
                 info!(%from, %validator_address, "Received proposal: (h: {}, r: {}, id: {:?})",
@@ -316,7 +330,11 @@ where
             }
 
             NetworkMsg::BlockPart(block_part) => {
-                let signed_block_part = SignedBlockPart::<Ctx>::from_proto(block_part).unwrap(); // FIXME: Unwrap
+                let Ok(signed_block_part) = SignedBlockPart::<Ctx>::from_proto(block_part) else {
+                    error!("Failed to decode signed block part");
+                    return Ok(());
+                };
+
                 let validator_address = signed_block_part.validator_address();
 
                 let Some(validator) = state.validator_set.get_by_address(validator_address) else {
@@ -473,9 +491,15 @@ where
                 let signed_proposal = self.ctx.sign_proposal(proposal);
 
                 // TODO: Refactor to helper method
-                let proto = signed_proposal.to_proto().unwrap(); // FIXME: Unwrap
-                let msg = NetworkMsg::Proposal(proto);
-                let bytes = msg.to_network_bytes().unwrap(); // FIXME: Unwrap
+                let Ok(bytes) = signed_proposal
+                    .to_proto()
+                    .map(NetworkMsg::Proposal)
+                    .and_then(|msg| msg.to_network_bytes())
+                else {
+                    error!("Failed to encode signed proposal");
+                    return Ok(Next::None);
+                };
+
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
 
@@ -496,9 +520,15 @@ where
                 let signed_vote = self.ctx.sign_vote(vote);
 
                 // TODO: Refactor to helper method
-                let proto = signed_vote.to_proto().unwrap(); // FIXME: Unwrap
-                let msg = NetworkMsg::Vote(proto);
-                let bytes = msg.to_network_bytes().unwrap(); // FIXME: Unwrap
+                let Ok(bytes) = signed_vote
+                    .to_proto()
+                    .map(NetworkMsg::Vote)
+                    .and_then(|msg| msg.to_network_bytes())
+                else {
+                    error!("Failed to encode signed vote");
+                    return Ok(Next::None);
+                };
+
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
 
@@ -790,7 +820,10 @@ where
                     }
 
                     GossipEvent::Message(_, _, data) => {
-                        let msg = NetworkMsg::from_network_bytes(data).unwrap(); // FIXME: Unwrap
+                        let Ok(msg) = NetworkMsg::from_network_bytes(data) else {
+                            error!("Failed to decode message");
+                            return Ok(());
+                        };
 
                         let Some(msg_height) = msg.msg_height() else {
                             trace!("Received message without height, dropping");
@@ -828,9 +861,16 @@ where
 
             Msg::GossipBlockPart(block_part) => {
                 let signed_block_part = self.ctx.sign_block_part(block_part);
-                let proto = signed_block_part.to_proto().unwrap(); // FIXME: Unwrap
-                let msg = NetworkMsg::BlockPart(proto);
-                let bytes = msg.to_network_bytes().unwrap(); // FIXME: Unwrap
+
+                let Ok(bytes) = signed_block_part
+                    .to_proto()
+                    .map(NetworkMsg::BlockPart)
+                    .and_then(|msg| msg.to_network_bytes())
+                else {
+                    error!("Failed to encode signed block part");
+                    return Ok(());
+                };
+
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::BlockParts, bytes))?;
             }

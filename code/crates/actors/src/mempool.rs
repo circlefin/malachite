@@ -6,12 +6,12 @@ use async_trait::async_trait;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::distributions::Uniform;
 use rand::Rng;
-use tracing::{info, trace};
+use tracing::{error, info, trace};
 
 use malachite_common::{MempoolTransactionBatch, Transaction, TransactionBatch};
 use malachite_gossip_mempool::{Channel, Event as GossipEvent, PeerId};
 use malachite_node::config::{MempoolConfig, TestConfig};
-use malachite_proto::Protobuf;
+use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use crate::util::forward;
@@ -22,14 +22,13 @@ pub enum NetworkMsg {
 }
 
 impl NetworkMsg {
-    pub fn from_network_bytes(bytes: &[u8]) -> Self {
-        let batch = Protobuf::from_bytes(bytes).unwrap(); // FIXME: Error handling
-        NetworkMsg::TransactionBatch(batch)
+    pub fn from_network_bytes(bytes: &[u8]) -> Result<Self, ProtoError> {
+        Protobuf::from_bytes(bytes).map(NetworkMsg::TransactionBatch)
     }
 
-    pub fn to_network_bytes(&self) -> malachite_proto::MempoolTransactionBatch {
+    pub fn to_network_bytes(&self) -> Result<Vec<u8>, ProtoError> {
         match self {
-            NetworkMsg::TransactionBatch(batch) => batch.to_proto().unwrap(), // FXME: Error handling
+            NetworkMsg::TransactionBatch(batch) => batch.to_bytes(),
         }
     }
 }
@@ -136,8 +135,14 @@ impl Mempool {
             GossipEvent::Message(from, Channel::Mempool, data) => {
                 trace!(%from, "Received message of size {} bytes", data.len());
 
-                let msg = NetworkMsg::from_network_bytes(data);
-                self.handle_network_msg(from, msg, myself, state).await?;
+                match NetworkMsg::from_network_bytes(data) {
+                    Ok(msg) => {
+                        self.handle_network_msg(from, msg, myself, state).await?;
+                    }
+                    Err(e) => {
+                        error!("Failed to parse network message: {e}");
+                    }
+                }
             }
         }
 

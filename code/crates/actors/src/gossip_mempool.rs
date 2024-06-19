@@ -8,12 +8,14 @@ use ractor::ActorProcessingErr;
 use ractor::ActorRef;
 use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
+use tracing::error;
 
 use malachite_common::MempoolTransactionBatch;
 use malachite_gossip_mempool::handle::CtrlHandle;
 use malachite_gossip_mempool::{Channel, Config, Event, PeerId};
 use malachite_metrics::SharedRegistry;
-use malachite_proto::Protobuf;
+
+use crate::mempool::NetworkMsg;
 
 pub type GossipMempoolRef = ActorRef<Msg>;
 
@@ -132,8 +134,14 @@ impl Actor for GossipMempool {
         match msg {
             Msg::Subscribe(subscriber) => subscribers.push(subscriber),
             Msg::Broadcast(channel, batch) => {
-                let bytes = batch.to_bytes().unwrap();
-                ctrl_handle.broadcast(channel, bytes).await?
+                match NetworkMsg::TransactionBatch(batch).to_network_bytes() {
+                    Ok(bytes) => {
+                        ctrl_handle.broadcast(channel, bytes).await?;
+                    }
+                    Err(e) => {
+                        error!("Failed to serialize transaction batch: {e}");
+                    }
+                }
             }
             Msg::NewEvent(event) => {
                 match event {
