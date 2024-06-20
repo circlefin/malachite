@@ -60,18 +60,22 @@ Lets `proof(H)` be the proof of the block committed at height `H`, then:
 
 - `proof(H)` is included in a block committed at height `H' = H + i * K`, with `i > 0`.
 
-Notice that `strand(H) == strand(H + i * K)`, where `i` is any integer.
+This is a **safety** property, stating that proofs of blocks and the proven
+blocks are committed in the same strand.
+In fact, since `strand(H) == strand(H + i * K)`, for any integer `i`, proofs
+and blocks are in the same strand.
+
 The ideal, best-case scenario we have `i == 1`, meaning that the proof of the
 block committed at height `H` is included in block `H' = H + K`.
-
-If, for any reason, `proof(H)` is not available to the proposer of block `H'` when it propos the block, the
+If, for any reason, `proof(H)` is not available to the proposer of block `H'`
+when it produces the block to propose in height `H'`, then the
 inclusion of `proof(H)` is shifted to the next block in the same strand
 `strand(H)`, which would be `H" = H' + K = H + 2 * K`.
-This bad scenario can be observed multiple times, resulting in another shift by
-`K` on the block height where `proof(H)` is included.
+This undesired scenario can be observed multiple times, resulting in another
+shift by `K` on the block height where `proof(H)` is included.
 
-However, we want to limit the number skipped blocks in a strand, so we define
-a constant `P` and require:
+We want to limit the number of blocks in a strand that do not include proofs.
+So we define a constant `P` and state the following **liveness** property:
 
 - `proof(H)` must be included in a block committed up to height `H* = H + (P + 1) * K`.
 
