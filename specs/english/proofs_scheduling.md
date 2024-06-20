@@ -64,7 +64,7 @@ Notice that `strand(H) == strand(H + i * K)`, where `i` is any integer.
 The ideal, best-case scenario we have `i == 1`, meaning that the proof of the
 block committed at height `H` is included in block `H' = H + K`.
 
-If, for any reason, `proof(H)` is not ready when block `H'` is proposed, the
+If, for any reason, `proof(H)` is not available to the proposer of block `H'` when it propos the block, the
 inclusion of `proof(H)` is shifted to the next block in the same strand
 `strand(H)`, which would be `H" = H' + K = H + 2 * K`.
 This bad scenario can be observed multiple times, resulting in another shift by
@@ -97,7 +97,7 @@ The instance `H` of the consensus protocol is run by a set of validators
 `valset(H)`, which is known by all nodes.
 The same validator set is adopted in all rounds of a height, but the validator
 set may change over heights.
-Nodes must known `valset(H)` before starting their participation in the
+Nodes must know `valset(H)` before starting their participation in the
 instance `H` of the consensus protocol.
 
 There is a deterministic function `proposer(H,R)` that defines from `valset(H)`
@@ -141,7 +141,7 @@ of proofs, for all unproven blocks belonging to `strand(H)`, then it is allowed
 to produce and propose a **full block**, i.e., a block containing transactions.
 
 But if the proposer of height `H` is **not able** to produce or retrieve the
-full expected set of proofs, then it is forced to produce a **empty block**,
+full expected set of proofs, then it is forced to produce an **empty block**,
 i.e., a block without transactions, with an empty **proofs** field.
 Notice that the proposer does not include any proof on the block if it has only
 _part_ of the proofs expected to be included in that block.
