@@ -15,18 +15,28 @@ the block `H' = H + L` is proposed.
 The constant `L` should be computed by considering the expected (good case)
 latency to produce a proof and the typical Starknet's block latency.
 
+> TODO: latency in time, not number of blocks.
+
 Since **production proofs is expensive**, we should avoid having multiple
 provers spending resources to proof the same block.
 The need for a **scheduling protocol** derives from this requirement.
 Of course, in bad scenarios, we would need multiple provers for a single block,
-but this scenario should be avoided whenever possible.
+but this situation should be avoided whenever possible.
 
 **Proofs are included in blocks** and are committed to the blockchain.
-If fact, a block is only "finalized" when it is committed to the blockchain **and**
-another, future block including its proofs is also committed to the blockchain.
-Ideally, each proposed block should contain a proof of a previously committed block.
-But it is possible to have either blocks with no proof included, as none was
-available, and blocks with multiple proofs included.
+If fact, the content of block is only _final_ when:
+(i) it is committed to the blockchain,
+(ii) another block including its proof is also committed to the blockchain,
+and (iii) the proof of the original block is sent to and validate by L1, the
+Ethereum blockchain.
+
+Ideally, each proposed block should include a proof of a single, previously
+committed block.
+However, we cannot guarantee that a proof of a previously committed block is
+available whenever a new block is proposed. As a result, some blocks may not
+include any proof, and some other blocks will need to include proofs of
+multiple, previously committed blocks.
+Or, more precisely, a proof attesting the proper execution of multiple blocks.
 
 Since proofs are part of proposed blocks, the **prover** role in this
 specification is associated to the **proposer** role in the consensus protocol.
@@ -35,6 +45,7 @@ proofs of previous blocks.
 How the right provers ship proofs to the right proposers is not considered in
 this document.
 
+> TODO: review relation between proposer and prover
 
 ## Strands
 
@@ -65,7 +76,7 @@ blocks are committed in the same strand.
 In fact, since `strand(H) == strand(H + i * K)`, for any integer `i`, proofs
 and blocks are in the same strand.
 
-The ideal, best-case scenario we have `i == 1`, meaning that the proof of the
+In the ideal, best-case scenario we have `i == 1`, meaning that the proof of the
 block committed at height `H` is included in block `H' = H + K`.
 If, for any reason, `proof(H)` is not available to the proposer of block `H'`
 when it produces the block to propose in height `H'`, then the
