@@ -409,7 +409,7 @@ def valid (b: L2Block) : bool =
 
 // The following temporal properties below are just here for documentation. Apalache
 // has some basic temporal model checking capabilities, but does not support the 
-// logic fragement in which these properties are expressed, e.g., alternations of
+// logic fragment in which these properties are expressed, e.g., alternations of
 // temporal operators (i.e., always and eventually), and set quantifieres (forall).
 // We should
 // either find human arguments to support them, or write some test cases to capture

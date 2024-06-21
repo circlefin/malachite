@@ -254,7 +254,7 @@ pure def newL2Block (chain: List[L2Block], regs: Set[Registration], provable: bo
 //           The current encoding allows unstale registrations, as long as there are no gaps.
 pure def forkBlock (prev: L2Block, regs: Set[Registration], h: Height, fID: ForkID, provable: bool) : L2Block =
     val allRegs = prev.unstagedUpdates.union(prev.stagedUpdates).union(regs) 
-        // we clarified this point with Matan on the Google doc, that initially only taked about 
+        // we clarified this point with Matan on the Google doc, that initially only talked about 
         // staged and stale, but didn't consider unstaged
     val toApplyNow = allRegs.denseSubset(prev.highest_staged_seq_num)
     val highest = if (toApplyNow == Set()) prev.highest_staged_seq_num else toApplyNow.maxSeqNum()
