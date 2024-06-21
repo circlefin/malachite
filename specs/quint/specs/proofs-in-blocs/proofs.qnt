@@ -23,7 +23,7 @@ type Time = int
 type ForkID = int
 
 type L2Proof = {
-    provenBlock: int,
+    provenBlock: Height,
     emptyBlocks: Set[int],
 }
 
