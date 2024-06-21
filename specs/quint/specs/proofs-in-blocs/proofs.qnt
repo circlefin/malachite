@@ -24,7 +24,7 @@ type ForkID = int
 
 type L2Proof = {
     provenBlock: Height,
-    emptyBlocks: Set[int],
+    emptyBlocks: Set[Height],
 }
 
 type BlockProof = 
