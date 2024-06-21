@@ -87,7 +87,7 @@ inclusion of `proof(H)` is shifted to the next block in the same strand
 This undesired scenario can be observed multiple times, resulting in another
 shift by `K` on the block height where `proof(H)` is included.
 
-We want to limit the number of blocks in a strand that do not include proofs.
+We want to limit the number of blocks in the strand `strand(H)` that do not include the proof of block `H`.
 So we define a constant `P` and state the following **liveness** property:
 
 - `proof(H)` must be included in a block committed up to height `H* = H + (P + 1) * K`.
@@ -128,18 +128,18 @@ height `H` as the proposer of its first round, i.e., `proposer(H,0)`.
 Blocks proposed in a round of the consensus protocol and eventually committed
 to the blockchain are formed by:
 
-- A **header** field, containing consensus and blockchain related information
-- A **proofs** field, containing of a, possibly empty, set of proofs of previous blocks
-- A **payload** field, consisting of a, possibly empty, set transactions submitted by users
+- A `header` field, containing consensus and blockchain related information
+- A `proof` field, possibly empty, containing a proof  of a set of previous blocks
+- A `payload` field, possibly empty, consisting of a set transactions submitted by users
 
 For the sake of the scheduling protocol, we distinguish between two kind of blocks:
 
-- **Full blocks** carry transactions, i.e., have a non-empty payload.
-  The protocol requires full blocks to include proofs of previously committed blocks.
+- **Full blocks** carry transactions, i.e., have a non-empty `payload`.
+  The protocol requires full blocks to include a non-empty `proof` field.
   Full blocks are the typical and relevant blocks in the blockchain.
-- **Empty blocks** do not carry transactions, i.e., have an empty payload.
+- **Empty blocks** do not carry transactions, i.e., have an empty `payload`.
   The protocol may force the production of empty blocks, which are undesired,
-  when their proposers do not have proofs to include in the block.
+  when their proposers do not have a proof to include in the block.
 
 
 ## Protocol
@@ -149,27 +149,35 @@ rounds of the consensus protocol.
 
 ### Overview
 
-A proposer is expected to include in its proposed block for height `H`
-**proofs for all unproven blocks** committed to the same strand as height `H`.
+A proposer is expected to include in its proposed block at height `H` a
+`proof` for **all unproven blocks** committed to the same strand as height `H`.
 A block is unproven when its proof was not yet committed to the blockchain.
 
-If a proposer of height `H` is **able** produce or retrieve the expected set
-of proofs, for all unproven blocks belonging to `strand(H)`, then it is allowed
-to produce and propose a **full block**, i.e., a block containing transactions.
+If a proposer of height `H` **has received**, from the designated provers, a
+`proof` for all unproven blocks belonging to `strand(H)`, then it is allowed to
+produce and propose a **full block**, i.e., a block containing transactions.
 
-But if the proposer of height `H` is **not able** to produce or retrieve the
-full expected set of proofs, then it is forced to produce an **empty block**,
-i.e., a block without transactions, with an empty **proofs** field.
-Notice that the proposer does not include any proof on the block if it has only
-_part_ of the proofs expected to be included in that block.
+But if the proposer of height `H` **has not received**, from the designated provers, 
+a `proof` for all unproven blocks belonging to `strand(H)`, then it is forced
+to propose an **empty block**, i.e., a block without transactions, and with an
+empty `proof` field.
+Notice that the proposer may have received an _incomplete_ proof, proving only
+part of the unproven blocks in the current strand, but only _full_ proofs can
+be included in proposed blocks.
 
-The reason for the last behaviour, forcing the production of empty blocks when
-the expected set of proofs is not available, is to discourage the production of
-blocks without proofs.
+The reason for forcing the production of **empty blocks** when a proof for
+**all unproven blocks** is **not available** is to discourage the production of
+blocks with an empty `proof` field.
 There are rewards for proposers that produce blocks that end-up committed,
 associated to the transactions included in the block.
 Producing an empty block is therefore not interesting for a proposer, that
-should do its best to include all required proofs in produced blocks.
+should do its best to include _full_ proofs in the proposed blocks.
+
+There is a second reason for enforcing this behavior, which is the fact that
+producing a **proof for an empty block** should be **faster** and less
+expensive than producing a proof for a full block.
+Thus, if a block has an empty `proof` field, therefore does not contributes to
+the proving mechanism, it should at least be easier to prove.
 
 ### Formalization
 
@@ -179,34 +187,34 @@ given state of the blockchain:
 - `unproven(s)` is a set of heights `H` with `strand(H) == s` and whose
   `proof(H)` was not yet committed.
 
-Then, lets extend the definition of `proof(H)` to consider multiple proofs,
-or proofs from a set `S` of heights:
+Then, lets extend the definition of `proof(H)` to consider proofs for multiple
+blocks, from a set `S` of heights:
 
-- `proofs(S)` is a set containing a `proof(H)` for every height `H` in the set
+- `proofs(S)` is a proof that includes a `proof(H)` for every height `H` in the set
   `S` of heights.
 
-Finally, lets define the expected set of proofs to be included in the block at
+Finally, lets define the expected proof to be included in the block at
 height `H`:
 
-    expected_proofs(H) = proofs(unproven(strand(H)))
+    expected_proof(H) = proofs(unproven(strand(H)))
 
-So, lets `s = strand(H)`, the set of proofs expected to be included in block `H` 
-is `proofs(unproven(s))`.
+So, lets `s = strand(H)`, the proof included in block `H` should prove all blocks
+in `proofs(unproven(s))`.
 
 From the roles presented to the operation of a proposer of height `H`, we can
 define the following **invariant**:
 
-    block(H).payload != Ø => block(H).proofs == expected_proofs(H)
+    block(H).payload != Ø => block(H).proof == expected_proof(H)
 
-Namely, if the block carries a payload (transactions), then it must include all
-the expected proofs for its height.
+Namely, if the block carries a payload (transactions), then it must include the
+full expected proof for its height.
 
 ### Properties
 
 The first property shows that, except for a corner scenario, there are always
 proofs to be included in a new block:
 
-- For all heights `H >= K`, there are always blocks to proof, i.e., `expected_proofs(H) != Ø`.
+- For all heights `H >= K`, there are always blocks to proof, i.e., `expected_proof(H) != Ø`.
 
 This happens because the previous height in the same strand `strand(H)`, height
 `H - K >= 0`, has not yet been proven, as there is not height between `H - K`
@@ -219,9 +227,9 @@ As a corollary:
 Considering now strands instead of heights, for every strand `s` we have:
 
 1. The first (lowest) height `Hmin` in `unproven(s)` is of a block that
-   contains **proofs**.
+   contains an non-empty `proof` field.
 2. Every other height `H' > Hmin` in `unproven(s)` is of an **empty block**
-   that does not contain proofs.
+   with an empty `proof` field.
 3. There are no gaps in `unproven(s)`, namely for every integer `i` with
    `0 <= i < |unproven(s)|`, the height `H(i) = Hmin + i * K` is
    present in `unproven(s)` and, of course, `strand(H(i)) == s`.
@@ -254,9 +262,9 @@ In the favorable scenario, `proof(H - K)` is included in block `H`, so the
 production of `proof(H)` can start immediately.
 Otherwise, the prover needs to compute `unproven(strand(H))` and follow the steps:
 
-1. Go back to the block with the first (lowest) height `Hmin` in
-   `unproven(strand(H))`, which must include proofs (by property 1.),
-   and use `block(Hmin).proofs` and `block(Hmin)` to produce `proof(Hmin)`;
+1. Go back to the block with the lowest height `Hmin` in
+   `unproven(strand(H))`, which must include a non-empty `proof` field (by property 1.),
+   and use `block(Hmin).proof` and `block(Hmin)` to produce `proof(Hmin)`;
    - Notice that in the favorable scenario `H == Hmin`, and the process is done here.
 2. Go to the block `Hmin + K` and use `proof(Hmin)` and  `block(Hmin + K)` to
    produce `proof(Hmin + K)`. This operation should be faster because
@@ -264,20 +272,21 @@ Otherwise, the prover needs to compute `unproven(strand(H))` and follow the step
 3. If `Hmin + K == H`, the process is done. Otherwise, set `Hmin = Hmin + K`
    and repeat step 2.
 
-At the end of the process, the prover has produced **one** proof for a full
-block, at height `Hmin`, and possibly **some** proofs for empty blocks.
-All the produced proofs should be included in the block proposed at height `H + K`.
+At the end of the process, the prover has produced a proof proving
+**one full block**, at height `Hmin`, and possibly **some empty blocks**.
+The produced proof is included in the `proof` field of the block
+proposed at height `H + K`.
 
 ### Additional rounds
 
 The implementation up to now considers that the primary proposer of a height
 should schedule the production of proofs.
 In other words, once height `H` starts, `proposer(H, 0)` is expected to have
-`expected_proofs(H)`.
+`expected_proof(H)`.
 
 The proposers of other rounds, i.e., `proposer(H, R)` for round `R > 0`,
 do not have the same requirement.
-If they _happen_ to have `expected_proofs(H)`, they can produce and propose a
+If they _happen_ to have `expected_proof(H)`, they can produce and propose a
 full block, including transactions and the required proofs.
 Otherwise, which is consider the normal case, they will propose an **empty block**.
 
@@ -285,6 +294,6 @@ There is an exception for this mechanism intended to limit the number of
 **empty blocks** in a strand.
 So, if there are `P` empty blocks in the current strand `s`, namely  if
 `|unproven(s)| > P`, the proposer of **any round** of a height `H` with
-`strand(H) == s` can only propose a block if it includes `expected_proofs(H)`.
+`strand(H) == s` can only propose a block if it includes `expected_proof(H)`.
 
 [starkprover]: https://docs.starknet.io/architecture-and-concepts/network-architecture/starknet-architecture-overview/#provers
