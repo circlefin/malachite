@@ -9,13 +9,11 @@ the correct processing of the transactions included in that block.
 
 Since **producing proofs is slow**, we should expect the proof for a block to
 take several blocks to be produced.
-So once a block is committed at height `H` of the blockchain, we should not
-expect a prover to produce the proof of block `H` before the time at which
-the block `H' = H + L` is proposed.
-The constant `L` should be computed by considering the expected (good case)
-latency to produce a proof and the typical Starknet's block latency.
-
-> TODO: latency in time, not number of blocks.
+So once a block is committed at height `H` of the blockchain, a prover is
+expected to take `L` time to produce a proof of block `H`.
+Meanwhile, several blocks may have been committed to the blockchain, to that
+the proof of block `H` will only be available at the time when a block is being
+produced and proposed at a height `H' > H`.
 
 Since **production proofs is expensive**, we should avoid having multiple
 provers spending resources to proof the same block.
@@ -50,18 +48,22 @@ this document.
 ## Strands
 
 The proposed solution is to adopt a **static scheduling** protocol.
-The blockchain is virtually split into a number of strands,
+The blockchain is virtually split into a number of **strands**,
 so that proofs of blocks belonging to a strand are included in blocks belonging
 to the same strand.
 
-We define a constant `K`, which is the number of strands, and map blocks to
-strands as follows:
+Using `K` to denote the number of strands in the blockchain,
+the mapping of blocks to strands is as follows:
 
 - A block at height `H` of the blockchain belongs to the strand: `strand(H) = H mod K`.
 
-The number `K` of strands should be chosen as a safe upper bound the latency `L`
-for producing the proof of a block, given in terms of the number of blocks that
-Starknet is expected to commit while the proof is produced.
+The constant `K` should be defined considering a conservative upper bound for
+the latency `L` to produce a proof for a block and expected block latency
+(i.e., the expected interval between committing successive blocks).
+The goal is to ensure, with high probability, that no more than `K` blocks are
+produced and committed in `L` time units,
+so that the proof of a block committed at height `H` is available when height
+`H' = H + K` is started.
 
 ### Scheduling
 
