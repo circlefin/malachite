@@ -50,7 +50,7 @@ pure def strandBlocks(c: List[Block], strandID: int, K: int ) : List[Block] =
 pure def last(l) = l[l.length() - 1]
 
 
-    
+// TODO: comment what it does    
 pure def emptySuffix (s: List[Block]) : Set[Height] =
     if (s == List()) Set()
     else
@@ -108,6 +108,22 @@ def NotTooManyEmptyBlocksInChainInv =
         sb.forall(h => followersProven(h, sb))
     )
 
+// unproven blocks can only exist at the head of a strand.
+
+def OnlyHeadUnprovenInv = 
+    0.to(numStrands - 1).forall(st =>
+        val sb = chain.strandBlocks(st, numStrands)
+        val proven = sb.foldl(Set(), (s, x) => 
+            match x.proof {
+                | Proof(p) => s.union(p.emptyBlocks).union(Set(p.provenBlock))
+                | None => s
+            }
+        )
+        val maxproven = proven.fold(0, (s,x) => if (x > s) x else s)
+        val allblocks = sb.foldl(Set(), (s, x) => s.union(Set(x.height)))
+        val unproven = allblocks.exclude(proven)
+        unproven.forall(u => u >= maxproven) // >= to eliminate initial state with proven being the empty set
+    )
 
 
 // Witness
