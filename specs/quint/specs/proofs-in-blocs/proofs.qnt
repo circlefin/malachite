@@ -174,7 +174,7 @@ action step = {
         all{
             
             if (addedProof == None) all {
-                chain' = chain.append({height: newHeight, txs: false, proof: addedProof}),
+                chain' = chain.append({height: newHeight, txs: false, proof: None}),
                 num_missing_proofs' = num_missing_proofs.set(   strand(newHeight, numStrands), 
                                                                 num_missing_proofs.get(strand(newHeight, numStrands)) +1 )
                 }
