@@ -34,7 +34,7 @@ type BlockProof =
 
 type Block = {
     // meta data
-    height: int,
+    height: Height,
     //forkID: ForkID, 
     txs: bool,    
     proof: BlockProof,
