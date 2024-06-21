@@ -36,15 +36,6 @@ include any proof, and some other blocks will need to include proofs of
 multiple, previously committed blocks.
 Or, more precisely, a proof attesting the proper execution of multiple blocks.
 
-Since proofs are part of proposed blocks, the **prover** role in this
-specification is associated to the **proposer** role in the consensus protocol.
-The proposer a block at height `H` is expected to include in the proposed block
-proofs of previous blocks.
-How the right provers ship proofs to the right proposers is not considered in
-this document.
-
-> TODO: review relation between proposer and prover
-
 ## Strands
 
 The proposed solution is to adopt a **static scheduling** protocol.
@@ -250,11 +241,13 @@ Since new block `H` is not yet proven, as just committed, it is appended to
 
 ## Implementation
 
-The proposed implementation for the previously described protocol works as follows.
+This section presents an implementation for the previously described protocol.
+More specifically, it defines the behaviour of **provers** and how they are
+supposed to produce proofs for committed blocks.
 
-When block `H` is committed to the blockchain, the prover of the next height in
+When block `H` is committed to the blockchain, the **prover** of the next height in
 strand `strand(H)` is expected to start generating a proof of block `H`.
-The prover is either `proposer(H + K, 0)` or some node associated to it.
+Notice that the produced proof should be sent to `proposer(H + K, 0)`.
 
 To generate the proof of block `H`, the prover needs the proof of the previous
 block in strand `strand(H)`, whose height is `H - K`.
@@ -272,28 +265,40 @@ Otherwise, the prover needs to compute `unproven(strand(H))` and follow the step
 3. If `Hmin + K == H`, the process is done. Otherwise, set `Hmin = Hmin + K`
    and repeat step 2.
 
-At the end of the process, the prover has produced a proof proving
-**one full block**, at height `Hmin`, and possibly **some empty blocks**.
-The produced proof is included in the `proof` field of the block
+At the end of the process, the prover has produced a single proof attesting the
+proper execution of  **one full block**, at height `Hmin`,
+and possibly, in the case of `|unproven(strand(H))| > 1`, also of the execution of
+**some empty blocks**.
+The produced proof is targeted to be included in the `proof` field of the block
 proposed at height `H + K`.
 
-### Additional rounds
+### Proposers and Provers
 
-The implementation up to now considers that the primary proposer of a height
-should schedule the production of proofs.
-In other words, once height `H` starts, `proposer(H, 0)` is expected to have
+The proofs produced by provers are expected to be included in committed blocks.
+A committed block must have been produced by the **proposer** of a round of
+consensus, possibly including a `proof` produced by a **prover**.
+
+There is therefore a relation between provers and proposers.
+The simpler way to define this relation is to assume that prover and proposer
+are roles that are implemented by the same nodes.
+So, once the block at height `H` is committed, the primary proposer of height
+`H + K` starts producing `expected_proof(H + K)`.
+If it is produced by the time height `H + K` starts, it is included in
+the `proof` field of the block produced for that height.
+
+We may consider, however, more complex setups where provers and proposers are
+distinct nodes.
+In this case, it has to be defined how the prover assigned to produce
+`expected_proof(H + K)` interacts with the proposers of height `H + K`,
+in particular with its primary proposer, the node defined by `proposer(H + K, 0)`.
+
+The relation between provers and proposers is particularly relevant in the
+scenario where multiple empty blocks, with empty `proof` fields, are
+committed to a strand `s`.
+Recall that there is a limit for the number of such blocks in a strand, at most
+`P` can be produced.
+So, if `|unproven(s)| > P`, then the proposer of **any round** of a height `H`,
+where `strand(H) == s`, can only produce and propose a block if it includes
 `expected_proof(H)`.
-
-The proposers of other rounds, i.e., `proposer(H, R)` for round `R > 0`,
-do not have the same requirement.
-If they _happen_ to have `expected_proof(H)`, they can produce and propose a
-full block, including transactions and the required proofs.
-Otherwise, which is consider the normal case, they will propose an **empty block**.
-
-There is an exception for this mechanism intended to limit the number of
-**empty blocks** in a strand.
-So, if there are `P` empty blocks in the current strand `s`, namely  if
-`|unproven(s)| > P`, the proposer of **any round** of a height `H` with
-`strand(H) == s` can only propose a block if it includes `expected_proof(H)`.
 
 [starkprover]: https://docs.starknet.io/architecture-and-concepts/network-architecture/starknet-architecture-overview/#provers
