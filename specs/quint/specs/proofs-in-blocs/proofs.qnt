@@ -62,8 +62,10 @@ pure def emptySuffix (s: List[Block]) : Set[Height] =
 pure def newBlockProof (s: List[Block], H: Height, K: int) : BlockProof =
     if (H < K) None
     else 
+        // the latest block, i.e., the one with the highest height, in the strand that includes a proof.
         val proofStart = s.foldl(head(s).height, (s, x) =>  if (x.height > s and x.proof != None) x.height
                                                             else s)
+        // collect all empty blocks in the strand with height > proofStart height
         val empty = s   .select(x => x.height > proofStart)
                         .foldl(Set(), (s, x) => s.union(Set(x.height)))
         Proof({provenBlock: proofStart, emptyBlocks: empty})
@@ -108,8 +110,8 @@ def NotTooManyEmptyBlocksInChainInv =
         sb.forall(h => followersProven(h, sb))
     )
 
-// unproven blocks can only exist at the head of a strand.
 
+// Unproven blocks can only exist at the head of a strand.
 def OnlyHeadUnprovenInv = 
     0.to(numStrands - 1).forall(st =>
         val sb = chain.strandBlocks(st, numStrands)
