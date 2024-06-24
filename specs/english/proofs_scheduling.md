@@ -314,7 +314,7 @@ where `strand(H) == s`, can only produce and propose a block if it includes
   know, although not yet installed. The validator set is the input used to
   compute the proposer for each round and height, therefore needs to be known a
   priori.
-  We must discuss the relation between `E`, the epoch length, and `K`, the
+  We must discuss the relation between the constants `E`, the epoch length, and `K`, the
   number of strands.
 
 [starkprover]: https://docs.starknet.io/architecture-and-concepts/network-architecture/starknet-architecture-overview/#provers
