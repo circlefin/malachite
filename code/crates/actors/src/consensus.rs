@@ -282,10 +282,27 @@ where
                     return Ok(());
                 };
 
-                // TODO: verify that the proposal was signed by the proposer for the height and round, drop otherwise.
                 let proposal = &signed_proposal.proposal;
                 let proposal_height = proposal.height();
                 let proposal_round = proposal.round();
+
+                if proposal_height != state.driver.height() {
+                    warn!(
+                        "Ignoring proposal for height {proposal_height}, current height: {}",
+                        state.driver.height()
+                    );
+
+                    return Ok(());
+                }
+
+                if proposal_round != state.driver.round() {
+                    warn!(
+                        "Ignoring proposal for round {proposal_round}, current round: {}",
+                        state.driver.round()
+                    );
+
+                    return Ok(());
+                }
 
                 if !self
                     .ctx
@@ -298,8 +315,6 @@ where
 
                     return Ok(());
                 }
-
-                assert!(proposal_height == state.driver.height());
 
                 let received_block = state.received_blocks.iter().find(|(height, round, ..)| {
                     height == &proposal_height && round == &proposal_round
