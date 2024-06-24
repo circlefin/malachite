@@ -46,6 +46,8 @@ impl StartCmd {
 
         handle.await?;
 
+        info!("Node has stopped");
+
         Ok(())
     }
 }
