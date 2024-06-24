@@ -803,12 +803,12 @@ where
                     }
 
                     GossipEvent::PeerConnected(peer_id) => {
-                        info!("Connected to peer {peer_id}");
-
                         if !state.connected_peers.insert(*peer_id) {
                             // We already saw that peer, ignoring...
                             return Ok(());
                         }
+
+                        info!("Connected to peer {peer_id}");
 
                         self.metrics.connected_peers.inc();
 

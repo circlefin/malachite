@@ -44,6 +44,7 @@ malachite-starknet-app     = { version = "0.1.0", path = "crates/starknet-app" }
 async-trait        = "0.1.77"
 axum               = "0.7"
 base64             = "0.22.0"
+blake3             = "1.5"
 bytesize           = "1.3"
 clap               = "4.5.4"
 color-eyre         = "0.6"
