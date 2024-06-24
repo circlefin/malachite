@@ -71,7 +71,7 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
 
     echo "[Node $NODE] Spawning node..."
 
-    if test $debug
+    if $debug
         set lldb_script "
             b malachite_cli::main
             run
@@ -82,7 +82,7 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
         set cmd_prefix "rust-lldb --source =(echo \"$lldb_script\") ./target/$build_folder/malachite-cli -- "
         
         tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME'" Enter
-    else if test $profile
+    else if $profile
         set cmd_prefix "cargo instruments --profile $build_profile --template time --time-limit 60000 --output '$NODE_HOME/traces/' --"
 
         tmux send -t "$pane" "sleep $NODE" Enter
@@ -93,6 +93,8 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
         set cmd_prefix "./target/$build_folder/malachite-cli"
 
         tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 > '$NODE_HOME/logs/node.log' &" Enter
+        tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
+        tmux send -t "$pane" "tail -f '$NODE_HOME/logs/node.log'" Enter
     end
 end
 
