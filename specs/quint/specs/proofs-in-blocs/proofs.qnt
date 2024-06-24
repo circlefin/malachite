@@ -10,9 +10,6 @@
 // Josef Widder, Informal Systems, 2024
 
 module proofs {
-    
-// const numStrands : int // K: number of strands
-// const maxMissingProofs: int // P
 
 val numStrands = 3  // K: number of strands
 val maxMissingProofs = 2 // P
@@ -50,15 +47,6 @@ pure def strandBlocks(c: List[Block], strandID: int, K: int ) : List[Block] =
 pure def last(l) = l[l.length() - 1]
 
 
-// TODO: comment what it does    
-pure def emptySuffix (s: List[Block]) : Set[Height] =
-    if (s == List()) Set()
-    else
-    val proofStart = s.foldl(head(s).height, (s, x) =>  if (x.height > s and x.proof != None) x.height
-                                                            else s)
-    s   .select(x => x.height > proofStart)
-        .foldl(Set(), (s, x) => s.union(Set(x.height)))
-
 pure def newBlockProof (s: List[Block], H: Height, K: int) : BlockProof =
     if (H < K) None
     else 
@@ -76,33 +64,49 @@ pure def requireProof (H: Height, K: int, strandInfo: StrandInfo, maxMissing: in
 
 
 
+// auxiliary functions
+
+// returns heights of blocks at the end of a strand that are not proven    
+pure def emptySuffix (s: List[Block]) : Set[Height] =
+    if (s == List()) Set()
+    else
+    // biggest block with proof
+    val proofStart = s.foldl(head(s).height, (s, x) =>  if (x.height > s and x.proof != None) x.height
+                                                            else s)
+    // collect heights of all blocks after that proof
+    s   .select(x => x.height > proofStart)
+        .foldl(Set(), (s, x) => s.union(Set(x.height)))
+
+
 var chain: List[Block]
-var num_missing_proofs: StrandInfo
+var num_unproven_blocks: StrandInfo
 
 // Invariants
 
-def transactionNeedsProofInv = 
-    chain.last().txs implies chain.last().proof != None
 
+// If a block contains transactions then it is at the very beginning, or the block also contains a proof
+def transactionNeedsProofInv = 
+    chain.last().txs implies chain.last().height < numStrands or chain.last().proof != None
+
+// The number of proofs of empty blocks in a recursive proof is bounded by maxMissingProofs
 def NotTooManyEmptyBlocksInProofInv = 
     match chain.last().proof {
         | Proof(p) => p.emptyBlocks.size() <= maxMissingProofs
         | None => true
     }
 
-
+// there is a proof in block h, or
+// if the proof is missing, there is a upcoming block in the strand with a proof 
+// (or the height doesn't exist and we are at the end of the strand)
 pure def followersProven(h: Block, s: Set[Block]) : bool =
     val relevantHeights = 1.to(maxMissingProofs - 1).map(x => h.height + x * numStrands)
     val relevantBlocks = s.filter(x => x.height.in(relevantHeights))
     (h.proof == None) implies 
-    // if the proof is missing, there is a upcoming block in the strand with a proof 
-    // (or the height doesn't exist and we are at the end of the strand)
         (
             relevantBlocks.size() < maxMissingProofs or
             not(relevantBlocks.forall(b => b.proof == None))
         )
        
-        
 def NotTooManyEmptyBlocksInChainInv =
     0.to(numStrands - 1).forall(st =>
         val sb = chain  .select(x => (x.height % numStrands) == st)
@@ -126,6 +130,26 @@ def OnlyHeadUnprovenInv =
         val unproven = allblocks.exclude(proven)
         unproven.forall(u => u >= maxproven) // >= to eliminate initial state with proven being the empty set
     )
+
+// missing_proofs counter is bouned
+def missingProofsInv = 
+    0.to(numStrands -1).forall(s => num_unproven_blocks.get(s) <= maxMissingProofs)
+
+// number of empty blocks at the head of strand s match num_unproven_blocks.get(s)
+def missingProofsAtEndMatchNumInv = 
+    0.to(numStrands - 1).forall(st =>
+        val sb = chain.strandBlocks(st, numStrands)
+        val proven = sb.foldl(Set(), (s, x) => 
+            match x.proof {
+                | Proof(p) => s.union(p.emptyBlocks).union(Set(p.provenBlock))
+                | None => s
+            }
+        )
+        val allblocks = sb.foldl(Set(), (s, x) => s.union(Set(x.height)))
+        val unproven = allblocks.exclude(proven)
+        unproven.size() == num_unproven_blocks.get(st)
+    )
+
 
 
 // Witness
@@ -156,8 +180,8 @@ def addMaximalProofWitness =
 // Use --seed=0xdc7a687c5dae7 to reproduce.
 def ManyProofsInARowMissingWitness =
     not ( 
-        num_missing_proofs.keys().forall( x =>
-            num_missing_proofs.get(x) == maxMissingProofs) 
+        num_unproven_blocks.keys().forall( x =>
+            num_unproven_blocks.get(x) == maxMissingProofs) 
             //and chain.length() > 22
     )
 
@@ -172,7 +196,8 @@ action init = all {
         txs: false,
         proof: None
     }),
-    num_missing_proofs' = 0.to(numStrands-1).mapBy(x => 0)
+    num_unproven_blocks' = 0.to(numStrands-1).mapBy(x => 0).set(0, 1)   // height 0 is unproven, all other 
+                                                                        // strands don't have blocks yet
 }
 
 action step = {
@@ -182,23 +207,24 @@ action step = {
                                     newHeight, 
                                     numStrands)
     nondet newTxs = Set(true, false).oneOf()
-    if (requireProof(newHeight, numStrands, num_missing_proofs, maxMissingProofs))
+    if (requireProof(newHeight, numStrands, num_unproven_blocks, maxMissingProofs))
         all {
         chain' = chain.append({height: newHeight, txs: newTxs, proof: newProof}),
-        num_missing_proofs' = num_missing_proofs.set(strand(newHeight, numStrands), 0)
+        num_unproven_blocks' = num_unproven_blocks.set(strand(newHeight, numStrands), 1)
         }
     else
         nondet addedProof = Set(None, newProof).oneOf()
         all{
             
             if (addedProof == None) all {
-                chain' = chain.append({height: newHeight, txs: false, proof: None}),
-                num_missing_proofs' = num_missing_proofs.set(   strand(newHeight, numStrands), 
-                                                                num_missing_proofs.get(strand(newHeight, numStrands)) +1 )
+                val newNewTx = if (newHeight < numStrands) newTxs else false
+                chain' = chain.append({height: newHeight, txs: newNewTx, proof: None}),
+                num_unproven_blocks' = num_unproven_blocks.set( strand(newHeight, numStrands), 
+                                                                num_unproven_blocks.get(strand(newHeight, numStrands)) + 1)
                 }
             else all {
                 chain' = chain.append({height: newHeight, txs: newTxs, proof: addedProof}),
-                num_missing_proofs' = num_missing_proofs.set(strand(newHeight, numStrands), 0)
+                num_unproven_blocks' = num_unproven_blocks.set(strand(newHeight, numStrands), 1)
             }
         }
 
