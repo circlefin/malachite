@@ -1,0 +1,34 @@
+[package]
+name                 = "malachite-cli"
+version.workspace    = true
+edition.workspace    = true
+repository.workspace = true
+license.workspace    = true
+publish.workspace    = true
+
+[lints]
+workspace = true
+
+[dependencies]
+malachite-metrics.workspace  = true
+malachite-node.workspace     = true
+malachite-test.workspace     = true
+malachite-test-app.workspace = true
+
+axum               = { workspace = true }
+bytesize           = { workspace = true }
+clap               = { workspace = true, features = ["derive", "env"] }
+color-eyre         = { workspace = true }
+config             = { workspace = true }
+directories        = { workspace = true }
+itertools          = { workspace = true }
+tokio              = { workspace = true, features = ["full"] }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+serde              = { workspace = true, features = ["derive"] }
+serde_json         = { workspace = true }
+rand               = { workspace = true }
+toml               = { workspace = true }
+
+[dev-dependencies]
+tempfile           = { workspace = true }
