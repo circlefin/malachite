@@ -72,12 +72,14 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
     echo "[Node $NODE] Spawning node..."
 
     if test $debug
-        set cmd_prefix "rust-lldb \
-            --one-line \"b malachite_cli::main\" \
-            --one-line \"run\" \
-            --one-line \"script with open('$NODE_HOME/logs/node.log', 'w') as f: f.write(str(lldb.debugger.GetSelectedTarget().process.id))\" \
-            --one-line \"continue\" \
-            ./target/$build_folder/malachite-cli -- "
+        set lldb_script "
+            b malachite_cli::main
+            run
+            script with open('$NODE_HOME/node.pid', 'w') as f: f.write(str(lldb.debugger.GetSelectedTarget().process.id))
+            continue
+        "
+
+        set cmd_prefix "rust-lldb --source =(echo \"$lldb_script\") ./target/$build_folder/malachite-cli -- "
         
         tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME'" Enter
     else if test $profile
