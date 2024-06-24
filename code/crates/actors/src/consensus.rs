@@ -424,22 +424,65 @@ where
                 .cast(TimersMsg::CancelTimeout(Timeout::propose(*round)))?,
 
             DriverInput::Proposal(proposal, _) => {
-                let round = Proposal::<Ctx>::round(proposal);
+                if proposal.height() != state.driver.height() {
+                    warn!(
+                        "Ignoring proposal for height {}, current height: {}",
+                        proposal.height(),
+                        state.driver.height()
+                    );
+
+                    return Ok(());
+                }
+
+                if proposal.round() != state.driver.round() {
+                    warn!(
+                        "Ignoring proposal for round {}, current round: {}",
+                        proposal.round(),
+                        state.driver.round()
+                    );
+
+                    return Ok(());
+                }
+
                 state
                     .timers
-                    .cast(TimersMsg::CancelTimeout(Timeout::propose(round)))?;
+                    .cast(TimersMsg::CancelTimeout(Timeout::propose(proposal.round())))?;
             }
 
-            DriverInput::Vote(_) => (),
+            DriverInput::Vote(vote) => {
+                if vote.height() != state.driver.height() {
+                    warn!(
+                        "Ignoring vote for height {}, current height: {}",
+                        vote.height(),
+                        state.driver.height()
+                    );
+
+                    return Ok(());
+                }
+
+                if vote.round() != state.driver.round() {
+                    warn!(
+                        "Ignoring vote for round {}, current round: {}",
+                        vote.round(),
+                        state.driver.round()
+                    );
+
+                    return Ok(());
+                }
+            }
+
             DriverInput::TimeoutElapsed(_) => (),
         }
 
         let outputs = state
             .driver
             .process(input)
-            .map_err(|e| format!("Driver failed to process input: {e}"))?;
+            .map_err(|e| format!("Driver failed to process input: {e}"));
 
-        myself.cast(Msg::ProcessDriverOutputs(outputs))?;
+        match outputs {
+            Ok(outputs) => myself.cast(Msg::ProcessDriverOutputs(outputs))?,
+            Err(error) => error!("{error}"),
+        }
 
         Ok(())
     }
