@@ -66,7 +66,7 @@ pub enum Msg<Ctx: Context> {
     MoveToHeight(Ctx::Height),
     GossipEvent(Arc<GossipEvent>),
     TimeoutElapsed(Timeout),
-    SendDriverInput(DriverInput<Ctx>),
+    ApplyDriverInput(DriverInput<Ctx>),
     Decided(Ctx::Height, Round, Ctx::Value),
     ProcessDriverOutputs(Vec<DriverOutput<Ctx>>),
     // The proposal builder has built a value and can be used in a new proposal consensus message
@@ -263,7 +263,7 @@ where
                     state.store_signed_precommit(&signed_vote);
                 }
 
-                myself.cast(Msg::SendDriverInput(DriverInput::Vote(signed_vote.vote)))?;
+                myself.cast(Msg::ApplyDriverInput(DriverInput::Vote(signed_vote.vote)))?;
             }
 
             NetworkMsg::Proposal(proposal) => {
@@ -322,7 +322,7 @@ where
 
                 match received_block {
                     Some((_height, _round, _value, valid)) => {
-                        myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
+                        myself.cast(Msg::ApplyDriverInput(DriverInput::Proposal(
                             proposal.clone(),
                             *valid,
                         )))?;
@@ -399,7 +399,7 @@ where
 
         info!("{timeout} elapsed at height {height} and round {round}");
 
-        myself.cast(Msg::SendDriverInput(DriverInput::TimeoutElapsed(timeout)))?;
+        myself.cast(Msg::ApplyDriverInput(DriverInput::TimeoutElapsed(timeout)))?;
 
         if timeout.step == TimeoutStep::Commit {
             myself.cast(Msg::MoveToHeight(height.increment()))?;
@@ -408,7 +408,7 @@ where
         Ok(())
     }
 
-    pub async fn send_driver_input(
+    pub async fn apply_driver_input(
         &self,
         input: DriverInput<Ctx>,
         myself: ActorRef<Msg<Ctx>>,
@@ -458,7 +458,7 @@ where
             match next {
                 Next::None => (),
 
-                Next::Input(input) => myself.cast(Msg::SendDriverInput(input))?,
+                Next::Input(input) => myself.cast(Msg::ApplyDriverInput(input))?,
 
                 Next::Decided(round, value) => {
                     state
@@ -721,7 +721,7 @@ where
                 let proposer = self.get_proposer(height, round, validator_set).await?;
                 info!("Proposer for height {height} and round {round}: {proposer}");
 
-                myself.cast(Msg::SendDriverInput(DriverInput::NewRound(
+                myself.cast(Msg::ApplyDriverInput(DriverInput::NewRound(
                     height, round, proposer,
                 )))?;
 
@@ -766,7 +766,7 @@ where
                     return Ok(());
                 }
 
-                myself.cast(Msg::SendDriverInput(DriverInput::ProposeValue(
+                myself.cast(Msg::ApplyDriverInput(DriverInput::ProposeValue(
                     round, value,
                 )))?
             }
@@ -859,8 +859,8 @@ where
                 self.handle_timeout(timeout, myself, state).await?;
             }
 
-            Msg::SendDriverInput(input) => {
-                self.send_driver_input(input, myself, state).await?;
+            Msg::ApplyDriverInput(input) => {
+                self.apply_driver_input(input, myself, state).await?;
             }
 
             Msg::ProcessDriverOutputs(outputs) => {
@@ -902,7 +902,7 @@ where
                 if let Some(proposal) = state.driver.proposal.clone() {
                     if height == proposal.height() && round == proposal.round() {
                         let validity = value == *proposal.value() && valid.is_valid();
-                        myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
+                        myself.cast(Msg::ApplyDriverInput(DriverInput::Proposal(
                             proposal,
                             Validity::from_valid(validity),
                         )))?;
