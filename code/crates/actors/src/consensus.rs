@@ -1,6 +1,6 @@
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::fmt::Display;
+use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -231,10 +231,11 @@ where
 
                 let validator_address = signed_vote.validator_address();
 
-                info!(%from, %validator_address, "Received vote: {:?}", signed_vote.vote);
+                info!(%from, validator = %validator_address, "Received vote: {}", PrettyVote::<Ctx>(&signed_vote.vote));
 
                 if signed_vote.vote.height() != state.driver.height() {
                     warn!(
+                        %from, validator = %validator_address,
                         "Ignoring vote for height {}, current height: {}",
                         signed_vote.vote.height(),
                         state.driver.height()
@@ -244,7 +245,11 @@ where
                 }
 
                 let Some(validator) = state.validator_set.get_by_address(validator_address) else {
-                    warn!(%from, %validator_address, "Received vote from unknown validator");
+                    warn!(
+                        %from, validator = %validator_address,
+                        "Received vote from unknown validator"
+                    );
+
                     return Ok(());
                 };
 
@@ -252,7 +257,11 @@ where
                     .ctx
                     .verify_signed_vote(&signed_vote, validator.public_key())
                 {
-                    warn!(%from, %validator_address, "Received invalid vote: {signed_vote:?}");
+                    warn!(
+                        %from, validator = %validator_address,
+                        "Received invalid vote: {}", PrettyVote::<Ctx>(&signed_vote.vote)
+                    );
+
                     return Ok(());
                 }
 
@@ -272,13 +281,12 @@ where
                     return Ok(());
                 };
 
-                let validator_address = signed_proposal.proposal.validator_address();
+                let validator = signed_proposal.proposal.validator_address();
 
-                info!(%from, %validator_address, "Received proposal: (h: {}, r: {}, id: {:?})",
-                    signed_proposal.proposal.height(), signed_proposal.proposal.round(), signed_proposal.proposal.value().id());
+                info!(%from, %validator, "Received proposal: {}", PrettyProposal::<Ctx>(&signed_proposal.proposal));
 
-                let Some(validator) = state.validator_set.get_by_address(validator_address) else {
-                    warn!(%from, %validator_address, "Received proposal from unknown validator");
+                let Some(validator) = state.validator_set.get_by_address(validator) else {
+                    warn!(%from, %validator, "Received proposal from unknown validator");
                     return Ok(());
                 };
 
@@ -309,8 +317,8 @@ where
                     .verify_signed_proposal(&signed_proposal, validator.public_key())
                 {
                     error!(
-                        "Received invalid signature for proposal ({proposal_height}, {proposal_round}, {:?}",
-                        proposal.value()
+                        "Received invalid signature for proposal: {}",
+                        PrettyProposal::<Ctx>(&signed_proposal.proposal)
                     );
 
                     return Ok(());
@@ -359,7 +367,7 @@ where
                     .ctx
                     .verify_signed_block_part(&signed_block_part, validator.public_key())
                 {
-                    warn!(%from, %validator_address, "Received invalid block part: {signed_block_part:?}");
+                    warn!(%from, validator = %validator_address, "Received invalid block part: {signed_block_part:?}");
                     return Ok(());
                 }
 
@@ -567,9 +575,9 @@ where
 
             DriverOutput::Vote(vote) => {
                 info!(
-                    "Voting {:?} for value {:?} at round {}",
+                    "Voting {:?} for value {} at round {}",
                     vote.vote_type(),
-                    vote.value(),
+                    PrettyVal(vote.value().as_ref()),
                     vote.round()
                 );
 
@@ -699,7 +707,7 @@ where
 impl<Ctx> Actor for Consensus<Ctx>
 where
     Ctx: Context,
-    Ctx::Height: Display,
+    Ctx::Height: fmt::Display,
     Ctx::Vote: Protobuf<Proto = proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
     Ctx::BlockPart: Protobuf<Proto = proto::BlockPart>,
@@ -967,5 +975,59 @@ where
         state.timers.stop(None);
 
         Ok(())
+    }
+}
+
+struct PrettyVal<'a, T>(NilOrVal<&'a T>);
+
+impl<T> fmt::Display for PrettyVal<'_, T>
+where
+    T: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            NilOrVal::Nil => "Nil".fmt(f),
+            NilOrVal::Val(v) => v.fmt(f),
+        }
+    }
+}
+
+struct PrettyVote<'a, Ctx: Context>(&'a Ctx::Vote);
+
+impl<Ctx> fmt::Display for PrettyVote<'_, Ctx>
+where
+    Ctx: Context,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use malachite_common::Vote;
+
+        write!(
+            f,
+            "{:?} at height {}, round {}, for value {}, from {}",
+            self.0.vote_type(),
+            self.0.height(),
+            self.0.round(),
+            PrettyVal(self.0.value().as_ref()),
+            self.0.validator_address()
+        )
+    }
+}
+
+struct PrettyProposal<'a, Ctx: Context>(&'a Ctx::Proposal);
+
+impl<Ctx> fmt::Display for PrettyProposal<'_, Ctx>
+where
+    Ctx: Context,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Proposal at height {}, round {}, POL round {}, for value {}, from {}",
+            self.0.height(),
+            self.0.round(),
+            self.0.pol_round(),
+            self.0.value().id(),
+            self.0.validator_address()
+        )
     }
 }
