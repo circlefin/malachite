@@ -5,10 +5,10 @@
 # - the home directory for the nodes configuration folders
 
 function help
-    echo "Usage: spawn.fish [--help] --nodes NODES_COUNT --home NODES_HOME [--profile]"
+    echo "Usage: spawn.fish [--help] --nodes NODES_COUNT --home NODES_HOME [--profile|--debug]"
 end
 
-argparse -n spawn.fish help 'nodes=' 'home=' profile -- $argv
+argparse -n spawn.fish help 'nodes=' 'home=' profile debug -- $argv
 or return
 
 if set -ql _flag_help
@@ -29,10 +29,20 @@ end
 if set -q _flag_profile
     echo "Profiling enabled."
     set profile true
+    set debug false
     set build_profile profiling
+    set build_folder profiling
+else if set -q _flag_debug
+    echo "Debugging enabled."
+    set profile false
+    set debug true
+    set build_profile dev
+    set build_folder debug
 else
     set profile false
+    set debug false
     set build_profile release
+    set build_folder release
 end
 
 # set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "1 MiB"
@@ -45,10 +55,10 @@ cargo build --profile $build_profile
 
 set session malachite
 tmux kill-session -t $session
-tmux new-session -s $session -n main -d
+tmux new-session  -s $session -n main -d
 
 set NODES_COUNT $_flag_nodes
-set NODES_HOME $_flag_home
+set NODES_HOME  $_flag_home
 
 for NODE in (seq 0 $(math $NODES_COUNT - 1))
     set NODE_HOME "$NODES_HOME/$NODE"
@@ -56,21 +66,32 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
     mkdir -p "$NODE_HOME/traces"
 
     rm -f "$NODE_HOME/logs/*.log"
-
-    if test $profile # -a \( $NODE -eq 0 \)
-        set cmd_prefix "cargo instruments --profile $build_profile --template time --time-limit 60000 --output '$NODE_HOME/traces/' --"
-    else
-        set cmd_prefix "./target/$build_profile/malachite-cli"
-    end
     
     set pane $(tmux new-window -P -n "node-$NODE" /bin/zsh)
 
     echo "[Node $NODE] Spawning node..."
 
-    tmux send -t "$pane" "sleep $NODE" Enter
-    tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 > '$NODE_HOME/logs/node.log' &" Enter
-    tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
-    tmux send -t "$pane" "tail -f '$NODE_HOME/logs/node.log'" Enter
+    if test $debug
+        set cmd_prefix "rust-lldb \
+            --one-line \"b malachite_cli::main\" \
+            --one-line \"run\" \
+            --one-line \"script with open('$NODE_HOME/logs/node.log', 'w') as f: f.write(str(lldb.debugger.GetSelectedTarget().process.id))\" \
+            --one-line \"continue\" \
+            ./target/$build_folder/malachite-cli -- "
+        
+        tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME'" Enter
+    else if test $profile
+        set cmd_prefix "cargo instruments --profile $build_profile --template time --time-limit 60000 --output '$NODE_HOME/traces/' --"
+
+        tmux send -t "$pane" "sleep $NODE" Enter
+        tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 > '$NODE_HOME/logs/node.log' &" Enter
+        tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
+        tmux send -t "$pane" "tail -f '$NODE_HOME/logs/node.log'" Enter
+    else
+        set cmd_prefix "./target/$build_folder/malachite-cli"
+
+        tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 > '$NODE_HOME/logs/node.log' &" Enter
+    end
 end
 
 echo "Spawned $NODES_COUNT nodes."
