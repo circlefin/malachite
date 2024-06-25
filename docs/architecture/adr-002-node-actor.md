@@ -17,7 +17,7 @@ The node will consist of several actors that communicate through message passing
 - Write-Ahead-Log (WAL)
 - Persistence
 - Timers
-- Proposal Builder
+- Host
 
 ### Why the Actor Model?
 
@@ -31,7 +31,7 @@ The Malachite node will be implemented as an actor system running the following 
 
 ### Node Actor
 
-The *Node* actor serves as the top-level actor within the Malachite consensus engine's actor system. It acts as the supervisor for all other actors in the system, including the Consensus, Mempool, Gossip, Write-Ahead-Log, Persistence, Timers, and Proposal Builder actors. The *Node* actor's primary responsibilities include initializing the system, orchestrating the startup of all subordinate actors, and facilitating communication across actors.
+The *Node* actor serves as the top-level actor within the Malachite consensus engine's actor system. It acts as the supervisor for all other actors in the system, including the Consensus, Mempool, Gossip, Write-Ahead-Log, Persistence, Timers, and Host actors. The *Node* actor's primary responsibilities include initializing the system, orchestrating the startup of all subordinate actors, and facilitating communication across actors.
 
 #### Responsibilities
 
@@ -64,7 +64,7 @@ TBD
 - **Decision Making**: It evaluates incoming proposals, prevotes, and precommits, making decisions based on the consensus rules. This includes moving to new rounds, locking on proposals, and ultimately deciding on a value for the current height.
 - **Vote Coordination**: The actor coordinates the voting process among validators. It initiates voting rounds by sending proposals or votes to the *Node*/*Gossip* (TBD) actor for dissemination and processes incoming votes to advance the consensus protocol.
 - **Timeout Management**: Manages timeouts for various stages of the consensus process, signaling the Timers actor to start or stop timers and reacting to timeout notifications.
-- **Interaction with Proposal Builder**: Requests proposals from the *Proposal Builder* actor when the node is the proposer for a round, and forwards validated proposals to the Gossip actor for dissemination.
+- **Interaction with Host**: Requests proposals from the *Host* actor when the node is the proposer for a round, and forwards validated proposals to the Gossip actor for dissemination.
 
 #### Design Considerations
 
@@ -115,7 +115,7 @@ TBD
 
 - **Transaction Management**: Manages the pool of transactions, receiving both a stream of transactions from the network and transactions submitted to the node.
 - **Transaction Broadcasting**: Integrates with the *Gossip* actor for broadcasting valid transactions to other nodes in the network to ensure network-wide transaction availability and redundancy.
-- **Integration with Proposal Builder**: Stream transactions to the *Proposal Builder* actor for proposal assembly.
+- **Integration with Host**: Stream transactions to the *Host* actor for proposal assembly.
 - **Duplicate and Spam Filtering**: Implements mechanisms to identify and filter out duplicate transactions and potential spam to protect the system's integrity and prevent DoS attacks.
 
 #### Design Considerations
@@ -124,7 +124,7 @@ TBD
 - **Security and Robustness**: Incorporates security measures to mitigate common attack vectors such as transaction spam, replay attacks, and double spending.
 - **Resource Efficiency**: Manages memory and computational resources efficiently, implementing strategies such as transaction eviction policies and dynamic resource allocation to balance mempool size with system capabilities.
 - **Configurability and Adaptability**: Provides configurable parameters for mempool management, such as size limits, fee thresholds, and transaction expiration times, allowing for dynamic adjustment to changing network conditions.
-- **Interoperability with Consensus**: Ensures compatibility and seamless integration with the *Gossip* and *Proposal Builder* actors, facilitating the streaming of transactions from the mempool to proposal assembly.
+- **Interoperability with Consensus**: Ensures compatibility and seamless integration with the *Gossip* and *Host* actors, facilitating the streaming of transactions from the mempool to proposal assembly.
 
 #### Implementation Details
 
@@ -218,11 +218,11 @@ TBD
 
 TBD
 
-### Proposal Builder Actor
+### Host Actor
 
 #### Responsibilities
 
-- **Transaction Streaming**: Receives stream of transactions from the *Mempool* actor.
+- **Reap Transactions**: Reap transactions from the *Mempool* actor.
 - **Proposal Assembly**: Constructs proposals to be considered by the *Consensus* actor.
 
 #### Design Considerations
@@ -267,19 +267,19 @@ graph TD
     Node -->|Supervises| WAL[WAL]
     Node -->|Supervises| Persistence[Persistence]
     Node -->|Supervises| Timers[Timers]
-    Node -->|Supervises| ProposalBuilder[Proposal Builder]
+    Node -->|Supervises| Host[Host]
 
-    Consensus -->|Requests proposals| ProposalBuilder
+    Consensus -->|Requests proposals| Host
     Consensus -->|Sends/receives votes, proposals and decisions| Gossip
     Consensus -->|Schedules timeouts| Timers
     Consensus -->|Disseminates messages| Gossip
 
     Gossip -->|Receives transactions| Mempool
 
-    Mempool -->|Stream txs for proposals| ProposalBuilder
     Mempool -->|Broadcasts txs| Gossip
 
-    ProposalBuilder -->|Sends proposals| Consensus
+    Host -->|Sends proposals| Consensus
+    Host -->|Reap txes| Mempool
 
     Consensus   -->|Logs consensus messages| WAL
     Consensus   -->|Stores finalized state| Persistence
