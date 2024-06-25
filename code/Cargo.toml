@@ -2,12 +2,7 @@
 resolver = "2"
 
 members = [
-  "common",
-  "driver",
-  "itf",
-  "round",
-  "test",
-  "vote",
+  "crates/*"
 ]
 
 [workspace.package]
@@ -16,19 +11,74 @@ edition      = "2021"
 repository   = "https://github.com/informalsystems/malachite"
 license      = "Apache-2.0"
 publish      = false
+rust-version = "1.77"
+
+[profile.release]
+overflow-checks = true
+
+[profile.profiling]
+inherits = "release"
+debug = true
+
+[workspace.lints.rust]
+unused_crate_dependencies = "warn"
 
 [workspace.dependencies]
-derive-where      = "1.2.7"
-ed25519-consensus = "2.1.0"
-futures           = "0.3"
-glob              = "0.3.0"
-itf               = "0.2.2"
-num-bigint        = "0.4.4"
-num-traits        = "0.2.17"
-pretty_assertions = "1.4"
-rand              = { version = "0.8.5", features = ["std_rng"] }
-serde             = "1.0"
-serde_json        = "1.0"
-serde_with        = "3.4"
-sha2              = "0.10.8"
-signature         = "2.1.0"
+malachite-actors           = { version = "0.1.0", path = "crates/actors" }
+malachite-cli              = { version = "0.1.0", path = "crates/cli" }
+malachite-common           = { version = "0.1.0", path = "crates/common" }
+malachite-driver           = { version = "0.1.0", path = "crates/driver" }
+malachite-gossip-consensus = { version = "0.1.0", path = "crates/gossip-consensus" }
+malachite-gossip-mempool   = { version = "0.1.0", path = "crates/gossip-mempool" }
+malachite-itf              = { version = "0.1.0", path = "crates/itf" }
+malachite-metrics          = { version = "0.1.0", path = "crates/metrics" }
+malachite-node             = { version = "0.1.0", path = "crates/node" }
+malachite-proto            = { version = "0.1.0", path = "crates/proto" }
+malachite-round            = { version = "0.1.0", path = "crates/round" }
+malachite-test             = { version = "0.1.0", path = "crates/test" }
+malachite-test-app         = { version = "0.1.0", path = "crates/test-app" }
+malachite-vote             = { version = "0.1.0", path = "crates/vote" }
+
+async-trait        = "0.1.77"
+axum               = "0.7"
+base64             = "0.22.0"
+bytesize           = "1.3"
+clap               = "4.5.4"
+color-eyre         = "0.6"
+config             = { version = "0.14", features = ["toml"], default-features = false }
+eyre               = "0.6"
+derive-where       = "1.2.7"
+directories        = "5.0.1"
+ed25519-consensus  = "2.1.0"
+futures            = "0.3"
+glob               = "0.3.0"
+hex                = { version = "0.4.3", features = ["serde"] }
+humantime          = "2.1.0"
+humantime-serde    = "1.1.1"
+itertools          = "0.13"
+itf                = "0.2.3"
+libp2p             = { version = "0.53.2", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "quic", "tls", "gossipsub", "dns", "metrics"] }
+multiaddr          = "0.18.1"
+num-bigint         = "0.4.4"
+num-traits         = "0.2.17"
+pretty_assertions  = "1.4"
+prost              = "0.12.3"
+prost-build        = "0.12.3"
+prost-types        = "0.12.3"
+prometheus-client  = "0.22"
+ractor             = "0.10.0"
+ractor_actors      = { version = "0.4.0", default-features= false }
+rand               = { version = "0.8.5", features = ["std_rng"] }
+rand_chacha        = "0.3.1"
+serde              = "1.0"
+serde_json         = "1.0"
+serde_with         = "3.7"
+sha2               = "0.10.8"
+signature          = "2.2.0"
+thiserror          = "1.0"
+tokio              = "1.36.0"
+tokio-stream       = "0.1"
+toml               = "0.8.10"
+tracing            = "0.1.40"
+tracing-subscriber = "0.3.18"
+tempfile           = "3.10.1"

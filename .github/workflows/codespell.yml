@@ -1,4 +1,4 @@
-name: Codespell
+name: Spelling
 on:
   pull_request:
   push:
@@ -15,8 +15,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: codespell-project/actions-codespell@v2
-        with:
-          skip: './code/target'
-          ignore_words_file: .github/codespell/words.txt
-
+      - uses: crate-ci/typos@master

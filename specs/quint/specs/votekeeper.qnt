@@ -218,7 +218,7 @@ module votekeeper {
     // - It first adds the vote and then computes a threshold.
     // - If there exist a threshold and has not emitted before, the function returns the corresponding VoteKeeperOutput.
     // - Otherwise, the function returns a no-threshold output.
-    // - Note that if there is no threshold after adding the vote, the function checks if there is a skip threshold.
+    // - Note that if there is no threshold after adding the vote, the function checks if there is a skip threshold. // FIXME: not matching
     // TO DISCUSS:
     // - There might be a problem if we generalize from single-shot to multi-shot: the keeper only keeps the totalWeight
     //   of the current height; I wonder if we need to keep the totalWeight for every Height that we may receive a vote for.
@@ -238,12 +238,12 @@ module votekeeper {
             else 
                 roundVotes.votesAddressesWeights.mapSafeSet(vote.srcAddress, weight)
 
-        // Combined weight of all validators at this height
+        // Combined weight of all validators at this height // FIXME: height or round?
         val combinedWeight = updatedVotesAddressesWeights.mapSumValues()
 
         val finalOutput =
             if (vote.round > currentRound and isSkip(combinedWeight, keeper.totalWeight))
-                SkipVKOutput(vote.round)
+                SkipVKOutput(vote.round) // FIXME: can we produce multiple events of this type?
             else
                 val threshold = computeThreshold(updatedVoteCount, vote.valueId)
                 val output = toVoteKeeperOutput(vote.round, vote.voteType, threshold)

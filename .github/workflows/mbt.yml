@@ -27,19 +27,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Node
+        uses: actions/setup-node@v3
         with:
           node-version: "18"
-      - run: npm install -g @informalsystems/quint
+      - name: Install Quint
+        run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
       - name: Build code
-        working-directory: code/itf
+        working-directory: code/crates/itf
         run: cargo nextest run --workspace --all-features --no-run
       - name: Current time as random seed for Quint
         run: echo "QUINT_SEED=$(date +%s)" >> $GITHUB_ENV
       - name: Run tests from traces (with random seed)
-        working-directory: code/itf
+        working-directory: code/crates/itf
         run: cargo nextest run -p malachite-itf --all-features

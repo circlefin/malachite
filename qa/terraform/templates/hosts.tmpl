@@ -1,0 +1,14 @@
+${cc.ip}        g-${cc.name}
+%{~ for n in small }
+${n.ip}        g-${n.name}
+%{~ endfor }
+%{~ for n in large }
+${n.ip}        g-${n.name}
+%{~ endfor }
+${cc.internal_ip}        ${cc.name}
+%{~ for n in small }
+${n.internal_ip}        ${n.name}
+%{~ endfor }
+%{~ for n in large }
+${n.internal_ip}        ${n.name}
+%{~ endfor }

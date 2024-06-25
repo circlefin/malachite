@@ -1,0 +1,20 @@
+[package]
+name        = "malachite-driver"
+description = "Driver for the state machine of Malachite consensus engine"
+
+version.workspace      = true
+edition.workspace      = true
+repository.workspace   = true
+license.workspace      = true
+publish.workspace      = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+malachite-common = { version = "0.1.0", path = "../common" }
+malachite-round  = { version = "0.1.0", path = "../round" }
+malachite-vote   = { version = "0.1.0", path = "../vote" }
+
+derive-where.workspace = true

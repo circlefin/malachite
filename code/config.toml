@@ -1,0 +1,108 @@
+#######################################################################
+###                   Main Base Config Options                      ###
+#######################################################################
+
+# A custom human readable name for this node
+moniker = "malachite"
+
+#######################################################
+###         Consensus Configuration Options         ###
+#######################################################
+[consensus]
+# Maximum block size
+# Override with MALACHITE__CONSENSUS__MAX_BLOCK_SIZE env variable
+max_block_size = "1 MiB"
+
+## Timeouts
+# How long we wait for a proposal block before prevoting nil
+# Override with MALACHITE__CONSENSUS__TIMEOUT_PROPOSE env variable
+timeout_propose = "3s"
+
+# How much timeout_propose increases with each round
+timeout_propose_delta = "500ms"
+
+# How long we wait after receiving +2/3 prevotes for “anything” (ie. not a single block or nil)
+# Override with MALACHITE__CONSENSUS__TIMEOUT_PREVOTE env variable
+timeout_prevote = "1s"
+
+# How much the timeout_prevote increases with each round
+timeout_prevote_delta = "500ms"
+
+# How long we wait after receiving +2/3 precommits for “anything” (ie. not a single block or nil)
+# Override with MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT env variable
+timeout_precommit = "1s"
+
+# How much the timeout_precommit increases with each round
+timeout_precommit_delta = "500ms"
+
+# How long we wait after committing a block, before starting on the new
+# height (this gives us a chance to receive some more precommits, even
+# though we already have +2/3).
+# Override with MALACHITE__CONSENSUS__TIMEOUT_COMMIT env variable
+timeout_commit = "1s"
+
+#######################################################
+###       Consensus P2P Configuration Options       ###
+#######################################################
+[consensus.p2p]
+# Address to listen for incoming connections
+listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
+# List of nodes to keep persistent connections to
+persistent_peers = []
+
+
+#######################################################
+###          Mempool Configuration Options          ###
+#######################################################
+[mempool]
+# Maximum number of transactions in the mempool
+# Override with MALACHITE__MEMPOOL__MAX_TX_COUNT env variable
+max_tx_count = 10000
+
+# Maximum number of transactions to gossip at once in a batch. If set to 0, mempool does not gossip the transactions.
+# Override with MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE
+gossip_batch_size = 100
+
+#######################################################
+###       Mempool P2P Configuration Options       ###
+#######################################################
+[mempool.p2p]
+# Address to listen for incoming connections
+listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
+# List of nodes to keep persistent connections to
+persistent_peers = []
+
+#######################################################
+###          Metrics Configuration Options          ###
+#######################################################
+[metrics]
+# Enable the metrics server
+enabled = true
+
+# Metrics are exported at `http://127.0.0.1:9000/metrics`
+listen_addr = "127.0.0.1:9000"
+
+#######################################################
+###          Runtime Configuration Options          ###
+#######################################################
+[runtime]
+# The flavor of Tokio runtime to use.
+# Possible values:
+# - "single_threaded": A single threaded runtime (default)
+# - "multi_threaded":  A multi-threaded runtime
+flavor = "single_threaded"
+
+# For the multi-threaded runtime only.
+# Sets the number of worker threads the Runtime will use.
+# If set to 0, defaults to the number of cores available to the system.
+# worker_threads = 4
+
+[test]
+# Override with MALACHITE__TEST__TX_SIZE env variable
+tx_size = "256 B"
+# Override with MALACHITE__TEST__TXS_PER_PART env variable
+txs_per_part = 200
+# Override with MALACHITE__TEST__TIME_ALLOWANCE_FACTOR env variable
+time_allowance_factor = 0.7
+# Override with MALACHITE__TEST__EXEC_TIME_PER_TX env variable
+exec_time_per_tx = "1ms"

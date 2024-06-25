@@ -1,0 +1,264 @@
+# Environment variables for the servers
+# CANDC - the IP address of the command and control server (CC is used by compilers)
+# NODEi - the ip address of the node server "i"
+# D_N - the number of node servers in total
+# D_REGION - the Digital Ocean region where the servers are deployed
+# PSSH_H - space-separated list of all the node server IP addresses for pssh input
+# PSSH_P - the number of parallel processes to run with pssh
+# MALACHITE_DIR - the path to the malachite repository directory
+# MALACHITE_DIR - the path to the malachite repository directory
+# IS_CC - 1 means we are on the CC server, 0 we are not. (Used to determine the docker -H parameter.)
+##
+# Aliases for easy manual access to the servers (don't use these in scripts)
+# ssh-cc - ssh into the cc server
+# ssh-(nodei) - ssh into node server "i"
+##
+# Additional functionality in shell functions (see README for more info)
+# xssh - parallel ssh command to all servers. Change PSSH_H and PSSH_P for different behavior.
+# get_ip - get the IP address of a node server for programmatic use (example: get_ip 0)
+# ok_cc - check if the CC server is ready to be used and update its services (DNS hosts, commands.sh, etc)
+# ok_all - check if all servers are ready to be used (scanning the SSH keys could take a while)
+# deploy_cc - build the local source code into a docker image on the cc server and push it to the cc registry
+# setup_config - create configuration on the cc server
+# done-pull - pull the node image on all the node servers.  Accepts list of IDs or "all". (example: dnode-pull 0 1 2)
+# dnode-run - run the application on a node server. Accepts list of IDs or "all". (example: dnode-run 0 1 2)
+# dnode-log - get the logs of the application from a node server (example: dnode-log 0 -f)
+# dnode-stop - stop the application on a node server. Accepts list of IDs or "all". (example: dnode-stop 0 2)
+
+# get_prometheus_data - create a compressed prometheus data file (and download it from the cc server)
+# fetch_log - fetch the logs from all the node servers (example: fetch_log 0 1 2)
+##
+
+export CANDC="${cc.ip}"
+%{~ for i, n in concat(small, large) }
+export NODE${i}="${n.ip}"
+%{~ endfor }
+export D_N="${length(small)+length(large)}"
+export D_REGION="${region}"
+export PSSH_H="${join(" ",ips)}"
+export PSSH_P="30"
+export MALACHITE_DIR="$(dirname $(dirname ${path}))"
+export IS_CC=0
+export _CC_DOCKER_SHIM="-H ssh://root@$CANDC"
+if [ $IS_CC -eq 1 ]; then
+  export _CC_DOCKER_SHIM=""
+fi
+
+alias ssh-cc="ssh -A root@${cc.ip}"
+%{~ for i,n in concat(small, large) }
+alias ssh-node${i}="ssh -A root@${n.ip}"
+%{~ endfor }
+
+xssh() {
+  pssh -l root -i -v -p $PSSH_P -H "$PSSH_H" "$@"
+}
+
+get_ip() {
+  I="$1"
+%{~ for i, n in concat(small, large) }
+  test "$I" -eq "${i}" && echo "${n.ip}" && return
+%{~ endfor }
+  echo "IP for node $I not found" && return 1
+}
+
+ok_cc() {
+  _keyscan_cc 2> /dev/null
+  PSSH_P=1 PSSH_H=$CANDC xssh "cat /etc/done" && \
+    echo "Updating cc server..." && \
+    scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/hosts}" root@$${CANDC}:/etc/hosts && \
+    ssh root@$${CANDC} "systemctl restart dnsmasq" && \
+    scp -q "$${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh}" root@$${CANDC}:/etc/profile.d/commands.sh && \
+    ssh root@$${CANDC} \
+      "sed -i 's,^export MALACHITE_DIR=.*,export MALACHITE_DIR=/root/malachite,' /etc/profile.d/commands.sh && \
+       sed -i 's,^export IS_CC=.*,export IS_CC=1,' /etc/profile.d/commands.sh && \
+       source /etc/profile.d/commands.sh && \
+       _keyscan_all_servers 2> /dev/null"
+}
+
+ok_all() {
+  _keyscan_all_servers 2> /dev/null
+  xssh "cat /etc/done && mount /data" # Mount /data in case a QA node came online earlier than CC
+}
+
+deploy_cc() {
+  test -d $MALACHITE_DIR/code || (echo "Source code repository not found. Clone or copy manually." && return 1)
+  docker $_CC_DOCKER_SHIM build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
+}
+
+setup_config() {
+  docker $_CC_DOCKER_SHIM run -d --pull always --dns ${cc.internal_ip} -v /data:/data -e RUST_LOG ${cc.internal_ip}/node --home /data testnet --nodes $D_N --deterministic
+  if _is_cc; then
+    _change_config all
+  else
+    ssh root@$CANDC "source /etc/profile.d/commands.sh && _change_config all"
+  fi
+}
+
+dnode-pull() {
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker pull ${cc.internal_ip}/node
+}
+
+dnode-run() {
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --dns ${cc.internal_ip} -v /data:/data -v /config:/config -e RUST_LOG ${cc.internal_ip}/node --home /config start
+}
+
+dnode-log() {
+  IP="$(get_ip "$1")"
+  F=""
+  if [ "$${1:-}" = "-f" ]; then
+    F="-f"
+    IP="$(get_ip "$2")"
+  else
+    if [ "$${2:-}" = "-f" ]; then
+      F="-f"
+    fi
+  fi
+  docker -H ssh://root@$IP logs $F node
+}
+
+dnode-stop() {
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker stop node
+}
+
+dnode-rm() {
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh "docker stop node 2> /dev/null; docker rm node"
+}
+
+cheat_sheet() {
+cat <<EOF
+Commands and their dependencies:
+    (terminal1)    |  (terminal2 run in parallel)
+                 ok_cc
+               (ssh-cc)
+    deploy_cc      |  ok_all
+              setup_config
+              dnode-run all
+             (wait for data)
+              dnode-stop all
+    fetch_log      | get_prometheus_data
+              dnode-rm all
+EOF
+}
+
+fetch_log() {
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh -o node_log_out -e node_log_err "docker logs node"
+}
+
+get_prometheus_data() {
+  if _is_cc; then
+    systemctl stop prometheus && rm prometheus.tgz 2> /dev/null && tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 . ; systemctl start prometheus
+  else
+    ssh-cc "systemctl stop prometheus && rm prometheus.tgz 2> /dev/null && tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 . ; systemctl start prometheus"
+    scp -r root@$CANDC:prometheus.tgz .
+  fi
+}
+
+mem_usage() {
+    PSSH_H="$(_parse_multiple_hosts "$@")" xssh -o mem_usage_out -e mem_usage_err "ps -e -o pid,user,%mem,cmd --sort=-%mem | head -2 | tail -1"
+}
+
+cpu_usage() {
+    PSSH_H="$(_parse_multiple_hosts "$@")" xssh -o cpu_usage_out -e cpu_usage_err "ps -e -o pid,user,%cpu,cmd --sort=-%cpu | head -2 | tail -1"
+}
+
+reset_prometheus_db() {
+  if _is_cc; then
+    systemctl stop prometheus
+    rm -rf /var/lib/prometheus/metrics2/*
+    systemctl start prometheus
+  else
+    ssh-cc "systemctl stop prometheus && rm -rf /var/lib/prometheus/metrics2/*; systemctl start prometheus"
+  fi
+}
+
+_is_cc() {
+  return $IS_CC
+}
+
+_keyscan_cc() {
+  ssh-keygen -R $CANDC > /dev/null
+  ssh-keyscan -t ed25519 $CANDC >> $HOME/.ssh/known_hosts
+}
+
+_keyscan_all_servers() {
+  _keyscan_cc 2> /dev/null
+%{~ for n in concat(small, large) }
+  ssh-keygen -R ${n.ip} > /dev/null
+  ssh-keyscan -t ed25519 ${n.ip} >> $HOME/.ssh/known_hosts 2> /dev/null
+%{~ endfor }
+}
+
+_deploy_sync_code() {
+  rsync -avz --exclude target $MALACHITE_DIR/code root@$${CANDC}:/root/malachite/
+}
+
+_deploy_sync_qa() {
+  rsync -avz --exclude terraform --exclude viewer $MALACHITE_DIR/qa root@$${CANDC}:/root/malachite/
+}
+
+_deploy_build() {
+  if _is_cc; then
+    docker build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
+  else
+    ssh-cc docker build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
+  fi
+}
+
+_compose_persistent_peers() {
+  port=$${1:-27000}
+
+  persistent_peers=""
+  for i in $(seq 0 ${length(small)-1})
+  do
+    persistent_peers="$persistent_peers,/dns/small$i/udp/$port/quic-v1"
+  done
+  for i in $(seq 0 ${length(large)-1})
+  do
+    persistent_peers="$persistent_peers,/dns/large$i/udp/$port/quic-v1"
+  done
+  echo $${persistent_peers##,}
+}
+
+_change_config() {
+  P="$@"
+  if [ "$P" = "all" ]; then
+    P="$(seq 0 $((D_N-1)))"
+  fi
+  for i in $P
+  do
+    file="/data/$i/config/config.toml"
+    sconfig "$file" \
+      "moniker=test-$i" \
+      "consensus.p2p.listen_addr=/ip4/0.0.0.0/udp/27000/quic-v1" \
+      "mempool.p2p.listen_addr=/ip4/0.0.0.0/udp/28000/quic-v1" \
+      "metrics.listen_addr=0.0.0.0:9000" \
+      "test.time_allowance_factor=0.5" \
+      "test.exec_time_per_tx=500us" && \
+    sconfig "$file" -t stringSlice \
+      "consensus.p2p.persistent_peers=$(_compose_persistent_peers)" \
+      "mempool.p2p.persistent_peers=$(_compose_persistent_peers 28000)" &
+  done
+}
+
+_change_one_config_entry() {
+  P="$(seq 0 $((D_N-1)))"
+  for i in $P
+  do
+    file="/data/$i/config/config.toml"
+    sconfig "$file" "$@"
+  done
+}
+
+_parse_multiple_hosts() {
+  PSSH_X=""
+  if [ "$1" = "all" ] || [ $# -eq 0 ]; then
+    PSSH_X="$PSSH_H"
+  else
+    while (( "$#" ));
+    do
+      PSSH_X="$PSSH_X $(get_ip "$1")"
+      shift
+    done
+  fi
+  echo "$PSSH_X"
+}

@@ -1,0 +1,17 @@
+[package]
+name = "malachite-proto"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+malachite-common.workspace = true
+
+prost.workspace       = true
+prost-types.workspace = true
+thiserror.workspace   = true
+
+[build-dependencies]
+prost-build.workspace = true
