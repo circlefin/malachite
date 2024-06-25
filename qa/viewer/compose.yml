@@ -10,6 +10,14 @@ services:
       - ./data-prometheus:/prometheus
     extra_hosts:
       - "host.docker.internal:host-gateway"
+#    command:
+#      - "--config.file=/etc/prometheus/prometheus.yml"
+#      - "--storage.tsdb.path=/prometheus"
+#      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+#      - "--web.console.templates=/usr/share/prometheus/consoles"
+#      - "--no-storage.tsdb.wal-compression"
+#      - "--storage.tsdb.retention.time=1y"
+#      - "--storage.tsdb.no-lockfile"
   grafana:
     image: grafana/grafana-oss
     container_name: grafana
@@ -30,7 +38,7 @@ services:
       GF_ANALYTICS_FEEDBACK_LINKS_ENABLED: false
       GF_SECURITY_DISABLE_GRAVATAR: true
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards-data/main.json
-      GF_USERS_DEFAULT_THEME: system
+      GF_USERS_DEFAULT_THEME: light
       GF_USERS_EDITORS_CAN_ADMIN: true
       GF_AUTH_ANONYMOUS_ENABLED: true
       GF_AUTH_ANONYMOUS_ORG_ROLE: Editor

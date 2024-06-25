@@ -4,7 +4,7 @@ variable "ssh_keys" {
 
 variable "instance_tags" {
   type    = list(string)
-  default = ["malachite"]
+  default = ["Malachite"]
 }
 
 resource "digitalocean_droplet" "cc" {
@@ -17,7 +17,10 @@ resource "digitalocean_droplet" "cc" {
   # Build takes about 2.5 minutes on an 8-core Digital Ocean server
   #size      = "s-8vcpu-16gb"
   ssh_keys  = var.ssh_keys
-  user_data = file("user-data/cc-data.txt")
+  user_data = templatefile("user-data/cc-data.txt", {
+    malachite_dashboard = filebase64("../viewer/config-grafana/provisioning/dashboards-data/main.json")
+    node_dashboard      = filebase64("../viewer/config-grafana/provisioning/dashboards-data/node-exporter-full.json")
+  })
 }
 
 resource "digitalocean_droplet" "small" {

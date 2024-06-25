@@ -95,7 +95,7 @@ write_files:
       {
         "insecure-registries" : ["0.0.0.0/0"]
       }
-  - path: /etc/systemd/resolved.conf.d/DigitalOcean.conf
+  - path: /etc/systemd/resolved.conf.d/1-dnsmasq.conf
     content: |
       [Resolve]
       DNS=127.0.0.1
@@ -119,7 +119,7 @@ write_files:
         scrape_interval: 5s
         evaluation_interval: 10s
       scrape_configs:
-        - job_name: 'qa'
+        - job_name: 'malachite'
           static_configs:
             - targets: [
             'small0:9000',
@@ -323,17 +323,211 @@ write_files:
             'large98:9000',
             'large99:9000'
             ]
+        - job_name: 'server'
+          static_configs:
+            - targets: [
+            'small0:9100',
+            'small1:9100',
+            'small2:9100',
+            'small3:9100',
+            'small4:9100',
+            'small5:9100',
+            'small6:9100',
+            'small7:9100',
+            'small8:9100',
+            'small9:9100',
+            'small10:9100',
+            'small11:9100',
+            'small12:9100',
+            'small13:9100',
+            'small14:9100',
+            'small15:9100',
+            'small16:9100',
+            'small17:9100',
+            'small18:9100',
+            'small19:9100',
+            'small20:9100',
+            'small21:9100',
+            'small22:9100',
+            'small23:9100',
+            'small24:9100',
+            'small25:9100',
+            'small26:9100',
+            'small27:9100',
+            'small28:9100',
+            'small29:9100',
+            'small30:9100',
+            'small31:9100',
+            'small32:9100',
+            'small33:9100',
+            'small34:9100',
+            'small35:9100',
+            'small36:9100',
+            'small37:9100',
+            'small38:9100',
+            'small39:9100',
+            'small40:9100',
+            'small41:9100',
+            'small42:9100',
+            'small43:9100',
+            'small44:9100',
+            'small45:9100',
+            'small46:9100',
+            'small47:9100',
+            'small48:9100',
+            'small49:9100',
+            'small50:9100',
+            'small51:9100',
+            'small52:9100',
+            'small53:9100',
+            'small54:9100',
+            'small55:9100',
+            'small56:9100',
+            'small57:9100',
+            'small58:9100',
+            'small59:9100',
+            'small60:9100',
+            'small61:9100',
+            'small62:9100',
+            'small63:9100',
+            'small64:9100',
+            'small65:9100',
+            'small66:9100',
+            'small67:9100',
+            'small68:9100',
+            'small69:9100',
+            'small70:9100',
+            'small71:9100',
+            'small72:9100',
+            'small73:9100',
+            'small74:9100',
+            'small75:9100',
+            'small76:9100',
+            'small77:9100',
+            'small78:9100',
+            'small79:9100',
+            'small80:9100',
+            'small81:9100',
+            'small82:9100',
+            'small83:9100',
+            'small84:9100',
+            'small85:9100',
+            'small86:9100',
+            'small87:9100',
+            'small88:9100',
+            'small89:9100',
+            'small90:9100',
+            'small91:9100',
+            'small92:9100',
+            'small93:9100',
+            'small94:9100',
+            'small95:9100',
+            'small96:9100',
+            'small97:9100',
+            'small98:9100',
+            'small99:9100',
+            'large0:9100',
+            'large1:9100',
+            'large2:9100',
+            'large3:9100',
+            'large4:9100',
+            'large5:9100',
+            'large6:9100',
+            'large7:9100',
+            'large8:9100',
+            'large9:9100',
+            'large10:9100',
+            'large11:9100',
+            'large12:9100',
+            'large13:9100',
+            'large14:9100',
+            'large15:9100',
+            'large16:9100',
+            'large17:9100',
+            'large18:9100',
+            'large19:9100',
+            'large20:9100',
+            'large21:9100',
+            'large22:9100',
+            'large23:9100',
+            'large24:9100',
+            'large25:9100',
+            'large26:9100',
+            'large27:9100',
+            'large28:9100',
+            'large29:9100',
+            'large30:9100',
+            'large31:9100',
+            'large32:9100',
+            'large33:9100',
+            'large34:9100',
+            'large35:9100',
+            'large36:9100',
+            'large37:9100',
+            'large38:9100',
+            'large39:9100',
+            'large40:9100',
+            'large41:9100',
+            'large42:9100',
+            'large43:9100',
+            'large44:9100',
+            'large45:9100',
+            'large46:9100',
+            'large47:9100',
+            'large48:9100',
+            'large49:9100',
+            'large50:9100',
+            'large51:9100',
+            'large52:9100',
+            'large53:9100',
+            'large54:9100',
+            'large55:9100',
+            'large56:9100',
+            'large57:9100',
+            'large58:9100',
+            'large59:9100',
+            'large60:9100',
+            'large61:9100',
+            'large62:9100',
+            'large63:9100',
+            'large64:9100',
+            'large65:9100',
+            'large66:9100',
+            'large67:9100',
+            'large68:9100',
+            'large69:9100',
+            'large70:9100',
+            'large71:9100',
+            'large72:9100',
+            'large73:9100',
+            'large74:9100',
+            'large75:9100',
+            'large76:9100',
+            'large77:9100',
+            'large78:9100',
+            'large79:9100',
+            'large80:9100',
+            'large81:9100',
+            'large82:9100',
+            'large83:9100',
+            'large84:9100',
+            'large85:9100',
+            'large86:9100',
+            'large87:9100',
+            'large88:9100',
+            'large89:9100',
+            'large90:9100',
+            'large91:9100',
+            'large92:9100',
+            'large93:9100',
+            'large94:9100',
+            'large95:9100',
+            'large96:9100',
+            'large97:9100',
+            'large98:9100',
+            'large99:9100'
+            ]
           scrape_interval: 1s
-  - path: /root/grafana.yml
-    content: |
-      apiVersion: 1
-      datasources:
-        - name: prometheus
-          uid: prometheus
-          type: prometheus
-          url: http://host.docker.internal:9090
-          is_default: true
-          editable: true
   - path: /etc/nsswitch.conf
     content: |
       passwd:         files
@@ -347,7 +541,34 @@ write_files:
       ethers:         db files
       rpc:            db files
       netgroup:       nis
-  - path: /root/compose.yml
+  - path: /root/docker/grafana.yml
+    content: |
+      apiVersion: 1
+      datasources:
+        - name: prometheus
+          uid: prometheus
+          type: prometheus
+          url: http://host.docker.internal:9090
+          is_default: true
+          editable: true
+  - path: /root/docker/malachite.yml
+    content: |
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          updateIntervalSeconds: 10
+          allowUiUpdates: true
+          options:
+            path: '/dashboards'
+            foldersFromFilesStructure: true
+  - path: /root/dashboards/main.json
+    encoding: b64
+    content: ${malachite_dashboard}
+  - path: /root/docker/compose.yml
     content: |
       services:
         registry:
@@ -364,7 +585,9 @@ write_files:
           container_name: grafana
           image: grafana/grafana-oss
           volumes:
-            - /root/grafana.yml:/etc/grafana/provisioning/datasources/prometheus.yml
+            - /root/docker/grafana.yml:/etc/grafana/provisioning/datasources/prometheus.yml
+            - /root/docker/malachite.yml:/etc/grafana/provisioning/dashboards/malachite.yml
+            - /root/dashboards:/dashboards
             - grafana:/var/lib/grafana
           ports:
             - 0.0.0.0:3000:3000
@@ -402,6 +625,7 @@ runcmd:
   - chown nobody:nogroup /data
   - systemctl daemon-reload
   - systemctl restart systemd-resolved
+  - curl -s -o /root/dashboards/node-exporter-full.json -L https://raw.githubusercontent.com/rfmoz/grafana-dashboards/master/prometheus/node-exporter-full.json
   - systemctl enable prometheus-node-exporter
   - systemctl start prometheus-node-exporter
   - systemctl enable docker
@@ -409,7 +633,8 @@ runcmd:
   - systemctl enable nfs-kernel-server
   - systemctl start nfs-kernel-server
   - systemctl restart systemd-journald
-  - docker compose -f /root/compose.yml up -d
+  - systemctl restart dnsmasq
+  - docker compose -f /root/docker/compose.yml up -d
   - curl -s -o /usr/bin/sconfig -L https://github.com/freshautomations/sconfig/releases/download/v0.2.0/sconfig_linux_amd64
   - chmod 755 /usr/bin/sconfig
   - date > /etc/done
