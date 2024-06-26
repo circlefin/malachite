@@ -38,7 +38,7 @@ We used `quint run` so that random simulation reaches a violation of the propert
 - `staleWitness`: generates a trace where the last block on L1 contains a stale registration
 - `resetWitness`: generates a trace where the last block on L2 comes after a reset (new forkID)
 - `resetAfterProofWitness`: as above, but before the reset a proof was accepted on L1 (i.e., provenHeight > 0)
-- `forkProvedWitness`: generates a trace where after a fork the proof is accepted on L1
+- `forkProvedWitness`: generates a trace where a block produced by L2 after a fork is accepted on L1
 - `ConfirmedWitness`: generates a trace where in the last L1 block a registration was confirmed
 - `ProofNotAcceptedWitness`: generates a trace where the proof submitted to L1 was not accepted
 - `ProofAcceptedWitness`: generates a trace where the proof submitted to L1 was accepted
