@@ -1,35 +1,30 @@
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::fmt::Display;
+use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ractor::rpc::{call_and_forward, CallResult};
+use ractor::rpc::CallResult;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 
-use malachite_common::NilOrVal;
 use malachite_common::{
-    Context, Height, Proposal, Round, SignedBlockPart, SignedProposal, SignedVote, Timeout,
-    TimeoutStep, Validator, ValidatorSet, Value, Vote, VoteType,
+    Context, Height, NilOrVal, Proposal, Round, SignedBlockPart, SignedProposal, SignedVote,
+    Timeout, TimeoutStep, Validator, ValidatorSet, Validity, Value, Vote, VoteType,
 };
 use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
-use malachite_driver::Validity;
-use malachite_gossip_consensus::{Channel, Event as GossipEvent, PeerId};
+use malachite_gossip_consensus::{Channel, Event as GossipEvent, NetworkMsg, PeerId};
 use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
 use crate::gossip_consensus::{GossipConsensusRef, Msg as GossipConsensusMsg};
-use crate::host::{HostRef, LocallyProposedValue, Msg as HostMsg, ReceivedProposedValue};
+use crate::host::{HostMsg, HostRef, LocallyProposedValue, ReceivedProposedValue};
 use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers, TimersRef};
 use crate::util::forward;
-
-mod network;
-use network::NetworkMsg;
 
 mod metrics;
 pub use metrics::Metrics;
@@ -49,6 +44,8 @@ pub struct ConsensusParams<Ctx: Context> {
 
 pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
+pub type TxDecision<Ctx> = mpsc::Sender<(<Ctx as Context>::Height, Round, <Ctx as Context>::Value)>;
+
 pub struct Consensus<Ctx>
 where
     Ctx: Context,
@@ -59,21 +56,23 @@ where
     gossip_consensus: GossipConsensusRef,
     host: HostRef<Ctx>,
     metrics: Metrics,
-    tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
+    tx_decision: Option<TxDecision<Ctx>>,
 }
+
+pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
 pub enum Msg<Ctx: Context> {
     StartHeight(Ctx::Height),
     MoveToHeight(Ctx::Height),
     GossipEvent(Arc<GossipEvent>),
     TimeoutElapsed(Timeout),
-    SendDriverInput(DriverInput<Ctx>),
+    ApplyDriverInput(DriverInput<Ctx>),
     Decided(Ctx::Height, Round, Ctx::Value),
     ProcessDriverOutputs(Vec<DriverOutput<Ctx>>),
     // The proposal builder has built a value and can be used in a new proposal consensus message
     ProposeValue(Ctx::Height, Round, Ctx::Value),
     // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
-    BuilderBlockPart(Ctx::BlockPart),
+    GossipBlockPart(Ctx::BlockPart),
     BlockReceived(ReceivedProposedValue<Ctx>),
 }
 
@@ -159,7 +158,7 @@ where
         gossip_consensus: GossipConsensusRef,
         host: HostRef<Ctx>,
         metrics: Metrics,
-        tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
+        tx_decision: Option<TxDecision<Ctx>>,
     ) -> Self {
         Self {
             ctx,
@@ -180,7 +179,7 @@ where
         gossip_consensus: GossipConsensusRef,
         host: HostRef<Ctx>,
         metrics: Metrics,
-        tx_decision: mpsc::Sender<(Ctx::Height, Round, Ctx::Value)>,
+        tx_decision: Option<TxDecision<Ctx>>,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let node = Self::new(
@@ -208,10 +207,9 @@ where
         myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
-        if let GossipEvent::Message(from, _, data) = event {
-            let msg = NetworkMsg::from_network_bytes(data).unwrap();
-
-            self.handle_network_msg(from, msg, myself, state).await?;
+        if let GossipEvent::Message(from, msg) = event {
+            self.handle_network_msg(from, msg.clone(), myself, state) // FIXME: Clone
+                .await?;
         }
 
         Ok(())
@@ -226,13 +224,32 @@ where
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::Vote(signed_vote) => {
-                let signed_vote = SignedVote::<Ctx>::from_proto(signed_vote).unwrap(); // FIXME
+                let Ok(signed_vote) = SignedVote::<Ctx>::from_proto(signed_vote) else {
+                    error!("Failed to decode signed vote");
+                    return Ok(());
+                };
+
                 let validator_address = signed_vote.validator_address();
 
-                info!(%from, %validator_address, "Received vote: {:?}", signed_vote.vote);
+                info!(%from, validator = %validator_address, "Received vote: {}", PrettyVote::<Ctx>(&signed_vote.vote));
+
+                if signed_vote.vote.height() != state.driver.height() {
+                    warn!(
+                        %from, validator = %validator_address,
+                        "Ignoring vote for height {}, current height: {}",
+                        signed_vote.vote.height(),
+                        state.driver.height()
+                    );
+
+                    return Ok(());
+                }
 
                 let Some(validator) = state.validator_set.get_by_address(validator_address) else {
-                    warn!(%from, %validator_address, "Received vote from unknown validator");
+                    warn!(
+                        %from, validator = %validator_address,
+                        "Received vote from unknown validator"
+                    );
+
                     return Ok(());
                 };
 
@@ -240,12 +257,13 @@ where
                     .ctx
                     .verify_signed_vote(&signed_vote, validator.public_key())
                 {
-                    warn!(%from, %validator_address, "Received invalid vote: {signed_vote:?}");
+                    warn!(
+                        %from, validator = %validator_address,
+                        "Received invalid vote: {}", PrettyVote::<Ctx>(&signed_vote.vote)
+                    );
+
                     return Ok(());
                 }
-
-                let vote_height = signed_vote.vote.height();
-                assert!(vote_height == state.driver.height());
 
                 // Store the non-nil Precommits.
                 if signed_vote.vote.vote_type() == VoteType::Precommit
@@ -253,56 +271,79 @@ where
                 {
                     state.store_signed_precommit(&signed_vote);
                 }
-                myself.cast(Msg::SendDriverInput(DriverInput::Vote(signed_vote.vote)))?;
+
+                myself.cast(Msg::ApplyDriverInput(DriverInput::Vote(signed_vote.vote)))?;
             }
 
             NetworkMsg::Proposal(proposal) => {
-                let signed_proposal = SignedProposal::<Ctx>::from_proto(proposal).unwrap();
-                let validator_address = signed_proposal.proposal.validator_address();
-
-                info!(%from, %validator_address, "Received proposal: (h: {}, r: {}, id: {:?})",
-                    signed_proposal.proposal.height(), signed_proposal.proposal.round(), signed_proposal.proposal.value().id());
-
-                let Some(validator) = state.validator_set.get_by_address(validator_address) else {
-                    warn!(%from, %validator_address, "Received proposal from unknown validator");
+                let Ok(signed_proposal) = SignedProposal::<Ctx>::from_proto(proposal) else {
+                    error!("Failed to decode signed proposal");
                     return Ok(());
                 };
 
-                // TODO - verify that the proposal was signed by the proposer for the height and round, drop otherwise.
+                let validator = signed_proposal.proposal.validator_address();
+
+                info!(%from, %validator, "Received proposal: {}", PrettyProposal::<Ctx>(&signed_proposal.proposal));
+
+                let Some(validator) = state.validator_set.get_by_address(validator) else {
+                    warn!(%from, %validator, "Received proposal from unknown validator");
+                    return Ok(());
+                };
+
                 let proposal = &signed_proposal.proposal;
                 let proposal_height = proposal.height();
                 let proposal_round = proposal.round();
+
+                if proposal_height != state.driver.height() {
+                    warn!(
+                        "Ignoring proposal for height {proposal_height}, current height: {}",
+                        state.driver.height()
+                    );
+
+                    return Ok(());
+                }
+
+                if proposal_round != state.driver.round() {
+                    warn!(
+                        "Ignoring proposal for round {proposal_round}, current round: {}",
+                        state.driver.round()
+                    );
+
+                    return Ok(());
+                }
 
                 if !self
                     .ctx
                     .verify_signed_proposal(&signed_proposal, validator.public_key())
                 {
                     error!(
-                        "Received invalid signature for proposal ({}, {}, {:?}",
-                        proposal_height,
-                        proposal_round,
-                        proposal.value()
+                        "Received invalid signature for proposal: {}",
+                        PrettyProposal::<Ctx>(&signed_proposal.proposal)
                     );
+
                     return Ok(());
                 }
-                assert!(proposal_height == state.driver.height());
 
-                let received_block = state
-                    .received_blocks
-                    .iter()
-                    .find(|&x| x.0 == proposal_height && x.1 == proposal_round);
+                let received_block = state.received_blocks.iter().find(|(height, round, ..)| {
+                    height == &proposal_height && round == &proposal_round
+                });
 
                 match received_block {
                     Some((_height, _round, _value, valid)) => {
-                        myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
+                        myself.cast(Msg::ApplyDriverInput(DriverInput::Proposal(
                             proposal.clone(),
                             *valid,
                         )))?;
                     }
                     None => {
                         // Store the proposal and wait for all block parts
-                        // TODO - or maybe integrate with receive-proposal() here? will this block until all parts are received?
-                        info!("Received proposal before all block parts, storing it: {proposal:?}",);
+                        // TODO: or maybe integrate with receive-proposal() here? will this block until all parts are received?
+
+                        info!(
+                            height = %proposal.height(),
+                            round = %proposal.round(),
+                            "Received proposal before all block parts, storing it"
+                        );
 
                         state.driver.proposal = Some(proposal.clone());
                     }
@@ -310,7 +351,11 @@ where
             }
 
             NetworkMsg::BlockPart(block_part) => {
-                let signed_block_part = SignedBlockPart::<Ctx>::from_proto(block_part).unwrap();
+                let Ok(signed_block_part) = SignedBlockPart::<Ctx>::from_proto(block_part) else {
+                    error!("Failed to decode signed block part");
+                    return Ok(());
+                };
+
                 let validator_address = signed_block_part.validator_address();
 
                 let Some(validator) = state.validator_set.get_by_address(validator_address) else {
@@ -322,15 +367,20 @@ where
                     .ctx
                     .verify_signed_block_part(&signed_block_part, validator.public_key())
                 {
-                    warn!(%from, %validator_address, "Received invalid block part: {signed_block_part:?}");
+                    warn!(%from, validator = %validator_address, "Received invalid block part: {signed_block_part:?}");
                     return Ok(());
                 }
 
-                // TODO - verify that the proposal was signed by the proposer for the height and round, drop otherwise.
-                self.host.cast(HostMsg::BlockPart {
-                    block_part: signed_block_part.block_part,
-                    reply_to: myself.clone(),
-                })?
+                // TODO: Verify that the proposal was signed by the proposer for the height and round, drop otherwise.
+                self.host.call_and_forward(
+                    |reply_to| HostMsg::ReceivedBlockPart {
+                        block_part: signed_block_part.block_part,
+                        reply_to,
+                    },
+                    &myself,
+                    |value| Msg::BlockReceived(value),
+                    None,
+                )?;
             }
         }
 
@@ -357,7 +407,7 @@ where
 
         info!("{timeout} elapsed at height {height} and round {round}");
 
-        myself.cast(Msg::SendDriverInput(DriverInput::TimeoutElapsed(timeout)))?;
+        myself.cast(Msg::ApplyDriverInput(DriverInput::TimeoutElapsed(timeout)))?;
 
         if timeout.step == TimeoutStep::Commit {
             myself.cast(Msg::MoveToHeight(height.increment()))?;
@@ -366,7 +416,7 @@ where
         Ok(())
     }
 
-    pub async fn send_driver_input(
+    pub async fn apply_driver_input(
         &self,
         input: DriverInput<Ctx>,
         myself: ActorRef<Msg<Ctx>>,
@@ -382,22 +432,65 @@ where
                 .cast(TimersMsg::CancelTimeout(Timeout::propose(*round)))?,
 
             DriverInput::Proposal(proposal, _) => {
-                let round = Proposal::<Ctx>::round(proposal);
+                if proposal.height() != state.driver.height() {
+                    warn!(
+                        "Ignoring proposal for height {}, current height: {}",
+                        proposal.height(),
+                        state.driver.height()
+                    );
+
+                    return Ok(());
+                }
+
+                if proposal.round() != state.driver.round() {
+                    warn!(
+                        "Ignoring proposal for round {}, current round: {}",
+                        proposal.round(),
+                        state.driver.round()
+                    );
+
+                    return Ok(());
+                }
+
                 state
                     .timers
-                    .cast(TimersMsg::CancelTimeout(Timeout::propose(round)))?;
+                    .cast(TimersMsg::CancelTimeout(Timeout::propose(proposal.round())))?;
             }
 
-            DriverInput::Vote(_) => (),
+            DriverInput::Vote(vote) => {
+                if vote.height() != state.driver.height() {
+                    warn!(
+                        "Ignoring vote for height {}, current height: {}",
+                        vote.height(),
+                        state.driver.height()
+                    );
+
+                    return Ok(());
+                }
+
+                if vote.round() != state.driver.round() {
+                    warn!(
+                        "Ignoring vote for round {}, current round: {}",
+                        vote.round(),
+                        state.driver.round()
+                    );
+
+                    return Ok(());
+                }
+            }
+
             DriverInput::TimeoutElapsed(_) => (),
         }
 
         let outputs = state
             .driver
             .process(input)
-            .map_err(|e| format!("Driver failed to process input: {e}"))?;
+            .map_err(|e| format!("Driver failed to process input: {e}"));
 
-        myself.cast(Msg::ProcessDriverOutputs(outputs))?;
+        match outputs {
+            Ok(outputs) => myself.cast(Msg::ProcessDriverOutputs(outputs))?,
+            Err(error) => error!("{error}"),
+        }
 
         Ok(())
     }
@@ -416,7 +509,7 @@ where
             match next {
                 Next::None => (),
 
-                Next::Input(input) => myself.cast(Msg::SendDriverInput(input))?,
+                Next::Input(input) => myself.cast(Msg::ApplyDriverInput(input))?,
 
                 Next::Decided(round, value) => {
                     state
@@ -454,7 +547,7 @@ where
 
             DriverOutput::Propose(proposal) => {
                 info!(
-                    "Proposing value with id: {:?}, at round {}",
+                    "Proposing value with id: {}, at round {}",
                     proposal.value().id(),
                     proposal.round()
                 );
@@ -462,9 +555,15 @@ where
                 let signed_proposal = self.ctx.sign_proposal(proposal);
 
                 // TODO: Refactor to helper method
-                let proto = signed_proposal.to_proto().unwrap(); // FIXME
-                let msg = NetworkMsg::Proposal(proto);
-                let bytes = msg.to_network_bytes().unwrap(); // FIXME
+                let Ok(bytes) = signed_proposal
+                    .to_proto()
+                    .map(NetworkMsg::Proposal)
+                    .and_then(|msg| msg.to_network_bytes())
+                else {
+                    error!("Failed to encode signed proposal");
+                    return Ok(Next::None);
+                };
+
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
 
@@ -476,18 +575,24 @@ where
 
             DriverOutput::Vote(vote) => {
                 info!(
-                    "Voting {:?} for value {:?} at round {}",
+                    "Voting {:?} for value {} at round {}",
                     vote.vote_type(),
-                    vote.value(),
+                    PrettyVal(vote.value().as_ref()),
                     vote.round()
                 );
 
                 let signed_vote = self.ctx.sign_vote(vote);
 
                 // TODO: Refactor to helper method
-                let proto = signed_vote.to_proto().unwrap(); // FIXME
-                let msg = NetworkMsg::Vote(proto);
-                let bytes = msg.to_network_bytes().unwrap(); // FIXME
+                let Ok(bytes) = signed_vote
+                    .to_proto()
+                    .map(NetworkMsg::Vote)
+                    .and_then(|msg| msg.to_network_bytes())
+                else {
+                    error!("Failed to encode signed vote");
+                    return Ok(Next::None);
+                };
+
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
 
@@ -495,13 +600,14 @@ where
             }
 
             DriverOutput::Decide(round, value) => {
-                // TODO - remove proposal, votes, block for the round
-                info!("Decided on value {:?} at round {round}", value.id());
+                // TODO: remove proposal, votes, block for the round
+                info!("Decided on value {}", value.id());
 
-                let _ = self
-                    .tx_decision
-                    .send((state.driver.height(), round, value.clone()))
-                    .await;
+                if let Some(tx_decision) = &self.tx_decision {
+                    let _ = tx_decision
+                        .send((state.driver.height(), round, value.clone()))
+                        .await;
+                }
 
                 Ok(Next::Decided(round, value))
             }
@@ -533,17 +639,16 @@ where
 
         // Call `GetValue` on the CAL actor, and forward the reply to the current actor,
         // wrapping it in `Msg::ProposeValue`.
-        call_and_forward(
-            &self.host.get_cell(),
+        self.host.call_and_forward(
             |reply| HostMsg::GetValue {
                 height,
                 round,
                 timeout_duration,
                 address: self.params.address.clone(),
                 consensus: myself.clone(),
-                reply,
+                reply_to: reply,
             },
-            myself.get_cell(),
+            &myself,
             |proposed: LocallyProposedValue<Ctx>| {
                 Msg::<Ctx>::ProposeValue(proposed.height, proposed.round, proposed.value)
             },
@@ -566,7 +671,9 @@ where
         let round = round.as_i64() as usize;
 
         let proposer_index = (height - 1 + round) % validator_set.count();
-        let proposer = validator_set.get_by_index(proposer_index).unwrap();
+        let proposer = validator_set
+            .get_by_index(proposer_index)
+            .expect("proposer not found");
 
         Ok(proposer.address().clone())
     }
@@ -600,7 +707,7 @@ where
 impl<Ctx> Actor for Consensus<Ctx>
 where
     Ctx: Context,
-    Ctx::Height: Display,
+    Ctx::Height: fmt::Display,
     Ctx::Vote: Protobuf<Proto = proto::Vote>,
     Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
     Ctx::BlockPart: Protobuf<Proto = proto::BlockPart>,
@@ -665,7 +772,7 @@ where
                 let proposer = self.get_proposer(height, round, validator_set).await?;
                 info!("Proposer for height {height} and round {round}: {proposer}");
 
-                myself.cast(Msg::SendDriverInput(DriverInput::NewRound(
+                myself.cast(Msg::ApplyDriverInput(DriverInput::NewRound(
                     height, round, proposer,
                 )))?;
 
@@ -710,17 +817,12 @@ where
                     return Ok(());
                 }
 
-                myself.cast(Msg::SendDriverInput(DriverInput::ProposeValue(
+                myself.cast(Msg::ApplyDriverInput(DriverInput::ProposeValue(
                     round, value,
                 )))?
             }
 
             Msg::Decided(height, round, value) => {
-                info!(
-                    "Decided on value {:?} at height {height} and round {round}",
-                    value.id()
-                );
-
                 // Remove the block information as it is not needed anymore
                 state.remove_received_block(height, round);
 
@@ -752,12 +854,12 @@ where
                     }
 
                     GossipEvent::PeerConnected(peer_id) => {
-                        info!("Connected to peer {peer_id}");
-
                         if !state.connected_peers.insert(*peer_id) {
                             // We already saw that peer, ignoring...
                             return Ok(());
                         }
+
+                        info!("Connected to peer {peer_id}");
 
                         self.metrics.connected_peers.inc();
 
@@ -781,9 +883,7 @@ where
                         }
                     }
 
-                    GossipEvent::Message(_, _, data) => {
-                        let msg = NetworkMsg::from_network_bytes(data).unwrap(); // FIXME
-
+                    GossipEvent::Message(_, msg) => {
                         let Some(msg_height) = msg.msg_height() else {
                             trace!("Received message without height, dropping");
                             return Ok(());
@@ -810,19 +910,26 @@ where
                 self.handle_timeout(timeout, myself, state).await?;
             }
 
-            Msg::SendDriverInput(input) => {
-                self.send_driver_input(input, myself, state).await?;
+            Msg::ApplyDriverInput(input) => {
+                self.apply_driver_input(input, myself, state).await?;
             }
 
             Msg::ProcessDriverOutputs(outputs) => {
                 self.process_driver_outputs(outputs, myself, state).await?;
             }
 
-            Msg::BuilderBlockPart(block_part) => {
+            Msg::GossipBlockPart(block_part) => {
                 let signed_block_part = self.ctx.sign_block_part(block_part);
-                let proto = signed_block_part.to_proto().unwrap(); // FIXME
-                let msg = NetworkMsg::BlockPart(proto);
-                let bytes = msg.to_network_bytes().unwrap(); // FIXME
+
+                let Ok(bytes) = signed_block_part
+                    .to_proto()
+                    .map(NetworkMsg::BlockPart)
+                    .and_then(|msg| msg.to_network_bytes())
+                else {
+                    error!("Failed to encode signed block part");
+                    return Ok(());
+                };
+
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::BlockParts, bytes))?;
             }
@@ -836,7 +943,7 @@ where
                     ..
                 } = block;
 
-                info!("Received block: {value:?}");
+                info!(%height, %round, "Received block: {}", value.id());
 
                 // Store the block and validity information. It will be removed when a decision is reached for that height.
                 state
@@ -846,7 +953,7 @@ where
                 if let Some(proposal) = state.driver.proposal.clone() {
                     if height == proposal.height() && round == proposal.round() {
                         let validity = value == *proposal.value() && valid.is_valid();
-                        myself.cast(Msg::SendDriverInput(DriverInput::Proposal(
+                        myself.cast(Msg::ApplyDriverInput(DriverInput::Proposal(
                             proposal,
                             Validity::from_valid(validity),
                         )))?;
@@ -868,5 +975,59 @@ where
         state.timers.stop(None);
 
         Ok(())
+    }
+}
+
+struct PrettyVal<'a, T>(NilOrVal<&'a T>);
+
+impl<T> fmt::Display for PrettyVal<'_, T>
+where
+    T: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            NilOrVal::Nil => "Nil".fmt(f),
+            NilOrVal::Val(v) => v.fmt(f),
+        }
+    }
+}
+
+struct PrettyVote<'a, Ctx: Context>(&'a Ctx::Vote);
+
+impl<Ctx> fmt::Display for PrettyVote<'_, Ctx>
+where
+    Ctx: Context,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use malachite_common::Vote;
+
+        write!(
+            f,
+            "{:?} at height {}, round {}, for value {}, from {}",
+            self.0.vote_type(),
+            self.0.height(),
+            self.0.round(),
+            PrettyVal(self.0.value().as_ref()),
+            self.0.validator_address()
+        )
+    }
+}
+
+struct PrettyProposal<'a, Ctx: Context>(&'a Ctx::Proposal);
+
+impl<Ctx> fmt::Display for PrettyProposal<'_, Ctx>
+where
+    Ctx: Context,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Proposal at height {}, round {}, POL round {}, for value {}, from {}",
+            self.0.height(),
+            self.0.round(),
+            self.0.pol_round(),
+            self.0.value().id(),
+            self.0.validator_address()
+        )
     }
 }

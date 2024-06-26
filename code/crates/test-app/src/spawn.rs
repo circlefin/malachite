@@ -1,12 +1,14 @@
 use std::time::Duration;
 
+use malachite_test::utils::test::SpawnNodeActor;
+use ractor::async_trait;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef, Metrics};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
-use malachite_actors::host::{Host, HostRef};
+use malachite_actors::host::HostRef;
 use malachite_actors::mempool::{Mempool, MempoolRef};
 use malachite_actors::node::{Node, NodeRef};
 use malachite_common::Round;
@@ -16,8 +18,35 @@ use malachite_metrics::SharedRegistry;
 use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig};
 use malachite_test::{Address, Height, PrivateKey, TestContext, ValidatorSet, Value};
 
+use crate::host::Host;
 use crate::part_store::PartStore;
-use crate::value_builder::{TestParams as TestValueBuilderParams, TestValueBuilder};
+use crate::test_value_builder::{TestParams as TestValueBuilderParams, TestValueBuilder};
+
+pub struct SpawnTestNode;
+
+#[async_trait]
+impl SpawnNodeActor for SpawnTestNode {
+    type Ctx = TestContext;
+
+    async fn spawn_node_actor(
+        cfg: NodeConfig,
+        initial_validator_set: ValidatorSet,
+        validator_pk: PrivateKey,
+        node_pk: PrivateKey,
+        address: Address,
+        tx_decision: Option<mpsc::Sender<(Height, Round, Value)>>,
+    ) -> (NodeRef, JoinHandle<()>) {
+        spawn_node_actor(
+            cfg,
+            initial_validator_set,
+            validator_pk,
+            node_pk,
+            address,
+            tx_decision,
+        )
+        .await
+    }
+}
 
 pub async fn spawn_node_actor(
     cfg: NodeConfig,
@@ -25,7 +54,7 @@ pub async fn spawn_node_actor(
     validator_pk: PrivateKey,
     node_pk: PrivateKey,
     address: Address,
-    tx_decision: mpsc::Sender<(Height, Round, Value)>,
+    tx_decision: Option<mpsc::Sender<(Height, Round, Value)>>,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = TestContext::new(validator_pk.clone());
 
@@ -86,7 +115,7 @@ async fn spawn_consensus_actor(
     gossip_consensus: GossipConsensusRef,
     host: HostRef<TestContext>,
     metrics: Metrics,
-    tx_decision: mpsc::Sender<(Height, Round, Value)>,
+    tx_decision: Option<mpsc::Sender<(Height, Round, Value)>>,
 ) -> ConsensusRef<TestContext> {
     let consensus_params = ConsensusParams {
         start_height,

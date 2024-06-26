@@ -1,7 +1,8 @@
 use async_trait::async_trait;
-use ractor::{Actor, ActorRef};
+use ractor::{Actor, ActorProcessingErr, ActorRef, SupervisionEvent};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+use tracing::{error, info, warn};
 
 use malachite_common::{Context, Round};
 use malachite_proto::Protobuf;
@@ -86,7 +87,7 @@ where
         &self,
         myself: ActorRef<Self::Msg>,
         _args: (),
-    ) -> Result<(), ractor::ActorProcessingErr> {
+    ) -> Result<(), ActorProcessingErr> {
         // Set ourselves as the supervisor of the other actors
         self.gossip_consensus.link(myself.get_cell());
         self.consensus.link(myself.get_cell());
@@ -97,13 +98,40 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(name = "node", skip(self, _myself, _msg, _state))]
+    #[tracing::instrument(name = "node", skip_all)]
     async fn handle(
         &self,
         _myself: ActorRef<Self::Msg>,
         _msg: Self::Msg,
         _state: &mut (),
-    ) -> Result<(), ractor::ActorProcessingErr> {
+    ) -> Result<(), ActorProcessingErr> {
+        Ok(())
+    }
+
+    #[tracing::instrument(name = "node", skip_all)]
+    async fn handle_supervisor_evt(
+        &self,
+        _myself: ActorRef<Self::Msg>,
+        evt: SupervisionEvent,
+        _state: &mut (),
+    ) -> Result<(), ActorProcessingErr> {
+        match evt {
+            SupervisionEvent::ActorStarted(cell) => {
+                info!("Actor {} has started", cell.get_id());
+            }
+            SupervisionEvent::ActorTerminated(cell, _state, reason) => {
+                warn!(
+                    "Actor {} has terminated: {}",
+                    cell.get_id(),
+                    reason.unwrap_or_default()
+                );
+            }
+            SupervisionEvent::ActorFailed(cell, error) => {
+                error!("Actor {} has failed: {error}", cell.get_id());
+            }
+            SupervisionEvent::ProcessGroupChanged(_) => (),
+        }
+
         Ok(())
     }
 }
