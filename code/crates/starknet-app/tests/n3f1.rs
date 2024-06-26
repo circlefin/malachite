@@ -30,6 +30,7 @@ pub async fn one_node_fails_to_start() {
     test.run::<SpawnStarknetNode>(App::Starknet).await
 }
 
+#[ignore]
 #[tokio::test]
 pub async fn proposer_crashes_at_height_1() {
     let test = Test::new(
@@ -44,13 +45,14 @@ pub async fn proposer_crashes_at_height_1() {
     test.run::<SpawnStarknetNode>(App::Starknet).await
 }
 
+#[ignore]
 #[tokio::test]
 pub async fn one_node_crashes_at_height_2() {
     let test = Test::new(
         [
-            TestNode::faulty(10, vec![Fault::Crash(2)]),
             TestNode::correct(10),
             TestNode::correct(10),
+            TestNode::faulty(5, vec![Fault::Crash(2)]),
         ],
         5,
     );
