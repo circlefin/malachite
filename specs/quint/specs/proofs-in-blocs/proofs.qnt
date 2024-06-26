@@ -131,7 +131,7 @@ def OnlyHeadUnprovenInv =
         unproven.forall(u => u >= maxproven) // >= to eliminate initial state with proven being the empty set
     )
 
-// missing_proofs counter is bouned
+// missing_proofs counter is bounded
 def missingProofsInv = 
     0.to(numStrands -1).forall(s => num_unproven_blocks.get(s) <= maxMissingProofs)
 
