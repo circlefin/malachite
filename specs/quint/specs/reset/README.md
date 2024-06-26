@@ -10,7 +10,7 @@ We used `quint run` to conduct random simulation, and checked that the invariant
     - `noStaleWithProofInv`: If a valid proof was verified on L1, then there should be no unfulfilled updates
     - `provenHeightMonotonic`: latest L2 proven height in L1 blocks is non-decreasing
     - `L1ForkIDMonotonic`: L2 forkID in L1 blocks is non-decreasing
-    - `InvalidRegistrationProofRejectedInv`: If there is no (valid) proof or the proof contains an invalid registration, then the proof should be rejected, by checking that provenHeight remains unchanged  (checked also for `--step "stepWithInvalidRegs"`)
+    - `InvalidRegistrationProofRejectedInv`: If the latest block in L1 does not include a (valid) proof or the proof contains an invalid registration, then the proof should be rejected. We check that by attesting that L1's provenHeight remains unchanged  (checked also for `--step "stepWithInvalidRegs"`)
     - `OldProofRejectedInv`: If the proof starts from a block smaller than provenHeight it is rejected. (checked also with step `stepWithPotentiallyOldProofs`)
     - `FutureProofRejectedInv`: If the proof starts from a block with height greater than provenHeight + 1 it is rejected. (checked also with step `stepWithPotentiallyFutureProofs`)
 
