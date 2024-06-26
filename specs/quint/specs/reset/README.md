@@ -25,7 +25,7 @@ We used `quint run` to conduct random simulation, and checked that the invariant
     - `forkIDNotSmaller`: L1 never expects a smaller forkID than there currently is on L2
         (TODO: think about a spurious reset)
     - `finalizationInv`: the latest L2 proven height stored in L1 cannot be bigger than L2's height. This is evident in the normal case (no forks), as proofs of L2 blocks are sent to L1 with some delay, and meanwhile more blocks can be added to L2. In case of resets, L2 height should match, but not be smaller than the latest L2 proven height stored in L1.
-    - `oneForkIDperProofInv`: all L2 blocks that are proven within one proof on L1, have the same forkID
+    - `oneForkIDperProofInv`: all L2 blocks that are proven within one proof submitted and accepted by L1 have the same forkID
     - `atMostOneResetPerForkIDInv`: L2 chain shouldn't roll back twice one same forkID 
     - `noProvenRegistrationsUnfulfilledInv`: If a registration is in the proven prefix of L2, it must not be unfulfilled on L1
 
