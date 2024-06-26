@@ -1,4 +1,6 @@
+use core::fmt;
 use std::net::SocketAddr;
+use std::str::FromStr;
 use std::time::Duration;
 
 use bytesize::ByteSize;
@@ -6,11 +8,47 @@ use malachite_common::TimeoutStep;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub enum App {
+    #[default]
+    #[serde(rename = "starknet")]
+    Starknet,
+
+    #[serde(rename = "test")]
+    Test,
+}
+
+impl fmt::Display for App {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Starknet => write!(f, "starknet"),
+            Self::Test => write!(f, "test"),
+        }
+    }
+}
+
+impl FromStr for App {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "starknet" => Ok(Self::Starknet),
+            "test" => Ok(Self::Test),
+            _ => Err(format!(
+                "unknown application: {s}, available: starknet, test"
+            )),
+        }
+    }
+}
+
 /// Malachite configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     /// A custom human-readable name for this node
     pub moniker: String,
+
+    /// The name of the application to run
+    pub app: App,
 
     /// Consensus configuration options
     pub consensus: ConsensusConfig,
@@ -122,13 +160,13 @@ impl TimeoutConfig {
 impl Default for TimeoutConfig {
     fn default() -> Self {
         Self {
-            timeout_propose: Duration::from_secs(3),
+            timeout_propose: Duration::from_secs(5),
             timeout_propose_delta: Duration::from_millis(500),
             timeout_prevote: Duration::from_secs(1),
             timeout_prevote_delta: Duration::from_millis(500),
             timeout_precommit: Duration::from_secs(1),
             timeout_precommit_delta: Duration::from_millis(500),
-            timeout_commit: Duration::from_secs(1),
+            timeout_commit: Duration::from_secs(0),
         }
     }
 }
@@ -178,9 +216,9 @@ pub struct TestConfig {
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
-            tx_size: ByteSize::b(256),
-            txs_per_part: 200,
-            time_allowance_factor: 0.7,
+            tx_size: ByteSize::kib(1),
+            txs_per_part: 256,
+            time_allowance_factor: 0.3,
             exec_time_per_tx: Duration::from_millis(1),
         }
     }

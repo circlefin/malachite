@@ -1,0 +1,13 @@
+[default]
+extend-ignore-identifiers-re = []
+
+[default.extend-identifiers]
+
+[default.extend-words]
+crate = "crate"
+manuel = "manuel"
+numer = "numer"
+ser = "ser"
+shs = "shs"
+widder = "widder"
+

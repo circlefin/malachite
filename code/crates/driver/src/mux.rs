@@ -22,15 +22,14 @@
 //! | prevote         | PolkaAny              | \*              | PolkaAny                        | prevote         | L34            | prevote timer                      |
 //! | precommit       | PolkaValue(v)         | Proposal(v)     | ProposalAndPolkaCurrent         | precommit       | L36, L42       | (set valid)                        |
 
-use malachite_common::ValueId;
-use malachite_common::{Context, Proposal, Round, Value, VoteType};
+use malachite_common::{Context, Proposal, Round, Validity, Value, ValueId, VoteType};
 use malachite_round::input::Input as RoundInput;
 use malachite_round::state::Step;
 use malachite_vote::keeper::Output as VKOutput;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::Threshold;
 
-use crate::{Driver, Validity};
+use crate::Driver;
 
 impl<Ctx> Driver<Ctx>
 where
