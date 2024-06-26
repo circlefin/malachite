@@ -21,7 +21,7 @@ We used `quint run` to conduct random simulation, and checked that the invariant
     - `stagedInv`: we only have unstaged registrations which have seq_num greater than `highest_staged_seq_num`. This means, in particular, that we don't accept (unstage) duplicated registrations.
 
 - System-level invariants
-    - `proofStateInv`: hash stored on L1 is consistent with corresponding L2 Block
+    - `proofStateInv`: L1 stores hashes of L2 blocks that have been proven. This invariant checks if the latest proven L2 block stored in L1 matches the actual L2 block at `provenHeight`.
     - `forkIDNotSmaller`: L1 never expects a smaller forkID than there currently is on L2
         (TODO: think about a spurious reset)
     - `finalizationInv`: L2 is never rolled-back below provenHeight stored on L1
