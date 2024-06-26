@@ -53,7 +53,7 @@ TODO: this is a corner case. Experiments showed that it doesn't exists. See disc
 - `ProofAfterStaleWitness`: trace where there were stale registrations, then a proof came, end then there were no stale registrations
 
 - `unstagedRegConfirmedWitness`: generates a trace where a registration is confirmed on L1 but still staged or unstaged on L2.
-- `processedRegConfirmedWitness`: generates a trace where a registration is confirmed on L1 but not any more in staged or unstaged (or it never has been in these sets in case of the registration was added into L2 in a fork block)
+- `processedRegConfirmedWitness`: generates a trace where a registration is confirmed on L1 but not any more in staged or unstaged (or it never has been in these sets in case of the registration was added into L2 in a fork block). This means that the registration is actually applied to the current L2's validator set.
 - `processedRegConfirmedNoForkWitness`: similar to previous, but last L2 block is no fork block
 
 - `OldProofRejectedWitness`: A proof that starts from a smaller L2 height than the proven height stored on L1 gets rejected; needs `--step "stepWithPotentiallyOldProofs"`
