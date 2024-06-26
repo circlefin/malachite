@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use core::fmt;
 
 use malachite_common::{
-    Context, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Vote,
+    Context, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Validity, Vote,
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
@@ -15,7 +15,6 @@ use malachite_vote::ThresholdParams;
 use crate::input::Input;
 use crate::output::Output;
 use crate::Error;
-use crate::Validity;
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
 pub struct Driver<Ctx>
@@ -46,11 +45,6 @@ where
 
     /// The proposal to decide on, if any.
     pub proposal: Option<Ctx::Proposal>,
-
-    /// The Value and validity of received blocks.
-    /// TODO struct, consider move to consensus actor state
-    /// depending on the Context API integration
-    pub received_blocks: Vec<(Ctx::Height, Round, Ctx::Value, Validity)>,
 
     /// The pending input to be processed next, if any.
     pub pending_input: Option<(Round, RoundInput<Ctx>)>,
@@ -83,7 +77,6 @@ where
             round_state,
             proposer: None,
             proposal: None,
-            received_blocks: vec![],
             pending_input: None,
         }
     }
@@ -193,9 +186,6 @@ where
             Input::Proposal(proposal, validity) => self.apply_proposal(proposal, validity),
             Input::Vote(vote) => self.apply_vote(vote),
             Input::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
-            Input::BlockReceived(height, round, value, valid) => {
-                self.apply_received_block_value(height, round, value, valid)
-            }
         }
     }
 
@@ -224,32 +214,6 @@ where
         value: Ctx::Value,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         self.apply_input(round, RoundInput::ProposeValue(value))
-    }
-
-    fn apply_received_block_value(
-        &mut self,
-        height: Ctx::Height,
-        round: Round,
-        value: Ctx::Value,
-        validity: Validity,
-    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        if self.height() != height {
-            return Ok(None);
-        }
-
-        if let Some(proposal) = self.proposal.clone() {
-            if height == proposal.height() && round == proposal.round() {
-                let valid = value == *proposal.value() && validity.is_valid();
-                match self.multiplex_proposal(proposal, Validity::from_valid(valid)) {
-                    Some(round_input) => self.apply_input(round, round_input),
-                    None => Ok(None),
-                }
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(None)
-        }
     }
 
     fn apply_proposal(

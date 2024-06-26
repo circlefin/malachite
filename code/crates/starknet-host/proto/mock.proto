@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package starknet.mock;
+
+import "malachite.proto";
+
+message BlockMetadata {
+    bytes proof = 1;
+    Hash hash = 2;
+}
+
+message ProposalContent {
+    BlockMetadata metadata = 2;
+}
+
+message ProposalPart {
+    uint64 sequence = 1;
+    oneof part {
+        malachite.TransactionBatch tx_batch = 2;
+        BlockMetadata metadata = 3;
+    }
+}
+
+message Hash {
+    bytes hash = 1;
+}

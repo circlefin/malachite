@@ -139,9 +139,9 @@ impl Protobuf for TransactionBatch {
         Ok(TransactionBatch::new(
             proto
                 .transactions
-                .iter()
-                .map(|t| Transaction::from_proto(t.clone()).unwrap())
-                .collect(),
+                .into_iter()
+                .map(Transaction::from_proto)
+                .collect::<Result<_, _>>()?,
         ))
     }
 
@@ -150,8 +150,8 @@ impl Protobuf for TransactionBatch {
             transactions: self
                 .transactions()
                 .iter()
-                .map(|t| t.to_proto().unwrap())
-                .collect(),
+                .map(|t| t.to_proto())
+                .collect::<Result<_, _>>()?,
         })
     }
 }

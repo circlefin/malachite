@@ -10,7 +10,10 @@ use rand::rngs::OsRng;
 use rand::{Rng, SeedableRng};
 use tracing::info;
 
-use malachite_node::config::{Config, ConsensusConfig, MempoolConfig, P2pConfig, TimeoutConfig};
+use malachite_node::config::{
+    App, Config, ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig,
+    TestConfig, TimeoutConfig,
+};
 use malachite_test::ValidatorSet as Genesis;
 use malachite_test::{PrivateKey, PublicKey, Validator};
 
@@ -23,6 +26,10 @@ const MAX_VOTING_POWER: u64 = 15;
 
 #[derive(Parser, Debug, Clone, PartialEq)]
 pub struct TestnetCmd {
+    /// The name of the application to run
+    #[clap(short, long, default_value_t = App::default())]
+    pub app: App,
+
     /// Number of validator nodes in the testnet
     #[clap(short, long)]
     pub nodes: usize,
@@ -67,7 +74,7 @@ impl TestnetCmd {
             // Save config
             save_config(
                 &args.get_config_file_path()?,
-                &generate_config(i, self.nodes),
+                &generate_config(self.app, i, self.nodes),
             )?;
         }
         Ok(())
@@ -110,13 +117,16 @@ pub fn generate_genesis(pks: Vec<PublicKey>, deterministic: bool) -> Genesis {
 
 const CONSENSUS_BASE_PORT: usize = 27000;
 const MEMPOOL_BASE_PORT: usize = 28000;
+const METRICS_BASE_PORT: usize = 29000;
 
 /// Generate configuration for node "index" out of "total" number of nodes.
-pub fn generate_config(index: usize, total: usize) -> Config {
+pub fn generate_config(app: App, index: usize, total: usize) -> Config {
     let consensus_port = CONSENSUS_BASE_PORT + index;
     let mempool_port = MEMPOOL_BASE_PORT + index;
+    let metrics_port = METRICS_BASE_PORT + index;
 
     Config {
+        app,
         moniker: format!("test-{}", index),
         consensus: ConsensusConfig {
             max_block_size: ByteSize::mib(1),
@@ -150,8 +160,13 @@ pub fn generate_config(index: usize, total: usize) -> Config {
                     .collect(),
             },
             max_tx_count: 10000,
-            gossip_batch_size: 100,
+            gossip_batch_size: 256,
         },
-        test: Default::default(),
+        metrics: MetricsConfig {
+            enabled: true,
+            listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
+        },
+        runtime: RuntimeConfig::single_threaded(),
+        test: TestConfig::default(),
     }
 }

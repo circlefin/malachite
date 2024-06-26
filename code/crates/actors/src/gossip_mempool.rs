@@ -3,16 +3,17 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use libp2p::identity::Keypair;
-use malachite_common::MempoolTransactionBatch;
 use ractor::ActorCell;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
 use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
+use tracing::{error, error_span, Instrument};
 
+use malachite_common::MempoolTransactionBatch;
 use malachite_gossip_mempool::handle::CtrlHandle;
-use malachite_gossip_mempool::{Channel, Config, Event, PeerId};
-use malachite_proto::Protobuf;
+use malachite_gossip_mempool::{Channel, Config, Event, NetworkMsg, PeerId};
+use malachite_metrics::SharedRegistry;
 
 pub type GossipMempoolRef = ActorRef<Msg>;
 
@@ -22,9 +23,14 @@ impl GossipMempool {
     pub async fn spawn(
         keypair: Keypair,
         config: Config,
+        metrics: SharedRegistry,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg>, ractor::SpawnErr> {
-        let args = Args { keypair, config };
+        let args = Args {
+            keypair,
+            config,
+            metrics,
+        };
 
         let (actor_ref, _) = if let Some(supervisor) = supervisor {
             Actor::spawn_linked(None, Self, args, supervisor).await?
@@ -39,6 +45,7 @@ impl GossipMempool {
 pub struct Args {
     pub keypair: Keypair,
     pub config: Config,
+    pub metrics: SharedRegistry,
 }
 
 pub enum State {
@@ -77,16 +84,21 @@ impl Actor for GossipMempool {
         myself: ActorRef<Msg>,
         args: Args,
     ) -> Result<State, ActorProcessingErr> {
-        let handle = malachite_gossip_mempool::spawn(args.keypair, args.config).await?;
+        let handle =
+            malachite_gossip_mempool::spawn(args.keypair, args.config, args.metrics).await?;
         let (mut recv_handle, ctrl_handle) = handle.split();
 
-        let recv_task = tokio::spawn({
+        let recv_task = tokio::spawn(
             async move {
                 while let Some(event) = recv_handle.recv().await {
-                    myself.cast(Msg::NewEvent(event)).unwrap(); // FIXME
+                    if let Err(e) = myself.cast(Msg::NewEvent(event)) {
+                        error!("Actor has died, stopping gossip mempool: {e:?}");
+                        break;
+                    }
                 }
             }
-        });
+            .instrument(error_span!("gossip.mempool")),
+        );
 
         Ok(State::Running {
             peers: BTreeSet::new(),
@@ -124,8 +136,14 @@ impl Actor for GossipMempool {
         match msg {
             Msg::Subscribe(subscriber) => subscribers.push(subscriber),
             Msg::Broadcast(channel, batch) => {
-                let bytes = batch.to_bytes().unwrap();
-                ctrl_handle.broadcast(channel, bytes).await?
+                match NetworkMsg::TransactionBatch(batch).to_network_bytes() {
+                    Ok(bytes) => {
+                        ctrl_handle.broadcast(channel, bytes).await?;
+                    }
+                    Err(e) => {
+                        error!("Failed to serialize transaction batch: {e}");
+                    }
+                }
             }
             Msg::NewEvent(event) => {
                 match event {

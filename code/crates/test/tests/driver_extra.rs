@@ -1,10 +1,11 @@
-use malachite_common::Round;
-use malachite_driver::{Driver, Input, Output, Validity};
+use malachite_common::{Round, Validity};
+use malachite_driver::{Driver, Input, Output};
 use malachite_round::state::State;
 
+use malachite_test::utils::driver::*;
+use malachite_test::utils::validators::make_validators;
 use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value};
 
-use malachite_test::utils::*;
 // The following tests are performed:
 // - L49 with commits from current rounds, no locked value, no valid value:
 //    `driver_steps_decide_current_with_no_locked_no_valid()`

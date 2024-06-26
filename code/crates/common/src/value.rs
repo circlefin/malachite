@@ -1,4 +1,4 @@
-use core::fmt::Debug;
+use core::fmt::{Debug, Display};
 
 /// Represents either `Nil` or a value of type `Value`.
 ///
@@ -14,15 +14,15 @@ pub enum NilOrVal<Value> {
 }
 
 impl<Value> NilOrVal<Value> {
-    // /// Whether this is `nil`.
-    // pub fn is_nil(&self) -> bool {
-    //     matches!(self, Self::Nil)
-    // }
-    //
-    // /// Whether this is an actual value.
-    // pub fn is_val(&self) -> bool {
-    //     matches!(self, Self::Val(_))
-    // }
+    /// Whether this is `nil`.
+    pub fn is_nil(&self) -> bool {
+        matches!(self, Self::Nil)
+    }
+
+    /// Whether this is an actual value.
+    pub fn is_val(&self) -> bool {
+        matches!(self, Self::Val(_))
+    }
 
     /// Apply the given function to the value if it is not `nil`.
     pub fn map<NewValue, F: FnOnce(Value) -> NewValue>(self, f: F) -> NilOrVal<NewValue> {
@@ -60,7 +60,7 @@ where
 {
     /// The type of the ID of the value.
     /// Typically a representation of the value with a lower memory footprint.
-    type Id: Clone + Debug + PartialEq + Eq + PartialOrd + Ord + Send + Sync;
+    type Id: Clone + Debug + Display + PartialEq + Eq + PartialOrd + Ord + Send + Sync;
 
     /// The ID of the value.
     fn id(&self) -> Self::Id;

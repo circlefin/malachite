@@ -11,6 +11,8 @@ use tokio::task::JoinHandle;
 
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, PeerId};
+use malachite_metrics::SharedRegistry;
+use tracing::{error, error_span, Instrument};
 
 pub type GossipConsensusRef = ActorRef<Msg>;
 
@@ -20,9 +22,14 @@ impl GossipConsensus {
     pub async fn spawn(
         keypair: Keypair,
         config: Config,
+        metrics: SharedRegistry,
         supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg>, ractor::SpawnErr> {
-        let args = Args { keypair, config };
+        let args = Args {
+            keypair,
+            config,
+            metrics,
+        };
 
         let (actor_ref, _) = if let Some(supervisor) = supervisor {
             Actor::spawn_linked(None, Self, args, supervisor).await?
@@ -37,6 +44,7 @@ impl GossipConsensus {
 pub struct Args {
     pub keypair: Keypair,
     pub config: Config,
+    pub metrics: SharedRegistry,
 }
 
 pub enum State {
@@ -73,16 +81,22 @@ impl Actor for GossipConsensus {
         myself: ActorRef<Msg>,
         args: Args,
     ) -> Result<State, ActorProcessingErr> {
-        let handle = malachite_gossip_consensus::spawn(args.keypair, args.config).await?;
+        let handle =
+            malachite_gossip_consensus::spawn(args.keypair, args.config, args.metrics).await?;
+
         let (mut recv_handle, ctrl_handle) = handle.split();
 
-        let recv_task = tokio::spawn({
+        let recv_task = tokio::spawn(
             async move {
                 while let Some(event) = recv_handle.recv().await {
-                    myself.cast(Msg::NewEvent(event)).unwrap(); // FIXME
+                    if let Err(e) = myself.cast(Msg::NewEvent(event)) {
+                        error!("Actor has died, stopping gossip consensus: {e:?}");
+                        break;
+                    }
                 }
             }
-        });
+            .instrument(error_span!("gossip.consensus")),
+        );
 
         Ok(State::Running {
             peers: BTreeSet::new(),

@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package test;
+
+import "malachite.proto";
+
+message BlockMetadata {
+    bytes proof = 1;
+    malachite.Value value = 2;
+}
+
+message Content {
+    oneof value {
+        malachite.TransactionBatch tx_batch = 90;
+        BlockMetadata metadata = 91;
+    }
+}
+
