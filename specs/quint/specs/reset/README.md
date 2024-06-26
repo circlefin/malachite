@@ -8,7 +8,7 @@ We used `quint run` to conduct random simulation, and checked that the invariant
 
 - Local L1 invariants
     - `noStaleWithProofInv`: If a valid proof was verified on L1, then there should be no unfulfilled updates
-    - `provenHeightMonotonic`: provenHeight on L1 is non-decreasing
+    - `provenHeightMonotonic`: latest L2 proven height in L1 blocks is non-decreasing
     - `L1ForkIDMonotonic`: ForkID on L1 is non-decreasing
     - `InvalidRegistrationProofRejectedInv`: If there is no (valid) proof or the proof contains an invalid registration, then the proof should be rejected, by checking that provenHeight remains unchanged  (checked also for `--step "stepWithInvalidRegs"`)
     - `OldProofRejectedInv`: If the proof starts from a block smaller than provenHeight it is rejected. (checked also with step `stepWithPotentiallyOldProofs`)
