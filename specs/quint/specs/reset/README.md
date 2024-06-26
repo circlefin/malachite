@@ -16,7 +16,7 @@ We used `quint run` to conduct random simulation, and checked that the invariant
 
 - Local L2 invariants
     - `monotonicForkIDInv`: ForkID on L2 is non-decreasing
-    - `monotonicStagedSeqInv`: "highest staged" variable on L2 is non-decreasing
+    - `monotonicStagedSeqInv`: the `highest_staged_seq_num` variable on L2 blocks is non-decreasing. This variable stores the sequenced number of the latest registration that is staged in L2.
     - `strictlyMonotonicHeightInv`: L2 height strictly monotonic
     - `stagedInv`: we only have unstaged registrations which have seq_num greater than `highest_staged_seq_num`
 
