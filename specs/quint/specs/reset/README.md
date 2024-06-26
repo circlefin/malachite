@@ -36,7 +36,7 @@ This also means that the invariants hold under `--step "stepNoRegs"` (as there a
 We used `quint run` so that random simulation reaches a violation of the properties. The resulting trace ends in an interesting state (that is defined by the negation of the property; in the text below we describe the reached state directly)
 
 - `staleWitness`: generates a trace where the last block on L1 contains a stale registration
-- `resetWitness`: generates a trace where the last block on L2 comes after a reset (new forkID)
+- `resetWitness`: generates a trace where there is a reset in L2, showing the first block after the reset, which has a forkID > 0
 - `resetAfterProofWitness`: as above, while ensuring that before the reset a proof was accepted on L1 (i.e., provenHeight > 0)
 - `forkProvedWitness`: generates a trace where a block produced by L2 after a fork is accepted on L1
 - `ConfirmedWitness`: generates a trace where in the last L1 block a registration was confirmed
