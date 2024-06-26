@@ -1,6 +1,8 @@
+use core::fmt;
+use std::hash::{DefaultHasher, Hash, Hasher};
+
 use malachite_common::Transaction;
 use malachite_proto::{self as proto};
-use std::hash::{DefaultHasher, Hash, Hasher};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Copy)]
 pub struct ValueId(u64);
@@ -21,6 +23,12 @@ impl From<u64> for ValueId {
     }
 }
 
+impl fmt::Display for ValueId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:x}", self.0)
+    }
+}
+
 impl proto::Protobuf for ValueId {
     type Proto = proto::ValueId;
 
@@ -29,8 +37,13 @@ impl proto::Protobuf for ValueId {
             .value
             .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
 
-        let bytes = <[u8; 8]>::try_from(bytes)
-            .map_err(|_| proto::Error::Other("Invalid value length".to_string()))?;
+        let len = bytes.len();
+        let bytes = <[u8; 8]>::try_from(bytes).map_err(|_| {
+            proto::Error::Other(format!(
+                "Invalid value length, got {len} bytes expected {}",
+                u64::BITS / 8
+            ))
+        })?;
 
         Ok(ValueId::new(u64::from_be_bytes(bytes)))
     }
@@ -86,8 +99,13 @@ impl proto::Protobuf for Value {
             .value
             .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
 
-        let bytes = <[u8; 8]>::try_from(bytes)
-            .map_err(|_| proto::Error::Other("Invalid value length".to_string()))?;
+        let len = bytes.len();
+        let bytes = <[u8; 8]>::try_from(bytes).map_err(|_| {
+            proto::Error::Other(format!(
+                "Invalid value length, got {len} bytes expected {}",
+                u64::BITS / 8
+            ))
+        })?;
 
         Ok(Value::new(u64::from_be_bytes(bytes)))
     }

@@ -1,8 +1,6 @@
-use malachite_common::{Context, Round, Timeout};
+use malachite_common::{Context, Round, Timeout, Validity};
 
 use derive_where::derive_where;
-
-use crate::Validity;
 
 /// Events that can be received by the [`Driver`](crate::Driver).
 #[derive_where(Clone, Debug, PartialEq, Eq)]

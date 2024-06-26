@@ -23,6 +23,18 @@ impl Validator {
     }
 }
 
+impl PartialOrd for Validator {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Validator {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.address.cmp(&other.address)
+    }
+}
+
 impl malachite_common::Validator<TestContext> for Validator {
     fn address(&self) -> &Address {
         &self.address

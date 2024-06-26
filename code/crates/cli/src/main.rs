@@ -5,7 +5,9 @@ use malachite_node::config::{Config, RuntimeConfig};
 use malachite_test::{PrivateKey, ValidatorSet};
 
 use crate::args::{Args, Commands};
+use crate::cmd::init::InitCmd;
 use crate::cmd::keys::KeysCmd;
+use crate::cmd::start::StartCmd;
 use crate::cmd::testnet::TestnetCmd;
 use crate::logging::LogLevel;
 
@@ -23,14 +25,14 @@ pub fn main() -> Result<()> {
     debug!("Command-line parameters: {args:?}");
 
     match &args.command {
-        Commands::Start => start(&args),
-        Commands::Init => init(&args),
+        Commands::Start(cmd) => start(&args, cmd),
+        Commands::Init(cmd) => init(&args, cmd),
         Commands::Keys(cmd) => keys(&args, cmd),
         Commands::Testnet(cmd) => testnet(&args, cmd),
     }
 }
 
-fn start(args: &Args) -> Result<()> {
+fn start(args: &Args, cmd: &StartCmd) -> Result<()> {
     use tokio::runtime::Builder as RtBuilder;
 
     let cfg: Config = args.load_config()?;
@@ -49,11 +51,11 @@ fn start(args: &Args) -> Result<()> {
     };
 
     let rt = builder.enable_all().build()?;
-    rt.block_on(cmd::start::run(sk, cfg, vs))
+    rt.block_on(cmd.run(sk, cfg, vs))
 }
 
-fn init(args: &Args) -> Result<()> {
-    cmd::init::run(
+fn init(args: &Args, cmd: &InitCmd) -> Result<()> {
+    cmd.run(
         &args.get_config_file_path()?,
         &args.get_genesis_file_path()?,
         &args.get_priv_validator_key_file_path()?,
@@ -84,8 +86,9 @@ mod tests {
         let config_dir = tmp.path().join("config");
 
         let args = Args::parse_from(["test", "--home", tmp.path().to_str().unwrap(), "init"]);
+        let cmd = InitCmd::default();
 
-        init(&args)?;
+        init(&args, &cmd)?;
 
         let files = fs::read_dir(&config_dir)?.flatten().collect::<Vec<_>>();
 

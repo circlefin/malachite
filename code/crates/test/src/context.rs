@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
-use malachite_common::NilOrVal;
-use malachite_common::Round;
-use malachite_common::SignedProposal;
-use malachite_common::SignedVote;
-use malachite_common::{Context, SignedBlockPart};
+use malachite_common::{Context, NilOrVal, Round, SignedBlockPart, SignedProposal, SignedVote};
 
 use crate::address::*;
 use crate::height::*;

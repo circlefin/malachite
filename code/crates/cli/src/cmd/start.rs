@@ -1,50 +1,53 @@
+use clap::Parser;
 use color_eyre::eyre::Result;
-
-use tokio::sync::mpsc;
 use tracing::{info, Instrument};
 
-use malachite_node::config::Config;
+use malachite_node::config::{App, Config};
 use malachite_test::{Address, PrivateKey, ValidatorSet};
-use malachite_test_app::spawn::spawn_node_actor;
+
+use malachite_starknet_app::spawn::spawn_node_actor as spawn_starknet_node;
+use malachite_test_app::spawn::spawn_node_actor as spawn_test_node;
 
 use crate::metrics;
 
-pub async fn run(sk: PrivateKey, cfg: Config, vs: ValidatorSet) -> Result<()> {
-    let val_address = Address::from_public_key(&sk.public_key());
-    let moniker = cfg.moniker.clone();
+#[derive(Parser, Debug, Clone, Default, PartialEq)]
+pub struct StartCmd;
 
-    let span = tracing::error_span!("node", %moniker);
-    let _enter = span.enter();
+impl StartCmd {
+    pub async fn run(&self, sk: PrivateKey, cfg: Config, vs: ValidatorSet) -> Result<()> {
+        let val_address = Address::from_public_key(&sk.public_key());
+        let moniker = cfg.moniker.clone();
 
-    if cfg.metrics.enabled {
-        tokio::spawn(metrics::serve(cfg.metrics.clone()).instrument(span.clone()));
-    }
+        let span = tracing::error_span!("node", %moniker);
+        let _enter = span.enter();
 
-    info!("Node is starting...");
-
-    let (tx_decision, mut rx_decision) = mpsc::channel(32);
-    let (actor, handle) = spawn_node_actor(cfg, vs, sk.clone(), sk, val_address, tx_decision).await;
-
-    tokio::spawn({
-        let actor = actor.clone();
-        {
-            async move {
-                tokio::signal::ctrl_c().await.unwrap();
-                info!("Shutting down...");
-                actor.stop(None);
-            }
+        if cfg.metrics.enabled {
+            tokio::spawn(metrics::serve(cfg.metrics.clone()).instrument(span.clone()));
         }
-        .instrument(span.clone())
-    });
 
-    while let Some((height, round, value)) = rx_decision.recv().await {
-        info!(
-            "Decision at height {height} and round {round}: {:?}",
-            value.id()
-        );
+        info!("Node is starting...");
+
+        let (actor, handle) = match cfg.app {
+            App::Starknet => spawn_starknet_node(cfg, vs, sk.clone(), sk, val_address, None).await,
+            App::Test => spawn_test_node(cfg, vs, sk.clone(), sk, val_address, None).await,
+        };
+
+        tokio::spawn({
+            let actor = actor.clone();
+            {
+                async move {
+                    tokio::signal::ctrl_c().await.unwrap();
+                    info!("Shutting down...");
+                    actor.stop(None);
+                }
+            }
+            .instrument(span.clone())
+        });
+
+        handle.await?;
+
+        info!("Node has stopped");
+
+        Ok(())
     }
-
-    handle.await?;
-
-    Ok(())
 }

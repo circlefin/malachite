@@ -10,10 +10,11 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
-malachite-metrics.workspace  = true
-malachite-node.workspace     = true
-malachite-test.workspace     = true
-malachite-test-app.workspace = true
+malachite-metrics.workspace       = true
+malachite-node.workspace          = true
+malachite-test.workspace          = true
+malachite-test-app.workspace      = true
+malachite-starknet-app.workspace  = true
 
 axum               = { workspace = true }
 bytesize           = { workspace = true }

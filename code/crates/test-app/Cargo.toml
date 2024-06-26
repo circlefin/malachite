@@ -21,6 +21,8 @@ malachite-proto.workspace            = true
 async-trait.workspace                = true
 bytesize.workspace                   = true
 derive-where.workspace               = true
+eyre.workspace                       = true
+ractor.workspace                     = true 
 tokio.workspace                      = true
 tracing.workspace                    = true
 
