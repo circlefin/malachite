@@ -45,7 +45,7 @@ We used `quint run` so that random simulation reaches a violation of the propert
 - `unsuccessfulResetWitness`: generates a trace where there was a reset on L2, and before a second block
 was added to L2 with the same fork ID, another reset happened
 
-- `lastPossibleL1BlockWitness`: trace where in the previous L1 block there where no stale registrations(timed-out  unfulfilled registrations), but the unfulfilled registrations from the previous block
+- `lastPossibleL1BlockWitnessCanidate`: trace where in the previous L1 block there where no stale registrations(timed-out  unfulfilled registrations), but the unfulfilled registrations from the previous block
 would become stale in the new block (as the time progressed). In this scenario, the proof
 comes in just in time. The registrations actually don't become stale. 
 TODO: this is a corner case. Experiments showed that it doesn't exists. See discussion in qnt file.
