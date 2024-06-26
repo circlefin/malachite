@@ -273,7 +273,7 @@ def InvalidRegReachesL1Witness =
 // This trace does not exists. The problem is that the "not(existsStale(..." condition
 // increases the expected forkID, while the proof was constructed for the previous Eth time
 // The run lastPossibleL1BlockWitnessRun shows the behavior
-def lastPossibleL1BlockWitnessCanidate = 
+def lastPossibleL1BlockWitnessCandidate = 
     (L1.length() > 1 and validProof(L1[L1.length() - 1], L1[L1.length() - 2]))
     implies (or {
         L1[L1.length()-2].existsStaleInBlock(), // registrations in previous block were not stale
