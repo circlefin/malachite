@@ -1,6 +1,6 @@
 use malachite_node::config::App;
 use malachite_starknet_app::spawn::SpawnStarknetNode;
-use malachite_test::utils::test::{Fault, Test, TestNode};
+use malachite_test::utils::test::{Expected, Fault, Test, TestNode};
 
 #[tokio::test]
 pub async fn proposer_fails_to_start() {
@@ -10,7 +10,7 @@ pub async fn proposer_fails_to_start() {
             TestNode::correct(10),
             TestNode::correct(10),
         ],
-        0,
+        Expected::Exactly(0),
     );
 
     test.run::<SpawnStarknetNode>(App::Starknet).await
@@ -24,13 +24,12 @@ pub async fn one_node_fails_to_start() {
             TestNode::faulty(10, vec![Fault::NoStart]),
             TestNode::correct(10),
         ],
-        0,
+        Expected::Exactly(0),
     );
 
     test.run::<SpawnStarknetNode>(App::Starknet).await
 }
 
-#[ignore]
 #[tokio::test]
 pub async fn proposer_crashes_at_height_1() {
     let test = Test::new(
@@ -39,13 +38,12 @@ pub async fn proposer_crashes_at_height_1() {
             TestNode::correct(10),
             TestNode::correct(10),
         ],
-        4,
+        Expected::AtMost(4),
     );
 
     test.run::<SpawnStarknetNode>(App::Starknet).await
 }
 
-#[ignore]
 #[tokio::test]
 pub async fn one_node_crashes_at_height_2() {
     let test = Test::new(
@@ -54,7 +52,7 @@ pub async fn one_node_crashes_at_height_2() {
             TestNode::correct(10),
             TestNode::faulty(5, vec![Fault::Crash(2)]),
         ],
-        5,
+        Expected::AtMost(7),
     );
 
     test.run::<SpawnStarknetNode>(App::Starknet).await

@@ -1,6 +1,6 @@
 use malachite_node::config::App;
 use malachite_starknet_app::spawn::SpawnStarknetNode;
-use malachite_test::utils::test::{Test, TestNode};
+use malachite_test::utils::test::{Expected, Test, TestNode};
 
 #[tokio::test]
 pub async fn all_correct_nodes() {
@@ -10,7 +10,7 @@ pub async fn all_correct_nodes() {
             TestNode::correct(15),
             TestNode::correct(10),
         ],
-        9,
+        Expected::Exactly(9),
     );
 
     test.run::<SpawnStarknetNode>(App::Starknet).await
