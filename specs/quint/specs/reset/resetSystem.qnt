@@ -55,7 +55,7 @@ pure def validProof (b : L1Block, prev: L1Block) : bool =
 
 // If a valid proof was verified on L1, then there should be no unfulfilled
 // updates
-def noStaleWithProofInv = 
+def noUnfulfilledWithProofInv = 
     (L1.length() > 1) implies ( 
         validProof(L1[L1.length() - 1], L1[L1.length() - 2]) implies
             not(L1.last().existsStaleInBlock())
@@ -250,8 +250,10 @@ def ProofAcceptedWitness =
 // was added to L2 with the same fork ID, another reset happened
 def unsuccessfulResetWitness = 
     prevDeletedL2blocks.length() > 1 implies 
-    prevDeletedL2blocks.last().height != L2.last().height
-
+    any {
+        prevDeletedL2blocks.last().forkID == prevDeletedL2blocks[prevDeletedL2blocks.length() - 2].forkID,
+        prevDeletedL2blocks.last().height != L2.last().height
+    }
 
 
 // reaches a state where the proof submitted to L1 contains an invalid registration
@@ -334,7 +336,19 @@ def processedRegConfirmedNoForkWitness =
         }
     }
 
-
+// trace where a registration is confirmed but not in staged or unstaged, and there
+// is no fork
+def processedRegConfirmedNoForkAtAllWitness = 
+    match L1.last().newProof {
+        | None => true
+        | Invalid => true
+        | Proof(p) => or {
+            ProofAcceptedWitness,
+            p.confirmedRegs.forall(r => L2.last().unstagedUpdates.contains(r) or
+                                        L2.last().stagedUpdates.contains(r)),
+            prevDeletedL2blocks.length() > 0,
+        }
+    }
 
 // there is a proof with invalid registration, and the proof is rejected.    
 // needs --step "stepWithInvalidRegs"
