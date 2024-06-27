@@ -57,7 +57,8 @@ We used `quint run resetTest.qnt` with the `--invariant`. In contrast to the inv
 
 As example consider the witness `staleWitness` from the list below. The encoding in Quint is very simple and says that "the last block in L1 does not contain stale registrations". When we ask Quint whether this is an invariant, it tells us "violation" and provides a trace, where the last block in L1 contains a stale witness.
 
-- `ProofAcceptedWitness`: generates a trace where the proof submitted to L1 was accepted (TODO: we might encode different witnesses for different reasons why a proof was rejected)
+- `ProofAcceptedWitness`: generates a trace where the proof submitted to L1 was accepted
+    - TODO: we might want to also encode different witnesses for different reasons why a proof was rejected
 - `unstagedRegConfirmedWitness`: generates a trace where a registration is confirmed on L1 but still staged or unstaged on L2.
 - `staleWitness`: generates a trace where the last block on L1 contains a stale registration
 - `resetWitness`: generates a trace where there is a reset in L2, showing the first block after the reset, which has a forkID > 0
