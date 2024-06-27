@@ -28,7 +28,8 @@ The following actions add faulty behaviors to the standard `step` action:
     - `noStaleWithProofInv`: If a valid proof was verified on L1, then there should be no stale updates
     - `provenHeightMonotonic`: latest L2 proven height in L1 blocks is non-decreasing
     - `L1ForkIDMonotonic`: L2 forkID in L1 blocks is non-decreasing
-    - Requirements for the proofs submitted to L1 (TODO: we could characterize requirements for proofs)
+
+ - Proofs validation invariants
         - `InvalidRegistrationProofRejectedInv`: If the latest block in L1 does not include a (valid) proof or the proof contains an invalid registration, then the proof should be rejected. We check that by attesting that L1's provenHeight remains unchanged  (checked also for `--step "stepWithInvalidRegs"`)
         - `OldProofRejectedInv`: L1 blocks should not accept proofs with non monotonically increasing proven L2 heights. As a consequence, the latest L2 proven height in L1 should remain unchanged with such a proof is submitted (checked also with `--step stepWithPotentiallyOldProofs`)
         - `FutureProofRejectedInv`: If the proof starts from a block with height greater than provenHeight + 1 it is rejected. (checked also with step `stepWithPotentiallyFutureProofs`)
