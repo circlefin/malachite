@@ -104,6 +104,8 @@ TODO: We need to experiment here.
 
 ## TODOs
 
+- Think about a good order / characterization of invariants/witnesses. Currently the order in the list seems a bit random.
+
 Observations: 
 - the number of registrations in L2 block a limiting factor for the reset
 - not captured here: Time between block creation and proof on L1 must be big enough to also have proof on L2
