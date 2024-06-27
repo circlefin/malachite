@@ -15,7 +15,6 @@ val numStrands = 3  // K: number of strands
 val maxMissingProofs = 2 // P
 
 type Height = int
-type Time = int
 type ForkID = int
 
 type L2Proof = {
