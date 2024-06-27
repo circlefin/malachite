@@ -10,12 +10,12 @@ In addition to the standard `step` action, we have added some more actions to mo
 
 The following actions reduce the number of possible behaviors compared to `step`:
 
-- `stepNoRegs`: No registrations are ever added. While the standard step uses `addRegistration`, this is omitted here. This is done to highlight that liveness of the protocol depends to a large extent to the fact that registrations are continuously added ("infinitely often"). While we do not check liveness conditions, yet, we observe the consequence by the fact that many witnesses that are reached under the standard step action cannot be reached here.
+- `stepNoRegs`: No registrations are ever added. While the standard step uses `addRegistration`, this is omitted here. This is done to highlight that liveness of the protocol depends to a large extent to the fact that registrations are continuously added ("infinitely often"). While we do not check liveness conditions yet, we observe the consequence by the fact that many witnesses that are reached under the standard step action cannot be reached here.
 - `stepProvableL2BlocksOnly`: all blocks added to L2 are provable. The standard step uses `addL2Block`, which non-deterministically sets a block provable or not.
 
 The following actions add faulty behaviors compared to `step`:
 
-- `stepWithPotentiallyOldProofs` and `stepWithPotentiallyFutureProofs`: these actions try to add proofs to L1 that do not match the height of the last proof submitted to L1. The standard step uses `addL1Block` that computes a proof from the correct height, but potentially submits an invalid proof instead.
+- `stepWithPotentiallyOldProofs` and `stepWithPotentiallyFutureProofs`: these actions try to add proofs to L1 that do not match the height of the last proof submitted to L1. The standard step uses `addL1Block` that computes a proof always from the correct height (but potentially submits an invalid proof instead).
 - `stepWithInvalidRegs`: This adds registrations to L2 that are not coming from L1.
 
 
