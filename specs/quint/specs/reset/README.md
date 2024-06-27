@@ -44,7 +44,7 @@ The following actions add faulty behaviors to the standard `step` action:
 - System-level invariants
     - `proofStateInv`: L1 stores hashes of L2 blocks that have been proven. This invariant checks if the latest proven L2 block stored in L1 matches the actual L2 block at `provenHeight`.
     - `forkIDNotSmaller`: L1 never expects a smaller forkID than there currently is on L2. (Note that it can be greater, if L1 expects a reset, and the reset did not happen yet at L2.)
-        (TODO: create an action producing a spurious forkID (that differs from what L1 expects), and encode a witness that rejects a proof for such a block)
+          - **TODO**: create an action producing a spurious forkID (that differs from what L1 expects), and encode a witness that rejects a proof for such a block
     - `finalizationInv`: the latest L2 proven height stored in L1 cannot be bigger than L2's height. This is evident in the normal case (no forks), as proofs of L2 blocks are sent to L1 with some delay, and meanwhile more blocks can be added to L2. In case of resets, L2 height should match, but not be smaller than the latest L2 proven height stored in L1.
     - `oneForkIDperProofInv`: all L2 blocks that are proven within one proof submitted and accepted by L1 have the same forkID
     - `atMostOneResetPerForkIDInv`: L2 chain shouldn't roll back twice one same forkID. Upon each reset, L2 should use a different forkID. When there is a reset, L2 rolls back to a previous state (height). A hypothetical second reset, from the same forkID, would produce a second roll-back, which would be identified by this invariant. 
