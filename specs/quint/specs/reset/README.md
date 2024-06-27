@@ -2,12 +2,30 @@
 
 This document contains a report on analysis of the protocol specification of "Starknet Forced Staking Updates". See the [English specification](https://github.com/informalsystems/malachite/blob/main/specs/english/forced-updates/README.md) for an overview, and the Quint specifications in this directory for details. The specification follows [design document](https://docs.google.com/document/d/1OaYLh9o10DIsGpW0GTRhWl-IJiVyjRsy7UttHs9_1Fw/edit#heading=h.hvyiqqxvuqzo) prepared by Starkware.
 
+When not indicated differently, we used `quint run resetTest.qnt` to conduct random simulation, and check properties for the default state machine (`init`, `step`). For some properties we used different transition relations (that is, different step actions.)
+
+## Non-standard transition relations
+
+In addition to the standard `step` action, we have added some more actions to model  environments that deviate from the expected behavior.
+
+The following actions reduce the number of possible behaviors compared to `step`:
+
+- `stepNoRegs`: No registrations are ever added. While the standard step uses `addRegistration`, this is omitted here. This is done to highlight that liveness of the protocol depends to a large extent to the fact that registrations are continuously added ("infinitely often"). While we do not check liveness conditions, yet, we observe the consequence by the fact that many witnesses that are reached under the standard step action cannot be reached here.
+- `stepProvableL2BlocksOnly`: all blocks added to L2 are provable. The standard step uses `addL2Block`, which non-deterministically sets a block provable or not.
+
+The following actions add faulty behaviors compared to `step`:
+
+- `stepWithPotentiallyOldProofs` and `stepWithPotentiallyFutureProofs`: these actions try to add proofs to L1 that do not match the height of the last proof submitted to L1. The standard step uses `addL1Block` that computes a proof from the correct height, but potentially submits an invalid proof instead.
+- `stepWithInvalidRegs`: This adds registrations to L2 that are not coming from L1.
+
+
+
 ## Invariants checked with quint run 
 
-We used `quint run resetTest.qnt` to conduct random simulation, and checked that the invariant holds for the default state machine (`init`, `step`)
+
 
 - Local L1 invariants
-    - `noUnfulfilledWithProofInv`: If a valid proof was verified on L1, then there should be no unfulfilled updates
+    - `noStaleWithProofInv`: If a valid proof was verified on L1, then there should be no stale updates
     - `provenHeightMonotonic`: latest L2 proven height in L1 blocks is non-decreasing
     - `L1ForkIDMonotonic`: L2 forkID in L1 blocks is non-decreasing
     - Requirements for the proofs submitted to L1 (TODO: we could characterize requirements for proofs)
@@ -66,7 +84,7 @@ TODO: this is a corner case. Experiments showed that it doesn't exists. See disc
 
 
 
-## Non-standard transition relations
+
 
 ### No registrations
 

@@ -53,9 +53,9 @@ pure def validProof (b : L1Block, prev: L1Block) : bool =
             | Invalid => false
     }
 
-// If a valid proof was verified on L1, then there should be no unfulfilled
+// If a valid proof was verified on L1, then there should be no stale
 // updates
-def noUnfulfilledWithProofInv = 
+def noStaleWithProofInv = 
     (L1.length() > 1) implies ( 
         validProof(L1[L1.length() - 1], L1[L1.length() - 2]) implies
             not(L1.last().existsStaleInBlock())
