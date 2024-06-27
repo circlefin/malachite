@@ -11,6 +11,7 @@ In addition to the standard `step` action, we have added some more actions to mo
 The following actions reduce the number of possible behaviors compared to  the standard `step` action:
 
 - `stepNoRegs`: No registrations are ever added. While the standard step uses `addRegistration`, this is omitted here. This is done to highlight that liveness of the protocol depends to a large extent to the fact that registrations are continuously added ("infinitely often"). While we do not check liveness conditions yet, we observe the consequence by the fact that many witnesses that are reached under the standard step action cannot be reached here.
+    - **TODO**: we might encode a transition systems where there are some registrations added, but from some time on, registrations stop being added.
 - `stepProvableL2BlocksOnly`: all blocks added to L2 are provable. The standard step uses `addL2Block`, which non-deterministically sets a block provable or not.
 
 The following actions add faulty behaviors to the standard `step` action:
@@ -58,7 +59,7 @@ We used `quint run resetTest.qnt` with the `--invariant`. In contrast to the inv
 As example consider the witness `staleWitness` from the list below. The encoding in Quint is very simple and says that "the last block in L1 does not contain stale registrations". When we ask Quint whether this is an invariant, it tells us "violation" and provides a trace, where the last block in L1 contains a stale witness.
 
 - `ProofAcceptedWitness`: generates a trace where the proof submitted to L1 was accepted
-    - TODO: we might want to also encode different witnesses for different reasons why a proof was rejected
+    - **TODO**: we might want to also encode different witnesses for different reasons why a proof was rejected
 - `unstagedRegConfirmedWitness`: generates a trace where a registration is confirmed on L1 but still staged or unstaged on L2.
 - `staleWitness`: generates a trace where the last block on L1 contains a stale registration
 - `resetWitness`: generates a trace where there is a reset in L2, showing the first block after the reset, which has a forkID > 0
@@ -69,10 +70,10 @@ As example consider the witness `staleWitness` from the list below. The encoding
 - `unsuccessfulResetWitness`: generates a trace where there was a reset on L2, and before a second block
 was added to L2 with the same fork ID, another reset happened
 
-- `lastPossibleL1BlockWitnessCandidate`: trace where in the previous L1 block there where no stale registrations(timed-out  unfulfilled registrations), but the unfulfilled registrations from the previous block
+- `lastPossibleL1BlockWitnessCandidate`: this is a corner case. Experiments showed that it does not exist (see discussion in the Quint file). We leave it here, as we think it might be interesting to think through the scenario to better understand the protocol. The idea was to generate a
+trace where in the previous L1 block there where no stale registrations (timed-out  unfulfilled registrations), but the unfulfilled registrations from the previous block
 would become stale in the new block (as the time progressed). In this scenario, the proof
-comes in just in time. The registrations actually don't become stale. 
-    -  FIXME: this is a corner case. Experiments showed that it doesn't exists. See discussion in the Quint file.
+comes in just in time and so the registrations actually do not become stale. 
 
 - `ProofAfterStaleWitness`: trace where there were stale registrations, then a proof came, end then there were no stale registrations
 
