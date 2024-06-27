@@ -36,7 +36,6 @@ malachite-node             = { version = "0.1.0", path = "crates/node" }
 malachite-proto            = { version = "0.1.0", path = "crates/proto" }
 malachite-round            = { version = "0.1.0", path = "crates/round" }
 malachite-test             = { version = "0.1.0", path = "crates/test" }
-malachite-test-app         = { version = "0.1.0", path = "crates/test-app" }
 malachite-vote             = { version = "0.1.0", path = "crates/vote" }
 malachite-starknet-host    = { version = "0.1.0", path = "crates/starknet-host" }
 malachite-starknet-app     = { version = "0.1.0", path = "crates/starknet-app" }

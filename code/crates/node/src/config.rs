@@ -13,16 +13,12 @@ pub enum App {
     #[default]
     #[serde(rename = "starknet")]
     Starknet,
-
-    #[serde(rename = "test")]
-    Test,
 }
 
 impl fmt::Display for App {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Starknet => write!(f, "starknet"),
-            Self::Test => write!(f, "test"),
         }
     }
 }
@@ -33,10 +29,7 @@ impl FromStr for App {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "starknet" => Ok(Self::Starknet),
-            "test" => Ok(Self::Test),
-            _ => Err(format!(
-                "unknown application: {s}, available: starknet, test"
-            )),
+            _ => Err(format!("unknown application: {s}, available: starknet")),
         }
     }
 }

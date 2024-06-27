@@ -4,7 +4,7 @@ use bytesize::ByteSize;
 use sha2::{Digest, Sha256};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
-use tracing::{error, trace};
+use tracing::{debug, error, trace};
 
 use malachite_actors::mempool::{MempoolMsg, MempoolRef};
 use malachite_common::Round;
@@ -125,7 +125,10 @@ async fn run_build_proposal_task(
     let part = ProposalPart::Metadata(sequence, block_metadata);
     let block_size = ByteSize::b(block_size as u64);
 
-    trace!("Built block with {block_tx_count} tx-es of size {block_size} and hash {block_hash}, in {sequence} block parts");
+    debug!(
+        tx_count = %block_tx_count, size = %block_size, hash = %block_hash, parts = %sequence,
+        "Built block in {:?}", start.elapsed()
+    );
 
     // Send and then close the channel
     tx_part.send(part).await?;

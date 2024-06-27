@@ -1,3 +1,4 @@
+use core::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -16,18 +17,50 @@ use crate::utils::node_config::make_node_config;
 use crate::utils::validators::make_validators;
 use crate::{Address, Height, PrivateKey, Validator, ValidatorSet};
 
+pub enum Expected {
+    Exactly(usize),
+    AtLeast(usize),
+    AtMost(usize),
+    LessThan(usize),
+    GreaterThan(usize),
+}
+
+impl Expected {
+    pub fn check(&self, actual: usize) -> bool {
+        match self {
+            Expected::Exactly(expected) => actual == *expected,
+            Expected::AtLeast(expected) => actual >= *expected,
+            Expected::AtMost(expected) => actual <= *expected,
+            Expected::LessThan(expected) => actual < *expected,
+            Expected::GreaterThan(expected) => actual > *expected,
+        }
+    }
+}
+
+impl fmt::Display for Expected {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expected::Exactly(n) => write!(f, "exactly {n}"),
+            Expected::AtLeast(n) => write!(f, "at least {n}"),
+            Expected::AtMost(n) => write!(f, "at most {n}"),
+            Expected::LessThan(n) => write!(f, "less than {n}"),
+            Expected::GreaterThan(n) => write!(f, "greater than {n}"),
+        }
+    }
+}
+
 pub struct Test<const N: usize> {
     pub nodes: [TestNode; N],
     pub validator_set: ValidatorSet,
     pub vals_and_keys: [(Validator, PrivateKey); N],
-    pub expected_decisions: usize,
+    pub expected_decisions: Expected,
     pub consensus_base_port: usize,
     pub mempool_base_port: usize,
     pub metrics_base_port: usize,
 }
 
 impl<const N: usize> Test<N> {
-    pub fn new(nodes: [TestNode; N], expected_decisions: usize) -> Self {
+    pub fn new(nodes: [TestNode; N], expected_decisions: Expected) -> Self {
         let vals_and_keys = make_validators(Self::voting_powers(&nodes));
         let validators = vals_and_keys.iter().map(|(v, _)| v).cloned();
         let validator_set = ValidatorSet::new(validators);
@@ -137,9 +170,9 @@ impl<const N: usize> Test<N> {
 
         let correct_decisions = correct_decisions.load(Ordering::Relaxed);
 
-        if correct_decisions != self.expected_decisions {
+        if !self.expected_decisions.check(correct_decisions) {
             panic!(
-                "Not all nodes made correct decisions: got {}, expected {}",
+                "Incorrect number of decisions: got {}, expected {}",
                 correct_decisions, self.expected_decisions
             );
         }
