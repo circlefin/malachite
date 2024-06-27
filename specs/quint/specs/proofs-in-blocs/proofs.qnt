@@ -14,7 +14,6 @@ module proofs {
 val numStrands = 3  // K: number of strands
 val maxMissingProofs = 2 // P
 
-type Address = str
 type Height = int
 type Time = int
 type ForkID = int
