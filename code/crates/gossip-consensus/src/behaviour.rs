@@ -9,7 +9,7 @@ use malachite_metrics::Registry;
 
 use crate::PROTOCOL_VERSION;
 
-const MAX_TRANSMIT_SIZE: usize = 2 * 1024 * 1024; // 2 MiB
+const MAX_TRANSMIT_SIZE: usize = 4 * 1024 * 1024; // 4 MiB
 
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "NetworkEvent")]
