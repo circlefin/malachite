@@ -47,12 +47,15 @@ run runToLine26 = {
     // "other" processes are just enough so that timeoutPrecommit is started
     .then(ListDeliverAllVotes(Precommit, others, correctList, validatorSet, 0, 0, Val(value)))
     .then(others.length().reps(_ => ListTakeAStep(correctList)))
+    // now fire precommit timeout:
     .then(ListTakeAStep(correctList))
+    // correct process deliver proposal
     .then(ListDeliverProposal(correctList, mkProposal(nextProposer, 0, 1, otherValue, -1)))
-    .then(ListTakeAStep(correctList))
+    // proper consume round switch + process proposal (2 steps)
+    .then(2.reps(_ => ListTakeAStep(correctList)))
+    // now line26 made us prevote nil in round 1
     .then(all{
-        // TODO: this test fails, commented it by now
-	// assert(voteBuffer.get("v1").contains(mkVote(Prevote, "v4", 0, 1, Nil))),
+	    assert(voteBuffer.get("v1").contains(mkVote(Prevote, "v4", 0, 1, Nil))),
         unchangedAll
     })
 }
