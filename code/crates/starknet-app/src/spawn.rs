@@ -116,7 +116,7 @@ async fn spawn_consensus_actor(
     address: Address,
     ctx: MockContext,
     cfg: NodeConfig,
-    gossip_consensus: GossipConsensusRef,
+    gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
     metrics: Metrics,
     tx_decision: Option<mpsc::Sender<(Height, Round, ProposalContent)>>,
@@ -146,7 +146,7 @@ async fn spawn_gossip_consensus_actor(
     cfg: &NodeConfig,
     validator_pk: PrivateKey,
     registry: &SharedRegistry,
-) -> GossipConsensusRef {
+) -> GossipConsensusRef<MockContext> {
     let config_gossip = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),

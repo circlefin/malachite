@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use signature::Signer;
 
-use malachite_common::{Round, SignedBlockPart};
-use malachite_proto::{self as proto};
+use malachite_common::{proto, Round, SignedBlockPart};
 
 use crate::mock::context::MockContext;
 use crate::mock::types::{Address, BlockHash, Height, PrivateKey, ProposalPart, StarknetContext};

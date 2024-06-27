@@ -13,5 +13,12 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-derive-where.workspace    = true
-signature.workspace       = true
+malachite-proto.workspace = true
+
+derive-where.workspace = true
+prost.workspace        = true
+prost-types.workspace  = true
+signature.workspace    = true
+
+[build-dependencies]
+prost-build.workspace = true

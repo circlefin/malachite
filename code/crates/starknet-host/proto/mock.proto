@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package starknet.mock;
 
-import "malachite.proto";
+import "malachite.common.proto";
 
 message BlockMetadata {
     bytes proof = 1;
@@ -16,7 +16,7 @@ message ProposalContent {
 message ProposalPart {
     uint64 sequence = 1;
     oneof part {
-        malachite.TransactionBatch tx_batch = 2;
+        malachite.common.TransactionBatch tx_batch = 2;
         BlockMetadata metadata = 3;
     }
 }

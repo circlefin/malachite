@@ -9,15 +9,15 @@ use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 
+use malachite_common::proto;
 use malachite_common::{
-    Context, Height, NilOrVal, Proposal, Round, SignedBlockPart, SignedProposal, SignedVote,
-    Timeout, TimeoutStep, Validator, ValidatorSet, Validity, Value, Vote, VoteType,
+    Context, Height, NilOrVal, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator,
+    ValidatorSet, Validity, Value, Vote, VoteType,
 };
 use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_gossip_consensus::{Channel, Event as GossipEvent, NetworkMsg, PeerId};
-use malachite_proto as proto;
 use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
@@ -53,7 +53,7 @@ where
     ctx: Ctx,
     params: ConsensusParams<Ctx>,
     timers_config: TimersConfig,
-    gossip_consensus: GossipConsensusRef,
+    gossip_consensus: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
     metrics: Metrics,
     tx_decision: Option<TxDecision<Ctx>>,
@@ -64,7 +64,7 @@ pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 pub enum Msg<Ctx: Context> {
     StartHeight(Ctx::Height),
     MoveToHeight(Ctx::Height),
-    GossipEvent(Arc<GossipEvent>),
+    GossipEvent(Arc<GossipEvent<Ctx>>),
     TimeoutElapsed(Timeout),
     ApplyDriverInput(DriverInput<Ctx>),
     Decided(Ctx::Height, Round, Ctx::Value),
@@ -155,7 +155,7 @@ where
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
         timers_config: TimersConfig,
-        gossip_consensus: GossipConsensusRef,
+        gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
         metrics: Metrics,
         tx_decision: Option<TxDecision<Ctx>>,
@@ -176,7 +176,7 @@ where
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
         timers_config: TimersConfig,
-        gossip_consensus: GossipConsensusRef,
+        gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
         metrics: Metrics,
         tx_decision: Option<TxDecision<Ctx>>,
@@ -203,7 +203,7 @@ where
 
     pub async fn handle_gossip_event(
         &self,
-        event: &GossipEvent,
+        event: &GossipEvent<Ctx>,
         myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
@@ -218,17 +218,12 @@ where
     pub async fn handle_network_msg(
         &self,
         from: &PeerId,
-        msg: NetworkMsg,
+        msg: NetworkMsg<Ctx>,
         myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::Vote(signed_vote) => {
-                let Ok(signed_vote) = SignedVote::<Ctx>::from_proto(signed_vote) else {
-                    error!("Failed to decode signed vote");
-                    return Ok(());
-                };
-
                 let validator_address = signed_vote.validator_address();
 
                 info!(%from, validator = %validator_address, "Received vote: {}", PrettyVote::<Ctx>(&signed_vote.vote));
@@ -275,12 +270,7 @@ where
                 myself.cast(Msg::ApplyDriverInput(DriverInput::Vote(signed_vote.vote)))?;
             }
 
-            NetworkMsg::Proposal(proposal) => {
-                let Ok(signed_proposal) = SignedProposal::<Ctx>::from_proto(proposal) else {
-                    error!("Failed to decode signed proposal");
-                    return Ok(());
-                };
-
+            NetworkMsg::Proposal(signed_proposal) => {
                 let validator = signed_proposal.proposal.validator_address();
 
                 info!(%from, %validator, "Received proposal: {}", PrettyProposal::<Ctx>(&signed_proposal.proposal));
@@ -350,12 +340,7 @@ where
                 }
             }
 
-            NetworkMsg::BlockPart(block_part) => {
-                let Ok(signed_block_part) = SignedBlockPart::<Ctx>::from_proto(block_part) else {
-                    error!("Failed to decode signed block part");
-                    return Ok(());
-                };
-
+            NetworkMsg::BlockPart(signed_block_part) => {
                 let validator_address = signed_block_part.validator_address();
 
                 let Some(validator) = state.validator_set.get_by_address(validator_address) else {
@@ -554,18 +539,10 @@ where
 
                 let signed_proposal = self.ctx.sign_proposal(proposal);
 
-                // TODO: Refactor to helper method
-                let Ok(bytes) = signed_proposal
-                    .to_proto()
-                    .map(NetworkMsg::Proposal)
-                    .and_then(|msg| msg.to_network_bytes())
-                else {
-                    error!("Failed to encode signed proposal");
-                    return Ok(Next::None);
-                };
-
-                self.gossip_consensus
-                    .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
+                self.gossip_consensus.cast(GossipConsensusMsg::Broadcast(
+                    Channel::Consensus,
+                    NetworkMsg::Proposal(signed_proposal.clone()),
+                ))?;
 
                 Ok(Next::Input(DriverInput::Proposal(
                     signed_proposal.proposal,
@@ -583,18 +560,10 @@ where
 
                 let signed_vote = self.ctx.sign_vote(vote);
 
-                // TODO: Refactor to helper method
-                let Ok(bytes) = signed_vote
-                    .to_proto()
-                    .map(NetworkMsg::Vote)
-                    .and_then(|msg| msg.to_network_bytes())
-                else {
-                    error!("Failed to encode signed vote");
-                    return Ok(Next::None);
-                };
-
-                self.gossip_consensus
-                    .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
+                self.gossip_consensus.cast(GossipConsensusMsg::Broadcast(
+                    Channel::Consensus,
+                    NetworkMsg::Vote(signed_vote.clone()),
+                ))?;
 
                 Ok(Next::Input(DriverInput::Vote(signed_vote.vote)))
             }
@@ -895,10 +864,10 @@ where
                         if state.driver.round() == Round::Nil {
                             debug!("Received gossip event at round -1, queuing for later");
                             state.msg_queue.push_back(Msg::GossipEvent(event));
-                        } else if state.driver.height().as_u64() < msg_height {
+                        } else if state.driver.height() < msg_height {
                             debug!("Received gossip event for higher height, queuing for later");
                             state.msg_queue.push_back(Msg::GossipEvent(event));
-                        } else if state.driver.height().as_u64() == msg_height {
+                        } else if state.driver.height() == msg_height {
                             self.handle_gossip_event(event.as_ref(), myself, state)
                                 .await?;
                         }
@@ -921,17 +890,10 @@ where
             Msg::GossipBlockPart(block_part) => {
                 let signed_block_part = self.ctx.sign_block_part(block_part);
 
-                let Ok(bytes) = signed_block_part
-                    .to_proto()
-                    .map(NetworkMsg::BlockPart)
-                    .and_then(|msg| msg.to_network_bytes())
-                else {
-                    error!("Failed to encode signed block part");
-                    return Ok(());
-                };
-
-                self.gossip_consensus
-                    .cast(GossipConsensusMsg::Broadcast(Channel::BlockParts, bytes))?;
+                self.gossip_consensus.cast(GossipConsensusMsg::Broadcast(
+                    Channel::BlockParts,
+                    NetworkMsg::BlockPart(signed_block_part),
+                ))?;
             }
 
             Msg::BlockReceived(block) => {

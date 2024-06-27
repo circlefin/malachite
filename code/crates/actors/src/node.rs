@@ -5,7 +5,6 @@ use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
 use malachite_common::{Context, Round};
-use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
 use crate::consensus::ConsensusRef;
@@ -32,7 +31,7 @@ pub struct Params<Ctx: Context> {
 #[allow(dead_code)]
 pub struct Node<Ctx: Context> {
     ctx: Ctx,
-    gossip_consensus: GossipConsensusRef,
+    gossip_consensus: GossipConsensusRef<Ctx>,
     consensus: ConsensusRef<Ctx>,
     gossip_mempool: GossipMempoolRef,
     mempool: MempoolRef,
@@ -43,13 +42,11 @@ pub struct Node<Ctx: Context> {
 impl<Ctx> Node<Ctx>
 where
     Ctx: Context,
-    Ctx::Vote: Protobuf<Proto = malachite_proto::Vote>,
-    Ctx::Proposal: Protobuf<Proto = malachite_proto::Proposal>,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         ctx: Ctx,
-        gossip_consensus: GossipConsensusRef,
+        gossip_consensus: GossipConsensusRef<Ctx>,
         consensus: ConsensusRef<Ctx>,
         gossip_mempool: GossipMempoolRef,
         mempool: MempoolRef,
@@ -76,8 +73,6 @@ where
 impl<Ctx> Actor for Node<Ctx>
 where
     Ctx: Context,
-    Ctx::Vote: Protobuf<Proto = malachite_proto::Vote>,
-    Ctx::Proposal: Protobuf<Proto = malachite_proto::Proposal>,
 {
     type Msg = ();
     type State = ();

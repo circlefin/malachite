@@ -1,7 +1,7 @@
 use signature::Signer;
 
-use malachite_common::{NilOrVal, Round, SignedVote, VoteType};
-use malachite_proto::{self as proto};
+use malachite_common::{proto, NilOrVal, Round, SignedVote, VoteType};
+use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::{Address, Height, PrivateKey, TestContext, ValueId};
 
@@ -47,7 +47,7 @@ impl Vote {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        proto::Protobuf::to_bytes(self).unwrap()
+        Protobuf::to_bytes(self).unwrap()
     }
 
     pub fn signed(self, private_key: &PrivateKey) -> SignedVote<TestContext> {
@@ -86,35 +86,35 @@ impl malachite_common::Vote<TestContext> for Vote {
     }
 }
 
-impl proto::Protobuf for Vote {
+impl Protobuf for Vote {
     type Proto = proto::Vote;
 
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             typ: VoteType::from(proto.vote_type()),
             height: Height::from_proto(
                 proto
                     .height
-                    .ok_or_else(|| proto::Error::missing_field::<proto::Vote>("height"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<proto::Vote>("height"))?,
             )?,
             round: Round::from_proto(
                 proto
                     .round
-                    .ok_or_else(|| proto::Error::missing_field::<proto::Vote>("round"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<proto::Vote>("round"))?,
             )?,
             value: match proto.value {
                 Some(value) => NilOrVal::Val(ValueId::from_proto(value)?),
                 None => NilOrVal::Nil,
             },
             validator_address: Address::from_proto(
-                proto.validator_address.ok_or_else(|| {
-                    proto::Error::missing_field::<proto::Vote>("validator_address")
-                })?,
+                proto
+                    .validator_address
+                    .ok_or_else(|| ProtoError::missing_field::<proto::Vote>("validator_address"))?,
             )?,
         })
     }
 
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(proto::Vote {
             vote_type: proto::VoteType::from(self.typ).into(),
             height: Some(self.height.to_proto()?),

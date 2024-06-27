@@ -1,5 +1,4 @@
-use malachite_common::Round;
-use malachite_proto as proto;
+use malachite_common::{proto, Round};
 
 use crate::mock::types::{Address, Height, ProposalContent, StarknetContext};
 
@@ -58,7 +57,7 @@ impl malachite_common::Proposal<StarknetContext> for Proposal {
 }
 
 impl proto::Protobuf for Proposal {
-    type Proto = malachite_proto::Proposal;
+    type Proto = proto::Proposal;
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {

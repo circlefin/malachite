@@ -25,11 +25,12 @@ mod signed_proposal;
 mod signed_vote;
 mod signing;
 mod timeout;
-
 mod transaction;
 mod validator_set;
 mod value;
 mod vote;
+
+pub mod proto;
 
 // Re-export `signature` crate for convenience
 pub use ::signature;

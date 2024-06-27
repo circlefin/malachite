@@ -1,5 +1,4 @@
-use malachite_common::{self as common, NilOrVal, Round, VoteType};
-use malachite_proto as proto;
+use malachite_common::{self as common, proto, NilOrVal, Round, VoteType};
 
 use crate::mock::types::{Address, BlockHash, Height, StarknetContext};
 

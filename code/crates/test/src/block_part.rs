@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use signature::Signer;
 
-use malachite_common::{Round, SignedBlockPart, TransactionBatch};
-use malachite_proto::{self as proto};
+use malachite_common::{proto, Round, SignedBlockPart, TransactionBatch};
+use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::{Address, Height, PrivateKey, TestContext, Value};
 
@@ -23,7 +23,7 @@ impl BlockMetadata {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        proto::Protobuf::to_bytes(self).unwrap()
+        Protobuf::to_bytes(self).unwrap()
     }
 
     pub fn size_bytes(&self) -> usize {
@@ -31,21 +31,21 @@ impl BlockMetadata {
     }
 }
 
-impl proto::Protobuf for BlockMetadata {
+impl Protobuf for BlockMetadata {
     type Proto = crate::proto::BlockMetadata;
 
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             proof: proto.proof,
             value: Value::from_proto(
                 proto
                     .value
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("height"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("height"))?,
             )?,
         })
     }
 
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(crate::proto::BlockMetadata {
             proof: self.proof.clone(),
             value: Option::from(self.value.to_proto().unwrap()),
@@ -75,13 +75,13 @@ impl Content {
     }
 }
 
-impl proto::Protobuf for Content {
+impl Protobuf for Content {
     type Proto = crate::proto::Content;
 
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         let content = proto
             .value
-            .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
+            .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("value"))?;
 
         match content {
             crate::proto::content::Value::TxBatch(batch) => {
@@ -93,7 +93,7 @@ impl proto::Protobuf for Content {
         }
     }
 
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         match self {
             Content::TxBatch(batch) => Ok(crate::proto::Content {
                 value: Some(crate::proto::content::Value::TxBatch(batch.to_proto()?)),
@@ -133,7 +133,7 @@ impl BlockPart {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        proto::Protobuf::to_bytes(self).unwrap()
+        Protobuf::to_bytes(self).unwrap()
     }
 
     pub fn signed(self, private_key: &PrivateKey) -> SignedBlockPart<TestContext> {
@@ -179,36 +179,36 @@ impl malachite_common::BlockPart<TestContext> for BlockPart {
     }
 }
 
-impl proto::Protobuf for BlockPart {
+impl Protobuf for BlockPart {
     type Proto = proto::BlockPart;
 
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             height: Height::from_proto(
                 proto
                     .height
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("height"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("height"))?,
             )?,
             round: Round::from_proto(
                 proto
                     .round
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("round"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("round"))?,
             )?,
             sequence: proto.sequence,
             content: Arc::new(Content::from_any(
                 &proto
                     .content
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("content"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("content"))?,
             )?),
             validator_address: Address::from_proto(
-                proto.validator_address.ok_or_else(|| {
-                    proto::Error::missing_field::<Self::Proto>("validator_address")
-                })?,
+                proto
+                    .validator_address
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("validator_address"))?,
             )?,
         })
     }
 
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(proto::BlockPart {
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),

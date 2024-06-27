@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package malachite;
+package malachite.common;
 
 import "google/protobuf/any.proto";
 
@@ -38,7 +38,7 @@ message Vote {
 }
 
 message SignedVote {
-    Vote vote = 1;
+    google.protobuf.Any vote = 1;
     bytes signature = 2;
 }
 
@@ -51,7 +51,7 @@ message Proposal {
 }
 
 message SignedProposal {
-    Proposal proposal = 1;
+    google.protobuf.Any proposal = 1;
     bytes signature = 2;
 }
 
@@ -76,7 +76,7 @@ message BlockPart {
 }
 
 message SignedBlockPart {
-    BlockPart block_part = 1;
+    google.protobuf.Any block_part = 1;
     bytes signature = 2;
 }
 

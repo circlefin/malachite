@@ -1,20 +1,23 @@
-use prost::{Message, Name};
+use derive_where::derive_where;
+use prost::Name;
 use prost_types::Any;
 
+use malachite_common::{
+    BlockPart, Context, Proposal, SignedBlockPart, SignedProposal, SignedVote, Vote,
+};
 use malachite_proto::Error as ProtoError;
 use malachite_proto::Protobuf;
-use malachite_proto::{SignedBlockPart, SignedProposal, SignedVote};
 
 use crate::Channel;
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum NetworkMsg {
-    Vote(SignedVote),
-    Proposal(SignedProposal),
-    BlockPart(SignedBlockPart),
+#[derive_where(Clone, Debug, PartialEq)]
+pub enum NetworkMsg<Ctx: Context> {
+    Vote(SignedVote<Ctx>),
+    Proposal(SignedProposal<Ctx>),
+    BlockPart(SignedBlockPart<Ctx>),
 }
 
-impl NetworkMsg {
+impl<Ctx: Context> NetworkMsg<Ctx> {
     pub fn channel(&self) -> Channel {
         match self {
             NetworkMsg::Vote(_) | NetworkMsg::Proposal(_) => Channel::Consensus,
@@ -30,27 +33,32 @@ impl NetworkMsg {
         Protobuf::to_bytes(self)
     }
 
-    pub fn msg_height(&self) -> Option<u64> {
+    pub fn msg_height(&self) -> Option<Ctx::Height> {
         match self {
-            NetworkMsg::Vote(msg) => Some(msg.vote.as_ref()?.height.as_ref()?.value),
-            NetworkMsg::Proposal(msg) => Some(msg.proposal.as_ref()?.height.as_ref()?.value),
-            NetworkMsg::BlockPart(msg) => Some(msg.block_part.as_ref()?.height.as_ref()?.value),
+            NetworkMsg::Vote(msg) => Some(msg.vote.height()),
+            NetworkMsg::Proposal(msg) => Some(msg.proposal.height()),
+            NetworkMsg::BlockPart(msg) => Some(msg.block_part.height()),
         }
     }
 }
 
-impl Protobuf for NetworkMsg {
+impl<Ctx: Context> Protobuf for NetworkMsg<Ctx>
+where
+    SignedVote<Ctx>: Protobuf,
+    SignedProposal<Ctx>: Protobuf,
+    SignedBlockPart<Ctx>: Protobuf,
+{
     type Proto = Any;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
-        if proto.type_url == SignedVote::type_url() {
-            let vote = SignedVote::decode(proto.value.as_slice())?;
+        if proto.type_url == <SignedVote<Ctx> as Protobuf>::Proto::type_url() {
+            let vote = SignedVote::<Ctx>::from_bytes(proto.value.as_slice())?;
             Ok(NetworkMsg::Vote(vote))
-        } else if proto.type_url == SignedProposal::type_url() {
-            let proposal = SignedProposal::decode(proto.value.as_slice())?;
+        } else if proto.type_url == <SignedProposal<Ctx> as Protobuf>::Proto::type_url() {
+            let proposal = SignedProposal::<Ctx>::from_bytes(proto.value.as_slice())?;
             Ok(NetworkMsg::Proposal(proposal))
-        } else if proto.type_url == SignedBlockPart::type_url() {
-            let block_part = SignedBlockPart::decode(proto.value.as_slice())?;
+        } else if proto.type_url == <SignedBlockPart<Ctx> as Protobuf>::Proto::type_url() {
+            let block_part = SignedBlockPart::<Ctx>::from_bytes(proto.value.as_slice())?;
             Ok(NetworkMsg::BlockPart(block_part))
         } else {
             Err(ProtoError::UnknownMessageType {
@@ -60,19 +68,10 @@ impl Protobuf for NetworkMsg {
     }
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
-        Ok(match self {
-            NetworkMsg::Vote(vote) => Any {
-                type_url: SignedVote::type_url(),
-                value: vote.encode_to_vec(),
-            },
-            NetworkMsg::Proposal(proposal) => Any {
-                type_url: SignedProposal::type_url(),
-                value: proposal.encode_to_vec(),
-            },
-            NetworkMsg::BlockPart(block_part) => Any {
-                type_url: SignedBlockPart::type_url(),
-                value: block_part.encode_to_vec(),
-            },
-        })
+        match self {
+            NetworkMsg::Vote(vote) => vote.to_any(),
+            NetworkMsg::Proposal(proposal) => proposal.to_any(),
+            NetworkMsg::BlockPart(block_part) => block_part.to_any(),
+        }
     }
 }

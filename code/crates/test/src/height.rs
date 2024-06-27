@@ -1,6 +1,7 @@
 use core::fmt;
 
-use malachite_proto as proto;
+use malachite_common::proto;
+use malachite_proto::{Error as ProtoError, Protobuf};
 
 /// A blockchain height
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -46,14 +47,14 @@ impl malachite_common::Height for Height {
     }
 }
 
-impl proto::Protobuf for Height {
+impl Protobuf for Height {
     type Proto = proto::Height;
 
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self(proto.value))
     }
 
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(proto::Height { value: self.0 })
     }
 }
