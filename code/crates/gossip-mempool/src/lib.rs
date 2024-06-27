@@ -1,3 +1,7 @@
+// For coverage on nightly
+#![allow(unexpected_cfgs)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+
 use core::fmt;
 use std::collections::HashMap;
 use std::error::Error;
@@ -10,11 +14,17 @@ use libp2p::{gossipsub, identify, SwarmBuilder};
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
+use malachite_metrics::SharedRegistry;
+
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
 pub mod behaviour;
 pub mod handle;
+
+mod msg;
+pub use msg::NetworkMsg;
+
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
 
@@ -87,7 +97,7 @@ pub struct State {
 #[derive(Debug)]
 pub enum Event {
     Listening(Multiaddr),
-    Message(PeerId, Channel, Vec<u8>),
+    Message(PeerId, NetworkMsg),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
 }
@@ -98,14 +108,24 @@ pub enum CtrlMsg {
     Shutdown,
 }
 
-pub async fn spawn(keypair: Keypair, config: Config) -> Result<Handle, BoxError> {
-    let mut swarm = SwarmBuilder::with_existing_identity(keypair)
-        .with_tokio()
-        .with_quic()
-        .with_dns()?
-        .with_behaviour(Behaviour::new)?
-        .with_swarm_config(|cfg| config.apply(cfg))
-        .build();
+pub async fn spawn(
+    keypair: Keypair,
+    config: Config,
+    registry: SharedRegistry,
+) -> Result<Handle, BoxError> {
+    let mut swarm = registry.with_prefix(
+        "malachite_gossip_mempool",
+        |registry| -> Result<_, BoxError> {
+            Ok(SwarmBuilder::with_existing_identity(keypair)
+                .with_tokio()
+                .with_quic()
+                .with_dns()?
+                .with_bandwidth_metrics(registry)
+                .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
+                .with_swarm_config(|cfg| config.apply(cfg))
+                .build())
+        },
+    )?;
 
     for channel in Channel::all() {
         swarm
@@ -274,10 +294,12 @@ async fn handle_swarm_event(
                 message.data.len()
             );
 
-            if let Err(e) = tx_event
-                .send(Event::Message(peer_id, channel, message.data))
-                .await
-            {
+            let Ok(network_msg) = NetworkMsg::from_network_bytes(&message.data) else {
+                error!("Error decoding message {message_id} from {peer_id}: invalid format");
+                return ControlFlow::Continue(());
+            };
+
+            if let Err(e) = tx_event.send(Event::Message(peer_id, network_msg)).await {
                 error!("Error sending message to handle: {e}");
                 return ControlFlow::Break(());
             }

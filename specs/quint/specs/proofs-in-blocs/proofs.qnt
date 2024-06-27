@@ -11,10 +11,7 @@
 
 module proofs {
 
-type Address = str
 type Height = int
-type Time = int
-type ForkID = int
 
 
 // this models a recursive proof that consists of the proof of the 
@@ -90,7 +87,7 @@ var num_unproven_blocks: StrandInfo
 
 
 // If a block contains transactions then it is at the very beginning, or the block also contains a proof
-def transactionNeedsProofInv = 
+def payloadImpliesProofInv = 
     chain.last().payload implies chain.last().height < numStrands or chain.last().proof != None
 
 // The number of proofs of empty blocks in a recursive proof is bounded by maxMissingProofs
@@ -136,7 +133,7 @@ def OnlyHeadUnprovenInv =
         unproven.forall(u => u >= maxproven) // >= to eliminate initial state with proven being the empty set
     )
 
-// missing_proofs counter is bouned
+// missing_proofs counter is bounded
 def missingProofsInv = 
     0.to(numStrands -1).forall(s => num_unproven_blocks.get(s) <= maxMissingProofs)
 

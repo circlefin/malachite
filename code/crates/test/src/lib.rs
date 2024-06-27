@@ -15,6 +15,8 @@ mod validator_set;
 mod value;
 mod vote;
 
+pub mod proposer_selector;
+pub mod proto;
 pub mod utils;
 
 pub use crate::address::*;
