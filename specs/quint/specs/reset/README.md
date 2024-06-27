@@ -8,7 +8,7 @@ When not indicated differently, we used `quint run resetTest.qnt` to conduct ran
 
 In addition to the standard `step` action, we have added some more actions to model  environments that deviate from the expected behavior.
 
-The following actions reduce the number of possible behaviors compared to `step`:
+The following actions reduce the number of possible behaviors compared to  the standard `step` action:
 
 - `stepNoRegs`: No registrations are ever added. While the standard step uses `addRegistration`, this is omitted here. This is done to highlight that liveness of the protocol depends to a large extent to the fact that registrations are continuously added ("infinitely often"). While we do not check liveness conditions yet, we observe the consequence by the fact that many witnesses that are reached under the standard step action cannot be reached here.
 - `stepProvableL2BlocksOnly`: all blocks added to L2 are provable. The standard step uses `addL2Block`, which non-deterministically sets a block provable or not.
