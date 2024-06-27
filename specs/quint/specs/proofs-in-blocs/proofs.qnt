@@ -82,7 +82,7 @@ var num_unproven_blocks: StrandInfo
 
 
 // If a block contains transactions then it is at the very beginning, or the block also contains a proof
-def transactionNeedsProofInv = 
+def payloadImpliesProofInv = 
     chain.last().txs implies chain.last().height < numStrands or chain.last().proof != None
 
 // The number of proofs of empty blocks in a recursive proof is bounded by maxMissingProofs
