@@ -17,6 +17,7 @@ pub struct Behaviour {
     pub identify: identify::Behaviour,
     pub gossipsub: gossipsub::Behaviour,
 }
+
 fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
     let hash = blake3::hash(&message.data);
     gossipsub::MessageId::from(hash.as_bytes().to_vec())
@@ -28,12 +29,12 @@ fn gossipsub_config() -> gossipsub::Config {
         .opportunistic_graft_ticks(3)
         .heartbeat_interval(Duration::from_secs(1))
         .validation_mode(gossipsub::ValidationMode::Strict)
-        .history_gossip(50)
+        .history_gossip(3)
+        .history_length(5)
         .mesh_n_high(12)
         .mesh_n_low(4)
         .mesh_outbound_min(2)
         .mesh_n(6)
-        .history_length(500)
         .message_id_fn(message_id)
         .build()
         .unwrap()
