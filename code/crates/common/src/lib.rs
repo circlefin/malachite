@@ -30,6 +30,7 @@ mod validator_set;
 mod value;
 mod vote;
 
+#[cfg(feature = "proto")]
 pub mod proto;
 
 // Re-export `signature` crate for convenience

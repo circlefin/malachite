@@ -10,7 +10,7 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
-malachite-common   = { workspace = true }
+malachite-common   = { workspace = true, features = ["proto"] }
 malachite-metrics  = { workspace = true }
 malachite-proto    = { workspace = true }
 
