@@ -533,6 +533,7 @@ where
         match output {
             DriverOutput::NewRound(height, round) => {
                 info!("Starting round {round} at height {height}");
+                self.metrics.round.set(round.as_i64());
 
                 let validator_set = &state.driver.validator_set;
                 let proposer = self.get_proposer(height, round, validator_set).await?;
@@ -766,7 +767,8 @@ where
                 self.metrics.block_start();
 
                 let round = Round::new(0);
-                info!("Starting height {height} at round {round}");
+                info!("Starting new height {height}");
+                self.metrics.height.set(height.as_u64() as i64);
 
                 let validator_set = &state.driver.validator_set;
                 let proposer = self.get_proposer(height, round, validator_set).await?;

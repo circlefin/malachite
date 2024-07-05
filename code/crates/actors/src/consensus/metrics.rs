@@ -37,6 +37,12 @@ pub struct Inner {
     /// Number of connected peers, ie. for each consensus node, how many peers is it connected to)
     pub connected_peers: Gauge,
 
+    /// Current height
+    pub height: Gauge,
+
+    /// Current round
+    pub round: Gauge,
+
     /// Internal state for measuring time taken to finalize a block
     instant_block_started: Arc<AtomicInstant>,
 }
@@ -46,11 +52,13 @@ impl Metrics {
         Self(Arc::new(Inner {
             finalized_blocks: Counter::default(),
             finalized_txes: Counter::default(),
-            time_per_block: Histogram::new(linear_buckets(0.0, 1.0, 20)),
+            time_per_block: Histogram::new(linear_buckets(1.0, 0.1, 20)),
             block_tx_count: Histogram::new(linear_buckets(0.0, 32.0, 128)),
             block_size_bytes: Histogram::new(linear_buckets(0.0, 64.0 * 1024.0, 128)),
             rounds_per_block: Histogram::new(linear_buckets(0.0, 1.0, 20)),
             connected_peers: Gauge::default(),
+            height: Gauge::default(),
+            round: Gauge::default(),
             instant_block_started: Arc::new(AtomicInstant::empty()),
         }))
     }
@@ -99,6 +107,18 @@ impl Metrics {
                 "connected_peers",
                 "Number of connected peers, ie. for each consensus node, how many peers is it connected to",
                 metrics.connected_peers.clone(),
+            );
+
+            registry.register(
+                "height",
+                "Current height",
+                metrics.height.clone(),
+            );
+
+            registry.register(
+                "round",
+                "Current round",
+                metrics.round.clone(),
             );
         });
 
