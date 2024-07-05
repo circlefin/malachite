@@ -23,6 +23,7 @@ pub struct Mempool {
     test_config: TestConfig,       // todo - pick only the mempool related
 }
 
+#[derive(Debug)]
 pub enum MempoolMsg {
     GossipEvent(Arc<GossipEvent>),
     Input(Transaction),
