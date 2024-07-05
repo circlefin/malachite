@@ -6,6 +6,9 @@ use crate::{
 /// This trait allows to abstract over the various datatypes
 /// that are used in the consensus engine.
 ///
+/// The environment/context for the consensus library comprises, briefly:
+///     *
+///
 /// TODO: Add `HashingScheme` associated type.
 pub trait Context
 where

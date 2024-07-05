@@ -40,6 +40,7 @@ where
     }
 }
 
+// TODO(Adi): Document this, unclear what's the magic..
 pub async fn forward<A, B, F>(
     to: ActorRef<B>,
     supervisor: Option<ActorCell>,

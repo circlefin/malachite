@@ -4,8 +4,7 @@ use bytesize::ByteSize;
 use sha2::{Digest, Sha256};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
-use tracing::{debug, error, trace};
-
+use tracing::{error, trace, info};
 use malachite_actors::mempool::{MempoolMsg, MempoolRef};
 use malachite_common::Round;
 
@@ -21,6 +20,7 @@ pub async fn build_proposal_task(
     tx_part: mpsc::Sender<ProposalPart>,
     tx_block_hash: oneshot::Sender<BlockHash>,
 ) {
+    info!("Starting build_proposal_task");
     if let Err(e) = run_build_proposal_task(
         height,
         round,
@@ -69,7 +69,7 @@ async fn run_build_proposal_task(
             .await?
             .success_or("Failed to get tx-es from the mempool")?;
 
-        trace!("Reaped {} tx-es from the mempool", txes.len());
+        info!("Reaped {} tx-es from the mempool", txes.len());
 
         if txes.is_empty() {
             break;
@@ -91,6 +91,9 @@ async fn run_build_proposal_task(
 
         let txes = txes.into_iter().take(tx_count).collect::<Vec<_>>();
 
+        // We're simulating execution time here
+        // Because we're executing here, this assumes the same-block execution mode
+        // To do delayed execution mode, we'd do some changes here
         tokio::time::sleep(params.exec_time_per_tx * tx_count as u32).await;
 
         block_tx_count += tx_count;
@@ -120,12 +123,13 @@ async fn run_build_proposal_task(
     let proof = vec![42];
 
     let hash = block_hasher.finalize();
+    // Adi: Note the same-block execution mode here
     let block_hash = BlockHash::new(hash.into());
     let block_metadata = BlockMetadata::new(proof, block_hash);
     let part = ProposalPart::Metadata(sequence, block_metadata);
     let block_size = ByteSize::b(block_size as u64);
 
-    debug!(
+    info!(
         tx_count = %block_tx_count, size = %block_size, hash = %block_hash, parts = %sequence,
         "Built block in {:?}", start.elapsed()
     );

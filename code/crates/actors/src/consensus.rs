@@ -1,6 +1,7 @@
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
+use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -35,6 +36,16 @@ pub enum Next<Ctx: Context> {
     Decided(Round, Ctx::Value),
 }
 
+impl<Ctx: Context> fmt::Display for Next<Ctx> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Next::None => write!(f, "Next::None"),
+            Next::Input(i) => write!(f, "Next::Input {:#?}", i),
+            Next::Decided(_, _) => write!(f, "Next::Decided"),
+        }
+    }
+}
+
 pub struct ConsensusParams<Ctx: Context> {
     pub start_height: Ctx::Height,
     pub initial_validator_set: Ctx::ValidatorSet,
@@ -46,6 +57,7 @@ pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
 pub type TxDecision<Ctx> = mpsc::Sender<(<Ctx as Context>::Height, Round, <Ctx as Context>::Value)>;
 
+/// The Consensus Actor
 pub struct Consensus<Ctx>
 where
     Ctx: Context,
@@ -59,11 +71,19 @@ where
     tx_decision: Option<TxDecision<Ctx>>,
 }
 
+/// Messages that other actors may send to the Consensus actor
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
+/// Classifies the different messages that the Consensus actor
+/// will handle.
 pub enum Msg<Ctx: Context> {
+    // Sender of this message: self
+    // When: after handling `MoveToHeight` or `GossipEvent`
     StartHeight(Ctx::Height),
+    // Sender: self
+    // When: after handling `TimeoutStep::Commit`
     MoveToHeight(Ctx::Height),
+    // Sender: ?
     GossipEvent(Arc<GossipEvent>),
     TimeoutElapsed(Timeout),
     ApplyDriverInput(DriverInput<Ctx>),
@@ -71,7 +91,7 @@ pub enum Msg<Ctx: Context> {
     ProcessDriverOutputs(Vec<DriverOutput<Ctx>>),
     // The proposal builder has built a value and can be used in a new proposal consensus message
     ProposeValue(Ctx::Height, Round, Ctx::Value),
-    // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
+    // The proposal builder has built a new block part, needs to be signed and gossiped by consensus
     GossipBlockPart(Ctx::BlockPart),
     BlockReceived(ReceivedProposedValue<Ctx>),
 }
@@ -82,6 +102,7 @@ impl<Ctx: Context> From<TimeoutElapsed> for Msg<Ctx> {
     }
 }
 
+/// Represents the internal state of the Consensus actor.
 pub struct State<Ctx>
 where
     Ctx: Context,
@@ -151,6 +172,8 @@ where
     Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
     Ctx::BlockPart: Protobuf<Proto = proto::BlockPart>,
 {
+    /// Creates a new consensus actor.
+    ///
     pub fn new(
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
@@ -424,6 +447,7 @@ where
     ) -> Result<(), ractor::ActorProcessingErr> {
         match &input {
             DriverInput::NewRound(_, _, _) => {
+                info!("\t[timers.cast(TimersMsg::CancelAllTimeouts] because of DriverInput::NewRound");
                 state.timers.cast(TimersMsg::CancelAllTimeouts)?;
             }
 
@@ -502,9 +526,11 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         for output in outputs {
+            // info!("\t [processing output] {:#?}", output);
             let next = self
                 .handle_driver_output(output, myself.clone(), state)
                 .await?;
+            // info!("\t [got next] {}", next);
 
             match next {
                 Next::None => (),
@@ -545,6 +571,7 @@ where
                 )))
             }
 
+            // The driver is giving to consensus a certain proposal
             DriverOutput::Propose(proposal) => {
                 info!(
                     "Proposing value with id: {}, at round {}",
@@ -564,6 +591,8 @@ where
                     return Ok(Next::None);
                 };
 
+                // This is a consensus messages
+                // It is _separate_ from the block parts
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(Channel::Consensus, bytes))?;
 
@@ -637,7 +666,7 @@ where
     ) -> Result<(), ActorProcessingErr> {
         let timeout_duration = self.timers_config.timeout_duration(timeout.step);
 
-        // Call `GetValue` on the CAL actor, and forward the reply to the current actor,
+        // Call `GetValue` on the Host actor, and forward the reply to the current actor,
         // wrapping it in `Msg::ProposeValue`.
         self.host.call_and_forward(
             |reply| HostMsg::GetValue {
@@ -724,6 +753,9 @@ where
         let (timers, _) =
             Timers::spawn_linked(self.timers_config, myself.clone(), myself.get_cell()).await?;
 
+        // TODO(Adi): Clarify what's happening here
+        //  Is it the case that we are setting up all messages that GossipConsensus actor is handling
+        //  to be forwarded to the Consensus actor?
         let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
         self.gossip_consensus
             .cast(GossipConsensusMsg::Subscribe(forward))?;
@@ -789,6 +821,7 @@ where
                 state.timers.cast(TimersMsg::CancelAllTimeouts)?;
                 state.timers.cast(TimersMsg::ResetTimeouts)?;
 
+                // The proposer validator starts a new height
                 let validator_set = self.get_validator_set(height).await?;
                 state.driver.move_to_height(height, validator_set);
 
@@ -864,6 +897,7 @@ where
                         self.metrics.connected_peers.inc();
 
                         if state.connected_peers.len() == state.validator_set.count() - 1 {
+                            // TODO(Adi): Shouldn't we check these peers are _validators_?
                             info!(
                                 "Enough peers ({}) connected to start consensus",
                                 state.connected_peers.len()
@@ -911,6 +945,7 @@ where
             }
 
             Msg::ApplyDriverInput(input) => {
+                // info!("\t[matched ApplyDriverInput] for {}", input);
                 self.apply_driver_input(input, myself, state).await?;
             }
 

@@ -140,6 +140,7 @@ where
         self.lift_output(round_output, &mut outputs);
 
         // Apply the pending inputs, if any, and lift their outputs
+        // TODO(Adi) Clarify what's the purpose of this?
         self.process_pending(&mut outputs)?;
 
         Ok(outputs)

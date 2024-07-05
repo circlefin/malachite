@@ -131,6 +131,8 @@ impl Actor for GossipConsensus {
             return Ok(());
         };
 
+        // Important note: Each `NewEvent` that GossipConsensus is handling is being
+        // forwarded to the Consensus actor and to any other subscriber!
         match msg {
             Msg::Subscribe(subscriber) => subscribers.push(subscriber),
             Msg::Broadcast(channel, data) => ctrl_handle.broadcast(channel, data).await?,

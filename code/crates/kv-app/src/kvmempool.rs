@@ -1,40 +1,35 @@
-use std::collections::{BTreeMap, VecDeque};
-use std::hash::{DefaultHasher, Hash, Hasher};
-use std::sync::Arc;
+// Adi: This is a copy of `mempool` module from `malachite_actors`
+// with a single modification: it does not use the method
+// `generate_and_broadcast_txes` to obtain transactions, but instead
+// we get transactions from users via RPC calls
 
 use async_trait::async_trait;
-use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
-use rand::distributions::Uniform;
-use rand::Rng;
+use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
+use std::collections::{BTreeMap, VecDeque};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use tracing::{info, trace};
 
-use malachite_common::{MempoolTransactionBatch, Transaction, TransactionBatch};
-use malachite_gossip_mempool::{Channel, Event as GossipEvent, NetworkMsg, PeerId};
+use malachite_common::Transaction;
+use malachite_gossip_mempool::{Event as GossipEvent, NetworkMsg, PeerId};
 use malachite_node::config::{MempoolConfig, TestConfig};
 
-use crate::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
-use crate::util::forward;
+use malachite_actors::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
+use malachite_actors::util::forward;
 
-pub type MempoolRef = ActorRef<MempoolMsg>;
+use malachite_actors::mempool::MempoolMsg;
+use malachite_actors::mempool::MempoolRef;
 
-pub struct Mempool {
+#[allow(dead_code)]
+pub struct KvMempool {
     gossip_mempool: GossipMempoolRef,
     mempool_config: MempoolConfig, // todo - pick only what's needed
     test_config: TestConfig,       // todo - pick only the mempool related
 }
 
-pub enum MempoolMsg {
-    GossipEvent(Arc<GossipEvent>),
-    Input(Transaction),
-    TxStream {
-        height: u64,
-        num_txes: usize,
-        reply: RpcReplyPort<Vec<Transaction>>,
-    },
-    Update {
-        tx_hashes: Vec<u64>,
-    },
-}
+// Adi: We will not define our own MempoolMsg here
+// Instead, we'll reuse the same messages from vanilla `malachite_actors`
+// so that we can interface with the rest of the actors.
+// pub enum MempoolMsg { ... }
 
 #[allow(dead_code)]
 pub struct State {
@@ -68,7 +63,7 @@ impl Default for State {
     }
 }
 
-impl Mempool {
+impl KvMempool {
     pub fn new(
         gossip_mempool: GossipMempoolRef,
         mempool_config: MempoolConfig,
@@ -148,7 +143,7 @@ impl Mempool {
 }
 
 #[async_trait]
-impl Actor for Mempool {
+impl Actor for KvMempool {
     type Msg = MempoolMsg;
     type State = State;
     type Arguments = ();
@@ -176,7 +171,7 @@ impl Actor for Mempool {
         myself: MempoolRef,
         msg: MempoolMsg,
         state: &mut State,
-    ) -> Result<(), ractor::ActorProcessingErr> {
+    ) -> Result<(), ActorProcessingErr> {
         match msg {
             MempoolMsg::GossipEvent(event) => {
                 self.handle_gossip_event(&event, myself, state).await?;
@@ -190,17 +185,22 @@ impl Actor for Mempool {
                 }
             }
 
-            // Adi: This is a request coming from `build_new_proposal`
+            // Adi: This is a request coming from the `Host` actor, specifically
+            // from `build_new_proposal` via `run_build_proposal_task`
             MempoolMsg::TxStream {
-                reply, num_txes, ..
+                reply, ..
             } => {
-                let txes = generate_and_broadcast_txes(
-                    num_txes,
-                    self.test_config.tx_size.as_u64(),
-                    &self.mempool_config,
-                    state,
-                    &self.gossip_mempool,
-                )?;
+                // let txes = generate_and_broadcast_txes(
+                //     num_txes,
+                //     self.test_config.tx_size.as_u64(),
+                //     &self.mempool_config,
+                //     state,
+                //     &self.gossip_mempool,
+                // )?;
+
+                // TODO(Adi) Add proper generation code
+                let txes = vec![];
+                info!("Here we need to reap transactions; returning empty vector");
 
                 reply.send(txes)?;
             }
@@ -225,62 +225,4 @@ impl Actor for Mempool {
 
         Ok(())
     }
-}
-
-fn generate_and_broadcast_txes(
-    count: usize,
-    size: u64,
-    config: &MempoolConfig,
-    state: &mut State,
-    gossip_mempool: &GossipMempoolRef,
-) -> Result<Vec<Transaction>, ActorProcessingErr> {
-    let mut transactions = vec![];
-    let mut tx_batch = TransactionBatch::default();
-    let mut rng = rand::thread_rng();
-
-    for _ in 0..count {
-        // Generate transaction
-        let range = Uniform::new(32, 64);
-        let tx_bytes: Vec<u8> = (0..size).map(|_| rng.sample(range)).collect();
-        let tx = Transaction::new(tx_bytes);
-
-        info!("\t .. Generating transactions up to {count}");
-
-        // Add transaction to state
-        if state.transactions.len() < config.max_tx_count {
-            state.add_tx(&tx);
-            info!(
-                "\t .. State now has len={} transactions",
-                state.transactions.len()
-            );
-        }
-        tx_batch.push(tx.clone());
-        info!("\t .. tx_batch now has len={} transactions", tx_batch.len());
-
-        // Gossip tx-es to peers in batches
-        if config.gossip_batch_size > 0 && tx_batch.len() >= config.gossip_batch_size {
-            // TODO(Adi): Isn't there a bug here --
-            //  Shouldn't we reset `tx_batch` to an empty vector?
-            //  Or is that done implicitly in `MempoolTransactionBatch::new`?
-            let mempool_batch = MempoolTransactionBatch::new(std::mem::take(&mut tx_batch));
-            info!(
-                "\t .. assembled a mempool batch len={}; size={}",
-                mempool_batch.len(),
-                mempool_batch.transaction_batch.size_bytes()
-            );
-
-            // TODO(Adi): What happens with the broadcast message below? Could not trace it b/c
-            //  it gets lost somewhere in a "gossip controller" indirection.
-            gossip_mempool.cast(GossipMempoolMsg::Broadcast(Channel::Mempool, mempool_batch))?;
-        }
-
-        transactions.push(tx);
-    }
-    
-    info!(
-        "\t .. returning with transactions len={}",
-        transactions.len()
-    );
-
-    Ok(transactions)
 }

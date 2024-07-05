@@ -7,7 +7,7 @@
 # Override with MALACHITE__APP env variable
 app = "starknet"
 
-# A custom human readable name for this node
+# A custom human-readable name for this node
 # Override with MALACHITE__MONIKER env variable
 moniker = "malachite"
 
@@ -27,14 +27,14 @@ timeout_propose = "5s"
 # How much timeout_propose increases with each round
 timeout_propose_delta = "500ms"
 
-# How long we wait after receiving +2/3 prevotes for “anything” (ie. not a single block or nil)
+# How long we wait after receiving +2/3 prevotes for “anything” (i.e., not a single block or nil)
 # Override with MALACHITE__CONSENSUS__TIMEOUT_PREVOTE env variable
 timeout_prevote = "1s"
 
 # How much the timeout_prevote increases with each round
 timeout_prevote_delta = "500ms"
 
-# How long we wait after receiving +2/3 precommits for “anything” (ie. not a single block or nil)
+# How long we wait after receiving +2/3 precommits for “anything” (i.e., not a single block or nil)
 # Override with MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT env variable
 timeout_precommit = "1s"
 
@@ -95,13 +95,13 @@ listen_addr = "127.0.0.1:9000"
 # The flavor of Tokio runtime to use.
 # Possible values:
 # - "single_threaded": A single threaded runtime (default)
-# - "multi_threaded":  A multi-threaded runtime
+# - "multi_threaded": A multithreaded runtime
 flavor = "single_threaded"
 
-# For the multi-threaded runtime only.
+# For the multithreaded runtime only.
 # Sets the number of worker threads the Runtime will use.
 # If set to 0, defaults to the number of cores available to the system.
-# worker_threads = 4
+# Worker_threads = 4
 
 [test]
 # Override with MALACHITE__TEST__TX_SIZE env variable

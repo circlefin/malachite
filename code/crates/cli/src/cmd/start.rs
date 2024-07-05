@@ -6,6 +6,7 @@ use malachite_node::config::{App, Config};
 use malachite_test::{Address, PrivateKey, ValidatorSet};
 
 use malachite_starknet_app::spawn::spawn_node_actor;
+use malachite_kv_app::spawn::spawn_node_actor_kv;
 
 use crate::metrics;
 
@@ -25,9 +26,11 @@ impl StartCmd {
         }
 
         info!("Node is starting...");
+        info!("App: {}", cfg.app);
 
         let (actor, handle) = match cfg.app {
             App::Starknet => spawn_node_actor(cfg, vs, sk.clone(), sk, val_address, None).await,
+            App::Kv => spawn_node_actor_kv(cfg, vs, sk.clone(), sk, val_address, None).await,
         };
 
         tokio::spawn({

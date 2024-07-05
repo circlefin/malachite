@@ -190,6 +190,7 @@ impl Actor for StarknetHost {
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
+            // Handling of the request to provide the value of the next consensus height
             HostMsg::GetValue {
                 height,
                 round,
@@ -223,6 +224,9 @@ impl Actor for StarknetHost {
                 Ok(())
             }
 
+            // This is a message that Consensus Actor sent to the Host Actor
+            // and it's demanding of the Host actor if the Host actor agrees with
+            // a block part
             HostMsg::ReceivedBlockPart {
                 block_part,
                 reply_to,
@@ -234,6 +238,7 @@ impl Actor for StarknetHost {
                 Ok(())
             }
 
+            // Not integrated yet ...
             HostMsg::GetReceivedValue {
                 height,
                 round,

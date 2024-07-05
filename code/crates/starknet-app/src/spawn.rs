@@ -21,12 +21,12 @@ use malachite_starknet_host::mock::host::{MockHost, MockParams};
 use malachite_starknet_host::mock::types::{
     Address, Height, PrivateKey, ProposalContent, ValidatorSet,
 };
-use malachite_test::utils::test::SpawnNodeActor;
+use malachite_test::utils::test;
 
 pub struct SpawnStarknetNode;
 
 #[async_trait]
-impl SpawnNodeActor for SpawnStarknetNode {
+impl test::SpawnNodeActor for SpawnStarknetNode {
     type Ctx = MockContext;
 
     async fn spawn_node_actor(
@@ -49,6 +49,19 @@ impl SpawnNodeActor for SpawnStarknetNode {
     }
 }
 
+/// The top-level method that ties together all the different
+/// system actors to bootstrap a new Starknet sequencer node.
+///
+/// # Arguments
+///
+/// * `cfg`:
+/// * `initial_validator_set`: the set of validators to start with
+/// * `validator_pk`: public key associated with the validator
+/// * `node_pk`: public key for the node
+/// * `address`: the address of this peer/validator
+/// * `tx_decision`: a channel for returning consensus decisions
+///
+/// Returns: (ActorRef<()>, JoinHandle<()>)
 pub async fn spawn_node_actor(
     cfg: NodeConfig,
     initial_validator_set: ValidatorSet,
@@ -59,6 +72,7 @@ pub async fn spawn_node_actor(
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(validator_pk.clone());
 
+    // Set up the metrics along with the Prometheus client registry
     let registry = SharedRegistry::global();
     let metrics = Metrics::register(registry);
 
@@ -110,7 +124,7 @@ pub async fn spawn_node_actor(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn spawn_consensus_actor(
+pub async fn spawn_consensus_actor(
     start_height: Height,
     initial_validator_set: ValidatorSet,
     address: Address,
@@ -142,7 +156,7 @@ async fn spawn_consensus_actor(
     .unwrap()
 }
 
-async fn spawn_gossip_consensus_actor(
+pub async fn spawn_gossip_consensus_actor(
     cfg: &NodeConfig,
     validator_pk: PrivateKey,
     registry: &SharedRegistry,
@@ -175,7 +189,7 @@ async fn spawn_mempool_actor(
         .unwrap()
 }
 
-async fn spawn_gossip_mempool_actor(
+pub async fn spawn_gossip_mempool_actor(
     cfg: &NodeConfig,
     node_pk: PrivateKey,
     registry: &SharedRegistry,
@@ -198,7 +212,7 @@ async fn spawn_gossip_mempool_actor(
     .unwrap()
 }
 
-async fn spawn_host_actor(
+pub async fn spawn_host_actor(
     cfg: &NodeConfig,
     initial_validator_set: &ValidatorSet,
     mempool: MempoolRef,

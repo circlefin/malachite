@@ -14,6 +14,7 @@ malachite-metrics.workspace       = true
 malachite-node.workspace          = true
 malachite-test.workspace          = true
 malachite-starknet-app.workspace  = true
+malachite-kv-app.workspace        = true
 
 axum               = { workspace = true }
 bytesize           = { workspace = true }

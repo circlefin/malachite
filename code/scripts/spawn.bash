@@ -51,6 +51,10 @@ for NODE in $(seq 0 $((NODES_COUNT - 1))); do
     mkdir -p "$NODES_HOME/$NODE/logs"
     rm -f "$NODES_HOME/$NODE/logs/*.log"
 
+    if [[ ! -d "$NODES_HOME/$NODE/config" ]]; then
+        echo "[Node $NODE] Warning: configuration does not exist in \"$NODES_HOME/$NODE/config\"; consider using \`testnet\` command to generate a config"
+    fi
+
     echo "[Node $NODE] Spawning node..."
     cargo run -q --release -- start --home "$NODES_HOME/$NODE" > "$NODES_HOME/$NODE/logs/node.log" 2>&1 &
     echo $! > "$NODES_HOME/$NODE/node.pid"

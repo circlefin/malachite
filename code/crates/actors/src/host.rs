@@ -40,6 +40,7 @@ pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 /// Messages that need to be handled by the host actor.
 pub enum HostMsg<Ctx: Context> {
     /// Request to build a local block/value from Driver
+    /// Similar to `PrepareProposal` of CometBFT
     GetValue {
         height: Ctx::Height,
         round: Round,
@@ -49,7 +50,7 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
 
-    /// BlockPart received <-- consensus <-- gossip
+    /// BlockPart received <-- consensus <-- gossip consensus
     ReceivedBlockPart {
         block_part: Ctx::BlockPart,
         reply_to: RpcReplyPort<ReceivedProposedValue<Ctx>>,
