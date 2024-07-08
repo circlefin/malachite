@@ -74,7 +74,7 @@ impl common::Vote<StarknetContext> for Vote {
 }
 
 impl proto::Protobuf for Vote {
-    type Proto = proto::Vote;
+    type Proto = crate::proto::mock::Vote;
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
@@ -83,12 +83,12 @@ impl proto::Protobuf for Vote {
             height: Height::from_proto(
                 proto
                     .height
-                    .ok_or_else(|| proto::Error::missing_field::<proto::Vote>("height"))?,
+                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("height"))?,
             )?,
             round: Round::from_proto(
                 proto
                     .round
-                    .ok_or_else(|| proto::Error::missing_field::<proto::Vote>("round"))?,
+                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("round"))?,
             )?,
             value: match proto.value {
                 Some(value) => {
@@ -102,7 +102,7 @@ impl proto::Protobuf for Vote {
             },
             validator_address: Address::from_proto(
                 proto.validator_address.ok_or_else(|| {
-                    proto::Error::missing_field::<proto::Vote>("validator_address")
+                    proto::Error::missing_field::<Self::Proto>("validator_address")
                 })?,
             )?,
         })
@@ -110,7 +110,7 @@ impl proto::Protobuf for Vote {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        Ok(proto::Vote {
+        Ok(Self::Proto {
             vote_type: proto::VoteType::from(self.vote_type).into(),
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),

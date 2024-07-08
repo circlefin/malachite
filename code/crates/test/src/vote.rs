@@ -87,7 +87,7 @@ impl malachite_common::Vote<TestContext> for Vote {
 }
 
 impl Protobuf for Vote {
-    type Proto = proto::Vote;
+    type Proto = crate::proto::Vote;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
@@ -95,12 +95,12 @@ impl Protobuf for Vote {
             height: Height::from_proto(
                 proto
                     .height
-                    .ok_or_else(|| ProtoError::missing_field::<proto::Vote>("height"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("height"))?,
             )?,
             round: Round::from_proto(
                 proto
                     .round
-                    .ok_or_else(|| ProtoError::missing_field::<proto::Vote>("round"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("round"))?,
             )?,
             value: match proto.value {
                 Some(value) => NilOrVal::Val(ValueId::from_proto(value)?),
@@ -109,13 +109,13 @@ impl Protobuf for Vote {
             validator_address: Address::from_proto(
                 proto
                     .validator_address
-                    .ok_or_else(|| ProtoError::missing_field::<proto::Vote>("validator_address"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("validator_address"))?,
             )?,
         })
     }
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
-        Ok(proto::Vote {
+        Ok(Self::Proto {
             vote_type: proto::VoteType::from(self.typ).into(),
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),

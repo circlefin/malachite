@@ -29,38 +29,14 @@ enum VoteType {
    PRECOMMIT = 1;
 }
 
-message Vote {
-    VoteType vote_type = 1;
-    Height height = 2;
-    Round round = 3;
-    ValueId value = 4;
-    Address validator_address = 5;
-}
-
 message SignedVote {
     google.protobuf.Any vote = 1;
     bytes signature = 2;
 }
 
-message Proposal {
-    Height height = 1;
-    Round round = 2;
-    Value value = 3;
-    Round pol_round = 4;
-    Address validator_address = 5;
-}
-
 message SignedProposal {
     google.protobuf.Any proposal = 1;
     bytes signature = 2;
-}
-
-message BlockPart {
-    Height height = 1;
-    Round round = 2;
-    uint64 sequence = 3;
-    Address validator_address = 4;
-    google.protobuf.Any content = 5;
 }
 
 message SignedBlockPart {

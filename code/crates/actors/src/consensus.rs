@@ -9,7 +9,6 @@ use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 
-use malachite_common::proto;
 use malachite_common::{
     Context, Height, NilOrVal, Proposal, Round, SignedVote, Timeout, TimeoutStep, Validator,
     ValidatorSet, Validity, Value, Vote, VoteType,
@@ -18,7 +17,6 @@ use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_gossip_consensus::{Channel, Event as GossipEvent, NetworkMsg, PeerId};
-use malachite_proto::Protobuf;
 use malachite_vote::ThresholdParams;
 
 use crate::gossip_consensus::{GossipConsensusRef, Msg as GossipConsensusMsg};
@@ -147,9 +145,6 @@ where
 impl<Ctx> Consensus<Ctx>
 where
     Ctx: Context,
-    Ctx::Vote: Protobuf<Proto = proto::Vote>,
-    Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
-    Ctx::BlockPart: Protobuf<Proto = proto::BlockPart>,
 {
     pub fn new(
         ctx: Ctx,
@@ -677,9 +672,6 @@ impl<Ctx> Actor for Consensus<Ctx>
 where
     Ctx: Context,
     Ctx::Height: fmt::Display,
-    Ctx::Vote: Protobuf<Proto = proto::Vote>,
-    Ctx::Proposal: Protobuf<Proto = proto::Proposal>,
-    Ctx::BlockPart: Protobuf<Proto = proto::BlockPart>,
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;

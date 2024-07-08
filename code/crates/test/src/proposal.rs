@@ -1,4 +1,4 @@
-use malachite_common::{proto, Round};
+use malachite_common::Round;
 use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::{Address, Height, TestContext, Value};
@@ -58,10 +58,10 @@ impl malachite_common::Proposal<TestContext> for Proposal {
 }
 
 impl Protobuf for Proposal {
-    type Proto = proto::Proposal;
+    type Proto = crate::proto::Proposal;
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
-        Ok(proto::Proposal {
+        Ok(Self::Proto {
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),
             value: Some(self.value.to_proto()?),

@@ -34,7 +34,7 @@ where
     fn from_proto(proto: Self::Proto) -> Result<Self, Error> {
         let vote = proto
             .vote
-            .ok_or_else(|| Error::missing_field::<SignedVote>("vote"))?;
+            .ok_or_else(|| Error::missing_field::<Self::Proto>("vote"))?;
 
         Ok(Self {
             vote: Ctx::Vote::from_any(&vote)?,
@@ -60,7 +60,7 @@ where
     fn from_proto(proto: Self::Proto) -> Result<Self, Error> {
         let block_part = proto
             .block_part
-            .ok_or_else(|| Error::missing_field::<BlockPart>("block_part"))?;
+            .ok_or_else(|| Error::missing_field::<Self::Proto>("block_part"))?;
 
         Ok(Self {
             block_part: Ctx::BlockPart::from_any(&block_part)?,

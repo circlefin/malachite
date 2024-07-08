@@ -21,6 +21,7 @@ derive-where.workspace    = true
 eyre.workspace            = true
 itertools.workspace       = true
 prost.workspace           = true
+prost-types.workspace     = true
 ractor.workspace          = true
 rand.workspace            = true
 signature.workspace       = true

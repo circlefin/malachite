@@ -57,11 +57,11 @@ impl malachite_common::Proposal<StarknetContext> for Proposal {
 }
 
 impl proto::Protobuf for Proposal {
-    type Proto = proto::Proposal;
+    type Proto = crate::proto::mock::Proposal;
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        Ok(proto::Proposal {
+        Ok(Self::Proto {
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),
             value: Some(proto::Value {
