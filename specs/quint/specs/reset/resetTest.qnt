@@ -2,7 +2,7 @@
 
 module resetTest {
     
-import reset (
+import resetSystem (
     L2EpochSize = 5,
     L1EpochSize = 4,
     EthStartTime = 42, // This enforces that the first registrations have EVE greater than the initial forkID
@@ -10,7 +10,7 @@ import reset (
     maxReg = 3,
     minReg = -3,
     ValAddresses = Set("Huey", "Dewey", "Louie")
-).* from "./reset"
+).* from "./resetSystem"
 
 
 run FailedResetTest = 
@@ -39,8 +39,13 @@ run ResetwithProofonL1Test =
 run moveOneRegToL1ToL2 = 
     addRegistration
     .then(addL1BlockNoProof(1))
-    .then(addL2BlockRegs(L1[L1.length()-1].newRegistrations))
+    .then(addL2BlockParams(L1[L1.length()-1].newRegistrations, true))
 
+run lastPossibleL1BlockWitnessRun = 
+    init
+    .then(moveOneRegToL1ToL2)
+    .then(addL1BlockNoProof(4))
+    .then(addL1BlockProofWithHeight(1,1))
 
 run ProofRegsTest = 
     init     
@@ -55,12 +60,41 @@ run invalidRegistrationTest =
     .expect(L1.last().provenHeight == 0)    // proof rejected /  provenHeight still 0
 
 
+run splitBrainBadBlock = 
+    init
+    .then(moveOneRegToL1ToL2) 
+    .then(addL1BlockSplitBrainProof)
+    .expect(not(noProvenRegistrationsUnfulfilledInv)
+            and not(proofStateInv)) // invariants violated
+    .then(addL1BlockNoProof(10))
+    .then(resetParam(true))
+    .then(addL1BlockProofWithHeight(2,1))
+    .expect(not(noProvenRegistrationsUnfulfilledInv)) 
+    // invariant still violated. Bad accepted proof has become the truth and L2 cannot overright it
+    
+
+
+
+// The run below shows a scenario where a reset block is unprovable. The system would be
+// deadlocked without additional registrations.  The second reset wouldn't do anything
+// as the expected forkID on L1 is unchanged. Commenting-out the moveOneRegToL1ToL2
+// action gets us out of the situation as this registration will eventually become 
+// stale, and another reset can be successful
+
+run resetUnprovableNoDeadlock = 
+    init
+    .then(moveOneRegToL1ToL2) 
+    .then(addL1BlockNoProof(10))
+    .then(resetParam(false))
+    //.then(moveOneRegToL1ToL2) 
+    .then(addL1BlockNoProof(10))
+    .then(resetParam(true))
 
 run simpleTest = 
     init
     .then(all{assert(L1.length() == 1), addL1Block})
     .then(all{assert(L1.length() == 2), addL1Block})
-
+    .then(addL1BlockNoProof(5))
 
 
 }

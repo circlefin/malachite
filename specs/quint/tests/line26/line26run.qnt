@@ -1,6 +1,6 @@
 // -*- mode: Bluespec; -*-
 
-module line28run {
+module line26run {
 
 import TendermintDSL.* from "../../specs/TendermintDSL"
 export TendermintDSL.*
@@ -18,43 +18,46 @@ val others = otherSet.fold(List(), (s, x) => s.append(x))
 - the precommits from others are delivered to correct processes so that timeoutprecommit is started
 - correct processes go to the next round
 - there the proposer
-    - uses the valid value stored to send proposal for valid value
-    - correct processes take this to execute line 28 and prevote for this value
+    - ignores the valid value stored and send a proposal for a different value
+    - correct processes take this to execute line 26 and prevote nil
 */
 
-run runToLine28 = 
+run runToLine26 = {
     val nextProposer = proposer(validatorSet, 0, 1)
     nondet value = oneOf(Values)
+    nondet otherValue = oneOf(Values.exclude(Set(value)))
     init
+
     // proposer sends proposal and correct processes receive -> send prevote value
     .then(all {
         // others should be at most 2/3.
         // if this assertion fails the set need to be set differently
         assert(3 * size(otherSet) <= 2 * size(validators)),  
-        assert(3 * size(otherSet.union(Faulty)) > 2 * size(validators)), 
-        // the following is required for fromPrevoteToPrecommit to have the right number of steps. 
-        // We should better understand this to simplify test writing
-        assert(2 * size(Faulty) + 1 == size(Correct)), 
-        assert(not(Faulty.union(otherSet).contains(nextProposer))), 
+        assert(3 * size(otherSet.union(Faulty)) > 2 * size(validators)),  
         everyoneReceivesProposal(correctList, validatorList, validatorSet, 0, 0, value)
     })
-    // receive all prevotes    
+    // correct processes receive prevotes from correct processes -> send precommit    
     .then(fromPrevoteToPrecommit(correctList, correctList, validatorList, validatorSet, 0, 0, Val(value)))
+    // TODO assertion: valid and locked is set.
     // now the faulty nodes precommit nil
     .then(ListDeliverAllVotes(Precommit, faultyList, correctList, validatorSet, 0, 0, Nil))
+    // correct processes receive faulty precommit nil
     .then(faultyList.length().reps(_ => ListTakeAStep(correctList)))   
-    // now the other precommits are delivered, so that timeoutPrecommit is started
+    // now the precommits from some correct processes are delivered, 
+    // "other" processes are just enough so that timeoutPrecommit is started
     .then(ListDeliverAllVotes(Precommit, others, correctList, validatorSet, 0, 0, Val(value)))
     .then(others.length().reps(_ => ListTakeAStep(correctList)))
-    // TimeoutPrecommit is there an can fire and bring is to the next round.
+    // now fire precommit timeout:
+    .then(ListTakeAStep(correctList))
+    // correct process deliver proposal
+    .then(ListDeliverProposal(correctList, mkProposal(nextProposer, 0, 1, otherValue, -1)))
+    // proper consume round switch + process proposal (2 steps)
+    .then(2.reps(_ => ListTakeAStep(correctList)))
+    // now line26 made us prevote nil in round 1
     .then(all{
-        assert(system.get(nextProposer).timeouts.contains((PrecommitTimeout, 0, 0))),
-        everyoneReceivesProposalVR(correctList, validatorList, validatorSet, 0, 1, value, 0)
-    })
-    .then(all{
-        assert(voteBuffer.get(nextProposer).contains(mkVote(Prevote, nextProposer, 0, 1, Val(value)))),
+	    assert(voteBuffer.get("v1").contains(mkVote(Prevote, "v4", 0, 1, Nil))),
         unchangedAll
     })
-
+}
 
 }
