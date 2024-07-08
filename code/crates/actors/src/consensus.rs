@@ -482,10 +482,24 @@ where
             DriverInput::TimeoutElapsed(_) => (),
         }
 
+        // Record the step we were in
+        let prev_step = state.driver.step();
+
         let outputs = state
             .driver
             .process(input)
             .map_err(|e| format!("Driver failed to process input: {e}"));
+
+        // Record the step we are now at
+        let new_step = state.driver.step();
+
+        // If the step has changed, update the metrics
+        if prev_step != new_step {
+            debug!("Transitioned from {prev_step:?} to {new_step:?}");
+
+            self.metrics.step_end(prev_step);
+            self.metrics.step_start(new_step);
+        }
 
         match outputs {
             Ok(outputs) => myself.cast(Msg::ProcessDriverOutputs(outputs))?,
@@ -795,6 +809,8 @@ where
             Msg::MoveToHeight(height) => {
                 state.timers.cast(TimersMsg::CancelAllTimeouts)?;
                 state.timers.cast(TimersMsg::ResetTimeouts)?;
+
+                self.metrics.step_end(state.driver.step());
 
                 let validator_set = self.get_validator_set(height).await?;
                 state.driver.move_to_height(height, validator_set);

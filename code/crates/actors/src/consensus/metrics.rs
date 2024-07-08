@@ -1,7 +1,11 @@
+use std::fmt::Write;
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
-use malachite_metrics::{linear_buckets, Counter, Gauge, Histogram, SharedRegistry};
+use malachite_metrics::prometheus_client;
+use malachite_metrics::prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
+use malachite_metrics::{linear_buckets, Counter, Family, Gauge, Histogram, SharedRegistry};
+use malachite_round::state::Step;
 
 #[derive(Clone, Debug)]
 pub struct Metrics(Arc<Inner>);
@@ -11,6 +15,31 @@ impl Deref for Metrics {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+pub struct TimePerStep {
+    step: AsLabelValue<Step>,
+}
+
+impl TimePerStep {
+    pub fn new(step: Step) -> Self {
+        Self {
+            step: AsLabelValue(step),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+struct AsLabelValue<T>(T);
+
+impl EncodeLabelValue for AsLabelValue<Step> {
+    fn encode(
+        &self,
+        encoder: &mut prometheus_client::encoding::LabelValueEncoder,
+    ) -> Result<(), std::fmt::Error> {
+        encoder.write_fmt(format_args!("{:?}", self.0))
     }
 }
 
@@ -24,6 +53,9 @@ pub struct Inner {
 
     /// Time taken to finalize a block, in seconds
     pub time_per_block: Histogram,
+
+    /// Time taken for a step within a round, in secodns
+    pub time_per_step: Family<TimePerStep, Histogram>,
 
     /// Block size in terms of # of transactions
     pub block_tx_count: Histogram,
@@ -45,6 +77,9 @@ pub struct Inner {
 
     /// Internal state for measuring time taken to finalize a block
     instant_block_started: Arc<AtomicInstant>,
+
+    /// Internal state for measuring time taken for a step within a round
+    instant_step_started: (Arc<RwLock<Step>>, Arc<AtomicInstant>),
 }
 
 impl Metrics {
@@ -52,7 +87,10 @@ impl Metrics {
         Self(Arc::new(Inner {
             finalized_blocks: Counter::default(),
             finalized_txes: Counter::default(),
-            time_per_block: Histogram::new(linear_buckets(1.0, 0.1, 20)),
+            time_per_block: Histogram::new(linear_buckets(0.0, 0.1, 20)),
+            time_per_step: Family::new_with_constructor(|| {
+                Histogram::new(linear_buckets(0.0, 0.1, 20))
+            }),
             block_tx_count: Histogram::new(linear_buckets(0.0, 32.0, 128)),
             block_size_bytes: Histogram::new(linear_buckets(0.0, 64.0 * 1024.0, 128)),
             rounds_per_block: Histogram::new(linear_buckets(0.0, 1.0, 20)),
@@ -60,6 +98,10 @@ impl Metrics {
             height: Gauge::default(),
             round: Gauge::default(),
             instant_block_started: Arc::new(AtomicInstant::empty()),
+            instant_step_started: (
+                Arc::new(RwLock::new(Step::Unstarted)),
+                Arc::new(AtomicInstant::empty()),
+            ),
         }))
     }
 
@@ -83,6 +125,12 @@ impl Metrics {
                 "time_per_block",
                 "Time taken to finalize a block, in seconds",
                 metrics.time_per_block.clone(),
+            );
+
+            registry.register(
+                "time_per_step",
+                "Time taken for a step in a round, in seconds",
+                metrics.time_per_step.clone(),
             );
 
             registry.register(
@@ -136,6 +184,29 @@ impl Metrics {
 
             self.instant_block_started.set_millis(0);
         }
+    }
+
+    pub fn step_start(&self, step: Step) {
+        *self.instant_step_started.0.write().unwrap() = step;
+        self.instant_step_started.1.set_now();
+    }
+
+    pub fn step_end(&self, step: Step) {
+        let current_step = *self.instant_step_started.0.read().unwrap();
+        debug_assert_eq!(current_step, step, "step_end called for wrong step");
+
+        // If the step was never started, ignore
+        if current_step == Step::Unstarted {
+            return;
+        }
+
+        let elapsed = self.instant_step_started.1.elapsed().as_secs_f64();
+        self.time_per_step
+            .get_or_create(&TimePerStep::new(step))
+            .observe(elapsed);
+
+        *self.instant_step_started.0.write().unwrap() = Step::Unstarted;
+        self.instant_step_started.1.set_millis(0);
     }
 }
 
