@@ -18,6 +18,7 @@ impl Deref for Metrics {
     }
 }
 
+/// Label set for the `time_per_step` metric.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 pub struct TimePerStep {
     step: AsLabelValue<Step>,
@@ -31,6 +32,8 @@ impl TimePerStep {
     }
 }
 
+/// This wrapper allows us to derive `AsLabelValue` for `Step` without
+/// running into Rust orphan rules, cf. <https://rust-lang.github.io/chalk/book/clauses/coherence.html>
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct AsLabelValue<T>(T);
 
