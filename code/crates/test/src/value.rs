@@ -1,5 +1,4 @@
 use core::fmt;
-use std::hash::{DefaultHasher, Hash, Hasher};
 
 use malachite_common::proto;
 use malachite_proto::{Error as ProtoError, Protobuf};
@@ -62,12 +61,6 @@ pub struct Value(u64);
 impl Value {
     pub const fn new(value: u64) -> Self {
         Self(value)
-    }
-
-    pub fn new_from_transactions(txes: &[impl Hash]) -> Self {
-        let mut hash = DefaultHasher::new();
-        txes.hash(&mut hash);
-        Value::new(hash.finish())
     }
 
     pub const fn as_u64(&self) -> u64 {
