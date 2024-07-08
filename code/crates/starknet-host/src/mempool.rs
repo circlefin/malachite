@@ -118,8 +118,7 @@ impl Mempool {
                 info!("Disconnected from peer {peer_id}");
             }
             GossipEvent::Message(from, msg) => {
-                // TODO: Implement Protobuf on NetworkMsg
-                // trace!(%from, "Received message of size {} bytes", msg.encoded_len());
+                trace!(%from, "Received message of size {} bytes", msg.size_bytes());
 
                 trace!(%from, "Received message");
                 self.handle_network_msg(from, msg.clone(), myself, state) // FIXME: Clone
