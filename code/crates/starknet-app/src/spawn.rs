@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -8,7 +9,6 @@ use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef, Metr
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
-use malachite_actors::mempool::{Mempool, MempoolRef};
 use malachite_actors::node::{Node, NodeRef};
 use malachite_common::Round;
 use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
@@ -99,7 +99,7 @@ pub async fn spawn_node_actor(
         gossip_consensus,
         consensus,
         gossip_mempool,
-        mempool,
+        mempool.get_cell(),
         host,
         start_height,
     );

@@ -1,6 +1,6 @@
-use malachite_common::MempoolTransactionBatch;
 use malachite_proto::{Error as ProtoError, Protobuf};
 
+use crate::types::MempoolTransactionBatch;
 use crate::Channel;
 
 #[derive(Clone, Debug, PartialEq)]

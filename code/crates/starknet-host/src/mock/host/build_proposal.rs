@@ -6,9 +6,9 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{debug, error, trace};
 
-use malachite_actors::mempool::{MempoolMsg, MempoolRef};
 use malachite_common::Round;
 
+use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::host::MockParams;
 use crate::mock::types::*;
 

@@ -21,6 +21,8 @@ pub use libp2p::{Multiaddr, PeerId};
 
 pub mod behaviour;
 pub mod handle;
+pub mod proto;
+pub mod types;
 
 mod msg;
 pub use msg::NetworkMsg;

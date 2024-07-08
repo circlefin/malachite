@@ -10,9 +10,6 @@ message BlockMetadata {
 }
 
 message Content {
-    oneof value {
-        malachite.common.TransactionBatch tx_batch = 90;
-        BlockMetadata metadata = 91;
-    }
+    BlockMetadata metadata = 91;
 }
 

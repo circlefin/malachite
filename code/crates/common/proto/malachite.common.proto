@@ -55,18 +55,6 @@ message SignedProposal {
     bytes signature = 2;
 }
 
-message Transaction {
-    optional bytes value = 1;
-}
-
-message TransactionBatch {
-    repeated Transaction transactions = 1;
-}
-
-message MempoolTransactionBatch {
-    TransactionBatch transaction_batch = 1;
-}
-
 message BlockPart {
     Height height = 1;
     Round round = 2;

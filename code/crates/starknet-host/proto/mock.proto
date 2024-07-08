@@ -4,6 +4,15 @@ package starknet.mock;
 
 import "malachite.common.proto";
 
+message Transaction {
+    optional bytes value = 1;
+}
+
+message TransactionBatch {
+    repeated Transaction transactions = 1;
+}
+
+
 message BlockMetadata {
     bytes proof = 1;
     Hash hash = 2;
@@ -16,7 +25,7 @@ message ProposalContent {
 message ProposalPart {
     uint64 sequence = 1;
     oneof part {
-        malachite.common.TransactionBatch tx_batch = 2;
+        TransactionBatch tx_batch = 2;
         BlockMetadata metadata = 3;
     }
 }

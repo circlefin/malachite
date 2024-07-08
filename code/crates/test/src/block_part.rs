@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use signature::Signer;
 
-use malachite_common::{proto, Round, SignedBlockPart, TransactionBatch};
+use malachite_common::{proto, Round, SignedBlockPart};
 use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::{Address, Height, PrivateKey, TestContext, Value};
@@ -54,24 +54,13 @@ impl Protobuf for BlockMetadata {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Content {
-    TxBatch(TransactionBatch),
-    Metadata(BlockMetadata),
+pub struct Content {
+    metadata: BlockMetadata,
 }
 
 impl Content {
     pub fn size_bytes(&self) -> usize {
-        match self {
-            Content::TxBatch(batch) => batch.size_bytes(),
-            Content::Metadata(meta) => meta.size_bytes(),
-        }
-    }
-
-    pub fn tx_count(&self) -> Option<usize> {
-        match self {
-            Content::TxBatch(batch) => Some(batch.transactions().len()),
-            Content::Metadata(_) => None,
-        }
+        self.metadata.size_bytes()
     }
 }
 
@@ -79,29 +68,19 @@ impl Protobuf for Content {
     type Proto = crate::proto::Content;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
-        let content = proto
-            .value
-            .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("value"))?;
-
-        match content {
-            crate::proto::content::Value::TxBatch(batch) => {
-                TransactionBatch::from_proto(batch).map(Content::TxBatch)
-            }
-            crate::proto::content::Value::Metadata(metadata) => {
-                BlockMetadata::from_proto(metadata).map(Content::Metadata)
-            }
-        }
+        Ok(Self {
+            metadata: BlockMetadata::from_proto(
+                proto
+                    .metadata
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("metadata"))?,
+            )?,
+        })
     }
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
-        match self {
-            Content::TxBatch(batch) => Ok(crate::proto::Content {
-                value: Some(crate::proto::content::Value::TxBatch(batch.to_proto()?)),
-            }),
-            Content::Metadata(metadata) => Ok(crate::proto::Content {
-                value: Some(crate::proto::content::Value::Metadata(metadata.to_proto()?)),
-            }),
-        }
+        Ok(Self::Proto {
+            metadata: Some(self.metadata.to_proto()?),
+        })
     }
 }
 
@@ -145,15 +124,8 @@ impl BlockPart {
         }
     }
 
-    pub fn metadata(&self) -> Option<&BlockMetadata> {
-        match self.content.as_ref() {
-            Content::Metadata(metadata) => Some(metadata),
-            Content::TxBatch(_) => None,
-        }
-    }
-
-    pub fn tx_count(&self) -> Option<usize> {
-        self.content.tx_count()
+    pub fn metadata(&self) -> &BlockMetadata {
+        &self.content.metadata
     }
 
     pub fn size_bytes(&self) -> usize {

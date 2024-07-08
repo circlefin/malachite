@@ -2,7 +2,6 @@ use core::fmt;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 use malachite_common::proto;
-use malachite_common::Transaction;
 use malachite_proto::{Error as ProtoError, Protobuf};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Copy)]
@@ -65,7 +64,7 @@ impl Value {
         Self(value)
     }
 
-    pub fn new_from_transactions(txes: &[Transaction]) -> Self {
+    pub fn new_from_transactions(txes: &[impl Hash]) -> Self {
         let mut hash = DefaultHasher::new();
         txes.hash(&mut hash);
         Value::new(hash.finish())
