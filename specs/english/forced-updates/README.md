@@ -141,7 +141,7 @@ Once L2 is rolled-back to latest L2's provenHeight, say h, a new block is append
 
 ### Invariants and temporal formulas
 
-For details we refer to the Quint file, and the upcoming analysis documentation (Points (c) and (d) in the SoW. TODO).
+For details we refer to the [state machine in Quint](https://github.com/informalsystems/malachite/blob/main/specs/quint/specs/reset/resetSystem.qnt), and the [analysis documentation](https://github.com/informalsystems/malachite/blob/main/specs/quint/specs/reset/README.md).
 
 ## Issues
 
