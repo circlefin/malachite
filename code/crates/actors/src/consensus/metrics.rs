@@ -1,6 +1,7 @@
 use std::fmt::Write;
 use std::ops::Deref;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use malachite_metrics::prometheus_client;
 use malachite_metrics::prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
@@ -82,7 +83,7 @@ pub struct Inner {
     instant_block_started: Arc<AtomicInstant>,
 
     /// Internal state for measuring time taken for a step within a round
-    instant_step_started: (Arc<RwLock<Step>>, Arc<AtomicInstant>),
+    instant_step_started: Arc<Mutex<(Step, Instant)>>,
 }
 
 impl Metrics {
@@ -101,10 +102,7 @@ impl Metrics {
             height: Gauge::default(),
             round: Gauge::default(),
             instant_block_started: Arc::new(AtomicInstant::empty()),
-            instant_step_started: (
-                Arc::new(RwLock::new(Step::Unstarted)),
-                Arc::new(AtomicInstant::empty()),
-            ),
+            instant_step_started: Arc::new(Mutex::new((Step::Unstarted, Instant::now()))),
         }))
     }
 
@@ -190,12 +188,14 @@ impl Metrics {
     }
 
     pub fn step_start(&self, step: Step) {
-        *self.instant_step_started.0.write().unwrap() = step;
-        self.instant_step_started.1.set_now();
+        let mut guard = self.instant_step_started.lock().expect("poisoned mutex");
+        *guard = (step, Instant::now());
     }
 
     pub fn step_end(&self, step: Step) {
-        let current_step = *self.instant_step_started.0.read().unwrap();
+        let mut guard = self.instant_step_started.lock().expect("poisoned mutex");
+
+        let (current_step, started) = *guard;
         debug_assert_eq!(current_step, step, "step_end called for wrong step");
 
         // If the step was never started, ignore
@@ -203,13 +203,11 @@ impl Metrics {
             return;
         }
 
-        let elapsed = self.instant_step_started.1.elapsed().as_secs_f64();
         self.time_per_step
             .get_or_create(&TimePerStep::new(step))
-            .observe(elapsed);
+            .observe(started.elapsed().as_secs_f64());
 
-        *self.instant_step_started.0.write().unwrap() = Step::Unstarted;
-        self.instant_step_started.1.set_millis(0);
+        *guard = (Step::Unstarted, Instant::now());
     }
 }
 
