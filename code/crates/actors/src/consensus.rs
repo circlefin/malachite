@@ -766,14 +766,19 @@ where
             Msg::StartHeight(height) => {
                 self.metrics.block_start();
 
-                let round = Round::new(0);
                 info!("Starting new height {height}");
-                self.metrics.height.set(height.as_u64() as i64);
 
+                self.metrics.height.set(height.as_u64() as i64);
+                // Current round when starting a new height is -1 (Nil).
+                // We only move to round 0 after the driver processes the NewRound input.
+                self.metrics.round.set(-1);
+
+                let round = Round::new(0);
                 let validator_set = &state.driver.validator_set;
                 let proposer = self.get_proposer(height, round, validator_set).await?;
                 info!("Proposer for height {height} and round {round}: {proposer}");
 
+                // TODO: Shall we call `self.apply_driver_input` directly here?
                 myself.cast(Msg::ApplyDriverInput(DriverInput::NewRound(
                     height, round, proposer,
                 )))?;
