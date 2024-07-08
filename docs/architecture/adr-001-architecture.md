@@ -203,7 +203,7 @@ Notes:
 
 ##### Operation
 
-The Driver sends votes to the Multiplexer module. The Driver expects that, whenever the Muliplexer (via the Vote Keeper) observes any threshold of votes for the first time and based on its state, it returns the multiplexed event to the Driver.
+The Driver sends votes to the Multiplexer module. The Driver expects that, whenever the Multiplexer (via the Vote Keeper) observes any threshold of votes for the first time and based on its state, it returns the multiplexed event to the Driver.
 
 The Driver sends the multiplexed events to the Round State Machine which, once it processes the Driver inputs, returns consensus-related messages back to the Driver. The Driver then processes these messages and sends them to the Networking module, the External environment (e.g. the block to finalize is sent to the Blockchain module via the `finalize_block()`) , the Host System, or in some cases processes them internally (e.g. `NewRound(round)` message).
 
