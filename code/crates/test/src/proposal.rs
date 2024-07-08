@@ -60,6 +60,7 @@ impl malachite_common::Proposal<TestContext> for Proposal {
 impl Protobuf for Proposal {
     type Proto = crate::proto::Proposal;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(Self::Proto {
             height: Some(self.height.to_proto()?),
@@ -70,6 +71,7 @@ impl Protobuf for Proposal {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             height: Height::from_proto(

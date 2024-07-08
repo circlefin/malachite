@@ -89,6 +89,7 @@ impl malachite_common::Vote<TestContext> for Vote {
 impl Protobuf for Vote {
     type Proto = crate::proto::Vote;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             typ: VoteType::from(proto.vote_type()),
@@ -114,6 +115,7 @@ impl Protobuf for Vote {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(Self::Proto {
             vote_type: proto::VoteType::from(self.typ).into(),

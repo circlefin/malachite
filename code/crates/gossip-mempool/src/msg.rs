@@ -36,6 +36,7 @@ impl NetworkMsg {
 impl Protobuf for NetworkMsg {
     type Proto = Any;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         if proto.type_url == crate::proto::MempoolTransactionBatch::type_url() {
             Ok(NetworkMsg::TransactionBatch(MempoolTransactionBatch {
@@ -49,6 +50,7 @@ impl Protobuf for NetworkMsg {
         }
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         match self {
             NetworkMsg::TransactionBatch(batch) => Ok(batch.transaction_batch.clone()),

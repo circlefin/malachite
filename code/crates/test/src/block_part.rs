@@ -34,6 +34,7 @@ impl BlockMetadata {
 impl Protobuf for BlockMetadata {
     type Proto = crate::proto::BlockMetadata;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             proof: proto.proof,
@@ -45,6 +46,7 @@ impl Protobuf for BlockMetadata {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(crate::proto::BlockMetadata {
             proof: self.proof.clone(),
@@ -67,6 +69,7 @@ impl Content {
 impl Protobuf for Content {
     type Proto = crate::proto::Content;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             metadata: BlockMetadata::from_proto(
@@ -77,6 +80,7 @@ impl Protobuf for Content {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(Self::Proto {
             metadata: Some(self.metadata.to_proto()?),
@@ -154,6 +158,7 @@ impl malachite_common::BlockPart<TestContext> for BlockPart {
 impl Protobuf for BlockPart {
     type Proto = crate::proto::BlockPart;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             height: Height::from_proto(
@@ -180,6 +185,7 @@ impl Protobuf for BlockPart {
         })
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(crate::proto::BlockPart {
             height: Some(self.height.to_proto()?),
