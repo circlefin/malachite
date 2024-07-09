@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use libp2p::swarm::NetworkBehaviour;
-use libp2p::{gossipsub, identify};
+use libp2p::{gossipsub, identify, ping};
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
@@ -15,6 +15,7 @@ const MAX_TRANSMIT_SIZE: usize = 4 * 1024 * 1024; // 4 MiB
 #[behaviour(to_swarm = "NetworkEvent")]
 pub struct Behaviour {
     pub identify: identify::Behaviour,
+    pub ping: ping::Behaviour,
     pub gossipsub: gossipsub::Behaviour,
 }
 
@@ -47,6 +48,7 @@ impl Behaviour {
                 PROTOCOL_VERSION.to_string(),
                 keypair.public(),
             )),
+            ping: ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5))),
             gossipsub: gossipsub::Behaviour::new(
                 gossipsub::MessageAuthenticity::Signed(keypair.clone()),
                 gossipsub_config(),
@@ -61,6 +63,7 @@ impl Behaviour {
                 PROTOCOL_VERSION.to_string(),
                 keypair.public(),
             )),
+            ping: ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5))),
             gossipsub: gossipsub::Behaviour::new_with_metrics(
                 gossipsub::MessageAuthenticity::Signed(keypair.clone()),
                 gossipsub_config(),
@@ -75,12 +78,19 @@ impl Behaviour {
 #[derive(Debug)]
 pub enum NetworkEvent {
     Identify(identify::Event),
+    Ping(ping::Event),
     GossipSub(gossipsub::Event),
 }
 
 impl From<identify::Event> for NetworkEvent {
     fn from(event: identify::Event) -> Self {
         Self::Identify(event)
+    }
+}
+
+impl From<ping::Event> for NetworkEvent {
+    fn from(event: ping::Event) -> Self {
+        Self::Ping(event)
     }
 }
 
