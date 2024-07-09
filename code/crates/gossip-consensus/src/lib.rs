@@ -224,6 +224,12 @@ async fn handle_swarm_event(
     state: &mut State,
     tx_event: &mpsc::Sender<Event>,
 ) -> ControlFlow<()> {
+    if let SwarmEvent::Behaviour(NetworkEvent::GossipSub(e)) = &event {
+        metrics.record(e);
+    } else if let SwarmEvent::Behaviour(NetworkEvent::Identify(e)) = &event {
+        metrics.record(e);
+    }
+
     match event {
         SwarmEvent::NewListenAddr { address, .. } => {
             debug!("Node is listening on {address}");
@@ -343,7 +349,9 @@ async fn handle_swarm_event(
             metrics.record(&event);
         }
 
-        _ => {}
+        swarm_event => {
+            metrics.record(&swarm_event);
+        }
     }
 
     ControlFlow::Continue(())
