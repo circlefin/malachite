@@ -43,6 +43,8 @@ jobs:
         run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache-workspaces: "code"
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
       - name: Build code
@@ -64,6 +66,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: clippy
+          cache-workspaces: "code"
       - name: Run clippy
         uses: actions-rs/clippy@master
         with:
@@ -80,22 +83,24 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: rustfmt
+          cache-workspaces: "code"
       - name: Check formatting
         uses: actions-rust-lang/rustfmt@v1
         with:
           manifest-path: code/Cargo.toml
 
-  # msrv:
-  #   name: MSRV
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions-rust-lang/setup-rust-toolchain@v1
-  #       with:
-  #         toolchain: stable
-  #     - name: Install cargo-binstall
-  #       uses: taiki-e/install-action@cargo-binstall
-  #     - name: Install cargo-msrv
-  #       run: cargo binstall --no-confirm --force cargo-msrv@0.16.0-beta.23
-  #     - name: Check MSRV
-  #       run: cargo msrv verify --output-format minimal --manifest-path code/crates/driver/Cargo.toml -- 'cargo check --all-features'
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache-workspaces: "code"
+      - name: Install cargo-binstall
+        uses: taiki-e/install-action@cargo-binstall
+      - name: Install cargo-msrv
+        run: cargo binstall --no-confirm --force cargo-msrv@0.16.0-beta.20
+      - name: Check MSRV
+        run: cargo msrv verify --output-format minimal --manifest-path code/crates/driver/Cargo.toml -- 'cargo check --all-features'
