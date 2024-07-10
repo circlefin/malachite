@@ -4,7 +4,7 @@ use crate::{BlockPart, Context, Signature};
 
 /// Defines the requirements for a signed block part type.
 
-#[derive_where(Debug, PartialEq, Eq)]
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct SignedBlockPart<Ctx>
 where
     Ctx: Context,

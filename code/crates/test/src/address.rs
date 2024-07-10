@@ -1,7 +1,8 @@
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
-use malachite_proto as proto;
+use malachite_common::proto;
+use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::signing::PublicKey;
 
@@ -51,12 +52,12 @@ impl fmt::Debug for Address {
 
 impl malachite_common::Address for Address {}
 
-impl malachite_proto::Protobuf for Address {
+impl Protobuf for Address {
     type Proto = proto::Address;
 
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         if proto.value.len() != Self::LENGTH {
-            return Err(proto::Error::Other(format!(
+            return Err(ProtoError::Other(format!(
                 "Invalid address length: expected {}, got {}",
                 Self::LENGTH,
                 proto.value.len()
@@ -68,7 +69,7 @@ impl malachite_proto::Protobuf for Address {
         Ok(Self(address))
     }
 
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(proto::Address {
             value: self.0.to_vec(),
         })

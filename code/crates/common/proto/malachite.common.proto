@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package malachite.common;
+
+import "google/protobuf/any.proto";
+
+message Height {
+    uint64 value = 1;
+}
+
+message Address {
+    bytes value = 1;
+}
+
+message Value {
+    optional bytes value = 1;
+}
+
+message ValueId {
+    optional bytes value = 1;
+}
+
+message Round {
+    int64 round = 1;
+}
+
+enum VoteType {
+   PREVOTE = 0;
+   PRECOMMIT = 1;
+}
+
+message SignedVote {
+    google.protobuf.Any vote = 1;
+    bytes signature = 2;
+}
+
+message SignedProposal {
+    google.protobuf.Any proposal = 1;
+    bytes signature = 2;
+}
+
+message SignedBlockPart {
+    google.protobuf.Any block_part = 1;
+    bytes signature = 2;
+}
+

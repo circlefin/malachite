@@ -1,8 +1,7 @@
 use core::fmt;
-use std::hash::{DefaultHasher, Hash, Hasher};
 
-use malachite_common::Transaction;
-use malachite_proto::{self as proto};
+use malachite_common::proto;
+use malachite_proto::{Error as ProtoError, Protobuf};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Copy)]
 pub struct ValueId(u64);
@@ -29,17 +28,18 @@ impl fmt::Display for ValueId {
     }
 }
 
-impl proto::Protobuf for ValueId {
+impl Protobuf for ValueId {
     type Proto = proto::ValueId;
 
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         let bytes = proto
             .value
-            .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
+            .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("value"))?;
 
         let len = bytes.len();
         let bytes = <[u8; 8]>::try_from(bytes).map_err(|_| {
-            proto::Error::Other(format!(
+            ProtoError::Other(format!(
                 "Invalid value length, got {len} bytes expected {}",
                 u64::BITS / 8
             ))
@@ -48,7 +48,8 @@ impl proto::Protobuf for ValueId {
         Ok(ValueId::new(u64::from_be_bytes(bytes)))
     }
 
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(proto::ValueId {
             value: Some(self.0.to_be_bytes().to_vec()),
         })
@@ -62,12 +63,6 @@ pub struct Value(u64);
 impl Value {
     pub const fn new(value: u64) -> Self {
         Self(value)
-    }
-
-    pub fn new_from_transactions(txes: &[Transaction]) -> Self {
-        let mut hash = DefaultHasher::new();
-        txes.hash(&mut hash);
-        Value::new(hash.finish())
     }
 
     pub const fn as_u64(&self) -> u64 {
@@ -91,17 +86,18 @@ impl malachite_common::Value for Value {
     }
 }
 
-impl proto::Protobuf for Value {
+impl Protobuf for Value {
     type Proto = proto::Value;
 
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         let bytes = proto
             .value
-            .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
+            .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("value"))?;
 
         let len = bytes.len();
         let bytes = <[u8; 8]>::try_from(bytes).map_err(|_| {
-            proto::Error::Other(format!(
+            ProtoError::Other(format!(
                 "Invalid value length, got {len} bytes expected {}",
                 u64::BITS / 8
             ))
@@ -110,7 +106,8 @@ impl proto::Protobuf for Value {
         Ok(Value::new(u64::from_be_bytes(bytes)))
     }
 
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(proto::Value {
             value: Some(self.0.to_be_bytes().to_vec()),
         })

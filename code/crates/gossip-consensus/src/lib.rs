@@ -15,6 +15,7 @@ use libp2p::{gossipsub, identify, SwarmBuilder};
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
+use malachite_common::Context;
 use malachite_metrics::SharedRegistry;
 
 pub use libp2p::identity::Keypair;
@@ -96,16 +97,16 @@ impl Config {
 }
 
 #[derive(Debug)]
-pub enum Event {
+pub enum Event<Ctx: Context> {
     Listening(Multiaddr),
-    Message(PeerId, NetworkMsg),
+    Message(PeerId, NetworkMsg<Ctx>),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
 }
 
 #[derive(Debug)]
-pub enum CtrlMsg {
-    Broadcast(Channel, Vec<u8>),
+pub enum CtrlMsg<Ctx: Context> {
+    Broadcast(Channel, NetworkMsg<Ctx>),
     Shutdown,
 }
 
@@ -114,11 +115,11 @@ pub struct State {
     pub peers: HashMap<PeerId, identify::Info>,
 }
 
-pub async fn spawn(
+pub async fn spawn<Ctx: Context>(
     keypair: Keypair,
     config: Config,
     registry: SharedRegistry,
-) -> Result<Handle, BoxError> {
+) -> Result<Handle<Ctx>, BoxError> {
     let mut swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, BoxError> {
         Ok(SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
@@ -150,12 +151,12 @@ pub async fn spawn(
     Ok(Handle::new(tx_ctrl, rx_event, task_handle))
 }
 
-async fn run(
+async fn run<Ctx: Context>(
     config: Config,
     metrics: Metrics,
     mut swarm: swarm::Swarm<Behaviour>,
-    mut rx_ctrl: mpsc::Receiver<CtrlMsg>,
-    tx_event: mpsc::Sender<Event>,
+    mut rx_ctrl: mpsc::Receiver<CtrlMsg<Ctx>>,
+    tx_event: mpsc::Sender<Event<Ctx>>,
 ) {
     if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
         error!("Error listening on {}: {e}", config.listen_addr);
@@ -191,9 +192,20 @@ async fn run(
     }
 }
 
-async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> ControlFlow<()> {
+async fn handle_ctrl_msg<Ctx: Context>(
+    msg: CtrlMsg<Ctx>,
+    swarm: &mut swarm::Swarm<Behaviour>,
+) -> ControlFlow<()> {
     match msg {
-        CtrlMsg::Broadcast(channel, data) => {
+        CtrlMsg::Broadcast(channel, msg) => {
+            let data = match msg.to_network_bytes() {
+                Ok(data) => data,
+                Err(e) => {
+                    error!("Error encoding message {msg:?}: {e}");
+                    return ControlFlow::Continue(());
+                }
+            };
+
             let msg_size = data.len();
 
             let result = swarm
@@ -203,7 +215,7 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
 
             match result {
                 Ok(message_id) => {
-                    trace!("Broadcasted message {message_id} of {msg_size} bytes");
+                    debug!("Broadcasted message {message_id} of {msg_size} bytes");
                 }
                 Err(e) => {
                     error!("Error broadcasting message: {e}");
@@ -217,12 +229,12 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
     }
 }
 
-async fn handle_swarm_event(
+async fn handle_swarm_event<Ctx: Context>(
     event: SwarmEvent<NetworkEvent>,
     metrics: &Metrics,
     swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,
-    tx_event: &mpsc::Sender<Event>,
+    tx_event: &mpsc::Sender<Event<Ctx>>,
 ) -> ControlFlow<()> {
     if let SwarmEvent::Behaviour(NetworkEvent::GossipSub(e)) = &event {
         metrics.record(e);

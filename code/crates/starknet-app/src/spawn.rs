@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -8,7 +9,6 @@ use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef, Metr
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
-use malachite_actors::mempool::{Mempool, MempoolRef};
 use malachite_actors::node::{Node, NodeRef};
 use malachite_common::Round;
 use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
@@ -99,7 +99,7 @@ pub async fn spawn_node_actor(
         gossip_consensus,
         consensus,
         gossip_mempool,
-        mempool,
+        mempool.get_cell(),
         host,
         start_height,
     );
@@ -116,7 +116,7 @@ async fn spawn_consensus_actor(
     address: Address,
     ctx: MockContext,
     cfg: NodeConfig,
-    gossip_consensus: GossipConsensusRef,
+    gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
     metrics: Metrics,
     tx_decision: Option<mpsc::Sender<(Height, Round, ProposalContent)>>,
@@ -146,7 +146,7 @@ async fn spawn_gossip_consensus_actor(
     cfg: &NodeConfig,
     validator_pk: PrivateKey,
     registry: &SharedRegistry,
-) -> GossipConsensusRef {
+) -> GossipConsensusRef<MockContext> {
     let config_gossip = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
