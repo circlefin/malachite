@@ -1,19 +1,8 @@
 resource "local_file" "hosts" {
-  depends_on = [
-    digitalocean_droplet.cc,
-    digitalocean_droplet.small,
-    digitalocean_droplet.large,
-  ]
   content = templatefile("templates/hosts.tmpl", {
-    small = [
-      for node in digitalocean_droplet.small : {
-        name        = node.name,
-        ip          = node.ipv4_address,
-        internal_ip = node.ipv4_address_private
-      }
-    ],
-    large = [
-      for node in digitalocean_droplet.large : {
+    nodes = [
+      for node in concat(digitalocean_droplet.small_a, digitalocean_droplet.large_a, digitalocean_droplet.small_b, digitalocean_droplet.large_b, digitalocean_droplet.small_c, digitalocean_droplet.large_c) :
+      {
         name        = node.name,
         ip          = node.ipv4_address,
         internal_ip = node.ipv4_address_private

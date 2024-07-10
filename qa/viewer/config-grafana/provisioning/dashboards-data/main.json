@@ -23,16 +23,14 @@
   "links": [],
   "panels": [
     {
-      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 0
       },
-      "id": 4,
-      "panels": [],
-      "title": "Consensus",
+      "id": 11,
+      "title": "Transactions and blocks",
       "type": "row"
     },
     {
@@ -100,12 +98,14 @@
         "x": 0,
         "y": 1
       },
-      "id": 5,
+      "id": 2,
       "options": {
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
@@ -121,14 +121,112 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "malachite_consensus_rounds_per_block_sum/malachite_consensus_rounds_per_block_count",
+          "expr": "malachite_consensus_finalized_blocks_total",
           "instant": false,
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "rounds_per_block average",
+      "title": "Total number of blocks created",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMax": 100,
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 25,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "increase(malachite_consensus_finalized_blocks_total[1m])",
+          "instant": false,
+          "interval": "60",
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Blocks created every minute",
       "type": "timeseries"
     },
     {
@@ -193,15 +291,402 @@
       "gridPos": {
         "h": 8,
         "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "malachite_consensus_finalized_txes_total",
+          "instant": false,
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Total number of transactions created",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisGridShow": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMax": 100000,
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 25,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
         "x": 12,
-        "y": 1
+        "y": 9
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "increase(malachite_consensus_finalized_txes_total[1m])",
+          "instant": false,
+          "interval": "60",
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Transactions created every minute",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisGridShow": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisSoftMax": 2,
+            "axisSoftMin": -1,
+            "barAlignment": 0,
+            "drawStyle": "points",
+            "fillOpacity": 25,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "stepBefore",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 17
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "malachite_consensus_round",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "1",
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Current Round",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "displayName": "Round",
+          "fieldMinMax": false,
+          "mappings": [],
+          "max": 4,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 17
+      },
+      "id": 19,
+      "options": {
+        "bucketSize": 0.01,
+        "combine": false,
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "histogram_quantile(0.95, sum(rate(malachite_consensus_rounds_per_block_bucket[$__rate_interval])) by (le))",
+          "format": "time_series",
+          "instant": false,
+          "interval": "",
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Round buckets (count / round)",
+      "type": "histogram"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 25
       },
       "id": 1,
       "options": {
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
@@ -225,8 +710,90 @@
           "refId": "A"
         }
       ],
-      "title": "time_per_block average",
+      "title": "Average time for block creation over time",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "displayName": "Block Creation",
+          "fieldMinMax": false,
+          "mappings": [],
+          "max": 2,
+          "min": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      },
+      "id": 18,
+      "options": {
+        "bucketOffset": 0,
+        "combine": false,
+        "legend": {
+          "calcs": [
+            "last",
+            "mean"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "histogram_quantile(0.95, sum(rate(malachite_consensus_time_per_block_bucket[$__rate_interval])) by (le))",
+          "format": "time_series",
+          "instant": false,
+          "interval": "7",
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Block creation buckets (count / creation time)",
+      "type": "histogram"
     },
     {
       "datasource": {
@@ -245,7 +812,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
+            "drawStyle": "bars",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -277,10 +844,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           }
@@ -291,14 +854,17 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 33
       },
-      "id": 2,
+      "id": 21,
       "options": {
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
+          "calcs": [
+            "last",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
@@ -314,14 +880,15 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "malachite_consensus_finalized_blocks_total",
+          "expr": "malachite_consensus_block_size_bytes_sum/malachite_consensus_block_size_bytes_count",
           "instant": false,
+          "interval": "1",
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "finalized_blocks_total",
+      "title": "Block size over time",
       "type": "timeseries"
     },
     {
@@ -373,10 +940,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           }
@@ -387,9 +950,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 33
       },
-      "id": 6,
+      "id": 20,
       "options": {
         "legend": {
           "calcs": [],
@@ -410,15 +973,30 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "malachite_consensus_connected_peers",
+          "exemplar": false,
+          "expr": "sum(rate(malachite_consensus_block_size_bytes_bucket{le=\"8323072.0\"}[$__rate_interval])) by (instance)/sum(rate(malachite_consensus_block_size_bytes_count[$__rate_interval])) by (instance)",
           "instant": false,
-          "legendFormat": "{{instance}}",
+          "interval": "1",
+          "legendFormat": "Bytes",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "connected_peers",
+      "title": "WIP Block size buckets (count / size in bytes)",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
+      "id": 4,
+      "panels": [],
+      "title": "Other",
+      "type": "row"
     },
     {
       "datasource": {
@@ -438,7 +1016,111 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 0,
+            "fillOpacity": 25,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "stepBefore",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 42
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "malachite_consensus_height",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "1",
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Current Height",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 1,
+            "drawStyle": "line",
+            "fillOpacity": 25,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -469,10 +1151,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           }
@@ -482,15 +1160,18 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 17
+        "x": 12,
+        "y": 42
       },
-      "id": 3,
+      "id": 6,
       "options": {
         "legend": {
-          "calcs": [],
+          "calcs": [
+            "last",
+            "max"
+          ],
           "displayMode": "list",
-          "placement": "bottom",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
@@ -499,6 +1180,7 @@
           "sort": "none"
         }
       },
+      "pluginVersion": "11.0.1",
       "targets": [
         {
           "datasource": {
@@ -506,31 +1188,33 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "malachite_consensus_finalized_txes_total",
+          "expr": "malachite_consensus_connected_peers",
           "instant": false,
+          "interval": "1",
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "finalized_txes_total",
+      "title": "Number of connected peers",
       "type": "timeseries"
     }
   ],
+  "refresh": "",
   "schemaVersion": 39,
   "tags": [],
   "templating": {
     "list": []
   },
   "time": {
-    "from": "now-3h",
-    "to": "now"
+    "from": "2024-07-05T06:25:19.000Z",
+    "to": "2024-07-05T06:45:37.000Z"
   },
   "timeRangeUpdatedDuringEditOrView": false,
   "timepicker": {},
   "timezone": "browser",
   "title": "Malachite first stab",
   "uid": "fdo24nq8yvf28f",
-  "version": 7,
+  "version": 1,
   "weekStart": ""
 }

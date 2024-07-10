@@ -1,11 +1,10 @@
+#!/bin/bash
 # Environment variables for the servers
 # CANDC - the IP address of the command and control server (CC is used by compilers)
 # NODEi - the ip address of the node server "i"
 # D_N - the number of node servers in total
-# D_REGION - the Digital Ocean region where the servers are deployed
 # PSSH_H - space-separated list of all the node server IP addresses for pssh input
 # PSSH_P - the number of parallel processes to run with pssh
-# SSH_OPTS - options for ssh run locally (forward agent, disable known_hosts)
 # MALACHITE_DIR - the path to the malachite repository directory
 # IS_CC - 1 means we are on the CC server, 0 we are not. (Used to determine the docker -H parameter when run locally.)
 ##
@@ -31,47 +30,41 @@
 ##
 
 export CANDC="${cc.ip}"
-%{~ for i, n in concat(small, large) }
+%{~ for i, n in nodes }
 export NODE${i}="${n.ip}"
 %{~ endfor }
-export D_N="${length(small)+length(large)}"
-export D_REGION="${region}"
+export D_N="${length(nodes)}"
 export PSSH_H="${join(" ",ips)}"
-export PSSH_P="30"
-# Arrays require advanced shell, SSH_OPTS is not POSIX compatible
-export SSH_OPTS=(-A -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null)
-export MALACHITE_DIR="$(dirname $(dirname ${path}))"
+export PSSH_P="${length(nodes)}"
+export PSSH_T=120
+export PSSH_V="-v"
+export MALACHITE_DIR="$(dirname "$(dirname "${path}")")"
 export IS_CC=0
-export _CC_DOCKER_SHIM="-H ssh://root@$CANDC"
-if [ $IS_CC -eq 1 ]; then
-  export _CC_DOCKER_SHIM=""
-fi
 
-alias ssh-cc="ssh $SSH_OPTS root@${cc.ip}"
-%{~ for i,n in concat(small, large) }
-alias ssh-node${i}="ssh $SSH_OPTS root@${n.ip}"
+alias ssh-cc="ssh -A -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@${cc.ip}"
+%{~ for i,n in nodes }
+alias ssh-node${i}="ssh -A -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@${n.ip}"
 %{~ endfor }
 
 xssh() {
-  pssh -l root -i -v -O LogLevel=ERROR -O StrictHostKeyChecking=no -O UserKnownHostsFile=/dev/null -O GlobalKnownHostsFile=/dev/null -p $PSSH_P -H "$PSSH_H" "$@"
+  pssh -l root -i $PSSH_V -O LogLevel=ERROR -O StrictHostKeyChecking=no -O UserKnownHostsFile=/dev/null -O GlobalKnownHostsFile=/dev/null -p $PSSH_P -t $PSSH_T -H "$PSSH_H" "$@"
 }
 
 get_ip() {
   I="$1"
-%{~ for i, n in concat(small, large) }
+%{~ for i, n in nodes }
   test "$I" -eq "${i}" && echo "${n.ip}" && return
 %{~ endfor }
   echo "IP for node $I not found" && return 1
 }
 
 ok_cc() {
-  _keyscan_cc 2> /dev/null # needed for deploy_cc
-  PSSH_P=1 PSSH_H=$CANDC xssh "cat /etc/done"
-  sftp -C -q root@$${CANDC} <<EOF
+  PSSH_P=1 PSSH_H=$CANDC xssh "cat /etc/done" && \
+  sftp -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -C -q root@$${CANDC} <<EOF
       put $${1:-$${MALACHITE_DIR}/qa/terraform/hosts} /etc/hosts
       put $${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh} /etc/profile.d/commands.sh
 EOF
-  ssh $SSH_OPTS root@$${CANDC} "sed -i -e 's,^export MALACHITE_DIR=.*,export MALACHITE_DIR=/root/malachite,' -e 's,^export IS_CC=.*,export IS_CC=1,' /etc/profile.d/commands.sh && systemctl reload dnsmasq"
+  test $? -eq 0 && PSSH_P=1 PSSH_H=$CANDC xssh "sed -i -e 's,^export MALACHITE_DIR=.*,export MALACHITE_DIR=/root/malachite,' -e 's,^export IS_CC=.*,export IS_CC=1,' /etc/profile.d/commands.sh && systemctl reload dnsmasq"
 }
 
 ok_all() {
@@ -79,25 +72,31 @@ ok_all() {
 }
 
 deploy_cc() {
-  test -d $MALACHITE_DIR/code || (echo "Source code repository not found. Clone or copy manually." && return 1)
-  docker $_CC_DOCKER_SHIM build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
+  test -d "$MALACHITE_DIR/code" || (echo "Source code repository not found. Clone or copy manually." && return 1)
+  if _is_cc; then
+    docker build --push -t cc.testnet/node --build-context "code=$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
+  else
+    _keyscan_cc 2> /dev/null # Needed for docker -H
+    docker -H ssh://root@$CANDC build --push -t cc.testnet/node --build-context "code=$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
+  fi
 }
 
 setup_config() {
-  docker $_CC_DOCKER_SHIM run -d --pull always --dns ${cc.internal_ip} -v /data:/data -e RUST_LOG ${cc.internal_ip}/node --home /data testnet --nodes $D_N --deterministic
   if _is_cc; then
+    docker run -d --pull always --dns $CANDC -v /data:/data -e RUST_LOG $CANDC/node --home /data testnet --nodes "$D_N" --deterministic
     _change_config all
+    _change_test_du_jour
   else
-    ssh $SSH_OPTS root@$CANDC "source /etc/profile.d/commands.sh && _change_config all"
+    ssh -A -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$CANDC "source /etc/profile.d/commands.sh && docker run -d --pull always --dns $CANDC -v /data:/data -e RUST_LOG $CANDC/node --home /data testnet --nodes $D_N --deterministic && _change_config all && _change_test_du_jour"
   fi
 }
 
 dnode-pull() {
-  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker pull ${cc.internal_ip}/node
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker pull $CANDC/node
 }
 
 dnode-run() {
-  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --dns ${cc.internal_ip} -v /data:/data -v /config:/config -e RUST_LOG ${cc.internal_ip}/node --home /config start
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --dns $CANDC -v /data:/data -v /config:/config -e RUST_LOG $CANDC/node --home /config start
 }
 
 dnode-log() {
@@ -111,7 +110,7 @@ dnode-log() {
       F="-f"
     fi
   fi
-  ssh $SSH_OPTS root@$IP docker logs $F node
+  ssh -A -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$IP docker logs $F node
 }
 
 dnode-stop() {
@@ -129,18 +128,18 @@ deploy_cc
 ssh-cc
 ok_all
 setup_config
-(_chance_one_config_entry)
 dnode-run all
 (wait for data)
 dnode-stop all
 fetch_log
 get_prometheus_data
 dnode-rm all
+_reset_prometheus_db
 EOF
 }
 
 fetch_log() {
-  PSSH_H="$(_parse_multiple_hosts "$@")" xssh -o node_log_out -e node_log_err "docker logs node"
+  PSSH_V="" PSSH_T=0 PSSH_H="$(_parse_multiple_hosts "$@")" xssh -o node_log_out -e node_log_err "docker logs node"
 }
 
 get_prometheus_data() {
@@ -150,7 +149,7 @@ get_prometheus_data() {
     systemctl start prometheus
   else
     ssh-cc "rm -f prometheus.tgz; systemctl stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 . ; systemctl start prometheus"
-    scp -r root@$CANDC:prometheus.tgz .
+    scp -r "root@$CANDC:prometheus.tgz" .
   fi
 }
 
@@ -177,31 +176,31 @@ _is_cc() {
 }
 
 _keyscan_cc() {
-  ssh-keygen -R $CANDC > /dev/null
-  ssh-keyscan -t ed25519 $CANDC >> $HOME/.ssh/known_hosts
+  ssh-keygen -R "$CANDC" > /dev/null
+  ssh-keyscan -t ed25519 "$CANDC" >> "$HOME/.ssh/known_hosts"
 }
 
 _keyscan_servers() {
   _keyscan_cc 2> /dev/null
-%{~ for n in concat(small, large) }
-  ssh-keygen -R ${n.ip} > /dev/null
-  ssh-keyscan -t ed25519 ${n.ip} >> $HOME/.ssh/known_hosts 2> /dev/null
+%{~ for n in nodes }
+  ssh-keygen -R "${n.ip}" > /dev/null
+  ssh-keyscan -t ed25519 "${n.ip}" >> "$HOME/.ssh/known_hosts" 2> /dev/null
 %{~ endfor }
 }
 
 _deploy_sync_code() {
-  rsync -avz --exclude target $MALACHITE_DIR/code root@$${CANDC}:/root/malachite/
+  rsync -avz --exclude target "$MALACHITE_DIR/code" "root@$${CANDC}:/root/malachite/"
 }
 
 _deploy_sync_qa() {
-  rsync -avz --exclude terraform --exclude viewer $MALACHITE_DIR/qa root@$${CANDC}:/root/malachite/
+  rsync -avz --exclude terraform --exclude viewer "$MALACHITE_DIR/qa" "root@$${CANDC}:/root/malachite/"
 }
 
 _deploy_build() {
   if _is_cc; then
-    docker build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
+    docker build --push -t cc.testnet/node --build-context code="$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
   else
-    ssh-cc docker build --push -t cc.testnet/node --build-context code=$MALACHITE_DIR/code $MALACHITE_DIR/qa/docker
+    ssh-cc docker build --push -t cc.testnet/node --build-context code="$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
   fi
 }
 
@@ -209,13 +208,9 @@ _compose_persistent_peers() {
   port=$${1:-27000}
 
   persistent_peers=""
-  for i in $(seq 0 ${length(small)-1})
+  for i in $(seq 0 $((D_N-1)))
   do
-    persistent_peers="$persistent_peers,/dns/small$i/udp/$port/quic-v1"
-  done
-  for i in $(seq 0 ${length(large)-1})
-  do
-    persistent_peers="$persistent_peers,/dns/large$i/udp/$port/quic-v1"
+    persistent_peers="$persistent_peers,/dns/node$i/udp/$port/quic-v1"
   done
   echo $${persistent_peers##,}
 }
@@ -255,9 +250,20 @@ _parse_multiple_hosts() {
   else
     while (( "$#" ));
     do
-      PSSH_X="$PSSH_X $(get_ip "$1")"
+      case "$1" in
+          ''|*[!0-9]*) echo "Invalid number $1, skipping..." ;;
+          *) PSSH_X="$PSSH_X $(get_ip "$1")" ;;
+      esac
       shift
     done
   fi
   echo "$PSSH_X"
+}
+
+_change_test_du_jour() {
+  _change_one_config_entry mempool.gossip_batch_size=0
+  _change_one_config_entry test.time_allowance_factor=0.5
+  _change_one_config_entry test.tx_size=1KiB
+  _change_one_config_entry test.txs_per_part=32
+  _change_one_config_entry test.exec_time_per_tx=1ms
 }

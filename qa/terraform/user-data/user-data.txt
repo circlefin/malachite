@@ -114,7 +114,7 @@ write_files:
   - path: /etc/docker/daemon.json
     content: |
       {
-        "insecure-registries" : ["${cc.internal_ip}"]
+        "insecure-registries" : ["${cc.ip}"]
       }
 # Force systemd-resolved to use custom DNS server
   - path: /etc/systemd/resolved.conf.d/DigitalOcean.conf
@@ -157,7 +157,7 @@ runcmd:
 # Set up NFS share
   - mkdir /data
   - chown nobody:nogroup /data
-  - echo "${cc.internal_ip}:/data /data nfs defaults 0 0" >> /etc/fstab
+  - echo "${cc.ip}:/data /data nfs tcp,ro,nosuid,noexec 0 0" >> /etc/fstab
 # Mount NFS share
   - sleep 60 # Wait for CC NFS Server to come up with fingers crossed
   - mount /data
