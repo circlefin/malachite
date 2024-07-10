@@ -29,9 +29,6 @@ where
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),
 
-    // The proposal builder has built a value and can be used in a new proposal consensus message
-    ProposeValue(Ctx::Height, Round, Ctx::Value),
-
     // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
     GossipBlockPart(Ctx::BlockPart),
 

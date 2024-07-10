@@ -1,10 +1,11 @@
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 
 use malachite_common::*;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_metrics::Metrics;
 
+use crate::mock::GossipEvent;
 use crate::util::pretty::PrettyVal;
 use crate::{emit, emit_then, Effect, Error, Msg, Resume, State, Yielder};
 
@@ -18,16 +19,13 @@ where
     Ctx: Context,
 {
     match msg {
-        Msg::StartHeight(height) => start_height(state, metrics, yielder, height)?,
-        Msg::MoveToHeight(height) => move_to_height(state, metrics, yielder, height)?,
-        Msg::GossipEvent(_) => todo!(),
+        Msg::StartHeight(height) => start_height(state, metrics, yielder, height),
+        Msg::MoveToHeight(height) => move_to_height(state, metrics, yielder, height),
+        Msg::GossipEvent(event) => on_gossip_event(state, metrics, yielder, event),
         Msg::TimeoutElapsed(_) => todo!(),
-        Msg::ProposeValue(_, _, _) => todo!(),
         Msg::GossipBlockPart(_) => todo!(),
         Msg::ProposalReceived(_) => todo!(),
     }
-
-    Ok(())
 }
 
 fn start_height<Ctx>(
@@ -402,4 +400,77 @@ where
         .observe((round.as_i64() + 1) as f64);
 
     Ok(())
+}
+
+fn on_gossip_event<Ctx>(
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    yielder: &Yielder<Ctx>,
+    event: GossipEvent<Ctx>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    match event {
+        GossipEvent::Listening(addr) => {
+            info!("Listening on {addr}");
+            Ok(())
+        }
+
+        GossipEvent::PeerConnected(peer_id) => {
+            if !state.connected_peers.insert(peer_id) {
+                // We already saw that peer, ignoring...
+                return Ok(());
+            }
+
+            info!("Connected to peer {peer_id}");
+
+            metrics.connected_peers.inc();
+
+            if state.connected_peers.len() == state.driver.validator_set.count() - 1 {
+                info!(
+                    "Enough peers ({}) connected to start consensus",
+                    state.connected_peers.len()
+                );
+
+                start_height(state, metrics, yielder, state.driver.height())?;
+            }
+
+            Ok(())
+        }
+
+        GossipEvent::PeerDisconnected(peer_id) => {
+            info!("Disconnected from peer {peer_id}");
+
+            if state.connected_peers.remove(&peer_id) {
+                metrics.connected_peers.dec();
+
+                // TODO: pause/stop consensus, if necessary
+            }
+
+            Ok(())
+        }
+
+        GossipEvent::Message(_, ref msg) => {
+            let Some(msg_height) = msg.msg_height() else {
+                trace!("Received message without height, dropping");
+                return Ok(());
+            };
+
+            // Queue messages if driver is not initialized, or if they are for higher height.
+            // Process messages received for the current height.
+            // Drop all others.
+            if state.driver.round() == Round::Nil {
+                debug!("Received gossip event at round -1, queuing for later");
+                state.msg_queue.push_back(Msg::GossipEvent(event));
+            } else if state.driver.height() < msg_height {
+                debug!("Received gossip event for higher height, queuing for later");
+                state.msg_queue.push_back(Msg::GossipEvent(event));
+            } else if state.driver.height() == msg_height {
+                on_gossip_event(state, metrics, yielder, event)?;
+            }
+
+            Ok(())
+        }
+    }
 }
