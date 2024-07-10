@@ -7,11 +7,7 @@ use std::convert::Infallible;
 use prost_types::Any;
 use thiserror::Error;
 
-use prost::{DecodeError, EncodeError, Message};
-
-include!(concat!(env!("OUT_DIR"), "/malachite.rs"));
-
-mod impls;
+use prost::{DecodeError, EncodeError, Message, Name};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -54,7 +50,7 @@ impl From<Infallible> for Error {
 }
 
 pub trait Protobuf: Sized {
-    type Proto: Message + Default;
+    type Proto: Name + Message + Default;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, Error>;
 
@@ -71,17 +67,11 @@ pub trait Protobuf: Sized {
         Ok(proto.encode_to_vec())
     }
 
-    fn from_any(any: &Any) -> Result<Self, Error>
-    where
-        Self::Proto: prost::Name,
-    {
+    fn from_any(any: &Any) -> Result<Self, Error> {
         Self::from_proto(any.to_msg::<Self::Proto>()?)
     }
 
-    fn to_any(&self) -> Result<Any, Error>
-    where
-        Self::Proto: prost::Name,
-    {
+    fn to_any(&self) -> Result<Any, Error> {
         Ok(Any::from_msg(&self.to_proto()?)?)
     }
 }

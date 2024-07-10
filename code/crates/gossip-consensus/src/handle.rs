@@ -1,25 +1,26 @@
+use malachite_common::Context;
 use tokio::sync::mpsc;
 use tokio::task;
 
-use crate::{BoxError, Channel, CtrlMsg, Event};
+use crate::{BoxError, Channel, CtrlMsg, Event, NetworkMsg};
 
-pub struct RecvHandle {
-    rx_event: mpsc::Receiver<Event>,
+pub struct RecvHandle<Ctx: Context> {
+    rx_event: mpsc::Receiver<Event<Ctx>>,
 }
 
-impl RecvHandle {
-    pub async fn recv(&mut self) -> Option<Event> {
+impl<Ctx: Context> RecvHandle<Ctx> {
+    pub async fn recv(&mut self) -> Option<Event<Ctx>> {
         self.rx_event.recv().await
     }
 }
 
-pub struct CtrlHandle {
-    tx_ctrl: mpsc::Sender<CtrlMsg>,
+pub struct CtrlHandle<Ctx: Context> {
+    tx_ctrl: mpsc::Sender<CtrlMsg<Ctx>>,
     task_handle: task::JoinHandle<()>,
 }
 
-impl CtrlHandle {
-    pub async fn broadcast(&self, channel: Channel, data: Vec<u8>) -> Result<(), BoxError> {
+impl<Ctx: Context> CtrlHandle<Ctx> {
+    pub async fn broadcast(&self, channel: Channel, data: NetworkMsg<Ctx>) -> Result<(), BoxError> {
         self.tx_ctrl.send(CtrlMsg::Broadcast(channel, data)).await?;
         Ok(())
     }
@@ -41,17 +42,17 @@ impl CtrlHandle {
     }
 }
 
-pub struct Handle {
-    recv: RecvHandle,
-    ctrl: CtrlHandle,
+pub struct Handle<Ctx: Context> {
+    recv: RecvHandle<Ctx>,
+    ctrl: CtrlHandle<Ctx>,
 }
 
-impl Handle {
+impl<Ctx: Context> Handle<Ctx> {
     pub fn new(
-        tx_ctrl: mpsc::Sender<CtrlMsg>,
-        rx_event: mpsc::Receiver<Event>,
+        tx_ctrl: mpsc::Sender<CtrlMsg<Ctx>>,
+        rx_event: mpsc::Receiver<Event<Ctx>>,
         task_handle: task::JoinHandle<()>,
-    ) -> Handle {
+    ) -> Self {
         Self {
             recv: RecvHandle { rx_event },
             ctrl: CtrlHandle {
@@ -61,15 +62,15 @@ impl Handle {
         }
     }
 
-    pub fn split(self) -> (RecvHandle, CtrlHandle) {
+    pub fn split(self) -> (RecvHandle<Ctx>, CtrlHandle<Ctx>) {
         (self.recv, self.ctrl)
     }
 
-    pub async fn recv(&mut self) -> Option<Event> {
+    pub async fn recv(&mut self) -> Option<Event<Ctx>> {
         self.recv.recv().await
     }
 
-    pub async fn broadcast(&self, channel: Channel, data: Vec<u8>) -> Result<(), BoxError> {
+    pub async fn broadcast(&self, channel: Channel, data: NetworkMsg<Ctx>) -> Result<(), BoxError> {
         self.ctrl.broadcast(channel, data).await
     }
 

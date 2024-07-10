@@ -10,8 +10,8 @@ use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, error_span, Instrument};
 
-use malachite_common::MempoolTransactionBatch;
 use malachite_gossip_mempool::handle::CtrlHandle;
+use malachite_gossip_mempool::types::MempoolTransactionBatch;
 use malachite_gossip_mempool::{Channel, Config, Event, NetworkMsg, PeerId};
 use malachite_metrics::SharedRegistry;
 

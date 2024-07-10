@@ -43,6 +43,8 @@ jobs:
         run: npm install -g @informalsystems/quint
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache-workspaces: "code"
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
       - name: Build code
@@ -64,6 +66,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: clippy
+          cache-workspaces: "code"
       - name: Run clippy
         uses: actions-rs/clippy@master
         with:
@@ -80,6 +83,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: rustfmt
+          cache-workspaces: "code"
       - name: Check formatting
         uses: actions-rust-lang/rustfmt@v1
         with:
@@ -93,6 +97,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
+          cache-workspaces: "code"
       - name: Install cargo-binstall
         uses: taiki-e/install-action@cargo-binstall
       - name: Install cargo-msrv

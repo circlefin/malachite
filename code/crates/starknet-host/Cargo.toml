@@ -8,10 +8,12 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-actors.workspace = true
-malachite-common.workspace = true
-malachite-test.workspace   = true
-malachite-proto.workspace  = true
+malachite-actors.workspace         = true
+malachite-common.workspace         = true
+malachite-node.workspace           = true
+malachite-gossip-mempool.workspace = true
+malachite-test.workspace           = true
+malachite-proto.workspace          = true
 
 async-trait.workspace     = true
 bytesize.workspace        = true
@@ -19,7 +21,9 @@ derive-where.workspace    = true
 eyre.workspace            = true
 itertools.workspace       = true
 prost.workspace           = true
+prost-types.workspace     = true
 ractor.workspace          = true
+rand.workspace            = true
 signature.workspace       = true
 sha2.workspace            = true
 subtle-encoding.workspace = true

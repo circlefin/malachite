@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use signature::Signer;
 
-use malachite_common::{Round, SignedBlockPart, TransactionBatch};
-use malachite_proto::{self as proto};
+use malachite_common::{Round, SignedBlockPart};
+use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::{Address, Height, PrivateKey, TestContext, Value};
 
@@ -23,7 +23,7 @@ impl BlockMetadata {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        proto::Protobuf::to_bytes(self).unwrap()
+        Protobuf::to_bytes(self).unwrap()
     }
 
     pub fn size_bytes(&self) -> usize {
@@ -31,21 +31,23 @@ impl BlockMetadata {
     }
 }
 
-impl proto::Protobuf for BlockMetadata {
+impl Protobuf for BlockMetadata {
     type Proto = crate::proto::BlockMetadata;
 
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             proof: proto.proof,
             value: Value::from_proto(
                 proto
                     .value
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("height"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("height"))?,
             )?,
         })
     }
 
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(crate::proto::BlockMetadata {
             proof: self.proof.clone(),
             value: Option::from(self.value.to_proto().unwrap()),
@@ -54,54 +56,35 @@ impl proto::Protobuf for BlockMetadata {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Content {
-    TxBatch(TransactionBatch),
-    Metadata(BlockMetadata),
+pub struct Content {
+    metadata: BlockMetadata,
 }
 
 impl Content {
     pub fn size_bytes(&self) -> usize {
-        match self {
-            Content::TxBatch(batch) => batch.size_bytes(),
-            Content::Metadata(meta) => meta.size_bytes(),
-        }
-    }
-
-    pub fn tx_count(&self) -> Option<usize> {
-        match self {
-            Content::TxBatch(batch) => Some(batch.transactions().len()),
-            Content::Metadata(_) => None,
-        }
+        self.metadata.size_bytes()
     }
 }
 
-impl proto::Protobuf for Content {
+impl Protobuf for Content {
     type Proto = crate::proto::Content;
 
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
-        let content = proto
-            .value
-            .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?;
-
-        match content {
-            crate::proto::content::Value::TxBatch(batch) => {
-                TransactionBatch::from_proto(batch).map(Content::TxBatch)
-            }
-            crate::proto::content::Value::Metadata(metadata) => {
-                BlockMetadata::from_proto(metadata).map(Content::Metadata)
-            }
-        }
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
+        Ok(Self {
+            metadata: BlockMetadata::from_proto(
+                proto
+                    .metadata
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("metadata"))?,
+            )?,
+        })
     }
 
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        match self {
-            Content::TxBatch(batch) => Ok(crate::proto::Content {
-                value: Some(crate::proto::content::Value::TxBatch(batch.to_proto()?)),
-            }),
-            Content::Metadata(metadata) => Ok(crate::proto::Content {
-                value: Some(crate::proto::content::Value::Metadata(metadata.to_proto()?)),
-            }),
-        }
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
+        Ok(Self::Proto {
+            metadata: Some(self.metadata.to_proto()?),
+        })
     }
 }
 
@@ -133,7 +116,7 @@ impl BlockPart {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        proto::Protobuf::to_bytes(self).unwrap()
+        Protobuf::to_bytes(self).unwrap()
     }
 
     pub fn signed(self, private_key: &PrivateKey) -> SignedBlockPart<TestContext> {
@@ -145,15 +128,8 @@ impl BlockPart {
         }
     }
 
-    pub fn metadata(&self) -> Option<&BlockMetadata> {
-        match self.content.as_ref() {
-            Content::Metadata(metadata) => Some(metadata),
-            Content::TxBatch(_) => None,
-        }
-    }
-
-    pub fn tx_count(&self) -> Option<usize> {
-        self.content.tx_count()
+    pub fn metadata(&self) -> &BlockMetadata {
+        &self.content.metadata
     }
 
     pub fn size_bytes(&self) -> usize {
@@ -179,37 +155,39 @@ impl malachite_common::BlockPart<TestContext> for BlockPart {
     }
 }
 
-impl proto::Protobuf for BlockPart {
-    type Proto = proto::BlockPart;
+impl Protobuf for BlockPart {
+    type Proto = crate::proto::BlockPart;
 
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             height: Height::from_proto(
                 proto
                     .height
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("height"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("height"))?,
             )?,
             round: Round::from_proto(
                 proto
                     .round
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("round"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("round"))?,
             )?,
             sequence: proto.sequence,
             content: Arc::new(Content::from_any(
                 &proto
                     .content
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("content"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("content"))?,
             )?),
             validator_address: Address::from_proto(
-                proto.validator_address.ok_or_else(|| {
-                    proto::Error::missing_field::<Self::Proto>("validator_address")
-                })?,
+                proto
+                    .validator_address
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("validator_address"))?,
             )?,
         })
     }
 
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        Ok(proto::BlockPart {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
+        Ok(crate::proto::BlockPart {
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),
             sequence: self.sequence,

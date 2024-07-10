@@ -2,17 +2,40 @@ syntax = "proto3";
 
 package test;
 
-import "malachite.proto";
+import "malachite.common.proto";
+import "google/protobuf/any.proto";
+
+message Vote {
+    malachite.common.VoteType vote_type = 1;
+    malachite.common.Height height = 2;
+    malachite.common.Round round = 3;
+    malachite.common.ValueId value = 4;
+    malachite.common.Address validator_address = 5;
+}
+
+message Proposal {
+    malachite.common.Height height = 1;
+    malachite.common.Round round = 2;
+    malachite.common.Value value = 3;
+    malachite.common.Round pol_round = 4;
+    malachite.common.Address validator_address = 5;
+}
+
+message BlockPart {
+    malachite.common.Height height = 1;
+    malachite.common.Round round = 2;
+    uint64 sequence = 3;
+    malachite.common.Address validator_address = 4;
+    google.protobuf.Any content = 5;
+}
+
 
 message BlockMetadata {
     bytes proof = 1;
-    malachite.Value value = 2;
+    malachite.common.Value value = 2;
 }
 
 message Content {
-    oneof value {
-        malachite.TransactionBatch tx_batch = 90;
-        BlockMetadata metadata = 91;
-    }
+    BlockMetadata metadata = 91;
 }
 

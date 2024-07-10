@@ -92,8 +92,6 @@ mod tests {
 
         let files = fs::read_dir(&config_dir)?.flatten().collect::<Vec<_>>();
 
-        dbg!(&files);
-
         assert!(has_file(&files, &config_dir.join("config.toml")));
         assert!(has_file(&files, &config_dir.join("genesis.json")));
         assert!(has_file(

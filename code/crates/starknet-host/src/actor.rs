@@ -10,10 +10,10 @@ use tracing::{debug, error, trace};
 
 use malachite_actors::consensus::{ConsensusMsg, Metrics};
 use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
-use malachite_actors::mempool::{MempoolMsg, MempoolRef};
 use malachite_common::{Round, Validity};
 
 use crate::hash::BlockHash;
+use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
 use crate::mock::part_store::PartStore;

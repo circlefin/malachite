@@ -1,8 +1,11 @@
 use std::collections::BTreeSet;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use derive_where::derive_where;
 use libp2p::identity::Keypair;
+use malachite_common::Context;
 use ractor::ActorCell;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
@@ -10,21 +13,24 @@ use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
 
 use malachite_gossip_consensus::handle::CtrlHandle;
-use malachite_gossip_consensus::{Channel, Config, Event, PeerId};
+use malachite_gossip_consensus::{Channel, Config, Event, NetworkMsg, PeerId};
 use malachite_metrics::SharedRegistry;
 use tracing::{error, error_span, Instrument};
 
-pub type GossipConsensusRef = ActorRef<Msg>;
+pub type GossipConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
-pub struct GossipConsensus;
+#[derive_where(Default)]
+pub struct GossipConsensus<Ctx> {
+    marker: PhantomData<Ctx>,
+}
 
-impl GossipConsensus {
+impl<Ctx: Context> GossipConsensus<Ctx> {
     pub async fn spawn(
         keypair: Keypair,
         config: Config,
         metrics: SharedRegistry,
         supervisor: Option<ActorCell>,
-    ) -> Result<ActorRef<Msg>, ractor::SpawnErr> {
+    ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let args = Args {
             keypair,
             config,
@@ -32,9 +38,9 @@ impl GossipConsensus {
         };
 
         let (actor_ref, _) = if let Some(supervisor) = supervisor {
-            Actor::spawn_linked(None, Self, args, supervisor).await?
+            Actor::spawn_linked(None, Self::default(), args, supervisor).await?
         } else {
-            Actor::spawn(None, Self, args).await?
+            Actor::spawn(None, Self::default(), args).await?
         };
 
         Ok(actor_ref)
@@ -47,23 +53,23 @@ pub struct Args {
     pub metrics: SharedRegistry,
 }
 
-pub enum State {
+pub enum State<Ctx: Context> {
     Stopped,
     Running {
         peers: BTreeSet<PeerId>,
-        subscribers: Vec<ActorRef<Arc<Event>>>,
-        ctrl_handle: CtrlHandle,
+        subscribers: Vec<ActorRef<Arc<Event<Ctx>>>>,
+        ctrl_handle: CtrlHandle<Ctx>,
         recv_task: JoinHandle<()>,
     },
 }
 
-pub enum Msg {
-    Subscribe(ActorRef<Arc<Event>>),
-    Broadcast(Channel, Vec<u8>),
+pub enum Msg<Ctx: Context> {
+    Subscribe(ActorRef<Arc<Event<Ctx>>>),
+    Broadcast(Channel, NetworkMsg<Ctx>),
 
     // Internal message
     #[doc(hidden)]
-    NewEvent(Event),
+    NewEvent(Event<Ctx>),
     // Request for number of peers from gossip
     GetState {
         reply: RpcReplyPort<usize>,
@@ -71,18 +77,19 @@ pub enum Msg {
 }
 
 #[async_trait]
-impl Actor for GossipConsensus {
-    type Msg = Msg;
-    type State = State;
+impl<Ctx: Context> Actor for GossipConsensus<Ctx> {
+    type Msg = Msg<Ctx>;
+    type State = State<Ctx>;
     type Arguments = Args;
 
     async fn pre_start(
         &self,
-        myself: ActorRef<Msg>,
+        myself: ActorRef<Msg<Ctx>>,
         args: Args,
-    ) -> Result<State, ActorProcessingErr> {
+    ) -> Result<Self::State, ActorProcessingErr> {
         let handle =
-            malachite_gossip_consensus::spawn(args.keypair, args.config, args.metrics).await?;
+            malachite_gossip_consensus::spawn::<Ctx>(args.keypair, args.config, args.metrics)
+                .await?;
 
         let (mut recv_handle, ctrl_handle) = handle.split();
 
@@ -108,8 +115,8 @@ impl Actor for GossipConsensus {
 
     async fn post_start(
         &self,
-        _myself: ActorRef<Msg>,
-        _state: &mut State,
+        _myself: ActorRef<Msg<Ctx>>,
+        _state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         Ok(())
     }
@@ -117,9 +124,9 @@ impl Actor for GossipConsensus {
     #[tracing::instrument(name = "gossip.consensus", skip(self, _myself, msg, state))]
     async fn handle(
         &self,
-        _myself: ActorRef<Msg>,
-        msg: Msg,
-        state: &mut State,
+        _myself: ActorRef<Msg<Ctx>>,
+        msg: Msg<Ctx>,
+        state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         let State::Running {
             peers,
@@ -164,8 +171,8 @@ impl Actor for GossipConsensus {
 
     async fn post_stop(
         &self,
-        _myself: ActorRef<Msg>,
-        state: &mut State,
+        _myself: ActorRef<Msg<Ctx>>,
+        state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         let state = std::mem::replace(state, State::Stopped);
 

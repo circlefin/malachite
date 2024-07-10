@@ -6,7 +6,6 @@ pub mod consensus;
 pub mod gossip_consensus;
 pub mod gossip_mempool;
 pub mod host;
-pub mod mempool;
 pub mod node;
 pub mod prelude;
 pub mod timers;

@@ -3,17 +3,20 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use malachite_proto::Protobuf;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::distributions::Uniform;
 use rand::Rng;
 use tracing::{info, trace};
 
-use malachite_common::{MempoolTransactionBatch, Transaction, TransactionBatch};
+use malachite_gossip_mempool::types::MempoolTransactionBatch;
 use malachite_gossip_mempool::{Channel, Event as GossipEvent, NetworkMsg, PeerId};
 use malachite_node::config::{MempoolConfig, TestConfig};
 
-use crate::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
-use crate::util::forward;
+use malachite_actors::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
+use malachite_actors::util::forward;
+
+use crate::mock::types::{Transaction, TransactionBatch};
 
 pub type MempoolRef = ActorRef<MempoolMsg>;
 
@@ -52,7 +55,7 @@ impl State {
 
     pub fn add_tx(&mut self, tx: &Transaction) {
         let mut hash = DefaultHasher::new();
-        tx.0.hash(&mut hash);
+        tx.hash(&mut hash);
         let key = hash.finish();
         self.transactions.entry(key).or_insert(tx.clone());
     }
@@ -115,8 +118,8 @@ impl Mempool {
                 info!("Disconnected from peer {peer_id}");
             }
             GossipEvent::Message(from, msg) => {
-                // TODO: Implement Protobuf on NetworkMsg
-                // trace!(%from, "Received message of size {} bytes", msg.encoded_len());
+                trace!(%from, "Received message of size {} bytes", msg.size_bytes());
+
                 trace!(%from, "Received message");
                 self.handle_network_msg(from, msg.clone(), myself, state) // FIXME: Clone
                     .await?;
@@ -135,9 +138,14 @@ impl Mempool {
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::TransactionBatch(batch) => {
+                let Ok(batch) = TransactionBatch::from_any(&batch.transaction_batch) else {
+                    // TODO: Log error
+                    return Ok(());
+                };
+
                 trace!(%from, "Received batch with {} transactions", batch.len());
 
-                for tx in batch.transaction_batch.into_transactions() {
+                for tx in batch.into_transactions() {
                     myself.cast(MempoolMsg::Input(tx))?;
                 }
             }
@@ -251,7 +259,14 @@ fn generate_and_broadcast_txes(
 
         // Gossip tx-es to peers in batches
         if config.gossip_batch_size > 0 && tx_batch.len() >= config.gossip_batch_size {
-            let mempool_batch = MempoolTransactionBatch::new(std::mem::take(&mut tx_batch));
+            let tx_batch = std::mem::take(&mut tx_batch);
+
+            let Ok(tx_batch_any) = tx_batch.to_any() else {
+                // TODO: Handle error
+                continue;
+            };
+
+            let mempool_batch = MempoolTransactionBatch::new(tx_batch_any);
             gossip_mempool.cast(GossipMempoolMsg::Broadcast(Channel::Mempool, mempool_batch))?;
         }
 

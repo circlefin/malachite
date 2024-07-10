@@ -1,5 +1,5 @@
 use malachite_common::Round;
-use malachite_proto::{self as proto};
+use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::{Address, Height, TestContext, Value};
 
@@ -31,7 +31,7 @@ impl Proposal {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        proto::Protobuf::to_bytes(self).unwrap()
+        Protobuf::to_bytes(self).unwrap()
     }
 }
 
@@ -57,11 +57,12 @@ impl malachite_common::Proposal<TestContext> for Proposal {
     }
 }
 
-impl proto::Protobuf for Proposal {
-    type Proto = malachite_proto::Proposal;
+impl Protobuf for Proposal {
+    type Proto = crate::proto::Proposal;
 
-    fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        Ok(proto::Proposal {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
+        Ok(Self::Proto {
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),
             value: Some(self.value.to_proto()?),
@@ -70,32 +71,33 @@ impl proto::Protobuf for Proposal {
         })
     }
 
-    fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             height: Height::from_proto(
                 proto
                     .height
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("height"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("height"))?,
             )?,
             round: Round::from_proto(
                 proto
                     .round
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("round"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("round"))?,
             )?,
             value: Value::from_proto(
                 proto
                     .value
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("value"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("value"))?,
             )?,
             pol_round: Round::from_proto(
                 proto
                     .pol_round
-                    .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("pol_round"))?,
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("pol_round"))?,
             )?,
             validator_address: Address::from_proto(
-                proto.validator_address.ok_or_else(|| {
-                    proto::Error::missing_field::<Self::Proto>("validator_address")
-                })?,
+                proto
+                    .validator_address
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("validator_address"))?,
             )?,
         })
     }

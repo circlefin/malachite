@@ -1,11 +1,13 @@
 use core::fmt::Debug;
 
+use malachite_proto::Protobuf;
+
 use crate::{Context, Round};
 
 /// Defines the requirements for a block part type.
 pub trait BlockPart<Ctx>
 where
-    Self: Clone + Debug + Eq + Send + Sync + 'static,
+    Self: Protobuf + Clone + Debug + Eq + Send + Sync + 'static,
     Ctx: Context,
 {
     /// The part height

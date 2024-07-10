@@ -7,5 +7,6 @@ pub use host::Host;
 
 pub mod actor;
 pub mod hash;
+pub mod mempool;
 pub mod mock;
 pub mod proto;

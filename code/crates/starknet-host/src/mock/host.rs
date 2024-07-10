@@ -9,9 +9,9 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::Instrument;
 
-use malachite_actors::mempool::MempoolRef;
 use malachite_common::{Round, SignedVote};
 
+use crate::mempool::MempoolRef;
 use crate::mock::context::MockContext;
 use crate::mock::types::*;
 use crate::Host;

@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use signature::Signer;
 
-use malachite_common::{Round, SignedBlockPart};
-use malachite_proto::{self as proto};
+use malachite_common::{proto, Round, SignedBlockPart};
 
 use crate::mock::context::MockContext;
 use crate::mock::types::{Address, BlockHash, Height, PrivateKey, ProposalPart, StarknetContext};
@@ -133,7 +132,7 @@ impl malachite_common::BlockPart<MockContext> for BlockPart {
 }
 
 impl proto::Protobuf for BlockPart {
-    type Proto = proto::BlockPart;
+    type Proto = crate::proto::mock::BlockPart;
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
@@ -162,7 +161,7 @@ impl proto::Protobuf for BlockPart {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        Ok(proto::BlockPart {
+        Ok(Self::Proto {
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),
             sequence: self.sequence,
