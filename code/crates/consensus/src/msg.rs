@@ -1,6 +1,6 @@
 use malachite_common::*;
 
-use crate::mock::{GossipEvent, Multiaddr, NetworkMsg, PeerId, ReceivedProposedValue};
+use crate::mock::{Block, GossipEvent, Multiaddr, NetworkMsg, PeerId};
 
 #[derive(Debug)]
 pub enum Event<Ctx>
@@ -32,6 +32,6 @@ where
     // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
     GossipBlockPart(Ctx::BlockPart),
 
-    /// A proposal has been received
-    ProposalReceived(ReceivedProposedValue<Ctx>),
+    /// A block to propose has been received
+    ReceivedBlock(Block<Ctx>),
 }

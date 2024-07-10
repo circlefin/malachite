@@ -930,7 +930,7 @@ where
                         let validity = value == *proposal.value() && valid.is_valid();
                         myself.cast(Msg::ApplyDriverInput(DriverInput::Proposal(
                             proposal,
-                            Validity::from_valid(validity),
+                            Validity::from_bool(validity),
                         )))?;
                     }
                 }

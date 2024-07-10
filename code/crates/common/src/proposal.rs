@@ -42,7 +42,7 @@ impl Validity {
     }
 
     /// Returns `Valid` if given true, `Invalid` if given false.
-    pub fn from_valid(valid: bool) -> Self {
+    pub fn from_bool(valid: bool) -> Self {
         if valid {
             Validity::Valid
         } else {

@@ -1,9 +1,9 @@
 use core::fmt;
-use std::marker::PhantomData;
 
 use derive_where::derive_where;
 use malachite_common::{
-    BlockPart, Context, Proposal, SignedBlockPart, SignedProposal, SignedVote, Vote,
+    BlockPart, Context, Proposal, Round, SignedBlockPart, SignedProposal, SignedVote, Validity,
+    Vote,
 };
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -63,6 +63,10 @@ pub enum GossipEvent<Ctx: Context> {
 }
 
 #[derive_where(Debug)]
-pub struct ReceivedProposedValue<Ctx> {
-    marker: PhantomData<Ctx>,
+pub struct Block<Ctx: Context> {
+    pub height: Ctx::Height,
+    pub round: Round,
+    pub validator_address: Ctx::Address,
+    pub value: Ctx::Value,
+    pub validity: Validity,
 }

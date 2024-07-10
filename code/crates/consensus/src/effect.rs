@@ -53,6 +53,10 @@ where
         value: Ctx::Value,
         commits: Vec<SignedVote<Ctx>>,
     },
+
+    /// A BlockPart was received via the gossip layer
+    /// Resume with: Resume::Continue
+    ReceivedBlockPart(Ctx::BlockPart),
 }
 
 #[must_use]
