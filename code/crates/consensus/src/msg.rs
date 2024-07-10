@@ -29,9 +29,6 @@ where
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),
 
-    // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
-    GossipBlockPart(Ctx::BlockPart),
-
     /// A block to propose has been received
     ReceivedBlock(Block<Ctx>),
 }

@@ -24,7 +24,6 @@ where
         Msg::GossipEvent(event) => on_gossip_event(state, metrics, yielder, event),
         Msg::TimeoutElapsed(timeout) => on_timeout_elapsed(state, metrics, yielder, timeout),
         Msg::ReceivedBlock(block) => on_received_block(state, metrics, yielder, block),
-        Msg::GossipBlockPart(_) => todo!(),
     }
 }
 
