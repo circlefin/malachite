@@ -18,6 +18,7 @@ pub type Co<'a, Ctx> =
 pub type CoResult<Ctx> = corosensei::CoroutineResult<Effect<Ctx>, Result<(), Error<Ctx>>>;
 pub type Yielder<Ctx> = corosensei::Yielder<Resume<Ctx>, Effect<Ctx>>;
 
+#[must_use]
 #[derive_where(Debug)]
 pub enum Effect<Ctx>
 where
@@ -52,8 +53,8 @@ where
     GetValidatorSet(Ctx::Height),
 }
 
-#[derive_where(Debug)]
 #[must_use]
+#[derive_where(Debug)]
 pub enum Resume<Ctx>
 where
     Ctx: Context,
@@ -468,9 +469,44 @@ where
                 }
             )?;
 
-            // TODO: Propose value
-
-            Ok(())
+            propose_value(state, metrics, yielder, height, round, value)
         }
     }
+}
+
+fn propose_value<Ctx>(
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    yielder: &Yielder<Ctx>,
+    height: Ctx::Height,
+    round: Round,
+    value: Ctx::Value,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    if state.driver.height() != height {
+        warn!(
+            "Ignoring proposal for height {height}, current height: {}",
+            state.driver.height()
+        );
+
+        return Ok(());
+    }
+
+    if state.driver.round() != round {
+        warn!(
+            "Ignoring proposal for round {round}, current round: {}",
+            state.driver.round()
+        );
+
+        return Ok(());
+    }
+
+    apply_driver_input(
+        state,
+        metrics,
+        yielder,
+        DriverInput::ProposeValue(round, value),
+    )
 }
