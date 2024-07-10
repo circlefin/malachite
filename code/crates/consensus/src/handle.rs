@@ -22,7 +22,7 @@ where
         Msg::StartHeight(height) => start_height(state, metrics, yielder, height),
         Msg::MoveToHeight(height) => move_to_height(state, metrics, yielder, height),
         Msg::GossipEvent(event) => on_gossip_event(state, metrics, yielder, event),
-        Msg::TimeoutElapsed(_) => todo!(),
+        Msg::TimeoutElapsed(timeout) => on_timeout_elapsed(state, metrics, yielder, timeout),
         Msg::GossipBlockPart(_) => todo!(),
         Msg::ProposalReceived(_) => todo!(),
     }
@@ -473,4 +473,46 @@ where
             Ok(())
         }
     }
+}
+
+fn on_timeout_elapsed<Ctx>(
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    yielder: &Yielder<Ctx>,
+    timeout: Timeout,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    let height = state.driver.height();
+    let round = state.driver.round();
+
+    if timeout.round != round {
+        debug!(
+            "Ignoring timeout for round {} at height {}, current round: {round}",
+            timeout.round, height
+        );
+
+        return Ok(());
+    }
+
+    info!("{timeout} elapsed at height {height} and round {round}");
+
+    apply_driver_input(
+        state,
+        metrics,
+        yielder,
+        DriverInput::TimeoutElapsed(timeout),
+    )?;
+
+    if timeout.step == TimeoutStep::Commit {
+        handle_msg(
+            state,
+            metrics,
+            yielder,
+            Msg::MoveToHeight(height.increment()),
+        )?;
+    }
+
+    Ok(())
 }
