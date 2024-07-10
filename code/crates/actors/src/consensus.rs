@@ -17,15 +17,13 @@ use malachite_driver::Driver;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_gossip_consensus::{Channel, Event as GossipEvent, NetworkMsg, PeerId};
+use malachite_metrics::Metrics;
 use malachite_vote::ThresholdParams;
 
 use crate::gossip_consensus::{GossipConsensusRef, Msg as GossipConsensusMsg};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ReceivedProposedValue};
 use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers, TimersRef};
 use crate::util::forward;
-
-mod metrics;
-pub use metrics::Metrics;
 
 pub enum Next<Ctx: Context> {
     None,

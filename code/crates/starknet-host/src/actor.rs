@@ -8,9 +8,10 @@ use sha2::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, trace};
 
-use malachite_actors::consensus::{ConsensusMsg, Metrics};
+use malachite_actors::consensus::ConsensusMsg;
 use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
 use malachite_common::{Round, Validity};
+use malachite_metrics::Metrics;
 
 use crate::hash::BlockHash;
 use crate::mempool::{MempoolMsg, MempoolRef};

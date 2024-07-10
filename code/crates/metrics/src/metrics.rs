@@ -3,10 +3,12 @@ use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use malachite_metrics::prometheus_client;
-use malachite_metrics::prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
-use malachite_metrics::{linear_buckets, Counter, Family, Gauge, Histogram, SharedRegistry};
 use malachite_round::state::Step;
+use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
+use prometheus_client::metrics::counter::Counter;
+use prometheus_client::metrics::family::Family;
+use prometheus_client::metrics::gauge::Gauge;
+use prometheus_client::metrics::histogram::{linear_buckets, Histogram};
 
 #[derive(Clone, Debug)]
 pub struct Metrics(Arc<Inner>);
@@ -221,6 +223,8 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, SystemTime},
 };
+
+use crate::SharedRegistry;
 
 #[derive(Default, Debug)]
 struct AtomicInstant(AtomicU64);

@@ -5,7 +5,7 @@ use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef, Metrics};
+use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
@@ -13,6 +13,7 @@ use malachite_actors::node::{Node, NodeRef};
 use malachite_common::Round;
 use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
+use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
 use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig};
 use malachite_starknet_host::actor::StarknetHost;

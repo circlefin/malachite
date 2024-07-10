@@ -2040,7 +2040,6 @@ dependencies = [
  "malachite-gossip-mempool",
  "malachite-metrics",
  "malachite-node",
- "malachite-round",
  "malachite-vote",
  "ractor",
  "tokio",
@@ -2151,6 +2150,7 @@ dependencies = [
 name = "malachite-metrics"
 version = "0.1.0"
 dependencies = [
+ "malachite-round",
  "prometheus-client",
 ]
 
@@ -2211,6 +2211,7 @@ dependencies = [
  "malachite-actors",
  "malachite-common",
  "malachite-gossip-mempool",
+ "malachite-metrics",
  "malachite-node",
  "malachite-proto",
  "malachite-test",
