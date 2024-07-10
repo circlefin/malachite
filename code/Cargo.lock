@@ -2040,6 +2040,7 @@ dependencies = [
  "malachite-gossip-mempool",
  "malachite-metrics",
  "malachite-node",
+ "malachite-round",
  "malachite-vote",
  "ractor",
  "tokio",

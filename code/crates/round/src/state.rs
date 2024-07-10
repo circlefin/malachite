@@ -25,7 +25,7 @@ impl<Value> RoundValue<Value> {
 }
 
 /// The step of consensus in this round
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Step {
     /// The round has not started yet
     Unstarted,

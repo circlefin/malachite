@@ -462,10 +462,24 @@ where
             DriverInput::TimeoutElapsed(_) => (),
         }
 
+        // Record the step we were in
+        let prev_step = state.driver.step();
+
         let outputs = state
             .driver
             .process(input)
             .map_err(|e| format!("Driver failed to process input: {e}"));
+
+        // Record the step we are now at
+        let new_step = state.driver.step();
+
+        // If the step has changed, update the metrics
+        if prev_step != new_step {
+            debug!("Transitioned from {prev_step:?} to {new_step:?}");
+
+            self.metrics.step_end(prev_step);
+            self.metrics.step_start(new_step);
+        }
 
         match outputs {
             Ok(outputs) => myself.cast(Msg::ProcessDriverOutputs(outputs))?,
@@ -513,6 +527,7 @@ where
         match output {
             DriverOutput::NewRound(height, round) => {
                 info!("Starting round {round} at height {height}");
+                self.metrics.round.set(round.as_i64());
 
                 let validator_set = &state.driver.validator_set;
                 let proposer = self.get_proposer(height, round, validator_set).await?;
@@ -726,13 +741,19 @@ where
             Msg::StartHeight(height) => {
                 self.metrics.block_start();
 
-                let round = Round::new(0);
-                info!("Starting height {height} at round {round}");
+                info!("Starting new height {height}");
 
+                self.metrics.height.set(height.as_u64() as i64);
+                // Current round when starting a new height is -1 (Nil).
+                // We only move to round 0 after the driver processes the NewRound input.
+                self.metrics.round.set(-1);
+
+                let round = Round::new(0);
                 let validator_set = &state.driver.validator_set;
                 let proposer = self.get_proposer(height, round, validator_set).await?;
                 info!("Proposer for height {height} and round {round}: {proposer}");
 
+                // TODO: Shall we call `self.apply_driver_input` directly here?
                 myself.cast(Msg::ApplyDriverInput(DriverInput::NewRound(
                     height, round, proposer,
                 )))?;
@@ -749,6 +770,8 @@ where
             Msg::MoveToHeight(height) => {
                 state.timers.cast(TimersMsg::CancelAllTimeouts)?;
                 state.timers.cast(TimersMsg::ResetTimeouts)?;
+
+                self.metrics.step_end(state.driver.step());
 
                 let validator_set = self.get_validator_set(height).await?;
                 state.driver.move_to_height(height, validator_set);

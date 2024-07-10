@@ -4,6 +4,8 @@
 
 use std::sync::{Arc, Mutex, OnceLock};
 
+pub use prometheus_client;
+
 pub use prometheus_client::metrics::counter::Counter;
 pub use prometheus_client::metrics::family::Family;
 pub use prometheus_client::metrics::gauge::Gauge;

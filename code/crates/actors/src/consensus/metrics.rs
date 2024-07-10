@@ -1,7 +1,12 @@
+use std::fmt::Write;
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
-use malachite_metrics::{linear_buckets, Counter, Gauge, Histogram, SharedRegistry};
+use malachite_metrics::prometheus_client;
+use malachite_metrics::prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
+use malachite_metrics::{linear_buckets, Counter, Family, Gauge, Histogram, SharedRegistry};
+use malachite_round::state::Step;
 
 #[derive(Clone, Debug)]
 pub struct Metrics(Arc<Inner>);
@@ -11,6 +16,34 @@ impl Deref for Metrics {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+/// Label set for the `time_per_step` metric.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+pub struct TimePerStep {
+    step: AsLabelValue<Step>,
+}
+
+impl TimePerStep {
+    pub fn new(step: Step) -> Self {
+        Self {
+            step: AsLabelValue(step),
+        }
+    }
+}
+
+/// This wrapper allows us to derive `AsLabelValue` for `Step` without
+/// running into Rust orphan rules, cf. <https://rust-lang.github.io/chalk/book/clauses/coherence.html>
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+struct AsLabelValue<T>(T);
+
+impl EncodeLabelValue for AsLabelValue<Step> {
+    fn encode(
+        &self,
+        encoder: &mut prometheus_client::encoding::LabelValueEncoder,
+    ) -> Result<(), std::fmt::Error> {
+        encoder.write_fmt(format_args!("{:?}", self.0))
     }
 }
 
@@ -25,6 +58,9 @@ pub struct Inner {
     /// Time taken to finalize a block, in seconds
     pub time_per_block: Histogram,
 
+    /// Time taken for a step within a round, in secodns
+    pub time_per_step: Family<TimePerStep, Histogram>,
+
     /// Block size in terms of # of transactions
     pub block_tx_count: Histogram,
 
@@ -37,8 +73,17 @@ pub struct Inner {
     /// Number of connected peers, ie. for each consensus node, how many peers is it connected to)
     pub connected_peers: Gauge,
 
+    /// Current height
+    pub height: Gauge,
+
+    /// Current round
+    pub round: Gauge,
+
     /// Internal state for measuring time taken to finalize a block
     instant_block_started: Arc<AtomicInstant>,
+
+    /// Internal state for measuring time taken for a step within a round
+    instant_step_started: Arc<Mutex<(Step, Instant)>>,
 }
 
 impl Metrics {
@@ -46,12 +91,18 @@ impl Metrics {
         Self(Arc::new(Inner {
             finalized_blocks: Counter::default(),
             finalized_txes: Counter::default(),
-            time_per_block: Histogram::new(linear_buckets(0.0, 1.0, 20)),
+            time_per_block: Histogram::new(linear_buckets(0.0, 0.1, 20)),
+            time_per_step: Family::new_with_constructor(|| {
+                Histogram::new(linear_buckets(0.0, 0.1, 20))
+            }),
             block_tx_count: Histogram::new(linear_buckets(0.0, 32.0, 128)),
             block_size_bytes: Histogram::new(linear_buckets(0.0, 64.0 * 1024.0, 128)),
             rounds_per_block: Histogram::new(linear_buckets(0.0, 1.0, 20)),
             connected_peers: Gauge::default(),
+            height: Gauge::default(),
+            round: Gauge::default(),
             instant_block_started: Arc::new(AtomicInstant::empty()),
+            instant_step_started: Arc::new(Mutex::new((Step::Unstarted, Instant::now()))),
         }))
     }
 
@@ -78,6 +129,12 @@ impl Metrics {
             );
 
             registry.register(
+                "time_per_step",
+                "Time taken for a step in a round, in seconds",
+                metrics.time_per_step.clone(),
+            );
+
+            registry.register(
                 "block_tx_count",
                 "Block size in terms of # of transactions",
                 metrics.block_tx_count.clone(),
@@ -100,6 +157,18 @@ impl Metrics {
                 "Number of connected peers, ie. for each consensus node, how many peers is it connected to",
                 metrics.connected_peers.clone(),
             );
+
+            registry.register(
+                "height",
+                "Current height",
+                metrics.height.clone(),
+            );
+
+            registry.register(
+                "round",
+                "Current round",
+                metrics.round.clone(),
+            );
         });
 
         metrics
@@ -116,6 +185,29 @@ impl Metrics {
 
             self.instant_block_started.set_millis(0);
         }
+    }
+
+    pub fn step_start(&self, step: Step) {
+        let mut guard = self.instant_step_started.lock().expect("poisoned mutex");
+        *guard = (step, Instant::now());
+    }
+
+    pub fn step_end(&self, step: Step) {
+        let mut guard = self.instant_step_started.lock().expect("poisoned mutex");
+
+        let (current_step, started) = *guard;
+        debug_assert_eq!(current_step, step, "step_end called for wrong step");
+
+        // If the step was never started, ignore
+        if current_step == Step::Unstarted {
+            return;
+        }
+
+        self.time_per_step
+            .get_or_create(&TimePerStep::new(step))
+            .observe(started.elapsed().as_secs_f64());
+
+        *guard = (Step::Unstarted, Instant::now());
     }
 }
 

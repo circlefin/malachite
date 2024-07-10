@@ -7,7 +7,7 @@ use malachite_common::{
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
-use malachite_round::state::State as RoundState;
+use malachite_round::state::{State as RoundState, Step};
 use malachite_round::state_machine::Info;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::ThresholdParams;
@@ -106,6 +106,11 @@ where
     /// Return the current round we are at.
     pub fn round(&self) -> Round {
         self.round_state.round
+    }
+
+    /// Return the current step within the round we are at.
+    pub fn step(&self) -> Step {
+        self.round_state.step
     }
 
     /// Return a reference to the votekeper
