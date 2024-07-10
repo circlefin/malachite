@@ -10,6 +10,9 @@ pub struct State<Ctx>
 where
     Ctx: Context,
 {
+    /// The context for the consensus state machine
+    pub ctx: Ctx,
+
     /// Driver for the per-round consensus state machine
     pub driver: Driver<Ctx>,
 
@@ -34,23 +37,23 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn get_proposer<'a>(
+    pub fn get_proposer(
         &self,
         height: Ctx::Height,
         round: Round,
-        validator_set: &'a Ctx::ValidatorSet,
-    ) -> Result<&'a Ctx::Address, Error<Ctx>> {
-        assert!(validator_set.count() > 0);
+    ) -> Result<&Ctx::Address, Error<Ctx>> {
+        assert!(self.validator_set.count() > 0);
         assert!(round != Round::Nil && round.as_i64() >= 0);
 
         let proposer_index = {
             let height = height.as_u64() as usize;
             let round = round.as_i64() as usize;
 
-            (height - 1 + round) % validator_set.count()
+            (height - 1 + round) % self.validator_set.count()
         };
 
-        let proposer = validator_set
+        let proposer = self
+            .validator_set
             .get_by_index(proposer_index)
             .ok_or(Error::ProposerNotFound(height, round))?;
 
