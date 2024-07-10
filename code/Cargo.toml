@@ -47,6 +47,7 @@ blake3             = "1.5"
 bytesize           = "1.3"
 clap               = "4.5.4"
 color-eyre         = "0.6"
+corosensei         = "0.1.4"
 config             = { version = "0.14", features = ["toml"], default-features = false }
 eyre               = "0.6"
 derive-where       = "1.2.7"

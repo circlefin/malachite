@@ -16,9 +16,6 @@ where
     /// Driver for the per-round consensus state machine
     pub driver: Driver<Ctx>,
 
-    /// Current validator set
-    pub validator_set: Ctx::ValidatorSet,
-
     /// The set of peers we are connected to.
     pub connected_peers: BTreeSet<PeerId>,
 
@@ -42,17 +39,18 @@ where
         height: Ctx::Height,
         round: Round,
     ) -> Result<&Ctx::Address, Error<Ctx>> {
-        assert!(self.validator_set.count() > 0);
+        assert!(self.driver.validator_set.count() > 0);
         assert!(round != Round::Nil && round.as_i64() >= 0);
 
         let proposer_index = {
             let height = height.as_u64() as usize;
             let round = round.as_i64() as usize;
 
-            (height - 1 + round) % self.validator_set.count()
+            (height - 1 + round) % self.driver.validator_set.count()
         };
 
         let proposer = self
+            .driver
             .validator_set
             .get_by_index(proposer_index)
             .ok_or(Error::ProposerNotFound(height, round))?;

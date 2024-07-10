@@ -14,8 +14,9 @@ malachite-metrics.workspace = true
 malachite-round.workspace   = true
 malachite-vote.workspace    = true
 
-corosensei             = "0.1.4"
+corosensei.workspace   = true
 derive-where.workspace = true
+thiserror.workspace    = true
 tracing.workspace      = true
 
 [lints]

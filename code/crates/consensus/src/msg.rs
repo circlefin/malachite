@@ -1,6 +1,4 @@
 use malachite_common::*;
-use malachite_driver::Input as DriverInput;
-use malachite_driver::Output as DriverOutput;
 
 use crate::mock::{GossipEvent, Multiaddr, NetworkMsg, PeerId, ReceivedProposedValue};
 
@@ -31,14 +29,8 @@ where
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),
 
-    /// Apply an input to the driver
-    ApplyDriverInput(DriverInput<Ctx>),
-
     /// Decision has been made on a value at a given height and round
     Decided(Ctx::Height, Round, Ctx::Value),
-
-    /// Process the given driver outputs
-    ProcessDriverOutputs(Vec<DriverOutput<Ctx>>),
 
     // The proposal builder has built a value and can be used in a new proposal consensus message
     ProposeValue(Ctx::Height, Round, Ctx::Value),

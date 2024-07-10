@@ -11,7 +11,7 @@ mod error;
 pub use error::Error;
 
 mod handle;
-pub use handle::handle;
+pub use handle::{process_async, process_sync};
 
 mod mock;
 mod util;
