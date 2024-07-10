@@ -1,8 +1,3 @@
-use std::future::Future;
-
-use corosensei::stack::DefaultStack;
-use corosensei::ScopedCoroutine;
-use derive_where::derive_where;
 use tracing::{debug, info, warn};
 
 use malachite_common::*;
@@ -11,145 +6,9 @@ use malachite_driver::Output as DriverOutput;
 use malachite_metrics::Metrics;
 
 use crate::util::pretty::PrettyVal;
-use crate::{Error, Msg, State};
+use crate::{emit, emit_then, Effect, Error, Msg, Resume, State, Yielder};
 
-pub type Co<'a, Ctx> =
-    ScopedCoroutine<'a, Resume<Ctx>, Effect<Ctx>, Result<(), Error<Ctx>>, DefaultStack>;
-pub type CoResult<Ctx> = corosensei::CoroutineResult<Effect<Ctx>, Result<(), Error<Ctx>>>;
-pub type Yielder<Ctx> = corosensei::Yielder<Resume<Ctx>, Effect<Ctx>>;
-
-#[must_use]
-#[derive_where(Debug)]
-pub enum Effect<Ctx>
-where
-    Ctx: Context,
-{
-    /// Reset all timeouts
-    /// Resume with: Resume::Continue
-    ResetTimeouts,
-
-    /// Cancel all timeouts
-    /// Resume with: Resume::Continue
-    CancelAllTimeouts,
-
-    /// Cancel a given timeout
-    /// Resume with: Resume::Continue
-    CancelTimeout(Timeout),
-
-    /// Schedule a timeout
-    /// Resume with: Resume::Continue
-    ScheduleTimeout(Timeout),
-
-    /// Broadcast a message
-    /// Resume with: Resume::Continue
-    Broadcast(),
-
-    /// Get a value to propose at the given height and round, within the given timeout
-    /// Resume with: Resume::ProposeValue(height, round, value)
-    GetValue(Ctx::Height, Round, Timeout),
-
-    /// Get the validator set at the given height
-    /// Resume with: Resume::ValidatorSet(height, validator_set)
-    GetValidatorSet(Ctx::Height),
-
-    /// Consensus has decided on a value
-    /// Resume with: Resume::Continue
-    DecidedOnValue {
-        height: Ctx::Height,
-        round: Round,
-        value: Ctx::Value,
-        commits: Vec<SignedVote<Ctx>>,
-    },
-}
-
-#[must_use]
-#[derive_where(Debug)]
-pub enum Resume<Ctx>
-where
-    Ctx: Context,
-{
-    Start,
-    Continue,
-    ProposeValue(Ctx::Height, Round, Ctx::Value),
-    ValidatorSet(Ctx::Height, Ctx::ValidatorSet),
-}
-
-macro_rules! emit {
-    ($yielder:expr, $effect:expr) => {
-        emit_then!($yielder, $effect, $crate::handle::Resume::Continue)
-    };
-}
-
-macro_rules! emit_then {
-    ($yielder:expr, $effect:expr, $pat:pat) => {
-        emit_then!($yielder, $effect, $pat => ())
-    };
-
-    // TODO: Add support for if guards
-    ($yielder:expr, $effect:expr $(, $pat:pat => $expr:expr)+ $(,)*) => {
-        match $yielder.suspend($effect) {
-            $($pat => $expr,)+
-            resume => {
-                return Err($crate::error::Error::UnexpectedResume(
-                    resume,
-                    concat!(concat!($(stringify!($pat))+), ", ")
-                )
-                .into())
-            }
-        }
-    };
-}
-
-pub fn process_sync<'a, Ctx>(
-    state: &'a mut State<Ctx>,
-    metrics: &'a Metrics,
-    msg: Msg<Ctx>,
-    mut on_yield: impl FnMut(Effect<Ctx>) -> Resume<Ctx>,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    let mut co = Co::new(|yielder, start| {
-        debug_assert!(matches!(start, Resume::Start));
-        handle(state, metrics, yielder, msg)
-    });
-
-    let mut co_result = co.resume(Resume::Start);
-    loop {
-        match co_result {
-            CoResult::Yield(yld) => co_result = co.resume(on_yield(yld)),
-            CoResult::Return(result) => return result,
-        }
-    }
-}
-
-pub async fn process_async<'a, Ctx>(
-    state: &'a mut State<Ctx>,
-    metrics: &'a Metrics,
-    msg: Msg<Ctx>,
-    mut on_yield: impl FnMut(Effect<Ctx>) -> Box<dyn Future<Output = Resume<Ctx>>>,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    let mut co = Co::new(|yielder, start| {
-        debug_assert!(matches!(start, Resume::Start));
-        handle(state, metrics, yielder, msg)
-    });
-
-    let mut co_result = co.resume(Resume::Start);
-    loop {
-        match co_result {
-            CoResult::Yield(yld) => {
-                let resume = Box::into_pin(on_yield(yld)).await;
-                co_result = co.resume(resume);
-            }
-            CoResult::Return(result) => return result,
-        }
-    }
-}
-
-fn handle<Ctx>(
+pub fn handle_msg<Ctx>(
     state: &mut State<Ctx>,
     metrics: &Metrics,
     yielder: &Yielder<Ctx>,
@@ -163,7 +22,6 @@ where
         Msg::MoveToHeight(height) => move_to_height(state, metrics, yielder, height)?,
         Msg::GossipEvent(_) => todo!(),
         Msg::TimeoutElapsed(_) => todo!(),
-        Msg::Decided(_, _, _) => todo!(),
         Msg::ProposeValue(_, _, _) => todo!(),
         Msg::GossipBlockPart(_) => todo!(),
         Msg::ProposalReceived(_) => todo!(),
@@ -236,7 +94,7 @@ where
     debug_assert_eq!(state.driver.height(), height);
     debug_assert_eq!(state.driver.round(), Round::Nil);
 
-    handle(state, metrics, yielder, Msg::StartHeight(height))
+    handle_msg(state, metrics, yielder, Msg::StartHeight(height))
 }
 
 fn replay_pending_msgs<Ctx>(
@@ -251,7 +109,7 @@ where
     debug!("Replaying {} messages", pending_msgs.len());
 
     for pending_msg in pending_msgs {
-        handle(state, metrics, yielder, pending_msg)?;
+        handle_msg(state, metrics, yielder, pending_msg)?;
     }
 
     Ok(())
@@ -446,12 +304,7 @@ where
 
             emit!(yielder, Effect::ScheduleTimeout(Timeout::commit(round)));
 
-            handle(
-                state,
-                metrics,
-                yielder,
-                Msg::Decided(state.driver.height(), round, value),
-            )
+            decided(state, metrics, yielder, state.driver.height(), round, value)
         }
 
         DriverOutput::ScheduleTimeout(timeout) => {

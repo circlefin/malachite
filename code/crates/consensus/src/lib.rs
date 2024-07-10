@@ -10,8 +10,12 @@ pub use state::State;
 mod error;
 pub use error::Error;
 
-mod handle;
-pub use handle::{process_async, process_sync};
+mod process;
+pub use process::{process_async, process_sync};
 
+mod effect;
+pub use effect::{Effect, Resume, Yielder};
+
+mod handle;
 mod mock;
 mod util;

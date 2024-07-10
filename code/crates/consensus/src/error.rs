@@ -1,7 +1,7 @@
 use malachite_common::{Context, Round};
 use malachite_driver::Error as DriverError;
 
-use crate::handle::Resume;
+use crate::effect::Resume;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error<Ctx>
