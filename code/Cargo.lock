@@ -2084,6 +2084,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-consensus"
+version = "0.1.0"
+dependencies = [
+ "derive-where",
+ "malachite-common",
+ "malachite-driver",
+ "malachite-metrics",
+ "malachite-round",
+ "malachite-vote",
+ "tracing",
+]
+
+[[package]]
 name = "malachite-driver"
 version = "0.1.0"
 dependencies = [
