@@ -51,6 +51,15 @@ where
     /// Get the validator set at the given height
     /// Resume with: Resume::ValidatorSet(height, validator_set)
     GetValidatorSet(Ctx::Height),
+
+    /// Consensus has decided on a value
+    /// Resume with: Resume::Continue
+    DecidedOnValue {
+        height: Ctx::Height,
+        round: Round,
+        value: Ctx::Value,
+        commits: Vec<SignedVote<Ctx>>,
+    },
 }
 
 #[must_use]
@@ -456,18 +465,9 @@ where
         DriverOutput::GetValue(height, round, timeout) => {
             info!("Requesting value at height {height} and round {round}");
 
-            let value = emit_then!(yielder, Effect::GetValue(height, round, timeout),
-                Resume::ProposeValue(proposed_height, proposer_round, proposed_value) => {
-                    if proposed_height == height && proposer_round == round {
-                        Ok(proposed_value)
-                    } else {
-                        Err(Error::UnexpectedResume(
-                            Resume::ProposeValue(proposed_height, proposer_round, proposed_value),
-                            "ProposeValue for the current height and round"
-                        ))
-                    }
-                }
-            )?;
+            let (height, round, value) = emit_then!(yielder, Effect::GetValue(height, round, timeout),
+                Resume::ProposeValue(height, round, value) => (height, round, value)
+            );
 
             propose_value(state, metrics, yielder, height, round, value)
         }
@@ -509,4 +509,44 @@ where
         yielder,
         DriverInput::ProposeValue(round, value),
     )
+}
+
+fn decided<Ctx>(
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    yielder: &Yielder<Ctx>,
+    height: Ctx::Height,
+    round: Round,
+    value: Ctx::Value,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    // Remove the block information as it is not needed anymore
+    state.remove_received_block(height, round);
+
+    // Restore the commits. Note that they will be removed from `state`
+    let commits = state.restore_precommits(height, round, &value);
+
+    emit!(
+        yielder,
+        Effect::DecidedOnValue {
+            height,
+            round,
+            value,
+            commits
+        }
+    );
+
+    // Reinitialize to remove any previous round or equivocating precommits.
+    // TODO: Revise when evidence module is added.
+    state.signed_precommits.clear();
+
+    metrics.block_end();
+    metrics.finalized_blocks.inc();
+    metrics
+        .rounds_per_block
+        .observe((round.as_i64() + 1) as f64);
+
+    Ok(())
 }
