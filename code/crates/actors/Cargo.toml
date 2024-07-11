@@ -11,6 +11,7 @@ workspace = true
 
 [dependencies]
 malachite-common.workspace           = true
+malachite-consensus.workspace        = true
 malachite-driver.workspace           = true
 malachite-gossip-consensus.workspace = true
 malachite-gossip-mempool.workspace   = true

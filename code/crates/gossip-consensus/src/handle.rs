@@ -1,8 +1,9 @@
 use malachite_common::Context;
+use malachite_consensus::GossipMsg;
 use tokio::sync::mpsc;
 use tokio::task;
 
-use crate::{BoxError, Channel, CtrlMsg, Event, NetworkMsg};
+use crate::{BoxError, Channel, CtrlMsg, Event};
 
 pub struct RecvHandle<Ctx: Context> {
     rx_event: mpsc::Receiver<Event<Ctx>>,
@@ -20,8 +21,8 @@ pub struct CtrlHandle<Ctx: Context> {
 }
 
 impl<Ctx: Context> CtrlHandle<Ctx> {
-    pub async fn broadcast(&self, channel: Channel, data: NetworkMsg<Ctx>) -> Result<(), BoxError> {
-        self.tx_ctrl.send(CtrlMsg::Broadcast(channel, data)).await?;
+    pub async fn broadcast(&self, channel: Channel, msg: GossipMsg<Ctx>) -> Result<(), BoxError> {
+        self.tx_ctrl.send(CtrlMsg::Broadcast(channel, msg)).await?;
         Ok(())
     }
 
@@ -32,7 +33,7 @@ impl<Ctx: Context> CtrlHandle<Ctx> {
     }
 
     pub async fn shutdown(&self) -> Result<(), BoxError> {
-        self.tx_ctrl.send(CtrlMsg::Shutdown).await?;
+        self.tx_ctrl.send(CtrlMsg::<Ctx>::Shutdown).await?;
         Ok(())
     }
 
@@ -70,8 +71,8 @@ impl<Ctx: Context> Handle<Ctx> {
         self.recv.recv().await
     }
 
-    pub async fn broadcast(&self, channel: Channel, data: NetworkMsg<Ctx>) -> Result<(), BoxError> {
-        self.ctrl.broadcast(channel, data).await
+    pub async fn broadcast(&self, channel: Channel, msg: GossipMsg<Ctx>) -> Result<(), BoxError> {
+        self.ctrl.broadcast(channel, msg).await
     }
 
     pub async fn wait_shutdown(self) -> Result<(), BoxError> {

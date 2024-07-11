@@ -3,7 +3,7 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachite_common::{Context, Round, SignedVote, Validity};
+use malachite_common::{Context, Round, SignedVote};
 
 use crate::consensus::ConsensusRef;
 
@@ -24,15 +24,8 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
     }
 }
 
-/// Input to the round state machine.
-#[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct ReceivedProposedValue<Ctx: Context> {
-    pub validator_address: Ctx::Address,
-    pub height: Ctx::Height,
-    pub round: Round,
-    pub value: Ctx::Value,
-    pub valid: Validity,
-}
+/// A value to propose that has just been received.
+pub type ReceivedProposedValue<Ctx> = malachite_consensus::Block<Ctx>;
 
 /// A reference to the host actor.
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;

@@ -10,15 +10,15 @@ where
     /// Start a new height
     StartHeight(Ctx::Height),
 
-    /// Move to a give height
-    MoveToHeight(Ctx::Height),
-
     /// Process a gossip event
     GossipEvent(GossipEvent<Ctx>),
+
+    /// Propose a value
+    ProposeValue(Ctx::Height, Round, Ctx::Value),
 
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),
 
     /// A block to propose has been received
-    ReceivedBlock(Block<Ctx>),
+    BlockReceived(Block<Ctx>),
 }

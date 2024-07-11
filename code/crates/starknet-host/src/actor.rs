@@ -106,7 +106,7 @@ impl StarknetHost {
         height: Height,
         round: Round,
     ) -> Option<ReceivedProposedValue<MockContext>> {
-        let (value, validator_address, valid) =
+        let (value, validator_address, validity) =
             self.build_proposal_content(block_parts, height, round)?;
 
         Some(ReceivedProposedValue {
@@ -114,7 +114,7 @@ impl StarknetHost {
             height,
             round,
             value,
-            valid,
+            validity,
         })
     }
 

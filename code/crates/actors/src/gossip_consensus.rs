@@ -5,15 +5,16 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use libp2p::identity::Keypair;
-use malachite_common::Context;
 use ractor::ActorCell;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
 use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
 
+use malachite_common::Context;
+use malachite_consensus::GossipMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
-use malachite_gossip_consensus::{Channel, Config, Event, NetworkMsg, PeerId};
+use malachite_gossip_consensus::{Channel, Config, Event, PeerId};
 use malachite_metrics::SharedRegistry;
 use tracing::{error, error_span, Instrument};
 
@@ -65,7 +66,7 @@ pub enum State<Ctx: Context> {
 
 pub enum Msg<Ctx: Context> {
     Subscribe(ActorRef<Arc<Event<Ctx>>>),
-    Broadcast(Channel, NetworkMsg<Ctx>),
+    Broadcast(Channel, GossipMsg<Ctx>),
 
     // Internal message
     #[doc(hidden)]

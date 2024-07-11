@@ -8,6 +8,7 @@ use std::error::Error;
 use std::ops::ControlFlow;
 use std::time::Duration;
 
+use derive_where::derive_where;
 use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::swarm::{self, SwarmEvent};
@@ -28,10 +29,12 @@ pub mod behaviour;
 pub mod handle;
 
 mod msg;
-pub use msg::NetworkMsg;
+pub use msg::GossipMsg;
 
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
+
+use msg::NetworkMsg;
 
 const METRICS_PREFIX: &str = "malachite_gossip_consensus";
 
@@ -99,17 +102,11 @@ impl Config {
     }
 }
 
-#[derive(Debug)]
-pub enum Event<Ctx: Context> {
-    Listening(Multiaddr),
-    Message(PeerId, NetworkMsg<Ctx>),
-    PeerConnected(PeerId),
-    PeerDisconnected(PeerId),
-}
+pub type Event<Ctx> = malachite_consensus::GossipEvent<Ctx>;
 
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub enum CtrlMsg<Ctx: Context> {
-    Broadcast(Channel, NetworkMsg<Ctx>),
+    Broadcast(Channel, GossipMsg<Ctx>),
     Shutdown,
 }
 
@@ -201,6 +198,7 @@ async fn handle_ctrl_msg<Ctx: Context>(
 ) -> ControlFlow<()> {
     match msg {
         CtrlMsg::Broadcast(channel, msg) => {
+            let msg = NetworkMsg(msg);
             let data = match msg.to_network_bytes() {
                 Ok(data) => data,
                 Err(e) => {
@@ -339,12 +337,12 @@ async fn handle_swarm_event<Ctx: Context>(
                 message.data.len()
             );
 
-            let Ok(network_msg) = NetworkMsg::from_network_bytes(&message.data) else {
+            let Ok(NetworkMsg(gossip_msg)) = NetworkMsg::from_network_bytes(&message.data) else {
                 error!("Error decoding message {message_id} from {peer_id}: invalid format");
                 return ControlFlow::Continue(());
             };
 
-            if let Err(e) = tx_event.send(Event::Message(peer_id, network_msg)).await {
+            if let Err(e) = tx_event.send(Event::Message(peer_id, gossip_msg)).await {
                 error!("Error sending message to handle: {e}");
                 return ControlFlow::Break(());
             }

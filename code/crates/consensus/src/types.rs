@@ -8,7 +8,7 @@ pub use libp2p_identity::PeerId;
 pub use multiaddr::Multiaddr;
 
 /// A message that can be broadcast by the gossip layer
-#[derive_where(Clone, Debug, PartialEq)]
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum GossipMsg<Ctx: Context> {
     Vote(SignedVote<Ctx>),
     Proposal(SignedProposal<Ctx>),
@@ -26,7 +26,7 @@ impl<Ctx: Context> GossipMsg<Ctx> {
 }
 
 /// An event that can be emitted by the gossip layer
-#[derive_where(Debug)]
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum GossipEvent<Ctx: Context> {
     Listening(Multiaddr),
     Message(PeerId, GossipMsg<Ctx>),
@@ -35,7 +35,7 @@ pub enum GossipEvent<Ctx: Context> {
 }
 
 /// An abstract block, ie. a value proposed by a validator
-#[derive_where(Debug)]
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct Block<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,

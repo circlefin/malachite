@@ -24,10 +24,12 @@ where
 {
     match msg {
         Msg::StartHeight(height) => start_height(state, metrics, yielder, height),
-        Msg::MoveToHeight(height) => move_to_height(state, metrics, yielder, height),
         Msg::GossipEvent(event) => on_gossip_event(state, metrics, yielder, event),
+        Msg::ProposeValue(height, round, value) => {
+            propose_value(state, metrics, yielder, height, round, value)
+        }
         Msg::TimeoutElapsed(timeout) => on_timeout_elapsed(state, metrics, yielder, timeout),
-        Msg::ReceivedBlock(block) => on_received_block(state, metrics, yielder, block),
+        Msg::BlockReceived(block) => on_received_block(state, metrics, yielder, block),
     }
 }
 
@@ -311,11 +313,9 @@ where
         DriverOutput::GetValue(height, round, timeout) => {
             info!("Requesting value at height {height} and round {round}");
 
-            let (height, round, value) = emit_then!(yielder, Effect::GetValue(height, round, timeout),
-                Resume::ProposeValue(height, round, value) => (height, round, value)
-            );
+            emit!(yielder, Effect::GetValue(height, round, timeout));
 
-            propose_value(state, metrics, yielder, height, round, value)
+            Ok(())
         }
     }
 }
@@ -673,12 +673,7 @@ where
     )?;
 
     if timeout.step == TimeoutStep::Commit {
-        handle_msg(
-            state,
-            metrics,
-            yielder,
-            Msg::MoveToHeight(height.increment()),
-        )?;
+        move_to_height(state, metrics, yielder, height.increment())?;
     }
 
     Ok(())

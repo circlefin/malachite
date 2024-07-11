@@ -2,7 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use corosensei::stack::DefaultStack;
-use corosensei::ScopedCoroutine;
+use corosensei::{ScopedCoroutine, Yielder};
 
 use malachite_common::*;
 use malachite_metrics::Metrics;
@@ -13,8 +13,31 @@ use crate::handle::handle_msg;
 use crate::msg::Msg;
 use crate::state::State;
 
-type Co<'a, Ctx> =
-    ScopedCoroutine<'a, Resume<Ctx>, Effect<Ctx>, Result<(), Error<Ctx>>, DefaultStack>;
+pub struct Co<'a, Ctx>
+where
+    Ctx: Context,
+{
+    co: ScopedCoroutine<'a, Resume<Ctx>, Effect<Ctx>, Result<(), Error<Ctx>>, DefaultStack>,
+}
+
+impl<'a, Ctx> Co<'a, Ctx>
+where
+    Ctx: Context,
+{
+    pub fn new(
+        f: impl FnOnce(&Yielder<Resume<Ctx>, Effect<Ctx>>, Resume<Ctx>) -> Result<(), Error<Ctx>> + 'a,
+    ) -> Self {
+        Self {
+            co: ScopedCoroutine::new(f),
+        }
+    }
+
+    pub fn resume(&mut self, resume: Resume<Ctx>) -> CoResult<Ctx> {
+        self.co.resume(resume)
+    }
+}
+
+unsafe impl<'a, Ctx: Context> Send for Co<'a, Ctx> {}
 
 type CoResult<Ctx> = corosensei::CoroutineResult<Effect<Ctx>, Result<(), Error<Ctx>>>;
 
@@ -53,7 +76,7 @@ pub async fn process_async<'a, Ctx>(
     state: &'a mut State<Ctx>,
     metrics: &'a Metrics,
     msg: Msg<Ctx>,
-    mut on_yield: impl FnMut(Effect<Ctx>) -> Pin<Box<dyn Future<Output = Resume<Ctx>>>>,
+    mut on_yield: impl FnMut(Effect<Ctx>) -> Pin<Box<dyn Future<Output = Resume<Ctx>> + Send>>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,

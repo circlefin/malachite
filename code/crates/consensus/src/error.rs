@@ -1,10 +1,13 @@
+use derive_where::derive_where;
+
 use malachite_common::{Context, Round};
 use malachite_driver::Error as DriverError;
 
 use crate::effect::Resume;
 
 /// The types of error that can be emitted by the consensus process.
-#[derive(Debug, thiserror::Error)]
+#[derive_where(Debug)]
+#[derive(thiserror::Error)]
 pub enum Error<Ctx>
 where
     Ctx: Context,

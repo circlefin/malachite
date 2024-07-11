@@ -10,9 +10,10 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
-malachite-common   = { workspace = true, features = ["proto"] }
-malachite-metrics  = { workspace = true }
-malachite-proto    = { workspace = true }
+malachite-common    = { workspace = true, features = ["proto"] }
+malachite-consensus = { workspace = true }
+malachite-metrics   = { workspace = true }
+malachite-proto     = { workspace = true }
 
 blake3             = { workspace = true }
 derive-where       = { workspace = true }

@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -17,6 +16,7 @@ use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
 use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig};
 use malachite_starknet_host::actor::StarknetHost;
+use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::mock::host::{MockHost, MockParams};
 use malachite_starknet_host::mock::types::{

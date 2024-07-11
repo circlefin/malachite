@@ -41,7 +41,7 @@ where
     Broadcast(GossipMsg<Ctx>),
 
     /// Get a value to propose at the given height and round, within the given timeout
-    /// Resume with: Resume::ProposeValue(height, round, value)
+    /// Resume with: Resume::Continue
     GetValue(Ctx::Height, Round, Timeout),
 
     /// Get the validator set at the given height
@@ -75,9 +75,6 @@ where
 
     /// Resume execution
     Continue,
-
-    /// Resume execution with a value to propose at the given height and round
-    ProposeValue(Ctx::Height, Round, Ctx::Value),
 
     /// Resume execution with a validator set at the given height
     ValidatorSet(Ctx::Height, Ctx::ValidatorSet),
