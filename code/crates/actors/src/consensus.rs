@@ -61,7 +61,6 @@ impl<Ctx: Context> Deref for Consensus<Ctx> {
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
 pub enum Msg<Ctx: Context> {
-    StartHeight(Ctx::Height),
     GossipEvent(Arc<GossipEvent<Ctx>>),
     TimeoutElapsed(Timeout),
     // The proposal builder has built a value and can be used in a new proposal consensus message
@@ -311,30 +310,6 @@ where
         msg: Msg<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
-            Msg::StartHeight(height) => {
-                let result = malachite_consensus::process_async(
-                    &mut state.consensus,
-                    &self.metrics,
-                    InnerMsg::StartHeight(height),
-                    |effect| {
-                        let myself = myself.clone();
-                        let timers = state.timers.clone();
-                        let inner = Arc::clone(&self.inner);
-
-                        Box::pin(Self::handle_effect_infallible(
-                            myself, timers, inner, effect,
-                        ))
-                    },
-                )
-                .await;
-
-                if let Err(e) = result {
-                    error!("Error when processing StartHeight message: {e:?}");
-                }
-
-                Ok(())
-            }
-
             Msg::ProposeValue(height, round, value) => {
                 let result = malachite_consensus::process_async(
                     &mut state.consensus,
