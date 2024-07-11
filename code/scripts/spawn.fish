@@ -101,13 +101,13 @@ end
 echo "Spawned $NODES_COUNT nodes."
 echo
 
-read -l -P "Launch tmux? [y/N] " launch_tmux
+read -l -P "Launch tmux? [Y/n] " launch_tmux
 switch $launch_tmux
-    case Y y
-        tmux attach -t $session
-    case '*'
+    case N n
         echo "To attach to the tmux session, run:"
         echo "  tmux attach -t $session"
+    case '*'
+        tmux attach -t $session
 end
 
 echo
