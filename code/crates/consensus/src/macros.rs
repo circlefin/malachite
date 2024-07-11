@@ -44,14 +44,14 @@ macro_rules! emit_then {
         emit_then!($yielder, $effect, $pat => ())
     };
 
-    // TODO: Add support for if guards
-    ($yielder:expr, $effect:expr $(, $pat:pat => $expr:expr)+ $(,)*) => {
+    // TODO: Add support for multiple patterns + if guards
+    ($yielder:expr, $effect:expr, $pat:pat => $expr:expr $(,)?) => {
         match $yielder.suspend($effect) {
-            $($pat => $expr,)+
+            $pat => $expr,
             resume => {
                 return Err($crate::error::Error::UnexpectedResume(
                     resume,
-                    concat!(concat!($(stringify!($pat))+), ", ")
+                    stringify!($pat)
                 )
                 .into())
             }
