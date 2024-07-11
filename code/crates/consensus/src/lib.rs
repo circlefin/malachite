@@ -4,7 +4,7 @@ pub use msg::Msg;
 mod state;
 pub use state::State;
 
-pub mod error;
+mod error;
 pub use error::Error;
 
 mod process;

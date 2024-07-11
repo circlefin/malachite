@@ -2,6 +2,7 @@ use malachite_common::*;
 
 use crate::types::{Block, GossipEvent};
 
+/// Messages that can be handled by the consensus process
 pub enum Msg<Ctx>
 where
     Ctx: Context,

@@ -7,6 +7,7 @@ use malachite_common::{
 pub use libp2p_identity::PeerId;
 pub use multiaddr::Multiaddr;
 
+/// A message that can be broadcast by the gossip layer
 #[derive_where(Clone, Debug, PartialEq)]
 pub enum GossipMsg<Ctx: Context> {
     Vote(SignedVote<Ctx>),
@@ -24,6 +25,7 @@ impl<Ctx: Context> GossipMsg<Ctx> {
     }
 }
 
+/// An event that can be emitted by the gossip layer
 #[derive_where(Debug)]
 pub enum GossipEvent<Ctx: Context> {
     Listening(Multiaddr),
@@ -32,6 +34,7 @@ pub enum GossipEvent<Ctx: Context> {
     PeerDisconnected(PeerId),
 }
 
+/// An abstract block, ie. a value proposed by a validator
 #[derive_where(Debug)]
 pub struct Block<Ctx: Context> {
     pub height: Ctx::Height,

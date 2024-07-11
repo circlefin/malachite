@@ -7,6 +7,7 @@ use crate::error::Error;
 use crate::msg::Msg;
 use crate::types::PeerId;
 
+/// The state maintained by consensus for processing a [`Msg`][crate::msg::Msg].
 pub struct State<Ctx>
 where
     Ctx: Context,

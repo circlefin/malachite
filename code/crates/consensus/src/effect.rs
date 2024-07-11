@@ -6,6 +6,14 @@ use crate::types::GossipMsg;
 
 pub type Yielder<Ctx> = corosensei::Yielder<Resume<Ctx>, Effect<Ctx>>;
 
+/// An effect which may be yielded by a consensus process.
+///
+/// Effects are handled by the caller using [`process_sync`][sync] or [`process_async`][async],
+/// and the consensus process is then resumed with an appropriate [`Resume`] value, as per
+/// the documentation for each effect.
+///
+/// [sync]: crate::process::process_sync
+/// [async]: crate::process::process_async
 #[must_use]
 #[derive_where(Debug)]
 pub enum Effect<Ctx>
@@ -54,14 +62,23 @@ where
     ReceivedBlockPart(Ctx::BlockPart),
 }
 
+/// A value with which the consensus process can be resumed after yielding an [`Effect`].
 #[must_use]
 #[derive_where(Debug)]
 pub enum Resume<Ctx>
 where
     Ctx: Context,
 {
+    /// Internal effect to start processing a [`Msg`][crate::msg::Msg].
+    #[doc(hidden)]
     Start,
+
+    /// Resume execution
     Continue,
+
+    /// Resume execution with a value to propose at the given height and round
     ProposeValue(Ctx::Height, Round, Ctx::Value),
+
+    /// Resume execution with a validator set at the given height
     ValidatorSet(Ctx::Height, Ctx::ValidatorSet),
 }

@@ -2122,10 +2122,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-gossip"
-version = "0.1.0"
-
-[[package]]
 name = "malachite-gossip-consensus"
 version = "0.1.0"
 dependencies = [
