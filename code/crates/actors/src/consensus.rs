@@ -222,6 +222,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self, myself))]
     fn get_value(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
@@ -252,6 +253,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     async fn get_validator_set(
         &self,
         height: Ctx::Height,
@@ -265,6 +267,7 @@ where
         Ok(validator_set)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
