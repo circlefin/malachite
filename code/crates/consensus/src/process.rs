@@ -2,7 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use corosensei::stack::DefaultStack;
-use corosensei::{ScopedCoroutine, Yielder};
+use corosensei::{CoroutineResult, ScopedCoroutine, Yielder};
 
 use malachite_common::*;
 use malachite_metrics::Metrics;
@@ -13,11 +13,14 @@ use crate::handle::handle_msg;
 use crate::msg::Msg;
 use crate::state::State;
 
+type InnerResult<Ctx> = Result<(), Error<Ctx>>;
+type CoResult<Ctx> = CoroutineResult<Effect<Ctx>, InnerResult<Ctx>>;
+
 pub struct Co<'a, Ctx>
 where
     Ctx: Context,
 {
-    co: ScopedCoroutine<'a, Resume<Ctx>, Effect<Ctx>, Result<(), Error<Ctx>>, DefaultStack>,
+    co: ScopedCoroutine<'a, Resume<Ctx>, Effect<Ctx>, InnerResult<Ctx>, DefaultStack>,
 }
 
 impl<'a, Ctx> Co<'a, Ctx>
@@ -39,17 +42,15 @@ where
 
 unsafe impl<'a, Ctx: Context> Send for Co<'a, Ctx> {}
 
-type CoResult<Ctx> = corosensei::CoroutineResult<Effect<Ctx>, Result<(), Error<Ctx>>>;
-
 /// Process a message synchronously.
 ///
 /// # Example
 /// TODO
 pub fn process_sync<'a, Ctx>(
-    state: &'a mut State<Ctx>,
-    metrics: &'a Metrics,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
     msg: Msg<Ctx>,
-    mut on_yield: impl FnMut(Effect<Ctx>) -> Resume<Ctx>,
+    mut on_yield: impl FnMut(Effect<Ctx>) -> Resume<Ctx> + 'a,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -73,10 +74,10 @@ where
 /// # Example
 /// TODO
 pub async fn process_async<'a, Ctx>(
-    state: &'a mut State<Ctx>,
-    metrics: &'a Metrics,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
     msg: Msg<Ctx>,
-    mut on_yield: impl FnMut(Effect<Ctx>) -> Pin<Box<dyn Future<Output = Resume<Ctx>> + Send>>,
+    mut on_yield: impl FnMut(Effect<Ctx>) -> Pin<Box<dyn Future<Output = Resume<Ctx>> + Send + 'a>>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,

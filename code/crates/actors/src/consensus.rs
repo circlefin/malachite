@@ -1,15 +1,13 @@
 use std::collections::{BTreeSet, VecDeque};
-use std::ops::Deref;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use derive_where::derive_where;
-use malachite_consensus::{Effect, GossipMsg, Resume};
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tracing::{error, info};
 
 use malachite_common::{Context, Round, Timeout};
+use malachite_consensus::{Effect, GossipMsg, Resume};
 use malachite_driver::Driver;
 use malachite_gossip_consensus::{Channel, Event as GossipEvent};
 use malachite_metrics::Metrics;
@@ -31,15 +29,7 @@ pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
 pub type TxDecision<Ctx> = mpsc::Sender<(<Ctx as Context>::Height, Round, <Ctx as Context>::Value)>;
 
-#[derive_where(Clone)]
 pub struct Consensus<Ctx>
-where
-    Ctx: Context,
-{
-    inner: Arc<Inner<Ctx>>,
-}
-
-pub struct Inner<Ctx>
 where
     Ctx: Context,
 {
@@ -50,14 +40,6 @@ where
     host: HostRef<Ctx>,
     metrics: Metrics,
     tx_decision: Option<TxDecision<Ctx>>,
-}
-
-impl<Ctx: Context> Deref for Consensus<Ctx> {
-    type Target = Inner<Ctx>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
 }
 
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
@@ -99,15 +81,13 @@ where
         tx_decision: Option<TxDecision<Ctx>>,
     ) -> Self {
         Self {
-            inner: Arc::new(Inner {
-                ctx,
-                params,
-                timers_config,
-                gossip_consensus,
-                host,
-                metrics,
-                tx_decision,
-            }),
+            ctx,
+            params,
+            timers_config,
+            gossip_consensus,
+            host,
+            metrics,
+            tx_decision,
         }
     }
 
@@ -156,9 +136,9 @@ where
                     |effect| {
                         let myself = myself.clone();
                         let timers = state.timers.clone();
-                        let this = Arc::clone(&self.inner);
+                        // let self = Arc::clone(&self.inner);
 
-                        Box::pin(this.handle_effect_infallible(myself, timers, effect))
+                        Box::pin(self.handle_effect_infallible(myself, timers, effect))
                     },
                 )
                 .await;
@@ -178,9 +158,9 @@ where
                     |effect| {
                         let myself = myself.clone();
                         let timers = state.timers.clone();
-                        let this = Arc::clone(&self.inner);
+                        // let self = Arc::clone(&self.inner);
 
-                        Box::pin(this.handle_effect_infallible(myself, timers, effect))
+                        Box::pin(self.handle_effect_infallible(myself, timers, effect))
                     },
                 )
                 .await;
@@ -200,15 +180,15 @@ where
                     |effect| {
                         let myself = myself.clone();
                         let timers = state.timers.clone();
-                        let this = Arc::clone(&self.inner);
+                        // let self = Arc::clone(&self.inner);
 
-                        Box::pin(this.handle_effect_infallible(myself, timers, effect))
+                        Box::pin(self.handle_effect_infallible(myself, timers, effect))
                     },
                 )
                 .await;
 
                 if let Err(e) = result {
-                    error!("Error when processing GossipEvent message: {e:?}");
+                    error!("Error when processing TimeoutElapsed message: {e:?}");
                 }
 
                 Ok(())
@@ -222,9 +202,9 @@ where
                     |effect| {
                         let myself = myself.clone();
                         let timers = state.timers.clone();
-                        let this = Arc::clone(&self.inner);
+                        // let self = Arc::clone(&self.inner);
 
-                        Box::pin(this.handle_effect_infallible(myself, timers, effect))
+                        Box::pin(self.handle_effect_infallible(myself, timers, effect))
                     },
                 )
                 .await;
@@ -251,11 +231,9 @@ where
             }
         }
     }
-}
 
-impl<Ctx: Context> Inner<Ctx> {
     fn get_value(
-        self: Arc<Inner<Ctx>>,
+        &self,
         myself: ActorRef<Msg<Ctx>>,
         height: Ctx::Height,
         round: Round,
@@ -285,7 +263,7 @@ impl<Ctx: Context> Inner<Ctx> {
     }
 
     async fn get_validator_set(
-        self: Arc<Inner<Ctx>>,
+        &self,
         height: Ctx::Height,
     ) -> Result<Ctx::ValidatorSet, ActorProcessingErr> {
         let validator_set = ractor::call!(self.host, |reply_to| HostMsg::GetValidatorSet {
@@ -298,7 +276,7 @@ impl<Ctx: Context> Inner<Ctx> {
     }
 
     async fn handle_effect_infallible(
-        self: Arc<Inner<Ctx>>,
+        &self,
         myself: ActorRef<Msg<Ctx>>,
         timers: TimersRef,
         effect: Effect<Ctx>,
@@ -313,7 +291,7 @@ impl<Ctx: Context> Inner<Ctx> {
     }
 
     async fn handle_effect(
-        self: Arc<Inner<Ctx>>,
+        &self,
         myself: ActorRef<Msg<Ctx>>,
         timers: TimersRef,
         effect: Effect<Ctx>,
@@ -425,6 +403,7 @@ where
     type State = State<Ctx>;
     type Arguments = ();
 
+    #[tracing::instrument(name = "consensus", skip_all)]
     async fn pre_start(
         &self,
         myself: ActorRef<Msg<Ctx>>,
@@ -478,6 +457,14 @@ where
         self.handle_msg(myself, state, msg).await
     }
 
+    #[tracing::instrument(
+        name = "consensus",
+        skip_all,
+        fields(
+            height = %state.consensus.driver.height(),
+            round = %state.consensus.driver.round()
+        )
+    )]
     async fn post_stop(
         &self,
         _myself: ActorRef<Self::Msg>,

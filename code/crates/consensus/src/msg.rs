@@ -1,8 +1,11 @@
+use derive_where::derive_where;
+
 use malachite_common::*;
 
 use crate::types::{Block, GossipEvent};
 
 /// Messages that can be handled by the consensus process
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum Msg<Ctx>
 where
     Ctx: Context,
