@@ -3,6 +3,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use derive_where::derive_where;
 use malachite_consensus::{Effect, GossipMsg, Resume};
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
@@ -30,6 +31,7 @@ pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
 pub type TxDecision<Ctx> = mpsc::Sender<(<Ctx as Context>::Height, Round, <Ctx as Context>::Value)>;
 
+#[derive_where(Clone)]
 pub struct Consensus<Ctx>
 where
     Ctx: Context,
@@ -139,23 +141,136 @@ where
         Ok(actor_ref)
     }
 
-    fn get_value(
+    async fn handle_msg(
+        &self,
         myself: ActorRef<Msg<Ctx>>,
-        inner: &Inner<Ctx>,
+        state: &mut State<Ctx>,
+        msg: Msg<Ctx>,
+    ) -> Result<(), ractor::ActorProcessingErr> {
+        match msg {
+            Msg::ProposeValue(height, round, value) => {
+                let result = malachite_consensus::process_async(
+                    &mut state.consensus,
+                    &self.metrics,
+                    InnerMsg::ProposeValue(height, round, value),
+                    |effect| {
+                        let myself = myself.clone();
+                        let timers = state.timers.clone();
+                        let this = Arc::clone(&self.inner);
+
+                        Box::pin(this.handle_effect_infallible(myself, timers, effect))
+                    },
+                )
+                .await;
+
+                if let Err(e) = result {
+                    error!("Error when processing ProposeValue message: {e:?}");
+                }
+
+                Ok(())
+            }
+
+            Msg::GossipEvent(event) => {
+                let result = malachite_consensus::process_async(
+                    &mut state.consensus,
+                    &self.metrics,
+                    InnerMsg::GossipEvent(Arc::unwrap_or_clone(event)),
+                    |effect| {
+                        let myself = myself.clone();
+                        let timers = state.timers.clone();
+                        let this = Arc::clone(&self.inner);
+
+                        Box::pin(this.handle_effect_infallible(myself, timers, effect))
+                    },
+                )
+                .await;
+
+                if let Err(e) = result {
+                    error!("Error when processing GossipEvent message: {e:?}");
+                }
+
+                Ok(())
+            }
+
+            Msg::TimeoutElapsed(timeout) => {
+                let result = malachite_consensus::process_async(
+                    &mut state.consensus,
+                    &self.metrics,
+                    InnerMsg::TimeoutElapsed(timeout),
+                    |effect| {
+                        let myself = myself.clone();
+                        let timers = state.timers.clone();
+                        let this = Arc::clone(&self.inner);
+
+                        Box::pin(this.handle_effect_infallible(myself, timers, effect))
+                    },
+                )
+                .await;
+
+                if let Err(e) = result {
+                    error!("Error when processing GossipEvent message: {e:?}");
+                }
+
+                Ok(())
+            }
+
+            Msg::BlockReceived(block) => {
+                let result = malachite_consensus::process_async(
+                    &mut state.consensus,
+                    &self.metrics,
+                    InnerMsg::BlockReceived(block),
+                    |effect| {
+                        let myself = myself.clone();
+                        let timers = state.timers.clone();
+                        let this = Arc::clone(&self.inner);
+
+                        Box::pin(this.handle_effect_infallible(myself, timers, effect))
+                    },
+                )
+                .await;
+
+                if let Err(e) = result {
+                    error!("Error when processing GossipEvent message: {e:?}");
+                }
+
+                Ok(())
+            }
+
+            Msg::GossipBlockPart(block_part) => {
+                let signed_block_part = self.ctx.sign_block_part(block_part);
+                let gossip_msg = GossipConsensusMsg::Broadcast(
+                    Channel::BlockParts,
+                    GossipMsg::BlockPart(signed_block_part),
+                );
+
+                if let Err(e) = self.gossip_consensus.cast(gossip_msg) {
+                    error!("Error when sending block part to gossip layer: {e:?}");
+                }
+
+                Ok(())
+            }
+        }
+    }
+}
+
+impl<Ctx: Context> Inner<Ctx> {
+    fn get_value(
+        self: Arc<Inner<Ctx>>,
+        myself: ActorRef<Msg<Ctx>>,
         height: Ctx::Height,
         round: Round,
         timeout: Timeout,
     ) -> Result<(), ActorProcessingErr> {
-        let timeout_duration = inner.timers_config.timeout_duration(timeout.step);
+        let timeout_duration = self.timers_config.timeout_duration(timeout.step);
 
         // Call `GetValue` on the Host actor, and forward the reply
         // to the current actor, wrapping it in `Msg::ProposeValue`.
-        inner.host.call_and_forward(
+        self.host.call_and_forward(
             |reply| HostMsg::GetValue {
                 height,
                 round,
                 timeout_duration,
-                address: inner.params.address.clone(),
+                address: self.params.address.clone(),
                 consensus: myself.clone(),
                 reply_to: reply,
             },
@@ -170,10 +285,10 @@ where
     }
 
     async fn get_validator_set(
-        inner: &Inner<Ctx>,
+        self: Arc<Inner<Ctx>>,
         height: Ctx::Height,
     ) -> Result<Ctx::ValidatorSet, ActorProcessingErr> {
-        let validator_set = ractor::call!(inner.host, |reply_to| HostMsg::GetValidatorSet {
+        let validator_set = ractor::call!(self.host, |reply_to| HostMsg::GetValidatorSet {
             height,
             reply_to
         })
@@ -183,12 +298,12 @@ where
     }
 
     async fn handle_effect_infallible(
+        self: Arc<Inner<Ctx>>,
         myself: ActorRef<Msg<Ctx>>,
         timers: TimersRef,
-        inner: Arc<Inner<Ctx>>,
         effect: Effect<Ctx>,
     ) -> Resume<Ctx> {
-        match Self::handle_effect(myself, timers, inner, effect).await {
+        match self.handle_effect(myself, timers, effect).await {
             Ok(resume) => resume,
             Err(error) => {
                 error!("Error when processing effect: {error:?}");
@@ -198,9 +313,9 @@ where
     }
 
     async fn handle_effect(
+        self: Arc<Inner<Ctx>>,
         myself: ActorRef<Msg<Ctx>>,
         timers: TimersRef,
-        inner: Arc<Inner<Ctx>>,
         effect: Effect<Ctx>,
     ) -> Result<Resume<Ctx>, ActorProcessingErr> {
         match effect {
@@ -234,8 +349,7 @@ where
             }
 
             Effect::Broadcast(gossip_msg) => {
-                inner
-                    .gossip_consensus
+                self.gossip_consensus
                     .cast(GossipConsensusMsg::Broadcast(
                         Channel::Consensus,
                         gossip_msg,
@@ -246,7 +360,7 @@ where
             }
 
             Effect::GetValue(height, round, timeout) => {
-                if let Err(e) = Self::get_value(myself, &inner, height, round, timeout) {
+                if let Err(e) = self.get_value(myself, height, round, timeout) {
                     error!("Error when asking for value to be built: {e:?}");
                 }
 
@@ -254,7 +368,7 @@ where
             }
 
             Effect::GetValidatorSet(height) => {
-                let validator_set = Self::get_validator_set(&inner, height).await.map_err(|e| {
+                let validator_set = self.get_validator_set(height).await.map_err(|e| {
                     format!("Error when getting validator set at height {height}: {e:?}")
                 })?;
 
@@ -267,12 +381,11 @@ where
                 value,
                 commits,
             } => {
-                if let Some(tx_decision) = &inner.tx_decision {
+                if let Some(tx_decision) = &self.tx_decision {
                     let _ = tx_decision.send((height, round, value.clone())).await;
                 }
 
-                inner
-                    .host
+                self.host
                     .cast(HostMsg::DecidedOnValue {
                         height,
                         round,
@@ -285,8 +398,7 @@ where
             }
 
             Effect::ReceivedBlockPart(block_part) => {
-                inner
-                    .host
+                self.host
                     .call_and_forward(
                         |reply_to| HostMsg::ReceivedBlockPart {
                             block_part,
@@ -299,125 +411,6 @@ where
                     .map_err(|e| format!("Error when forwarding block part to host: {e:?}"))?;
 
                 Ok(Resume::Continue)
-            }
-        }
-    }
-
-    async fn handle_msg(
-        &self,
-        myself: ActorRef<Msg<Ctx>>,
-        state: &mut State<Ctx>,
-        msg: Msg<Ctx>,
-    ) -> Result<(), ractor::ActorProcessingErr> {
-        match msg {
-            Msg::ProposeValue(height, round, value) => {
-                let result = malachite_consensus::process_async(
-                    &mut state.consensus,
-                    &self.metrics,
-                    InnerMsg::ProposeValue(height, round, value),
-                    |effect| {
-                        let myself = myself.clone();
-                        let timers = state.timers.clone();
-                        let inner = Arc::clone(&self.inner);
-
-                        Box::pin(Self::handle_effect_infallible(
-                            myself, timers, inner, effect,
-                        ))
-                    },
-                )
-                .await;
-
-                if let Err(e) = result {
-                    error!("Error when processing ProposeValue message: {e:?}");
-                }
-
-                Ok(())
-            }
-
-            Msg::GossipEvent(event) => {
-                let result = malachite_consensus::process_async(
-                    &mut state.consensus,
-                    &self.metrics,
-                    InnerMsg::GossipEvent(Arc::unwrap_or_clone(event)),
-                    |effect| {
-                        let myself = myself.clone();
-                        let timers = state.timers.clone();
-                        let inner = Arc::clone(&self.inner);
-
-                        Box::pin(Self::handle_effect_infallible(
-                            myself, timers, inner, effect,
-                        ))
-                    },
-                )
-                .await;
-
-                if let Err(e) = result {
-                    error!("Error when processing GossipEvent message: {e:?}");
-                }
-
-                Ok(())
-            }
-
-            Msg::TimeoutElapsed(timeout) => {
-                let result = malachite_consensus::process_async(
-                    &mut state.consensus,
-                    &self.metrics,
-                    InnerMsg::TimeoutElapsed(timeout),
-                    |effect| {
-                        let myself = myself.clone();
-                        let timers = state.timers.clone();
-                        let inner = Arc::clone(&self.inner);
-
-                        Box::pin(Self::handle_effect_infallible(
-                            myself, timers, inner, effect,
-                        ))
-                    },
-                )
-                .await;
-
-                if let Err(e) = result {
-                    error!("Error when processing GossipEvent message: {e:?}");
-                }
-
-                Ok(())
-            }
-
-            Msg::BlockReceived(block) => {
-                let result = malachite_consensus::process_async(
-                    &mut state.consensus,
-                    &self.metrics,
-                    InnerMsg::BlockReceived(block),
-                    |effect| {
-                        let myself = myself.clone();
-                        let timers = state.timers.clone();
-                        let inner = Arc::clone(&self.inner);
-
-                        Box::pin(Self::handle_effect_infallible(
-                            myself, timers, inner, effect,
-                        ))
-                    },
-                )
-                .await;
-
-                if let Err(e) = result {
-                    error!("Error when processing GossipEvent message: {e:?}");
-                }
-
-                Ok(())
-            }
-
-            Msg::GossipBlockPart(block_part) => {
-                let signed_block_part = self.ctx.sign_block_part(block_part);
-                let gossip_msg = GossipConsensusMsg::Broadcast(
-                    Channel::BlockParts,
-                    GossipMsg::BlockPart(signed_block_part),
-                );
-
-                if let Err(e) = self.gossip_consensus.cast(gossip_msg) {
-                    error!("Error when sending block part to gossip layer: {e:?}");
-                }
-
-                Ok(())
             }
         }
     }
