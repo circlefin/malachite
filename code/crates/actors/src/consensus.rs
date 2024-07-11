@@ -1,4 +1,6 @@
 use std::collections::{BTreeSet, VecDeque};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -127,19 +129,25 @@ where
         state: &mut State<Ctx>,
         msg: Msg<Ctx>,
     ) -> Result<(), ractor::ActorProcessingErr> {
+        let handle_effect = |effect| -> Pin<Box<dyn Future<Output = Resume<Ctx>> + Send>> {
+            Box::pin(async {
+                match self.handle_effect(&myself, &state.timers, effect).await {
+                    Ok(resume) => resume,
+                    Err(error) => {
+                        error!("Error when processing effect: {error:?}");
+                        Resume::Continue
+                    }
+                }
+            })
+        };
+
         match msg {
             Msg::ProposeValue(height, round, value) => {
                 let result = malachite_consensus::process_async(
                     &mut state.consensus,
                     &self.metrics,
                     InnerMsg::ProposeValue(height, round, value),
-                    |effect| {
-                        let myself = myself.clone();
-                        let timers = state.timers.clone();
-                        // let self = Arc::clone(&self.inner);
-
-                        Box::pin(self.handle_effect_infallible(myself, timers, effect))
-                    },
+                    handle_effect,
                 )
                 .await;
 
@@ -155,13 +163,7 @@ where
                     &mut state.consensus,
                     &self.metrics,
                     InnerMsg::GossipEvent(Arc::unwrap_or_clone(event)),
-                    |effect| {
-                        let myself = myself.clone();
-                        let timers = state.timers.clone();
-                        // let self = Arc::clone(&self.inner);
-
-                        Box::pin(self.handle_effect_infallible(myself, timers, effect))
-                    },
+                    handle_effect,
                 )
                 .await;
 
@@ -177,13 +179,7 @@ where
                     &mut state.consensus,
                     &self.metrics,
                     InnerMsg::TimeoutElapsed(timeout),
-                    |effect| {
-                        let myself = myself.clone();
-                        let timers = state.timers.clone();
-                        // let self = Arc::clone(&self.inner);
-
-                        Box::pin(self.handle_effect_infallible(myself, timers, effect))
-                    },
+                    handle_effect,
                 )
                 .await;
 
@@ -199,13 +195,7 @@ where
                     &mut state.consensus,
                     &self.metrics,
                     InnerMsg::BlockReceived(block),
-                    |effect| {
-                        let myself = myself.clone();
-                        let timers = state.timers.clone();
-                        // let self = Arc::clone(&self.inner);
-
-                        Box::pin(self.handle_effect_infallible(myself, timers, effect))
-                    },
+                    handle_effect,
                 )
                 .await;
 
@@ -234,7 +224,7 @@ where
 
     fn get_value(
         &self,
-        myself: ActorRef<Msg<Ctx>>,
+        myself: &ActorRef<Msg<Ctx>>,
         height: Ctx::Height,
         round: Round,
         timeout: Timeout,
@@ -252,7 +242,7 @@ where
                 consensus: myself.clone(),
                 reply_to: reply,
             },
-            &myself,
+            myself,
             |proposed: LocallyProposedValue<Ctx>| {
                 Msg::<Ctx>::ProposeValue(proposed.height, proposed.round, proposed.value)
             },
@@ -275,25 +265,10 @@ where
         Ok(validator_set)
     }
 
-    async fn handle_effect_infallible(
-        &self,
-        myself: ActorRef<Msg<Ctx>>,
-        timers: TimersRef,
-        effect: Effect<Ctx>,
-    ) -> Resume<Ctx> {
-        match self.handle_effect(myself, timers, effect).await {
-            Ok(resume) => resume,
-            Err(error) => {
-                error!("Error when processing effect: {error:?}");
-                Resume::Continue
-            }
-        }
-    }
-
     async fn handle_effect(
         &self,
-        myself: ActorRef<Msg<Ctx>>,
-        timers: TimersRef,
+        myself: &ActorRef<Msg<Ctx>>,
+        timers: &TimersRef,
         effect: Effect<Ctx>,
     ) -> Result<Resume<Ctx>, ActorProcessingErr> {
         match effect {
@@ -382,7 +357,7 @@ where
                             block_part,
                             reply_to,
                         },
-                        &myself,
+                        myself,
                         |value| Msg::BlockReceived(value),
                         None,
                     )
