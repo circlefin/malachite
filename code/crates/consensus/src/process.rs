@@ -6,8 +6,11 @@ use corosensei::ScopedCoroutine;
 use malachite_common::*;
 use malachite_metrics::Metrics;
 
+use crate::effect::{Effect, Resume};
+use crate::error::Error;
 use crate::handle::handle_msg;
-use crate::{Effect, Error, Msg, Resume, State};
+use crate::msg::Msg;
+use crate::state::State;
 
 type Co<'a, Ctx> =
     ScopedCoroutine<'a, Resume<Ctx>, Effect<Ctx>, Result<(), Error<Ctx>>, DefaultStack>;

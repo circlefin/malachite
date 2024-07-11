@@ -11,13 +11,13 @@ rust-version.workspace = true
 malachite-common.workspace  = true
 malachite-driver.workspace  = true
 malachite-metrics.workspace = true
-malachite-round.workspace   = true
-malachite-vote.workspace    = true
 
-corosensei.workspace   = true
-derive-where.workspace = true
-thiserror.workspace    = true
-tracing.workspace      = true
+corosensei      = { workspace = true }
+derive-where    = { workspace = true }
+libp2p-identity = { workspace = true, features = ["peerid"] }
+multiaddr       = { workspace = true }
+thiserror       = { workspace = true }
+tracing         = { workspace = true }
 
 [lints]
 workspace = true

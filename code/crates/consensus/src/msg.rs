@@ -1,17 +1,6 @@
 use malachite_common::*;
 
-use crate::mock::{Block, GossipEvent, Multiaddr, NetworkMsg, PeerId};
-
-#[derive(Debug)]
-pub enum Event<Ctx>
-where
-    Ctx: Context,
-{
-    Listening(Multiaddr),
-    Message(PeerId, NetworkMsg<Ctx>),
-    PeerConnected(PeerId),
-    PeerDisconnected(PeerId),
-}
+use crate::types::{Block, GossipEvent};
 
 pub enum Msg<Ctx>
 where

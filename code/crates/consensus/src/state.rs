@@ -3,8 +3,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use malachite_common::*;
 use malachite_driver::Driver;
 
-use crate::mock::PeerId;
-use crate::{Error, Msg};
+use crate::error::Error;
+use crate::msg::Msg;
+use crate::types::PeerId;
 
 pub struct State<Ctx>
 where

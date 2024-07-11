@@ -5,9 +5,13 @@ use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_metrics::Metrics;
 
-use crate::mock::{Block, GossipEvent, NetworkMsg, PeerId};
+use crate::effect::{Effect, Resume, Yielder};
+use crate::error::Error;
+use crate::msg::Msg;
+use crate::state::State;
+use crate::types::{Block, GossipEvent, GossipMsg, PeerId};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
-use crate::{emit, emit_then, Effect, Error, Msg, Resume, State, Yielder};
+use crate::{emit, emit_then};
 
 pub fn handle_msg<Ctx>(
     state: &mut State<Ctx>,
@@ -258,11 +262,7 @@ where
 
             emit!(
                 yielder,
-                Effect::Broadcast(
-                // TODO: Define full Broadcast variant
-                // Channel::Consensus,
-                // NetworkMsg::Proposal(signed_proposal.clone()),
-            )
+                Effect::Broadcast(GossipMsg::Proposal(signed_proposal.clone()))
             );
 
             apply_driver_input(
@@ -285,11 +285,7 @@ where
 
             emit!(
                 yielder,
-                Effect::Broadcast(
-                // TODO: Implement Broadcast variant
-                // Channel::Consensus,
-                // NetworkMsg::Vote(signed_vote.clone()),
-            )
+                Effect::Broadcast(GossipMsg::Vote(signed_vote.clone()),)
             );
 
             apply_driver_input(state, metrics, yielder, DriverInput::Vote(signed_vote.vote))
@@ -477,7 +473,7 @@ where
                     .msg_queue
                     .push_back(Msg::GossipEvent(GossipEvent::Message(from, msg)));
             } else if state.driver.height() == msg_height {
-                on_network_msg(state, metrics, yielder, from, msg)?;
+                on_gossip_msg(state, metrics, yielder, from, msg)?;
             }
 
             Ok(())
@@ -485,18 +481,18 @@ where
     }
 }
 
-fn on_network_msg<Ctx>(
+fn on_gossip_msg<Ctx>(
     state: &mut State<Ctx>,
     metrics: &Metrics,
     yielder: &Yielder<Ctx>,
     from: PeerId,
-    msg: NetworkMsg<Ctx>,
+    msg: GossipMsg<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
     match msg {
-        NetworkMsg::Vote(signed_vote) => {
+        GossipMsg::Vote(signed_vote) => {
             let validator_address = signed_vote.validator_address();
 
             info!(%from, validator = %validator_address, "Received vote: {}", PrettyVote::<Ctx>(&signed_vote.vote));
@@ -544,7 +540,7 @@ where
             apply_driver_input(state, metrics, yielder, DriverInput::Vote(signed_vote.vote))?;
         }
 
-        NetworkMsg::Proposal(signed_proposal) => {
+        GossipMsg::Proposal(signed_proposal) => {
             let validator = signed_proposal.proposal.validator_address();
 
             info!(%from, %validator, "Received proposal: {}", PrettyProposal::<Ctx>(&signed_proposal.proposal));
@@ -618,7 +614,7 @@ where
             }
         }
 
-        NetworkMsg::BlockPart(signed_block_part) => {
+        GossipMsg::BlockPart(signed_block_part) => {
             let validator_address = signed_block_part.validator_address();
 
             let Some(validator) = state.driver.validator_set.get_by_address(validator_address)

@@ -2102,11 +2102,11 @@ version = "0.1.0"
 dependencies = [
  "corosensei",
  "derive-where",
+ "libp2p-identity",
  "malachite-common",
  "malachite-driver",
  "malachite-metrics",
- "malachite-round",
- "malachite-vote",
+ "multiaddr",
  "thiserror",
  "tracing",
 ]
@@ -2120,6 +2120,10 @@ dependencies = [
  "malachite-round",
  "malachite-vote",
 ]
+
+[[package]]
+name = "malachite-gossip"
+version = "0.1.0"
 
 [[package]]
 name = "malachite-gossip-consensus"
