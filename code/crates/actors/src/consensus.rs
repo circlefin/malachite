@@ -1,6 +1,4 @@
 use std::collections::{BTreeSet, VecDeque};
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -9,7 +7,7 @@ use tokio::sync::mpsc;
 use tracing::{error, info};
 
 use malachite_common::{Context, Round, Timeout};
-use malachite_consensus::{Effect, GossipMsg, Resume};
+use malachite_consensus::{Co, CoResult, Effect, GossipMsg, Resume};
 use malachite_driver::Driver;
 use malachite_gossip_consensus::{Channel, Event as GossipEvent};
 use malachite_metrics::Metrics;
@@ -123,33 +121,47 @@ where
         Ok(actor_ref)
     }
 
+    async fn process_msg(
+        &self,
+        myself: &ActorRef<Msg<Ctx>>,
+        state: &mut State<Ctx>,
+        msg: InnerMsg<Ctx>,
+    ) -> Result<(), ActorProcessingErr> {
+        let mut co = Co::new(|yielder, start| {
+            debug_assert!(matches!(start, Resume::Start));
+            malachite_consensus::handle_msg(&mut state.consensus, &self.metrics, yielder, msg)
+        });
+
+        let mut co_result = co.resume(Resume::Start);
+
+        loop {
+            match co_result {
+                CoResult::Yield(effect) => {
+                    let resume = match self.handle_effect(myself, &state.timers, effect).await {
+                        Ok(resume) => resume,
+                        Err(error) => {
+                            error!("Error when processing effect: {error:?}");
+                            Resume::Continue
+                        }
+                    };
+                    co_result = co.resume(resume)
+                }
+                CoResult::Return(result) => return result.map_err(Into::into),
+            }
+        }
+    }
+
     async fn handle_msg(
         &self,
         myself: ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
         msg: Msg<Ctx>,
-    ) -> Result<(), ractor::ActorProcessingErr> {
-        let handle_effect = |effect| -> Pin<Box<dyn Future<Output = Resume<Ctx>> + Send>> {
-            Box::pin(async {
-                match self.handle_effect(&myself, &state.timers, effect).await {
-                    Ok(resume) => resume,
-                    Err(error) => {
-                        error!("Error when processing effect: {error:?}");
-                        Resume::Continue
-                    }
-                }
-            })
-        };
-
+    ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::ProposeValue(height, round, value) => {
-                let result = malachite_consensus::process_async(
-                    &mut state.consensus,
-                    &self.metrics,
-                    InnerMsg::ProposeValue(height, round, value),
-                    handle_effect,
-                )
-                .await;
+                let result = self
+                    .process_msg(&myself, state, InnerMsg::ProposeValue(height, round, value))
+                    .await;
 
                 if let Err(e) = result {
                     error!("Error when processing ProposeValue message: {e:?}");
@@ -159,13 +171,13 @@ where
             }
 
             Msg::GossipEvent(event) => {
-                let result = malachite_consensus::process_async(
-                    &mut state.consensus,
-                    &self.metrics,
-                    InnerMsg::GossipEvent(Arc::unwrap_or_clone(event)),
-                    handle_effect,
-                )
-                .await;
+                let result = self
+                    .process_msg(
+                        &myself,
+                        state,
+                        InnerMsg::GossipEvent(Arc::unwrap_or_clone(event)),
+                    )
+                    .await;
 
                 if let Err(e) = result {
                     error!("Error when processing GossipEvent message: {e:?}");
@@ -175,13 +187,9 @@ where
             }
 
             Msg::TimeoutElapsed(timeout) => {
-                let result = malachite_consensus::process_async(
-                    &mut state.consensus,
-                    &self.metrics,
-                    InnerMsg::TimeoutElapsed(timeout),
-                    handle_effect,
-                )
-                .await;
+                let result = self
+                    .process_msg(&myself, state, InnerMsg::TimeoutElapsed(timeout))
+                    .await;
 
                 if let Err(e) = result {
                     error!("Error when processing TimeoutElapsed message: {e:?}");
@@ -191,13 +199,9 @@ where
             }
 
             Msg::BlockReceived(block) => {
-                let result = malachite_consensus::process_async(
-                    &mut state.consensus,
-                    &self.metrics,
-                    InnerMsg::BlockReceived(block),
-                    handle_effect,
-                )
-                .await;
+                let result = self
+                    .process_msg(&myself, state, InnerMsg::BlockReceived(block))
+                    .await;
 
                 if let Err(e) = result {
                     error!("Error when processing GossipEvent message: {e:?}");
@@ -386,7 +390,7 @@ where
         &self,
         myself: ActorRef<Msg<Ctx>>,
         _args: (),
-    ) -> Result<State<Ctx>, ractor::ActorProcessingErr> {
+    ) -> Result<State<Ctx>, ActorProcessingErr> {
         let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
 
         self.gossip_consensus
@@ -431,7 +435,7 @@ where
         myself: ActorRef<Msg<Ctx>>,
         msg: Msg<Ctx>,
         state: &mut State<Ctx>,
-    ) -> Result<(), ractor::ActorProcessingErr> {
+    ) -> Result<(), ActorProcessingErr> {
         self.handle_msg(myself, state, msg).await
     }
 

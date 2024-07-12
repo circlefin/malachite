@@ -8,7 +8,10 @@ mod error;
 pub use error::Error;
 
 mod process;
-pub use process::{process_async, process_sync};
+pub use process::{process_async, process_sync, Co, CoResult};
+
+mod handle;
+pub use handle::handle_msg;
 
 mod effect;
 pub use effect::{Effect, Resume, Yielder};
@@ -16,6 +19,5 @@ pub use effect::{Effect, Resume, Yielder};
 mod types;
 pub use types::*;
 
-mod handle;
 mod macros;
 mod util;

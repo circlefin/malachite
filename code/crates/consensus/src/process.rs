@@ -14,7 +14,7 @@ use crate::msg::Msg;
 use crate::state::State;
 
 type InnerResult<Ctx> = Result<(), Error<Ctx>>;
-type CoResult<Ctx> = CoroutineResult<Effect<Ctx>, InnerResult<Ctx>>;
+pub type CoResult<Ctx> = CoroutineResult<Effect<Ctx>, InnerResult<Ctx>>;
 
 pub struct Co<'a, Ctx>
 where
