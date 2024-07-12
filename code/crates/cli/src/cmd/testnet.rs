@@ -1,6 +1,7 @@
 //! Testnet command
 
 use std::path::Path;
+use std::str::FromStr;
 
 use bytesize::ByteSize;
 use clap::Parser;
@@ -24,6 +25,34 @@ use crate::priv_key::PrivValidatorKey;
 const MIN_VOTING_POWER: u64 = 8;
 const MAX_VOTING_POWER: u64 = 15;
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RuntimeFlavour {
+    SingleThreaded,
+    MultiThreaded(usize),
+}
+
+impl FromStr for RuntimeFlavour {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.contains(':') {
+            match s.split_once(':') {
+                Some(("multi-threaded", n)) => Ok(RuntimeFlavour::MultiThreaded(
+                    n.parse()
+                        .map_err(|_| "Invalid number of threads".to_string())?,
+                )),
+                _ => Err(format!("Invalid runtime flavour: {s}")),
+            }
+        } else {
+            match s {
+                "single-threaded" => Ok(RuntimeFlavour::SingleThreaded),
+                "multi-threaded" => Ok(RuntimeFlavour::MultiThreaded(0)),
+                _ => Err(format!("Invalid runtime flavour: {s}")),
+            }
+        }
+    }
+}
+
 #[derive(Parser, Debug, Clone, PartialEq)]
 pub struct TestnetCmd {
     /// The name of the application to run
@@ -37,6 +66,14 @@ pub struct TestnetCmd {
     /// Generate deterministic private keys for reproducibility
     #[clap(short, long)]
     pub deterministic: bool,
+
+    /// The flavor of Tokio runtime to use.
+    /// Possible values:
+    /// - "single-threaded": A single threaded runtime (default)
+    /// - "multi-threaded:N":  A multi-threaded runtime with as N worker threads
+    ///   Use a value of 0 for N to use the number of cores available on the system.
+    #[clap(short, long, default_value = "single-threaded", verbatim_doc_comment)]
+    pub runtime: RuntimeFlavour,
 }
 
 impl TestnetCmd {
@@ -74,7 +111,7 @@ impl TestnetCmd {
             // Save config
             save_config(
                 &args.get_config_file_path()?,
-                &generate_config(self.app, i, self.nodes),
+                &generate_config(self.app, i, self.nodes, self.runtime),
             )?;
         }
         Ok(())
@@ -120,7 +157,7 @@ const MEMPOOL_BASE_PORT: usize = 28000;
 const METRICS_BASE_PORT: usize = 29000;
 
 /// Generate configuration for node "index" out of "total" number of nodes.
-pub fn generate_config(app: App, index: usize, total: usize) -> Config {
+pub fn generate_config(app: App, index: usize, total: usize, runtime: RuntimeFlavour) -> Config {
     let consensus_port = CONSENSUS_BASE_PORT + index;
     let mempool_port = MEMPOOL_BASE_PORT + index;
     let metrics_port = METRICS_BASE_PORT + index;
@@ -166,7 +203,10 @@ pub fn generate_config(app: App, index: usize, total: usize) -> Config {
             enabled: true,
             listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
         },
-        runtime: RuntimeConfig::single_threaded(),
+        runtime: match runtime {
+            RuntimeFlavour::SingleThreaded => RuntimeConfig::single_threaded(),
+            RuntimeFlavour::MultiThreaded(n) => RuntimeConfig::multi_threaded(n),
+        },
         test: TestConfig::default(),
     }
 }

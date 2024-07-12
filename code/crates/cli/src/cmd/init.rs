@@ -10,7 +10,9 @@ use tracing::{info, warn};
 use malachite_node::config::{App, Config};
 use malachite_test::ValidatorSet as Genesis;
 
-use crate::cmd::testnet::{generate_config, generate_genesis, generate_private_keys};
+use crate::cmd::testnet::{
+    generate_config, generate_genesis, generate_private_keys, RuntimeFlavour,
+};
 use crate::priv_key::PrivValidatorKey;
 
 #[derive(Parser, Debug, Clone, Default, PartialEq)]
@@ -40,7 +42,10 @@ impl InitCmd {
             )
         } else {
             info!("Saving configuration to {:?}", config_file);
-            save_config(config_file, &generate_config(self.app, 0, 1))?;
+            save_config(
+                config_file,
+                &generate_config(self.app, 0, 1, RuntimeFlavour::SingleThreaded),
+            )?;
         }
 
         // Save default genesis
