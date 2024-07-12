@@ -84,7 +84,7 @@ deploy_cc() {
 }
 
 setup_config() {
-  docker $_CC_DOCKER_SHIM run -d --pull always --dns ${cc.internal_ip} -v /data:/data -e RUST_LOG ${cc.internal_ip}/node --home /data testnet --nodes $D_N --deterministic --runtime multi-threaded:4
+  docker $_CC_DOCKER_SHIM run -d --pull always --dns ${cc.internal_ip} -v /data:/data -e RUST_LOG ${cc.internal_ip}/node --home /data testnet --nodes $D_N --deterministic
   if _is_cc; then
     _change_config all
   else
