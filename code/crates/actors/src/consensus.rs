@@ -127,28 +127,12 @@ where
         state: &mut State<Ctx>,
         msg: InnerMsg<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        let mut co = Co::new(|yielder, start| {
-            debug_assert!(matches!(start, Resume::Start));
-            malachite_consensus::handle_msg(&mut state.consensus, &self.metrics, yielder, msg)
-        });
-
-        let mut co_result = co.resume(Resume::Start);
-
-        loop {
-            match co_result {
-                CoResult::Yield(effect) => {
-                    let resume = match self.handle_effect(myself, &state.timers, effect).await {
-                        Ok(resume) => resume,
-                        Err(error) => {
-                            error!("Error when processing effect: {error:?}");
-                            Resume::Continue
-                        }
-                    };
-                    co_result = co.resume(resume)
-                }
-                CoResult::Return(result) => return result.map_err(Into::into),
-            }
-        }
+        malachite_consensus::process!(
+            msg: msg,
+            state: &mut state.consensus,
+            metrics: &self.metrics,
+            with: effect => self.handle_effect(myself, &mut state.timers, effect).await
+        )
     }
 
     async fn handle_msg(

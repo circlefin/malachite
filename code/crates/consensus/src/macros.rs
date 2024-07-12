@@ -1,3 +1,46 @@
+/// Process a message and handle the emitted effects.
+///
+/// # Example
+///
+/// ```rust,ignore
+///
+/// malachite_consensus::process!(
+///     // Message to process
+///     msg: msg,
+///     // Consensus state and metrics
+///     state: &mut state, metrics: &metrics,
+///    // Effect handler
+///     on: effect => handle_effect(myself, &mut timers, &mut timeouts, effect).await
+/// )
+/// ```
+#[macro_export]
+macro_rules! process {
+    (msg: $msg:expr, state: $state:expr, metrics: $metrics:expr, with: $effect:ident => $handle:expr) => {{
+        let mut co = Co::new(|yielder, start| {
+            debug_assert!(matches!(start, Resume::Start));
+            $crate::handle_msg($state, $metrics, yielder, $msg)
+        });
+
+        let mut co_result = co.resume(Resume::Start);
+
+        loop {
+            match co_result {
+                CoResult::Yield($effect) => {
+                    let resume = match $handle {
+                        Ok(resume) => resume,
+                        Err(error) => {
+                            error!("Error when processing effect: {error:?}");
+                            Resume::Continue
+                        }
+                    };
+                    co_result = co.resume(resume)
+                }
+                CoResult::Return(result) => return result.map_err(Into::into),
+            }
+        }
+    }};
+}
+
 /// Yield an effect and continue execution.
 ///
 /// Effect emitted by this macro must resume with [`Resume::Continue`][continue].

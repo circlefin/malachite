@@ -8,7 +8,7 @@ mod error;
 pub use error::Error;
 
 mod process;
-pub use process::{process_async, process_sync, Co, CoResult};
+pub use process::{process_sync, Co, CoResult};
 
 mod handle;
 pub use handle::handle_msg;
