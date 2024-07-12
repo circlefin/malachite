@@ -14,7 +14,7 @@ use malachite_gossip_mempool::{Channel, Event as GossipEvent, NetworkMsg, PeerId
 use malachite_node::config::{MempoolConfig, TestConfig};
 
 use malachite_actors::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
-use malachite_actors::util::forward;
+use malachite_actors::util::forward::forward;
 
 use crate::mock::types::{Transaction, TransactionBatch};
 

@@ -1,22 +1,24 @@
 use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tracing::{error, info};
 
-use malachite_common::{Context, Round, Timeout};
+use malachite_common::{Context, Round, Timeout, TimeoutStep};
 use malachite_consensus::{Effect, GossipMsg, Resume};
 use malachite_driver::Driver;
 use malachite_gossip_consensus::{Channel, Event as GossipEvent};
 use malachite_metrics::Metrics;
+use malachite_node::config::TimeoutConfig;
 use malachite_vote::ThresholdParams;
 
 use crate::gossip_consensus::{GossipConsensusRef, Msg as GossipConsensusMsg};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ReceivedProposedValue};
-use crate::timers::{Config as TimersConfig, Msg as TimersMsg, TimeoutElapsed, Timers, TimersRef};
-use crate::util::forward;
+use crate::util::forward::forward;
+use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
 pub struct ConsensusParams<Ctx: Context> {
     pub start_height: Ctx::Height,
@@ -35,7 +37,7 @@ where
 {
     ctx: Ctx,
     params: ConsensusParams<Ctx>,
-    timers_config: TimersConfig,
+    timeout_config: TimeoutConfig,
     gossip_consensus: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
     metrics: Metrics,
@@ -46,7 +48,7 @@ pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
 pub enum Msg<Ctx: Context> {
     GossipEvent(Arc<GossipEvent<Ctx>>),
-    TimeoutElapsed(Timeout),
+    TimeoutElapsed(TimeoutElapsed<Timeout>),
     // The proposal builder has built a value and can be used in a new proposal consensus message
     ProposeValue(Ctx::Height, Round, Ctx::Value),
     // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
@@ -56,16 +58,54 @@ pub enum Msg<Ctx: Context> {
 
 type InnerMsg<Ctx> = malachite_consensus::Msg<Ctx>;
 
-impl<Ctx: Context> From<TimeoutElapsed> for Msg<Ctx> {
-    fn from(msg: TimeoutElapsed) -> Self {
-        Msg::TimeoutElapsed(msg.timeout())
+impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
+    fn from(msg: TimeoutElapsed<Timeout>) -> Self {
+        Msg::TimeoutElapsed(msg)
+    }
+}
+
+type Timers<Ctx> = TimerScheduler<Timeout, Msg<Ctx>>;
+
+struct Timeouts {
+    config: TimeoutConfig,
+}
+
+impl Timeouts {
+    pub fn new(config: TimeoutConfig) -> Self {
+        Self { config }
+    }
+
+    fn reset(&mut self, config: TimeoutConfig) {
+        self.config = config;
+    }
+
+    fn duration_for(&self, step: TimeoutStep) -> Duration {
+        match step {
+            TimeoutStep::Propose => self.config.timeout_propose,
+            TimeoutStep::Prevote => self.config.timeout_prevote,
+            TimeoutStep::Precommit => self.config.timeout_precommit,
+            TimeoutStep::Commit => self.config.timeout_commit,
+        }
+    }
+
+    fn increase_timeout(&mut self, step: TimeoutStep) {
+        let c = &mut self.config;
+        match step {
+            TimeoutStep::Propose => c.timeout_propose += c.timeout_propose_delta,
+            TimeoutStep::Prevote => c.timeout_prevote += c.timeout_prevote_delta,
+            TimeoutStep::Precommit => c.timeout_precommit += c.timeout_precommit_delta,
+            TimeoutStep::Commit => (),
+        };
     }
 }
 
 pub struct State<Ctx: Context> {
-    timers: TimersRef,
+    timers: Timers<Ctx>,
+    timeouts: Timeouts,
     consensus: malachite_consensus::State<Ctx>,
 }
+
+impl<Ctx: Context> State<Ctx> {}
 
 impl<Ctx> Consensus<Ctx>
 where
@@ -74,7 +114,7 @@ where
     pub fn new(
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
-        timers_config: TimersConfig,
+        timeout_config: TimeoutConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
         metrics: Metrics,
@@ -83,7 +123,7 @@ where
         Self {
             ctx,
             params,
-            timers_config,
+            timeout_config,
             gossip_consensus,
             host,
             metrics,
@@ -95,7 +135,7 @@ where
     pub async fn spawn(
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
-        timers_config: TimersConfig,
+        timeout_config: TimeoutConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
         metrics: Metrics,
@@ -105,7 +145,7 @@ where
         let node = Self::new(
             ctx,
             params,
-            timers_config,
+            timeout_config,
             gossip_consensus,
             host,
             metrics,
@@ -131,7 +171,9 @@ where
             msg: msg,
             state: &mut state.consensus,
             metrics: &self.metrics,
-            with: effect => self.handle_effect(myself, &state.timers, effect).await
+            with: effect => {
+                self.handle_effect(myself, &mut state.timers, &mut state.timeouts, effect).await
+            }
         )
     }
 
@@ -170,7 +212,14 @@ where
                 Ok(())
             }
 
-            Msg::TimeoutElapsed(timeout) => {
+            Msg::TimeoutElapsed(elapsed) => {
+                let Some(timeout) = state.timers.intercept_timer_msg(elapsed) else {
+                    // Timer was cancelled or already processed, ignore
+                    return Ok(());
+                };
+
+                state.timeouts.increase_timeout(timeout.step);
+
                 let result = self
                     .process_msg(&myself, state, InnerMsg::TimeoutElapsed(timeout))
                     .await;
@@ -218,7 +267,7 @@ where
         round: Round,
         timeout: Timeout,
     ) -> Result<(), ActorProcessingErr> {
-        let timeout_duration = self.timers_config.timeout_duration(timeout.step);
+        let timeout_duration = self.timeout_config.timeout_duration(timeout.step);
 
         // Call `GetValue` on the Host actor, and forward the reply
         // to the current actor, wrapping it in `Msg::ProposeValue`.
@@ -259,35 +308,29 @@ where
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
-        timers: &TimersRef,
+        timers: &mut Timers<Ctx>,
+        timeouts: &mut Timeouts,
         effect: Effect<Ctx>,
     ) -> Result<Resume<Ctx>, ActorProcessingErr> {
         match effect {
             Effect::ResetTimeouts => {
-                timers
-                    .cast(TimersMsg::ResetTimeouts)
-                    .map_err(|e| format!("Error when resetting timeouts: {e:?}"))?;
-
+                timeouts.reset(self.timeout_config);
                 Ok(Resume::Continue)
             }
+
             Effect::CancelAllTimeouts => {
-                timers
-                    .cast(TimersMsg::CancelAllTimeouts)
-                    .map_err(|e| format!("Error when cancelling all timeouts: {e:?}"))?;
-
+                timers.cancel_all();
                 Ok(Resume::Continue)
             }
+
             Effect::CancelTimeout(timeout) => {
-                timers
-                    .cast(TimersMsg::CancelTimeout(timeout))
-                    .map_err(|e| format!("Error when cancelling timeout {timeout}: {e:?}"))?;
-
+                timers.cancel(&timeout);
                 Ok(Resume::Continue)
             }
+
             Effect::ScheduleTimeout(timeout) => {
-                timers
-                    .cast(TimersMsg::ScheduleTimeout(timeout))
-                    .map_err(|e| format!("Error when scheduling timeout {timeout}: {e:?}"))?;
+                let duration = timeouts.duration_for(timeout.step);
+                timers.start_timer(timeout, duration);
 
                 Ok(Resume::Continue)
             }
@@ -380,9 +423,6 @@ where
         self.gossip_consensus
             .cast(GossipConsensusMsg::Subscribe(forward))?;
 
-        let (timers, _) =
-            Timers::spawn_linked(self.timers_config, myself.clone(), myself.get_cell()).await?;
-
         let driver = Driver::new(
             self.ctx.clone(),
             self.params.start_height,
@@ -401,7 +441,8 @@ where
         };
 
         Ok(State {
-            timers,
+            timers: Timers::new(myself),
+            timeouts: Timeouts::new(self.timeout_config),
             consensus: consensus_state,
         })
     }
@@ -438,7 +479,7 @@ where
     ) -> Result<(), ActorProcessingErr> {
         info!("Stopping...");
 
-        state.timers.stop(None);
+        state.timers.cancel_all();
 
         Ok(())
     }
