@@ -446,6 +446,15 @@ where
         })
     }
 
+    async fn post_start(
+        &self,
+        _myself: ActorRef<Msg<Ctx>>,
+        state: &mut State<Ctx>,
+    ) -> Result<(), ActorProcessingErr> {
+        state.timers.cancel_all();
+        Ok(())
+    }
+
     #[tracing::instrument(
         name = "consensus",
         skip_all,
