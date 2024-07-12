@@ -12,7 +12,8 @@ malachite-common.workspace  = true
 malachite-driver.workspace  = true
 malachite-metrics.workspace = true
 
-corosensei      = { workspace = true }
+async-recursion = { workspace = true }
+genawaiter      = { workspace = true }
 derive-where    = { workspace = true }
 libp2p-identity = { workspace = true, features = ["peerid"] }
 multiaddr       = { workspace = true }

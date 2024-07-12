@@ -4,8 +4,6 @@ use malachite_common::*;
 
 use crate::types::GossipMsg;
 
-pub type Yielder<Ctx> = corosensei::Yielder<Resume<Ctx>, Effect<Ctx>>;
-
 /// An effect which may be yielded by a consensus process.
 ///
 /// Effects are handled by the caller using [`process_sync`][sync] or [`process_async`][async],
@@ -64,6 +62,7 @@ where
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].
 #[must_use]
+#[allow(clippy::manual_non_exhaustive)]
 #[derive_where(Debug)]
 pub enum Resume<Ctx>
 where

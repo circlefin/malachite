@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use tracing::{error, info};
 
 use malachite_common::{Context, Round, Timeout};
-use malachite_consensus::{Co, CoResult, Effect, GossipMsg, Resume};
+use malachite_consensus::{Effect, GossipMsg, Resume};
 use malachite_driver::Driver;
 use malachite_gossip_consensus::{Channel, Event as GossipEvent};
 use malachite_metrics::Metrics;
@@ -131,7 +131,7 @@ where
             msg: msg,
             state: &mut state.consensus,
             metrics: &self.metrics,
-            with: effect => self.handle_effect(myself, &mut state.timers, effect).await
+            with: effect => self.handle_effect(myself, &state.timers, effect).await
         )
     }
 

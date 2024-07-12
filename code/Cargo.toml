@@ -41,6 +41,7 @@ malachite-vote             = { version = "0.1.0", path = "crates/vote" }
 malachite-starknet-host    = { version = "0.1.0", path = "crates/starknet-host" }
 malachite-starknet-app     = { version = "0.1.0", path = "crates/starknet-app" }
 
+async-recursion    = "1.1"
 async-trait        = "0.1.77"
 axum               = "0.7"
 base64             = "0.22.0"
@@ -48,7 +49,7 @@ blake3             = "1.5"
 bytesize           = "1.3"
 clap               = "4.5.4"
 color-eyre         = "0.6"
-corosensei         = "0.1.4"
+genawaiter         = { version = "0.99.1", default-features = false }
 config             = { version = "0.14", features = ["toml"], default-features = false }
 eyre               = "0.6"
 derive-where       = "1.2.7"

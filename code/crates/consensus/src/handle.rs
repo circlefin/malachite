@@ -1,3 +1,4 @@
+use async_recursion::async_recursion;
 use tracing::{debug, error, info, trace, warn};
 
 use malachite_common::*;
@@ -5,38 +6,52 @@ use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_metrics::Metrics;
 
-use crate::effect::{Effect, Resume, Yielder};
+use crate::effect::{Effect, Resume};
 use crate::error::Error;
+use crate::gen::Co;
 use crate::msg::Msg;
 use crate::state::State;
 use crate::types::{Block, GossipEvent, GossipMsg, PeerId};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
 use crate::{emit, emit_then};
 
-pub fn handle_msg<Ctx>(
+pub async fn handle<Ctx>(
+    co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
+    msg: Msg<Ctx>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    handle_msg(&co, state, metrics, msg).await
+}
+
+#[async_recursion]
+async fn handle_msg<Ctx>(
+    co: &Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
     msg: Msg<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
     match msg {
-        Msg::StartHeight(height) => start_height(state, metrics, yielder, height),
-        Msg::GossipEvent(event) => on_gossip_event(state, metrics, yielder, event),
+        Msg::StartHeight(height) => start_height(co, state, metrics, height).await,
+        Msg::GossipEvent(event) => on_gossip_event(co, state, metrics, event).await,
         Msg::ProposeValue(height, round, value) => {
-            propose_value(state, metrics, yielder, height, round, value)
+            propose_value(co, state, metrics, height, round, value).await
         }
-        Msg::TimeoutElapsed(timeout) => on_timeout_elapsed(state, metrics, yielder, timeout),
-        Msg::BlockReceived(block) => on_received_block(state, metrics, yielder, block),
+        Msg::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
+        Msg::BlockReceived(block) => on_received_block(co, state, metrics, block).await,
     }
 }
 
-fn start_height<Ctx>(
+async fn start_height<Ctx>(
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
     height: Ctx::Height,
 ) -> Result<(), Error<Ctx>>
 where
@@ -49,37 +64,38 @@ where
     info!("Proposer for height {height} and round {round}: {proposer}");
 
     apply_driver_input(
+        co,
         state,
         metrics,
-        yielder,
         DriverInput::NewRound(height, round, proposer),
-    )?;
+    )
+    .await?;
 
     metrics.block_start();
     metrics.height.set(height.as_u64() as i64);
     metrics.round.set(round.as_i64());
 
-    replay_pending_msgs(state, metrics, yielder)?;
+    replay_pending_msgs(co, state, metrics).await?;
 
     Ok(())
 }
 
-fn move_to_height<Ctx>(
+async fn move_to_height<Ctx>(
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
     height: Ctx::Height,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    emit!(yielder, Effect::CancelAllTimeouts);
-    emit!(yielder, Effect::ResetTimeouts);
+    emit!(co, Effect::CancelAllTimeouts);
+    emit!(co, Effect::ResetTimeouts);
 
     // End the current step (most likely Commit)
     metrics.step_end(state.driver.step());
 
-    let validator_set = emit_then!(yielder, Effect::GetValidatorSet(height),
+    let validator_set = emit_then!(co, Effect::GetValidatorSet(height),
         Resume::ValidatorSet(vs_height, validator_set) => {
             if vs_height == height {
                 Ok(validator_set)
@@ -97,13 +113,13 @@ where
     debug_assert_eq!(state.driver.height(), height);
     debug_assert_eq!(state.driver.round(), Round::Nil);
 
-    handle_msg(state, metrics, yielder, Msg::StartHeight(height))
+    start_height(co, state, metrics, height).await
 }
 
-fn replay_pending_msgs<Ctx>(
+async fn replay_pending_msgs<Ctx>(
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -112,16 +128,17 @@ where
     debug!("Replaying {} messages", pending_msgs.len());
 
     for pending_msg in pending_msgs {
-        handle_msg(state, metrics, yielder, pending_msg)?;
+        handle_msg(co, state, metrics, pending_msg).await?;
     }
 
     Ok(())
 }
 
-fn apply_driver_input<Ctx>(
+#[async_recursion]
+async fn apply_driver_input<Ctx>(
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
     input: DriverInput<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
@@ -129,11 +146,11 @@ where
 {
     match &input {
         DriverInput::NewRound(_, _, _) => {
-            emit!(yielder, Effect::CancelAllTimeouts);
+            emit!(co, Effect::CancelAllTimeouts);
         }
 
         DriverInput::ProposeValue(round, _) => {
-            emit!(yielder, Effect::CancelTimeout(Timeout::propose(*round)));
+            emit!(co, Effect::CancelTimeout(Timeout::propose(*round)));
         }
 
         DriverInput::Proposal(proposal, _) => {
@@ -158,7 +175,7 @@ where
             }
 
             emit!(
-                yielder,
+                co,
                 Effect::CancelTimeout(Timeout::propose(proposal.round()))
             );
         }
@@ -207,31 +224,31 @@ where
         metrics.step_start(new_step);
     }
 
-    process_driver_outputs(state, metrics, yielder, outputs)?;
+    process_driver_outputs(co, state, metrics, outputs).await?;
 
     Ok(())
 }
 
-fn process_driver_outputs<Ctx>(
+async fn process_driver_outputs<Ctx>(
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
     outputs: Vec<DriverOutput<Ctx>>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
     for output in outputs {
-        process_driver_output(state, metrics, yielder, output)?;
+        process_driver_output(co, state, metrics, output).await?;
     }
 
     Ok(())
 }
 
-fn process_driver_output<Ctx>(
+async fn process_driver_output<Ctx>(
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
     output: DriverOutput<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
@@ -246,11 +263,12 @@ where
             info!("Proposer for height {height} and round {round}: {proposer}");
 
             apply_driver_input(
+                co,
                 state,
                 metrics,
-                yielder,
                 DriverInput::NewRound(height, round, proposer.clone()),
             )
+            .await
         }
 
         DriverOutput::Propose(proposal) => {
@@ -263,16 +281,17 @@ where
             let signed_proposal = state.ctx.sign_proposal(proposal);
 
             emit!(
-                yielder,
+                co,
                 Effect::Broadcast(GossipMsg::Proposal(signed_proposal.clone()))
             );
 
             apply_driver_input(
+                co,
                 state,
                 metrics,
-                yielder,
                 DriverInput::Proposal(signed_proposal.proposal, Validity::Valid),
             )
+            .await
         }
 
         DriverOutput::Vote(vote) => {
@@ -285,27 +304,24 @@ where
 
             let signed_vote = state.ctx.sign_vote(vote);
 
-            emit!(
-                yielder,
-                Effect::Broadcast(GossipMsg::Vote(signed_vote.clone()),)
-            );
+            emit!(co, Effect::Broadcast(GossipMsg::Vote(signed_vote.clone()),));
 
-            apply_driver_input(state, metrics, yielder, DriverInput::Vote(signed_vote.vote))
+            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.vote)).await
         }
 
         DriverOutput::Decide(round, value) => {
             // TODO: Remove proposal, votes, block for the round
             info!("Decided on value {}", value.id());
 
-            emit!(yielder, Effect::ScheduleTimeout(Timeout::commit(round)));
+            emit!(co, Effect::ScheduleTimeout(Timeout::commit(round)));
 
-            decided(state, metrics, yielder, state.driver.height(), round, value)
+            decided(co, state, metrics, state.driver.height(), round, value).await
         }
 
         DriverOutput::ScheduleTimeout(timeout) => {
             info!("Scheduling {timeout}");
 
-            emit!(yielder, Effect::ScheduleTimeout(timeout));
+            emit!(co, Effect::ScheduleTimeout(timeout));
 
             Ok(())
         }
@@ -313,17 +329,17 @@ where
         DriverOutput::GetValue(height, round, timeout) => {
             info!("Requesting value at height {height} and round {round}");
 
-            emit!(yielder, Effect::GetValue(height, round, timeout));
+            emit!(co, Effect::GetValue(height, round, timeout));
 
             Ok(())
         }
     }
 }
 
-fn propose_value<Ctx>(
+async fn propose_value<Ctx>(
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
     height: Ctx::Height,
     round: Round,
     value: Ctx::Value,
@@ -349,18 +365,13 @@ where
         return Ok(());
     }
 
-    apply_driver_input(
-        state,
-        metrics,
-        yielder,
-        DriverInput::ProposeValue(round, value),
-    )
+    apply_driver_input(co, state, metrics, DriverInput::ProposeValue(round, value)).await
 }
 
-fn decided<Ctx>(
+async fn decided<Ctx>(
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
     height: Ctx::Height,
     round: Round,
     value: Ctx::Value,
@@ -375,7 +386,7 @@ where
     let commits = state.restore_precommits(height, round, &value);
 
     emit!(
-        yielder,
+        co,
         Effect::DecidedOnValue {
             height,
             round,
@@ -397,10 +408,10 @@ where
     Ok(())
 }
 
-fn on_gossip_event<Ctx>(
+async fn on_gossip_event<Ctx>(
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
     event: GossipEvent<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
@@ -428,12 +439,7 @@ where
                     state.connected_peers.len()
                 );
 
-                handle_msg(
-                    state,
-                    metrics,
-                    yielder,
-                    Msg::StartHeight(state.driver.height()),
-                )?;
+                start_height(co, state, metrics, state.driver.height()).await?;
             }
 
             Ok(())
@@ -473,7 +479,7 @@ where
                     .msg_queue
                     .push_back(Msg::GossipEvent(GossipEvent::Message(from, msg)));
             } else if state.driver.height() == msg_height {
-                on_gossip_msg(state, metrics, yielder, from, msg)?;
+                on_gossip_msg(co, state, metrics, from, msg).await?;
             }
 
             Ok(())
@@ -481,10 +487,10 @@ where
     }
 }
 
-fn on_gossip_msg<Ctx>(
+async fn on_gossip_msg<Ctx>(
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
     from: PeerId,
     msg: GossipMsg<Ctx>,
 ) -> Result<(), Error<Ctx>>
@@ -537,7 +543,7 @@ where
                 state.store_signed_precommit(signed_vote.clone());
             }
 
-            apply_driver_input(state, metrics, yielder, DriverInput::Vote(signed_vote.vote))?;
+            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.vote)).await?;
         }
 
         GossipMsg::Proposal(signed_proposal) => {
@@ -592,11 +598,12 @@ where
             match received_block {
                 Some((_height, _round, _value, valid)) => {
                     apply_driver_input(
+                        co,
                         state,
                         metrics,
-                        yielder,
                         DriverInput::Proposal(proposal.clone(), *valid),
-                    )?;
+                    )
+                    .await?;
                 }
                 None => {
                     // Store the proposal and wait for all block parts
@@ -632,20 +639,17 @@ where
             }
 
             // TODO: Verify that the proposal was signed by the proposer for the height and round, drop otherwise.
-            emit!(
-                yielder,
-                Effect::ReceivedBlockPart(signed_block_part.block_part)
-            );
+            emit!(co, Effect::ReceivedBlockPart(signed_block_part.block_part));
         }
     }
 
     Ok(())
 }
 
-fn on_timeout_elapsed<Ctx>(
+async fn on_timeout_elapsed<Ctx>(
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
     timeout: Timeout,
 ) -> Result<(), Error<Ctx>>
 where
@@ -665,24 +669,19 @@ where
 
     info!("{timeout} elapsed at height {height} and round {round}");
 
-    apply_driver_input(
-        state,
-        metrics,
-        yielder,
-        DriverInput::TimeoutElapsed(timeout),
-    )?;
+    apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
 
     if timeout.step == TimeoutStep::Commit {
-        move_to_height(state, metrics, yielder, height.increment())?;
+        move_to_height(co, state, metrics, height.increment()).await?;
     }
 
     Ok(())
 }
 
-fn on_received_block<Ctx>(
+async fn on_received_block<Ctx>(
+    co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    yielder: &Yielder<Ctx>,
     block: Block<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
@@ -712,11 +711,12 @@ where
         let validity = Validity::from_bool(proposal.value() == &value && validity.is_valid());
 
         apply_driver_input(
+            co,
             state,
             metrics,
-            yielder,
             DriverInput::Proposal(proposal.clone(), validity),
-        )?;
+        )
+        .await?;
     }
 
     Ok(())

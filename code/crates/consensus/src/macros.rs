@@ -16,16 +16,14 @@
 #[macro_export]
 macro_rules! process {
     (msg: $msg:expr, state: $state:expr, metrics: $metrics:expr, with: $effect:ident => $handle:expr) => {{
-        let mut co = Co::new(|yielder, start| {
-            debug_assert!(matches!(start, Resume::Start));
-            $crate::handle_msg($state, $metrics, yielder, $msg)
-        });
+        let mut gen =
+            $crate::gen::Gen::new(|co| $crate::handle::handle(co, $state, $metrics, $msg));
 
-        let mut co_result = co.resume(Resume::Start);
+        let mut co_result = gen.resume_with(Resume::Start);
 
         loop {
             match co_result {
-                CoResult::Yield($effect) => {
+                $crate::gen::CoResult::Yielded($effect) => {
                     let resume = match $handle {
                         Ok(resume) => resume,
                         Err(error) => {
@@ -33,9 +31,11 @@ macro_rules! process {
                             Resume::Continue
                         }
                     };
-                    co_result = co.resume(resume)
+                    co_result = gen.resume_with(resume)
                 }
-                CoResult::Return(result) => return result.map_err(Into::into),
+                $crate::gen::CoResult::Complete(result) => {
+                    return result.map_err(Into::into);
+                }
             }
         }
     }};
@@ -51,15 +51,15 @@ macro_rules! process {
 ///
 /// # Example
 /// ```rust,ignore
-/// let () = emit!(yielder, effect);
+/// let () = emit!(co, effect);
 /// ```
 ///
 /// [continue]: crate::effect::Resume::Continue
 /// [error]: crate::error::Error::UnexpectedResume
 #[macro_export]
 macro_rules! emit {
-    ($yielder:expr, $effect:expr) => {
-        emit_then!($yielder, $effect, $crate::effect::Resume::Continue)
+    ($co:expr, $effect:expr) => {
+        emit_then!($co, $effect, $crate::effect::Resume::Continue)
     };
 }
 
@@ -74,22 +74,22 @@ macro_rules! emit {
 /// # Example
 /// ```rust,ignore
 /// // If we do not need to extract the resume value
-/// let () = emit_then!(yielder, effect, Resume::ProposeValue(_, _));
+/// let () = emit_then!(co, effect, Resume::ProposeValue(_, _));
 ///
 /// /// If we need to extract the resume value
-/// let value: Ctx::Value = emit_then!(yielder, effect, Resume::ProposeValue(_, value) => value);
+/// let value: Ctx::Value = emit_then!(co, effect, Resume::ProposeValue(_, value) => value);
 /// ```
 ///
 /// [error]: crate::error::Error::UnexpectedResume
 #[macro_export]
 macro_rules! emit_then {
-    ($yielder:expr, $effect:expr, $pat:pat) => {
-        emit_then!($yielder, $effect, $pat => ())
+    ($co:expr, $effect:expr, $pat:pat) => {
+        emit_then!($co, $effect, $pat => ())
     };
 
     // TODO: Add support for multiple patterns + if guards
-    ($yielder:expr, $effect:expr, $pat:pat => $expr:expr $(,)?) => {
-        match $yielder.suspend($effect) {
+    ($co:expr, $effect:expr, $pat:pat => $expr:expr $(,)?) => {
+        match $co.yield_($effect).await {
             $pat => $expr,
             resume => {
                 return Err($crate::error::Error::UnexpectedResume(
