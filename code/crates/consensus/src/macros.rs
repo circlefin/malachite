@@ -41,31 +41,10 @@ macro_rules! process {
     }};
 }
 
-/// Yield an effect and continue execution.
-///
-/// Effect emitted by this macro must resume with [`Resume::Continue`][continue].
-///
-/// # Errors
-/// This macro will abort the current function with a [`Error::UnexpectedResume`][error] error
-/// if the effect does not resume with [`Resume::Continue`][continue]
-///
-/// # Example
-/// ```rust,ignore
-/// let () = emit!(co, effect);
-/// ```
-///
-/// [continue]: crate::effect::Resume::Continue
-/// [error]: crate::error::Error::UnexpectedResume
-#[macro_export]
-macro_rules! emit {
-    ($co:expr, $effect:expr) => {
-        emit_then!($co, $effect, $crate::effect::Resume::Continue)
-    };
-}
-
 /// Yield an effect, expecting a specific type of resume value.
 ///
-/// Effects emitted by this macro must resume with a value that matches the provided pattern.
+/// Effects yielded by this macro must resume with a value that matches the provided pattern.
+/// If not pattern is give, then the yielded effect must resume with [`Resume::Continue`][continue].
 ///
 /// # Errors
 /// This macro will abort the current function with a [`Error::UnexpectedResume`][error] error
@@ -82,9 +61,13 @@ macro_rules! emit {
 ///
 /// [error]: crate::error::Error::UnexpectedResume
 #[macro_export]
-macro_rules! emit_then {
+macro_rules! yield_ {
+    ($co:expr, $effect:expr) => {
+        yield_!($co, $effect, $crate::effect::Resume::Continue)
+    };
+
     ($co:expr, $effect:expr, $pat:pat) => {
-        emit_then!($co, $effect, $pat => ())
+        yield_!($co, $effect, $pat => ())
     };
 
     // TODO: Add support for multiple patterns + if guards

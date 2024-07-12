@@ -13,7 +13,7 @@ use crate::msg::Msg;
 use crate::state::State;
 use crate::types::{Block, GossipEvent, GossipMsg, PeerId};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
-use crate::{emit, emit_then};
+use crate::yield_;
 
 pub async fn handle<Ctx>(
     co: Co<Ctx>,
@@ -89,13 +89,13 @@ async fn move_to_height<Ctx>(
 where
     Ctx: Context,
 {
-    emit!(co, Effect::CancelAllTimeouts);
-    emit!(co, Effect::ResetTimeouts);
+    yield_!(co, Effect::CancelAllTimeouts);
+    yield_!(co, Effect::ResetTimeouts);
 
     // End the current step (most likely Commit)
     metrics.step_end(state.driver.step());
 
-    let validator_set = emit_then!(co, Effect::GetValidatorSet(height),
+    let validator_set = yield_!(co, Effect::GetValidatorSet(height),
         Resume::ValidatorSet(vs_height, validator_set) => {
             if vs_height == height {
                 Ok(validator_set)
@@ -146,11 +146,11 @@ where
 {
     match &input {
         DriverInput::NewRound(_, _, _) => {
-            emit!(co, Effect::CancelAllTimeouts);
+            yield_!(co, Effect::CancelAllTimeouts);
         }
 
         DriverInput::ProposeValue(round, _) => {
-            emit!(co, Effect::CancelTimeout(Timeout::propose(*round)));
+            yield_!(co, Effect::CancelTimeout(Timeout::propose(*round)));
         }
 
         DriverInput::Proposal(proposal, _) => {
@@ -174,7 +174,7 @@ where
                 return Ok(());
             }
 
-            emit!(
+            yield_!(
                 co,
                 Effect::CancelTimeout(Timeout::propose(proposal.round()))
             );
@@ -280,7 +280,7 @@ where
 
             let signed_proposal = state.ctx.sign_proposal(proposal);
 
-            emit!(
+            yield_!(
                 co,
                 Effect::Broadcast(GossipMsg::Proposal(signed_proposal.clone()))
             );
@@ -304,7 +304,7 @@ where
 
             let signed_vote = state.ctx.sign_vote(vote);
 
-            emit!(co, Effect::Broadcast(GossipMsg::Vote(signed_vote.clone()),));
+            yield_!(co, Effect::Broadcast(GossipMsg::Vote(signed_vote.clone()),));
 
             apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.vote)).await
         }
@@ -313,7 +313,7 @@ where
             // TODO: Remove proposal, votes, block for the round
             info!("Decided on value {}", value.id());
 
-            emit!(co, Effect::ScheduleTimeout(Timeout::commit(round)));
+            yield_!(co, Effect::ScheduleTimeout(Timeout::commit(round)));
 
             decided(co, state, metrics, state.driver.height(), round, value).await
         }
@@ -321,7 +321,7 @@ where
         DriverOutput::ScheduleTimeout(timeout) => {
             info!("Scheduling {timeout}");
 
-            emit!(co, Effect::ScheduleTimeout(timeout));
+            yield_!(co, Effect::ScheduleTimeout(timeout));
 
             Ok(())
         }
@@ -329,7 +329,7 @@ where
         DriverOutput::GetValue(height, round, timeout) => {
             info!("Requesting value at height {height} and round {round}");
 
-            emit!(co, Effect::GetValue(height, round, timeout));
+            yield_!(co, Effect::GetValue(height, round, timeout));
 
             Ok(())
         }
@@ -385,7 +385,7 @@ where
     // Restore the commits. Note that they will be removed from `state`
     let commits = state.restore_precommits(height, round, &value);
 
-    emit!(
+    yield_!(
         co,
         Effect::DecidedOnValue {
             height,
@@ -639,7 +639,7 @@ where
             }
 
             // TODO: Verify that the proposal was signed by the proposer for the height and round, drop otherwise.
-            emit!(co, Effect::ReceivedBlockPart(signed_block_part.block_part));
+            yield_!(co, Effect::ReceivedBlockPart(signed_block_part.block_part));
         }
     }
 
