@@ -27,7 +27,7 @@ where
 
         write!(
             f,
-            "{:?} at height {}, round {}, for value {}, from {}",
+            "{:?}(height: {}, round: {}, value: {}, from: {})",
             self.0.vote_type(),
             self.0.height(),
             self.0.round(),
@@ -46,7 +46,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Proposal at height {}, round {}, POL round {}, for value {}, from {}",
+            "Proposal(height {}, round: {}, pol_round: {}, value: {}, from: {})",
             self.0.height(),
             self.0.round(),
             self.0.pol_round(),
