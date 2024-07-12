@@ -265,10 +265,8 @@ where
         myself: &ActorRef<Msg<Ctx>>,
         height: Ctx::Height,
         round: Round,
-        timeout: Timeout,
+        timeout_duration: Duration,
     ) -> Result<(), ActorProcessingErr> {
-        let timeout_duration = self.timeout_config.timeout_duration(timeout.step);
-
         // Call `GetValue` on the Host actor, and forward the reply
         // to the current actor, wrapping it in `Msg::ProposeValue`.
         self.host.call_and_forward(
@@ -347,7 +345,8 @@ where
             }
 
             Effect::GetValue(height, round, timeout) => {
-                if let Err(e) = self.get_value(myself, height, round, timeout) {
+                let timeout_duration = timeouts.duration_for(timeout.step);
+                if let Err(e) = self.get_value(myself, height, round, timeout_duration) {
                     error!("Error when asking for value to be built: {e:?}");
                 }
 
