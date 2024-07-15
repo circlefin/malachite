@@ -61,13 +61,13 @@ macro_rules! process {
 ///
 /// [error]: crate::error::Error::UnexpectedResume
 #[macro_export]
-macro_rules! yield_ {
+macro_rules! perform {
     ($co:expr, $effect:expr) => {
-        yield_!($co, $effect, $crate::effect::Resume::Continue)
+        perform!($co, $effect, $crate::effect::Resume::Continue)
     };
 
     ($co:expr, $effect:expr, $pat:pat) => {
-        yield_!($co, $effect, $pat => ())
+        perform!($co, $effect, $pat => ())
     };
 
     // TODO: Add support for multiple patterns + if guards
