@@ -8,7 +8,7 @@ use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::gauge::Gauge;
-use prometheus_client::metrics::histogram::{linear_buckets, Histogram};
+use prometheus_client::metrics::histogram::{exponential_buckets, linear_buckets, Histogram};
 
 #[derive(Clone, Debug)]
 pub struct Metrics(Arc<Inner>);
@@ -106,7 +106,7 @@ impl Metrics {
             connected_peers: Gauge::default(),
             height: Gauge::default(),
             round: Gauge::default(),
-            signature_verification_time: Histogram::new(linear_buckets(0.0, 0.1, 20)),
+            signature_verification_time: Histogram::new(exponential_buckets(0.001, 2.0, 10)),
             instant_block_started: Arc::new(AtomicInstant::empty()),
             instant_step_started: Arc::new(Mutex::new((Step::Unstarted, Instant::now()))),
         }))
