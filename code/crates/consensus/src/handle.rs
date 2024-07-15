@@ -12,7 +12,7 @@ use crate::gen::Co;
 use crate::msg::Msg;
 use crate::perform;
 use crate::state::State;
-use crate::types::{Block, GossipEvent, GossipMsg, PeerId};
+use crate::types::{Block, GossipEvent, GossipMsg, PeerId, SignedMessage};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
 
 pub async fn handle<Ctx>(
@@ -524,10 +524,9 @@ where
                 return Ok(());
             };
 
-            if !state
-                .ctx
-                .verify_signed_vote(&signed_vote, validator.public_key())
-            {
+            let signed_msg = SignedMessage::Vote(signed_vote.clone());
+            let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
+            if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
                 warn!(
                     %from, validator = %validator_address,
                     "Received invalid vote: {}", PrettyVote::<Ctx>(&signed_vote.vote)
@@ -578,10 +577,9 @@ where
                 return Ok(());
             }
 
-            if !state
-                .ctx
-                .verify_signed_proposal(&signed_proposal, validator.public_key())
-            {
+            let signed_msg = SignedMessage::Proposal(signed_proposal.clone());
+            let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
+            if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
                 error!(
                     "Received invalid signature for proposal: {}",
                     PrettyProposal::<Ctx>(&signed_proposal.proposal)
@@ -630,10 +628,9 @@ where
                 return Ok(());
             };
 
-            if !state
-                .ctx
-                .verify_signed_block_part(&signed_block_part, validator.public_key())
-            {
+            let signed_msg = SignedMessage::BlockPart(signed_block_part.clone());
+            let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
+            if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
                 warn!(%from, validator = %validator_address, "Received invalid block part: {signed_block_part:?}");
                 return Ok(());
             }

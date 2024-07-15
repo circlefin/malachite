@@ -3,6 +3,7 @@ use derive_where::derive_where;
 use malachite_common::*;
 
 use crate::types::GossipMsg;
+use crate::SignedMessage;
 
 /// An effect which may be yielded by a consensus process.
 ///
@@ -58,6 +59,10 @@ where
     /// A BlockPart was received via the gossip layer
     /// Resume with: Resume::Continue
     ReceivedBlockPart(Ctx::BlockPart),
+
+    /// Verify a signature
+    /// Resume with: Resume::SignatureValidity(valid)
+    VerifySignature(SignedMessage<Ctx>, PublicKey<Ctx>),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].
@@ -77,4 +82,7 @@ where
 
     /// Resume execution with a validator set at the given height
     ValidatorSet(Ctx::Height, Ctx::ValidatorSet),
+
+    /// Resume execution with the validity of the signature just verified
+    SignatureValidity(bool),
 }

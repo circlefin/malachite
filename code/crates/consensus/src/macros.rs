@@ -53,10 +53,10 @@ macro_rules! process {
 /// # Example
 /// ```rust,ignore
 /// // If we do not need to extract the resume value
-/// let () = emit_then!(co, effect, Resume::ProposeValue(_, _));
+/// let () = perform!(co, effect, Resume::ProposeValue(_, _));
 ///
 /// /// If we need to extract the resume value
-/// let value: Ctx::Value = emit_then!(co, effect, Resume::ProposeValue(_, value) => value);
+/// let value: Ctx::Value = perform!(co, effect, Resume::ProposeValue(_, value) => value);
 /// ```
 ///
 /// [error]: crate::error::Error::UnexpectedResume

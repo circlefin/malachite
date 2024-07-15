@@ -15,6 +15,14 @@ pub enum GossipMsg<Ctx: Context> {
     BlockPart(SignedBlockPart<Ctx>),
 }
 
+/// A signed consensus message.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub enum SignedMessage<Ctx: Context> {
+    Vote(SignedVote<Ctx>),
+    Proposal(SignedProposal<Ctx>),
+    BlockPart(SignedBlockPart<Ctx>),
+}
+
 impl<Ctx: Context> GossipMsg<Ctx> {
     pub fn msg_height(&self) -> Option<Ctx::Height> {
         match self {
