@@ -81,6 +81,9 @@ pub struct Inner {
     /// Current round
     pub round: Gauge,
 
+    /// Time taken to verify a signature
+    pub signature_verification_time: Histogram,
+
     /// Internal state for measuring time taken to finalize a block
     instant_block_started: Arc<AtomicInstant>,
 
@@ -103,6 +106,7 @@ impl Metrics {
             connected_peers: Gauge::default(),
             height: Gauge::default(),
             round: Gauge::default(),
+            signature_verification_time: Histogram::new(linear_buckets(0.0, 0.1, 20)),
             instant_block_started: Arc::new(AtomicInstant::empty()),
             instant_step_started: Arc::new(Mutex::new((Step::Unstarted, Instant::now()))),
         }))
@@ -170,6 +174,12 @@ impl Metrics {
                 "round",
                 "Current round",
                 metrics.round.clone(),
+            );
+
+            registry.register(
+                "signature_verification_time",
+                "Time taken to verify a signature, in seconds",
+                metrics.signature_verification_time.clone(),
             );
         });
 

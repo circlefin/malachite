@@ -5,6 +5,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 use tracing::{error, info};
 
 use malachite_common::{Context, Round, Timeout, TimeoutStep};
@@ -334,11 +335,17 @@ where
             }
 
             Effect::VerifySignature(msg, pk) => {
+                let start = Instant::now();
+
                 let valid = match msg {
                     SignedMessage::Vote(v) => self.ctx.verify_signed_vote(&v, &pk),
                     SignedMessage::Proposal(p) => self.ctx.verify_signed_proposal(&p, &pk),
                     SignedMessage::BlockPart(bp) => self.ctx.verify_signed_block_part(&bp, &pk),
                 };
+
+                self.metrics
+                    .signature_verification_time
+                    .observe(start.elapsed().as_secs_f64());
 
                 Ok(Resume::SignatureValidity(valid))
             }
