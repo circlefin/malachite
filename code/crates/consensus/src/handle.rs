@@ -10,10 +10,10 @@ use crate::effect::{Effect, Resume};
 use crate::error::Error;
 use crate::gen::Co;
 use crate::msg::Msg;
+use crate::perform;
 use crate::state::State;
 use crate::types::{Block, GossipEvent, GossipMsg, PeerId};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
-use crate::perform;
 
 pub async fn handle<Ctx>(
     co: Co<Ctx>,
