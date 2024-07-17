@@ -16,7 +16,7 @@
 # xssh - parallel ssh command to all servers. Change PSSH_H and PSSH_P for different behavior.
 # get_ip - get the IP address of a node server for programmatic use (example: get_ip 0)
 # ok_cc - check if the CC server is ready to be used and update its services (DNS hosts, commands.sh, etc)
-# ok_all - check if all servers are ready to be used
+# ok_servers - check if all servers are ready to be used
 # deploy_cc - build the local source code into a docker image on the cc server and push it to the cc registry
 # setup_config - create configuration on the cc server
 # done-pull - pull the node image on all the node servers.  Accepts list of IDs or "all". (example: dnode-pull 0 1 2)
@@ -60,14 +60,11 @@ get_ip() {
 
 ok_cc() {
   PSSH_P=1 PSSH_H=$CANDC xssh "cat /etc/done" && \
-  sftp -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -C -q root@$${CANDC} <<EOF
-      put $${1:-$${MALACHITE_DIR}/qa/terraform/hosts} /etc/hosts
-      put $${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh} /etc/profile.d/commands.sh
-EOF
-  test $? -eq 0 && PSSH_P=1 PSSH_H=$CANDC xssh "sed -i -e 's,^export MALACHITE_DIR=.*,export MALACHITE_DIR=/root/malachite,' -e 's,^export IS_CC=.*,export IS_CC=1,' /etc/profile.d/commands.sh && systemctl reload dnsmasq"
+  scp -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -C $${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh} root@$${CANDC}:/etc/profile.d/commands.sh && \
+  PSSH_P=1 PSSH_H=$CANDC xssh "sed -i -e 's,^export MALACHITE_DIR=.*,export MALACHITE_DIR=/root/malachite,' -e 's,^export IS_CC=.*,export IS_CC=1,' /etc/profile.d/commands.sh && source /etc/profile.d/commands.sh && _print_hosts > /etc/hosts && systemctl reload dnsmasq"
 }
 
-ok_all() {
+ok_servers() {
   xssh "cat /etc/done && mount /data" # Mount /data in case a QA node came online earlier than CC
 }
 
@@ -126,22 +123,18 @@ cat <<EOF
 ok_cc
 deploy_cc
 ssh-cc
-ok_all
+ok_servers
 setup_config
 dnode-run all
 (wait for data)
 dnode-stop all
-fetch_log
 get_prometheus_data
 dnode-rm all
 _reset_prometheus_db
 EOF
 }
 
-fetch_log() {
-  PSSH_V="" PSSH_T=0 PSSH_H="$(_parse_multiple_hosts "$@")" xssh -o node_log_out -e node_log_err "docker logs node"
-}
-
+# TODO: update to prometheus docker volume
 get_prometheus_data() {
   if _is_cc; then
     rm -f prometheus.tgz
@@ -153,14 +146,7 @@ get_prometheus_data() {
   fi
 }
 
-_mem_usage() {
-    PSSH_H="$(_parse_multiple_hosts "$@")" xssh -o mem_usage_out -e mem_usage_err "ps -e -o pid,user,%mem,cmd --sort=-%mem | head -2 | tail -1"
-}
-
-_cpu_usage() {
-    PSSH_H="$(_parse_multiple_hosts "$@")" xssh -o cpu_usage_out -e cpu_usage_err "ps -e -o pid,user,%cpu,cmd --sort=-%cpu | head -2 | tail -1"
-}
-
+# TODO: update to prometheus docker volume
 _reset_prometheus_db() {
   if _is_cc; then
     systemctl stop prometheus
@@ -263,7 +249,21 @@ _parse_multiple_hosts() {
 _change_test_du_jour() {
   _change_one_config_entry mempool.gossip_batch_size=0
   _change_one_config_entry test.time_allowance_factor=0.5
-  _change_one_config_entry test.tx_size=1KiB
   _change_one_config_entry test.txs_per_part=32
-  _change_one_config_entry test.exec_time_per_tx=1ms
+  _change_one_config_entry runtime.flavor=multi_threaded
+  _change_one_config_entry -t int runtime.worker_threads=0
+}
+
+_print_hosts() {
+  cat <<EOF
+127.0.0.1       localhost
+${cc.ip}        ${cc.name}
+${cc.internal_ip}        l-${cc.name}
+%{~ for n in nodes }
+${n.ip}        ${n.name}
+%{~ endfor }
+%{~ for n in nodes }
+${n.internal_ip}        l-${n.name}
+%{~ endfor }
+EOF
 }

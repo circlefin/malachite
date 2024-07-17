@@ -71,7 +71,6 @@ package_update: true
 packages:
   - git
   - gcc
-  - prometheus
   - prometheus-node-exporter
   - ntpstat
   - jq
@@ -89,17 +88,22 @@ packages:
   - dnsmasq
   - pssh
   - rsync
+  - pwgen
+  - kitty-terminfo
 write_files:
   - path: /etc/docker/daemon.json
     content: |
       {
         "insecure-registries" : ["0.0.0.0/0"]
       }
-  - path: /etc/systemd/resolved.conf.d/1-dnsmasq.conf
+  - path: /root/.ssh/config
     content: |
-      [Resolve]
-      DNS=127.0.0.1
-      DNSStubListener=no
+      Host *
+        ForwardAgent yes
+        LogLevel ERROR
+        StrictHostKeyChecking no
+        UserKnownHostsFile /dev/null
+        GlobalKnownHostsFile /dev/null
   - path: /etc/exports
     content: |
       /data 10.0.0.0/8(ro,sync,no_subtree_check)
@@ -108,6 +112,11 @@ write_files:
       # (insecure) read-only access to the world
       /data 0.0.0.0/1(ro,sync,no_subtree_check,root_squash)
       /data 128.0.0.0/1(ro,sync,no_subtree_check,root_squash)
+  - path: /etc/systemd/resolved.conf.d/1-dnsmasq.conf
+    content: |
+      [Resolve]
+      DNS=127.0.0.1
+      DNSStubListener=no
   - path: /etc/dnsmasq.d/servers.conf
     content: |
       server=1.0.0.1
@@ -118,220 +127,6 @@ write_files:
       cache-size=1000
       # (insecure) allow queries from the world
       interface=eth0
-  - path: /etc/prometheus/prometheus.yml
-    content: |
-      global:
-        scrape_interval: 0s500ms
-        evaluation_interval: 10s
-      scrape_configs:
-        - job_name: 'malachite'
-          static_configs:
-            - targets: [
-            'node0:9000',
-            'node1:9000',
-            'node2:9000',
-            'node3:9000',
-            'node4:9000',
-            'node5:9000',
-            'node6:9000',
-            'node7:9000',
-            'node8:9000',
-            'node9:9000',
-            'node10:9000',
-            'node11:9000',
-            'node12:9000',
-            'node13:9000',
-            'node14:9000',
-            'node15:9000',
-            'node16:9000',
-            'node17:9000',
-            'node18:9000',
-            'node19:9000',
-            'node20:9000',
-            'node21:9000',
-            'node22:9000',
-            'node23:9000',
-            'node24:9000',
-            'node25:9000',
-            'node26:9000',
-            'node27:9000',
-            'node28:9000',
-            'node29:9000',
-            'node30:9000',
-            'node31:9000',
-            'node32:9000',
-            'node33:9000',
-            'node34:9000',
-            'node35:9000',
-            'node36:9000',
-            'node37:9000',
-            'node38:9000',
-            'node39:9000',
-            'node40:9000',
-            'node41:9000',
-            'node42:9000',
-            'node43:9000',
-            'node44:9000',
-            'node45:9000',
-            'node46:9000',
-            'node47:9000',
-            'node48:9000',
-            'node49:9000',
-            'node50:9000',
-            'node51:9000',
-            'node52:9000',
-            'node53:9000',
-            'node54:9000',
-            'node55:9000',
-            'node56:9000',
-            'node57:9000',
-            'node58:9000',
-            'node59:9000',
-            'node60:9000',
-            'node61:9000',
-            'node62:9000',
-            'node63:9000',
-            'node64:9000',
-            'node65:9000',
-            'node66:9000',
-            'node67:9000',
-            'node68:9000',
-            'node69:9000',
-            'node70:9000',
-            'node71:9000',
-            'node72:9000',
-            'node73:9000',
-            'node74:9000',
-            'node75:9000',
-            'node76:9000',
-            'node77:9000',
-            'node78:9000',
-            'node79:9000',
-            'node80:9000',
-            'node81:9000',
-            'node82:9000',
-            'node83:9000',
-            'node84:9000',
-            'node85:9000',
-            'node86:9000',
-            'node87:9000',
-            'node88:9000',
-            'node89:9000',
-            'node90:9000',
-            'node91:9000',
-            'node92:9000',
-            'node93:9000',
-            'node94:9000',
-            'node95:9000',
-            'node96:9000',
-            'node97:9000',
-            'node98:9000',
-            'node99:9000'
-            ]
-        - job_name: 'server'
-          static_configs:
-            - targets: [
-            'node0:9100',
-            'node1:9100',
-            'node2:9100',
-            'node3:9100',
-            'node4:9100',
-            'node5:9100',
-            'node6:9100',
-            'node7:9100',
-            'node8:9100',
-            'node9:9100',
-            'node10:9100',
-            'node11:9100',
-            'node12:9100',
-            'node13:9100',
-            'node14:9100',
-            'node15:9100',
-            'node16:9100',
-            'node17:9100',
-            'node18:9100',
-            'node19:9100',
-            'node20:9100',
-            'node21:9100',
-            'node22:9100',
-            'node23:9100',
-            'node24:9100',
-            'node25:9100',
-            'node26:9100',
-            'node27:9100',
-            'node28:9100',
-            'node29:9100',
-            'node30:9100',
-            'node31:9100',
-            'node32:9100',
-            'node33:9100',
-            'node34:9100',
-            'node35:9100',
-            'node36:9100',
-            'node37:9100',
-            'node38:9100',
-            'node39:9100',
-            'node40:9100',
-            'node41:9100',
-            'node42:9100',
-            'node43:9100',
-            'node44:9100',
-            'node45:9100',
-            'node46:9100',
-            'node47:9100',
-            'node48:9100',
-            'node49:9100',
-            'node50:9100',
-            'node51:9100',
-            'node52:9100',
-            'node53:9100',
-            'node54:9100',
-            'node55:9100',
-            'node56:9100',
-            'node57:9100',
-            'node58:9100',
-            'node59:9100',
-            'node60:9100',
-            'node61:9100',
-            'node62:9100',
-            'node63:9100',
-            'node64:9100',
-            'node65:9100',
-            'node66:9100',
-            'node67:9100',
-            'node68:9100',
-            'node69:9100',
-            'node70:9100',
-            'node71:9100',
-            'node72:9100',
-            'node73:9100',
-            'node74:9100',
-            'node75:9100',
-            'node76:9100',
-            'node77:9100',
-            'node78:9100',
-            'node79:9100',
-            'node80:9100',
-            'node81:9100',
-            'node82:9100',
-            'node83:9100',
-            'node84:9100',
-            'node85:9100',
-            'node86:9100',
-            'node87:9100',
-            'node88:9100',
-            'node89:9100',
-            'node90:9100',
-            'node91:9100',
-            'node92:9100',
-            'node93:9100',
-            'node94:9100',
-            'node95:9100',
-            'node96:9100',
-            'node97:9100',
-            'node98:9100',
-            'node99:9100'
-            ]
   - path: /etc/nsswitch.conf
     content: |
       passwd:         files
@@ -345,36 +140,31 @@ write_files:
       ethers:         db files
       rpc:            db files
       netgroup:       nis
+  - path: /root/docker/prometheus.yml
+    encoding: b64
+    content: ${prometheus_config}
   - path: /root/docker/grafana.yml
-    content: |
-      apiVersion: 1
-      datasources:
-        - name: prometheus
-          uid: prometheus
-          type: prometheus
-          url: http://host.docker.internal:9090
-          is_default: true
-          editable: true
+    encoding: b64
+    content: ${grafana_data_sources}
   - path: /root/docker/malachite.yml
-    content: |
-      apiVersion: 1
-      providers:
-        - name: 'default'
-          orgId: 1
-          folder: ''
-          type: file
-          disableDeletion: false
-          updateIntervalSeconds: 10
-          allowUiUpdates: true
-          options:
-            path: '/dashboards'
-            foldersFromFilesStructure: true
+    encoding: b64
+    content: ${grafana_dashboards_config}
   - path: /root/dashboards/main.json
     encoding: b64
-    content: ${malachite_dashboard}
+    content: ${grafana_malachite_dashboard}
   - path: /root/docker/compose.yml
     content: |
       services:
+        prometheus:
+          image: prom/prometheus
+          container_name: prometheus
+          ports:
+            - 0.0.0.0:9090:9090
+          volumes:
+            - /root/docker/prometheus.yml:/etc/prometheus/prometheus.yml
+            - prometheus:/prometheus
+          extra_hosts:
+            - "host.docker.internal:host-gateway"
         registry:
           container_name: registry
           image: registry:2
@@ -391,7 +181,7 @@ write_files:
           volumes:
             - /root/docker/grafana.yml:/etc/grafana/provisioning/datasources/prometheus.yml
             - /root/docker/malachite.yml:/etc/grafana/provisioning/dashboards/malachite.yml
-            - /root/dashboards:/dashboards
+            - /root/dashboards:/etc/grafana/provisioning/dashboards-data
             - grafana:/var/lib/grafana
           ports:
             - 0.0.0.0:3000:3000
@@ -421,6 +211,7 @@ write_files:
           image: grafana/grafana-image-renderer
           container_name: grafana-image-renderer
       volumes:
+        prometheus:
         registry:
         grafana:
 runcmd:
@@ -441,6 +232,11 @@ runcmd:
   - docker compose -f /root/docker/compose.yml up -d
   - curl -s -o /usr/bin/sconfig -L https://github.com/freshautomations/sconfig/releases/download/v0.2.0/sconfig_linux_amd64
   - chmod 755 /usr/bin/sconfig
+  - cd /root && git clone https://github.com/deviantony/docker-elk
+  - sed -i 's/^ELASTIC_PASSWORD=.*/ELASTIC_PASSWORD='"'privy-latex-quizzed-estoppel'"'/' /root/docker-elk/.env
+  - sed -i 's/^LOGSTASH_INTERNAL_PASSWORD=.*/LOGSTASH_INTERNAL_PASSWORD='"'$(pwgen 30 1)'"'/' /root/docker-elk/.env
+  - sed -i 's/^KIBANA_SYSTEM_PASSWORD=.*/KIBANA_SYSTEM_PASSWORD='"'$(pwgen 30 1)'"'/' /root/docker-elk/.env
+  - docker compose -f /root/docker-elk/docker-compose.yml up setup
+  - docker compose -f /root/docker-elk/docker-compose.yml up elasticsearch kibana -d
   - date > /etc/done
   - ln /etc/done /etc/cc
-

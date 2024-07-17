@@ -80,7 +80,6 @@ packages:
   - git
   - gcc
   - golang-1.21-go
-  - prometheus
   - prometheus-node-exporter
   - ntpstat
   - jq
@@ -95,6 +94,7 @@ packages:
   - docker-ce-cli
   - containerd.io
   - nfs-common
+  - kitty-terminfo
 write_files:
 # Prometheus node exporter service
   - path: /etc/prometheus/prometheus-node-exporter.service
@@ -110,12 +110,6 @@ write_files:
       ExecStart=/usr/bin/prometheus-node-exporter
       [Install]
       WantedBy=multi-user.target
-# Allow docker to download from insecure registries
-  - path: /etc/docker/daemon.json
-    content: |
-      {
-        "insecure-registries" : ["${cc.ip}"]
-      }
 # Force systemd-resolved to use custom DNS server
   - path: /etc/systemd/resolved.conf.d/DigitalOcean.conf
     content: |
@@ -150,6 +144,10 @@ runcmd:
 # Start docker
   - systemctl enable docker
   - systemctl start docker
+  - docker plugin install --grant-all-permissions elastic/elastic-logging-plugin:8.14.3
+# Override docker logging and restart docker
+  - echo '{"insecure-registries":["${cc.ip}"],"log-driver":"elastic/elastic-logging-plugin:8.14.3","log-opts":{"hosts":"http://${cc.ip}:9200","user":"elastic","password":"privy-latex-quizzed-estoppel"}}' > /etc/docker/daemon.json
+  - systemctl restart docker
 # Fix journald not logging entries
   - systemctl restart systemd-journald
 # Set up config directory
@@ -158,8 +156,7 @@ runcmd:
   - mkdir /data
   - chown nobody:nogroup /data
   - echo "${cc.ip}:/data /data nfs tcp,ro,nosuid,noexec 0 0" >> /etc/fstab
-# Mount NFS share
-  - sleep 60 # Wait for CC NFS Server to come up with fingers crossed
+# Mount NFS share, if you can. ok_all will try again, if the cc server comes up too late
   - mount /data
 # Indicate finish
   - date > /etc/done

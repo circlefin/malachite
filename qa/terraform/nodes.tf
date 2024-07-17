@@ -12,10 +12,15 @@ resource "digitalocean_droplet" "cc" {
   image     = "debian-12-x64"
   region    = var.region_a
   tags      = concat(var.instance_tags, ["cc"])
-  size      = "g-4vcpu-16gb"
+  size      = "s-4vcpu-8gb"
+  #size      = "g-4vcpu-16gb"
+  #size      = "g-8vcpu-32gb"
   ssh_keys  = var.ssh_keys
   user_data = templatefile("user-data/cc-data.txt", {
-    malachite_dashboard = filebase64("../viewer/config-grafana/provisioning/dashboards-data/main.json")
+    prometheus_config = filebase64("../viewer/config-prometheus/prometheus.yml")
+    grafana_data_sources = filebase64("../viewer/config-grafana/provisioning/datasources/prometheus.yml")
+    grafana_dashboards_config = filebase64("../viewer/config-grafana/provisioning/dashboards/malachite.yml")
+    grafana_malachite_dashboard = filebase64("../viewer/config-grafana/provisioning/dashboards-data/main.json")
   })
 }
 
@@ -26,7 +31,8 @@ resource "digitalocean_droplet" "small_a" {
   image      = "debian-12-x64"
   region     = var.region_a
   tags       = concat(var.instance_tags, ["small", var.region_a])
-  size       = "g-2vcpu-8gb"
+  size       = "s-4vcpu-8gb"
+  #size       = "g-2vcpu-8gb"
   ssh_keys   = var.ssh_keys
   user_data  = templatefile("user-data/user-data.txt", {
     id = count.index

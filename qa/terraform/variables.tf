@@ -52,3 +52,19 @@ ok_cc
 cheat_sheet
 EOT
 }
+
+/*
+"regions": [
+  "ams3",
+  "blr1",
+  "fra1",
+  "lon1",
+  "nyc1",
+  "nyc3",
+  "sfo2",
+  "sfo3",
+  "sgp1",
+  "syd1",
+  "tor1"
+],
+*/

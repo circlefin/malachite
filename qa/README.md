@@ -5,11 +5,11 @@ using custom commands to simplify the language used to describe the process of r
 
 ## Prerequisites
 
-* [pssh](https://linux.die.net/man/1/pssh)(Mac) or [parallel-ssh](https://manpages.org/parallel-ssh)(Linux) on your
+* [pssh](https://linux.die.net/man/1/pssh) (Mac) or [parallel-ssh](https://manpages.org/parallel-ssh) (Linux) on your
   local machine.
-* If you use parallel-ssh, create a symlink to `pssh` in your path.
 
-* Usually, `ln /usr/bin/parallel-ssh /usr/bin/pssh` will do the trick.
+If you use `parallel-ssh`, create a symlink to `pssh` in your path. (Something like
+`ln /usr/bin/parallel-ssh /usr/bin/pssh` will do the trick.)
 
 ## The command & control server
 
@@ -20,7 +20,7 @@ The developer can build the Docker image for testing locally and push it to the 
 using the `deploy_cc` custom command. The QA nodes can then pull the image from the registry and run it.
 
 The developer can create the testnet configuration remotely on the `cc` server using the `setup_config` custom command.
-The configuration is stored in the `/data` folder on the server which is shared as over NFS with the QA nodes.
+The configuration is stored in the `/data` folder on the server which is shared over NFS with the QA nodes.
 
 The `cc` server also hosts a Prometheus server with Grafana for monitoring the nodes. The data can be downloaded using
 the `get_prometheus_data` custom command. Then it can be imported to a local Grafana/Prometheus viewer for further
@@ -37,15 +37,14 @@ After creating your DO access (see the CometBFT QA infra
 ```bash
 cd terraform
 terraform init
-terraform apply -var small_nodes=0 # optional. This will create the cc server only.
-terraform apply -var small_nodes=4 -var large_nodes=3 # the cc server will not be deleted if you scale the nodes.
+terraform apply # optional. This will create the cc server only.
+terraform apply -var small_a=4 -var large_a=3 # the cc server will not be deleted if you scale the nodes.
 ```
 
 By running terraform with zero nodes first, you create the `cc` server ahead of time. You can skip that step and create
 the `cc` server with the QA nodes in one go.
 
-The above will create a 7-node Digital Ocean QA environment a `hosts` file and a `commands.sh` file with the custom
-commands.
+The above will create a 7-node Digital Ocean QA environment and a `commands.sh` file with the custom commands.
 
 Most of the node setup is done automatically in cloud-init. When terraform finishes, the servers are still installing
 packages and setting up their environment. One of the first commands we will run will check if the servers have
@@ -74,7 +73,7 @@ deploy_cc # Takes 4-5 minutes. Continue in a different window while this is runn
 ssh-cc # (optional) move to the CC server and run the rest of the commands closer to the QA nodes.
 setup_config # depends on deploy_cc, only run it if that finished.
 
-ok_all # make sure all QA servers have finished initial setup
+ok_servers # make sure all QA servers have finished initial setup
 dnode-run all # run malachite on all QA servers
 
 # Wait some time to generate data
@@ -102,8 +101,8 @@ invoked automatically when you SSH into the server.
 ok_cc
 ```
 
-This loads the SSH key into your known_hosts and checks if the cloud-init execution has finished on the CC server. It
-also sets up the DNS service with the created hosts and copies the `commands.sh` over for easy execution.
+This checks if the cloud-init execution has finished on the CC server. It also sets up the DNS service and copies the
+`commands.sh` over for easy execution.
 
 It will print a date if the server successfully finished the setup.
 
@@ -123,8 +122,7 @@ This will take a few minutes. (4.5 minutes in Lausanne, connecting to a 4vCPU/8G
 You can continue executing the rest of the setup commands, until you want to configure the network with `setup_config`.
 You will need the application for the correct generation of the application configuration.
 
-You can also run this command on the `cc` server (see the `ssh-cc` command below). Caveat: you need to copy the source
-code over to the server
+You can also run this command on the `cc` server, but you need to copy the source code over to the server.
 
 ### 4.5 (optional) Connect to the CC server
 
@@ -142,12 +140,11 @@ You can keep running on your local machine, though, if that is more convenient.
 ### 5. Make sure all servers finished cloud-init installations
 
 ```bash
-ok_all
+ok_servers
 ```
 
-Similar to `ok_cc` but all deployed servers are taken into account. Your `known_hosts` file will be updated with the
-server keys and prints the date each server finished installing cloud-init. Run this multiple times until all servers
-return successfully.
+Similar to `ok_cc` but for the network nodes. It prints the date each server finished installing cloud-init.
+Run this multiple times until all servers return success.
 
 ### 6. Create the configuration data on the cc server
 
@@ -163,17 +160,16 @@ Depends on an up-to-date host count. Re-run it after `ok_cc` if you changed the 
 
 ```bash
 dnode-run 0 2 3
-RUST_LOG=debug cnode-run 1
+RUST_LOG=debug dnode-run 1
 ```
 
 You can also use the `all` keyword to start or stop all nodes at once.
 
 ```bash
-dnode-stop all
+dnode-run all
 ```
 
-You can use `dnode`, `dnode-run`, `dnode-log` and `dnode-stop` to manage the docker container.
-`dnode` is a generic command to run docker commands remotely.
+You can use `dnode`, `dnode-run`, `dnode-log`, `dnode-stop` and `dnode-rm` to manage the docker containers.
 
 ### 8. Get the data from Prometheus
 
@@ -185,17 +181,10 @@ This will copy the compressed prometheus database from the `cc` server to your l
 
 # Created files
 
-## hosts file
-
-Terraform creates a [hosts](terraform/hosts) file that can be added to any server (including your local dev machine)
-for easier access to the servers. The file is
-deployed onto the cc server and it is used as part of the DNS service there.
-
 ## commands.sh file
 
-Terraform also creates a [commands.sh](terraform/commands.sh) file with suggested commands for CLI-based configuration
-and node
-management. You can run `source commands.sh` and use the functions in your shell. The descriptions of commands are
+Terraform creates a [commands.sh](terraform/commands.sh) file with suggested commands for CLI-based configuration and
+node management. You can run `source commands.sh` and use the functions in your shell. The descriptions of commands are
 listed in the top comment of the file. The file is copied over to `cc` during `ok_cc` and invoked automatically
 when you SSH into the server.
 
@@ -215,8 +204,7 @@ and create custom Grafana dashboards.
 * a running `cc` server from where you download the data
 * `make` on your machine.
 
-The commands that start with `make` will need to be run from the `viewer` directory or you can use `-C` to point make
-to the directory.
+The `Makefile` is in the `viewer` directory.
 
 ## 1. Download the data
 
