@@ -1,0 +1,3 @@
+[submodule "code/crates/starknet/p2p-proto/p2p-specs"]
+	path = code/crates/starknet/p2p-proto/p2p-specs
+	url = https://github.com/starknet-io/starknet-p2p-specs

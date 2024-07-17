@@ -3434,6 +3434,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "starknet-p2p-proto"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "prost-build",
+]
+
+[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
