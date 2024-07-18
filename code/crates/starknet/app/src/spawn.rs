@@ -15,14 +15,12 @@ use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
 use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig};
-use malachite_starknet_host::actor::StarknetHost;
-use malachite_starknet_host::mempool::{Mempool, MempoolRef};
-use malachite_starknet_host::mock::context::MockContext;
-use malachite_starknet_host::mock::host::{MockHost, MockParams};
-use malachite_starknet_host::mock::types::{
-    Address, Height, PrivateKey, ProposalContent, ValidatorSet,
-};
 use malachite_test::utils::test::SpawnNodeActor;
+use starknet_host::actor::StarknetHost;
+use starknet_host::mempool::{Mempool, MempoolRef};
+use starknet_host::mock::context::MockContext;
+use starknet_host::mock::host::{MockHost, MockParams};
+use starknet_host::mock::types::{Address, Height, PrivateKey, ProposalContent, ValidatorSet};
 
 pub struct SpawnStarknetNode;
 

@@ -1,5 +1,5 @@
 [package]
-name                   = "malachite-starknet-app"
+name                   = "starknet-app"
 version.workspace      = true
 edition.workspace      = true
 repository.workspace   = true
@@ -15,7 +15,7 @@ malachite-test.workspace             = true
 malachite-metrics.workspace          = true 
 malachite-gossip-consensus.workspace = true
 malachite-gossip-mempool.workspace   = true
-malachite-starknet-host.workspace    = true
+starknet-host.workspace              = true
 
 async-trait.workspace                = true
 tokio.workspace                      = true

@@ -1,5 +1,5 @@
 [package]
-name                   = "malachite-starknet-host"
+name                   = "starknet-host"
 version.workspace      = true
 edition.workspace      = true
 repository.workspace   = true

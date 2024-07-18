@@ -2,7 +2,21 @@
 resolver = "2"
 
 members = [
-  "crates/*"
+  "crates/actors",
+  "crates/cli",
+  "crates/common",
+  "crates/consensus",
+  "crates/driver",
+  "crates/gossip-consensus",
+  "crates/gossip-mempool",
+  "crates/itf",
+  "crates/metrics",
+  "crates/node",
+  "crates/proto",
+  "crates/round",
+  "crates/test",
+  "crates/vote",
+  "crates/starknet/*"
 ]
 
 [workspace.package]
@@ -38,8 +52,8 @@ malachite-proto            = { version = "0.1.0", path = "crates/proto" }
 malachite-round            = { version = "0.1.0", path = "crates/round" }
 malachite-test             = { version = "0.1.0", path = "crates/test" }
 malachite-vote             = { version = "0.1.0", path = "crates/vote" }
-malachite-starknet-host    = { version = "0.1.0", path = "crates/starknet-host" }
-malachite-starknet-app     = { version = "0.1.0", path = "crates/starknet-app" }
+starknet-host              = { version = "0.1.0", path = "crates/starknet/host" }
+starknet-app               = { version = "0.1.0", path = "crates/starknet/app" }
 
 async-recursion    = "1.1"
 async-trait        = "0.1.77"
@@ -69,9 +83,9 @@ multiaddr          = "0.18.1"
 num-bigint         = "0.4.4"
 num-traits         = "0.2.17"
 pretty_assertions  = "1.4"
-prost              = "0.12.3"
-prost-build        = "0.12.3"
-prost-types        = "0.12.3"
+prost              = "0.12"
+prost-build        = "0.12"
+prost-types        = "0.12"
 prometheus-client  = "0.22"
 ractor             = "0.10.0"
 ractor_actors      = { version = "0.4.0", default-features= false }
