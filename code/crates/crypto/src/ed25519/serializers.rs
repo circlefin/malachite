@@ -7,7 +7,7 @@ pub mod verification_key {
     struct PubKey {
         #[serde(rename = "type")]
         key_type: String,
-        #[serde(with = "crate::serialization::base64string")]
+        #[serde(with = "super::base64string")]
         value: Vec<u8>,
     }
 
@@ -40,7 +40,7 @@ pub mod signing_key {
     struct PrivKey {
         #[serde(rename = "type")]
         key_type: String,
-        #[serde(with = "crate::serialization::base64string")]
+        #[serde(with = "super::base64string")]
         value: Vec<u8>,
     }
 

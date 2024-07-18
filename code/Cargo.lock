@@ -2118,6 +2118,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-crypto"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "ed25519-consensus",
+ "malachite-common",
+ "rand",
+ "serde",
+ "sha2 0.10.8",
+ "signature",
+]
+
+[[package]]
 name = "malachite-driver"
 version = "0.1.0"
 dependencies = [
@@ -2225,13 +2238,11 @@ name = "malachite-test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "base64 0.22.1",
  "bytesize",
- "ed25519-consensus",
- "futures",
  "hex",
  "malachite-actors",
  "malachite-common",
+ "malachite-crypto",
  "malachite-driver",
  "malachite-node",
  "malachite-proto",
@@ -2240,12 +2251,8 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-types",
- "ractor",
  "rand",
- "rand_chacha",
  "serde",
- "serde_json",
- "sha2 0.10.8",
  "signature",
  "tokio",
  "tracing",
