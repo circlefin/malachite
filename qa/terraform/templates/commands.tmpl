@@ -252,6 +252,7 @@ _change_test_du_jour() {
   _change_one_config_entry test.txs_per_part=32
   _change_one_config_entry runtime.flavor=multi_threaded
   _change_one_config_entry -t int runtime.worker_threads=0
+  _change_one_config_entry logging.log_format=json
 }
 
 _print_hosts() {
