@@ -1,5 +1,5 @@
 use color_eyre::eyre::Result;
-use tracing::debug;
+use tracing::{error, info, trace};
 
 use malachite_node::config::{Config, RuntimeConfig};
 use malachite_test::{PrivateKey, ValidatorSet};
@@ -9,7 +9,6 @@ use crate::cmd::init::InitCmd;
 use crate::cmd::keys::KeysCmd;
 use crate::cmd::start::StartCmd;
 use crate::cmd::testnet::TestnetCmd;
-use crate::logging::LogLevel;
 
 mod args;
 mod cmd;
@@ -18,24 +17,39 @@ mod metrics;
 mod priv_key;
 
 pub fn main() -> Result<()> {
+    color_eyre::install().expect("Failed to install global error handler");
+
     let args = Args::new();
+    let config = args.load_config();
+    let logging = config.as_ref().map(|c| c.logging).unwrap_or_default();
 
-    logging::init(LogLevel::Debug, &args.debug);
+    logging::init(logging.log_level, logging.log_format);
 
-    debug!("Command-line parameters: {args:?}");
+    trace!("Command-line parameters: {args:?}");
 
     match &args.command {
-        Commands::Start(cmd) => start(&args, cmd),
+        Commands::Start(cmd) => {
+            let config = config.map_err(|e| {
+                error!("Failed to load configuration: {e}");
+                e
+            })?;
+
+            info!(
+                "Loaded configuration from {:?}",
+                args.get_config_file_path().unwrap_or_default().display()
+            );
+
+            start(&args, config, cmd)
+        }
         Commands::Init(cmd) => init(&args, cmd),
         Commands::Keys(cmd) => keys(&args, cmd),
         Commands::Testnet(cmd) => testnet(&args, cmd),
     }
 }
 
-fn start(args: &Args, cmd: &StartCmd) -> Result<()> {
+fn start(args: &Args, cfg: Config, cmd: &StartCmd) -> Result<()> {
     use tokio::runtime::Builder as RtBuilder;
 
-    let cfg: Config = args.load_config()?;
     let sk: PrivateKey = args.load_private_key()?;
     let vs: ValidatorSet = args.load_genesis()?;
 
@@ -59,6 +73,8 @@ fn init(args: &Args, cmd: &InitCmd) -> Result<()> {
         &args.get_config_file_path()?,
         &args.get_genesis_file_path()?,
         &args.get_priv_validator_key_file_path()?,
+        args.get_log_level_or_default(),
+        args.log_format.unwrap_or_default(),
     )
 }
 
@@ -67,7 +83,11 @@ fn keys(args: &Args, cmd: &KeysCmd) -> Result<()> {
 }
 
 fn testnet(args: &Args, cmd: &TestnetCmd) -> Result<()> {
-    cmd.run(&args.get_home_dir()?)
+    cmd.run(
+        &args.get_home_dir()?,
+        args.get_log_level_or_default(),
+        args.log_format.unwrap_or_default(),
+    )
 }
 
 #[cfg(test)]

@@ -13,14 +13,13 @@ use color_eyre::eyre::{eyre, Context, Result};
 use directories::BaseDirs;
 use tracing::info;
 
-use malachite_node::config::Config;
+use malachite_node::config::{Config, LogFormat, LogLevel};
 use malachite_test::{PrivateKey, ValidatorSet};
 
 use crate::cmd::init::InitCmd;
 use crate::cmd::keys::KeysCmd;
 use crate::cmd::start::StartCmd;
 use crate::cmd::testnet::TestnetCmd;
-use crate::logging::DebugSection;
 use crate::priv_key::PrivValidatorKey;
 
 const APP_FOLDER: &str = ".malachite";
@@ -35,14 +34,13 @@ pub struct Args {
     #[arg(long, global = true, value_name = "HOME_DIR")]
     pub home: Option<PathBuf>,
 
-    #[clap(
-        long,
-        global = true,
-        help = "Enable debug output for the given comma-separated sections",
-        value_enum,
-        value_delimiter = ','
-    )]
-    pub debug: Vec<DebugSection>,
+    /// Log level (default: `malachite=debug`)
+    #[arg(long, global = true, value_name = "LOG_LEVEL")]
+    pub log_level: Option<LogLevel>,
+
+    /// Log format (default: `plaintext`)
+    #[arg(long, global = true, value_name = "LOG_FORMAT")]
+    pub log_format: Option<LogFormat>,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -105,6 +103,11 @@ impl Args {
         Ok(self.get_config_dir()?.join(GENESIS_FILE))
     }
 
+    /// get_log_level_or_default returns the log level from the command-line or the default value.
+    pub fn get_log_level_or_default(&self) -> LogLevel {
+        self.log_level.unwrap_or_default()
+    }
+
     /// get_priv_validator_key_file_path returns the private validator key file path based on the
     /// configuration folder.
     pub fn get_priv_validator_key_file_path(&self) -> Result<PathBuf> {
@@ -114,13 +117,20 @@ impl Args {
     /// load_config returns a configuration compiled from the input parameters
     pub fn load_config(&self) -> Result<Config> {
         let config_file = self.get_config_file_path()?;
-        info!("Loading configuration from {:?}", config_file.display());
 
-        let config = config::Config::builder()
+        let mut config: Config = config::Config::builder()
             .add_source(config::File::from(config_file))
             .add_source(config::Environment::with_prefix("MALACHITE").separator("__"))
             .build()?
             .try_deserialize()?;
+
+        if let Some(log_level) = self.log_level {
+            config.logging.log_level = log_level;
+        }
+
+        if let Some(log_format) = self.log_format {
+            config.logging.log_format = log_format;
+        }
 
         Ok(config)
     }
@@ -155,16 +165,26 @@ where
 
 #[cfg(test)]
 mod tests {
+    use malachite_node::config::LogLevel;
+
     use super::*;
 
     #[test]
     fn args_struct() {
-        let args = Args::parse_from(["test", "--debug", "ractor", "init"]);
-        assert_eq!(args.debug, vec![DebugSection::Ractor]);
+        let args = Args::parse_from([
+            "test",
+            "--log-level",
+            "warn",
+            "--log-format",
+            "json",
+            "init",
+        ]);
+        assert_eq!(args.log_level, Some(LogLevel::Warn));
+        assert_eq!(args.log_format, Some(LogFormat::Json));
         assert!(matches!(args.command, Commands::Init(_)));
 
         let args = Args::parse_from(["test", "start"]);
-        assert_eq!(args.debug, vec![]);
+        assert_eq!(args.log_level, None);
         assert!(matches!(args.command, Commands::Start(_)));
     }
 

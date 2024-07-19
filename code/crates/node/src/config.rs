@@ -43,6 +43,9 @@ pub struct Config {
     /// The name of the application to run
     pub app: App,
 
+    /// Log configuration options
+    pub logging: LoggingConfig,
+
     /// Consensus configuration options
     pub consensus: ConsensusConfig,
 
@@ -217,6 +220,79 @@ impl Default for TestConfig {
     }
 }
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct LoggingConfig {
+    pub log_level: LogLevel,
+    pub log_format: LogFormat,
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    Trace,
+    #[default]
+    Debug,
+    Warn,
+    Info,
+    Error,
+}
+
+impl FromStr for LogLevel {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "trace" => Ok(LogLevel::Trace),
+            "debug" => Ok(LogLevel::Debug),
+            "warn" => Ok(LogLevel::Warn),
+            "info" => Ok(LogLevel::Info),
+            "error" => Ok(LogLevel::Error),
+            e => Err(format!("Invalid log level: {e}")),
+        }
+    }
+}
+
+impl fmt::Display for LogLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogLevel::Trace => write!(f, "trace"),
+            LogLevel::Debug => write!(f, "debug"),
+            LogLevel::Warn => write!(f, "warn"),
+            LogLevel::Info => write!(f, "info"),
+            LogLevel::Error => write!(f, "error"),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogFormat {
+    #[default]
+    Plaintext,
+    Json,
+}
+
+impl FromStr for LogFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "plaintext" => Ok(LogFormat::Plaintext),
+            "json" => Ok(LogFormat::Json),
+            e => Err(format!("Invalid log format: {e}")),
+        }
+    }
+}
+
+impl fmt::Display for LogFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogFormat::Plaintext => write!(f, "plaintext"),
+            LogFormat::Json => write!(f, "json"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,5 +303,61 @@ mod tests {
         let config = toml::from_str::<Config>(file).unwrap();
         assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
         assert_eq!(config.test, TestConfig::default());
+    }
+
+    #[test]
+    fn log_format() {
+        assert_eq!(
+            LogFormat::from_str("yaml"),
+            Err("Invalid log format: yaml".to_string())
+        )
+    }
+
+    #[test]
+    fn parse_invalid_app() {
+        assert_eq!(
+            App::from_str("invalid"),
+            Err("unknown application: invalid, available: starknet".to_string())
+        );
+    }
+
+    #[test]
+    fn timeout_durations() {
+        let t = TimeoutConfig::default();
+        assert_eq!(t.timeout_duration(TimeoutStep::Propose), t.timeout_propose);
+        assert_eq!(t.timeout_duration(TimeoutStep::Prevote), t.timeout_prevote);
+        assert_eq!(
+            t.timeout_duration(TimeoutStep::Precommit),
+            t.timeout_precommit
+        );
+        assert_eq!(t.timeout_duration(TimeoutStep::Commit), t.timeout_commit);
+    }
+
+    #[test]
+    fn runtime_multi_threaded() {
+        assert_eq!(
+            RuntimeConfig::multi_threaded(5),
+            RuntimeConfig::MultiThreaded { worker_threads: 5 }
+        );
+    }
+
+    #[test]
+    fn log_formatting() {
+        assert_eq!(
+            format!(
+                "{} {} {} {} {}",
+                LogLevel::Trace,
+                LogLevel::Debug,
+                LogLevel::Warn,
+                LogLevel::Info,
+                LogLevel::Error
+            ),
+            "trace debug warn info error"
+        );
+
+        assert_eq!(
+            format!("{} {}", LogFormat::Plaintext, LogFormat::Json),
+            "plaintext json"
+        );
     }
 }

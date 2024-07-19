@@ -7,7 +7,7 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Context, Result};
 use tracing::{info, warn};
 
-use malachite_node::config::{App, Config};
+use malachite_node::config::{App, Config, LogFormat, LogLevel};
 use malachite_test::ValidatorSet as Genesis;
 
 use crate::cmd::testnet::{
@@ -33,6 +33,8 @@ impl InitCmd {
         config_file: &Path,
         genesis_file: &Path,
         priv_validator_key_file: &Path,
+        log_level: LogLevel,
+        log_format: LogFormat,
     ) -> Result<()> {
         // Save default configuration
         if config_file.exists() && !self.overwrite {
@@ -44,7 +46,14 @@ impl InitCmd {
             info!("Saving configuration to {:?}", config_file);
             save_config(
                 config_file,
-                &generate_config(self.app, 0, 1, RuntimeFlavour::SingleThreaded),
+                &generate_config(
+                    self.app,
+                    0,
+                    1,
+                    RuntimeFlavour::SingleThreaded,
+                    log_level,
+                    log_format,
+                ),
             )?;
         }
 

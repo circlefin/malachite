@@ -1,47 +1,19 @@
-use core::fmt;
-
-use clap::ValueEnum;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::FmtSubscriber;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
-pub enum DebugSection {
-    Ractor,
-}
+use malachite_node::config::{LogFormat, LogLevel};
 
-#[allow(dead_code)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum LogLevel {
-    Trace,
-    Debug,
-    Info,
-    Warn,
-    Error,
-}
+pub fn init(log_level: LogLevel, log_format: LogFormat) {
+    let log_level = if let Ok(rust_log) = std::env::var("RUST_LOG") {
+        rust_log
+    } else {
+        log_level.to_string()
+    };
 
-impl Default for LogLevel {
-    fn default() -> Self {
-        Self::Info
-    }
-}
+    dbg!(&log_level);
 
-impl fmt::Display for LogLevel {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match self {
-            LogLevel::Trace => write!(f, "trace"),
-            LogLevel::Debug => write!(f, "debug"),
-            LogLevel::Info => write!(f, "info"),
-            LogLevel::Warn => write!(f, "warn"),
-            LogLevel::Error => write!(f, "error"),
-        }
-    }
-}
-
-pub fn init(log_level: LogLevel, debug_sections: &[DebugSection]) {
-    color_eyre::install().expect("Failed to install global error handler");
-
-    let filter = build_tracing_filter(log_level, debug_sections);
+    let filter = build_tracing_filter(&log_level);
 
     // Construct a tracing subscriber with the supplied filter and enable reloading.
     let builder = FmtSubscriber::builder()
@@ -51,8 +23,17 @@ pub fn init(log_level: LogLevel, debug_sections: &[DebugSection]) {
         .with_ansi(enable_ansi())
         .with_thread_ids(false);
 
-    let subscriber = builder.finish();
-    subscriber.init();
+    // There must be a better way to use conditionals in the builder pattern.
+    match log_format {
+        LogFormat::Plaintext => {
+            let subscriber = builder.finish();
+            subscriber.init();
+        }
+        LogFormat::Json => {
+            let subscriber = builder.json().finish();
+            subscriber.init();
+        }
+    };
 }
 
 /// Check if both stdout and stderr are proper terminal (tty),
@@ -64,37 +45,29 @@ pub fn enable_ansi() -> bool {
     std::io::stdout().is_terminal() && std::io::stderr().is_terminal()
 }
 
-/// The relayer crates targeted by the default log level.
-const TARGET_CRATES: &[&str] = &["malachite"];
-
-/// Build a tracing directive setting the log level for the relayer crates to the
-/// given `log_level`.
-pub fn default_directive(log_level: LogLevel) -> String {
-    use itertools::Itertools;
-
-    TARGET_CRATES
-        .iter()
-        .map(|&c| format!("{c}={log_level}"))
-        .join(",")
-}
-
-/// Builds a tracing filter based on the input `log_level`.
+/// Builds a tracing filter based on the input `log_levels`.
 /// Enables tracing exclusively for the relayer crates.
 /// Returns error if the filter failed to build.
-fn build_tracing_filter(default_level: LogLevel, debug_sections: &[DebugSection]) -> EnvFilter {
-    let mut directive =
-        std::env::var("RUST_LOG").unwrap_or_else(|_| default_directive(default_level));
+fn build_tracing_filter(log_levels: &str) -> EnvFilter {
+    // Prefer RUST_LOG as the default setting.
+    let mut directive = EnvFilter::from_default_env();
 
-    if debug_sections.contains(&DebugSection::Ractor) {
-        // Enable debug tracing for the `ractor` crate as well
-        directive.push_str(",ractor=debug");
-    }
+    if !log_levels.is_empty() {
+        for log_level in log_levels.split(',') {
+            // app_log_level: no target means only the application log should be targeted
+            // https://github.com/informalsystems/malachite/pull/287#discussion_r1684212675
+            let app_log_level = if !log_level.contains('=') {
+                format!("malachite={log_level}")
+            } else {
+                log_level.to_string()
+            };
 
-    // Build the filter directive
-    match EnvFilter::try_new(&directive) {
-        Ok(out) => out,
-        Err(e) => panic!(
-            "ERROR: unable to initialize Malachite with log filtering directive {directive:?}: {e}"
-        ),
+            directive = directive.add_directive(
+                app_log_level
+                    .parse()
+                    .unwrap_or_else(|e| panic!("Invalid log level '{log_level}': {e}")),
+            )
+        }
     }
+    directive
 }
