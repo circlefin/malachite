@@ -13,11 +13,9 @@ use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
+use libp2p_tls as _; // https://github.com/informalsystems/malachite/issues/269
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
-
-// To make lint CI happy, remove once https://github.com/libp2p/rust-libp2p/issues/5487 is resolved
-pub use rustls;
 
 use malachite_common::Context;
 use malachite_metrics::SharedRegistry;

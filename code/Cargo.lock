@@ -1964,9 +1964,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-tls"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "251b17aebdd29df7e8f80e4d94b782fae42e934c49086e1a81ba23b60a8314f2"
+checksum = "72b7b831e55ce2aa6c354e6861a85fdd4dd0a2b97d5e276fabac0e4810a71776"
 dependencies = [
  "futures",
  "futures-rustls",
@@ -2144,13 +2144,13 @@ dependencies = [
  "derive-where",
  "futures",
  "libp2p",
+ "libp2p-tls",
  "malachite-common",
  "malachite-consensus",
  "malachite-metrics",
  "malachite-proto",
  "prost",
  "prost-types",
- "rustls",
  "tokio",
  "tracing",
 ]
@@ -2162,6 +2162,7 @@ dependencies = [
  "blake3",
  "futures",
  "libp2p",
+ "libp2p-tls",
  "malachite-metrics",
  "malachite-proto",
  "prost",
