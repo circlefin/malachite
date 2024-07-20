@@ -114,7 +114,7 @@ write_files:
   - path: /etc/systemd/resolved.conf.d/DigitalOcean.conf
     content: |
       [Resolve]
-      DNS=${cc.internal_ip}
+      DNS=${cc.ip}
 # Force resolv to use DNS for host resolution
   - path: /etc/nsswitch.conf
     content: |

@@ -216,7 +216,7 @@ _change_config() {
       "metrics.listen_addr=0.0.0.0:9000" && \
     sconfig "$file" -t stringSlice \
       "consensus.p2p.persistent_peers=$(_compose_persistent_peers)" \
-      "mempool.p2p.persistent_peers=$(_compose_persistent_peers 28000)" &
+      "mempool.p2p.persistent_peers=$(_compose_persistent_peers 28000)"
   done
 }
 
