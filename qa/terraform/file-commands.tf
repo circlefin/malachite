@@ -1,15 +1,12 @@
 resource "local_file" "commands" {
   content = templatefile("templates/commands.tmpl", {
     path     = abspath(path.root),
-    region_a = var.region_a,
-    region_b = var.region_b,
-    region_c = var.region_c,
     ips      = [
-      for node in concat(digitalocean_droplet.small_a, digitalocean_droplet.large_a, digitalocean_droplet.small_b, digitalocean_droplet.large_b, digitalocean_droplet.small_c, digitalocean_droplet.large_c) :
+      for node in concat(digitalocean_droplet.ams3, digitalocean_droplet.blr1, digitalocean_droplet.fra1, digitalocean_droplet.lon1, digitalocean_droplet.nyc1, digitalocean_droplet.nyc3, digitalocean_droplet.sfo2, digitalocean_droplet.sfo3, digitalocean_droplet.sgp1, digitalocean_droplet.syd1, digitalocean_droplet.tor1) :
       node.ipv4_address
     ],
     nodes = [
-      for node in concat(digitalocean_droplet.small_a, digitalocean_droplet.large_a, digitalocean_droplet.small_b, digitalocean_droplet.large_b, digitalocean_droplet.small_c, digitalocean_droplet.large_c) :
+      for node in concat(digitalocean_droplet.ams3, digitalocean_droplet.blr1, digitalocean_droplet.fra1, digitalocean_droplet.lon1, digitalocean_droplet.nyc1, digitalocean_droplet.nyc3, digitalocean_droplet.sfo2, digitalocean_droplet.sfo3, digitalocean_droplet.sgp1, digitalocean_droplet.syd1, digitalocean_droplet.tor1) :
       {
         name        = node.name,
         ip          = node.ipv4_address,

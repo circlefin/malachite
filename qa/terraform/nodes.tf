@@ -10,11 +10,9 @@ variable "instance_tags" {
 resource "digitalocean_droplet" "cc" {
   name      = "cc"
   image     = "debian-12-x64"
-  region    = var.region_a
-  tags      = concat(var.instance_tags, ["cc"])
-  size      = "s-4vcpu-8gb"
-  #size      = "g-4vcpu-16gb"
-  #size      = "g-8vcpu-32gb"
+  region    = "tor1"
+  tags      = concat(var.instance_tags, ["cc", "tor1"])
+  size      = var.cc_size
   ssh_keys  = var.ssh_keys
   user_data = templatefile("user-data/cc-data.txt", {
     prometheus_config = filebase64("../viewer/config-prometheus/prometheus.yml")
@@ -24,18 +22,17 @@ resource "digitalocean_droplet" "cc" {
   })
 }
 
-resource "digitalocean_droplet" "small_a" {
+resource "digitalocean_droplet" "ams3" {
   depends_on = [digitalocean_droplet.cc]
-  count      = var.small_a
-  name       = "node${count.index}"
+  count      = var.ams3
+  name       = "ams3-${count.index}"
   image      = "debian-12-x64"
-  region     = var.region_a
-  tags       = concat(var.instance_tags, ["small", var.region_a])
-  size       = "s-4vcpu-8gb"
-  #size       = "g-2vcpu-8gb"
+  region     = "ams3"
+  tags       = concat(var.instance_tags, ["ams3", "ams3-${count.index}"])
+  size       = var.ams3_size
   ssh_keys   = var.ssh_keys
   user_data  = templatefile("user-data/user-data.txt", {
-    id = count.index
+    id = "ams3-${count.index}"
     cc = {
       name        = digitalocean_droplet.cc.name
       ip          = digitalocean_droplet.cc.ipv4_address
@@ -44,17 +41,17 @@ resource "digitalocean_droplet" "small_a" {
   })
 }
 
-resource "digitalocean_droplet" "large_a" {
+resource "digitalocean_droplet" "blr1" {
   depends_on = [digitalocean_droplet.cc]
-  count      = var.large_a
-  name       = "node${var.small_a + count.index}"
+  count      = var.blr1
+  name       = "blr1-${count.index}"
   image      = "debian-12-x64"
-  region     = var.region_a
-  tags       = concat(var.instance_tags, ["large", var.region_a])
-  size       = "g-4vcpu-16gb"
+  region     = "blr1"
+  tags       = concat(var.instance_tags, ["blr1", "blr1-${count.index}"])
+  size       = var.blr1_size
   ssh_keys   = var.ssh_keys
   user_data  = templatefile("user-data/user-data.txt", {
-    id = var.small_a + count.index
+    id = "blr1-${count.index}"
     cc = {
       name        = digitalocean_droplet.cc.name
       ip          = digitalocean_droplet.cc.ipv4_address
@@ -63,17 +60,17 @@ resource "digitalocean_droplet" "large_a" {
   })
 }
 
-resource "digitalocean_droplet" "small_b" {
+resource "digitalocean_droplet" "fra1" {
   depends_on = [digitalocean_droplet.cc]
-  count      = var.small_b
-  name       = "node${var.small_a + var.large_a + count.index}"
+  count      = var.fra1
+  name       = "fra1-${count.index}"
   image      = "debian-12-x64"
-  region     = var.region_b
-  tags       = concat(var.instance_tags, ["small", var.region_b])
-  size       = "g-2vcpu-8gb"
+  region     = "fra1"
+  tags       = concat(var.instance_tags, ["fra1", "fra1-${count.index}"])
+  size       = var.fra1_size
   ssh_keys   = var.ssh_keys
   user_data  = templatefile("user-data/user-data.txt", {
-    id = var.small_a + var.large_a + count.index
+    id = "fra1-${count.index}"
     cc = {
       name        = digitalocean_droplet.cc.name
       ip          = digitalocean_droplet.cc.ipv4_address
@@ -82,17 +79,17 @@ resource "digitalocean_droplet" "small_b" {
   })
 }
 
-resource "digitalocean_droplet" "large_b" {
+resource "digitalocean_droplet" "lon1" {
   depends_on = [digitalocean_droplet.cc]
-  count      = var.large_b
-  name       = "node${var.small_a + var.large_a + var.small_b + count.index}"
+  count      = var.lon1
+  name       = "lon1-${count.index}"
   image      = "debian-12-x64"
-  region     = var.region_b
-  tags       = concat(var.instance_tags, ["large", var.region_b])
-  size       = "g-4vcpu-16gb"
+  region     = "lon1"
+  tags       = concat(var.instance_tags, ["lon1", "lon1-${count.index}"])
+  size       = var.lon1_size
   ssh_keys   = var.ssh_keys
   user_data  = templatefile("user-data/user-data.txt", {
-    id = var.small_a + var.large_a + var.small_b + count.index
+    id = "lon1-${count.index}"
     cc = {
       name        = digitalocean_droplet.cc.name
       ip          = digitalocean_droplet.cc.ipv4_address
@@ -101,17 +98,17 @@ resource "digitalocean_droplet" "large_b" {
   })
 }
 
-resource "digitalocean_droplet" "small_c" {
+resource "digitalocean_droplet" "nyc1" {
   depends_on = [digitalocean_droplet.cc]
-  count      = var.small_c
-  name       = "node${var.small_a + var.large_a + var.small_b + var.large_b + count.index}"
+  count      = var.nyc1
+  name       = "nyc1-${count.index}"
   image      = "debian-12-x64"
-  region     = var.region_c
-  tags       = concat(var.instance_tags, ["small", var.region_c])
-  size       = "g-2vcpu-8gb"
+  region     = "nyc1"
+  tags       = concat(var.instance_tags, ["nyc1", "nyc1-${count.index}"])
+  size       = var.nyc1_size
   ssh_keys   = var.ssh_keys
   user_data  = templatefile("user-data/user-data.txt", {
-    id = var.small_a + var.large_a + var.small_b + var.large_b + count.index
+    id = "nyc1-${count.index}"
     cc = {
       name        = digitalocean_droplet.cc.name
       ip          = digitalocean_droplet.cc.ipv4_address
@@ -120,17 +117,112 @@ resource "digitalocean_droplet" "small_c" {
   })
 }
 
-resource "digitalocean_droplet" "large_c" {
+resource "digitalocean_droplet" "nyc3" {
   depends_on = [digitalocean_droplet.cc]
-  count      = var.large_c
-  name       = "node${var.small_a + var.large_a + var.small_b + var.large_b + var.small_c + count.index}"
+  count      = var.nyc3
+  name       = "nyc3-${count.index}"
   image      = "debian-12-x64"
-  region     = var.region_c
-  tags       = concat(var.instance_tags, ["large", var.region_c])
-  size       = "g-4vcpu-16gb"
+  region     = "nyc3"
+  tags       = concat(var.instance_tags, ["nyc3", "nyc3-${count.index}"])
+  size       = var.nyc3_size
   ssh_keys   = var.ssh_keys
   user_data  = templatefile("user-data/user-data.txt", {
-    id = var.small_a + var.large_a + var.small_b + var.small_b + var.large_b + var.small_c + count.index
+    id = "nyc3-${count.index}"
+    cc = {
+      name        = digitalocean_droplet.cc.name
+      ip          = digitalocean_droplet.cc.ipv4_address
+      internal_ip = digitalocean_droplet.cc.ipv4_address_private
+    }
+  })
+}
+
+resource "digitalocean_droplet" "sfo2" {
+  depends_on = [digitalocean_droplet.cc]
+  count      = var.sfo2
+  name       = "sfo2-${count.index}"
+  image      = "debian-12-x64"
+  region     = "sfo2"
+  tags       = concat(var.instance_tags, ["sfo2", "sfo2-${count.index}"])
+  size       = var.sfo2_size
+  ssh_keys   = var.ssh_keys
+  user_data  = templatefile("user-data/user-data.txt", {
+    id = "sfo2-${count.index}"
+    cc = {
+      name        = digitalocean_droplet.cc.name
+      ip          = digitalocean_droplet.cc.ipv4_address
+      internal_ip = digitalocean_droplet.cc.ipv4_address_private
+    }
+  })
+}
+
+resource "digitalocean_droplet" "sfo3" {
+  depends_on = [digitalocean_droplet.cc]
+  count      = var.sfo3
+  name       = "sfo3-${count.index}"
+  image      = "debian-12-x64"
+  region     = "sfo3"
+  tags       = concat(var.instance_tags, ["sfo3", "sfo3-${count.index}"])
+  size       = var.sfo3_size
+  ssh_keys   = var.ssh_keys
+  user_data  = templatefile("user-data/user-data.txt", {
+    id = "sfo3-${count.index}"
+    cc = {
+      name        = digitalocean_droplet.cc.name
+      ip          = digitalocean_droplet.cc.ipv4_address
+      internal_ip = digitalocean_droplet.cc.ipv4_address_private
+    }
+  })
+}
+
+resource "digitalocean_droplet" "sgp1" {
+  depends_on = [digitalocean_droplet.cc]
+  count      = var.sgp1
+  name       = "sgp1-${count.index}"
+  image      = "debian-12-x64"
+  region     = "sgp1"
+  tags       = concat(var.instance_tags, ["sgp1", "sgp1-${count.index}"])
+  size       = var.sgp1_size
+  ssh_keys   = var.ssh_keys
+  user_data  = templatefile("user-data/user-data.txt", {
+    id = "sgp1-${count.index}"
+    cc = {
+      name        = digitalocean_droplet.cc.name
+      ip          = digitalocean_droplet.cc.ipv4_address
+      internal_ip = digitalocean_droplet.cc.ipv4_address_private
+    }
+  })
+}
+
+resource "digitalocean_droplet" "syd1" {
+  depends_on = [digitalocean_droplet.cc]
+  count      = var.syd1
+  name       = "syd1-${count.index}"
+  image      = "debian-12-x64"
+  region     = "syd1"
+  tags       = concat(var.instance_tags, ["syd1", "syd1-${count.index}"])
+  size       = var.syd1_size
+  ssh_keys   = var.ssh_keys
+  user_data  = templatefile("user-data/user-data.txt", {
+    id = "syd1-${count.index}"
+    cc = {
+      name        = digitalocean_droplet.cc.name
+      ip          = digitalocean_droplet.cc.ipv4_address
+      internal_ip = digitalocean_droplet.cc.ipv4_address_private
+    }
+  })
+}
+
+resource "digitalocean_droplet" "tor1" {
+  depends_on = [digitalocean_droplet.cc]
+  count      = var.tor1
+  name       = "tor1-${count.index}"
+  image      = "debian-12-x64"
+  region     = "tor1"
+  tags       = concat(var.instance_tags, ["tor1", "tor1-${count.index}"])
+  size       = var.tor1_size
+  ssh_keys   = var.ssh_keys
+  user_data  = templatefile("user-data/user-data.txt", {
+    id = "tor1-${count.index}"
     cc = {
       name        = digitalocean_droplet.cc.name
       ip          = digitalocean_droplet.cc.ipv4_address
