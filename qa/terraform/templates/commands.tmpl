@@ -57,6 +57,22 @@ get_ip() {
   echo "IP for node $I not found" && return 1
 }
 
+get_id() {
+  I="$1"
+%{~ for i, n in nodes }
+  test "$I" = "${n.name}" && echo "${i}" && return
+%{~ endfor }
+  echo "id for hostname $I not found" && return 1
+}
+
+get_hostname() {
+  I="$1"
+%{~ for i, n in nodes }
+  test "$I" -eq "${i}" && echo "${n.name}" && return
+%{~ endfor }
+  echo "hostname for node $I not found" && return 1
+}
+
 ok_cc() {
   PSSH_P=1 PSSH_H=$CANDC xssh "cat /etc/done" && \
   scp -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -C $${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh} root@$${CANDC}:/etc/profile.d/commands.sh && \
@@ -82,8 +98,9 @@ setup_config() {
     docker run -d --pull always --dns $CANDC -v /data:/data -e RUST_LOG $CANDC/node --home /data testnet --nodes "$D_N" --deterministic
     _change_config all
     _change_test_du_jour
+    _create_hostname_links
   else
-    ssh -A -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$CANDC "source /etc/profile.d/commands.sh && docker run -d --pull always --dns $CANDC -v /data:/data -e RUST_LOG $CANDC/node --home /data testnet --nodes $D_N --deterministic && _change_config all && _change_test_du_jour"
+    ssh -A -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$CANDC "source /etc/profile.d/commands.sh && docker run -d --pull always --dns $CANDC -v /data:/data -e RUST_LOG $CANDC/node --home /data testnet --nodes $D_N --deterministic && _change_config all && _change_test_du_jour && _create_hostname_links"
   fi
 }
 
@@ -135,6 +152,8 @@ EOF
 
 # TODO: update to prometheus docker volume
 get_prometheus_data() {
+  echo "Todo: fix"
+  return
   if _is_cc; then
     rm -f prometheus.tgz
     systemctl stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 .
@@ -147,6 +166,8 @@ get_prometheus_data() {
 
 # TODO: update to prometheus docker volume
 _reset_prometheus_db() {
+  echo "Todo: fix"
+  return
   if _is_cc; then
     systemctl stop prometheus
     rm -rf /var/lib/prometheus/metrics2/*
@@ -225,6 +246,15 @@ _change_one_config_entry() {
   do
     file="/data/$i/config/config.toml"
     sconfig "$file" "$@"
+  done
+}
+
+_create_hostname_links() {
+  P="$(seq 0 $((D_N-1)))"
+  for i in $P
+  do
+    H=$(get_hostname $i)
+    ln -sf /data/$i /data/$H
   done
 }
 
