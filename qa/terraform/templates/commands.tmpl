@@ -282,10 +282,17 @@ _parse_multiple_hosts() {
 _change_test_du_jour() {
   _change_one_config_entry mempool.gossip_batch_size=0
   _change_one_config_entry test.time_allowance_factor=0.5
-  _change_one_config_entry test.txs_per_part=32
   _change_one_config_entry runtime.flavor=multi_threaded
   _change_one_config_entry -t int runtime.worker_threads=0
   _change_one_config_entry logging.log_format=json
+  # Minimize block size
+  _change_one_config_entry test.txs_per_part=1
+  _change_one_config_entry consensus.max_block_size=1KiB
+  _change_one_config_entry test.tx_size=1KiB
+  _change_one_config_entry test.txs_per_part=1
+  # Allow far-away nodes to keep in sync
+  _change_one_config_entry consensus.timeout_prevote=6s
+  _change_one_config_entry consensus.timeout_precommit=6s
 }
 
 _print_hosts() {
