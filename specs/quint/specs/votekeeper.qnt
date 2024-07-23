@@ -311,6 +311,36 @@ module votekeeper {
             assert(o6.bookkeeper.evidence != Set())
         }
 
+
+pure def validCommit (commit: Set[Vote]) : bool = 
+    // TODO: we can add a check about 2/3 of voting powers.
+    val v = chooseSome(commit)
+    v.valueId != Nil and v.voteType == Precommit and
+    commit.forall(x => x.height == v.height and x.round == v.round and x.valueId == v.valueId and x.voteType == Precommit)
+
+pure def commitRound (commit: Set[Vote]) : Round = chooseSome(commit).round
+pure def commitValue (commit: Set[Vote]) : Value = chooseSome(commit).valueId
+
+pure def applyCommit(keeper: Bookkeeper, commit: Set[Vote], weight: Weight, currentRound: Round): { bookkeeper: Bookkeeper, output: VoteKeeperOutput } =
+    if (not(validCommit(commit)))
+        { bookkeeper: keeper, output: NoVKOutput }
+    else
+        // figure out equivocation
+        // TODO: make sure the roundVotes properly incorporate the commit.
+        val round = commitRound(commit)
+        val roundVotes = keeper.rounds.getOrElse(round, newRoundVotes(keeper.height, round, keeper.totalWeight))
+        val oldPrecommits = roundVotes.precommits.receivedVotes
+        val doubleVotes = commit.filter(cv => oldPrecommits.exists(ov => cv.srcAddress == ov.srcAddress and cv.valueId != ov.valueId))
+        val newEvidence = doubleVotes.map(cv => Set(cv).union(oldPrecommits.filter(ov => cv.srcAddress == ov.srcAddress)))
+        val newkeeper = keeper.with("evidence", keeper.evidence.union(newEvidence))
+        match commitValue(commit) {
+            | Val(v) => { bookkeeper: newkeeper, output: PrecommitValueVKOutput((round, v)) }
+            | Nil => { bookkeeper: keeper, output: NoVKOutput }
+        }
+        
+        
+
+
     // Called by the driver to check if there is a specific threshold for a given round and voteType.
     // TO DISCUSS:
     // - The function does not consider Skip threshold. This because if the driver receives a Skip output
