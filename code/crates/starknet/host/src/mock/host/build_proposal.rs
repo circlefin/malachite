@@ -1,20 +1,22 @@
 #![allow(clippy::too_many_arguments)]
 
 use bytesize::ByteSize;
+use eyre::eyre;
 use sha2::{Digest, Sha256};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 
 use malachite_common::Round;
 
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::host::MockParams;
-use crate::mock::types::*;
+use crate::types::*;
 
 pub async fn build_proposal_task(
     height: Height,
     round: Round,
+    proposer: Address,
     params: MockParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -24,6 +26,7 @@ pub async fn build_proposal_task(
     if let Err(e) = run_build_proposal_task(
         height,
         round,
+        proposer,
         params,
         deadline,
         mempool,
@@ -39,6 +42,7 @@ pub async fn build_proposal_task(
 async fn run_build_proposal_task(
     height: Height,
     round: Round,
+    proposer: Address,
     params: MockParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -54,12 +58,31 @@ async fn run_build_proposal_task(
     let mut max_block_size_reached = false;
     let mut block_hasher = Sha256::new();
 
+    // Init
+    {
+        let part = ProposalPart::init(
+            height,
+            round,
+            sequence,
+            proposer.clone(),
+            ProposalInit {
+                block_number: height.as_u64(),
+                fork_id: 1, // TODO: Add fork id
+                proposal_round: round,
+            },
+        );
+
+        block_hasher.update(&part.to_sign_bytes());
+        tx_part.send(part).await?;
+        sequence += 1;
+    }
+
     loop {
         trace!(%height, %round, %sequence, "Building local value");
 
         let txes = mempool
             .call(
-                |reply| MempoolMsg::TxStream {
+                |reply| MempoolMsg::Reap {
                     height: height.as_u64(),
                     num_txes: params.txs_per_part,
                     reply,
@@ -67,9 +90,9 @@ async fn run_build_proposal_task(
                 Some(build_duration),
             )
             .await?
-            .success_or("Failed to get tx-es from the mempool")?;
+            .success_or(eyre!("Failed to reap transactions from the mempool"))?;
 
-        trace!("Reaped {} tx-es from the mempool", txes.len());
+        trace!("Reaped {} transactions from the mempool", txes.len());
 
         if txes.is_empty() {
             break;
@@ -83,17 +106,14 @@ async fn run_build_proposal_task(
                 break 'inner;
             }
 
-            block_hasher.update(tx.as_bytes());
-
             block_size += tx.size_bytes();
             tx_count += 1;
         }
 
-        let txes = txes.into_iter().take(tx_count).collect::<Vec<_>>();
-
-        tokio::time::sleep(params.exec_time_per_tx * tx_count as u32).await;
-
         block_tx_count += tx_count;
+
+        let exec_time = params.exec_time_per_tx * tx_count as u32;
+        tokio::time::sleep(exec_time).await;
 
         trace!(
             %sequence,
@@ -102,10 +122,22 @@ async fn run_build_proposal_task(
             start.elapsed()
         );
 
-        let part = ProposalPart::TxBatch(sequence, TransactionBatch::new(txes));
-        tx_part.send(part).await?;
+        // Transactions
+        {
+            let txes = txes.into_iter().take(tx_count).collect::<Vec<_>>();
 
-        sequence += 1;
+            let part = ProposalPart::transactions(
+                height,
+                round,
+                sequence,
+                proposer.clone(),
+                Transactions::new(txes),
+            );
+
+            block_hasher.update(&part.to_sign_bytes());
+            tx_part.send(part).await?;
+            sequence += 1;
+        }
 
         if max_block_size_reached {
             trace!("Max block size reached, stopping tx generation");
@@ -116,23 +148,50 @@ async fn run_build_proposal_task(
         }
     }
 
-    // TODO: Compute actual "proof"
-    let proof = vec![42];
+    // BlockProof
+    {
+        // TODO: Compute actual "proof"
+        let proof = vec![42];
+        let part = ProposalPart::block_proof(
+            height,
+            round,
+            sequence,
+            proposer.clone(),
+            BlockProof::new(vec![proof]),
+        );
 
-    let hash = block_hasher.finalize();
-    let block_hash = BlockHash::new(hash.into());
-    let block_metadata = BlockMetadata::new(proof, block_hash);
-    let part = ProposalPart::Metadata(sequence, block_metadata);
+        block_hasher.update(&part.to_sign_bytes());
+        tx_part.send(part).await?;
+        sequence += 1;
+    }
+
+    // Fin
+    {
+        let part = ProposalPart::fin(
+            height,
+            round,
+            sequence,
+            proposer.clone(),
+            ProposalFin {
+                valid_round: None, // TODO: What's this?
+            },
+        );
+
+        block_hasher.update(&part.to_sign_bytes());
+        tx_part.send(part).await?;
+        sequence += 1;
+    }
+
+    // Close the channel to signal no more parts to come
+    drop(tx_part);
+
+    let block_hash = BlockHash::new(block_hasher.finalize().into());
     let block_size = ByteSize::b(block_size as u64);
 
-    debug!(
+    trace!(
         tx_count = %block_tx_count, size = %block_size, hash = %block_hash, parts = %sequence,
         "Built block in {:?}", start.elapsed()
     );
-
-    // Send and then close the channel
-    tx_part.send(part).await?;
-    drop(tx_part);
 
     tx_block_hash
         .send(block_hash)

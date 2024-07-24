@@ -16,7 +16,7 @@ pub type Sequence = u64;
 //             the height and round should be forwarded here (see the TODOs in consensus)
 
 type Key<Height> = (Height, Round, Sequence);
-type Store<Ctx> = BTreeMap<Key<<Ctx as Context>::Height>, Arc<<Ctx as Context>::BlockPart>>;
+type Store<Ctx> = BTreeMap<Key<<Ctx as Context>::Height>, Arc<<Ctx as Context>::ProposalPart>>;
 
 #[derive_where(Clone, Debug)]
 pub struct PartStore<Ctx: Context> {
@@ -41,14 +41,14 @@ impl<Ctx: Context> PartStore<Ctx> {
         height: Ctx::Height,
         round: Round,
         sequence: Sequence,
-    ) -> Option<Arc<Ctx::BlockPart>> {
+    ) -> Option<Arc<Ctx::ProposalPart>> {
         self.store.get(&(height, round, sequence)).cloned()
     }
 
     /// Return all the parts for the given height and round, sorted by sequence in ascending order
-    pub fn all_parts(&self, height: Ctx::Height, round: Round) -> Vec<Arc<Ctx::BlockPart>> {
+    pub fn all_parts(&self, height: Ctx::Height, round: Round) -> Vec<Arc<Ctx::ProposalPart>> {
         use itertools::Itertools;
-        use malachite_common::BlockPart;
+        use malachite_common::ProposalPart;
 
         self.store
             .iter()
@@ -59,8 +59,8 @@ impl<Ctx: Context> PartStore<Ctx> {
             .collect()
     }
 
-    pub fn store(&mut self, block_part: Ctx::BlockPart) {
-        use malachite_common::BlockPart;
+    pub fn store(&mut self, block_part: Ctx::ProposalPart) {
+        use malachite_common::ProposalPart;
 
         let height = block_part.height();
         let round = block_part.round();

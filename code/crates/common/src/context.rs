@@ -1,6 +1,6 @@
 use crate::{
-    Address, BlockPart, Height, NilOrVal, Proposal, PublicKey, Round, SignedBlockPart,
-    SignedProposal, SignedVote, SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
+    Address, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, SignedProposal,
+    SignedProposalPart, SignedVote, SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
 };
 
 /// This trait allows to abstract over the various datatypes
@@ -18,7 +18,7 @@ where
     type Height: Height;
 
     /// The type of block part
-    type BlockPart: BlockPart<Self>;
+    type ProposalPart: ProposalPart<Self>;
 
     /// The interface provided by the proposal type.
     type Proposal: Proposal<Self>;
@@ -59,12 +59,12 @@ where
     ) -> bool;
 
     /// Sign the block part with our private key.
-    fn sign_block_part(&self, block_part: Self::BlockPart) -> SignedBlockPart<Self>;
+    fn sign_proposal_part(&self, block_part: Self::ProposalPart) -> SignedProposalPart<Self>;
 
     /// Verify the given block part signature using the given public key.
-    fn verify_signed_block_part(
+    fn verify_signed_proposal_part(
         &self,
-        signed_block_part: &SignedBlockPart<Self>,
+        signed_block_part: &SignedProposalPart<Self>,
         public_key: &PublicKey<Self>,
     ) -> bool;
 

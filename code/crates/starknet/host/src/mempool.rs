@@ -1,22 +1,20 @@
 use std::collections::{BTreeMap, VecDeque};
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use malachite_proto::Protobuf;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::distributions::Uniform;
 use rand::Rng;
 use tracing::{info, trace};
 
+use malachite_actors::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
+use malachite_actors::util::forward::forward;
 use malachite_gossip_mempool::types::MempoolTransactionBatch;
 use malachite_gossip_mempool::{Channel, Event as GossipEvent, NetworkMsg, PeerId};
 use malachite_node::config::{MempoolConfig, TestConfig};
+use malachite_proto::Protobuf;
 
-use malachite_actors::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
-use malachite_actors::util::forward::forward;
-
-use crate::mock::types::{Transaction, TransactionBatch};
+use crate::types::{Hash, Transaction, Transactions};
 
 pub type MempoolRef = ActorRef<MempoolMsg>;
 
@@ -29,20 +27,20 @@ pub struct Mempool {
 pub enum MempoolMsg {
     GossipEvent(Arc<GossipEvent>),
     Input(Transaction),
-    TxStream {
+    Reap {
         height: u64,
         num_txes: usize,
         reply: RpcReplyPort<Vec<Transaction>>,
     },
     Update {
-        tx_hashes: Vec<u64>,
+        tx_hashes: Vec<Hash>,
     },
 }
 
 #[allow(dead_code)]
 pub struct State {
     pub msg_queue: VecDeque<MempoolMsg>,
-    pub transactions: BTreeMap<u64, Transaction>,
+    pub transactions: BTreeMap<Hash, Transaction>,
 }
 
 impl State {
@@ -54,13 +52,10 @@ impl State {
     }
 
     pub fn add_tx(&mut self, tx: &Transaction) {
-        let mut hash = DefaultHasher::new();
-        tx.hash(&mut hash);
-        let key = hash.finish();
-        self.transactions.entry(key).or_insert(tx.clone());
+        self.transactions.entry(tx.hash()).or_insert(tx.clone());
     }
 
-    pub fn remove_tx(&mut self, hash: &u64) {
+    pub fn remove_tx(&mut self, hash: &Hash) {
         self.transactions.remove_entry(hash);
     }
 }
@@ -138,14 +133,14 @@ impl Mempool {
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
             NetworkMsg::TransactionBatch(batch) => {
-                let Ok(batch) = TransactionBatch::from_any(&batch.transaction_batch) else {
+                let Ok(batch) = Transactions::from_any(&batch.transaction_batch) else {
                     // TODO: Log error
                     return Ok(());
                 };
 
                 trace!(%from, "Received batch with {} transactions", batch.len());
 
-                for tx in batch.into_transactions() {
+                for tx in batch.into_vec() {
                     myself.cast(MempoolMsg::Input(tx))?;
                 }
             }
@@ -178,7 +173,7 @@ impl Actor for Mempool {
         Ok(State::new())
     }
 
-    #[tracing::instrument(name = "mempool", skip(self, myself, msg, state))]
+    #[tracing::instrument("starknet.mempool", skip(self, myself, msg, state))]
     async fn handle(
         &self,
         myself: MempoolRef,
@@ -198,7 +193,7 @@ impl Actor for Mempool {
                 }
             }
 
-            MempoolMsg::TxStream {
+            MempoolMsg::Reap {
                 reply, num_txes, ..
             } => {
                 let txes = generate_and_broadcast_txes(
@@ -213,9 +208,9 @@ impl Actor for Mempool {
             }
 
             MempoolMsg::Update { .. } => {
+                // FIXME: Remove only the given txes
                 // tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
 
-                // FIXME: Reset the mempool for now
                 state.transactions.clear();
             }
         }
@@ -242,7 +237,7 @@ fn generate_and_broadcast_txes(
     gossip_mempool: &GossipMempoolRef,
 ) -> Result<Vec<Transaction>, ActorProcessingErr> {
     let mut transactions = vec![];
-    let mut tx_batch = TransactionBatch::default();
+    let mut tx_batch = Transactions::default();
     let mut rng = rand::thread_rng();
 
     for _ in 0..count {
@@ -255,6 +250,7 @@ fn generate_and_broadcast_txes(
         if state.transactions.len() < config.max_tx_count {
             state.add_tx(&tx);
         }
+
         tx_batch.push(tx.clone());
 
         // Gossip tx-es to peers in batches

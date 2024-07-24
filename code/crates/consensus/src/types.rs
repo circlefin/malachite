@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 use malachite_common::{
-    BlockPart, Context, Proposal, Round, SignedBlockPart, SignedProposal, SignedVote, Validity,
-    Vote,
+    Context, Proposal, ProposalPart, Round, SignedProposal, SignedProposalPart, SignedVote,
+    Validity, Vote,
 };
 
 pub use libp2p_identity::PeerId;
@@ -12,7 +12,7 @@ pub use multiaddr::Multiaddr;
 pub enum GossipMsg<Ctx: Context> {
     Vote(SignedVote<Ctx>),
     Proposal(SignedProposal<Ctx>),
-    BlockPart(SignedBlockPart<Ctx>),
+    ProposalPart(SignedProposalPart<Ctx>),
 }
 
 /// A signed consensus message.
@@ -20,7 +20,7 @@ pub enum GossipMsg<Ctx: Context> {
 pub enum SignedMessage<Ctx: Context> {
     Vote(SignedVote<Ctx>),
     Proposal(SignedProposal<Ctx>),
-    BlockPart(SignedBlockPart<Ctx>),
+    ProposalPart(SignedProposalPart<Ctx>),
 }
 
 impl<Ctx: Context> GossipMsg<Ctx> {
@@ -28,7 +28,7 @@ impl<Ctx: Context> GossipMsg<Ctx> {
         match self {
             GossipMsg::Vote(msg) => Some(msg.vote.height()),
             GossipMsg::Proposal(msg) => Some(msg.proposal.height()),
-            GossipMsg::BlockPart(msg) => Some(msg.block_part.height()),
+            GossipMsg::ProposalPart(msg) => Some(msg.proposal_part.height()),
         }
     }
 }

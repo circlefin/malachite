@@ -43,8 +43,8 @@ pub enum HostMsg<Ctx: Context> {
     },
 
     /// BlockPart received <-- consensus <-- gossip
-    ReceivedBlockPart {
-        block_part: Ctx::BlockPart,
+    ReceivedProposalPart {
+        part: Ctx::ProposalPart,
         reply_to: RpcReplyPort<ReceivedProposedValue<Ctx>>,
     },
 

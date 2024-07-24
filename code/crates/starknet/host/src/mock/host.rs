@@ -13,7 +13,7 @@ use malachite_common::{Round, SignedVote};
 
 use crate::mempool::MempoolRef;
 use crate::mock::context::MockContext;
-use crate::mock::types::*;
+use crate::types::*;
 use crate::Host;
 
 mod build_proposal;
@@ -31,14 +31,21 @@ pub struct MockParams {
 pub struct MockHost {
     params: MockParams,
     mempool: MempoolRef,
+    address: Address,
     validator_set: ValidatorSet,
 }
 
 impl MockHost {
-    pub fn new(params: MockParams, mempool: MempoolRef, validator_set: ValidatorSet) -> Self {
+    pub fn new(
+        params: MockParams,
+        mempool: MempoolRef,
+        address: Address,
+        validator_set: ValidatorSet,
+    ) -> Self {
         Self {
             params,
             mempool,
+            address,
             validator_set,
         }
     }
@@ -72,20 +79,18 @@ impl Host for MockHost {
         let (tx_part, rx_content) = mpsc::channel(self.params.txs_per_part);
         let (tx_block_hash, rx_block_hash) = oneshot::channel();
 
-        let span = tracing::error_span!("build_new_proposal", %height, %round);
-        let (params, mempool) = (self.params, self.mempool.clone());
-
         tokio::spawn(
             build_proposal_task(
                 height,
                 round,
-                params,
+                self.address.clone(),
+                self.params,
                 deadline,
-                mempool,
+                self.mempool.clone(),
                 tx_part,
                 tx_block_hash,
             )
-            .instrument(span),
+            .instrument(tracing::Span::current()),
         );
 
         (rx_content, rx_block_hash)
@@ -105,6 +110,7 @@ impl Host for MockHost {
     ///
     /// Return
     /// - block_hash - ID of the content in the block.
+    #[tracing::instrument(skip_all, fields(%height))]
     async fn receive_proposal(
         &self,
         content: mpsc::Receiver<Self::ProposalPart>,
@@ -120,6 +126,7 @@ impl Host for MockHost {
     ///
     /// Returns:
     /// - content - A channel for sending the content of the proposal.
+    #[tracing::instrument(skip_all, fields(%block_hash))]
     async fn send_known_proposal(
         &self,
         block_hash: Self::BlockHash,
@@ -156,6 +163,7 @@ impl Host for MockHost {
     /// - brock_hash - The ID of the content which has been decided.
     /// - precommits - The list of precommits from the round the decision was made (both for and against).
     /// - height     - The height of the decision.
+    #[tracing::instrument(skip_all, fields(height = %_height, block_hash = %_block_hash))]
     async fn decision(
         &self,
         _block_hash: Self::BlockHash,

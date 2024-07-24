@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use signature::Signer;
 
-use malachite_common::{Round, SignedBlockPart};
+use malachite_common::{Round, SignedProposalPart};
 use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::{Address, Height, PrivateKey, TestContext, Value};
@@ -119,11 +119,11 @@ impl BlockPart {
         Protobuf::to_bytes(self).unwrap()
     }
 
-    pub fn signed(self, private_key: &PrivateKey) -> SignedBlockPart<TestContext> {
+    pub fn signed(self, private_key: &PrivateKey) -> SignedProposalPart<TestContext> {
         let signature = private_key.sign(&self.to_bytes());
 
-        SignedBlockPart {
-            block_part: self,
+        SignedProposalPart {
+            proposal_part: self,
             signature,
         }
     }
@@ -137,7 +137,7 @@ impl BlockPart {
     }
 }
 
-impl malachite_common::BlockPart<TestContext> for BlockPart {
+impl malachite_common::ProposalPart<TestContext> for BlockPart {
     fn height(&self) -> Height {
         self.height
     }

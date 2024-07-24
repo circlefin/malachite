@@ -51,9 +51,9 @@ where
     }
 }
 
-impl<Ctx: Context> Protobuf for common::SignedBlockPart<Ctx>
+impl<Ctx: Context> Protobuf for common::SignedProposalPart<Ctx>
 where
-    Ctx::BlockPart: Protobuf,
+    Ctx::ProposalPart: Protobuf,
 {
     type Proto = SignedBlockPart;
 
@@ -63,7 +63,7 @@ where
             .ok_or_else(|| Error::missing_field::<Self::Proto>("block_part"))?;
 
         Ok(Self {
-            block_part: Ctx::BlockPart::from_any(&block_part)?,
+            proposal_part: Ctx::ProposalPart::from_any(&block_part)?,
             signature: Ctx::SigningScheme::decode_signature(&proto.signature)
                 .map_err(|e| Error::Other(format!("Failed to decode signature: {e}")))?,
         })
@@ -71,7 +71,7 @@ where
 
     fn to_proto(&self) -> Result<Self::Proto, Error> {
         Ok(SignedBlockPart {
-            block_part: Some(self.block_part.to_any()?),
+            block_part: Some(self.proposal_part.to_any()?),
             signature: Ctx::SigningScheme::encode_signature(&self.signature),
         })
     }

@@ -610,7 +610,7 @@ where
                     info!(
                         height = %proposal.height(),
                         round = %proposal.round(),
-                        "Received proposal before all block parts, storing it"
+                        "Received proposal before all proposal parts, storing it"
                     );
 
                     // FIXME: Avoid mutating the driver state directly
@@ -619,7 +619,7 @@ where
             }
         }
 
-        GossipMsg::BlockPart(signed_block_part) => {
+        GossipMsg::ProposalPart(signed_block_part) => {
             let validator_address = signed_block_part.validator_address();
 
             let Some(validator) = state.driver.validator_set.get_by_address(validator_address)
@@ -628,7 +628,7 @@ where
                 return Ok(());
             };
 
-            let signed_msg = SignedMessage::BlockPart(signed_block_part.clone());
+            let signed_msg = SignedMessage::ProposalPart(signed_block_part.clone());
             let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
             if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
                 warn!(%from, validator = %validator_address, "Received invalid block part: {signed_block_part:?}");
@@ -636,7 +636,10 @@ where
             }
 
             // TODO: Verify that the proposal was signed by the proposer for the height and round, drop otherwise.
-            perform!(co, Effect::ReceivedBlockPart(signed_block_part.block_part));
+            perform!(
+                co,
+                Effect::ReceivedProposalPart(signed_block_part.proposal_part)
+            );
         }
     }
 
@@ -675,6 +678,10 @@ where
     Ok(())
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(%block.height, %block.round, ?block.validity, block.hash=%block.value.id())
+)]
 async fn on_received_block<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
@@ -692,7 +699,7 @@ where
         ..
     } = block;
 
-    info!(%height, %round, "Received block: {}", value.id());
+    info!("Received block");
 
     // Store the block and validity information. It will be removed when a decision is reached for that height.
     state
@@ -700,12 +707,16 @@ where
         .push((height, round, value.clone(), validity));
 
     if let Some(proposal) = state.driver.proposal.as_ref() {
+        debug!("We already have a proposal for this round, checking...");
+
         if height != proposal.height() || round != proposal.round() {
             // The block we received is not for the current proposal, ignoring
+            debug!("Block is not for the current proposal, ignoring...");
             return Ok(());
         }
 
         let validity = Validity::from_bool(proposal.value() == &value && validity.is_valid());
+        debug!("Applying proposal with validity {validity:?}");
 
         apply_driver_input(
             co,
@@ -714,6 +725,8 @@ where
             DriverInput::Proposal(proposal.clone(), validity),
         )
         .await?;
+    } else {
+        debug!("No proposal for this round yet, storing block for later");
     }
 
     Ok(())

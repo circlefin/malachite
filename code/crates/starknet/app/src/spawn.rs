@@ -20,7 +20,7 @@ use starknet_host::actor::StarknetHost;
 use starknet_host::mempool::{Mempool, MempoolRef};
 use starknet_host::mock::context::MockContext;
 use starknet_host::mock::host::{MockHost, MockParams};
-use starknet_host::mock::types::{Address, Height, PrivateKey, ProposalContent, ValidatorSet};
+use starknet_host::types::{Address, BlockHash, Height, PrivateKey, Validator, ValidatorSet};
 
 pub struct SpawnStarknetNode;
 
@@ -30,16 +30,26 @@ impl SpawnNodeActor for SpawnStarknetNode {
 
     async fn spawn_node_actor(
         node_config: NodeConfig,
-        validator_set: ValidatorSet,
-        validator_pkk: PrivateKey,
+        validator_set: malachite_test::ValidatorSet,
+        validator_pk: PrivateKey,
         node_pk: PrivateKey,
-        address: Address,
-        tx_decision: Option<mpsc::Sender<(Height, Round, ProposalContent)>>,
+        address: malachite_test::Address,
+        tx_decision: Option<mpsc::Sender<(Height, Round, BlockHash)>>,
     ) -> (NodeRef, JoinHandle<()>) {
+        let validator_set = ValidatorSet {
+            validators: validator_set
+                .validators
+                .into_iter()
+                .map(|val| Validator::new(val.public_key, val.voting_power))
+                .collect(),
+        };
+
+        let address = Address::new(address.into_inner());
+
         spawn_node_actor(
             node_config,
             validator_set,
-            validator_pkk,
+            validator_pk,
             node_pk,
             address,
             tx_decision,
@@ -54,7 +64,7 @@ pub async fn spawn_node_actor(
     validator_pk: PrivateKey,
     node_pk: PrivateKey,
     address: Address,
-    tx_decision: Option<mpsc::Sender<(Height, Round, ProposalContent)>>,
+    tx_decision: Option<mpsc::Sender<(Height, Round, BlockHash)>>,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(validator_pk.clone());
 
@@ -68,6 +78,7 @@ pub async fn spawn_node_actor(
     // Spawn the host actor
     let host = spawn_host_actor(
         &cfg,
+        &address,
         &initial_validator_set,
         mempool.clone(),
         metrics.clone(),
@@ -118,7 +129,7 @@ async fn spawn_consensus_actor(
     gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
     metrics: Metrics,
-    tx_decision: Option<mpsc::Sender<(Height, Round, ProposalContent)>>,
+    tx_decision: Option<mpsc::Sender<(Height, Round, BlockHash)>>,
 ) -> ConsensusRef<MockContext> {
     let consensus_params = ConsensusParams {
         start_height,
@@ -199,6 +210,7 @@ async fn spawn_gossip_mempool_actor(
 
 async fn spawn_host_actor(
     cfg: &NodeConfig,
+    address: &Address,
     initial_validator_set: &ValidatorSet,
     mempool: MempoolRef,
     metrics: Metrics,
@@ -211,7 +223,12 @@ async fn spawn_host_actor(
         exec_time_per_tx: cfg.test.exec_time_per_tx,
     };
 
-    let mock_host = MockHost::new(mock_params, mempool.clone(), initial_validator_set.clone());
+    let mock_host = MockHost::new(
+        mock_params,
+        mempool.clone(),
+        address.clone(),
+        initial_validator_set.clone(),
+    );
 
     StarknetHost::spawn(mock_host, mempool, metrics)
         .await

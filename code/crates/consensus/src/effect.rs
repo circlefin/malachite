@@ -58,7 +58,7 @@ where
 
     /// A BlockPart was received via the gossip layer
     /// Resume with: Resume::Continue
-    ReceivedBlockPart(Ctx::BlockPart),
+    ReceivedProposalPart(Ctx::ProposalPart),
 
     /// Verify a signature
     /// Resume with: Resume::SignatureValidity(valid)

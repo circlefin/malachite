@@ -64,8 +64,8 @@ pub fn enable_ansi() -> bool {
     std::io::stdout().is_terminal() && std::io::stderr().is_terminal()
 }
 
-/// The relayer crates targeted by the default log level.
-const TARGET_CRATES: &[&str] = &["malachite"];
+/// Common prefixes of the crates targeted by the default log level.
+const TARGET_CRATES: &[&str] = &["malachite", "starknet"];
 
 /// Build a tracing directive setting the log level for the relayer crates to the
 /// given `log_level`.

@@ -10,7 +10,7 @@ use tokio::time::{sleep, Duration};
 use tracing::{error, info, Instrument};
 
 use malachite_actors::node::NodeRef;
-use malachite_common::{Context, Round, VotingPower};
+use malachite_common::{Context, Height as _, Round, VotingPower};
 use malachite_node::config::{App, Config as NodeConfig};
 
 use crate::utils::node_config::make_node_config;
@@ -152,7 +152,7 @@ impl<const N: usize> Test<N> {
 
                         // TODO: Heights can go to higher rounds, therefore removing the round and value check for now.
                         match decision {
-                            Some((h, _r, _)) if h == Height::new(height) /* && r == Round::new(0) */ => {
+                            Some((h, _r, _)) if h.as_u64() == height /* && r == Round::new(0) */ => {
                                 info!("{height}/{HEIGHTS} correct decision");
                                 correct_decisions.fetch_add(1, Ordering::Relaxed);
                             }
@@ -262,6 +262,12 @@ pub trait SpawnNodeActor {
         validator_pkk: PrivateKey,
         node_pk: PrivateKey,
         address: Address,
-        tx_decision: Option<mpsc::Sender<(Height, Round, <Self::Ctx as Context>::Value)>>,
+        tx_decision: Option<
+            mpsc::Sender<(
+                <Self::Ctx as Context>::Height,
+                Round,
+                <Self::Ctx as Context>::Value,
+            )>,
+        >,
     ) -> (NodeRef, JoinHandle<()>);
 }

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use eyre::eyre;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
@@ -53,7 +54,7 @@ pub enum Msg<Ctx: Context> {
     // The proposal builder has built a value and can be used in a new proposal consensus message
     ProposeValue(Ctx::Height, Round, Ctx::Value),
     // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
-    GossipBlockPart(Ctx::BlockPart),
+    GossipProposalPart(Ctx::ProposalPart),
     BlockReceived(ReceivedProposedValue<Ctx>),
 }
 
@@ -244,15 +245,15 @@ where
                 Ok(())
             }
 
-            Msg::GossipBlockPart(block_part) => {
-                let signed_block_part = self.ctx.sign_block_part(block_part);
+            Msg::GossipProposalPart(part) => {
+                let signed_part = self.ctx.sign_proposal_part(part);
                 let gossip_msg = GossipConsensusMsg::Broadcast(
                     Channel::BlockParts,
-                    GossipMsg::BlockPart(signed_block_part),
+                    GossipMsg::ProposalPart(signed_part),
                 );
 
                 if let Err(e) = self.gossip_consensus.cast(gossip_msg) {
-                    error!("Error when sending block part to gossip layer: {e:?}");
+                    error!("Error when sending proposal part to gossip layer: {e:?}");
                 }
 
                 Ok(())
@@ -340,7 +341,9 @@ where
                 let valid = match msg {
                     SignedMessage::Vote(v) => self.ctx.verify_signed_vote(&v, &pk),
                     SignedMessage::Proposal(p) => self.ctx.verify_signed_proposal(&p, &pk),
-                    SignedMessage::BlockPart(bp) => self.ctx.verify_signed_block_part(&bp, &pk),
+                    SignedMessage::ProposalPart(bp) => {
+                        self.ctx.verify_signed_proposal_part(&bp, &pk)
+                    }
                 };
 
                 self.metrics
@@ -356,7 +359,7 @@ where
                         Channel::Consensus,
                         gossip_msg,
                     ))
-                    .map_err(|e| format!("Error when broadcasting gossip message: {e:?}"))?;
+                    .map_err(|e| eyre!("Error when broadcasting gossip message: {e:?}"))?;
 
                 Ok(Resume::Continue)
             }
@@ -400,18 +403,15 @@ where
                 Ok(Resume::Continue)
             }
 
-            Effect::ReceivedBlockPart(block_part) => {
+            Effect::ReceivedProposalPart(part) => {
                 self.host
                     .call_and_forward(
-                        |reply_to| HostMsg::ReceivedBlockPart {
-                            block_part,
-                            reply_to,
-                        },
+                        |reply_to| HostMsg::ReceivedProposalPart { part, reply_to },
                         myself,
                         |value| Msg::BlockReceived(value),
                         None,
                     )
-                    .map_err(|e| format!("Error when forwarding block part to host: {e:?}"))?;
+                    .map_err(|e| format!("Error when forwarding proposal part to host: {e:?}"))?;
 
                 Ok(Resume::Continue)
             }

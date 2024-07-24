@@ -4,8 +4,8 @@ use malachite_proto::Protobuf;
 
 use crate::{Context, Round};
 
-/// Defines the requirements for a block part type.
-pub trait BlockPart<Ctx>
+/// Defines the requirements for a proposal part type.
+pub trait ProposalPart<Ctx>
 where
     Self: Protobuf + Clone + Debug + Eq + Send + Sync + 'static,
     Ctx: Context,
@@ -19,6 +19,6 @@ where
     /// The part sequence
     fn sequence(&self) -> u64;
 
-    /// Address of the validator who created this block part
+    /// Address of the validator who created this part
     fn validator_address(&self) -> &Ctx::Address;
 }

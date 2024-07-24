@@ -15,24 +15,19 @@ malachite-node.workspace           = true
 malachite-gossip-mempool.workspace = true
 malachite-test.workspace           = true
 malachite-proto.workspace          = true
+starknet-p2p-types.workspace       = true
 
 async-trait.workspace     = true
 bytesize.workspace        = true
 derive-where.workspace    = true
 eyre.workspace            = true
 itertools.workspace       = true
-prost.workspace           = true
-prost-types.workspace     = true
 ractor.workspace          = true
 rand.workspace            = true
 signature.workspace       = true
 sha2.workspace            = true
-subtle-encoding.workspace = true
 tokio.workspace           = true
 tracing.workspace         = true
-
-[build-dependencies]
-prost-build.workspace = true
 
 [lints]
 workspace = true

@@ -1,5 +1,5 @@
 use color_eyre::eyre::Result;
-use tracing::debug;
+use tracing::trace;
 
 use malachite_node::config::{Config, RuntimeConfig};
 use malachite_test::{PrivateKey, ValidatorSet};
@@ -22,7 +22,7 @@ pub fn main() -> Result<()> {
 
     logging::init(LogLevel::Debug, &args.debug);
 
-    debug!("Command-line parameters: {args:?}");
+    trace!("Command-line parameters: {args:?}");
 
     match &args.command {
         Commands::Start(cmd) => start(&args, cmd),

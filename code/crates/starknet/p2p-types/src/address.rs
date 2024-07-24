@@ -1,27 +1,23 @@
+use core::cmp::Ordering;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
-use malachite_common::proto;
 use malachite_proto::{Error as ProtoError, Protobuf};
+use starknet_core::types::EthAddress;
+use starknet_p2p_proto as p2p_proto;
 
-use crate::signing::PublicKey;
+use crate::crypto::PublicKey;
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Address(
-    #[serde(
-        serialize_with = "hex::serde::serialize_upper",
-        deserialize_with = "hex::serde::deserialize"
-    )]
-    [u8; Self::LENGTH],
-);
+pub struct Address(EthAddress);
 
 impl Address {
     const LENGTH: usize = 20;
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub const fn new(value: [u8; Self::LENGTH]) -> Self {
-        Self(value)
+        Self(EthAddress::from_bytes(value))
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -29,21 +25,28 @@ impl Address {
         let hash = public_key.hash();
         let mut address = [0; Self::LENGTH];
         address.copy_from_slice(&hash[..Self::LENGTH]);
-        Self(address)
+        Self::new(address)
     }
+}
 
-    pub fn into_inner(self) -> [u8; Self::LENGTH] {
-        self.0
+impl Ord for Address {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.as_bytes().cmp(other.0.as_bytes())
+    }
+}
+
+impl PartialOrd for Address {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
 impl fmt::Display for Address {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for byte in self.0.iter() {
-            write!(f, "{:02X}", byte)?;
-        }
-        Ok(())
+        write!(f, "0x{}", hex::encode(self.0.as_bytes()))
     }
 }
 
@@ -57,25 +60,25 @@ impl fmt::Debug for Address {
 impl malachite_common::Address for Address {}
 
 impl Protobuf for Address {
-    type Proto = proto::Address;
+    type Proto = p2p_proto::Address;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
-        if proto.value.len() != Self::LENGTH {
+        if proto.elements.len() != Self::LENGTH {
             return Err(ProtoError::Other(format!(
                 "Invalid address length: expected {}, got {}",
                 Self::LENGTH,
-                proto.value.len()
+                proto.elements.len()
             )));
         }
 
         let mut address = [0; Self::LENGTH];
-        address.copy_from_slice(&proto.value);
-        Ok(Self(address))
+        address.copy_from_slice(&proto.elements);
+        Ok(Self::new(address))
     }
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
-        Ok(proto::Address {
-            value: self.0.to_vec(),
+        Ok(p2p_proto::Address {
+            elements: self.0.as_bytes().to_vec(),
         })
     }
 }
