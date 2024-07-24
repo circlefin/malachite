@@ -5,8 +5,6 @@ use crate::{
 
 /// This trait allows to abstract over the various datatypes
 /// that are used in the consensus engine.
-///
-/// TODO: Add `HashingScheme` associated type.
 pub trait Context
 where
     Self: Sized + Clone + Send + Sync + 'static,

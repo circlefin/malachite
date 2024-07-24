@@ -16,8 +16,8 @@ malachite-crypto = { workspace = true, features = ["ed25519"] }
 starknet-core.workspace      = true
 
 hex.workspace   = true
-sha2.workspace  = true
 serde.workspace = true
+sha3.workspace  = true
 
 [lints]
 workspace = true

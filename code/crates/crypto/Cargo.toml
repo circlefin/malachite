@@ -9,7 +9,8 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [features]
-ed25519 = ["dep:ed25519-consensus", "dep:signature", "dep:base64", "dep:rand", "dep:serde", "dep:sha2"]
+ed25519 = ["dep:ed25519-consensus", "dep:signature", "dep:base64", "dep:rand", "dep:serde", "dep:sha3"]
+keccak256 = ["dep:sha3"]
 
 [dependencies]
 malachite-common.workspace = true
@@ -17,7 +18,7 @@ malachite-common.workspace = true
 base64    = { workspace = true, optional = true }
 rand      = { workspace = true, optional = true }
 serde     = { workspace = true, optional = true }
-sha2      = { workspace = true, optional = true }
+sha3      = { workspace = true, optional = true }
 
 # Ed25519
 signature         = { workspace = true, optional = true }

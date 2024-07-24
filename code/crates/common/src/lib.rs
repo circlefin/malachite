@@ -31,16 +31,16 @@ mod vote;
 // Re-export `signature` crate for convenience
 pub use ::signature;
 
-/// Type alias to make it easier to refer the `ValueId` type of a given `Consensus` engine.
+/// Type alias to make it easier to refer the `ValueId` type.
 pub type ValueId<Ctx> = <<Ctx as Context>::Value as Value>::Id;
 
-/// Type alias to make it easier to refer the `PublicKey` type of a given `Consensus` engine.
+/// Type alias to make it easier to refer the `PublicKey` type.
 pub type PublicKey<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::PublicKey;
 
-/// Type alias to make it easier to refer the `PrivateKey` type of a given `Consensus` engine.
+/// Type alias to make it easier to refer the `PrivateKey` type.
 pub type PrivateKey<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::PrivateKey;
 
-/// Type alias to make it easier to refer the `Signature` type of a given `Consensus` engine.
+/// Type alias to make it easier to refer the `Signature` type.
 pub type Signature<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::Signature;
 
 /// A signed vote
