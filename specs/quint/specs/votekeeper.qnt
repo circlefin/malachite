@@ -317,11 +317,11 @@ pure def validCommit (commit: Set[Vote], commitWeight: Weight, keeper: Bookkeepe
     all {
         v.valueId != Nil,
         v.voteType == Precommit,
-        commitWeight > 2 / 3 * keeper.totalWeight, 
         commit.forall(x => all {    x.height == v.height,
                                     x.round == v.round,
                                     x.valueId == v.valueId,
-                                    x.voteType == Precommit})
+                                    x.voteType == Precommit}),
+        commitWeight > 2 / 3 * keeper.totalWeight, 
     }
 
 pure def commitRound (commit: Set[Vote]) : Round = chooseSome(commit).round
