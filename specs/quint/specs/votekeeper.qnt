@@ -313,7 +313,6 @@ module votekeeper {
 
 
 pure def validCommit (commit: Set[Vote]) : bool = 
-    // TODO: we can add a check about 2/3 of voting powers.
     val v = chooseSome(commit)
     v.valueId != Nil and v.voteType == Precommit and
     commit.forall(x => x.height == v.height and x.round == v.round and x.valueId == v.valueId and x.voteType == Precommit)
@@ -331,7 +330,7 @@ pure def voteCountFromCommit (commit: Set[Vote], commitWeight: Weight) : VoteCou
 
 // This takes a commit, checks for evidence, and overwrites the roundVotes with the new commit
 pure def applyCommit(keeper: Bookkeeper, commit: Set[Vote], commitWeight: Weight, currentRound: Round): { bookkeeper: Bookkeeper, output: VoteKeeperOutput } =
-    if (not(validCommit(commit)))
+    if (not(validCommit(commit)) or commitWeight <= 2 / 3 * keeper.totalWeight)
         { bookkeeper: keeper, output: NoVKOutput }
     else
         // getting the roundVotes that are touched by the commit
