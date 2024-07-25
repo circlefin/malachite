@@ -25,7 +25,7 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
 }
 
 /// A value to propose that has just been received.
-pub type ReceivedProposedValue<Ctx> = malachite_consensus::Block<Ctx>;
+pub use malachite_consensus::ProposedValue;
 
 /// A reference to the host actor.
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
@@ -45,14 +45,14 @@ pub enum HostMsg<Ctx: Context> {
     /// ProposalPart received <-- consensus <-- gossip
     ReceivedProposalPart {
         part: Ctx::ProposalPart,
-        reply_to: RpcReplyPort<ReceivedProposedValue<Ctx>>,
+        reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },
 
     /// Retrieve a block/value for which all parts have been received
     GetReceivedValue {
         height: Ctx::Height,
         round: Round,
-        reply_to: RpcReplyPort<Option<ReceivedProposedValue<Ctx>>>,
+        reply_to: RpcReplyPort<Option<ProposedValue<Ctx>>>,
     },
 
     /// Get the validator set at a given height

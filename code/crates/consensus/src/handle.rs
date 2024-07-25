@@ -12,7 +12,7 @@ use crate::gen::Co;
 use crate::msg::Msg;
 use crate::perform;
 use crate::state::State;
-use crate::types::{Block, GossipEvent, GossipMsg, PeerId, SignedMessage};
+use crate::types::{GossipEvent, GossipMsg, PeerId, ProposedValue, SignedMessage};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
 
 pub async fn handle<Ctx>(
@@ -44,7 +44,9 @@ where
             propose_value(co, state, metrics, height, round, value).await
         }
         Msg::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
-        Msg::BlockReceived(block) => on_received_block(co, state, metrics, block).await,
+        Msg::ReceivedProposedValue(block) => {
+            on_received_proposed_value(co, state, metrics, block).await
+        }
     }
 }
 
@@ -680,26 +682,31 @@ where
 
 #[tracing::instrument(
     skip_all,
-    fields(%block.height, %block.round, ?block.validity, block.hash=%block.value.id())
+    fields(
+        height = %proposed_value.height,
+        round = %proposed_value.round,
+        validity = ?proposed_value.validity,
+        id = %proposed_value.value.id()
+    )
 )]
-async fn on_received_block<Ctx>(
+async fn on_received_proposed_value<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    block: Block<Ctx>,
+    proposed_value: ProposedValue<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    let Block {
+    let ProposedValue {
         height,
         round,
         value,
         validity,
         ..
-    } = block;
+    } = proposed_value;
 
-    info!("Received block");
+    info!("Received proposed value");
 
     // Store the block and validity information. It will be removed when a decision is reached for that height.
     state
@@ -710,8 +717,8 @@ where
         debug!("We already have a proposal for this round, checking...");
 
         if height != proposal.height() || round != proposal.round() {
-            // The block we received is not for the current proposal, ignoring
-            debug!("Block is not for the current proposal, ignoring...");
+            // The value we received is not for the current proposal, ignoring
+            debug!("Proposed value is not for the current proposal, ignoring...");
             return Ok(());
         }
 
@@ -726,7 +733,7 @@ where
         )
         .await?;
     } else {
-        debug!("No proposal for this round yet, storing block for later");
+        debug!("No proposal for this round yet, storing proposed value for later");
     }
 
     Ok(())

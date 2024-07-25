@@ -42,9 +42,9 @@ pub enum GossipEvent<Ctx: Context> {
     PeerDisconnected(PeerId),
 }
 
-/// An abstract block, ie. a value proposed by a validator
+/// A value proposed by a validator
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct Block<Ctx: Context> {
+pub struct ProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
     pub validator_address: Ctx::Address,

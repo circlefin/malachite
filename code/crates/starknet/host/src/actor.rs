@@ -10,7 +10,7 @@ use tokio::time::Instant;
 use tracing::{debug, error, trace};
 
 use malachite_actors::consensus::ConsensusMsg;
-use malachite_actors::host::{LocallyProposedValue, ReceivedProposedValue};
+use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_common::{Round, Validity};
 use malachite_metrics::Metrics;
 
@@ -65,11 +65,11 @@ impl StarknetHost {
         parts: &[Arc<ProposalPart>],
         height: Height,
         round: Round,
-    ) -> Option<ReceivedProposedValue<MockContext>> {
+    ) -> Option<ProposedValue<MockContext>> {
         let (value, validator_address, validity) =
             self.build_proposal_content_from_parts(parts, height, round)?;
 
-        Some(ReceivedProposedValue {
+        Some(ProposedValue {
             validator_address,
             height,
             round,
@@ -134,7 +134,7 @@ impl StarknetHost {
         &self,
         state: &mut HostState,
         part: ProposalPart,
-    ) -> Option<ReceivedProposedValue<MockContext>> {
+    ) -> Option<ProposedValue<MockContext>> {
         let height = part.height;
         let round = part.round;
         let sequence = part.sequence;

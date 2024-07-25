@@ -18,7 +18,7 @@ use malachite_node::config::TimeoutConfig;
 use malachite_vote::ThresholdParams;
 
 use crate::gossip_consensus::{GossipConsensusRef, Msg as GossipConsensusMsg};
-use crate::host::{HostMsg, HostRef, LocallyProposedValue, ReceivedProposedValue};
+use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::forward::forward;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
@@ -49,13 +49,16 @@ where
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
 pub enum Msg<Ctx: Context> {
+    /// Received an event from the gossip layer
     GossipEvent(Arc<GossipEvent<Ctx>>),
+    /// A timeout has elapsed
     TimeoutElapsed(TimeoutElapsed<Timeout>),
-    // The proposal builder has built a value and can be used in a new proposal consensus message
+    /// The proposal builder has built a value and can be used in a new proposal consensus message
     ProposeValue(Ctx::Height, Round, Ctx::Value),
-    // The proposal builder has build a new block part, needs to be signed and gossiped by consensus
+    /// The proposal builder has build a new block part, needs to be signed and gossiped by consensus
     GossipProposalPart(Ctx::ProposalPart),
-    BlockReceived(ReceivedProposedValue<Ctx>),
+    /// Received and sssembled the full value proposed by a validator
+    ReceivedProposedValue(ProposedValue<Ctx>),
 }
 
 type InnerMsg<Ctx> = malachite_consensus::Msg<Ctx>;
@@ -233,9 +236,9 @@ where
                 Ok(())
             }
 
-            Msg::BlockReceived(block) => {
+            Msg::ReceivedProposedValue(block) => {
                 let result = self
-                    .process_msg(&myself, state, InnerMsg::BlockReceived(block))
+                    .process_msg(&myself, state, InnerMsg::ReceivedProposedValue(block))
                     .await;
 
                 if let Err(e) = result {
@@ -408,7 +411,7 @@ where
                     .call_and_forward(
                         |reply_to| HostMsg::ReceivedProposalPart { part, reply_to },
                         myself,
-                        |value| Msg::BlockReceived(value),
+                        |value| Msg::ReceivedProposedValue(value),
                         None,
                     )
                     .map_err(|e| format!("Error when forwarding proposal part to host: {e:?}"))?;

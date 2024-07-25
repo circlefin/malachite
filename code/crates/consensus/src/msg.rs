@@ -2,7 +2,7 @@ use derive_where::derive_where;
 
 use malachite_common::*;
 
-use crate::types::{Block, GossipEvent};
+use crate::types::{GossipEvent, ProposedValue};
 
 /// Messages that can be handled by the consensus process
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -23,5 +23,5 @@ where
     TimeoutElapsed(Timeout),
 
     /// A block to propose has been received
-    BlockReceived(Block<Ctx>),
+    ReceivedProposedValue(ProposedValue<Ctx>),
 }
