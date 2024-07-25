@@ -3,8 +3,8 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 
 use malachite_proto::{Error as ProtoError, Protobuf};
+use malachite_starknet_p2p_proto as p2p_proto;
 use starknet_core::types::EthAddress;
-use starknet_p2p_proto as p2p_proto;
 
 use crate::crypto::PublicKey;
 

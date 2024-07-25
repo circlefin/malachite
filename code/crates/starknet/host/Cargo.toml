@@ -1,5 +1,5 @@
 [package]
-name                   = "starknet-host"
+name                   = "malachite-starknet-host"
 version.workspace      = true
 edition.workspace      = true
 repository.workspace   = true
@@ -8,14 +8,14 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-actors.workspace         = true
-malachite-common.workspace         = true
-malachite-metrics.workspace        = true
-malachite-node.workspace           = true
-malachite-gossip-mempool.workspace = true
-malachite-test.workspace           = true
-malachite-proto.workspace          = true
-starknet-p2p-types.workspace       = true
+malachite-actors.workspace             = true
+malachite-common.workspace             = true
+malachite-metrics.workspace            = true
+malachite-node.workspace               = true
+malachite-gossip-mempool.workspace     = true
+malachite-test.workspace               = true
+malachite-proto.workspace              = true
+malachite-starknet-p2p-types.workspace = true
 
 async-trait.workspace     = true
 bytesize.workspace        = true

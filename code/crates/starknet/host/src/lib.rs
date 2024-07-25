@@ -11,4 +11,4 @@ pub mod mock;
 pub mod part_store;
 pub mod proto;
 
-pub use starknet_p2p_types as types;
+pub use malachite_starknet_p2p_types as types;

@@ -1,10 +1,10 @@
 [package]
-name = "starknet-p2p-proto"
-version.workspace = true
-edition.workspace = true
-repository.workspace = true
-license.workspace = true
-publish.workspace = true
+name                   = "malachite-starknet-p2p-proto"
+version.workspace      = true
+edition.workspace      = true
+repository.workspace   = true
+license.workspace      = true
+publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]

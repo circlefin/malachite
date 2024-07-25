@@ -56,10 +56,10 @@ malachite-test             = { version = "0.1.0", path = "crates/test" }
 malachite-vote             = { version = "0.1.0", path = "crates/vote" }
 
 # Starknet
-starknet-host              = { version = "0.1.0", path = "crates/starknet/host" }
-starknet-app               = { version = "0.1.0", path = "crates/starknet/app" }
-starknet-p2p-proto         = { version = "0.1.0", path = "crates/starknet/p2p-proto" }
-starknet-p2p-types         = { version = "0.1.0", path = "crates/starknet/p2p-types" }
+malachite-starknet-host      = { version = "0.1.0", path = "crates/starknet/host" }
+malachite-starknet-app       = { version = "0.1.0", path = "crates/starknet/app" }
+malachite-starknet-p2p-proto = { version = "0.1.0", path = "crates/starknet/p2p-proto" }
+malachite-starknet-p2p-types = { version = "0.1.0", path = "crates/starknet/p2p-types" }
 
 # Starknet core
 starknet-core = "0.11.1"

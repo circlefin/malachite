@@ -1,6 +1,6 @@
 use malachite_common::{NilOrVal, Round, VoteType};
 use malachite_proto as proto;
-use starknet_p2p_proto as p2p_proto;
+use malachite_starknet_p2p_proto as p2p_proto;
 
 use crate::{Address, BlockHash, Height};
 
@@ -92,16 +92,16 @@ impl proto::Protobuf for Vote {
     }
 }
 
-fn common_to_proto_vote_type(vote_type: VoteType) -> starknet_p2p_proto::vote::VoteType {
+fn common_to_proto_vote_type(vote_type: VoteType) -> malachite_starknet_p2p_proto::vote::VoteType {
     match vote_type {
-        VoteType::Prevote => starknet_p2p_proto::vote::VoteType::Prevote,
-        VoteType::Precommit => starknet_p2p_proto::vote::VoteType::Precommit,
+        VoteType::Prevote => p2p_proto::vote::VoteType::Prevote,
+        VoteType::Precommit => p2p_proto::vote::VoteType::Precommit,
     }
 }
 
-fn proto_to_common_vote_type(vote_type: starknet_p2p_proto::vote::VoteType) -> VoteType {
+fn proto_to_common_vote_type(vote_type: p2p_proto::vote::VoteType) -> VoteType {
     match vote_type {
-        starknet_p2p_proto::vote::VoteType::Prevote => VoteType::Prevote,
-        starknet_p2p_proto::vote::VoteType::Precommit => VoteType::Precommit,
+        p2p_proto::vote::VoteType::Prevote => VoteType::Prevote,
+        p2p_proto::vote::VoteType::Precommit => VoteType::Precommit,
     }
 }

@@ -1,5 +1,5 @@
 use malachite_common::{self as common, NilOrVal, Round, VoteType, VotingPower};
-use starknet_p2p_types::{
+use malachite_starknet_p2p_types::{
     Address, BlockHash, Height, Proposal, ProposalPart, PublicKey, Validator, ValidatorSet, Vote,
 };
 

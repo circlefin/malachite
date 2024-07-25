@@ -3,8 +3,8 @@ use core::{fmt, str};
 use serde::{Deserialize, Serialize};
 
 use malachite_proto as proto;
+use malachite_starknet_p2p_proto as p2p_proto;
 use starknet_core::types::Hash256;
-use starknet_p2p_proto as p2p_proto;
 
 pub type MessageHash = Hash;
 pub type BlockHash = Hash;

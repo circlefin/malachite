@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use malachite_common::{Context, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote};
+use malachite_starknet_p2p_types::{PublicKey, SigningScheme};
 use malachite_test::PrivateKey;
-use starknet_p2p_types::{PublicKey, SigningScheme};
 
 use crate::types::{
     Address, BlockHash, Height, Proposal, ProposalPart, Validator, ValidatorSet, Vote,

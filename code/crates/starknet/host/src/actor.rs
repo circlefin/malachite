@@ -3,9 +3,9 @@
 use std::sync::Arc;
 
 use eyre::eyre;
+use malachite_starknet_p2p_types::{Proposal, ProposalMessage};
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use sha2::Digest;
-use starknet_p2p_types::{Proposal, ProposalMessage};
 use tokio::time::Instant;
 use tracing::{debug, error, trace};
 

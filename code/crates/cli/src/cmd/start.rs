@@ -6,7 +6,7 @@ use malachite_node::config::{App, Config};
 use malachite_test::utils::test::SpawnNodeActor;
 use malachite_test::{Address, PrivateKey, ValidatorSet};
 
-use starknet_app::spawn::SpawnStarknetNode;
+use malachite_starknet_app::spawn::SpawnStarknetNode;
 
 use crate::metrics;
 
