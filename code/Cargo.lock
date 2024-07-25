@@ -2435,6 +2435,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-starknet-test"
+version = "0.1.0"
+dependencies = [
+ "bytesize",
+ "malachite-common",
+ "malachite-node",
+ "malachite-starknet-app",
+ "malachite-starknet-host",
+ "rand",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "malachite-test"
 version = "0.1.0"
 dependencies = [

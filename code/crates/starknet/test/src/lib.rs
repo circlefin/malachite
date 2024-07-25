@@ -1,20 +1,20 @@
-#![allow(unused_imports, unused_variables, dead_code)]
-
 use core::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use async_trait::async_trait;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info, Instrument};
 
-use malachite_actors::node::NodeRef;
-use malachite_common::{Context, Height as _, Round, VotingPower};
-use malachite_node::config::{App, Config as NodeConfig, LoggingConfig};
+use malachite_common::VotingPower;
+use malachite_node::config::{Config as NodeConfig, LoggingConfig};
+use malachite_starknet_app::spawn::spawn_node_actor;
 
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
+
+pub use malachite_node::config::App;
 
 pub enum Expected {
     Exactly(usize),
@@ -93,7 +93,7 @@ impl<const N: usize> Test<N> {
                 continue;
             }
 
-            let (validator, private_key) = &self.vals_and_keys[i];
+            let (_, private_key) = &self.vals_and_keys[i];
             let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
 
             let node_config = make_node_config(&self, i, app);
@@ -307,11 +307,6 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
         test: Default::default(),
     }
 }
-
-use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
-
-use crate::spawn::spawn_node_actor;
 
 pub fn make_validators<const N: usize>(
     voting_powers: [VotingPower; N],
