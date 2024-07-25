@@ -1,5 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
 use malachite_node::config::App;
-use malachite_test::utils::test::{Expected, Fault, Test, TestNode};
+use malachite_starknet_app::test::{Expected, Fault, Test, TestNode};
 
 #[tokio::test]
 pub async fn proposer_fails_to_start() {

@@ -1,5 +1,7 @@
+#![allow(unused_crate_dependencies)]
+
 use malachite_node::config::App;
-use malachite_test::utils::test::{Expected, Test, TestNode};
+use malachite_starknet_app::test::{Expected, Test, TestNode};
 
 #[tokio::test]
 pub async fn all_correct_nodes() {

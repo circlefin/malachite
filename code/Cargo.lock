@@ -2367,6 +2367,7 @@ name = "malachite-starknet-app"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytesize",
  "libp2p-identity",
  "malachite-actors",
  "malachite-common",
@@ -2383,6 +2384,8 @@ dependencies = [
  "rand",
  "serde_json",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

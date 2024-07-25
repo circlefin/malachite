@@ -5,3 +5,4 @@
 pub mod codec;
 pub mod node;
 pub mod spawn;
+pub mod test;
