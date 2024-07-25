@@ -1,13 +1,13 @@
 use prost::Message;
 
-use malachite_common::{SignedProposal, SignedProposalPart, SignedVote};
+use malachite_common::{SignedProposal, SignedProposalPart, SignedVote, SigningScheme as _};
 use malachite_gossip_consensus::{GossipMsg, NetworkCodec};
 use malachite_proto::{Error as ProtoError, Protobuf};
 use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::types::Vote;
 use malachite_starknet_p2p_proto::consensus_message::Messages;
 use malachite_starknet_p2p_proto::ConsensusMessage;
-use malachite_starknet_p2p_types::{Proposal, ProposalPart, Signature};
+use malachite_starknet_p2p_types::{Proposal, ProposalPart, SigningScheme};
 
 pub struct ProtobufCodec;
 
@@ -21,7 +21,7 @@ impl NetworkCodec<MockContext> for ProtobufCodec {
             .messages
             .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("messages"))?;
 
-        let signature = Signature::try_from(proto.signature.as_slice())
+        let signature = SigningScheme::decode_signature(proto.signature.as_slice())
             .map_err(|e| ProtoError::Other(format!("invalid signature bytes: {e}")))?;
 
         match message {
@@ -39,16 +39,16 @@ impl NetworkCodec<MockContext> for ProtobufCodec {
         let message = match msg {
             GossipMsg::Vote(v) => ConsensusMessage {
                 messages: Some(Messages::Vote(v.to_proto()?)),
-                signature: v.signature.to_bytes().to_vec(),
+                signature: SigningScheme::encode_signature(&v.signature),
             },
             GossipMsg::Proposal(p) => ConsensusMessage {
                 messages: Some(Messages::Proposal(p.to_proto()?)),
-                signature: p.signature.to_bytes().to_vec(),
+                signature: SigningScheme::encode_signature(&p.signature),
             },
 
             GossipMsg::ProposalPart(pp) => ConsensusMessage {
                 messages: Some(Messages::ProposalPart(pp.to_proto()?)),
-                signature: pp.signature.to_bytes().to_vec(),
+                signature: SigningScheme::encode_signature(&pp.signature),
             },
         };
 

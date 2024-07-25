@@ -1,5 +1,5 @@
 [package]
-name = "malachite-node"
+name        = "malachite-node"
 description = "Node for running the Malachite consensus engine"
 
 version.workspace    = true
@@ -17,6 +17,7 @@ malachite-common.workspace  = true
 bytesize          = { workspace = true, features = ["serde"] }
 humantime-serde   = { workspace = true }
 multiaddr         = { workspace = true }
+rand              = { workspace = true }
 serde             = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

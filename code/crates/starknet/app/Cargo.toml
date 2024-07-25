@@ -20,9 +20,12 @@ malachite-starknet-host.workspace      = true
 malachite-starknet-p2p-proto.workspace = true
 malachite-starknet-p2p-types.workspace = true
 
-async-trait.workspace = true
-tokio.workspace       = true
-prost.workspace       = true
+async-trait.workspace                  = true
+libp2p-identity.workspace              = true
+prost.workspace                        = true
+rand.workspace                         = true
+serde_json.workspace                   = true
+tokio.workspace                        = true
 
 # [lints]
 # workspace = true

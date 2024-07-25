@@ -6,21 +6,18 @@
 //! The command-line parameters are stored in the `Args` structure.
 //! `clap` parses the command-line parameters into this structure.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use color_eyre::eyre::{eyre, Context, Result};
+use color_eyre::eyre::{eyre, Result};
 use directories::BaseDirs;
-use tracing::info;
 
 use malachite_node::config::{Config, LogFormat, LogLevel};
-use malachite_test::{PrivateKey, ValidatorSet};
 
 use crate::cmd::init::InitCmd;
 use crate::cmd::keys::KeysCmd;
 use crate::cmd::start::StartCmd;
 use crate::cmd::testnet::TestnetCmd;
-use crate::priv_key::PrivValidatorKey;
 
 const APP_FOLDER: &str = ".malachite";
 const CONFIG_FILE: &str = "config.toml";
@@ -134,33 +131,6 @@ impl Args {
 
         Ok(config)
     }
-
-    /// load_genesis returns the validator set from the genesis file
-    pub fn load_genesis(&self) -> Result<ValidatorSet> {
-        let genesis_file = self.get_genesis_file_path()?;
-        info!("Loading genesis from {:?}", genesis_file.display());
-        load_json_file(&genesis_file)
-    }
-
-    /// load_private_key returns the private key either from the command-line parameter or
-    /// from the priv_validator_key.json file.
-    pub fn load_private_key(&self) -> Result<PrivateKey> {
-        let priv_key_file = self.get_priv_validator_key_file_path()?;
-        info!("Loading private key from {:?}", priv_key_file.display());
-        let priv_validator_key: PrivValidatorKey = load_json_file(&priv_key_file)?;
-        Ok(priv_validator_key.private_key)
-    }
-}
-
-fn load_json_file<T>(file: &Path) -> Result<T>
-where
-    T: for<'de> serde::Deserialize<'de>,
-{
-    let content = std::fs::read_to_string(file)
-        .wrap_err_with(|| eyre!("Failed to read configuration file at {}", file.display()))?;
-
-    serde_json::from_str(&content)
-        .wrap_err_with(|| eyre!("Failed to load configuration at {}", file.display(),))
 }
 
 #[cfg(test)]
@@ -190,20 +160,8 @@ mod tests {
 
     #[test]
     fn args_methods() {
-        use std::io::Write;
-        use tempfile::NamedTempFile;
-
-        #[derive(serde::Deserialize)]
-        struct TestStruct {}
-
         let args = Args::parse_from(["test", "start"]);
         assert!(args.get_config_file_path().is_ok());
         assert!(args.get_genesis_file_path().is_ok());
-        assert!(load_json_file::<TestStruct>(&PathBuf::from("nonexistent.json")).is_err());
-
-        let tmpfile = NamedTempFile::new().unwrap();
-        let mut file = tmpfile.as_file();
-        writeln!(file, "{{}}").unwrap();
-        assert!(load_json_file::<TestStruct>(&PathBuf::from(tmpfile.path())).is_ok());
     }
 }

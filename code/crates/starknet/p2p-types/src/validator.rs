@@ -15,7 +15,7 @@ impl Validator {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn new(public_key: PublicKey, voting_power: VotingPower) -> Self {
         Self {
-            address: Address::from_public_key(&public_key),
+            address: Address::from_public_key(public_key),
             public_key,
             voting_power,
         }

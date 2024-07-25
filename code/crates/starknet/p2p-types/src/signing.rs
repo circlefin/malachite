@@ -123,13 +123,21 @@ impl From<[u8; 32]> for PrivateKey {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PublicKey(Felt);
 
 impl PublicKey {
     pub fn new(key: Felt) -> Self {
         Self(key)
+    }
+
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self::new(Felt::from_bytes_be(&bytes))
+    }
+
+    pub fn as_bytes(&self) -> [u8; 32] {
+        self.0.to_bytes_be()
     }
 
     pub fn hash(&self) -> Felt {
@@ -142,5 +150,11 @@ impl PublicKey {
 
     pub fn verify(&self, message: &Felt, signature: &Signature) -> bool {
         ecdsa_verify(&self.0, message, &signature.0).unwrap()
+    }
+}
+
+impl fmt::Display for PublicKey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.to_fixed_hex_string().fmt(f)
     }
 }

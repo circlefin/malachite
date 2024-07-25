@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use async_trait::async_trait;
+use libp2p_identity::ecdsa;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -19,64 +19,24 @@ use malachite_starknet_host::actor::StarknetHost;
 use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::mock::host::{MockHost, MockParams};
-use malachite_starknet_host::types::{
-    Address, BlockHash, Height, PrivateKey, Validator, ValidatorSet,
-};
-use malachite_test::utils::test::SpawnNodeActor;
+use malachite_starknet_host::types::{Address, BlockHash, Height, PrivateKey, ValidatorSet};
 
 use crate::codec::ProtobufCodec;
-
-pub struct SpawnStarknetNode;
-
-#[async_trait]
-impl SpawnNodeActor for SpawnStarknetNode {
-    type Context = MockContext;
-
-    async fn spawn_node_actor(
-        node_config: NodeConfig,
-        validator_set: malachite_test::ValidatorSet,
-        validator_pk: PrivateKey,
-        node_pk: PrivateKey,
-        address: malachite_test::Address,
-        tx_decision: Option<mpsc::Sender<(Height, Round, BlockHash)>>,
-    ) -> (NodeRef, JoinHandle<()>) {
-        let validator_set = ValidatorSet {
-            validators: validator_set
-                .validators
-                .into_iter()
-                .map(|val| Validator::new(val.public_key, val.voting_power))
-                .collect(),
-        };
-
-        let address = Address::new(address.into_inner());
-
-        spawn_node_actor(
-            node_config,
-            validator_set,
-            validator_pk,
-            node_pk,
-            address,
-            tx_decision,
-        )
-        .await
-    }
-}
 
 pub async fn spawn_node_actor(
     cfg: NodeConfig,
     initial_validator_set: ValidatorSet,
-    validator_pk: PrivateKey,
-    node_pk: PrivateKey,
-    address: Address,
+    private_key: PrivateKey,
     tx_decision: Option<mpsc::Sender<(Height, Round, BlockHash)>>,
 ) -> (NodeRef, JoinHandle<()>) {
-    let ctx = MockContext::new(validator_pk.clone());
+    let ctx = MockContext::new(private_key);
 
     let registry = SharedRegistry::global();
     let metrics = Metrics::register(registry);
+    let address = Address::from_public_key(private_key.public_key());
 
     // Spawn mempool and its gossip layer
-    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, node_pk, registry).await;
+    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, registry).await;
     let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test).await;
 
     // Spawn the host actor
@@ -90,7 +50,7 @@ pub async fn spawn_node_actor(
     .await;
 
     // Spawn consensus and its gossip
-    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, validator_pk, registry).await;
+    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, &private_key, registry).await;
 
     let start_height = Height::new(1);
 
@@ -158,7 +118,7 @@ async fn spawn_consensus_actor(
 
 async fn spawn_gossip_consensus_actor(
     cfg: &NodeConfig,
-    validator_pk: PrivateKey,
+    private_key: &PrivateKey,
     registry: &SharedRegistry,
 ) -> GossipConsensusRef<MockContext> {
     let config_gossip = GossipConsensusConfig {
@@ -167,17 +127,19 @@ async fn spawn_gossip_consensus_actor(
         idle_connection_timeout: Duration::from_secs(60),
     };
 
-    let validator_keypair = Keypair::ed25519_from_bytes(validator_pk.inner().to_bytes()).unwrap();
+    let keypair = make_keypair(private_key);
+    let codec = ProtobufCodec;
 
-    GossipConsensus::spawn(
-        validator_keypair.clone(),
-        config_gossip,
-        registry.clone(),
-        ProtobufCodec,
-        None,
-    )
-    .await
-    .unwrap()
+    GossipConsensus::spawn(keypair, config_gossip, registry.clone(), codec, None)
+        .await
+        .unwrap()
+}
+
+fn make_keypair(private_key: &PrivateKey) -> Keypair {
+    let pk_bytes = private_key.inner().to_bytes_be();
+    let secret_key = ecdsa::SecretKey::try_from_bytes(pk_bytes).unwrap();
+    let ecdsa_keypair = ecdsa::Keypair::from(secret_key);
+    Keypair::from(ecdsa_keypair)
 }
 
 async fn spawn_mempool_actor(
@@ -192,7 +154,7 @@ async fn spawn_mempool_actor(
 
 async fn spawn_gossip_mempool_actor(
     cfg: &NodeConfig,
-    node_pk: PrivateKey,
+    private_key: &PrivateKey,
     registry: &SharedRegistry,
 ) -> GossipMempoolRef {
     let config_gossip_mempool = GossipMempoolConfig {
@@ -201,16 +163,10 @@ async fn spawn_gossip_mempool_actor(
         idle_connection_timeout: Duration::from_secs(60),
     };
 
-    let node_keypair = Keypair::ed25519_from_bytes(node_pk.inner().to_bytes()).unwrap();
-
-    GossipMempool::spawn(
-        node_keypair.clone(),
-        config_gossip_mempool,
-        registry.clone(),
-        None,
-    )
-    .await
-    .unwrap()
+    let keypair = make_keypair(private_key);
+    GossipMempool::spawn(keypair, config_gossip_mempool, registry.clone(), None)
+        .await
+        .unwrap()
 }
 
 async fn spawn_host_actor(
