@@ -103,7 +103,7 @@ impl StarknetHost {
 
         debug!(%block_hash, "Computed block hash");
 
-        let last_part = parts.last().expect("block_parts is not empty");
+        let last_part = parts.last().expect("proposal_parts is not empty");
 
         // TODO: How to compute validity?
         //
@@ -257,8 +257,8 @@ impl Actor for StarknetHost {
                 round,
                 reply_to,
             } => {
-                let block_parts = state.part_store.all_parts(height, round);
-                let proposed_value = self.build_value_from_parts(&block_parts, height, round);
+                let proposal_parts = state.part_store.all_parts(height, round);
+                let proposed_value = self.build_value_from_parts(&proposal_parts, height, round);
                 reply_to.send(proposed_value)?;
 
                 Ok(())

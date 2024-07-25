@@ -21,7 +21,7 @@ message Proposal {
     malachite.common.Address validator_address = 5;
 }
 
-message BlockPart {
+message ProposalPart {
     malachite.common.Height height = 1;
     malachite.common.Round round = 2;
     uint64 sequence = 3;

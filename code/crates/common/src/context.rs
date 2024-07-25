@@ -59,12 +59,12 @@ where
     ) -> bool;
 
     /// Sign the block part with our private key.
-    fn sign_proposal_part(&self, block_part: Self::ProposalPart) -> SignedProposalPart<Self>;
+    fn sign_proposal_part(&self, proposal_part: Self::ProposalPart) -> SignedProposalPart<Self>;
 
-    /// Verify the given block part signature using the given public key.
+    /// Verify the given proposal part signature using the given public key.
     fn verify_signed_proposal_part(
         &self,
-        signed_block_part: &SignedProposalPart<Self>,
+        signed_proposal_part: &SignedProposalPart<Self>,
         public_key: &PublicKey<Self>,
     ) -> bool;
 

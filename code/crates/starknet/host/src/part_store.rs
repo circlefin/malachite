@@ -59,16 +59,16 @@ impl<Ctx: Context> PartStore<Ctx> {
             .collect()
     }
 
-    pub fn store(&mut self, block_part: Ctx::ProposalPart) {
+    pub fn store(&mut self, proposal_part: Ctx::ProposalPart) {
         use malachite_common::ProposalPart;
 
-        let height = block_part.height();
-        let round = block_part.round();
-        let sequence = block_part.sequence();
+        let height = proposal_part.height();
+        let round = proposal_part.round();
+        let sequence = proposal_part.sequence();
 
         self.store
             .entry((height, round, sequence))
-            .or_insert(Arc::new(block_part));
+            .or_insert(Arc::new(proposal_part));
     }
 
     pub fn prune(&mut self, min_height: Ctx::Height) {

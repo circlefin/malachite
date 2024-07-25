@@ -56,7 +56,7 @@ where
         commits: Vec<SignedVote<Ctx>>,
     },
 
-    /// A BlockPart was received via the gossip layer
+    /// A ProposalPart was received via the gossip layer
     /// Resume with: Resume::Continue
     ReceivedProposalPart(Ctx::ProposalPart),
 

@@ -248,7 +248,7 @@ where
             Msg::GossipProposalPart(part) => {
                 let signed_part = self.ctx.sign_proposal_part(part);
                 let gossip_msg = GossipConsensusMsg::Broadcast(
-                    Channel::BlockParts,
+                    Channel::ProposalParts,
                     GossipMsg::ProposalPart(signed_part),
                 );
 

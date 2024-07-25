@@ -42,7 +42,7 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
 
-    /// BlockPart received <-- consensus <-- gossip
+    /// ProposalPart received <-- consensus <-- gossip
     ReceivedProposalPart {
         part: Ctx::ProposalPart,
         reply_to: RpcReplyPort<ReceivedProposedValue<Ctx>>,

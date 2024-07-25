@@ -90,7 +90,7 @@ impl Protobuf for Content {
 
 /// A part of a value for a height, round. Identified in this scope by the sequence.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BlockPart {
+pub struct ProposalPart {
     pub height: Height,
     pub round: Round,
     pub sequence: u64,
@@ -98,7 +98,7 @@ pub struct BlockPart {
     pub validator_address: Address,
 }
 
-impl BlockPart {
+impl ProposalPart {
     pub fn new(
         height: Height,
         round: Round,
@@ -137,7 +137,7 @@ impl BlockPart {
     }
 }
 
-impl malachite_common::ProposalPart<TestContext> for BlockPart {
+impl malachite_common::ProposalPart<TestContext> for ProposalPart {
     fn height(&self) -> Height {
         self.height
     }
@@ -155,8 +155,8 @@ impl malachite_common::ProposalPart<TestContext> for BlockPart {
     }
 }
 
-impl Protobuf for BlockPart {
-    type Proto = crate::proto::BlockPart;
+impl Protobuf for ProposalPart {
+    type Proto = crate::proto::ProposalPart;
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
@@ -187,7 +187,7 @@ impl Protobuf for BlockPart {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
-        Ok(crate::proto::BlockPart {
+        Ok(crate::proto::ProposalPart {
             height: Some(self.height.to_proto()?),
             round: Some(self.round.to_proto()?),
             sequence: self.sequence,

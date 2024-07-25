@@ -39,8 +39,8 @@ message SignedProposal {
     bytes signature = 2;
 }
 
-message SignedBlockPart {
-    google.protobuf.Any block_part = 1;
+message SignedProposalPart {
+    google.protobuf.Any proposal_part = 1;
     bytes signature = 2;
 }
 

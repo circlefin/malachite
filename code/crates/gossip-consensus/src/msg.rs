@@ -47,8 +47,8 @@ where
             let proposal = SignedProposal::<Ctx>::from_bytes(proto.value.as_slice())?;
             Ok(Self(GossipMsg::Proposal(proposal)))
         } else if proto.type_url == <SignedProposalPart<Ctx> as Protobuf>::Proto::type_url() {
-            let block_part = SignedProposalPart::<Ctx>::from_bytes(proto.value.as_slice())?;
-            Ok(Self(GossipMsg::ProposalPart(block_part)))
+            let proposal_part = SignedProposalPart::<Ctx>::from_bytes(proto.value.as_slice())?;
+            Ok(Self(GossipMsg::ProposalPart(proposal_part)))
         } else {
             Err(ProtoError::UnknownMessageType {
                 type_url: proto.type_url,
@@ -60,7 +60,7 @@ where
         match &self.0 {
             GossipMsg::Vote(vote) => vote.to_any(),
             GossipMsg::Proposal(proposal) => proposal.to_any(),
-            GossipMsg::ProposalPart(block_part) => block_part.to_any(),
+            GossipMsg::ProposalPart(proposal_part) => proposal_part.to_any(),
         }
     }
 }

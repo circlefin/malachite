@@ -619,8 +619,8 @@ where
             }
         }
 
-        GossipMsg::ProposalPart(signed_block_part) => {
-            let validator_address = signed_block_part.validator_address();
+        GossipMsg::ProposalPart(signed_proposal_part) => {
+            let validator_address = signed_proposal_part.validator_address();
 
             let Some(validator) = state.driver.validator_set.get_by_address(validator_address)
             else {
@@ -628,17 +628,17 @@ where
                 return Ok(());
             };
 
-            let signed_msg = SignedMessage::ProposalPart(signed_block_part.clone());
+            let signed_msg = SignedMessage::ProposalPart(signed_proposal_part.clone());
             let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
             if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
-                warn!(%from, validator = %validator_address, "Received invalid block part: {signed_block_part:?}");
+                warn!(%from, validator = %validator_address, "Received invalid block part: {signed_proposal_part:?}");
                 return Ok(());
             }
 
             // TODO: Verify that the proposal was signed by the proposer for the height and round, drop otherwise.
             perform!(
                 co,
-                Effect::ReceivedProposalPart(signed_block_part.proposal_part)
+                Effect::ReceivedProposalPart(signed_proposal_part.proposal_part)
             );
         }
     }
