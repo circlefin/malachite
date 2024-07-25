@@ -2217,7 +2217,7 @@ dependencies = [
  "malachite-metrics",
  "malachite-node",
  "malachite-starknet-app",
- "malachite-test",
+ "malachite-starknet-host",
  "rand",
  "serde_json",
  "tempfile",

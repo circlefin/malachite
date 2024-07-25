@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use color_eyre::eyre::Result;
-use malachite_test::{Address, PrivateKey};
 use tracing::info;
+
+use malachite_starknet_host::types::{Address, PrivateKey};
 
 use crate::args::Args;
 
@@ -17,7 +18,7 @@ impl GenerateCmd {
         let rng = rand::thread_rng();
         let pk = PrivateKey::generate(rng);
 
-        let address = Address::from_public_key(&pk.public_key());
+        let address = Address::from_public_key(pk.public_key());
         info!("Generated key with address: {address}");
 
         let public_key = pk.public_key();

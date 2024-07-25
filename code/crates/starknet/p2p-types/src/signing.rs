@@ -4,7 +4,7 @@ use malachite_common::SigningScheme;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use starknet_core::crypto::{ecdsa_sign, ecdsa_verify};
-use starknet_crypto::{get_public_key, poseidon_hash_single, Felt};
+use starknet_crypto::{get_public_key, Felt};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Ecdsa;
@@ -23,6 +23,7 @@ impl Ecdsa {
 pub struct InvalidSignatureLength(usize);
 
 impl fmt::Display for InvalidSignatureLength {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -70,6 +71,7 @@ impl Signature {
 }
 
 impl Clone for Signature {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn clone(&self) -> Self {
         Self(starknet_crypto::Signature {
             r: self.0.r,
@@ -79,6 +81,7 @@ impl Clone for Signature {
 }
 
 impl PartialEq for Signature {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn eq(&self, other: &Self) -> bool {
         self.0.r == other.0.r && self.0.s == other.0.s
     }
@@ -128,22 +131,22 @@ impl From<[u8; 32]> for PrivateKey {
 pub struct PublicKey(Felt);
 
 impl PublicKey {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn new(key: Felt) -> Self {
         Self(key)
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
         Self::new(Felt::from_bytes_be(&bytes))
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn as_bytes(&self) -> [u8; 32] {
         self.0.to_bytes_be()
     }
 
-    pub fn hash(&self) -> Felt {
-        poseidon_hash_single(self.0)
-    }
-
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn inner(&self) -> Felt {
         self.0
     }
@@ -154,6 +157,7 @@ impl PublicKey {
 }
 
 impl fmt::Display for PublicKey {
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.to_fixed_hex_string().fmt(f)
     }

@@ -13,7 +13,9 @@ workspace = true
 malachite-common.workspace        = true
 malachite-metrics.workspace       = true
 malachite-node.workspace          = true
-malachite-test.workspace          = true
+
+# Starknet
+malachite-starknet-host.workspace  = true
 malachite-starknet-app.workspace  = true
 
 axum               = { workspace = true }
