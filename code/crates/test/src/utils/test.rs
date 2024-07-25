@@ -254,19 +254,19 @@ fn init_logging() {
 
 #[async_trait]
 pub trait SpawnNodeActor {
-    type Ctx: Context;
+    type Context: Context;
 
     async fn spawn_node_actor(
         node_config: NodeConfig,
         validator_set: ValidatorSet,
-        validator_pkk: PrivateKey,
+        validator_pk: PrivateKey,
         node_pk: PrivateKey,
         address: Address,
         tx_decision: Option<
             mpsc::Sender<(
-                <Self::Ctx as Context>::Height,
+                <Self::Context as Context>::Height,
                 Round,
-                <Self::Ctx as Context>::Value,
+                <Self::Context as Context>::Value,
             )>,
         >,
     ) -> (NodeRef, JoinHandle<()>);

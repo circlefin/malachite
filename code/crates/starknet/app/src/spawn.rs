@@ -30,7 +30,7 @@ pub struct SpawnStarknetNode;
 
 #[async_trait]
 impl SpawnNodeActor for SpawnStarknetNode {
-    type Ctx = MockContext;
+    type Context = MockContext;
 
     async fn spawn_node_actor(
         node_config: NodeConfig,

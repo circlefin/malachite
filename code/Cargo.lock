@@ -2164,7 +2164,6 @@ name = "malachite-common"
 version = "0.1.0"
 dependencies = [
  "derive-where",
- "signature",
 ]
 
 [[package]]
@@ -2330,11 +2329,10 @@ dependencies = [
  "malachite-node",
  "malachite-proto",
  "malachite-starknet-p2p-types",
- "malachite-test",
  "ractor",
  "rand",
  "sha3",
- "signature",
+ "starknet-core",
  "tokio",
  "tracing",
 ]
@@ -2353,12 +2351,13 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "malachite-common",
- "malachite-crypto",
  "malachite-proto",
  "malachite-starknet-p2p-proto",
+ "rand",
  "serde",
  "sha3",
  "starknet-core",
+ "starknet-crypto",
 ]
 
 [[package]]

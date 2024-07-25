@@ -6,7 +6,7 @@ use malachite_proto::{Error as ProtoError, Protobuf};
 use malachite_starknet_p2p_proto as p2p_proto;
 use starknet_core::types::EthAddress;
 
-use crate::crypto::PublicKey;
+use crate::PublicKey;
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -22,10 +22,7 @@ impl Address {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn from_public_key(public_key: &PublicKey) -> Self {
-        let hash = public_key.hash();
-        let mut address = [0; Self::LENGTH];
-        address.copy_from_slice(&hash[..Self::LENGTH]);
-        Self::new(address)
+        Self(EthAddress::from_felt(&public_key.inner()).unwrap())
     }
 }
 

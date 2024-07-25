@@ -1,8 +1,7 @@
 use malachite_common::VotingPower;
 use serde::{Deserialize, Serialize};
 
-use crate::crypto::PublicKey;
-use crate::Address;
+use crate::{Address, PublicKey};
 
 /// A validator is a public key and voting power
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

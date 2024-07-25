@@ -15,7 +15,7 @@ pub struct StartCmd;
 
 impl StartCmd {
     pub async fn run(&self, sk: PrivateKey, cfg: Config, vs: ValidatorSet) -> Result<()> {
-        let val_address = Address::from_public_key(&sk.public_key());
+        let address = Address::from_public_key(&sk.public_key());
         let moniker = cfg.moniker.clone();
 
         let span = tracing::error_span!("node", %moniker);
@@ -29,8 +29,7 @@ impl StartCmd {
 
         let (actor, handle) = match cfg.app {
             App::Starknet => {
-                SpawnStarknetNode::spawn_node_actor(cfg, vs, sk.clone(), sk, val_address, None)
-                    .await
+                SpawnStarknetNode::spawn_node_actor(cfg, vs, sk.clone(), sk, address, None).await
             }
         };
 

@@ -28,9 +28,6 @@ mod validator_set;
 mod value;
 mod vote;
 
-// Re-export `signature` crate for convenience
-pub use ::signature;
-
 /// Type alias to make it easier to refer the `ValueId` type.
 pub type ValueId<Ctx> = <<Ctx as Context>::Value as Value>::Id;
 

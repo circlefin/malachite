@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use malachite_common::{Context, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote};
-use malachite_starknet_p2p_types::{PublicKey, SigningScheme};
-use malachite_test::{PrivateKey, Signature};
+use malachite_starknet_p2p_types::{PrivateKey, PublicKey, Signature, SigningScheme};
+use starknet_core::utils::starknet_keccak;
 
 use crate::types::{
     Address, BlockHash, Height, Proposal, ProposalPart, Validator, ValidatorSet, Vote,
@@ -33,8 +33,8 @@ impl Context for MockContext {
     type SigningScheme = SigningScheme;
 
     fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self> {
-        use signature::Signer;
-        let signature = self.private_key.sign(&vote.to_sign_bytes());
+        let hash = starknet_keccak(&vote.to_sign_bytes());
+        let signature = self.private_key.sign(&hash);
         SignedVote::new(vote, signature)
     }
 
@@ -44,13 +44,13 @@ impl Context for MockContext {
         signature: &Signature,
         public_key: &PublicKey,
     ) -> bool {
-        use signature::Verifier;
-        public_key.verify(&vote.to_sign_bytes(), signature).is_ok()
+        let hash = starknet_keccak(&vote.to_sign_bytes());
+        public_key.verify(&hash, signature)
     }
 
     fn sign_proposal(&self, proposal: Self::Proposal) -> SignedProposal<Self> {
-        use signature::Signer;
-        let signature = self.private_key.sign(&proposal.to_sign_bytes());
+        let hash = starknet_keccak(&proposal.to_sign_bytes());
+        let signature = self.private_key.sign(&hash);
         SignedProposal::new(proposal, signature)
     }
 
@@ -60,15 +60,13 @@ impl Context for MockContext {
         signature: &Signature,
         public_key: &PublicKey,
     ) -> bool {
-        use signature::Verifier;
-        public_key
-            .verify(&proposal.to_sign_bytes(), signature)
-            .is_ok()
+        let hash = starknet_keccak(&proposal.to_sign_bytes());
+        public_key.verify(&hash, signature)
     }
 
     fn sign_proposal_part(&self, proposal_part: Self::ProposalPart) -> SignedProposalPart<Self> {
-        use signature::Signer;
-        let signature = self.private_key.sign(&proposal_part.to_sign_bytes());
+        let hash = starknet_keccak(&proposal_part.to_sign_bytes());
+        let signature = self.private_key.sign(&hash);
         SignedProposalPart::new(proposal_part, signature)
     }
 
@@ -78,10 +76,8 @@ impl Context for MockContext {
         signature: &Signature,
         public_key: &PublicKey,
     ) -> bool {
-        use signature::Verifier;
-        public_key
-            .verify(&proposal_part.to_sign_bytes(), signature)
-            .is_ok()
+        let hash = starknet_keccak(&proposal_part.to_sign_bytes());
+        public_key.verify(&hash, signature)
     }
 
     fn new_proposal(

@@ -35,9 +35,9 @@ pub use hash::{BlockHash, Hash, MessageHash};
 mod streaming;
 pub use streaming::{Stream, StreamContent};
 
-mod crypto;
+mod signing;
 
-pub type SigningScheme = crypto::Ed25519;
-pub type Signature = crypto::Signature;
-pub type PublicKey = crypto::PublicKey;
-pub type PrivateKey = crypto::PrivateKey;
+pub type SigningScheme = signing::Ecdsa;
+pub type Signature = signing::Signature;
+pub type PublicKey = signing::PublicKey;
+pub type PrivateKey = signing::PrivateKey;

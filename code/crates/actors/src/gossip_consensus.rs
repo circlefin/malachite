@@ -10,13 +10,13 @@ use ractor::ActorProcessingErr;
 use ractor::ActorRef;
 use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
+use tracing::{error, error_span, Instrument};
 
 use malachite_common::Context;
 use malachite_consensus::GossipMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, NetworkCodec, PeerId};
 use malachite_metrics::SharedRegistry;
-use tracing::{error, error_span, Instrument};
 
 pub type GossipConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 

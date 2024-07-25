@@ -14,4 +14,3 @@ workspace = true
 
 [dependencies]
 derive-where.workspace = true
-signature.workspace    = true
