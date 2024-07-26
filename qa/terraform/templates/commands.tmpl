@@ -141,12 +141,13 @@ deploy_cc
 ssh-cc
 ok_servers
 setup_config
+dnode-pull all
 dnode-run all
 (wait for data)
-dnode-stop all
-get_prometheus_data
+#dnode-stop all
+#get_prometheus_data
 dnode-rm all
-_reset_prometheus_db
+#_reset_prometheus_db
 EOF
 }
 
