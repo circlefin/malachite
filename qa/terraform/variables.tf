@@ -1,3 +1,7 @@
+variable "ssh_keys" {
+  type = list(string)
+}
+
 # Regions and number of servers to deploy there
 # Regions list: https://docs.digitalocean.com/platform/regional-availability/
 # ams3 - Amsterdam
@@ -124,10 +128,7 @@ variable "tor1_size" {
   default = "g-2vcpu-8gb"
 }
 
-output "next_steps" {
-  value = <<EOT
-source commands.sh ; ok_cc
-cheat_sheet
-EOT
+variable "instance_tags" {
+  type    = list(string)
+  default = ["Malachite"]
 }
-

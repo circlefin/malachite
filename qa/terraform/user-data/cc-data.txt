@@ -233,7 +233,7 @@ runcmd:
   - curl -s -o /usr/bin/sconfig -L https://github.com/freshautomations/sconfig/releases/download/v0.2.0/sconfig_linux_amd64
   - chmod 755 /usr/bin/sconfig
   - cd /root && git clone https://github.com/deviantony/docker-elk
-  - sed -i 's/^ELASTIC_PASSWORD=.*/ELASTIC_PASSWORD='"'privy-latex-quizzed-estoppel'"'/' /root/docker-elk/.env
+  - sed -i 's/^ELASTIC_PASSWORD=.*/ELASTIC_PASSWORD='"'${elastic_password}'"'/' /root/docker-elk/.env
   - sed -i 's/^LOGSTASH_INTERNAL_PASSWORD=.*/LOGSTASH_INTERNAL_PASSWORD='"'$(pwgen 30 1)'"'/' /root/docker-elk/.env
   - sed -i 's/^KIBANA_SYSTEM_PASSWORD=.*/KIBANA_SYSTEM_PASSWORD='"'$(pwgen 30 1)'"'/' /root/docker-elk/.env
   - docker compose -f /root/docker-elk/docker-compose.yml up setup

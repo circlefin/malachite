@@ -1,27 +1,3 @@
-variable "ssh_keys" {
-  type = list(string)
-}
-
-variable "instance_tags" {
-  type    = list(string)
-  default = ["Malachite"]
-}
-
-resource "digitalocean_droplet" "cc" {
-  name      = "cc"
-  image     = "debian-12-x64"
-  region    = "tor1"
-  tags      = concat(var.instance_tags, ["cc", "tor1"])
-  size      = var.cc_size
-  ssh_keys  = var.ssh_keys
-  user_data = templatefile("user-data/cc-data.txt", {
-    prometheus_config = filebase64("../viewer/config-prometheus/prometheus.yml")
-    grafana_data_sources = filebase64("../viewer/config-grafana/provisioning/datasources/prometheus.yml")
-    grafana_dashboards_config = filebase64("../viewer/config-grafana/provisioning/dashboards/malachite.yml")
-    grafana_malachite_dashboard = filebase64("../viewer/config-grafana/provisioning/dashboards-data/main.json")
-  })
-}
-
 resource "digitalocean_droplet" "ams3" {
   depends_on = [digitalocean_droplet.cc]
   count      = var.ams3
@@ -38,6 +14,7 @@ resource "digitalocean_droplet" "ams3" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
+    elastic_password = random_string.elastic_password.result
   })
 }
 
@@ -57,6 +34,7 @@ resource "digitalocean_droplet" "blr1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
+    elastic_password = random_string.elastic_password.result
   })
 }
 
@@ -76,6 +54,7 @@ resource "digitalocean_droplet" "fra1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
+    elastic_password = random_string.elastic_password.result
   })
 }
 
@@ -95,6 +74,7 @@ resource "digitalocean_droplet" "lon1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
+    elastic_password = random_string.elastic_password.result
   })
 }
 
@@ -114,6 +94,7 @@ resource "digitalocean_droplet" "nyc1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
+    elastic_password = random_string.elastic_password.result
   })
 }
 
@@ -133,6 +114,7 @@ resource "digitalocean_droplet" "nyc3" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
+    elastic_password = random_string.elastic_password.result
   })
 }
 
@@ -152,6 +134,7 @@ resource "digitalocean_droplet" "sfo2" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
+    elastic_password = random_string.elastic_password.result
   })
 }
 
@@ -171,6 +154,7 @@ resource "digitalocean_droplet" "sfo3" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
+    elastic_password = random_string.elastic_password.result
   })
 }
 
@@ -190,6 +174,7 @@ resource "digitalocean_droplet" "sgp1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
+    elastic_password = random_string.elastic_password.result
   })
 }
 
@@ -209,6 +194,7 @@ resource "digitalocean_droplet" "syd1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
+    elastic_password = random_string.elastic_password.result
   })
 }
 
@@ -228,5 +214,6 @@ resource "digitalocean_droplet" "tor1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
+    elastic_password = random_string.elastic_password.result
   })
 }
