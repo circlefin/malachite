@@ -329,11 +329,38 @@ where `strand(H) == s`, can only produce and propose a block if it includes
 
 ### Critical scenario
 
-- [Issue #245](https://github.com/informalsystems/malachite/issues/245): refers to the last
-  scenario described in this [section](#proposers-and-provers), when a block
-  can only be committed if it includes the expected proof.
-  If the proof is not available, and has to start being computed during the
-  height, we should expect a `L` latency for the height, which can be in the
-  order of minutes.
+The critical scenario of the proofs scheduling happens when the system reaches
+height `H* = H + (P + 1) * K` without having the proof of block `H` include in
+any previous height in strand `s = strand(H) = strand(H*)`.
+As [previously](#proposers-and-provers) mentioned, in this particular scenario,
+a block can only be committed to height `H*` if it includes the proof of block
+`H` combined with proofs for all empty blocks from heights 
+`H' = H + i * K`, with `1 <= i <= P`.
+
+In this scenario, two situations that are tolerated by proofs scheduling
+protocol are not any longer accepted:
+
+- The primary proposer `proposer(H*, 0)` is not allowed to propose an empty
+  block if it has not produced, or retrieved from some prover,
+  `expected_proof(H*)`, as correct validators will reject the proposed block;
+- Non-primary proposers of height `H*` are not allowed to propose empty blocks
+  either, for the same reason.
+
+As a result, some prover must produce `expected_proof(H*)` and render it
+available to the proposer of a round of height `H*` to be included in the
+proposed block.
+Until that happens, the blockchain will not progress, it is frozen.
+In the case in which no prover has computed `expected_proof(H*)` by the
+beginning of height `H*`, this height will require at least `L` time to produce
+a block that can be committed, where `L` is probably in the order of minutes.
+
+In order to prevent, or minimize as far as possible, this scenario, some
+mechanisms should be considered in order to incentivize additional provers to
+produce (redundant) proofs for unproven blocks, as long as some strand starts
+to have multiple empty blocks.
+As general principle, a such mechanism should allow to non-primary proposers of
+heights belonging to a strand with several outstanding proofs to produce full
+blocks, including the expected proof, even thought by the scheduling protocol
+they are not _required_ to so before the above described critical height `H*`.
 
 [starkprover]: https://docs.starknet.io/architecture-and-concepts/network-architecture/starknet-architecture-overview/#provers
