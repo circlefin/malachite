@@ -114,6 +114,32 @@ of the consensus protocol.
 We define, for the sake of the scheduling protocol, the **primary proposer** of
 height `H` as the proposer of its first round, i.e., `proposer(H,0)`.
 
+### Epochs
+
+Starknet restricts how often the validator set can be updated by adopting the
+concept _Starknet Validator Epochs_ (SVE).
+An epoch `e` is a sequence of heights, with predefined length `E`, during which
+the validator set adopted in consensus remains unchanged.
+Moreover, the validator set to be adopted in epoch `e + 2` is defined when the
+last block of epoch `e` is committed, i.e., when epoch `e + 1` is about to start.
+More details it this [document](./forced-updates/README.md).
+
+For the sake of proof scheduling, when a block at height `H` of epoch `e` is
+committed, the validator set adopted in all heights of epoch `e` is known, and
+so is the validator set to be adopted in all heights of epoch `e + 1`.
+In the best case, `H` is the last height of epoch `e`, so that the validator
+sets of the next two fulls epochs are known, i.e., the validator set is known
+up to height `H + 2E`.
+In the worst case, `H` is the penultimate height of epoch `e`, i.e., there is
+still one height on the current epoch, and the validator set is known up to
+height `H + 1 + E`.
+
+As a result, if the system is formed by `K` strands then the schedule
+algorithm implicitly requires `K <= E + 1`.
+In this way, when the block at height `H` is committed, the validator set
+`valset(H')` of the block `H' = H + K` where the proof of block `H` is expected
+to be included is known by all system participants.
+
 ### Blocks
 
 Blocks proposed in a round of the consensus protocol and eventually committed
@@ -301,20 +327,13 @@ So, if `|unproven(s)| > P`, then the proposer of **any round** of a height `H`,
 where `strand(H) == s`, can only produce and propose a block if it includes
 `expected_proof(H)`.
 
-## Issues to Address
+### Critical scenario
 
-- [#245](https://github.com/informalsystems/malachite/issues/245): refers to the last
+- [Issue #245](https://github.com/informalsystems/malachite/issues/245): refers to the last
   scenario described in this [section](#proposers-and-provers), when a block
   can only be committed if it includes the expected proof.
   If the proof is not available, and has to start being computed during the
   height, we should expect a `L` latency for the height, which can be in the
   order of minutes.
-- [#246](https://github.com/informalsystems/malachite/issues/246): the validator set
-  may change at the end of each epoch. The validator set of the next epoch is
-  know, although not yet installed. The validator set is the input used to
-  compute the proposer for each round and height, therefore needs to be known a
-  priori.
-  We must discuss the relation between the constants `E`, the epoch length, and `K`, the
-  number of strands.
 
 [starkprover]: https://docs.starknet.io/architecture-and-concepts/network-architecture/starknet-architecture-overview/#provers
