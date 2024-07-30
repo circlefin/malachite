@@ -114,6 +114,32 @@ of the consensus protocol.
 We define, for the sake of the scheduling protocol, the **primary proposer** of
 height `H` as the proposer of its first round, i.e., `proposer(H,0)`.
 
+### Epochs
+
+Starknet restricts how often the validator set can be updated by adopting the
+concept _Starknet Validator Epochs_ (SVE).
+An epoch `e` is a sequence of heights, with predefined length `E`, during which
+the validator set adopted in consensus remains unchanged.
+Moreover, the validator set to be adopted in epoch `e + 2` is defined when the
+last block of epoch `e` is committed, i.e., when epoch `e + 1` is about to start.
+More details it this [document](./forced-updates/README.md).
+
+For the sake of proof scheduling, when a block at height `H` of epoch `e` is
+committed, the validator set adopted in all heights of epoch `e` is known, and
+so is the validator set to be adopted in all heights of epoch `e + 1`.
+In the best case, `H` is the last height of epoch `e`, so that the validator
+sets of the next two fulls epochs are known, i.e., the validator set is known
+up to height `H + 2E`.
+In the worst case, `H` is the penultimate height of epoch `e`, i.e., there is
+still one height on the current epoch, and the validator set is known up to
+height `H + 1 + E`.
+
+As a result, if the system is formed by `K` strands then the schedule
+algorithm implicitly requires `K <= E + 1`.
+In this way, when the block at height `H` is committed, the validator set
+`valset(H')` of the block `H' = H + K` where the proof of block `H` is expected
+to be included is known by all system participants.
+
 ### Blocks
 
 Blocks proposed in a round of the consensus protocol and eventually committed
@@ -301,20 +327,46 @@ So, if `|unproven(s)| > P`, then the proposer of **any round** of a height `H`,
 where `strand(H) == s`, can only produce and propose a block if it includes
 `expected_proof(H)`.
 
-## Issues to Address
+### Critical scenario
 
-- [#245](https://github.com/informalsystems/malachite/issues/245): refers to the last
-  scenario described in this [section](#proposers-and-provers), when a block
-  can only be committed if it includes the expected proof.
-  If the proof is not available, and has to start being computed during the
-  height, we should expect a `L` latency for the height, which can be in the
-  order of minutes.
-- [#246](https://github.com/informalsystems/malachite/issues/246): the validator set
-  may change at the end of each epoch. The validator set of the next epoch is
-  know, although not yet installed. The validator set is the input used to
-  compute the proposer for each round and height, therefore needs to be known a
-  priori.
-  We must discuss the relation between the constants `E`, the epoch length, and `K`, the
-  number of strands.
+The critical scenario of the proofs scheduling happens when the system reaches
+height `H* = H + (P + 1) * K` without having the proof of block `H` include in
+any previous height in strand `s = strand(H) = strand(H*)`.
+As [previously](#proposers-and-provers) mentioned, in this particular scenario,
+a block can only be committed to height `H*` if it includes the proof of block
+`H` combined with proofs for all empty blocks from heights 
+`H' = H + i * K`, with `1 <= i <= P`.
+
+In this scenario, two situations that are tolerated by proofs scheduling
+protocol are not any longer accepted:
+
+- The primary proposer `proposer(H*, 0)` is not allowed to propose an empty
+  block if it has not produced, or retrieved from some prover,
+  `expected_proof(H*)`, as correct validators will reject the proposed block;
+- Non-primary proposers of height `H*` are not allowed to propose empty blocks
+  either, for the same reason: correct validators will reject the
+  proposed block, as it does not include the required `expected_proof(H*)`.
+
+As a result, some prover must produce `expected_proof(H*)` and render it
+available to the proposer of a round of height `H*` to be included in the
+proposed block.
+Until that happens, the blockchain will not progress, it is frozen. 
+More precisely, the consensus algorithm will go through multiple rounds that
+are all unsuccessful because the proposer cannot propose a block that the
+validators would consider valid and therefore vote for.
+Correct validator will instead prevote and precommit `nil`, and eventually go
+to the next round, where the same happens.
+In the case in which no prover has computed `expected_proof(H*)` by the
+beginning of height `H*`, this height will require at least `L` time to produce
+a block that can be committed, where `L` is probably in the order of minutes.
+
+In order to prevent, or minimize as far as possible, this scenario, some
+mechanisms should be considered in order to incentivize additional provers to
+produce (redundant) proofs for unproven blocks, as long as some strand starts
+to have multiple empty blocks.
+As general principle, a such mechanism should allow to non-primary proposers of
+heights belonging to a strand with several outstanding proofs to produce full
+blocks, including the expected proof, even thought by the scheduling protocol
+they are not _required_ to so before the above described critical height `H*`.
 
 [starkprover]: https://docs.starknet.io/architecture-and-concepts/network-architecture/starknet-architecture-overview/#provers
