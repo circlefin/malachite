@@ -12,8 +12,8 @@ use rand::{Rng, SeedableRng};
 use tracing::info;
 
 use malachite_node::config::{
-    App, Config, ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig,
-    TestConfig, TimeoutConfig,
+    App, Config, ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MempoolConfig, MetricsConfig,
+    P2pConfig, RuntimeConfig, TestConfig, TimeoutConfig,
 };
 use malachite_test::ValidatorSet as Genesis;
 use malachite_test::{PrivateKey, PublicKey, Validator};
@@ -78,7 +78,7 @@ pub struct TestnetCmd {
 
 impl TestnetCmd {
     /// Execute the testnet command
-    pub fn run(&self, home_dir: &Path) -> Result<()> {
+    pub fn run(&self, home_dir: &Path, log_level: LogLevel, log_format: LogFormat) -> Result<()> {
         let private_keys = generate_private_keys(self.nodes, self.deterministic);
         let public_keys = private_keys.iter().map(|pk| pk.public_key()).collect();
         let genesis = generate_genesis(public_keys, self.deterministic);
@@ -111,7 +111,7 @@ impl TestnetCmd {
             // Save config
             save_config(
                 &args.get_config_file_path()?,
-                &generate_config(self.app, i, self.nodes, self.runtime),
+                &generate_config(self.app, i, self.nodes, self.runtime, log_level, log_format),
             )?;
         }
         Ok(())
@@ -157,7 +157,14 @@ const MEMPOOL_BASE_PORT: usize = 28000;
 const METRICS_BASE_PORT: usize = 29000;
 
 /// Generate configuration for node "index" out of "total" number of nodes.
-pub fn generate_config(app: App, index: usize, total: usize, runtime: RuntimeFlavour) -> Config {
+pub fn generate_config(
+    app: App,
+    index: usize,
+    total: usize,
+    runtime: RuntimeFlavour,
+    log_level: LogLevel,
+    log_format: LogFormat,
+) -> Config {
     let consensus_port = CONSENSUS_BASE_PORT + index;
     let mempool_port = MEMPOOL_BASE_PORT + index;
     let metrics_port = METRICS_BASE_PORT + index;
@@ -202,6 +209,10 @@ pub fn generate_config(app: App, index: usize, total: usize, runtime: RuntimeFla
         metrics: MetricsConfig {
             enabled: true,
             listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
+        },
+        logging: LoggingConfig {
+            log_level,
+            log_format,
         },
         runtime: match runtime {
             RuntimeFlavour::SingleThreaded => RuntimeConfig::single_threaded(),

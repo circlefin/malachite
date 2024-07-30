@@ -12,6 +12,23 @@ app = "starknet"
 moniker = "malachite"
 
 #######################################################
+###          Logging Configuration Options          ###
+#######################################################
+[logging]
+# The application log level.
+# Override with MALACHITE__LOGGING__LOG_LEVEL env variable.
+# See more: https://docs.rs/env_logger/latest/env_logger/#enabling-logging
+log_level = "debug"
+
+# The log format.
+# Possible values:
+# - "plaintext": log entries are in colorful text
+# - "json": log entries are presented as JSON objects
+# Override with MALACHITE__LOGGING__LOG_FORMAT env variable.
+log_format = "plaintext"
+
+
+#######################################################
 ###         Consensus Configuration Options         ###
 #######################################################
 [consensus]

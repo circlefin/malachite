@@ -1,8 +1,8 @@
 use bytesize::ByteSize;
 
 use malachite_node::config::{
-    App, Config as NodeConfig, ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig,
-    RuntimeConfig, TimeoutConfig,
+    App, Config as NodeConfig, ConsensusConfig, LoggingConfig, MempoolConfig, MetricsConfig,
+    P2pConfig, RuntimeConfig, TimeoutConfig,
 };
 
 use crate::utils::test::Test;
@@ -57,6 +57,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                 .parse()
                 .unwrap(),
         },
+        logging: LoggingConfig::default(),
         runtime: RuntimeConfig::single_threaded(),
         test: Default::default(),
     }
