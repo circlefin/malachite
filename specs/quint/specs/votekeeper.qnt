@@ -17,7 +17,8 @@ module votekeeper {
     type VoteCount = {
         totalWeight: Weight,
         valuesWeights: Value -> Weight,
-        votesAddresses: Set[Address]
+        votesAddresses: Set[Address],
+        receivedVotes: Set[Vote],
     }
 
     type RoundVotes = {
@@ -48,13 +49,15 @@ module votekeeper {
     type Bookkeeper = {
         height: Height,
         totalWeight: Weight,
-        rounds: Round -> RoundVotes
+        rounds: Round -> RoundVotes,
+        evidence: Set[Set[Vote]]
     }
 
     pure def initBookKeeper(initialHeight: Height, totalVotingPower: Weight): Bookkeeper = { 
         height: initialHeight, 
         totalWeight: totalVotingPower, 
-        rounds: Map()
+        rounds: Map(),
+        evidence: Set(),
     }
 
     // ****************************************************************************
@@ -74,7 +77,7 @@ module votekeeper {
 
     // creates a new voteCount
     pure def newVoteCount(total: Weight): VoteCount =
-        { totalWeight: total, valuesWeights: Map(), votesAddresses: Set() }
+        { totalWeight: total, valuesWeights: Map(), votesAddresses: Set(), receivedVotes: Set() }
 
     // Returns true if weight > 2/3 * total (quorum: at least f+1 correct)
     pure def isQuorum(weight: Weight, total: Weight): bool =
@@ -111,20 +114,24 @@ module votekeeper {
 
     // Adds a weighted vote to a voteCount if there is no vote registered for the voter.
     pure def addVote(voteCount: VoteCount, vote: Vote, weight: Weight): VoteCount =
+        val newRcvd = voteCount.receivedVotes.union(Set(vote))
         if (vote.srcAddress.in(voteCount.votesAddresses))
-            // Do not count vote if address has already voted.
+            // Do not count vote if address has already voted. 
             voteCount
+                .with("receivedVotes", newRcvd)
         else 
             val newWeight = voteCount.valuesWeights.getOrElse(vote.valueId, 0) + weight             
             voteCount
                 .with("valuesWeights", voteCount.valuesWeights.mapSafeSet(vote.valueId, newWeight))
                 .with("votesAddresses", voteCount.votesAddresses.setAdd(vote.srcAddress))
+                .with("receivedVotes", newRcvd)
 
     run addVoteTest =
         val voteCount = { 
             totalWeight: 100, 
             valuesWeights: Map(Val("val1") -> 30, Val("val2") -> 20), 
-            votesAddresses: Set("alice", "bob")
+            votesAddresses: Set("alice", "bob"),
+            receivedVotes: Set() // TODO: make consistent with other fields?
         }
         val vote = mkVote(Precommit, "john", 1, 10, Val("val3"))
         all {
@@ -132,16 +139,19 @@ module votekeeper {
             assert(addVote(voteCount, vote, 10) == { 
                 totalWeight: 100, 
                 valuesWeights: Map(Val("val1") -> 30, Val("val2") -> 20, Val("val3") -> 10), 
-                votesAddresses: Set("alice", "bob", "john") 
+                votesAddresses: Set("alice", "bob", "john"),
+                receivedVotes: Set(vote),
             }),
             // new voter, existing value
             assert(addVote(voteCount, vote.with("valueId", Val("val2")), 10) == { 
                 totalWeight: 100, 
                 valuesWeights: Map(Val("val1") -> 30, Val("val2") -> 30), 
-                votesAddresses: Set("alice", "bob", "john") 
+                votesAddresses: Set("alice", "bob", "john"),
+                receivedVotes: Set(vote.with("valueId", Val("val2"))),
             }),
             // existing voter
-            assert(addVote(voteCount, vote.with("srcAddress", "alice"), 10) == voteCount),
+            assert(addVote(voteCount, vote.with("srcAddress", "alice"), 10) == 
+                voteCount.with("receivedVotes", Set(vote.with("srcAddress", "alice")))),
         }
 
     // Given a voteCount and a value, the function returns:
@@ -161,7 +171,7 @@ module votekeeper {
             UnreachedThreshold
 
     run computeThresholdTest =
-        val voteCount = {totalWeight: 100, valuesWeights: Map(), votesAddresses: Set("alice", "bob")}
+        val voteCount = {totalWeight: 100, valuesWeights: Map(), votesAddresses: Set("alice", "bob"), receivedVotes: Set()}
         val mapValueReached = Map(Val("v1") -> 67, Val("v2") -> 20)
         val mapNilReached = Map(Nil -> 70, Val("v2") -> 20)
         val mapNoneReached = Map(Nil -> 20, Val("v2") -> 20)
@@ -232,6 +242,15 @@ module votekeeper {
                 | Precommit => roundVotes.precommits.addVote(vote, weight)
             }
 
+        // check if sender of vote, equivocated
+        // TODO:    we could check if sender equivocated on this height/round before and only record first occurrence,
+        //          but this depends on requirements for slashing
+        val msgsBySender = updatedVoteCount.receivedVotes.filter(x => x.srcAddress == vote.srcAddress)
+        val newEvidence =   if (msgsBySender.size() == 1)
+                                Set()
+                            else
+                                msgsBySender
+
         val updatedVotesAddressesWeights =
             if (roundVotes.votesAddressesWeights.has(vote.srcAddress)) 
                 roundVotes.votesAddressesWeights
@@ -264,29 +283,34 @@ module votekeeper {
         val updatedBookkeeper = keeper
             .with("rounds", keeper.rounds.mapSafeSet(vote.round, updatedRoundVotes2))
 
-        { bookkeeper: updatedBookkeeper, output: finalOutput }
+        val resultingBookkeeper =   if (newEvidence == Set()) updatedBookkeeper
+                                    else updatedBookkeeper.with("evidence", keeper.evidence.union(Set(newEvidence)))
+
+        { bookkeeper: resultingBookkeeper, output: finalOutput }
 
     run applyVoteTest =
         val roundVotes: RoundVotes = {
             height: 0,
             round: 0,
-            prevotes: { totalWeight: 4, votesAddresses: Set(), valuesWeights: Map(Val("v1") -> 1, Nil -> 3) },
-            precommits: { totalWeight: 4, votesAddresses: Set(), valuesWeights: Map() },
+            prevotes: { totalWeight: 4, votesAddresses: Set(), valuesWeights: Map(Val("v1") -> 1, Nil -> 3), receivedVotes: Set()  },
+            precommits: { totalWeight: 4, votesAddresses: Set(), valuesWeights: Map(), receivedVotes: Set() },
             emittedOutputs: Set(),
             votesAddressesWeights: Map(),
         }
-        val vk: Bookkeeper = { height: 0, totalWeight: 4, rounds: Map(0 -> roundVotes) }
+        val vk: Bookkeeper = { height: 0, totalWeight: 4, rounds: Map(0 -> roundVotes), evidence: Set() }
         val o1 = applyVote(vk, mkVote(Precommit, "a0", 0, 0, Nil), 1, 0)
         val o2 = applyVote(o1.bookkeeper, mkVote(Precommit, "a1", 0, 0, Nil), 1, 0)
         val o3 = applyVote(o2.bookkeeper, mkVote(Precommit, "a2", 0, 0, Nil), 1, 0)
         val o4 = applyVote(o3.bookkeeper, mkVote(Precommit, "a3", 0, 0, Nil), 1, 0)
         val o5 = applyVote(o4.bookkeeper, mkVote(Precommit, "a4", 0, 1, Nil), 3, 0)
+        val o6 = applyVote(o5.bookkeeper, mkVote(Precommit, "a4", 0, 1, Val("faulty")), 3, 0)
         all {
             assert(o1.output == NoVKOutput),
             assert(o2.output == NoVKOutput),
             assert(o3.output == PrecommitAnyVKOutput(0)),
             assert(o4.output == NoVKOutput),
             assert(o5.output == SkipVKOutput(1)),
+            assert(o6.bookkeeper.evidence != Set())
         }
 
     // Called by the driver to check if there is a specific threshold for a given round and voteType.
