@@ -243,11 +243,6 @@ module votekeeper {
             }
 
         // check if sender of vote, equivocated
-        val msgsBySender = updatedVoteCount.receivedVotes.filter(x => x.srcAddress == vote.srcAddress)
-        val newEvidence = if (msgsBySender.size() == 1)
-                            Set()
-                        else
-                            msgsBySender
         // TODO:    we could check if sender equivocated on this height/round before and only record first occurrence,
         //          but this depends on requirements for slashing
         val msgsBySender = updatedVoteCount.receivedVotes.filter(x => x.srcAddress == vote.srcAddress)
