@@ -344,7 +344,8 @@ protocol are not any longer accepted:
   block if it has not produced, or retrieved from some prover,
   `expected_proof(H*)`, as correct validators will reject the proposed block;
 - Non-primary proposers of height `H*` are not allowed to propose empty blocks
-  either, for the same reason.
+  either, for the same reason: correct validators will reject the
+  proposed block, as it does not include the required `expected_proof(H*)`.
 
 As a result, some prover must produce `expected_proof(H*)` and render it
 available to the proposer of a round of height `H*` to be included in the
