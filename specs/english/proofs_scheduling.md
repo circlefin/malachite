@@ -350,7 +350,8 @@ protocol are not any longer accepted:
 As a result, some prover must produce `expected_proof(H*)` and render it
 available to the proposer of a round of height `H*` to be included in the
 proposed block.
-Until that happens, the blockchain will not progress, it is frozen.
+Until that happens, the blockchain will not progress, it is frozen. 
+More precisely, Tendermint consensus will go through multiple rounds that are all unsuccessful because the proposer cannot propose a valid block that the validators would vote for. Instead they will prevote and precommit `nil`, and eventually go to the next round, where the same happens.
 In the case in which no prover has computed `expected_proof(H*)` by the
 beginning of height `H*`, this height will require at least `L` time to produce
 a block that can be committed, where `L` is probably in the order of minutes.
