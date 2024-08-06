@@ -2,7 +2,7 @@ use malachite_common::{self as common, proto, NilOrVal, Round, VoteType};
 
 use crate::mock::types::{Address, BlockHash, Height, StarknetContext};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Vote {
     pub vote_type: VoteType,
     pub height: Height,

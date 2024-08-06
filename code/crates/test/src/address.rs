@@ -6,7 +6,7 @@ use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::signing::PublicKey;
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Address(
     #[serde(

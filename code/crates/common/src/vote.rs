@@ -5,7 +5,7 @@ use malachite_proto::Protobuf;
 use crate::{Context, NilOrVal, Round, Value};
 
 /// A type of vote.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum VoteType {
     /// Votes for values which validators observe are valid for a given round.
     Prevote,
@@ -20,7 +20,7 @@ pub enum VoteType {
 /// include information about the validator signing it.
 pub trait Vote<Ctx>
 where
-    Self: Protobuf + Clone + Debug + Eq + Send + Sync + 'static,
+    Self: Protobuf + Clone + Debug + Eq + Ord + Send + Sync + 'static,
     Ctx: Context,
 {
     /// The height for which the vote is for.

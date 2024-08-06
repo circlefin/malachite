@@ -1,5 +1,6 @@
 //! For tallying votes and emitting messages when certain thresholds are reached.
 
+use alloc::vec::Vec;
 use derive_where::derive_where;
 
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -40,8 +41,13 @@ where
 {
     /// The votes for this round.
     votes: RoundVotes<Ctx::Address, ValueId<Ctx>>,
+
     /// The addresses and their weights for this round.
     addresses_weights: RoundWeights<Ctx::Address>,
+
+    /// All the votes received for this round.
+    received_votes: BTreeSet<Ctx::Vote>,
+
     /// The emitted outputs for this round.
     emitted_outputs: BTreeSet<Output<ValueId<Ctx>>>,
 }
@@ -52,11 +58,25 @@ where
 {
     /// Create a new `PerRound` instance.
     pub fn new() -> Self {
-        Self {
-            votes: RoundVotes::new(),
-            addresses_weights: RoundWeights::new(),
-            emitted_outputs: BTreeSet::new(),
-        }
+        Self::default()
+    }
+
+    /// Add a vote to the round.
+    pub fn add(&mut self, vote: Ctx::Vote, weight: Weight) {
+        // Add the vote to the round
+        self.votes.add_vote(
+            vote.vote_type(),
+            vote.validator_address().clone(),
+            vote.value().clone(),
+            weight,
+        );
+
+        // Update the weight of the validator
+        self.addresses_weights
+            .set_once(vote.validator_address(), weight);
+
+        // Add the vote to the received votes
+        self.received_votes.insert(vote);
     }
 
     /// Return the votes for this round.
@@ -73,6 +93,58 @@ where
     pub fn emitted_outputs(&self) -> &BTreeSet<Output<ValueId<Ctx>>> {
         &self.emitted_outputs
     }
+
+    /// Return all the received votes for this round.
+    pub fn received_votes(&self) -> &BTreeSet<Ctx::Vote> {
+        &self.received_votes
+    }
+
+    /// Return the received votes for a given address and vote type.
+    pub fn get_received_votes<'a>(
+        &'a self,
+        vote_type: VoteType,
+        address: &'a Ctx::Address,
+    ) -> Vec<&'a Ctx::Vote> {
+        self.received_votes
+            .iter()
+            .filter(move |vote| {
+                vote.vote_type() == vote_type && vote.validator_address() == address
+            })
+            .collect()
+    }
+}
+
+/// Keeps track of evidence of equivocation.
+#[derive_where(Clone, Debug, Default)]
+pub struct EvidenceMap<Ctx>
+where
+    Ctx: Context,
+{
+    map: BTreeMap<Ctx::Address, BTreeSet<Ctx::Vote>>,
+}
+
+impl<Ctx> EvidenceMap<Ctx>
+where
+    Ctx: Context,
+{
+    /// Create a new `EvidenceMap` instance.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Return the evidence of equivocation for a given address.
+    pub fn get(&self, address: &Ctx::Address) -> Option<&BTreeSet<Ctx::Vote>> {
+        self.map.get(address)
+    }
+
+    /// Add evidence of equivocation for a given address.
+    pub fn add(&mut self, address: &Ctx::Address, votes: impl Iterator<Item = Ctx::Vote>) {
+        if let Some(evidence) = self.map.get_mut(address) {
+            evidence.extend(votes);
+        } else {
+            self.map.insert(address.clone(), votes.collect());
+        }
+    }
 }
 
 /// Keeps track of votes and emits messages when thresholds are reached.
@@ -87,6 +159,8 @@ where
     threshold_params: ThresholdParams,
     /// The votes and emitted outputs for each round.
     per_round: BTreeMap<Round, PerRound<Ctx>>,
+    /// Evidence of equivocation.
+    evidence: EvidenceMap<Ctx>,
 }
 
 impl<Ctx> VoteKeeper<Ctx>
@@ -96,10 +170,11 @@ where
     /// Create a new `VoteKeeper` instance, for the given
     /// total network weight (ie. voting power) and threshold parameters.
     pub fn new(total_weight: Weight, threshold_params: ThresholdParams) -> Self {
-        VoteKeeper {
+        Self {
             total_weight,
             threshold_params,
             per_round: BTreeMap::new(),
+            evidence: EvidenceMap::new(),
         }
     }
 
@@ -121,17 +196,18 @@ where
         current_round: Round,
     ) -> Option<Output<ValueId<Ctx>>> {
         let per_round = self.per_round.entry(vote.round()).or_default();
+        per_round.add(vote.clone(), weight);
 
-        per_round.votes.add_vote(
-            vote.vote_type(),
-            vote.validator_address().clone(),
-            vote.value().clone(),
-            weight,
-        );
+        // Check if this is an equivocating vote
+        {
+            let double_votes =
+                per_round.get_received_votes(vote.vote_type(), vote.validator_address());
 
-        per_round
-            .addresses_weights
-            .set_once(vote.validator_address().clone(), weight);
+            if double_votes.len() > 1 {
+                self.evidence
+                    .add(vote.validator_address(), double_votes.into_iter().cloned());
+            }
+        }
 
         if vote.round() > current_round {
             let combined_weight = per_round.addresses_weights.sum();
