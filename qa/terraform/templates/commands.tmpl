@@ -14,8 +14,7 @@
 # Additional functionality in shell functions (see README for more info)
 # xssh - parallel ssh command to all servers. Change PSSH_H and PSSH_P for different behavior.
 # get_ip - get the IP address of a node server for programmatic use (example: get_ip 0)
-# ok_cc - check if the CC server is ready to be used and update its services (DNS hosts, commands.sh, etc)
-# ok_servers - check if all servers are ready to be used
+# ok_cc - check if the CC server has all services installed
 # deploy_cc - build the local source code into a docker image on the cc server and push it to the cc registry
 # setup_config - create configuration on the cc server
 # done-pull - pull the node image on all the node servers.  Accepts list of IDs or "all". (example: dnode-pull 0 1 2)
@@ -74,13 +73,7 @@ get_hostname() {
 }
 
 ok_cc() {
-  PSSH_P=1 PSSH_H=$CANDC xssh "cat /etc/done" && \
-  scp -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -C $${1:-$${MALACHITE_DIR}/qa/terraform/commands.sh} root@$${CANDC}:/etc/profile.d/commands.sh && \
-  PSSH_P=1 PSSH_H=$CANDC xssh "sed -i -e 's,^export MALACHITE_DIR=.*,export MALACHITE_DIR=/root/malachite,' -e 's,^export IS_CC=.*,export IS_CC=1,' /etc/profile.d/commands.sh && source /etc/profile.d/commands.sh && _print_hosts > /etc/hosts && systemctl reload dnsmasq"
-}
-
-ok_servers() {
-  xssh "cat /etc/done && mount /data" # Mount /data in case a QA node came online earlier than CC
+  PSSH_P=1 PSSH_H=$CANDC xssh "cat /etc/cc"
 }
 
 deploy_cc() {
@@ -136,10 +129,8 @@ dnode-rm() {
 
 cheat_sheet() {
 cat <<EOF
-ok_cc
 deploy_cc
 ssh-cc
-ok_servers
 setup_config
 dnode-pull all
 dnode-run all
@@ -298,21 +289,7 @@ _change_test_du_jour() {
 
 _print_hosts() {
   cat <<EOF
-127.0.0.1       localhost
-${cc.ip}        ${cc.name}
-${cc.internal_ip}        l-${cc.name}
-%{~ for i, n in nodes }
-${n.ip}        node${i}
-%{~ endfor }
-%{~ for i,n in nodes }
-${n.internal_ip}        l-node${i}
-%{~ endfor }
-%{~ for n in nodes }
-${n.ip}        ${n.name}
-%{~ endfor }
-%{~ for n in nodes }
-${n.internal_ip}        l-${n.name}
-%{~ endfor }
+${etc-hosts}
 EOF
 }
 

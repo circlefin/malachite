@@ -215,28 +215,37 @@ write_files:
         registry:
         grafana:
 runcmd:
+# Parallel SSH naming fix
   - ln /usr/bin/parallel-ssh /usr/bin/pssh
+# Restart resolved so it disconnects port 53.
+  - systemctl restart systemd-resolved
+# NFS server
   - mkdir /data
   - chown nobody:nogroup /data
-  - systemctl daemon-reload
-  - systemctl restart systemd-resolved
-  - curl -s -o /root/dashboards/node-exporter-full.json -L https://raw.githubusercontent.com/rfmoz/grafana-dashboards/master/prometheus/node-exporter-full.json
-  - systemctl enable prometheus-node-exporter
-  - systemctl start prometheus-node-exporter
-  - systemctl enable docker
-  - systemctl start docker
-  - systemctl enable nfs-kernel-server
   - systemctl start nfs-kernel-server
+  - systemctl enable nfs-kernel-server
+# Indicate, that the server is ready for post-installation tasks.
+  - date > /etc/done
+# Start docker service
+  - systemctl start docker
+  - systemctl enable docker
+# Fix journald not logging entries
   - systemctl restart systemd-journald
-  - systemctl restart dnsmasq
+# Start Prometheus, Grafana and Docker Registry. This last one will be required to deploy the binary.
   - docker compose -f /root/docker/compose.yml up -d
-  - curl -s -o /usr/bin/sconfig -L https://github.com/freshautomations/sconfig/releases/download/v0.2.0/sconfig_linux_amd64
-  - chmod 755 /usr/bin/sconfig
+# Configure and start the Elastic and Kibana services.
   - cd /root && git clone https://github.com/deviantony/docker-elk
   - sed -i 's/^ELASTIC_PASSWORD=.*/ELASTIC_PASSWORD='"'${elastic_password}'"'/' /root/docker-elk/.env
   - sed -i 's/^LOGSTASH_INTERNAL_PASSWORD=.*/LOGSTASH_INTERNAL_PASSWORD='"'$(pwgen 30 1)'"'/' /root/docker-elk/.env
   - sed -i 's/^KIBANA_SYSTEM_PASSWORD=.*/KIBANA_SYSTEM_PASSWORD='"'$(pwgen 30 1)'"'/' /root/docker-elk/.env
   - docker compose -f /root/docker-elk/docker-compose.yml up setup
   - docker compose -f /root/docker-elk/docker-compose.yml up elasticsearch kibana -d
-  - date > /etc/done
+# Enable Prometheus metrics for this host
+  - curl -s -o /root/dashboards/node-exporter-full.json -L https://raw.githubusercontent.com/rfmoz/grafana-dashboards/master/prometheus/node-exporter-full.json
+  - systemctl enable prometheus-node-exporter
+  - systemctl start prometheus-node-exporter
+# Add custom sconfig for configuration management
+  - curl -s -o /usr/bin/sconfig -L https://github.com/freshautomations/sconfig/releases/download/v0.2.0/sconfig_linux_amd64
+  - chmod 755 /usr/bin/sconfig
+# Indicate server services are fully installed.
   - ln /etc/done /etc/cc

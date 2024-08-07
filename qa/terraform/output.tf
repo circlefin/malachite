@@ -1,6 +1,12 @@
+output "ssh-cc" {
+  value = "root@${digitalocean_droplet.cc.ipv4_address}"
+}
+
 output "next_steps" {
   value = <<EOT
-source commands.sh ; ok_cc
+source commands.sh
+ok_cc
+deploy_cc
 cheat_sheet
 EOT
 }
