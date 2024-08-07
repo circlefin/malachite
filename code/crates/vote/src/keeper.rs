@@ -1,12 +1,12 @@
 //! For tallying votes and emitting messages when certain thresholds are reached.
 
-use alloc::vec::Vec;
 use derive_where::derive_where;
 
 use alloc::collections::{BTreeMap, BTreeSet};
 
 use malachite_common::{Context, NilOrVal, Round, ValueId, Vote, VoteType};
 
+use crate::evidence::EvidenceMap;
 use crate::round_votes::RoundVotes;
 use crate::round_weights::RoundWeights;
 use crate::{Threshold, ThresholdParam, ThresholdParams, Weight};
@@ -52,6 +52,20 @@ where
     emitted_outputs: BTreeSet<Output<ValueId<Ctx>>>,
 }
 
+/// Errors can that be yielded when recording a vote.
+pub enum RecordVoteError<Ctx>
+where
+    Ctx: Context,
+{
+    /// Attempted to record a conflicting vote.
+    ConflictingVote {
+        /// The vote already recorded.
+        existing: Ctx::Vote,
+        /// The conflicting vote.
+        conflicting: Ctx::Vote,
+    },
+}
+
 impl<Ctx> PerRound<Ctx>
 where
     Ctx: Context,
@@ -61,8 +75,18 @@ where
         Self::default()
     }
 
-    /// Add a vote to the round.
-    pub fn add(&mut self, vote: Ctx::Vote, weight: Weight) {
+    /// Add a vote to the round, checking for conflicts.
+    pub fn add(&mut self, vote: Ctx::Vote, weight: Weight) -> Result<(), RecordVoteError<Ctx>> {
+        if let Some(existing) = self.get_vote(vote.vote_type(), vote.validator_address()) {
+            if existing.value() != vote.value() {
+                // This is an equivocating vote
+                return Err(RecordVoteError::ConflictingVote {
+                    existing: existing.clone(),
+                    conflicting: vote,
+                });
+            }
+        }
+
         // Add the vote to the round
         self.votes.add_vote(
             vote.vote_type(),
@@ -77,6 +101,19 @@ where
 
         // Add the vote to the received votes
         self.received_votes.insert(vote);
+
+        Ok(())
+    }
+
+    /// Return the vote of the given type received from the given validator.
+    pub fn get_vote<'a>(
+        &'a self,
+        vote_type: VoteType,
+        address: &'a Ctx::Address,
+    ) -> Option<&'a Ctx::Vote> {
+        self.received_votes
+            .iter()
+            .find(move |vote| vote.vote_type() == vote_type && vote.validator_address() == address)
     }
 
     /// Return the votes for this round.
@@ -92,63 +129,6 @@ where
     /// Return the emitted outputs for this round.
     pub fn emitted_outputs(&self) -> &BTreeSet<Output<ValueId<Ctx>>> {
         &self.emitted_outputs
-    }
-
-    /// Return the received votes for a given address and vote type.
-    pub fn get_received_votes<'a>(
-        &'a self,
-        vote_type: VoteType,
-        address: &'a Ctx::Address,
-    ) -> Vec<&'a Ctx::Vote> {
-        self.received_votes
-            .iter()
-            .filter(move |vote| {
-                vote.vote_type() == vote_type && vote.validator_address() == address
-            })
-            .collect()
-    }
-}
-
-/// Keeps track of evidence of equivocation.
-#[derive_where(Clone, Debug, Default)]
-pub struct EvidenceMap<Ctx>
-where
-    Ctx: Context,
-{
-    map: BTreeMap<Ctx::Address, BTreeSet<Ctx::Vote>>,
-}
-
-impl<Ctx> EvidenceMap<Ctx>
-where
-    Ctx: Context,
-{
-    /// Create a new `EvidenceMap` instance.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Return whether or not there is any evidence of equivocation.
-    pub fn is_empty(&self) -> bool {
-        self.map.is_empty()
-    }
-
-    /// Return the evidence of equivocation as a map.
-    pub fn into_map(self) -> BTreeMap<Ctx::Address, BTreeSet<Ctx::Vote>> {
-        self.map
-    }
-
-    /// Return the evidence of equivocation for a given address.
-    pub fn get(&self, address: &Ctx::Address) -> Option<&BTreeSet<Ctx::Vote>> {
-        self.map.get(address)
-    }
-
-    /// Add evidence of equivocation for a given address.
-    pub fn add(&mut self, address: &Ctx::Address, votes: impl Iterator<Item = Ctx::Vote>) {
-        if let Some(evidence) = self.map.get_mut(address) {
-            evidence.extend(votes);
-        } else {
-            self.map.insert(address.clone(), votes.collect());
-        }
     }
 }
 
@@ -206,16 +186,17 @@ where
         current_round: Round,
     ) -> Option<Output<ValueId<Ctx>>> {
         let per_round = self.per_round.entry(vote.round()).or_default();
-        per_round.add(vote.clone(), weight);
 
-        // Check if this is an equivocating vote
-        {
-            let double_votes =
-                per_round.get_received_votes(vote.vote_type(), vote.validator_address());
+        match per_round.add(vote.clone(), weight) {
+            Ok(()) => (),
+            Err(RecordVoteError::ConflictingVote {
+                existing,
+                conflicting: vote,
+            }) => {
+                // This is an equivocating vote
+                self.evidence.add(existing, vote);
 
-            if double_votes.len() > 1 {
-                self.evidence
-                    .add(vote.validator_address(), double_votes.into_iter().cloned());
+                return None;
             }
         }
 

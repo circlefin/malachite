@@ -8,19 +8,6 @@ const ADDRESS2: Address = Address::new([42; 20]);
 const ADDRESS3: Address = Address::new([43; 20]);
 const ADDRESS4: Address = Address::new([44; 20]);
 
-macro_rules! btree_set {
-    ($($element:expr),* $(,)?) => {
-        {
-            #[allow(unused_mut)]
-            let mut set = ::std::collections::BTreeSet::new();
-            $(
-                set.insert($element);
-            )*
-            set
-        }
-    };
-}
-
 #[test]
 fn prevote_apply_nil() {
     let mut keeper: VoteKeeper<TestContext> = VoteKeeper::new(3, Default::default());
@@ -269,7 +256,7 @@ fn equivocation() {
     assert!(!keeper.evidence().is_empty());
     assert_eq!(
         keeper.evidence().get(&ADDRESS1),
-        Some(&btree_set![vote11, vote12])
+        Some(&vec![(vote11, vote12)])
     );
 
     let vote21 = Vote::new_prevote(height, round, val1, ADDRESS2);
@@ -285,6 +272,6 @@ fn equivocation() {
 
     assert_eq!(
         keeper.evidence().get(&ADDRESS2),
-        Some(&btree_set![vote21, vote22])
+        Some(&vec![(vote21, vote22)])
     );
 }

@@ -19,6 +19,7 @@ use malachite_common::VotingPower;
 extern crate alloc;
 
 pub mod count;
+pub mod evidence;
 pub mod keeper;
 pub mod round_votes;
 pub mod round_weights;
