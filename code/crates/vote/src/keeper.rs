@@ -94,11 +94,6 @@ where
         &self.emitted_outputs
     }
 
-    /// Return all the received votes for this round.
-    pub fn received_votes(&self) -> &BTreeSet<Ctx::Vote> {
-        &self.received_votes
-    }
-
     /// Return the received votes for a given address and vote type.
     pub fn get_received_votes<'a>(
         &'a self,
@@ -130,6 +125,16 @@ where
     /// Create a new `EvidenceMap` instance.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Return whether or not there is any evidence of equivocation.
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
+    /// Return the evidence of equivocation as a map.
+    pub fn into_map(self) -> BTreeMap<Ctx::Address, BTreeSet<Ctx::Vote>> {
+        self.map
     }
 
     /// Return the evidence of equivocation for a given address.
@@ -186,6 +191,11 @@ where
     /// Return the threshold parameters.
     pub fn per_round(&self) -> &BTreeMap<Round, PerRound<Ctx>> {
         &self.per_round
+    }
+
+    /// Return the evidence of equivocation.
+    pub fn evidence(&self) -> &EvidenceMap<Ctx> {
+        &self.evidence
     }
 
     /// Apply a vote with a given weight, potentially triggering an output.
