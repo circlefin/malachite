@@ -40,7 +40,7 @@ where
     Ctx: Context,
 {
     /// The votes for this round.
-    votes: RoundVotes<Ctx::Address, ValueId<Ctx>>,
+    votes: RoundVotes<Ctx>,
 
     /// The addresses and their weights for this round.
     addresses_weights: RoundWeights<Ctx::Address>,
@@ -88,12 +88,7 @@ where
         }
 
         // Add the vote to the round
-        self.votes.add_vote(
-            vote.vote_type(),
-            vote.validator_address().clone(),
-            vote.value().clone(),
-            weight,
-        );
+        self.votes.add_vote(&vote, weight);
 
         // Update the weight of the validator
         self.addresses_weights
@@ -117,7 +112,7 @@ where
     }
 
     /// Return the votes for this round.
-    pub fn votes(&self) -> &RoundVotes<Ctx::Address, ValueId<Ctx>> {
+    pub fn votes(&self) -> &RoundVotes<Ctx> {
         &self.votes
     }
 
@@ -226,6 +221,7 @@ where
         let output = threshold_to_output(vote.vote_type(), threshold);
 
         match output {
+            // Ensure we do not output the same message twice
             Some(output) if !per_round.emitted_outputs.contains(&output) => {
                 per_round.emitted_outputs.insert(output.clone());
                 Some(output)

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use malachite_common::NilOrVal;
 use malachite_itf::types::Value;
-use malachite_test::{Address, ValueId};
+use malachite_test::{Address, TestContext, ValueId};
 
 pub const ADDRESSES: [&str; 3] = ["alice", "bob", "john"];
 
@@ -20,7 +20,7 @@ pub fn value_from_model(value: &Value) -> NilOrVal<ValueId> {
 
 pub fn check_votes(
     expected: &malachite_itf::votekeeper::VoteCount,
-    actual: &malachite_vote::count::VoteCount<Address, ValueId>,
+    actual: &malachite_vote::count::VoteCount<TestContext>,
     address_map: &HashMap<String, Address>,
 ) {
     // expected has `total_weight` which is not present in actual

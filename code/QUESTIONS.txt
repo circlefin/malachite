@@ -1,0 +1,11 @@
+starknet-p2p-specs:
+
+- In the protos, are we not conflating block parts with proposals?
+- As per the proto, a Proposal is one of ProposalInit, ProposalFin, Transactions or BlockProof
+- In Malachite, we need a Proposal which contains the following data:
+  - height
+  - round
+  - block hash
+  - POL round
+  - validator
+- To me it seems like the suggested Proposal type corresponds better to what we call a BlockPart
