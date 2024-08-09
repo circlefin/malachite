@@ -4,7 +4,7 @@ use malachite_common::{Context, NilOrVal, Round, Value};
 use malachite_itf::types::{Value as ModelValue, VoteType};
 use malachite_itf::votekeeper::VoteKeeperOutput::*;
 use malachite_itf::votekeeper::{State, WeightedVote};
-use malachite_test::{Address, Height, PublicKey, TestContext, Vote};
+use malachite_test::{Address, Height, PublicKey, TestContext, ValidatorSet, Vote};
 use malachite_vote::{
     keeper::{Output, VoteKeeper},
     ThresholdParams,
@@ -34,7 +34,10 @@ impl ItfRunner for VoteKeeperRunner {
             height, total_weight
         );
 
-        Ok(VoteKeeper::new(validator_set, ThresholdParams::default()))
+        Err(())
+
+        // let validator_set: ValidatorSet = todo!();
+        // Ok(VoteKeeper::new(validator_set, ThresholdParams::default()))
     }
 
     fn step(
@@ -61,7 +64,7 @@ impl ItfRunner for VoteKeeperRunner {
                 );
 
                 // Execute step.
-                Ok(actual.apply_vote(vote, *weight as u64, Round::new(*current_round)))
+                Ok(actual.apply_vote(vote, Round::new(*current_round)))
             }
         }
     }

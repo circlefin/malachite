@@ -250,23 +250,13 @@ where
             });
         }
 
-        let validator = self
-            .validator_set
-            .get_by_address(vote.validator_address())
-            .ok_or_else(|| Error::ValidatorNotFound(vote.validator_address().clone()))?;
-
         let vote_round = vote.round();
-        let current_round = self.round();
 
-        let vote_output =
-            self.vote_keeper
-                .apply_vote(vote, validator.voting_power(), current_round);
-
-        let Some(vote_output) = vote_output else {
+        let Some(output) = self.vote_keeper.apply_vote(vote, self.round()) else {
             return Ok(None);
         };
 
-        let round_input = self.multiplex_vote_threshold(vote_output);
+        let round_input = self.multiplex_vote_threshold(output);
         self.apply_input(vote_round, round_input)
     }
 

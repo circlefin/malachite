@@ -4,7 +4,9 @@ use derive_where::derive_where;
 
 use alloc::collections::{BTreeMap, BTreeSet};
 
-use malachite_common::{Context, NilOrVal, Round, ValidatorSet, ValueId, Vote, VoteType};
+use malachite_common::{
+    Context, NilOrVal, Round, Validator, ValidatorSet, ValueId, Vote, VoteType,
+};
 
 use crate::evidence::EvidenceMap;
 use crate::round_votes::RoundVotes;
@@ -177,29 +179,28 @@ where
     }
 
     /// Apply a vote with a given weight, potentially triggering an output.
-    pub fn apply_vote(
-        &mut self,
-        vote: Ctx::Vote,
-        weight: Weight,
-        current_round: Round,
-    ) -> Option<Output<ValueId<Ctx>>> {
+    pub fn apply_vote(&mut self, vote: Ctx::Vote, round: Round) -> Option<Output<ValueId<Ctx>>> {
         let total_weight = self.total_weight();
         let per_round = self.per_round.entry(vote.round()).or_default();
 
-        match per_round.add(vote.clone(), weight) {
+        let Some(validator) = self.validator_set.get_by_address(vote.validator_address()) else {
+            // Vote from unknown validator, let's discard it.
+            return None;
+        };
+
+        match per_round.add(vote.clone(), validator.voting_power()) {
             Ok(()) => (),
             Err(RecordVoteError::ConflictingVote {
                 existing,
-                conflicting: vote,
+                conflicting,
             }) => {
                 // This is an equivocating vote
-                self.evidence.add(existing, vote);
-
+                self.evidence.add(existing, conflicting);
                 return None;
             }
         }
 
-        if vote.round() > current_round {
+        if vote.round() > round {
             let combined_weight = per_round.addresses_weights.sum();
 
             let skip_round = self
