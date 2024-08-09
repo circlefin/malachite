@@ -4,7 +4,7 @@ use malachite_common::{Context, NilOrVal, Round, Value};
 use malachite_itf::types::{Value as ModelValue, VoteType};
 use malachite_itf::votekeeper::VoteKeeperOutput::*;
 use malachite_itf::votekeeper::{State, WeightedVote};
-use malachite_test::{Address, Height, TestContext, Vote};
+use malachite_test::{Address, Height, PublicKey, TestContext, Vote};
 use malachite_vote::{
     keeper::{Output, VoteKeeper},
     ThresholdParams,
@@ -15,7 +15,8 @@ use itf::Runner as ItfRunner;
 use super::utils::{check_votes, value_from_model};
 
 pub struct VoteKeeperRunner {
-    pub address_map: HashMap<String, Address>,
+    pub public_keys: HashMap<String, PublicKey>,
+    pub addresses: HashMap<String, Address>,
 }
 
 impl ItfRunner for VoteKeeperRunner {
@@ -27,14 +28,13 @@ impl ItfRunner for VoteKeeperRunner {
     fn init(&mut self, expected: &Self::ExpectedState) -> Result<Self::ActualState, Self::Error> {
         let height = expected.bookkeeper.height as u64;
         let total_weight = expected.bookkeeper.total_weight as u64;
+
         println!(
             "🔵 init: height={:?}, total_weight={:?}",
             height, total_weight
         );
-        Ok(VoteKeeper::new(
-            expected.bookkeeper.total_weight as u64,
-            ThresholdParams::default(),
-        ))
+
+        Ok(VoteKeeper::new(validator_set, ThresholdParams::default()))
     }
 
     fn step(
@@ -50,10 +50,7 @@ impl ItfRunner for VoteKeeperRunner {
                 let round = Round::new(input_vote.round);
                 let height = Height::new(input_vote.height as u64);
                 let value = value_from_model(&input_vote.value_id);
-                let address = self
-                    .address_map
-                    .get(input_vote.src_address.as_str())
-                    .unwrap();
+                let address = self.addresses.get(input_vote.src_address.as_str()).unwrap();
                 let vote = match &input_vote.vote_type {
                     VoteType::Prevote => Vote::new_prevote(height, round, value, *address),
                     VoteType::Precommit => Vote::new_precommit(height, round, value, *address),
@@ -120,7 +117,7 @@ impl ItfRunner for VoteKeeperRunner {
 
         assert_eq!(
             actual_state.total_weight(),
-            &(expected_state.total_weight as u64),
+            expected_state.total_weight as u64,
             "total_weight for the current height"
         );
 
@@ -177,7 +174,7 @@ impl ItfRunner for VoteKeeperRunner {
             let actual_addresses_weights = &actual_round.addresses_weights().get_inner();
             for (address, expected_weight) in expected_addresses_weights {
                 assert_eq!(
-                    actual_addresses_weights.get(self.address_map.get(address).unwrap()),
+                    actual_addresses_weights.get(self.addresses.get(address).unwrap()),
                     Some(&(*expected_weight as u64)),
                     "weight for address {address:?}"
                 );
@@ -187,11 +184,11 @@ impl ItfRunner for VoteKeeperRunner {
 
             let expected_prevotes = &expected_round.prevotes;
             let actual_prevotes = actual_votes.prevotes();
-            check_votes(expected_prevotes, actual_prevotes, &self.address_map);
+            check_votes(expected_prevotes, actual_prevotes, &self.addresses);
 
             let expected_precommits = &expected_round.precommits;
             let actual_precommits = actual_votes.precommits();
-            check_votes(expected_precommits, actual_precommits, &self.address_map);
+            check_votes(expected_precommits, actual_precommits, &self.addresses);
         }
 
         Ok(true)

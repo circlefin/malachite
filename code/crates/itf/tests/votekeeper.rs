@@ -9,10 +9,9 @@ use rand::SeedableRng;
 
 use malachite_itf::utils::generate_traces;
 use malachite_itf::votekeeper::State;
-use malachite_test::{Address, PrivateKey};
 
 use runner::VoteKeeperRunner;
-use utils::ADDRESSES;
+use utils::{build_address_map, build_public_key_map};
 
 const RANDOM_SEED: u64 = 0x42;
 
@@ -52,17 +51,14 @@ fn test_itf() {
         let json = std::fs::read_to_string(&json_fixture).unwrap();
         let trace = itf::trace_from_str::<State>(&json).unwrap();
 
-        let mut rng = StdRng::seed_from_u64(RANDOM_SEED);
+        let rng = StdRng::seed_from_u64(RANDOM_SEED);
+        let public_keys = build_public_key_map(rng);
+        let addresses = build_address_map(public_keys.iter());
 
         // build mapping from model addresses to real addresses
         let vote_keeper_runner = VoteKeeperRunner {
-            address_map: ADDRESSES
-                .iter()
-                .map(|&name| {
-                    let pk = PrivateKey::generate(&mut rng).public_key();
-                    (name.into(), Address::from_public_key(&pk))
-                })
-                .collect(),
+            addresses,
+            public_keys,
         };
 
         trace.run_on(vote_keeper_runner).unwrap();

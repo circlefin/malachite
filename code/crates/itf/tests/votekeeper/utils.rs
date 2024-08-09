@@ -2,9 +2,31 @@ use std::collections::HashMap;
 
 use malachite_common::NilOrVal;
 use malachite_itf::types::Value;
-use malachite_test::{Address, TestContext, ValueId};
+use malachite_test::{Address, PrivateKey, PublicKey, TestContext, ValueId};
+use rand::{CryptoRng, RngCore};
 
-pub const ADDRESSES: [&str; 3] = ["alice", "bob", "john"];
+pub const VALIDATORS: [&str; 3] = ["alice", "bob", "john"];
+
+pub fn build_public_key_map<R>(mut rng: R) -> HashMap<String, PublicKey>
+where
+    R: RngCore + CryptoRng,
+{
+    VALIDATORS
+        .iter()
+        .map(|&name| {
+            let pk = PrivateKey::generate(&mut rng).public_key();
+            (name.to_string(), pk)
+        })
+        .collect()
+}
+
+pub fn build_address_map<'a>(
+    public_keys: impl Iterator<Item = (&'a String, &'a PublicKey)>,
+) -> HashMap<String, Address> {
+    public_keys
+        .map(|(name, pk)| (name.clone(), Address::from_public_key(pk)))
+        .collect()
+}
 
 pub fn value_from_model(value: &Value) -> NilOrVal<ValueId> {
     match value {

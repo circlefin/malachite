@@ -4,7 +4,7 @@ use derive_where::derive_where;
 
 use alloc::collections::{BTreeMap, BTreeSet};
 
-use malachite_common::{Context, NilOrVal, Round, ValueId, Vote, VoteType};
+use malachite_common::{Context, NilOrVal, Round, ValidatorSet, ValueId, Vote, VoteType};
 
 use crate::evidence::EvidenceMap;
 use crate::round_votes::RoundVotes;
@@ -133,12 +133,15 @@ pub struct VoteKeeper<Ctx>
 where
     Ctx: Context,
 {
-    /// The total weight (ie. voting power) of the network.
-    total_weight: Weight,
+    /// The validator set for this height.
+    validator_set: Ctx::ValidatorSet,
+
     /// The threshold parameters.
     threshold_params: ThresholdParams,
+
     /// The votes and emitted outputs for each round.
     per_round: BTreeMap<Round, PerRound<Ctx>>,
+
     /// Evidence of equivocation.
     evidence: EvidenceMap<Ctx>,
 }
@@ -149,9 +152,9 @@ where
 {
     /// Create a new `VoteKeeper` instance, for the given
     /// total network weight (ie. voting power) and threshold parameters.
-    pub fn new(total_weight: Weight, threshold_params: ThresholdParams) -> Self {
+    pub fn new(validator_set: Ctx::ValidatorSet, threshold_params: ThresholdParams) -> Self {
         Self {
-            total_weight,
+            validator_set,
             threshold_params,
             per_round: BTreeMap::new(),
             evidence: EvidenceMap::new(),
@@ -159,8 +162,8 @@ where
     }
 
     /// Return the total weight (ie. voting power) of the network.
-    pub fn total_weight(&self) -> &Weight {
-        &self.total_weight
+    pub fn total_weight(&self) -> Weight {
+        self.validator_set.total_voting_power()
     }
 
     /// Return the threshold parameters.
@@ -180,6 +183,7 @@ where
         weight: Weight,
         current_round: Round,
     ) -> Option<Output<ValueId<Ctx>>> {
+        let total_weight = self.total_weight();
         let per_round = self.per_round.entry(vote.round()).or_default();
 
         match per_round.add(vote.clone(), weight) {
@@ -201,7 +205,7 @@ where
             let skip_round = self
                 .threshold_params
                 .honest
-                .is_met(combined_weight, self.total_weight);
+                .is_met(combined_weight, total_weight);
 
             if skip_round {
                 let output = Output::SkipRound(vote.round());
@@ -215,7 +219,7 @@ where
             per_round,
             vote.value(),
             self.threshold_params.quorum,
-            self.total_weight,
+            total_weight,
         );
 
         let output = threshold_to_output(vote.vote_type(), threshold);
@@ -242,7 +246,7 @@ where
                 vote_type,
                 threshold,
                 self.threshold_params.quorum,
-                self.total_weight,
+                self.total_weight(),
             )
         })
     }
