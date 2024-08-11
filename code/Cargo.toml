@@ -62,8 +62,7 @@ humantime          = "2.1.0"
 humantime-serde    = "1.1.1"
 itertools          = "0.13"
 itf                = "0.2.3"
-libp2p             = { version = "0.53.2", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "quic", "gossipsub", "dns", "ping", "metrics"] }
-libp2p-tls         = "0.4.1" # https://github.com/informalsystems/malachite/issues/269
+libp2p             = { version = "0.54.0", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "quic", "gossipsub", "dns", "ping", "metrics"] }
 libp2p-identity    = "0.2.9"
 multiaddr          = "0.18.1"
 num-bigint         = "0.4.4"
