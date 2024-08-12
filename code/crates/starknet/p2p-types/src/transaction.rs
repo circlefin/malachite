@@ -80,7 +80,7 @@ impl proto::Protobuf for Transaction {
     }
 }
 
-/// Transaction batch (used by mempool and block part)
+/// Transaction batch (used by mempool and proposal part)
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Transactions(Vec<Transaction>);
 

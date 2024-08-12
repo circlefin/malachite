@@ -141,7 +141,7 @@ impl StarknetHost {
 
         debug!("Received proposal part");
 
-        // Prune all block parts for heights lower than `height - 1`
+        // Prune all proposal parts for heights lower than `height - 1`
         state.part_store.prune(height.decrement().unwrap_or(height));
         state.part_store.store(part.clone());
 
@@ -164,7 +164,7 @@ impl StarknetHost {
 
         // Check if the part with the highest sequence number is a `Fin` message.
         // Otherwise abort, and wait for this part to be received.
-        // TODO: Do more validations, e.g. there is no higher tx block part,
+        // TODO: Do more validations, e.g. there is no higher tx proposal part,
         //       check that we have received the proof, etc.
         let ProposalMessage::Fin(_) = &last_part.message else {
             debug!("Final proposal part has not been received yet");
@@ -281,7 +281,7 @@ impl Actor for StarknetHost {
             } => {
                 let all_parts = state.part_store.all_parts(height, round);
 
-                // TODO: Build the block from block parts and commits and store it
+                // TODO: Build the block from proposal parts and commits and store it
 
                 // Update metrics
                 let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();

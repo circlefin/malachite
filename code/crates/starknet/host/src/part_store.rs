@@ -7,7 +7,7 @@ use malachite_common::{Context, Round};
 
 pub type Sequence = u64;
 
-// This is a temporary store implementation for block parts
+// This is a temporary store implementation for proposal parts
 //
 // TODO-s:
 // - [x] make it context generic

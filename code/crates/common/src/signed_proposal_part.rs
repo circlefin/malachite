@@ -12,7 +12,7 @@ where
     /// The proposal part.
     pub proposal_part: Ctx::ProposalPart,
 
-    /// The signature of the block part.
+    /// The signature of the proposal part.
     pub signature: Signature<Ctx>,
 }
 
@@ -27,7 +27,7 @@ where
             signature,
         }
     }
-    /// Return the address of the validator that emitted this block part.
+    /// Return the address of the validator that emitted this proposal part.
     pub fn validator_address(&self) -> &Ctx::Address {
         self.proposal_part.validator_address()
     }

@@ -17,7 +17,7 @@ where
     /// The type of the height of a block.
     type Height: Height;
 
-    /// The type of block part
+    /// The type of proposal part
     type ProposalPart: ProposalPart<Self>;
 
     /// The interface provided by the proposal type.
@@ -58,7 +58,7 @@ where
         public_key: &PublicKey<Self>,
     ) -> bool;
 
-    /// Sign the block part with our private key.
+    /// Sign the proposal part with our private key.
     fn sign_proposal_part(&self, proposal_part: Self::ProposalPart) -> SignedProposalPart<Self>;
 
     /// Verify the given proposal part signature using the given public key.

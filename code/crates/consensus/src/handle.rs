@@ -606,7 +606,7 @@ where
                     .await?;
                 }
                 None => {
-                    // Store the proposal and wait for all block parts
+                    // Store the proposal and wait for all proposal parts
                     // TODO: or maybe integrate with receive-proposal() here? will this block until all parts are received?
 
                     info!(
@@ -626,14 +626,14 @@ where
 
             let Some(validator) = state.driver.validator_set.get_by_address(validator_address)
             else {
-                warn!(%from, %validator_address, "Received block part from unknown validator");
+                warn!(%from, %validator_address, "Received proposal part from unknown validator");
                 return Ok(());
             };
 
             let signed_msg = SignedMessage::ProposalPart(signed_proposal_part.clone());
             let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
             if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
-                warn!(%from, validator = %validator_address, "Received invalid block part: {signed_proposal_part:?}");
+                warn!(%from, validator = %validator_address, "Received invalid proposal part: {signed_proposal_part:?}");
                 return Ok(());
             }
 

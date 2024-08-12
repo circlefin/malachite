@@ -55,7 +55,7 @@ pub enum Msg<Ctx: Context> {
     TimeoutElapsed(TimeoutElapsed<Timeout>),
     /// The proposal builder has built a value and can be used in a new proposal consensus message
     ProposeValue(Ctx::Height, Round, Ctx::Value),
-    /// The proposal builder has build a new block part, needs to be signed and gossiped by consensus
+    /// The proposal builder has build a new proposal part, needs to be signed and gossiped by consensus
     GossipProposalPart(Ctx::ProposalPart),
     /// Received and sssembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>),
