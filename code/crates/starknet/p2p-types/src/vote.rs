@@ -4,7 +4,7 @@ use malachite_starknet_p2p_proto as p2p_proto;
 
 use crate::{Address, BlockHash, Height};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Vote {
     pub vote_type: VoteType,
     pub block_number: Height,

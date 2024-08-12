@@ -24,11 +24,13 @@ impl<Address> RoundWeights<Address> {
     }
 
     /// Set the weight of the given address, if it is not already set.
-    pub fn set_once(&mut self, address: Address, weight: Weight)
+    pub fn set_once(&mut self, address: &Address, weight: Weight)
     where
-        Address: Ord,
+        Address: Clone + Ord,
     {
-        self.map.entry(address).or_insert(weight);
+        if !self.map.contains_key(address) {
+            self.map.insert(address.clone(), weight);
+        }
     }
 
     /// Get the weight of the given address.

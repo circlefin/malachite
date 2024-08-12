@@ -6,7 +6,7 @@ use malachite_proto::{Error as ProtoError, Protobuf};
 use crate::{Address, Height, PrivateKey, TestContext, ValueId};
 
 /// A vote for a value in a round
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Vote {
     pub typ: VoteType,
     pub height: Height,

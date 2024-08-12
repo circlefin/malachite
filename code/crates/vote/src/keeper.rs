@@ -6,6 +6,7 @@ use alloc::collections::{BTreeMap, BTreeSet};
 
 use malachite_common::{Context, NilOrVal, Round, ValueId, Vote, VoteType};
 
+use crate::evidence::EvidenceMap;
 use crate::round_votes::RoundVotes;
 use crate::round_weights::RoundWeights;
 use crate::{Threshold, ThresholdParam, ThresholdParams, Weight};
@@ -40,10 +41,29 @@ where
 {
     /// The votes for this round.
     votes: RoundVotes<Ctx::Address, ValueId<Ctx>>,
+
     /// The addresses and their weights for this round.
     addresses_weights: RoundWeights<Ctx::Address>,
+
+    /// All the votes received for this round.
+    received_votes: BTreeSet<Ctx::Vote>,
+
     /// The emitted outputs for this round.
     emitted_outputs: BTreeSet<Output<ValueId<Ctx>>>,
+}
+
+/// Errors can that be yielded when recording a vote.
+pub enum RecordVoteError<Ctx>
+where
+    Ctx: Context,
+{
+    /// Attempted to record a conflicting vote.
+    ConflictingVote {
+        /// The vote already recorded.
+        existing: Ctx::Vote,
+        /// The conflicting vote.
+        conflicting: Ctx::Vote,
+    },
 }
 
 impl<Ctx> PerRound<Ctx>
@@ -52,11 +72,48 @@ where
 {
     /// Create a new `PerRound` instance.
     pub fn new() -> Self {
-        Self {
-            votes: RoundVotes::new(),
-            addresses_weights: RoundWeights::new(),
-            emitted_outputs: BTreeSet::new(),
+        Self::default()
+    }
+
+    /// Add a vote to the round, checking for conflicts.
+    pub fn add(&mut self, vote: Ctx::Vote, weight: Weight) -> Result<(), RecordVoteError<Ctx>> {
+        if let Some(existing) = self.get_vote(vote.vote_type(), vote.validator_address()) {
+            if existing.value() != vote.value() {
+                // This is an equivocating vote
+                return Err(RecordVoteError::ConflictingVote {
+                    existing: existing.clone(),
+                    conflicting: vote,
+                });
+            }
         }
+
+        // Add the vote to the round
+        self.votes.add_vote(
+            vote.vote_type(),
+            vote.validator_address().clone(),
+            vote.value().clone(),
+            weight,
+        );
+
+        // Update the weight of the validator
+        self.addresses_weights
+            .set_once(vote.validator_address(), weight);
+
+        // Add the vote to the received votes
+        self.received_votes.insert(vote);
+
+        Ok(())
+    }
+
+    /// Return the vote of the given type received from the given validator.
+    pub fn get_vote<'a>(
+        &'a self,
+        vote_type: VoteType,
+        address: &'a Ctx::Address,
+    ) -> Option<&'a Ctx::Vote> {
+        self.received_votes
+            .iter()
+            .find(move |vote| vote.vote_type() == vote_type && vote.validator_address() == address)
     }
 
     /// Return the votes for this round.
@@ -87,6 +144,8 @@ where
     threshold_params: ThresholdParams,
     /// The votes and emitted outputs for each round.
     per_round: BTreeMap<Round, PerRound<Ctx>>,
+    /// Evidence of equivocation.
+    evidence: EvidenceMap<Ctx>,
 }
 
 impl<Ctx> VoteKeeper<Ctx>
@@ -96,10 +155,11 @@ where
     /// Create a new `VoteKeeper` instance, for the given
     /// total network weight (ie. voting power) and threshold parameters.
     pub fn new(total_weight: Weight, threshold_params: ThresholdParams) -> Self {
-        VoteKeeper {
+        Self {
             total_weight,
             threshold_params,
             per_round: BTreeMap::new(),
+            evidence: EvidenceMap::new(),
         }
     }
 
@@ -113,6 +173,11 @@ where
         &self.per_round
     }
 
+    /// Return the evidence of equivocation.
+    pub fn evidence(&self) -> &EvidenceMap<Ctx> {
+        &self.evidence
+    }
+
     /// Apply a vote with a given weight, potentially triggering an output.
     pub fn apply_vote(
         &mut self,
@@ -122,16 +187,18 @@ where
     ) -> Option<Output<ValueId<Ctx>>> {
         let per_round = self.per_round.entry(vote.round()).or_default();
 
-        per_round.votes.add_vote(
-            vote.vote_type(),
-            vote.validator_address().clone(),
-            vote.value().clone(),
-            weight,
-        );
+        match per_round.add(vote.clone(), weight) {
+            Ok(()) => (),
+            Err(RecordVoteError::ConflictingVote {
+                existing,
+                conflicting: vote,
+            }) => {
+                // This is an equivocating vote
+                self.evidence.add(existing, vote);
 
-        per_round
-            .addresses_weights
-            .set_once(vote.validator_address().clone(), weight);
+                return None;
+            }
+        }
 
         if vote.round() > current_round {
             let combined_weight = per_round.addresses_weights.sum();
