@@ -32,6 +32,9 @@ pub use block_proof::BlockProof;
 mod hash;
 pub use hash::{BlockHash, Hash, MessageHash};
 
+mod streaming;
+pub use streaming::{Stream, StreamContent};
+
 mod crypto;
 
 pub type SigningScheme = crypto::Ed25519;
