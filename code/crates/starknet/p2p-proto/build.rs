@@ -4,6 +4,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "./p2p-specs/p2p/proto/header.proto",
         "./p2p-specs/p2p/proto/transaction.proto",
         "./p2p-specs/p2p/proto/consensus.proto",
+        "./p2p-specs/p2p/proto/streaming.proto",
     ];
 
     let mut config = prost_build::Config::new();

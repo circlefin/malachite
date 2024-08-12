@@ -72,7 +72,7 @@ async fn run_build_proposal_task(
             },
         );
 
-        block_hasher.update(&part.to_sign_bytes());
+        block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;
         sequence += 1;
     }
@@ -134,7 +134,7 @@ async fn run_build_proposal_task(
                 Transactions::new(txes),
             );
 
-            block_hasher.update(&part.to_sign_bytes());
+            block_hasher.update(part.to_sign_bytes());
             tx_part.send(part).await?;
             sequence += 1;
         }
@@ -160,7 +160,7 @@ async fn run_build_proposal_task(
             BlockProof::new(vec![proof]),
         );
 
-        block_hasher.update(&part.to_sign_bytes());
+        block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;
         sequence += 1;
     }
@@ -177,7 +177,7 @@ async fn run_build_proposal_task(
             },
         );
 
-        block_hasher.update(&part.to_sign_bytes());
+        block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;
         sequence += 1;
     }

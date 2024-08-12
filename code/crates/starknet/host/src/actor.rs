@@ -95,7 +95,7 @@ impl StarknetHost {
             let mut block_hasher = sha2::Sha256::new();
 
             for part in parts {
-                block_hasher.update(&part.to_sign_bytes());
+                block_hasher.update(part.to_sign_bytes());
             }
 
             BlockHash::new(block_hasher.finalize().into())

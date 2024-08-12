@@ -23,6 +23,12 @@ pub enum Error {
         field: &'static str,
     },
 
+    #[error("Unable to decode Protobuf message `{type_url}`: invalid data in field `{field}`")]
+    InvalidData {
+        type_url: String,
+        field: &'static str,
+    },
+
     #[error("Unknown message type: `{type_url}`")]
     UnknownMessageType { type_url: String },
 
@@ -34,6 +40,11 @@ impl Error {
     pub fn missing_field<N: prost::Name>(field: &'static str) -> Self {
         let type_url = N::full_name();
         Self::MissingField { type_url, field }
+    }
+
+    pub fn invalid_data<N: prost::Name>(field: &'static str) -> Self {
+        let type_url = N::full_name();
+        Self::InvalidData { type_url, field }
     }
 }
 

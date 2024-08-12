@@ -1,55 +1,59 @@
 use core::fmt;
 
-use malachite_proto as proto;
+use malachite_proto::{self as proto};
 use malachite_starknet_p2p_proto as p2p_proto;
 
 use crate::Hash;
 
 /// Transaction
-#[derive(Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
-pub struct Transaction(Vec<u8>);
+#[derive(Clone, PartialEq, Eq, Ord, PartialOrd)]
+pub struct Transaction {
+    data: Vec<u8>,
+    hash: Hash,
+}
 
 impl Transaction {
     /// Create a new transaction from bytes
-    pub const fn new(bytes: Vec<u8>) -> Self {
-        Self(bytes)
+    pub fn new(data: Vec<u8>) -> Self {
+        let hash = Self::compute_hash(&data);
+        Self { data, hash }
     }
 
     /// Get bytes from a transaction
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
+        self.data.to_vec()
     }
 
     /// Get bytes from a transaction
     pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_slice()
+        self.data.as_slice()
     }
 
     /// Size of this transaction in bytes
     pub fn size_bytes(&self) -> usize {
-        self.0.len()
+        self.data.len()
     }
 
-    /// Compute the hash this transaction
+    /// Hash of this transaction
+    pub fn hash(&self) -> Hash {
+        self.hash
+    }
+
+    /// Compute the hash of a transaction
     ///
     /// TODO: Use hash function from Context
-    pub fn hash(&self) -> Hash {
+    pub fn compute_hash(bytes: &[u8]) -> Hash {
         use sha2::{Digest, Sha256};
 
         let mut hasher = Sha256::new();
-        hasher.update(self.as_bytes());
+        hasher.update(bytes);
         Hash::new(hasher.finalize().into())
     }
 }
 
 impl fmt::Debug for Transaction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Transaction({}, {} bytes)",
-            self.hash(),
-            self.size_bytes()
-        )
+        write!(f, "Transaction({}, {} bytes)", self.hash, self.size_bytes())
     }
 }
 
@@ -63,9 +67,18 @@ impl proto::Protobuf for Transaction {
             .txn
             .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("txn"))?;
 
+        let hash = proto
+            .transaction_hash
+            .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("transaction_hash"))?;
+
         match txn {
-            Txn::Dummy(dummy) => Ok(Self::new(dummy.bytes)),
-            _ => Ok(Self::new(vec![])),
+            Txn::Dummy(dummy) => Ok(Self {
+                data: dummy.bytes,
+                hash: Hash::from_proto(hash)?,
+            }),
+            _ => Err(proto::Error::invalid_data::<Self::Proto>(
+                "unknown transaction type",
+            )),
         }
     }
 
@@ -73,6 +86,7 @@ impl proto::Protobuf for Transaction {
         use malachite_starknet_p2p_proto::transaction::{Dummy, Txn};
 
         Ok(Self::Proto {
+            transaction_hash: Some(self.hash.to_proto()?),
             txn: Some(Txn::Dummy(Dummy {
                 bytes: self.to_bytes(),
             })),
