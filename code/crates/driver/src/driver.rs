@@ -250,6 +250,14 @@ where
             });
         }
 
+        if self
+            .validator_set
+            .get_by_address(vote.validator_address())
+            .is_none()
+        {
+            return Err(Error::ValidatorNotFound(vote.validator_address().clone()));
+        }
+
         let vote_round = vote.round();
 
         let Some(output) = self.vote_keeper.apply_vote(vote, self.round()) else {
