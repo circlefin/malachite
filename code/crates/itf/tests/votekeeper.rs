@@ -4,14 +4,12 @@ pub mod runner;
 pub mod utils;
 
 use glob::glob;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
-
 use malachite_itf::utils::generate_traces;
 use malachite_itf::votekeeper::State;
 
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use runner::VoteKeeperRunner;
-use utils::{build_address_map, build_public_key_map};
 
 const RANDOM_SEED: u64 = 0x42;
 
@@ -52,14 +50,7 @@ fn test_itf() {
         let trace = itf::trace_from_str::<State>(&json).unwrap();
 
         let rng = StdRng::seed_from_u64(RANDOM_SEED);
-        let public_keys = build_public_key_map(rng);
-        let addresses = build_address_map(public_keys.iter());
-
-        // build mapping from model addresses to real addresses
-        let vote_keeper_runner = VoteKeeperRunner {
-            addresses,
-            public_keys,
-        };
+        let vote_keeper_runner = VoteKeeperRunner::new(rng);
 
         trace.run_on(vote_keeper_runner).unwrap();
     }

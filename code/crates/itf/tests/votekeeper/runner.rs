@@ -4,19 +4,32 @@ use malachite_common::{Context, NilOrVal, Round, Value};
 use malachite_itf::types::{Value as ModelValue, VoteType};
 use malachite_itf::votekeeper::VoteKeeperOutput::*;
 use malachite_itf::votekeeper::{State, WeightedVote};
-use malachite_test::{Address, Height, PublicKey, TestContext, ValidatorSet, Vote};
+use malachite_test::{Address, Height, TestContext, Vote};
 use malachite_vote::{
     keeper::{Output, VoteKeeper},
     ThresholdParams,
 };
 
 use itf::Runner as ItfRunner;
+use rand::rngs::StdRng;
 
-use super::utils::{check_votes, value_from_model};
+use crate::utils::build_address_map;
 
+use super::utils::{build_validator_set, check_votes, value_from_model};
+
+#[derive(Debug)]
 pub struct VoteKeeperRunner {
-    pub public_keys: HashMap<String, PublicKey>,
-    pub addresses: HashMap<String, Address>,
+    rng: StdRng,
+    addresses: HashMap<String, Address>,
+}
+
+impl VoteKeeperRunner {
+    pub fn new(rng: StdRng) -> Self {
+        Self {
+            rng,
+            addresses: HashMap::new(),
+        }
+    }
 }
 
 impl ItfRunner for VoteKeeperRunner {
@@ -28,13 +41,20 @@ impl ItfRunner for VoteKeeperRunner {
     fn init(&mut self, expected: &Self::ExpectedState) -> Result<Self::ActualState, Self::Error> {
         let height = expected.bookkeeper.height as u64;
         let total_weight = expected.bookkeeper.total_weight() as u64;
+        let validator_weights = &expected.bookkeeper.validator_set;
 
         println!("🔵 init: height={height}, total_weight={total_weight}");
 
-        Err(())
+        let validator_set = build_validator_set(validator_weights.iter(), &mut self.rng);
 
-        // let validator_set: ValidatorSet = todo!();
-        // Ok(VoteKeeper::new(validator_set, ThresholdParams::default()))
+        let public_keys = validator_weights
+            .keys()
+            .zip(validator_set.validators.iter())
+            .map(|(name, val)| (name, &val.public_key));
+
+        self.addresses = build_address_map(public_keys);
+
+        Ok(VoteKeeper::new(validator_set, ThresholdParams::default()))
     }
 
     fn step(

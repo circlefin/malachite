@@ -2,23 +2,12 @@ use std::collections::HashMap;
 
 use malachite_common::NilOrVal;
 use malachite_itf::types::Value;
-use malachite_test::{Address, PrivateKey, PublicKey, TestContext, ValueId};
+use malachite_test::{
+    Address, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet, ValueId,
+};
 use rand::{CryptoRng, RngCore};
 
 pub const VALIDATORS: [&str; 3] = ["alice", "bob", "john"];
-
-pub fn build_public_key_map<R>(mut rng: R) -> HashMap<String, PublicKey>
-where
-    R: RngCore + CryptoRng,
-{
-    VALIDATORS
-        .iter()
-        .map(|&name| {
-            let pk = PrivateKey::generate(&mut rng).public_key();
-            (name.to_string(), pk)
-        })
-        .collect()
-}
 
 pub fn build_address_map<'a>(
     public_keys: impl Iterator<Item = (&'a String, &'a PublicKey)>,
@@ -26,6 +15,21 @@ pub fn build_address_map<'a>(
     public_keys
         .map(|(name, pk)| (name.clone(), Address::from_public_key(pk)))
         .collect()
+}
+
+pub fn build_validator_set<'a, R>(
+    weights: impl Iterator<Item = (&'a String, &'a i64)>,
+    mut rng: R,
+) -> ValidatorSet
+where
+    R: RngCore + CryptoRng,
+{
+    let validators = weights.map(|(_name, weight)| {
+        let public_key = PrivateKey::generate(&mut rng).public_key();
+        Validator::new(public_key, *weight as u64)
+    });
+
+    ValidatorSet::new(validators)
 }
 
 pub fn value_from_model(value: &Value) -> NilOrVal<ValueId> {
