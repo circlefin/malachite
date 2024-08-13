@@ -46,16 +46,18 @@ module votekeeper {
         | PrecommitValueVKOutput((Round, NonNilValue))
         | SkipVKOutput(Round)
 
+    type ValidatorSet = Address -> Weight
+
     type Bookkeeper = {
         height: Height,
-        totalWeight: Weight,
+        validatorSet: ValidatorSet,
         rounds: Round -> RoundVotes,
         evidence: Set[Set[Vote]]
     }
 
-    pure def initBookKeeper(initialHeight: Height, totalVotingPower: Weight): Bookkeeper = { 
+    pure def initBookKeeper(initialHeight: Height, validatorSet: ValidatorSet): Bookkeeper = {
         height: initialHeight, 
-        totalWeight: totalVotingPower, 
+        validatorSet: validatorSet,
         rounds: Map(),
         evidence: Set(),
     }
@@ -65,6 +67,9 @@ module votekeeper {
     // ****************************************************************************
 
     // Internal functions
+
+    pure def totalWeight(validatorSet: ValidatorSet): Weight =
+        validatorSet.mapSumValues()
 
     pure def newRoundVotes(height: Height, round: Round, totalWeight: Weight): RoundVotes = {
         height: height,
@@ -232,9 +237,10 @@ module votekeeper {
     // TO DISCUSS:
     // - There might be a problem if we generalize from single-shot to multi-shot: the keeper only keeps the totalWeight
     //   of the current height; I wonder if we need to keep the totalWeight for every Height that we may receive a vote for.
-    pure def applyVote(keeper: Bookkeeper, vote: Vote, weight: Weight, currentRound: Round): { bookkeeper: Bookkeeper, output: VoteKeeperOutput } =
+    pure def applyVote(keeper: Bookkeeper, vote: Vote, currentRound: Round): { bookkeeper: Bookkeeper, output: VoteKeeperOutput } =
         val round = vote.round
-        val roundVotes = keeper.rounds.getOrElse(round, newRoundVotes(keeper.height, round, keeper.totalWeight))
+        val weight = keeper.validatorSet.get(vote.srcAddress)
+        val roundVotes = keeper.rounds.getOrElse(round, newRoundVotes(keeper.height, round, keeper.validatorSet.totalWeight()))
         
         val updatedVoteCount = 
             match vote.voteType {
@@ -262,7 +268,7 @@ module votekeeper {
         val combinedWeight = updatedVotesAddressesWeights.mapSumValues()
 
         val finalOutput =
-            if (vote.round > currentRound and isSkip(combinedWeight, keeper.totalWeight))
+            if (vote.round > currentRound and isSkip(combinedWeight, keeper.validatorSet.totalWeight()))
                 SkipVKOutput(vote.round) // FIXME: can we produce multiple events of this type?
             else
                 val threshold = computeThreshold(updatedVoteCount, vote.valueId)
@@ -298,13 +304,20 @@ module votekeeper {
             emittedOutputs: Set(),
             votesAddressesWeights: Map(),
         }
-        val vk: Bookkeeper = { height: 0, totalWeight: 4, rounds: Map(0 -> roundVotes), evidence: Set() }
-        val o1 = applyVote(vk, mkVote(Precommit, "a0", 0, 0, Nil), 1, 0)
-        val o2 = applyVote(o1.bookkeeper, mkVote(Precommit, "a1", 0, 0, Nil), 1, 0)
-        val o3 = applyVote(o2.bookkeeper, mkVote(Precommit, "a2", 0, 0, Nil), 1, 0)
-        val o4 = applyVote(o3.bookkeeper, mkVote(Precommit, "a3", 0, 0, Nil), 1, 0)
-        val o5 = applyVote(o4.bookkeeper, mkVote(Precommit, "a4", 0, 1, Nil), 3, 0)
-        val o6 = applyVote(o5.bookkeeper, mkVote(Precommit, "a4", 0, 1, Val("faulty")), 3, 0)
+
+        val vk: Bookkeeper = {
+            height: 0,
+            validatorSet: Map("a0" -> 1, "a1" -> 1, "a2" -> 1, "a3" -> 1, "a4" -> 3),
+            rounds: Map(0 -> roundVotes),
+            evidence: Set()
+        }
+
+        val o1 = applyVote(vk, mkVote(Precommit, "a0", 0, 0, Nil), 0)
+        val o2 = applyVote(o1.bookkeeper, mkVote(Precommit, "a1", 0, 0, Nil), 0)
+        val o3 = applyVote(o2.bookkeeper, mkVote(Precommit, "a2", 0, 0, Nil), 0)
+        val o4 = applyVote(o3.bookkeeper, mkVote(Precommit, "a3", 0, 0, Nil), 0)
+        val o5 = applyVote(o4.bookkeeper, mkVote(Precommit, "a4", 0, 1, Nil), 0)
+        val o6 = applyVote(o5.bookkeeper, mkVote(Precommit, "a4", 0, 1, Val("faulty")), 0)
         all {
             assert(o1.output == NoVKOutput),
             assert(o2.output == NoVKOutput),
@@ -315,7 +328,7 @@ module votekeeper {
         }
 
 
-pure def validCommit (commit: Set[Vote], commitWeight: Weight, keeper: Bookkeeper) : bool = 
+pure def validCommit (commit: Set[Vote], commitWeight: Weight, keeper: Bookkeeper) : bool =
     val v = chooseSome(commit)
     all {
         v.valueId != Nil,
@@ -324,7 +337,7 @@ pure def validCommit (commit: Set[Vote], commitWeight: Weight, keeper: Bookkeepe
                                     x.round == v.round,
                                     x.valueId == v.valueId,
                                     x.voteType == Precommit}),
-        commitWeight > 2 / 3 * keeper.totalWeight, 
+        commitWeight > 2 / 3 * keeper.validatorSet.totalWeight(),
     }
 
 pure def commitRound (commit: Set[Vote]) : Round = chooseSome(commit).round
@@ -346,7 +359,7 @@ pure def applyCommit(keeper: Bookkeeper, commit: Set[Vote], commitWeight: Weight
     else
         // getting the roundVotes that are touched by the commit
         val round = commit.commitRound()
-        val roundVotes = keeper.rounds.getOrElse(round, newRoundVotes(keeper.height, round, keeper.totalWeight))
+        val roundVotes = keeper.rounds.getOrElse(round, newRoundVotes(keeper.height, round, keeper.validatorSet.totalWeight()))
         // compute evidence
         val oldPrecommits = roundVotes.precommits.receivedVotes
         val doubleVotes = commit.filter(cv => oldPrecommits.exists(ov => cv.srcAddress == ov.srcAddress and cv.valueId != ov.valueId))
@@ -432,16 +445,17 @@ pure def applyCommit(keeper: Bookkeeper, commit: Set[Vote], commitWeight: Weight
         lastEmitted' = lastEmitted,
     }
 
-    action initWith(initialHeight: Height, initialTotalWeight: Weight): bool = all {
+    action initWith(initialHeight: Height, validatorSet: ValidatorSet): bool = all {
         weightedVote' = NoWeightedVote,
-        bookkeeper' = initBookKeeper(initialHeight, initialTotalWeight),
+        bookkeeper' = initBookKeeper(initialHeight, validatorSet),
         lastEmitted' = NoVKOutput,
     }
 
     // The vote bookkeeper receives a weighted vote for a round, and produces an output.
-    action applyVoteAction(vote: Vote, weight: Weight, currentRound: Round): bool =
+    action applyVoteAction(vote: Vote, currentRound: Round): bool =
         // HV: currentRound should be taken from the bookkeeper?
-        val output = applyVote(bookkeeper, vote, weight, currentRound)
+        val weight = bookkeeper.validatorSet.get(vote.srcAddress)
+        val output = applyVote(bookkeeper, vote, currentRound)
         all {
             weightedVote' = WV((vote, weight, currentRound)),
             bookkeeper' = output.bookkeeper,

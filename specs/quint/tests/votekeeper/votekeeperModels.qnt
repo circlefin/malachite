@@ -25,7 +25,7 @@ module votekeeperSM  {
     // ************************************************************************
 
     action init = 
-        initWith(INITIAL_HEIGHT, INITIAL_TOTAL_WEIGHT)
+        initWith(INITIAL_HEIGHT, ADDRESS_WEIGHTS)
     
     action step = 
         nondet voteType = oneOf(Set(Prevote, Precommit))
@@ -34,7 +34,7 @@ module votekeeperSM  {
         nondet address = oneOf(ADDRESS_WEIGHTS.keys())
         val height = INITIAL_HEIGHT
         val vote: Vote = mkVote(voteType, address, height, round, id(value))
-        applyVoteAction(vote, ADDRESS_WEIGHTS.get(address), round)
+        applyVoteAction(vote, round)
 
     // ****************************************************************************
     // Properties that define an expected final state (for generating traces)

@@ -11,7 +11,6 @@ use std::time::Duration;
 use futures::StreamExt;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
-use libp2p_tls as _; // https://github.com/informalsystems/malachite/issues/269
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
@@ -229,13 +228,16 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent { peer_id })) => {
+        SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent {
+            peer_id, ..
+        })) => {
             trace!("Sent identity to {peer_id}");
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Received {
             peer_id,
             info,
+            ..
         })) => {
             trace!(
                 "Received identity from {peer_id}: protocol={:?}",
