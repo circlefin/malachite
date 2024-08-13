@@ -71,14 +71,18 @@ impl ItfRunner for VoteKeeperRunner {
                 let height = Height::new(input_vote.height as u64);
                 let value = value_from_model(&input_vote.value_id);
                 let address = self.addresses.get(input_vote.src_address.as_str()).unwrap();
+                let validator = actual.validator_set().get_by_address(address).unwrap();
                 let vote = match &input_vote.vote_type {
                     VoteType::Prevote => Vote::new_prevote(height, round, value, *address),
                     VoteType::Precommit => Vote::new_precommit(height, round, value, *address),
                 };
+
                 println!(
-                    "🔵 step: vote={:?}, round={:?}, value={:?}, address={:?}, weight={:?}, current_round={:?}",
+                    "🔵 step: vote={:?}, round={:?}, value={:?}, validator={:?}, weight={:?}, current_round={:?}",
                     input_vote.vote_type, round, value, input_vote.src_address, weight, current_round
                 );
+
+                debug_assert_eq!(*weight as u64, validator.voting_power);
 
                 // Execute step.
                 Ok(actual.apply_vote(vote, Round::new(*current_round)))

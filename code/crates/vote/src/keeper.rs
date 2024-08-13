@@ -163,6 +163,11 @@ where
         }
     }
 
+    /// Return the current validator set
+    pub fn validator_set(&self) -> &Ctx::ValidatorSet {
+        &self.validator_set
+    }
+
     /// Return the total weight (ie. voting power) of the network.
     pub fn total_weight(&self) -> Weight {
         self.validator_set.total_voting_power()
