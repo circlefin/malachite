@@ -24,8 +24,8 @@ module driver {
         chain : List[Value],
     }
 
-    pure def initDriver(v: Address, vs: Address -> Weight): DriverState = {
-        bk: initBookKeeper(0, vs.mapSumValues()),
+    pure def initDriver(v: Address, vs: ValidatorSet): DriverState = {
+        bk: initBookKeeper(0, vs),
         cs: initConsensusState(v, 0),
         proposals: Set(),
         valset: vs,
@@ -331,7 +331,7 @@ module driver {
             | VoteDInput(vote) => 
                 match vote.voteType {
                     | Precommit =>
-                        val res = applyVote(state.bk, vote, state.valset.get(vote.srcAddress), state.cs.round)
+                        val res = applyVote(state.bk, vote, state.cs.round)
                         val newState = { ...state, bk: res.bookkeeper, voteKeeperOutput: res.output}
                         // only a commit event can come here. 
                         val cons_res = handlePrecommit(newState, vote, res.output) 
@@ -343,7 +343,7 @@ module driver {
                             | _ => (newState2, conOut)
                         }
                     | Prevote =>
-                        val res = applyVote(state.bk, vote, state.valset.get(vote.srcAddress), state.cs.round)
+                        val res = applyVote(state.bk, vote, state.cs.round)
                         val newState = { ...state, bk: res.bookkeeper, voteKeeperOutput: res.output}
                         // only a commit event can come here. 
                         val cons_res = handlePrevote(newState, res.output) 

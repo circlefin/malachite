@@ -26,13 +26,13 @@ impl ItfRunner for VoteKeeperRunner {
 
     fn init(&mut self, expected: &Self::ExpectedState) -> Result<Self::ActualState, Self::Error> {
         let height = expected.bookkeeper.height as u64;
-        let total_weight = expected.bookkeeper.total_weight as u64;
+        let total_weight = expected.bookkeeper.total_weight() as u64;
         println!(
             "🔵 init: height={:?}, total_weight={:?}",
             height, total_weight
         );
         Ok(VoteKeeper::new(
-            expected.bookkeeper.total_weight as u64,
+            expected.bookkeeper.total_weight() as u64,
             ThresholdParams::default(),
         ))
     }
@@ -119,8 +119,8 @@ impl ItfRunner for VoteKeeperRunner {
         let expected_state = &expected.bookkeeper;
 
         assert_eq!(
-            actual_state.total_weight(),
-            &(expected_state.total_weight as u64),
+            *actual_state.total_weight(),
+            expected_state.total_weight() as u64,
             "total_weight for the current height"
         );
 

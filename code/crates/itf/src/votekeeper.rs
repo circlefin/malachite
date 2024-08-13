@@ -52,10 +52,16 @@ pub enum VoteKeeperOutput {
 pub struct Bookkeeper {
     #[serde(with = "As::<Integer>")]
     pub height: Height,
-    #[serde(with = "As::<Integer>")]
-    pub total_weight: Weight,
+    #[serde(with = "As::<HashMap<Same, Integer>>")]
+    pub validator_set: HashMap<Address, Weight>,
     #[serde(with = "As::<HashMap<Integer, Same>>")]
     pub rounds: HashMap<Round, RoundVotes>,
+}
+
+impl Bookkeeper {
+    pub fn total_weight(&self) -> Weight {
+        self.validator_set.values().sum()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
