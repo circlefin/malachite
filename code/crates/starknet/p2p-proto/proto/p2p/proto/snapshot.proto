@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+import "p2p/proto/common.proto";
+import "p2p/proto/state.proto";
+import "p2p/proto/class.proto";
+
+message PatriciaNode {
+    message Edge {
+        uint32 length = 1;
+        Felt252 path = 2;  // as bits of left/right
+        Felt252 value = 3;
+    }
+    message Binary {
+        Felt252 left = 1;
+        Felt252 right = 2;
+    }
+
+    oneof node {
+        Edge edge = 1;
+        Binary binary = 2;
+    }
+}
+
+// non leaf nodes required to build the trie given the range (leaves)
+message PatriciaRangeProof {
+    repeated PatriciaNode nodes = 1;
+}
+
+// leafs of the contract state tree
+message ContractState {
+    Address address = 1;  // the key
+    Hash class = 2;
+    Hash storage = 3;  // patricia
+    uint64 nonce = 4;
+}
+
+// request a range from the contract state tree that matches the given root (block)
+// starts at 'start' and ends no more than 'end'.
+// the result is  (ContractRange+, PatriciaRangeProof)*
+message ContractRangeRequest {
+    uint32 domain = 1;  // volition
+    Hash state_root = 2;
+    Address start = 3;
+    Address end = 4;
+    uint32 chunks_per_proof = 5;  // how many ContractRange items to send before sending a proof
+}
+
+// stream of leaves in the contracts tree
+message ContractRange {
+    repeated ContractState state = 1;
+}
+
+message ContractRangeResponse {
+    optional Hash root = 1; // may not appear if Fin is sent to end the whole response
+    optional Hash contracts_root = 2;// may not appear if Fin is sent to end the whole response
+    optional Hash classes_root = 3;// may not appear if Fin is sent to end the whole response
+    oneof responses {
+        ContractRange range = 4;
+        Fin fin = 5;
+    }
+}
+
+// duplicate of GetContractRange. Can introduce a 'type' instead.
+// result is (Classes+, PatriciaRangeProof)*
+message ClassRangeRequest {
+    Hash root = 1;
+    Hash start = 2;
+    Hash end = 3;
+    uint32 chunks_per_proof = 4;
+}
+
+message ClassRangeResponse {
+    optional Hash root = 1; // may not appear if Fin is sent to end the whole response
+    optional Hash contracts_root = 2;// may not appear if Fin is sent to end the whole response
+    optional Hash classes_root = 3;// may not appear if Fin is sent to end the whole response
+    oneof responses {
+        Classes classes = 4;
+        Fin fin = 5;
+    }
+}
+
+// A position in some contract's state tree is identified by the state tree's root and the key in it
+message StorageLeafQuery {
+    Hash contract_storage_root = 1;
+    Felt252 key = 2;
+}
+
+message StorageRangeQuery {
+    StorageLeafQuery start = 1;
+    StorageLeafQuery end = 2;
+}
+
+// result is (ContractStorageRange+, PatriciaRangeProof)*
+message ContractStorageRequest {
+    uint32 domain = 1;  // volition
+    Hash state_root = 2;
+    repeated StorageRangeQuery query = 3;
+}
+
+message ContractStorage {
+    repeated ContractStoredValue keyValue = 2;
+}
+
+message ContractStorageResponse {
+    optional Hash state_root = 1; // may not appear if Fin is sent to end the whole response
+    oneof responses {
+        ContractStorage storage = 2;
+        Fin fin = 3;
+    }
+}

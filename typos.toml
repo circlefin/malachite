@@ -12,4 +12,4 @@ shs = "shs"
 widder = "widder"
 
 [files]
-extend-exclude = ["code/crates/starknet/p2p-proto/p2p-specs/*"]
+extend-exclude = ["code/crates/starknet/p2p-proto/proto/*"]

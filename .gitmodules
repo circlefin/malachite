@@ -1,3 +1,0 @@
-[submodule "code/crates/starknet/p2p-proto/p2p-specs"]
-	path = code/crates/starknet/p2p-proto/p2p-specs
-	url = git@github.com:informalsystems/starknet-p2p-specs.git

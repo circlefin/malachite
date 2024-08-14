@@ -1,0 +1,21 @@
+syntax = "proto3";
+import "p2p/proto/common.proto";
+
+message Event {
+    Hash transaction_hash = 1;
+    Felt252 from_address = 3;
+    repeated Felt252 keys = 4;
+    repeated Felt252 data = 5;
+}
+
+message EventsRequest {
+    Iteration iteration = 1;
+}
+
+// Responses are sent ordered by the order given in the request.
+message EventsResponse {
+    oneof event_message {
+        Event event = 1;
+        Fin fin = 2; // Fin is sent after the peer sent all the data or when it encountered a block that it doesn't have its events.
+    }
+}
