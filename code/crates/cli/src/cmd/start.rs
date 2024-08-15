@@ -3,9 +3,10 @@ use color_eyre::eyre::Result;
 use tracing::{info, Instrument};
 
 use malachite_node::config::{App, Config};
+use malachite_test::utils::test::SpawnNodeActor;
 use malachite_test::{Address, PrivateKey, ValidatorSet};
 
-use malachite_starknet_app::spawn::spawn_node_actor;
+use malachite_starknet_app::spawn::SpawnStarknetNode;
 
 use crate::metrics;
 
@@ -27,7 +28,10 @@ impl StartCmd {
         info!("Node is starting...");
 
         let (actor, handle) = match cfg.app {
-            App::Starknet => spawn_node_actor(cfg, vs, sk.clone(), sk, val_address, None).await,
+            App::Starknet => {
+                SpawnStarknetNode::spawn_node_actor(cfg, vs, sk.clone(), sk, val_address, None)
+                    .await
+            }
         };
 
         tokio::spawn({

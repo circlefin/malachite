@@ -15,13 +15,14 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 extern crate alloc;
-mod block_part;
+
 mod context;
 mod height;
 mod proposal;
+mod proposal_part;
 mod round;
-mod signed_block_part;
 mod signed_proposal;
+mod signed_proposal_part;
 mod signed_vote;
 mod signing;
 mod timeout;
@@ -47,13 +48,13 @@ pub type PrivateKey<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::P
 /// Type alias to make it easier to refer the `Signature` type of a given `Consensus` engine.
 pub type Signature<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::Signature;
 
-pub use block_part::BlockPart;
 pub use context::Context;
 pub use height::Height;
 pub use proposal::{Proposal, Validity};
+pub use proposal_part::ProposalPart;
 pub use round::Round;
-pub use signed_block_part::SignedBlockPart;
 pub use signed_proposal::SignedProposal;
+pub use signed_proposal_part::SignedProposalPart;
 pub use signed_vote::SignedVote;
 pub use signing::SigningScheme;
 pub use timeout::{Timeout, TimeoutStep};

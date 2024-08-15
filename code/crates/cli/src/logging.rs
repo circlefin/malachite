@@ -45,6 +45,20 @@ pub fn enable_ansi() -> bool {
     std::io::stdout().is_terminal() && std::io::stderr().is_terminal()
 }
 
+/// Common prefixes of the crates targeted by the default log level.
+const TARGET_CRATES: &[&str] = &["malachite"];
+
+/// Build a tracing directive setting the log level for the relayer crates to the
+/// given `log_level`.
+pub fn default_directive(log_level: &str) -> String {
+    use itertools::Itertools;
+
+    TARGET_CRATES
+        .iter()
+        .map(|&c| format!("{c}={log_level}"))
+        .join(",")
+}
+
 /// Builds a tracing filter based on the input `log_levels`.
 /// Enables tracing exclusively for the relayer crates.
 /// Returns error if the filter failed to build.
@@ -57,17 +71,16 @@ fn build_tracing_filter(log_levels: &str) -> EnvFilter {
             // app_log_level: no target means only the application log should be targeted
             // https://github.com/informalsystems/malachite/pull/287#discussion_r1684212675
             let app_log_level = if !log_level.contains('=') {
-                format!("malachite={log_level}")
+                default_directive(log_level)
             } else {
                 log_level.to_string()
-            };
+            }
+            .parse()
+            .unwrap_or_else(|e| panic!("Invalid log level '{log_level}': {e}"));
 
-            directive = directive.add_directive(
-                app_log_level
-                    .parse()
-                    .unwrap_or_else(|e| panic!("Invalid log level '{log_level}': {e}")),
-            )
+            directive = directive.add_directive(app_log_level)
         }
     }
+
     directive
 }

@@ -5,11 +5,10 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 mod address;
-mod block_part;
 mod context;
 mod height;
 mod proposal;
-mod serialization;
+mod proposal_part;
 mod signing;
 mod validator_set;
 mod value;
@@ -20,10 +19,10 @@ pub mod proto;
 pub mod utils;
 
 pub use crate::address::*;
-pub use crate::block_part::*;
 pub use crate::context::*;
 pub use crate::height::*;
 pub use crate::proposal::*;
+pub use crate::proposal_part::*;
 pub use crate::signing::*;
 pub use crate::validator_set::*;
 pub use crate::value::*;

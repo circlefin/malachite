@@ -1,0 +1,60 @@
+syntax = "proto3";
+import "p2p/proto/common.proto";
+
+
+message EntryPoint {
+    Felt252 selector = 1;
+    uint64 offset = 2;
+}
+
+message Cairo0Class {
+    string abi = 1;
+    repeated EntryPoint externals = 2;
+    repeated EntryPoint l1_handlers = 3;
+    repeated EntryPoint constructors = 4;
+    // Compressed in base64 representation.
+    string program = 5;
+}
+
+message SierraEntryPoint {
+    uint64 index = 1;
+    Felt252 selector = 2;
+}
+
+message Cairo1EntryPoints {
+    repeated SierraEntryPoint externals = 1;
+    repeated SierraEntryPoint l1_handlers = 2;
+    repeated SierraEntryPoint constructors = 3;
+}
+
+message Cairo1Class {
+    string abi = 1;
+    Cairo1EntryPoints entry_points = 2;
+    repeated Felt252 program = 3;
+    string contract_class_version = 4;
+}
+
+message Class {
+    oneof class {
+        Cairo0Class cairo0 = 1;
+        Cairo1Class cairo1 = 2;
+    }
+    uint32 domain = 3;
+    Hash class_hash = 4;
+}
+
+message Classes {
+    repeated Class classes = 1;
+}
+
+message ClassesRequest {
+    Iteration iteration = 1;
+}
+
+// Responses are sent ordered by the order given in the request.
+message ClassesResponse {
+    oneof class_message {
+        Class class = 1;
+        Fin   fin   = 2; // Fin is sent after the peer sent all the data or when it encountered a block that it doesn't have its classes.
+    }
+}

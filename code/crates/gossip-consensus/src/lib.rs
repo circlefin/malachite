@@ -38,12 +38,12 @@ const METRICS_PREFIX: &str = "malachite_gossip_consensus";
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Channel {
     Consensus,
-    BlockParts,
+    ProposalParts,
 }
 
 impl Channel {
     pub fn all() -> &'static [Channel] {
-        &[Channel::Consensus, Channel::BlockParts]
+        &[Channel::Consensus, Channel::ProposalParts]
     }
 
     pub fn to_topic(self) -> gossipsub::IdentTopic {
@@ -57,7 +57,7 @@ impl Channel {
     pub fn as_str(&self) -> &'static str {
         match self {
             Channel::Consensus => "/consensus",
-            Channel::BlockParts => "/blockparts",
+            Channel::ProposalParts => "/proposal_parts",
         }
     }
 
@@ -70,7 +70,7 @@ impl Channel {
     pub fn from_topic_hash(topic: &gossipsub::TopicHash) -> Option<Self> {
         match topic.as_str() {
             "/consensus" => Some(Channel::Consensus),
-            "/blockparts" => Some(Channel::BlockParts),
+            "/proposal_parts" => Some(Channel::ProposalParts),
             _ => None,
         }
     }

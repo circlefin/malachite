@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use malachite_common::{Context, NilOrVal, Round, SignedBlockPart, SignedProposal, SignedVote};
+use malachite_common::{Context, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote};
 
 use crate::address::*;
 use crate::height::*;
@@ -9,7 +9,7 @@ use crate::signing::*;
 use crate::validator_set::*;
 use crate::value::*;
 use crate::vote::*;
-use crate::BlockPart;
+use crate::ProposalPart;
 
 #[derive(Clone, Debug)]
 pub struct TestContext {
@@ -26,7 +26,7 @@ impl TestContext {
 
 impl Context for TestContext {
     type Address = Address;
-    type BlockPart = BlockPart;
+    type ProposalPart = ProposalPart;
     type Height = Height;
     type Proposal = Proposal;
     type ValidatorSet = ValidatorSet;
@@ -96,22 +96,22 @@ impl Context for TestContext {
         Vote::new_precommit(height, round, value_id, address)
     }
 
-    fn sign_block_part(&self, block_part: Self::BlockPart) -> SignedBlockPart<Self> {
+    fn sign_proposal_part(&self, proposal_part: Self::ProposalPart) -> SignedProposalPart<Self> {
         use signature::Signer;
-        let signature = self.private_key.sign(&block_part.to_bytes());
-        SignedBlockPart::new(block_part, signature)
+        let signature = self.private_key.sign(&proposal_part.to_bytes());
+        SignedProposalPart::new(proposal_part, signature)
     }
 
-    fn verify_signed_block_part(
+    fn verify_signed_proposal_part(
         &self,
-        signed_block_part: &SignedBlockPart<Self>,
+        signed_proposal_part: &SignedProposalPart<Self>,
         public_key: &malachite_common::PublicKey<Self>,
     ) -> bool {
         use signature::Verifier;
         public_key
             .verify(
-                &signed_block_part.block_part.to_bytes(),
-                &signed_block_part.signature,
+                &signed_proposal_part.proposal_part.to_bytes(),
+                &signed_proposal_part.signature,
             )
             .is_ok()
     }

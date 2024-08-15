@@ -10,32 +10,29 @@ license.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-actors.workspace = true
-malachite-common.workspace = true
-malachite-driver.workspace = true
-malachite-node.workspace   = true
-malachite-round.workspace  = true
-malachite-vote.workspace   = true
-malachite-proto.workspace  = true
+malachite-actors = { workspace = true }
+malachite-common = { workspace = true }
+malachite-driver = { workspace = true }
+malachite-node   = { workspace = true }
+malachite-round  = { workspace = true }
+malachite-vote   = { workspace = true }
+malachite-proto  = { workspace = true }
+malachite-crypto = { workspace = true, features = ["ed25519"] }
 
-async-trait.workspace       = true
-base64.workspace            = true
-bytesize.workspace          = true
-ed25519-consensus.workspace = true
-futures                     = { workspace = true, features = ["executor"] }
-hex.workspace               = true
-prost-types.workspace       = true
-prost.workspace             = true
-ractor.workspace            = true
-rand.workspace              = true
-rand_chacha.workspace       = true
-serde                       = { workspace = true, features = ["derive"] }
-serde_json.workspace        = true
-sha2.workspace              = true
-signature.workspace         = true
-tokio.workspace             = true
-tracing.workspace           = true
-tracing-subscriber          = { workspace = true, features = ["fmt", "env-filter"] }
+async-trait        = { workspace = true }
+bytesize           = { workspace = true }
+hex                = { workspace = true }
+prost-types        = { workspace = true }
+prost              = { workspace = true }
+rand               = { workspace = true }
+serde              = { workspace = true, features = ["derive"] }
+signature          = { workspace = true }
+tokio              = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [build-dependencies]
-prost-build.workspace = true
+prost-build = { workspace = true }
+
+# [lints]
+# workspace = true

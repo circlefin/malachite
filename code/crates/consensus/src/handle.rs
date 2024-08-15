@@ -12,7 +12,7 @@ use crate::gen::Co;
 use crate::msg::Msg;
 use crate::perform;
 use crate::state::State;
-use crate::types::{Block, GossipEvent, GossipMsg, PeerId, SignedMessage};
+use crate::types::{GossipEvent, GossipMsg, PeerId, ProposedValue, SignedMessage};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
 
 pub async fn handle<Ctx>(
@@ -44,7 +44,9 @@ where
             propose_value(co, state, metrics, height, round, value).await
         }
         Msg::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
-        Msg::BlockReceived(block) => on_received_block(co, state, metrics, block).await,
+        Msg::ReceivedProposedValue(block) => {
+            on_received_proposed_value(co, state, metrics, block).await
+        }
     }
 }
 
@@ -604,13 +606,13 @@ where
                     .await?;
                 }
                 None => {
-                    // Store the proposal and wait for all block parts
+                    // Store the proposal and wait for all proposal parts
                     // TODO: or maybe integrate with receive-proposal() here? will this block until all parts are received?
 
                     info!(
                         height = %proposal.height(),
                         round = %proposal.round(),
-                        "Received proposal before all block parts, storing it"
+                        "Received proposal before all proposal parts, storing it"
                     );
 
                     // FIXME: Avoid mutating the driver state directly
@@ -619,24 +621,27 @@ where
             }
         }
 
-        GossipMsg::BlockPart(signed_block_part) => {
-            let validator_address = signed_block_part.validator_address();
+        GossipMsg::ProposalPart(signed_proposal_part) => {
+            let validator_address = signed_proposal_part.validator_address();
 
             let Some(validator) = state.driver.validator_set.get_by_address(validator_address)
             else {
-                warn!(%from, %validator_address, "Received block part from unknown validator");
+                warn!(%from, %validator_address, "Received proposal part from unknown validator");
                 return Ok(());
             };
 
-            let signed_msg = SignedMessage::BlockPart(signed_block_part.clone());
+            let signed_msg = SignedMessage::ProposalPart(signed_proposal_part.clone());
             let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
             if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
-                warn!(%from, validator = %validator_address, "Received invalid block part: {signed_block_part:?}");
+                warn!(%from, validator = %validator_address, "Received invalid proposal part: {signed_proposal_part:?}");
                 return Ok(());
             }
 
             // TODO: Verify that the proposal was signed by the proposer for the height and round, drop otherwise.
-            perform!(co, Effect::ReceivedBlockPart(signed_block_part.block_part));
+            perform!(
+                co,
+                Effect::ReceivedProposalPart(signed_proposal_part.proposal_part)
+            );
         }
     }
 
@@ -675,24 +680,33 @@ where
     Ok(())
 }
 
-async fn on_received_block<Ctx>(
+#[tracing::instrument(
+    skip_all,
+    fields(
+        height = %proposed_value.height,
+        round = %proposed_value.round,
+        validity = ?proposed_value.validity,
+        id = %proposed_value.value.id()
+    )
+)]
+async fn on_received_proposed_value<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    block: Block<Ctx>,
+    proposed_value: ProposedValue<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    let Block {
+    let ProposedValue {
         height,
         round,
         value,
         validity,
         ..
-    } = block;
+    } = proposed_value;
 
-    info!(%height, %round, "Received block: {}", value.id());
+    info!("Received proposed value");
 
     // Store the block and validity information. It will be removed when a decision is reached for that height.
     state
@@ -700,12 +714,16 @@ where
         .push((height, round, value.clone(), validity));
 
     if let Some(proposal) = state.driver.proposal.as_ref() {
+        debug!("We already have a proposal for this round, checking...");
+
         if height != proposal.height() || round != proposal.round() {
-            // The block we received is not for the current proposal, ignoring
+            // The value we received is not for the current proposal, ignoring
+            debug!("Proposed value is not for the current proposal, ignoring...");
             return Ok(());
         }
 
         let validity = Validity::from_bool(proposal.value() == &value && validity.is_valid());
+        debug!("Applying proposal with validity {validity:?}");
 
         apply_driver_input(
             co,
@@ -714,6 +732,8 @@ where
             DriverInput::Proposal(proposal.clone(), validity),
         )
         .await?;
+    } else {
+        debug!("No proposal for this round yet, storing proposed value for later");
     }
 
     Ok(())

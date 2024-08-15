@@ -11,3 +11,5 @@ ser = "ser"
 shs = "shs"
 widder = "widder"
 
+[files]
+extend-exclude = ["code/crates/starknet/p2p-proto/proto/*"]

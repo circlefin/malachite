@@ -31,6 +31,10 @@ impl Address {
         address.copy_from_slice(&hash[..Self::LENGTH]);
         Self(address)
     }
+
+    pub fn into_inner(self) -> [u8; Self::LENGTH] {
+        self.0
+    }
 }
 
 impl fmt::Display for Address {

@@ -4,7 +4,7 @@ use derive_where::derive_where;
 use prost::Name;
 use prost_types::Any;
 
-use malachite_common::{Context, SignedBlockPart, SignedProposal, SignedVote};
+use malachite_common::{Context, SignedProposal, SignedProposalPart, SignedVote};
 use malachite_proto::Error as ProtoError;
 use malachite_proto::Protobuf;
 
@@ -35,7 +35,7 @@ impl<Ctx: Context> Protobuf for NetworkMsg<Ctx>
 where
     SignedVote<Ctx>: Protobuf,
     SignedProposal<Ctx>: Protobuf,
-    SignedBlockPart<Ctx>: Protobuf,
+    SignedProposalPart<Ctx>: Protobuf,
 {
     type Proto = Any;
 
@@ -46,9 +46,9 @@ where
         } else if proto.type_url == <SignedProposal<Ctx> as Protobuf>::Proto::type_url() {
             let proposal = SignedProposal::<Ctx>::from_bytes(proto.value.as_slice())?;
             Ok(Self(GossipMsg::Proposal(proposal)))
-        } else if proto.type_url == <SignedBlockPart<Ctx> as Protobuf>::Proto::type_url() {
-            let block_part = SignedBlockPart::<Ctx>::from_bytes(proto.value.as_slice())?;
-            Ok(Self(GossipMsg::BlockPart(block_part)))
+        } else if proto.type_url == <SignedProposalPart<Ctx> as Protobuf>::Proto::type_url() {
+            let proposal_part = SignedProposalPart::<Ctx>::from_bytes(proto.value.as_slice())?;
+            Ok(Self(GossipMsg::ProposalPart(proposal_part)))
         } else {
             Err(ProtoError::UnknownMessageType {
                 type_url: proto.type_url,
@@ -60,7 +60,7 @@ where
         match &self.0 {
             GossipMsg::Vote(vote) => vote.to_any(),
             GossipMsg::Proposal(proposal) => proposal.to_any(),
-            GossipMsg::BlockPart(block_part) => block_part.to_any(),
+            GossipMsg::ProposalPart(proposal_part) => proposal_part.to_any(),
         }
     }
 }
