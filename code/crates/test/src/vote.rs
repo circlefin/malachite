@@ -1,10 +1,8 @@
-use signature::Signer;
-
-use malachite_common::{NilOrVal, Round, SignedVote, VoteType};
+use malachite_common::{NilOrVal, Round, VoteType};
 use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::proto;
-use crate::{Address, Height, PrivateKey, TestContext, ValueId};
+use crate::{Address, Height, TestContext, ValueId};
 
 /// A vote for a value in a round
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -49,15 +47,6 @@ impl Vote {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         Protobuf::to_bytes(self).unwrap()
-    }
-
-    pub fn signed(self, private_key: &PrivateKey) -> SignedVote<TestContext> {
-        let signature = private_key.sign(&self.to_bytes());
-
-        SignedVote {
-            message: self,
-            signature,
-        }
     }
 }
 
@@ -127,6 +116,7 @@ impl Protobuf for Vote {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn encode_votetype(vote_type: VoteType) -> proto::VoteType {
     match vote_type {
         VoteType::Prevote => proto::VoteType::Prevote,
@@ -134,6 +124,7 @@ fn encode_votetype(vote_type: VoteType) -> proto::VoteType {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn decode_votetype(vote_type: proto::VoteType) -> VoteType {
     match vote_type {
         proto::VoteType::Prevote => VoteType::Prevote,

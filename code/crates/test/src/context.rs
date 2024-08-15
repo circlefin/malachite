@@ -35,12 +35,14 @@ impl Context for TestContext {
     type Vote = Vote;
     type SigningScheme = Ed25519;
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self> {
         use signature::Signer;
         let signature = self.private_key.sign(&vote.to_bytes());
         SignedVote::new(vote, signature)
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn verify_signed_vote(
         &self,
         vote: &Vote,
@@ -51,12 +53,14 @@ impl Context for TestContext {
         public_key.verify(&vote.to_bytes(), signature).is_ok()
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn sign_proposal(&self, proposal: Self::Proposal) -> SignedProposal<Self> {
         use signature::Signer;
         let signature = self.private_key.sign(&proposal.to_bytes());
         SignedProposal::new(proposal, signature)
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn verify_signed_proposal(
         &self,
         proposal: &Proposal,
@@ -67,12 +71,14 @@ impl Context for TestContext {
         public_key.verify(&proposal.to_bytes(), signature).is_ok()
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn sign_proposal_part(&self, proposal_part: Self::ProposalPart) -> SignedProposalPart<Self> {
         use signature::Signer;
         let signature = self.private_key.sign(&proposal_part.to_bytes());
         SignedProposalPart::new(proposal_part, signature)
     }
 
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn verify_signed_proposal_part(
         &self,
         proposal_part: &ProposalPart,

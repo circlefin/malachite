@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
-use signature::Signer;
-
-use malachite_common::{Round, SignedProposalPart};
+use malachite_common::Round;
 use malachite_proto::{Error as ProtoError, Protobuf};
 
-use crate::{Address, Height, PrivateKey, TestContext, Value};
+use crate::{Address, Height, TestContext, Value};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockMetadata {
@@ -117,15 +115,6 @@ impl ProposalPart {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         Protobuf::to_bytes(self).unwrap()
-    }
-
-    pub fn signed(self, private_key: &PrivateKey) -> SignedProposalPart<TestContext> {
-        let signature = private_key.sign(&self.to_bytes());
-
-        SignedProposalPart {
-            message: self,
-            signature,
-        }
     }
 
     pub fn metadata(&self) -> &BlockMetadata {
