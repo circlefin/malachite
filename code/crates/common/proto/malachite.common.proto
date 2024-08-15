@@ -28,19 +28,3 @@ enum VoteType {
    PREVOTE = 0;
    PRECOMMIT = 1;
 }
-
-message SignedVote {
-    google.protobuf.Any vote = 1;
-    bytes signature = 2;
-}
-
-message SignedProposal {
-    google.protobuf.Any proposal = 1;
-    bytes signature = 2;
-}
-
-message SignedProposalPart {
-    google.protobuf.Any proposal_part = 1;
-    bytes signature = 2;
-}
-
