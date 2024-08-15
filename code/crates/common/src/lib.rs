@@ -28,9 +28,6 @@ mod validator_set;
 mod value;
 mod vote;
 
-#[cfg(feature = "proto")]
-pub mod proto;
-
 // Re-export `signature` crate for convenience
 pub use ::signature;
 
@@ -45,6 +42,15 @@ pub type PrivateKey<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::P
 
 /// Type alias to make it easier to refer the `Signature` type of a given `Consensus` engine.
 pub type Signature<Ctx> = <<Ctx as Context>::SigningScheme as SigningScheme>::Signature;
+
+/// A signed vote
+pub type SignedVote<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Vote>;
+
+/// A signed proposal
+pub type SignedProposal<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Proposal>;
+
+/// A signed proposal part
+pub type SignedProposalPart<Ctx> = SignedMessage<Ctx, <Ctx as Context>::ProposalPart>;
 
 pub use context::Context;
 pub use height::Height;

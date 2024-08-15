@@ -2,37 +2,57 @@ syntax = "proto3";
 
 package test;
 
-import "malachite.common.proto";
 import "google/protobuf/any.proto";
 
+message Height {
+    uint64 value = 1;
+}
+
+message Address {
+    bytes value = 1;
+}
+
+message Value {
+    optional bytes value = 1;
+}
+
+message ValueId {
+    optional bytes value = 1;
+}
+
+enum VoteType {
+   PREVOTE = 0;
+   PRECOMMIT = 1;
+}
+
 message Vote {
-    malachite.common.VoteType vote_type = 1;
-    malachite.common.Height height = 2;
-    malachite.common.Round round = 3;
-    malachite.common.ValueId value = 4;
-    malachite.common.Address validator_address = 5;
+    VoteType vote_type = 1;
+    Height height = 2;
+    int64 round = 3;
+    ValueId value = 4;
+    Address validator_address = 5;
 }
 
 message Proposal {
-    malachite.common.Height height = 1;
-    malachite.common.Round round = 2;
-    malachite.common.Value value = 3;
-    malachite.common.Round pol_round = 4;
-    malachite.common.Address validator_address = 5;
+    Height height = 1;
+    int64 round = 2;
+    Value value = 3;
+    int64 pol_round = 4;
+    Address validator_address = 5;
 }
 
 message ProposalPart {
-    malachite.common.Height height = 1;
-    malachite.common.Round round = 2;
+    Height height = 1;
+    int64 round = 2;
     uint64 sequence = 3;
-    malachite.common.Address validator_address = 4;
+    Address validator_address = 4;
     google.protobuf.Any content = 5;
 }
 
 
 message BlockMetadata {
     bytes proof = 1;
-    malachite.common.Value value = 2;
+    Value value = 2;
 }
 
 message Content {

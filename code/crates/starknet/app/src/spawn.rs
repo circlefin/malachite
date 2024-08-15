@@ -24,6 +24,8 @@ use malachite_starknet_host::types::{
 };
 use malachite_test::utils::test::SpawnNodeActor;
 
+use crate::codec::ProtobufCodec;
+
 pub struct SpawnStarknetNode;
 
 #[async_trait]
@@ -171,6 +173,7 @@ async fn spawn_gossip_consensus_actor(
         validator_keypair.clone(),
         config_gossip,
         registry.clone(),
+        ProtobufCodec,
         None,
     )
     .await

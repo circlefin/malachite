@@ -66,10 +66,10 @@ where
     }
 
     pub fn store_signed_precommit(&mut self, precommit: SignedVote<Ctx>) {
-        assert_eq!(precommit.vote.vote_type(), VoteType::Precommit);
+        assert_eq!(precommit.vote_type(), VoteType::Precommit);
 
-        let height = precommit.vote.height();
-        let round = precommit.vote.round();
+        let height = precommit.height();
+        let round = precommit.round();
 
         self.signed_precommits
             .entry((height, round))
@@ -91,7 +91,7 @@ where
 
         // Keep the commits for the specified value.
         // For now we ignore equivocating votes if present.
-        commits_for_height_and_round.retain(|c| c.vote.value() == &NilOrVal::Val(value.id()));
+        commits_for_height_and_round.retain(|c| c.value() == &NilOrVal::Val(value.id()));
 
         commits_for_height_and_round
     }

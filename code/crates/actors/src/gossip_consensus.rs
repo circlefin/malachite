@@ -14,28 +14,33 @@ use tokio::task::JoinHandle;
 use malachite_common::Context;
 use malachite_consensus::GossipMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
-use malachite_gossip_consensus::{Channel, Config, Event, PeerId};
+use malachite_gossip_consensus::{Channel, Config, Event, NetworkCodec, PeerId};
 use malachite_metrics::SharedRegistry;
 use tracing::{error, error_span, Instrument};
 
 pub type GossipConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
 #[derive_where(Default)]
-pub struct GossipConsensus<Ctx> {
-    marker: PhantomData<Ctx>,
+pub struct GossipConsensus<Ctx, Codec> {
+    marker: PhantomData<(Ctx, Codec)>,
 }
 
-impl<Ctx: Context> GossipConsensus<Ctx> {
+impl<Ctx: Context, Codec> GossipConsensus<Ctx, Codec> {
     pub async fn spawn(
         keypair: Keypair,
         config: Config,
         metrics: SharedRegistry,
+        codec: Codec,
         supervisor: Option<ActorCell>,
-    ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
+    ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr>
+    where
+        Codec: NetworkCodec<Ctx> + Send + Sync + 'static,
+    {
         let args = Args {
             keypair,
             config,
             metrics,
+            codec,
         };
 
         let (actor_ref, _) = if let Some(supervisor) = supervisor {
@@ -48,10 +53,11 @@ impl<Ctx: Context> GossipConsensus<Ctx> {
     }
 }
 
-pub struct Args {
+pub struct Args<Codec> {
     pub keypair: Keypair,
     pub config: Config,
     pub metrics: SharedRegistry,
+    pub codec: Codec,
 }
 
 pub enum State<Ctx: Context> {
@@ -78,19 +84,26 @@ pub enum Msg<Ctx: Context> {
 }
 
 #[async_trait]
-impl<Ctx: Context> Actor for GossipConsensus<Ctx> {
+impl<Ctx: Context, Codec> Actor for GossipConsensus<Ctx, Codec>
+where
+    Codec: NetworkCodec<Ctx> + Send + Sync + 'static,
+{
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
-    type Arguments = Args;
+    type Arguments = Args<Codec>;
 
     async fn pre_start(
         &self,
         myself: ActorRef<Msg<Ctx>>,
-        args: Args,
+        args: Args<Codec>,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let handle =
-            malachite_gossip_consensus::spawn::<Ctx>(args.keypair, args.config, args.metrics)
-                .await?;
+        let handle = malachite_gossip_consensus::spawn::<Ctx>(
+            args.keypair,
+            args.config,
+            args.codec,
+            args.metrics,
+        )
+        .await?;
 
         let (mut recv_handle, ctrl_handle) = handle.split();
 

@@ -12,17 +12,8 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
-[features]
-proto = ["dep:prost", "dep:prost-types", "dep:prost-build"]
-
 [dependencies]
 malachite-proto.workspace = true
 
 derive-where.workspace = true
 signature.workspace    = true
-
-prost       = { workspace = true, optional = true }
-prost-types = { workspace = true, optional = true }
-
-[build-dependencies]
-prost-build = { workspace = true, optional = true }

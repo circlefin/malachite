@@ -2162,9 +2162,6 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "malachite-proto",
- "prost",
- "prost-build",
- "prost-types",
  "signature",
 ]
 
@@ -2218,9 +2215,6 @@ dependencies = [
  "malachite-common",
  "malachite-consensus",
  "malachite-metrics",
- "malachite-proto",
- "prost",
- "prost-types",
  "tokio",
  "tracing",
 ]
@@ -2309,8 +2303,12 @@ dependencies = [
  "malachite-gossip-mempool",
  "malachite-metrics",
  "malachite-node",
+ "malachite-proto",
  "malachite-starknet-host",
+ "malachite-starknet-p2p-proto",
+ "malachite-starknet-p2p-types",
  "malachite-test",
+ "prost",
  "tokio",
 ]
 

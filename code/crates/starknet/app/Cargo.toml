@@ -8,17 +8,21 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-actors.workspace           = true
-malachite-common.workspace           = true
-malachite-node.workspace             = true
-malachite-test.workspace             = true
-malachite-metrics.workspace          = true 
-malachite-gossip-consensus.workspace = true
-malachite-gossip-mempool.workspace   = true
-malachite-starknet-host.workspace    = true
+malachite-actors.workspace             = true
+malachite-common.workspace             = true
+malachite-node.workspace               = true
+malachite-proto.workspace              = true
+malachite-test.workspace               = true
+malachite-metrics.workspace            = true
+malachite-gossip-consensus.workspace   = true
+malachite-gossip-mempool.workspace     = true
+malachite-starknet-host.workspace      = true
+malachite-starknet-p2p-proto.workspace = true
+malachite-starknet-p2p-types.workspace = true
 
-async-trait.workspace                = true
-tokio.workspace                      = true
+async-trait.workspace = true
+tokio.workspace       = true
+prost.workspace       = true
 
-[lints]
+# [lints]
 # workspace = true

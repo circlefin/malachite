@@ -1,5 +1,5 @@
 use crate::{
-    Address, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, SignedMessage,
+    Address, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, Signature, SignedMessage,
     SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
 };
 
@@ -44,7 +44,8 @@ where
     /// Verify the given vote's signature using the given public key.
     fn verify_signed_vote(
         &self,
-        signed_vote: &SignedMessage<Self, Self::Vote>,
+        vote: &Self::Vote,
+        signature: &Signature<Self>,
         public_key: &PublicKey<Self>,
     ) -> bool;
 
@@ -54,7 +55,8 @@ where
     /// Verify the given proposal's signature using the given public key.
     fn verify_signed_proposal(
         &self,
-        signed_proposal: &SignedMessage<Self, Self::Proposal>,
+        proposal: &Self::Proposal,
+        signature: &Signature<Self>,
         public_key: &PublicKey<Self>,
     ) -> bool;
 
@@ -67,7 +69,8 @@ where
     /// Verify the given proposal part signature using the given public key.
     fn verify_signed_proposal_part(
         &self,
-        signed_proposal_part: &SignedMessage<Self, Self::ProposalPart>,
+        proposal_part: &Self::ProposalPart,
+        signature: &Signature<Self>,
         public_key: &PublicKey<Self>,
     ) -> bool;
 

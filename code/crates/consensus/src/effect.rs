@@ -3,7 +3,7 @@ use derive_where::derive_where;
 use malachite_common::*;
 
 use crate::types::GossipMsg;
-use crate::SignedMessage;
+use crate::ConsensusMsg;
 
 /// An effect which may be yielded by a consensus process.
 ///
@@ -53,7 +53,7 @@ where
         height: Ctx::Height,
         round: Round,
         value: Ctx::Value,
-        commits: Vec<SignedVote<Ctx>>,
+        commits: Vec<SignedMessage<Ctx, Ctx::Vote>>,
     },
 
     /// A ProposalPart was received via the gossip layer
@@ -62,7 +62,7 @@ where
 
     /// Verify a signature
     /// Resume with: Resume::SignatureValidity(valid)
-    VerifySignature(SignedMessage<Ctx>, PublicKey<Ctx>),
+    VerifySignature(SignedMessage<Ctx, ConsensusMsg<Ctx>>, PublicKey<Ctx>),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].

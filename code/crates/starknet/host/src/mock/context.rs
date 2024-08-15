@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use malachite_common::{Context, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote};
 use malachite_starknet_p2p_types::{PublicKey, SigningScheme};
-use malachite_test::PrivateKey;
+use malachite_test::{PrivateKey, Signature};
 
 use crate::types::{
     Address, BlockHash, Height, Proposal, ProposalPart, Validator, ValidatorSet, Vote,
@@ -38,11 +38,14 @@ impl Context for MockContext {
         SignedVote::new(vote, signature)
     }
 
-    fn verify_signed_vote(&self, signed_vote: &SignedVote<Self>, public_key: &PublicKey) -> bool {
+    fn verify_signed_vote(
+        &self,
+        vote: &Vote,
+        signature: &Signature,
+        public_key: &PublicKey,
+    ) -> bool {
         use signature::Verifier;
-        public_key
-            .verify(&signed_vote.vote.to_sign_bytes(), &signed_vote.signature)
-            .is_ok()
+        public_key.verify(&vote.to_sign_bytes(), signature).is_ok()
     }
 
     fn sign_proposal(&self, proposal: Self::Proposal) -> SignedProposal<Self> {
@@ -53,15 +56,31 @@ impl Context for MockContext {
 
     fn verify_signed_proposal(
         &self,
-        signed_proposal: &SignedProposal<Self>,
+        proposal: &Proposal,
+        signature: &Signature,
         public_key: &PublicKey,
     ) -> bool {
         use signature::Verifier;
         public_key
-            .verify(
-                &signed_proposal.proposal.to_sign_bytes(),
-                &signed_proposal.signature,
-            )
+            .verify(&proposal.to_sign_bytes(), signature)
+            .is_ok()
+    }
+
+    fn sign_proposal_part(&self, proposal_part: Self::ProposalPart) -> SignedProposalPart<Self> {
+        use signature::Signer;
+        let signature = self.private_key.sign(&proposal_part.to_sign_bytes());
+        SignedProposalPart::new(proposal_part, signature)
+    }
+
+    fn verify_signed_proposal_part(
+        &self,
+        proposal_part: &ProposalPart,
+        signature: &Signature,
+        public_key: &PublicKey,
+    ) -> bool {
+        use signature::Verifier;
+        public_key
+            .verify(&proposal_part.to_sign_bytes(), signature)
             .is_ok()
     }
 
@@ -93,25 +112,5 @@ impl Context for MockContext {
     ) -> Vote {
         let fork_id = 1; // FIXME: p2p-types
         Vote::new_precommit(height, round, fork_id, value_id, address)
-    }
-
-    fn sign_proposal_part(&self, proposal_part: Self::ProposalPart) -> SignedProposalPart<Self> {
-        use signature::Signer;
-        let signature = self.private_key.sign(&proposal_part.to_sign_bytes());
-        SignedProposalPart::new(proposal_part, signature)
-    }
-
-    fn verify_signed_proposal_part(
-        &self,
-        signed_proposal_part: &SignedProposalPart<Self>,
-        public_key: &malachite_common::PublicKey<Self>,
-    ) -> bool {
-        use signature::Verifier;
-        public_key
-            .verify(
-                &signed_proposal_part.proposal_part.to_sign_bytes(),
-                &signed_proposal_part.signature,
-            )
-            .is_ok()
     }
 }

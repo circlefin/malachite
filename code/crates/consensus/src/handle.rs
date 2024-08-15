@@ -12,8 +12,9 @@ use crate::gen::Co;
 use crate::msg::Msg;
 use crate::perform;
 use crate::state::State;
-use crate::types::{GossipEvent, GossipMsg, PeerId, ProposedValue, SignedMessage};
+use crate::types::{GossipEvent, GossipMsg, PeerId, ProposedValue};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
+use crate::ConsensusMsg;
 
 pub async fn handle<Ctx>(
     co: Co<Ctx>,
@@ -291,7 +292,7 @@ where
                 co,
                 state,
                 metrics,
-                DriverInput::Proposal(signed_proposal.proposal, Validity::Valid),
+                DriverInput::Proposal(signed_proposal.message, Validity::Valid),
             )
             .await
         }
@@ -308,7 +309,7 @@ where
 
             perform!(co, Effect::Broadcast(GossipMsg::Vote(signed_vote.clone()),));
 
-            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.vote)).await
+            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.message)).await
         }
 
         DriverOutput::Decide(round, value) => {
@@ -503,13 +504,13 @@ where
         GossipMsg::Vote(signed_vote) => {
             let validator_address = signed_vote.validator_address();
 
-            info!(%from, validator = %validator_address, "Received vote: {}", PrettyVote::<Ctx>(&signed_vote.vote));
+            info!(%from, validator = %validator_address, "Received vote: {}", PrettyVote::<Ctx>(&signed_vote.message));
 
-            if signed_vote.vote.height() != state.driver.height() {
+            if signed_vote.height() != state.driver.height() {
                 warn!(
                     %from, validator = %validator_address,
                     "Ignoring vote for height {}, current height: {}",
-                    signed_vote.vote.height(),
+                    signed_vote.height(),
                     state.driver.height()
                 );
 
@@ -526,40 +527,37 @@ where
                 return Ok(());
             };
 
-            let signed_msg = SignedMessage::Vote(signed_vote.clone());
+            let signed_msg = signed_vote.clone().map(ConsensusMsg::Vote);
             let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
             if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
                 warn!(
                     %from, validator = %validator_address,
-                    "Received invalid vote: {}", PrettyVote::<Ctx>(&signed_vote.vote)
+                    "Received invalid vote: {}", PrettyVote::<Ctx>(&signed_vote.message)
                 );
 
                 return Ok(());
             }
 
             // Store the non-nil Precommits.
-            if signed_vote.vote.vote_type() == VoteType::Precommit
-                && signed_vote.vote.value().is_val()
-            {
+            if signed_vote.vote_type() == VoteType::Precommit && signed_vote.value().is_val() {
                 state.store_signed_precommit(signed_vote.clone());
             }
 
-            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.vote)).await?;
+            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.message)).await?;
         }
 
         GossipMsg::Proposal(signed_proposal) => {
-            let validator = signed_proposal.proposal.validator_address();
+            let validator = signed_proposal.validator_address();
 
-            info!(%from, %validator, "Received proposal: {}", PrettyProposal::<Ctx>(&signed_proposal.proposal));
+            info!(%from, %validator, "Received proposal: {}", PrettyProposal::<Ctx>(&signed_proposal.message));
 
             let Some(validator) = state.driver.validator_set.get_by_address(validator) else {
                 warn!(%from, %validator, "Received proposal from unknown validator");
                 return Ok(());
             };
 
-            let proposal = &signed_proposal.proposal;
-            let proposal_height = proposal.height();
-            let proposal_round = proposal.round();
+            let proposal_height = signed_proposal.height();
+            let proposal_round = signed_proposal.round();
 
             if proposal_height != state.driver.height() {
                 warn!(
@@ -579,12 +577,12 @@ where
                 return Ok(());
             }
 
-            let signed_msg = SignedMessage::Proposal(signed_proposal.clone());
+            let signed_msg = signed_proposal.clone().map(ConsensusMsg::Proposal);
             let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
             if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
                 error!(
                     "Received invalid signature for proposal: {}",
-                    PrettyProposal::<Ctx>(&signed_proposal.proposal)
+                    PrettyProposal::<Ctx>(&signed_proposal.message)
                 );
 
                 return Ok(());
@@ -601,7 +599,7 @@ where
                         co,
                         state,
                         metrics,
-                        DriverInput::Proposal(proposal.clone(), *valid),
+                        DriverInput::Proposal(signed_proposal.message.clone(), *valid),
                     )
                     .await?;
                 }
@@ -610,13 +608,13 @@ where
                     // TODO: or maybe integrate with receive-proposal() here? will this block until all parts are received?
 
                     info!(
-                        height = %proposal.height(),
-                        round = %proposal.round(),
+                        height = %signed_proposal.height(),
+                        round = %signed_proposal.round(),
                         "Received proposal before all proposal parts, storing it"
                     );
 
                     // FIXME: Avoid mutating the driver state directly
-                    state.driver.proposal = Some(proposal.clone());
+                    state.driver.proposal = Some(signed_proposal.message.clone());
                 }
             }
         }
@@ -630,7 +628,7 @@ where
                 return Ok(());
             };
 
-            let signed_msg = SignedMessage::ProposalPart(signed_proposal_part.clone());
+            let signed_msg = signed_proposal_part.clone().map(ConsensusMsg::ProposalPart);
             let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
             if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
                 warn!(%from, validator = %validator_address, "Received invalid proposal part: {signed_proposal_part:?}");
@@ -640,7 +638,7 @@ where
             // TODO: Verify that the proposal was signed by the proposer for the height and round, drop otherwise.
             perform!(
                 co,
-                Effect::ReceivedProposalPart(signed_proposal_part.proposal_part)
+                Effect::ReceivedProposalPart(signed_proposal_part.message)
             );
         }
     }

@@ -1,7 +1,8 @@
 use core::fmt;
 
-use malachite_common::proto;
 use malachite_proto::{Error as ProtoError, Protobuf};
+
+use crate::proto;
 
 /// A blockchain height
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
