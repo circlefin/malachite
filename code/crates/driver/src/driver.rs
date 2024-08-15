@@ -58,6 +58,8 @@ where
     ///
     /// This instance is only valid for a single height
     /// and should be discarded and re-created for the next height.
+    ///
+    /// TODO: Consider wrapping the validator set in a Arc to avoid cloning
     pub fn new(
         ctx: Ctx,
         height: Ctx::Height,
@@ -65,7 +67,7 @@ where
         address: Ctx::Address,
         threshold_params: ThresholdParams,
     ) -> Self {
-        let vote_keeper = VoteKeeper::new(validator_set.total_voting_power(), threshold_params);
+        let vote_keeper = VoteKeeper::new(validator_set.clone(), threshold_params);
         let round_state = RoundState::new(height, Round::Nil);
 
         Self {
@@ -85,8 +87,7 @@ where
     /// and move to new height with the given validator set.
     pub fn move_to_height(&mut self, height: Ctx::Height, validator_set: Ctx::ValidatorSet) {
         // Reset the vote keeper
-        let vote_keeper =
-            VoteKeeper::new(validator_set.total_voting_power(), self.threshold_params);
+        let vote_keeper = VoteKeeper::new(validator_set.clone(), self.threshold_params);
 
         // Reset the round state
         let round_state = RoundState::new(height, Round::Nil);
@@ -249,23 +250,21 @@ where
             });
         }
 
-        let validator = self
+        if self
             .validator_set
             .get_by_address(vote.validator_address())
-            .ok_or_else(|| Error::ValidatorNotFound(vote.validator_address().clone()))?;
+            .is_none()
+        {
+            return Err(Error::ValidatorNotFound(vote.validator_address().clone()));
+        }
 
         let vote_round = vote.round();
-        let current_round = self.round();
 
-        let vote_output =
-            self.vote_keeper
-                .apply_vote(vote, validator.voting_power(), current_round);
-
-        let Some(vote_output) = vote_output else {
+        let Some(output) = self.vote_keeper.apply_vote(vote, self.round()) else {
             return Ok(None);
         };
 
-        let round_input = self.multiplex_vote_threshold(vote_output);
+        let round_input = self.multiplex_vote_threshold(output);
         self.apply_input(vote_round, round_input)
     }
 

@@ -11,11 +11,25 @@ use malachite_vote::{
 };
 
 use itf::Runner as ItfRunner;
+use rand::rngs::StdRng;
 
-use super::utils::{check_votes, value_from_model};
+use crate::utils::build_address_map;
 
+use super::utils::{build_validator_set, check_votes, value_from_model};
+
+#[derive(Debug)]
 pub struct VoteKeeperRunner {
-    pub address_map: HashMap<String, Address>,
+    rng: StdRng,
+    addresses: HashMap<String, Address>,
+}
+
+impl VoteKeeperRunner {
+    pub fn new(rng: StdRng) -> Self {
+        Self {
+            rng,
+            addresses: HashMap::new(),
+        }
+    }
 }
 
 impl ItfRunner for VoteKeeperRunner {
@@ -27,14 +41,20 @@ impl ItfRunner for VoteKeeperRunner {
     fn init(&mut self, expected: &Self::ExpectedState) -> Result<Self::ActualState, Self::Error> {
         let height = expected.bookkeeper.height as u64;
         let total_weight = expected.bookkeeper.total_weight() as u64;
-        println!(
-            "🔵 init: height={:?}, total_weight={:?}",
-            height, total_weight
-        );
-        Ok(VoteKeeper::new(
-            expected.bookkeeper.total_weight() as u64,
-            ThresholdParams::default(),
-        ))
+        let validator_weights = &expected.bookkeeper.validator_set;
+
+        println!("🔵 init: height={height}, total_weight={total_weight}");
+
+        let validator_set = build_validator_set(validator_weights.iter(), &mut self.rng);
+
+        let public_keys = validator_weights
+            .keys()
+            .zip(validator_set.validators.iter())
+            .map(|(name, val)| (name, &val.public_key));
+
+        self.addresses = build_address_map(public_keys);
+
+        Ok(VoteKeeper::new(validator_set, ThresholdParams::default()))
     }
 
     fn step(
@@ -50,21 +70,22 @@ impl ItfRunner for VoteKeeperRunner {
                 let round = Round::new(input_vote.round);
                 let height = Height::new(input_vote.height as u64);
                 let value = value_from_model(&input_vote.value_id);
-                let address = self
-                    .address_map
-                    .get(input_vote.src_address.as_str())
-                    .unwrap();
+                let address = self.addresses.get(input_vote.src_address.as_str()).unwrap();
+                let validator = actual.validator_set().get_by_address(address).unwrap();
                 let vote = match &input_vote.vote_type {
                     VoteType::Prevote => Vote::new_prevote(height, round, value, *address),
                     VoteType::Precommit => Vote::new_precommit(height, round, value, *address),
                 };
+
                 println!(
-                    "🔵 step: vote={:?}, round={:?}, value={:?}, address={:?}, weight={:?}, current_round={:?}",
+                    "🔵 step: vote={:?}, round={:?}, value={:?}, validator={:?}, weight={:?}, current_round={:?}",
                     input_vote.vote_type, round, value, input_vote.src_address, weight, current_round
                 );
 
+                debug_assert_eq!(*weight as u64, validator.voting_power);
+
                 // Execute step.
-                Ok(actual.apply_vote(vote, *weight as u64, Round::new(*current_round)))
+                Ok(actual.apply_vote(vote, Round::new(*current_round)))
             }
         }
     }
@@ -119,7 +140,7 @@ impl ItfRunner for VoteKeeperRunner {
         let expected_state = &expected.bookkeeper;
 
         assert_eq!(
-            *actual_state.total_weight(),
+            actual_state.total_weight(),
             expected_state.total_weight() as u64,
             "total_weight for the current height"
         );
@@ -177,7 +198,7 @@ impl ItfRunner for VoteKeeperRunner {
             let actual_addresses_weights = &actual_round.addresses_weights().get_inner();
             for (address, expected_weight) in expected_addresses_weights {
                 assert_eq!(
-                    actual_addresses_weights.get(self.address_map.get(address).unwrap()),
+                    actual_addresses_weights.get(self.addresses.get(address).unwrap()),
                     Some(&(*expected_weight as u64)),
                     "weight for address {address:?}"
                 );
@@ -187,11 +208,11 @@ impl ItfRunner for VoteKeeperRunner {
 
             let expected_prevotes = &expected_round.prevotes;
             let actual_prevotes = actual_votes.prevotes();
-            check_votes(expected_prevotes, actual_prevotes, &self.address_map);
+            check_votes(expected_prevotes, actual_prevotes, &self.addresses);
 
             let expected_precommits = &expected_round.precommits;
             let actual_precommits = actual_votes.precommits();
-            check_votes(expected_precommits, actual_precommits, &self.address_map);
+            check_votes(expected_precommits, actual_precommits, &self.addresses);
         }
 
         Ok(true)
