@@ -2,6 +2,9 @@
 #![allow(unexpected_cfgs)]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
+mod felt;
+pub use felt::Felt;
+
 mod address;
 pub use address::Address;
 

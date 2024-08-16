@@ -1,13 +1,13 @@
 use prost::Message;
 
-use malachite_common::{SignedProposal, SignedProposalPart, SignedVote, SigningScheme as _};
+use malachite_common::{SignedProposal, SignedProposalPart, SignedVote};
 use malachite_gossip_consensus::{GossipMsg, NetworkCodec};
 use malachite_proto::{Error as ProtoError, Protobuf};
 use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::types::Vote;
 use malachite_starknet_p2p_proto::consensus_message::Messages;
 use malachite_starknet_p2p_proto::ConsensusMessage;
-use malachite_starknet_p2p_types::{Proposal, ProposalPart, SigningScheme};
+use malachite_starknet_p2p_types::{Proposal, ProposalPart, Signature};
 
 pub struct ProtobufCodec;
 
@@ -17,12 +17,15 @@ impl NetworkCodec<MockContext> for ProtobufCodec {
     fn decode(&self, bytes: &[u8]) -> Result<GossipMsg<MockContext>, Self::Error> {
         let proto = ConsensusMessage::decode(bytes)?;
 
+        let signature = Signature::from_proto(
+            proto
+                .signature
+                .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("signature"))?,
+        )?;
+
         let message = proto
             .messages
             .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("messages"))?;
-
-        let signature = SigningScheme::decode_signature(proto.signature.as_slice())
-            .map_err(|e| ProtoError::Other(format!("invalid signature bytes: {e}")))?;
 
         match message {
             Messages::Vote(v) => {
@@ -39,16 +42,16 @@ impl NetworkCodec<MockContext> for ProtobufCodec {
         let message = match msg {
             GossipMsg::Vote(v) => ConsensusMessage {
                 messages: Some(Messages::Vote(v.to_proto()?)),
-                signature: SigningScheme::encode_signature(&v.signature),
+                signature: Some(v.signature.to_proto()?),
             },
             GossipMsg::Proposal(p) => ConsensusMessage {
                 messages: Some(Messages::Proposal(p.to_proto()?)),
-                signature: SigningScheme::encode_signature(&p.signature),
+                signature: Some(p.signature.to_proto()?),
             },
 
             GossipMsg::ProposalPart(pp) => ConsensusMessage {
                 messages: Some(Messages::ProposalPart(pp.to_proto()?)),
-                signature: SigningScheme::encode_signature(&pp.signature),
+                signature: Some(pp.signature.to_proto()?),
             },
         };
 

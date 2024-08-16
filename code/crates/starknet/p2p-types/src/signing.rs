@@ -1,10 +1,15 @@
 use core::fmt;
 
-use malachite_common::SigningScheme;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use starknet_core::crypto::{ecdsa_sign, ecdsa_verify};
 use starknet_crypto::{get_public_key, Felt};
+
+use malachite_common::SigningScheme;
+use malachite_proto::{Error as ProtoError, Protobuf};
+use malachite_starknet_p2p_proto as proto;
+
+use crate::felt::FeltExt;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Ecdsa;
@@ -88,6 +93,31 @@ impl PartialEq for Signature {
 }
 
 impl Eq for Signature {}
+
+impl Protobuf for Signature {
+    type Proto = proto::ConsensusSignature;
+
+    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
+        let r = proto
+            .r
+            .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("r"))?;
+        let s = proto
+            .s
+            .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("s"))?;
+
+        Ok(Self(starknet_crypto::Signature {
+            r: Felt::from_proto(r)?,
+            s: Felt::from_proto(s)?,
+        }))
+    }
+
+    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
+        Ok(proto::ConsensusSignature {
+            r: Some(self.0.r.to_proto()?),
+            s: Some(self.0.s.to_proto()?),
+        })
+    }
+}
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 #[serde(transparent)]

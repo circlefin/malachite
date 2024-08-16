@@ -84,6 +84,5 @@ message ConsensusMessage {
     }
 
     // Signature by the initial sender (e.g. proposer, voter) of the message.
-    // ConsensusSignature signature = 3;
-    bytes signature = 3;
+    ConsensusSignature signature = 3;
 }
