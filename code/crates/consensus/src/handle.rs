@@ -166,9 +166,9 @@ where
                 return Ok(());
             }
 
-            if proposal.round() != state.driver.round() {
+            if proposal.round() < state.driver.round() {
                 warn!(
-                    "Ignoring proposal for round {}, current round: {}",
+                    "Ignoring proposal for round {}, smaller than current round: {}",
                     proposal.round(),
                     state.driver.round()
                 );
@@ -192,16 +192,6 @@ where
 
                 return Ok(());
             }
-
-            if vote.round() != state.driver.round() {
-                warn!(
-                    "Ignoring vote for round {}, current round: {}",
-                    vote.round(),
-                    state.driver.round()
-                );
-
-                return Ok(());
-            }
         }
 
         DriverInput::TimeoutElapsed(_) => (),
@@ -221,7 +211,11 @@ where
     // If the step has changed, update the metrics
     if prev_step != new_step {
         debug!("Transitioned from {prev_step:?} to {new_step:?}");
-
+        if let Some(valid) = &state.driver.round_state.valid {
+            if state.driver.step_is_propose() {
+                info!("We enter Propose with a valid value from round {}", valid.round);
+            }
+        }
         metrics.step_end(prev_step);
         metrics.step_start(new_step);
     }
@@ -360,7 +354,7 @@ where
 
     if state.driver.round() != round {
         warn!(
-            "Ignoring proposal for round {round}, current round: {}",
+            "Ignoring propose value for round {round}, current round: {}",
             state.driver.round()
         );
 
@@ -548,18 +542,25 @@ where
         }
 
         GossipMsg::Proposal(signed_proposal) => {
-            let validator = signed_proposal.proposal.validator_address();
+            let proposer_address = signed_proposal.proposal.validator_address();
 
-            info!(%from, %validator, "Received proposal: {}", PrettyProposal::<Ctx>(&signed_proposal.proposal));
+            info!(%from, %proposer_address, "Received proposal: {}", PrettyProposal::<Ctx>(&signed_proposal.proposal));
 
-            let Some(validator) = state.driver.validator_set.get_by_address(validator) else {
-                warn!(%from, %validator, "Received proposal from unknown validator");
+            let Some(proposer) = state.driver.validator_set.get_by_address(proposer_address) else {
+                warn!(%from, %proposer_address, "Received proposal from unknown validator");
                 return Ok(());
             };
 
             let proposal = &signed_proposal.proposal;
             let proposal_height = proposal.height();
             let proposal_round = proposal.round();
+
+            let expected_proposer = state.get_proposer(proposal_height, proposal_round).unwrap();
+
+            if expected_proposer != proposer_address {
+                warn!(%from, %proposer_address, % proposer_address, "Received proposal from a non-proposer");
+                return Ok(());
+            };
 
             if proposal_height != state.driver.height() {
                 warn!(
@@ -570,17 +571,8 @@ where
                 return Ok(());
             }
 
-            if proposal_round != state.driver.round() {
-                warn!(
-                    "Ignoring proposal for round {proposal_round}, current round: {}",
-                    state.driver.round()
-                );
-
-                return Ok(());
-            }
-
             let signed_msg = SignedMessage::Proposal(signed_proposal.clone());
-            let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
+            let verify_sig = Effect::VerifySignature(signed_msg, proposer.public_key().clone());
             if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
                 error!(
                     "Received invalid signature for proposal: {}",
@@ -607,16 +599,17 @@ where
                 }
                 None => {
                     // Store the proposal and wait for all proposal parts
-                    // TODO: or maybe integrate with receive-proposal() here? will this block until all parts are received?
-
                     info!(
                         height = %proposal.height(),
                         round = %proposal.round(),
                         "Received proposal before all proposal parts, storing it"
                     );
 
-                    // FIXME: Avoid mutating the driver state directly
-                    state.driver.proposal = Some(proposal.clone());
+                    // TODO - we should store the validity but we don't know it yet
+                    state
+                        .driver
+                        .proposal_keeper
+                        .apply_proposal(proposal.clone());
                 }
             }
         }
@@ -713,8 +706,8 @@ where
         .received_blocks
         .push((height, round, value.clone(), validity));
 
-    if let Some(proposal) = state.driver.proposal.as_ref() {
-        debug!("We already have a proposal for this round, checking...");
+    if let Some(proposal) = state.driver.proposal_keeper.get_proposal_for_round(round) {
+        debug!("We have a proposal for this round, checking...");
 
         if height != proposal.height() || round != proposal.round() {
             // The value we received is not for the current proposal, ignoring

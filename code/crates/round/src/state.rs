@@ -62,7 +62,7 @@ where
     /// The value we are locked on, ie. we have received a polka for before we precommitted
     pub locked: Option<RoundValue<Ctx::Value>>,
 
-    /// The value for which we received a polka for after we already precommitted
+    /// The value for which we saw a polka
     pub valid: Option<RoundValue<Ctx::Value>>,
 
     /// The value we have decided on, None if no decision has been made yet.

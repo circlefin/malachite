@@ -21,6 +21,7 @@ mod error;
 mod input;
 mod mux;
 mod output;
+mod proposal_keeper;
 
 pub use driver::Driver;
 pub use error::Error;

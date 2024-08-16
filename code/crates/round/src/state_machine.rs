@@ -233,6 +233,7 @@ where
 {
     match &state.valid {
         Some(round_value) => {
+            // L16
             let pol_round = round_value.round;
             let proposal = Output::proposal(
                 state.height,
@@ -245,6 +246,7 @@ where
             Transition::to(state.with_step(Step::Propose)).with_output(proposal)
         }
         None => {
+            // L18
             let output = Output::get_value_and_schedule_timeout(
                 state.height,
                 state.round,
