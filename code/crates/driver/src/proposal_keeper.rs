@@ -27,7 +27,7 @@ pub struct PerRound<Ctx>
 where
     Ctx: Context,
 {
-    /// The proposal received in a given round (propsal.round) if any.
+    /// The proposal received in a given round (proposal.round) if any.
     proposal: Option<Ctx::Proposal>,
 }
 
