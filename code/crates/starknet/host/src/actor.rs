@@ -8,11 +8,11 @@ use sha3::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, trace};
 
-use malachite_starknet_p2p_types::{Proposal, ProposalMessage};
 use malachite_actors::consensus::ConsensusMsg;
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_common::{Round, Validity};
 use malachite_metrics::Metrics;
+use malachite_starknet_p2p_types::{Proposal, ProposalMessage};
 
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
