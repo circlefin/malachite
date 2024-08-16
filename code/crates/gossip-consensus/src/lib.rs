@@ -273,8 +273,6 @@ async fn handle_swarm_event<Ctx: Context>(
                 );
 
                 state.peers.insert(peer_id, info);
-
-                swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
             } else {
                 trace!(
                     "Peer {peer_id} is using incompatible protocol version: {:?}",
