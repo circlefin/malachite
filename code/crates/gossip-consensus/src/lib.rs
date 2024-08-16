@@ -174,7 +174,7 @@ async fn run<Ctx: Context>(
     loop {
         let result = tokio::select! {
             event = swarm.select_next_some() => {
-                handle_swarm_event(event, &metrics, &mut swarm, &mut state, &tx_event).await
+                handle_swarm_event(event, &metrics, &mut state, &tx_event).await
             }
 
             Some(ctrl) = rx_ctrl.recv() => {
@@ -230,7 +230,6 @@ async fn handle_ctrl_msg<Ctx: Context>(
 async fn handle_swarm_event<Ctx: Context>(
     event: SwarmEvent<NetworkEvent>,
     metrics: &Metrics,
-    swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,
     tx_event: &mpsc::Sender<Event<Ctx>>,
 ) -> ControlFlow<()> {
