@@ -1,13 +1,11 @@
 use core::fmt::Debug;
 
-use malachite_proto::Protobuf;
-
 use crate::{Context, Round};
 
 /// Defines the requirements for a proposal type.
 pub trait Proposal<Ctx>
 where
-    Self: Protobuf + Clone + Debug + Eq + Send + Sync + 'static,
+    Self: Clone + Debug + Eq + Send + Sync + 'static,
     Ctx: Context,
 {
     /// The height for which the proposal is for.

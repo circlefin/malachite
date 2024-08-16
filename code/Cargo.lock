@@ -2161,7 +2161,6 @@ name = "malachite-common"
 version = "0.1.0"
 dependencies = [
  "derive-where",
- "malachite-proto",
  "signature",
 ]
 
