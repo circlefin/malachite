@@ -3,10 +3,6 @@ name: Coverage
 on:
   push:
     branches: main
-    paths:
-      - code/**
-      - specs/quint/**
-      - .github/workflows/coverage.yml
   pull_request:
     paths:
       - code/**
@@ -14,7 +10,7 @@ on:
       - .github/workflows/coverage.yml
 
 jobs:
-  coverage:
+  integration:
     name: Integration
     runs-on: ubuntu-latest
     defaults:
@@ -64,7 +60,7 @@ jobs:
           flags: integration
           fail_ci_if_error: false
 
-  mbt-coverage:
+  mbt:
     name: MBT
     runs-on: ubuntu-latest
     defaults:
