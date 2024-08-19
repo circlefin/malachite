@@ -229,7 +229,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
 // L57 - timeout propose, prevote for nil (v2) (step prevote)
 // L34 - v1 and v2 prevote for same proposal, we get +2/3 prevotes, start prevote timer (step prevote)
 // L37-L43 - v3 receives the proposal, sets locked and value (step precommit)
-// L55 - v2 precommits for value in round 1, i.e. vr receives f+1 vote for round 1 from v2 (step new_round)
+// L55 - v2 precommits for value in round 1, i.e. v3 receives f+1 vote for round 1 from v2 (step new_round)
 // L11 - v3 starts new round, not proposer, start timeout propose (step propose)
 // L49 - v3 gets +2/3 precommits (from v1 and v2) for round 0, it has the proposal, decide
 //

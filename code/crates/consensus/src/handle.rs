@@ -572,15 +572,6 @@ where
                 return Ok(());
             }
 
-            if proposal_round != state.driver.round() {
-                warn!(
-                    "Ignoring proposal for round {proposal_round}, current round: {}",
-                    state.driver.round()
-                );
-
-                return Ok(());
-            }
-
             let signed_msg = signed_proposal.clone().map(ConsensusMsg::Proposal);
             let verify_sig = Effect::VerifySignature(signed_msg, proposer.public_key().clone());
             if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {

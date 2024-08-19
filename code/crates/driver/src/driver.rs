@@ -274,7 +274,7 @@ where
             return Ok(None);
         };
 
-        let round_input = self.multiplex_vote_threshold(output);
+        let round_input = self.multiplex_vote_threshold(output, vote_round);
         self.apply_input(vote_round, round_input)
     }
 

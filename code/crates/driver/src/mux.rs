@@ -81,10 +81,6 @@ where
         // Should only receive proposals for our height.
         assert_eq!(self.round_state.height, proposal.height());
 
-        // Should only receive proposals for current or higher round. All others are of no interest and
-        // should have been filtered in the consensus actor.
-        assert!(self.round_state.round <= proposal.round());
-
         // Store the proposal
         // TODO - store validity as well
         self.proposal_keeper.apply_proposal(proposal.clone());
@@ -159,16 +155,14 @@ where
         Some(RoundInput::Proposal(proposal))
     }
 
-    /// After a vote threshold change, check if we have a polka for nil, some value or any,
+    /// After a vote threshold change for a given round, check if we have a polka for nil, some value or any,
     /// based on the type of threshold and the current proposal.
     pub fn multiplex_vote_threshold(
         &self,
         new_threshold: VKOutput<ValueId<Ctx>>,
+        threshold_round: Round,
     ) -> RoundInput<Ctx> {
-        if let Some(proposal) = self
-            .proposal_keeper
-            .get_proposal_for_round(self.round_state.round)
-        {
+        if let Some(proposal) = self.proposal_keeper.get_proposal_for_round(threshold_round) {
             match new_threshold {
                 VKOutput::PolkaAny => RoundInput::PolkaAny,
                 VKOutput::PolkaNil => RoundInput::PolkaNil,
