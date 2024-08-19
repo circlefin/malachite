@@ -54,8 +54,8 @@ where
     }
 
     /// Return the proposal received from the given validator.
-    pub fn get_proposal(&self) -> Option<Ctx::Proposal> {
-        self.proposal.clone()
+    pub fn get_proposal(&self) -> Option<&Ctx::Proposal> {
+        self.proposal.as_ref()
     }
 }
 
@@ -94,11 +94,10 @@ where
     }
 
     /// Return the threshold parameters.
-    pub fn get_proposal_for_round(&self, round: Round) -> Option<Ctx::Proposal> {
-        match self.per_round.get(&round) {
-            None => None,
-            Some(round_info) => round_info.proposal.clone(),
-        }
+    pub fn get_proposal_for_round(&self, round: Round) -> Option<&Ctx::Proposal> {
+        self.per_round
+            .get(&round)
+            .and_then(|round_info| round_info.proposal.as_ref())
     }
 
     /// Return the evidence of equivocation.

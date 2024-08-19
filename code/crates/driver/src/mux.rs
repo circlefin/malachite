@@ -165,7 +165,7 @@ where
         &self,
         new_threshold: VKOutput<ValueId<Ctx>>,
     ) -> RoundInput<Ctx> {
-        if let Some(proposal) = &self
+        if let Some(proposal) = self
             .proposal_keeper
             .get_proposal_for_round(self.round_state.round)
         {
@@ -222,7 +222,7 @@ where
                 } else if let Some(proposal) = has_polka_value(
                     &self.vote_keeper,
                     round,
-                    self.proposal_keeper.get_proposal_for_round(round).as_ref(),
+                    self.proposal_keeper.get_proposal_for_round(round),
                 ) {
                     Some(RoundInput::ProposalAndPolkaCurrent(proposal.clone()))
                 } else if has_polka_any(&self.vote_keeper, round) {
