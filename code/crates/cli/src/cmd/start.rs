@@ -1,12 +1,12 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use color_eyre::eyre::Result;
 use tracing::{info, Instrument};
 
 use malachite_node::config::{App, Config};
-use malachite_test::utils::test::SpawnNodeActor;
-use malachite_test::{Address, PrivateKey, ValidatorSet};
-
-use malachite_starknet_app::spawn::SpawnStarknetNode;
+use malachite_node::Node;
+use malachite_starknet_app::node::StarknetNode;
 
 use crate::metrics;
 
@@ -14,8 +14,12 @@ use crate::metrics;
 pub struct StartCmd;
 
 impl StartCmd {
-    pub async fn run(&self, sk: PrivateKey, cfg: Config, vs: ValidatorSet) -> Result<()> {
-        let val_address = Address::from_public_key(&sk.public_key());
+    pub async fn run(
+        &self,
+        cfg: Config,
+        private_key_file: PathBuf,
+        genesis_file: PathBuf,
+    ) -> Result<()> {
         let moniker = cfg.moniker.clone();
 
         let span = tracing::error_span!("node", %moniker);
@@ -27,10 +31,18 @@ impl StartCmd {
 
         info!("Node is starting...");
 
+        let node = match cfg.app {
+            App::Starknet => StarknetNode,
+        };
+
+        let priv_key_file = node.load_private_key_file(private_key_file)?;
+        let private_key = node.load_private_key(priv_key_file);
+        let genesis = node.load_genesis(genesis_file)?;
+
         let (actor, handle) = match cfg.app {
             App::Starknet => {
-                SpawnStarknetNode::spawn_node_actor(cfg, vs, sk.clone(), sk, val_address, None)
-                    .await
+                use malachite_starknet_app::spawn::spawn_node_actor;
+                spawn_node_actor(cfg, genesis, private_key, None).await
             }
         };
 

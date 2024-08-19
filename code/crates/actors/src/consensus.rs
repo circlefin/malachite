@@ -10,7 +10,7 @@ use tokio::time::Instant;
 use tracing::{error, info};
 
 use malachite_common::{Context, Round, Timeout, TimeoutStep};
-use malachite_consensus::{Effect, GossipMsg, Resume, SignedMessage};
+use malachite_consensus::{Effect, GossipMsg, Resume};
 use malachite_driver::Driver;
 use malachite_gossip_consensus::{Channel, Event as GossipEvent};
 use malachite_metrics::Metrics;
@@ -339,13 +339,16 @@ where
             }
 
             Effect::VerifySignature(msg, pk) => {
+                use malachite_consensus::ConsensusMsg as Msg;
+
                 let start = Instant::now();
 
-                let valid = match msg {
-                    SignedMessage::Vote(v) => self.ctx.verify_signed_vote(&v, &pk),
-                    SignedMessage::Proposal(p) => self.ctx.verify_signed_proposal(&p, &pk),
-                    SignedMessage::ProposalPart(bp) => {
-                        self.ctx.verify_signed_proposal_part(&bp, &pk)
+                let valid = match msg.message {
+                    Msg::Vote(v) => self.ctx.verify_signed_vote(&v, &msg.signature, &pk),
+                    Msg::Proposal(p) => self.ctx.verify_signed_proposal(&p, &msg.signature, &pk),
+                    Msg::ProposalPart(bp) => {
+                        self.ctx
+                            .verify_signed_proposal_part(&bp, &msg.signature, &pk)
                     }
                 };
 

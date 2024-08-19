@@ -2,7 +2,6 @@ use color_eyre::eyre::Result;
 use tracing::{error, info, trace};
 
 use malachite_node::config::{Config, RuntimeConfig};
-use malachite_test::{PrivateKey, ValidatorSet};
 
 use crate::args::{Args, Commands};
 use crate::cmd::init::InitCmd;
@@ -14,7 +13,6 @@ mod args;
 mod cmd;
 mod logging;
 mod metrics;
-mod priv_key;
 
 pub fn main() -> Result<()> {
     color_eyre::install().expect("Failed to install global error handler");
@@ -50,9 +48,6 @@ pub fn main() -> Result<()> {
 fn start(args: &Args, cfg: Config, cmd: &StartCmd) -> Result<()> {
     use tokio::runtime::Builder as RtBuilder;
 
-    let sk: PrivateKey = args.load_private_key()?;
-    let vs: ValidatorSet = args.load_genesis()?;
-
     let mut builder = match cfg.runtime {
         RuntimeConfig::SingleThreaded => RtBuilder::new_current_thread(),
         RuntimeConfig::MultiThreaded { worker_threads } => {
@@ -65,7 +60,11 @@ fn start(args: &Args, cfg: Config, cmd: &StartCmd) -> Result<()> {
     };
 
     let rt = builder.enable_all().build()?;
-    rt.block_on(cmd.run(sk, cfg, vs))
+    rt.block_on(cmd.run(
+        cfg,
+        args.get_priv_validator_key_file_path()?,
+        args.get_genesis_file_path()?,
+    ))
 }
 
 fn init(args: &Args, cmd: &InitCmd) -> Result<()> {

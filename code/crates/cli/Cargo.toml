@@ -10,9 +10,12 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
+malachite-common.workspace        = true
 malachite-metrics.workspace       = true
 malachite-node.workspace          = true
-malachite-test.workspace          = true
+
+# Starknet
+malachite-starknet-host.workspace  = true
 malachite-starknet-app.workspace  = true
 
 axum               = { workspace = true }
@@ -25,7 +28,6 @@ itertools          = { workspace = true }
 tokio              = { workspace = true, features = ["full"] }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "json"] }
-serde              = { workspace = true, features = ["derive"] }
 serde_json         = { workspace = true }
 rand               = { workspace = true }
 toml               = { workspace = true }

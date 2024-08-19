@@ -1,8 +1,7 @@
 use malachite_common::VotingPower;
 use serde::{Deserialize, Serialize};
 
-use crate::crypto::PublicKey;
-use crate::Address;
+use crate::{Address, PublicKey};
 
 /// A validator is a public key and voting power
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -16,7 +15,7 @@ impl Validator {
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn new(public_key: PublicKey, voting_power: VotingPower) -> Self {
         Self {
-            address: Address::from_public_key(&public_key),
+            address: Address::from_public_key(public_key),
             public_key,
             voting_power,
         }

@@ -11,13 +11,13 @@ rust-version.workspace = true
 malachite-common.workspace             = true
 malachite-proto.workspace              = true
 malachite-starknet-p2p-proto.workspace = true
-malachite-crypto = { workspace = true, features = ["ed25519"] }
 
-starknet-core.workspace      = true
+starknet-core.workspace   = true
+starknet-crypto.workspace = true
 
-hex.workspace   = true
-sha2.workspace  = true
+rand.workspace  = true
 serde.workspace = true
+sha3.workspace  = true
 
 [lints]
 workspace = true

@@ -1,8 +1,6 @@
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display};
 
-use signature::{Keypair, Signer, Verifier};
-
 /// A signing scheme that can be used to sign votes and verify such signatures.
 ///
 /// This trait is used to abstract over the signature scheme used by the consensus engine.
@@ -22,14 +20,10 @@ where
     type Signature: Clone + Debug + Eq + Send + Sync;
 
     /// The type of public keys produced by this signing scheme.
-    type PublicKey: Clone + Debug + Eq + Send + Sync + Verifier<Self::Signature>;
+    type PublicKey: Clone + Debug + Eq + Send + Sync;
 
     /// The type of private keys produced by this signing scheme.
-    type PrivateKey: Clone
-        + Send
-        + Sync
-        + Signer<Self::Signature>
-        + Keypair<VerifyingKey = Self::PublicKey>;
+    type PrivateKey: Clone + Send + Sync;
 
     /// Decode a signature from a byte array.
     fn decode_signature(bytes: &[u8]) -> Result<Self::Signature, Self::DecodingError>;

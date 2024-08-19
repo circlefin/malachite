@@ -96,8 +96,8 @@ impl PublicKey {
     }
 
     pub fn hash(&self) -> [u8; 32] {
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
+        use sha3::{Digest, Keccak256};
+        let mut hasher = Keccak256::new();
         hasher.update(self.0.as_bytes());
         hasher.finalize().into()
     }

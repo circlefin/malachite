@@ -1,52 +1,31 @@
-use core::cmp::Ordering;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
 use malachite_proto::{Error as ProtoError, Protobuf};
 use malachite_starknet_p2p_proto as p2p_proto;
-use starknet_core::types::EthAddress;
 
-use crate::crypto::PublicKey;
+use crate::PublicKey;
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Address(EthAddress);
+pub struct Address(PublicKey);
 
 impl Address {
-    const LENGTH: usize = 20;
-
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub const fn new(value: [u8; Self::LENGTH]) -> Self {
-        Self(EthAddress::from_bytes(value))
+    pub fn new(bytes: [u8; 32]) -> Self {
+        Self::from_public_key(PublicKey::from_bytes(bytes))
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    pub fn from_public_key(public_key: &PublicKey) -> Self {
-        let hash = public_key.hash();
-        let mut address = [0; Self::LENGTH];
-        address.copy_from_slice(&hash[..Self::LENGTH]);
-        Self::new(address)
-    }
-}
-
-impl Ord for Address {
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.as_bytes().cmp(other.0.as_bytes())
-    }
-}
-
-impl PartialOrd for Address {
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+    pub fn from_public_key(public_key: PublicKey) -> Self {
+        Self(public_key)
     }
 }
 
 impl fmt::Display for Address {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0.as_bytes()))
+        self.0.fmt(f)
     }
 }
 
@@ -63,17 +42,16 @@ impl Protobuf for Address {
     type Proto = p2p_proto::Address;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
-        if proto.elements.len() != Self::LENGTH {
+        if proto.elements.len() != 32 {
             return Err(ProtoError::Other(format!(
-                "Invalid address length: expected {}, got {}",
-                Self::LENGTH,
+                "Invalid address length: expected 32, got {}",
                 proto.elements.len()
             )));
         }
 
-        let mut address = [0; Self::LENGTH];
-        address.copy_from_slice(&proto.elements);
-        Ok(Self::new(address))
+        let mut bytes = [0; 32];
+        bytes.copy_from_slice(&proto.elements);
+        Ok(Address::new(bytes))
     }
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {

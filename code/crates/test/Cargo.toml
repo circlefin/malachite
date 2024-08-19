@@ -22,10 +22,11 @@ malachite-crypto = { workspace = true, features = ["ed25519"] }
 async-trait        = { workspace = true }
 bytesize           = { workspace = true }
 hex                = { workspace = true }
-prost-types        = { workspace = true }
 prost              = { workspace = true }
+prost-types        = { workspace = true }
 rand               = { workspace = true }
 serde              = { workspace = true, features = ["derive"] }
+sha3               = { workspace = true }
 signature          = { workspace = true }
 tokio              = { workspace = true }
 tracing            = { workspace = true }

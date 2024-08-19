@@ -3,9 +3,8 @@
 use std::sync::Arc;
 
 use eyre::eyre;
-use malachite_starknet_p2p_types::{Proposal, ProposalMessage};
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
-use sha2::Digest;
+use sha3::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, trace};
 
@@ -13,6 +12,7 @@ use malachite_actors::consensus::ConsensusMsg;
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_common::{Round, Validity};
 use malachite_metrics::Metrics;
+use malachite_starknet_p2p_types::{Proposal, ProposalMessage};
 
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
@@ -92,12 +92,10 @@ impl StarknetHost {
         debug!(parts.len = %parts.len(), "Building proposal content from parts");
 
         let block_hash = {
-            let mut block_hasher = sha2::Sha256::new();
-
+            let mut block_hasher = sha3::Keccak256::new();
             for part in parts {
                 block_hasher.update(part.to_sign_bytes());
             }
-
             BlockHash::new(block_hasher.finalize().into())
         };
 

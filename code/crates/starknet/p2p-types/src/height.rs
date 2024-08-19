@@ -1,7 +1,7 @@
 use core::fmt;
 
-use malachite_common::proto;
-use malachite_proto::{Error as ProtoError, Protobuf};
+// use malachite_proto::{Error as ProtoError, Protobuf};
+// use malachite_starknet_p2p_proto as p2p_proto;
 
 /// A blockchain height
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -47,14 +47,14 @@ impl malachite_common::Height for Height {
     }
 }
 
-impl Protobuf for Height {
-    type Proto = proto::Height;
-
-    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
-        Ok(Self(proto.value))
-    }
-
-    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
-        Ok(proto::Height { value: self.0 })
-    }
-}
+// impl Protobuf for Height {
+//     type Proto = u64;
+//
+//     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
+//         Ok(Self(proto.value))
+//     }
+//
+//     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
+//         Ok(p2p_proto::Height { value: self.0 })
+//     }
+// }

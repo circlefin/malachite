@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
-use signature::Signer;
-
-use malachite_common::{Round, SignedProposalPart};
+use malachite_common::Round;
 use malachite_proto::{Error as ProtoError, Protobuf};
 
-use crate::{Address, Height, PrivateKey, TestContext, Value};
+use crate::{Address, Height, TestContext, Value};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockMetadata {
@@ -119,15 +117,6 @@ impl ProposalPart {
         Protobuf::to_bytes(self).unwrap()
     }
 
-    pub fn signed(self, private_key: &PrivateKey) -> SignedProposalPart<TestContext> {
-        let signature = private_key.sign(&self.to_bytes());
-
-        SignedProposalPart {
-            proposal_part: self,
-            signature,
-        }
-    }
-
     pub fn metadata(&self) -> &BlockMetadata {
         &self.content.metadata
     }
@@ -166,11 +155,7 @@ impl Protobuf for ProposalPart {
                     .height
                     .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("height"))?,
             )?,
-            round: Round::from_proto(
-                proto
-                    .round
-                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("round"))?,
-            )?,
+            round: Round::new(proto.round),
             sequence: proto.sequence,
             content: Arc::new(Content::from_any(
                 &proto
@@ -189,7 +174,7 @@ impl Protobuf for ProposalPart {
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(crate::proto::ProposalPart {
             height: Some(self.height.to_proto()?),
-            round: Some(self.round.to_proto()?),
+            round: self.round.as_i64(),
             sequence: self.sequence,
             content: Some(self.content.to_any()?),
             validator_address: Some(self.validator_address.to_proto()?),

@@ -8,12 +8,12 @@ use color_eyre::eyre::{eyre, Context, Result};
 use tracing::{info, warn};
 
 use malachite_node::config::{App, Config, LogFormat, LogLevel};
-use malachite_test::ValidatorSet as Genesis;
+use malachite_node::Node;
+use malachite_starknet_app::node::StarknetNode;
 
 use crate::cmd::testnet::{
     generate_config, generate_genesis, generate_private_keys, RuntimeFlavour,
 };
-use crate::priv_key::PrivValidatorKey;
 
 #[derive(Parser, Debug, Clone, Default, PartialEq)]
 pub struct InitCmd {
@@ -36,6 +36,10 @@ impl InitCmd {
         log_level: LogLevel,
         log_format: LogFormat,
     ) -> Result<()> {
+        let node = match self.app {
+            App::Starknet => StarknetNode,
+        };
+
         // Save default configuration
         if config_file.exists() && !self.overwrite {
             warn!(
@@ -64,11 +68,11 @@ impl InitCmd {
                 genesis_file.display()
             )
         } else {
-            let private_keys = generate_private_keys(1, true);
+            let private_keys = generate_private_keys(&node, 1, true);
             let public_keys = private_keys.iter().map(|pk| pk.public_key()).collect();
-            let genesis = generate_genesis(public_keys, true);
+            let genesis = generate_genesis(&node, public_keys, true);
             info!("Saving test genesis to {:?}.", genesis_file);
-            save_genesis(genesis_file, &genesis)?;
+            save_genesis(&node, genesis_file, &genesis)?;
         }
 
         // Save default priv_validator_key
@@ -79,9 +83,9 @@ impl InitCmd {
             )
         } else {
             info!("Saving private key to {:?}", priv_validator_key_file);
-            let private_keys = generate_private_keys(1, false);
-            let priv_validator_key = PrivValidatorKey::from(private_keys[0].clone());
-            save_priv_validator_key(priv_validator_key_file, &priv_validator_key)?;
+            let private_keys = generate_private_keys(&node, 1, false);
+            let priv_validator_key = node.make_private_key_file(private_keys[0]);
+            save_priv_validator_key(&node, priv_validator_key_file, &priv_validator_key)?;
         }
 
         Ok(())
@@ -94,14 +98,15 @@ pub fn save_config(config_file: &Path, config: &Config) -> Result<()> {
 }
 
 /// Save genesis to file
-pub fn save_genesis(genesis_file: &Path, genesis: &Genesis) -> Result<()> {
+pub fn save_genesis<N: Node>(_node: &N, genesis_file: &Path, genesis: &N::Genesis) -> Result<()> {
     save(genesis_file, &serde_json::to_string_pretty(genesis)?)
 }
 
 /// Save private_key validator key to file
-pub fn save_priv_validator_key(
+pub fn save_priv_validator_key<N: Node>(
+    _node: &N,
     priv_validator_key_file: &Path,
-    priv_validator_key: &PrivValidatorKey,
+    priv_validator_key: &N::PrivateKeyFile,
 ) -> Result<()> {
     save(
         priv_validator_key_file,

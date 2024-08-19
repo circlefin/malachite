@@ -1,12 +1,10 @@
 use crate::{
-    Address, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, SignedProposal,
-    SignedProposalPart, SignedVote, SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
+    Address, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, Signature, SignedMessage,
+    SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
 };
 
 /// This trait allows to abstract over the various datatypes
 /// that are used in the consensus engine.
-///
-/// TODO: Add `HashingScheme` associated type.
 pub trait Context
 where
     Self: Sized + Clone + Send + Sync + 'static,
@@ -39,32 +37,38 @@ where
     type SigningScheme: SigningScheme;
 
     /// Sign the given vote with our private key.
-    fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self>;
-
-    /// Sign the given proposal with our private key.
-    fn sign_proposal(&self, proposal: Self::Proposal) -> SignedProposal<Self>;
-
-    /// Verify the given proposal's signature using the given public key.
-    fn verify_signed_proposal(
-        &self,
-        signed_proposal: &SignedProposal<Self>,
-        public_key: &PublicKey<Self>,
-    ) -> bool;
+    fn sign_vote(&self, vote: Self::Vote) -> SignedMessage<Self, Self::Vote>;
 
     /// Verify the given vote's signature using the given public key.
     fn verify_signed_vote(
         &self,
-        signed_vote: &SignedVote<Self>,
+        vote: &Self::Vote,
+        signature: &Signature<Self>,
+        public_key: &PublicKey<Self>,
+    ) -> bool;
+
+    /// Sign the given proposal with our private key.
+    fn sign_proposal(&self, proposal: Self::Proposal) -> SignedMessage<Self, Self::Proposal>;
+
+    /// Verify the given proposal's signature using the given public key.
+    fn verify_signed_proposal(
+        &self,
+        proposal: &Self::Proposal,
+        signature: &Signature<Self>,
         public_key: &PublicKey<Self>,
     ) -> bool;
 
     /// Sign the proposal part with our private key.
-    fn sign_proposal_part(&self, proposal_part: Self::ProposalPart) -> SignedProposalPart<Self>;
+    fn sign_proposal_part(
+        &self,
+        proposal_part: Self::ProposalPart,
+    ) -> SignedMessage<Self, Self::ProposalPart>;
 
     /// Verify the given proposal part signature using the given public key.
     fn verify_signed_proposal_part(
         &self,
-        signed_proposal_part: &SignedProposalPart<Self>,
+        proposal_part: &Self::ProposalPart,
+        signature: &Signature<Self>,
         public_key: &PublicKey<Self>,
     ) -> bool;
 

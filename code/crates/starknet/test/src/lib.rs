@@ -2,20 +2,19 @@ use core::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use rand::Rng;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info, Instrument};
 
-use malachite_actors::node::NodeRef;
-use malachite_common::{Context, Height as _, Round, VotingPower};
-use malachite_node::config::{App, Config as NodeConfig};
+use malachite_common::VotingPower;
+use malachite_node::config::{Config as NodeConfig, LoggingConfig};
+use malachite_starknet_app::spawn::spawn_node_actor;
 
-use crate::utils::node_config::make_node_config;
-use crate::utils::validators::make_validators;
-use crate::{Address, Height, PrivateKey, Validator, ValidatorSet};
+use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
+
+pub use malachite_node::config::App;
 
 pub enum Expected {
     Exactly(usize),
@@ -84,10 +83,7 @@ impl<const N: usize> Test<N> {
         voting_powers
     }
 
-    pub async fn run<Spawn>(self, app: App)
-    where
-        Spawn: SpawnNodeActor + 'static,
-    {
+    pub async fn run(self, app: App) {
         init_logging();
 
         let mut handles = Vec::with_capacity(N);
@@ -97,17 +93,15 @@ impl<const N: usize> Test<N> {
                 continue;
             }
 
-            let (v, sk) = &self.vals_and_keys[i];
+            let (_, private_key) = &self.vals_and_keys[i];
             let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
 
             let node_config = make_node_config(&self, i, app);
 
-            let node = tokio::spawn(Spawn::spawn_node_actor(
+            let node = tokio::spawn(spawn_node_actor(
                 node_config,
                 self.validator_set.clone(),
-                sk.clone(),
-                sk.clone(),
-                v.address,
+                *private_key,
                 Some(tx_decision),
             ));
 
@@ -252,22 +246,80 @@ fn init_logging() {
     subscriber.init();
 }
 
-#[async_trait]
-pub trait SpawnNodeActor {
-    type Ctx: Context;
+use bytesize::ByteSize;
 
-    async fn spawn_node_actor(
-        node_config: NodeConfig,
-        validator_set: ValidatorSet,
-        validator_pkk: PrivateKey,
-        node_pk: PrivateKey,
-        address: Address,
-        tx_decision: Option<
-            mpsc::Sender<(
-                <Self::Ctx as Context>::Height,
-                Round,
-                <Self::Ctx as Context>::Value,
-            )>,
-        >,
-    ) -> (NodeRef, JoinHandle<()>);
+use malachite_node::config::{
+    ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
+};
+
+pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> NodeConfig {
+    NodeConfig {
+        app,
+        moniker: format!("node-{i}"),
+        logging: LoggingConfig::default(),
+        consensus: ConsensusConfig {
+            max_block_size: ByteSize::mib(1),
+            timeouts: TimeoutConfig::default(),
+            p2p: P2pConfig {
+                listen_addr: format!(
+                    "/ip4/127.0.0.1/udp/{}/quic-v1",
+                    test.consensus_base_port + i
+                )
+                .parse()
+                .unwrap(),
+                persistent_peers: (0..N)
+                    .filter(|j| i != *j)
+                    .map(|j| {
+                        format!(
+                            "/ip4/127.0.0.1/udp/{}/quic-v1",
+                            test.consensus_base_port + j
+                        )
+                        .parse()
+                        .unwrap()
+                    })
+                    .collect(),
+            },
+        },
+        mempool: MempoolConfig {
+            p2p: P2pConfig {
+                listen_addr: format!("/ip4/127.0.0.1/udp/{}/quic-v1", test.mempool_base_port + i)
+                    .parse()
+                    .unwrap(),
+                persistent_peers: (0..N)
+                    .filter(|j| i != *j)
+                    .map(|j| {
+                        format!("/ip4/127.0.0.1/udp/{}/quic-v1", test.mempool_base_port + j)
+                            .parse()
+                            .unwrap()
+                    })
+                    .collect(),
+            },
+            max_tx_count: 10000,
+            gossip_batch_size: 100,
+        },
+        metrics: MetricsConfig {
+            enabled: false,
+            listen_addr: format!("127.0.0.1:{}", test.metrics_base_port + i)
+                .parse()
+                .unwrap(),
+        },
+        runtime: RuntimeConfig::single_threaded(),
+        test: Default::default(),
+    }
+}
+
+pub fn make_validators<const N: usize>(
+    voting_powers: [VotingPower; N],
+) -> [(Validator, PrivateKey); N] {
+    let mut rng = StdRng::seed_from_u64(0x42);
+
+    let mut validators = Vec::with_capacity(N);
+
+    for vp in voting_powers {
+        let sk = PrivateKey::generate(&mut rng);
+        let val = Validator::new(sk.public_key(), vp);
+        validators.push((val, sk));
+    }
+
+    validators.try_into().expect("N validators")
 }

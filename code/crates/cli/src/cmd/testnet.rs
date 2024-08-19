@@ -11,16 +11,16 @@ use rand::rngs::OsRng;
 use rand::{Rng, SeedableRng};
 use tracing::info;
 
+use malachite_common::{PrivateKey, PublicKey};
 use malachite_node::config::{
     App, Config, ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MempoolConfig, MetricsConfig,
     P2pConfig, RuntimeConfig, TestConfig, TimeoutConfig,
 };
-use malachite_test::ValidatorSet as Genesis;
-use malachite_test::{PrivateKey, PublicKey, Validator};
+use malachite_node::Node;
+use malachite_starknet_app::node::StarknetNode;
 
 use crate::args::Args;
 use crate::cmd::init::{save_config, save_genesis, save_priv_validator_key};
-use crate::priv_key::PrivValidatorKey;
 
 const MIN_VOTING_POWER: u64 = 8;
 const MAX_VOTING_POWER: u64 = 15;
@@ -79,9 +79,13 @@ pub struct TestnetCmd {
 impl TestnetCmd {
     /// Execute the testnet command
     pub fn run(&self, home_dir: &Path, log_level: LogLevel, log_format: LogFormat) -> Result<()> {
-        let private_keys = generate_private_keys(self.nodes, self.deterministic);
+        let node = match self.app {
+            App::Starknet => StarknetNode,
+        };
+
+        let private_keys = generate_private_keys(&node, self.nodes, self.deterministic);
         let public_keys = private_keys.iter().map(|pk| pk.public_key()).collect();
-        let genesis = generate_genesis(public_keys, self.deterministic);
+        let genesis = generate_genesis(&node, public_keys, self.deterministic);
 
         for (i, private_key) in private_keys.iter().enumerate().take(self.nodes) {
             // Use home directory `home_dir/<index>`
@@ -99,14 +103,15 @@ impl TestnetCmd {
             };
 
             // Save private key
-            let priv_validator_key = PrivValidatorKey::from(private_key.clone());
+            let priv_validator_key = node.make_private_key_file(*private_key);
             save_priv_validator_key(
+                &node,
                 &args.get_priv_validator_key_file_path()?,
                 &priv_validator_key,
             )?;
 
             // Save genesis
-            save_genesis(&args.get_genesis_file_path()?, &genesis)?;
+            save_genesis(&node, &args.get_genesis_file_path()?, &genesis)?;
 
             // Save config
             save_config(
@@ -119,37 +124,45 @@ impl TestnetCmd {
 }
 
 /// Generate private keys. Random or deterministic for different use-cases.
-pub fn generate_private_keys(size: usize, deterministic: bool) -> Vec<PrivateKey> {
+pub fn generate_private_keys<N>(
+    node: &N,
+    size: usize,
+    deterministic: bool,
+) -> Vec<PrivateKey<N::Context>>
+where
+    N: Node,
+{
     if deterministic {
         let mut rng = StdRng::seed_from_u64(0x42);
-        (0..size).map(|_| PrivateKey::generate(&mut rng)).collect()
+        (0..size)
+            .map(|_| node.generate_private_key(&mut rng))
+            .collect()
     } else {
-        (0..size).map(|_| PrivateKey::generate(OsRng)).collect()
+        (0..size)
+            .map(|_| node.generate_private_key(OsRng))
+            .collect()
     }
 }
 
 /// Generate a Genesis file from the public keys and voting power.
 /// Voting power can be random or deterministically pseudo-random.
-pub fn generate_genesis(pks: Vec<PublicKey>, deterministic: bool) -> Genesis {
-    let size = pks.len();
-    let voting_powers: Vec<u64> = if deterministic {
+pub fn generate_genesis<N: Node>(
+    node: &N,
+    pks: Vec<PublicKey<N::Context>>,
+    deterministic: bool,
+) -> N::Genesis {
+    let validators: Vec<_> = if deterministic {
         let mut rng = StdRng::seed_from_u64(0x42);
-        (0..size)
-            .map(|_| rng.gen_range(MIN_VOTING_POWER..=MAX_VOTING_POWER))
+        pks.into_iter()
+            .map(|pk| (pk, rng.gen_range(MIN_VOTING_POWER..=MAX_VOTING_POWER)))
             .collect()
     } else {
-        (0..size)
-            .map(|_| OsRng.gen_range(MIN_VOTING_POWER..=MAX_VOTING_POWER))
+        pks.into_iter()
+            .map(|pk| (pk, OsRng.gen_range(MIN_VOTING_POWER..=MAX_VOTING_POWER)))
             .collect()
     };
 
-    let mut validators = Vec::with_capacity(size);
-
-    for i in 0..size {
-        validators.push(Validator::new(pks[i], voting_powers[i]));
-    }
-
-    Genesis { validators }
+    node.make_genesis(validators)
 }
 
 const CONSENSUS_BASE_PORT: usize = 27000;

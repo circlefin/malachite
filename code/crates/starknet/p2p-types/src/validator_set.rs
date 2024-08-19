@@ -1,8 +1,7 @@
 use malachite_common::VotingPower;
 use serde::{Deserialize, Serialize};
 
-use crate::crypto::PublicKey;
-use crate::{Address, Validator};
+use crate::{Address, PublicKey, Validator};
 
 /// A validator set contains a list of validators sorted by address.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -2,7 +2,7 @@
 
 use bytesize::ByteSize;
 use eyre::eyre;
-use sha2::{Digest, Sha256};
+use sha3::Digest;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{error, trace};
@@ -56,7 +56,7 @@ async fn run_build_proposal_task(
     let mut block_size = 0;
     let mut block_tx_count = 0;
     let mut max_block_size_reached = false;
-    let mut block_hasher = Sha256::new();
+    let mut block_hasher = sha3::Keccak256::new();
 
     // Init
     {

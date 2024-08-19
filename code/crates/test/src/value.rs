@@ -1,7 +1,8 @@
 use core::fmt;
 
-use malachite_common::proto;
 use malachite_proto::{Error as ProtoError, Protobuf};
+
+use crate::proto;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy)]
 pub struct ValueId(u64);
