@@ -7,8 +7,8 @@ use malachite_common::{
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
-use malachite_round::state::{State as RoundState, Step};
 use malachite_round::state::Step::Propose;
+use malachite_round::state::{State as RoundState, Step};
 use malachite_round::state_machine::Info;
 use malachite_vote::keeper::VoteKeeper;
 use malachite_vote::ThresholdParams;
