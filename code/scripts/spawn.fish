@@ -5,10 +5,10 @@
 # - the home directory for the nodes configuration folders
 
 function help
-    echo "Usage: spawn.fish [--help] --nodes NODES_COUNT --home NODES_HOME [--profile|--debug]"
+    echo "Usage: spawn.fish [--help] --nodes NODES_COUNT --home NODES_HOME [--profile=PROFILE|--debug]"
 end
 
-argparse -n spawn.fish help 'nodes=' 'home=' profile debug -- $argv
+argparse -n spawn.fish help 'nodes=' 'home=' 'profile=?' debug -- $argv
 or return
 
 if set -ql _flag_help
@@ -25,6 +25,8 @@ if ! set -q _flag_home
     help
     return 1
 end
+
+set profile_template (string replace -r '^$' 'time' -- $_flag_profile)
 
 if set -q _flag_profile
     echo "Profiling enabled."
@@ -51,7 +53,7 @@ end
 # set -x MALACHITE__TEST__EXEC_TIME_PER_PART 10ms
 
 echo "Compiling Malachite..."
-cargo build --profile $build_profile
+# cargo build --profile $build_profile
 
 set session malachite
 tmux kill-session -t $session
@@ -82,8 +84,8 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
         set cmd_prefix "rust-lldb --source =(echo \"$lldb_script\") ./target/$build_folder/malachite-cli -- "
         
         tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME'" Enter
-    else if $profile
-        set cmd_prefix "cargo instruments --profile $build_profile --template time --time-limit 60000 --output '$NODE_HOME/traces/' --"
+    else if $profile; and [ $NODE = 0 ]
+        set cmd_prefix "cargo instruments --profile $build_profile --template $profile_template --time-limit 60000 --output '$NODE_HOME/traces/' --"
 
         tmux send -t "$pane" "sleep $NODE" Enter
         tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 > '$NODE_HOME/logs/node.log' &" Enter
