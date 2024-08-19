@@ -20,8 +20,8 @@ pub struct Behaviour {
 }
 
 fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
-    let hash = blake3::hash(&message.data);
-    gossipsub::MessageId::from(hash.as_bytes().to_vec())
+    let hash = seahash::hash(&message.data);
+    gossipsub::MessageId::new(hash.to_le_bytes().as_slice())
 }
 
 fn gossipsub_config() -> gossipsub::Config {

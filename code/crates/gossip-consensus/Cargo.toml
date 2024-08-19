@@ -14,9 +14,9 @@ malachite-common    = { workspace = true }
 malachite-consensus = { workspace = true }
 malachite-metrics   = { workspace = true }
 
-blake3             = { workspace = true }
 derive-where       = { workspace = true }
 futures            = { workspace = true }
 libp2p             = { workspace = true }
+seahash            = { workspace = true }
 tokio              = { workspace = true }
 tracing            = { workspace = true }
