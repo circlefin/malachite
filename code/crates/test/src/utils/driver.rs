@@ -33,9 +33,7 @@ pub fn proposal_input(
     Input::Proposal(proposal, validity)
 }
 
-pub fn prevote_output(round: Round, addr: &Address) -> Output<TestContext> {
-    let value = Value::new(9999);
-
+pub fn prevote_output(round: Round, value: Value, addr: &Address) -> Output<TestContext> {
     Output::Vote(Vote::new_prevote(
         Height::new(1),
         round,
@@ -53,9 +51,7 @@ pub fn prevote_nil_output(round: Round, addr: &Address) -> Output<TestContext> {
     ))
 }
 
-pub fn prevote_input(addr: &Address) -> Input<TestContext> {
-    let value = Value::new(9999);
-
+pub fn prevote_input(value: Value, addr: &Address) -> Input<TestContext> {
     Input::Vote(Vote::new_prevote(
         Height::new(1),
         Round::new(0),
@@ -73,9 +69,7 @@ pub fn prevote_nil_input(addr: &Address) -> Input<TestContext> {
     ))
 }
 
-pub fn prevote_input_at(round: Round, addr: &Address) -> Input<TestContext> {
-    let value = Value::new(9999);
-
+pub fn prevote_input_at(round: Round, value: Value, addr: &Address) -> Input<TestContext> {
     Input::Vote(Vote::new_prevote(
         Height::new(1),
         round,
