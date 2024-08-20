@@ -23,8 +23,8 @@
 # dnode-stop - stop the application on a node server. Accepts list of IDs or "all". (example: dnode-stop 0 2)
 # dnode-rm - remove node container from server. Accepts list of IDs or "all". (example: dnode-rm 0 1 2)
 # cheat_sheet - get some help on the order of commands to run
-# #fetch_log - fetch the logs from all the node servers (example: fetch_log 0 1 2)
-# #get_prometheus_data - create a compressed prometheus data file (and download it from the cc server)
+# fetch_dashboard - fetch the dashboard graphs from Grafana (example: fetch_dashboard now-30m now-15m)
+# get_prometheus_data - create a compressed prometheus data file (and download it from the cc server)
 ##
 
 export CANDC="${cc.ip}"
@@ -135,37 +135,42 @@ setup_config
 dnode-pull all
 dnode-run all
 (wait for data)
-#dnode-stop all
-#get_prometheus_data
+dnode-stop all
+fetch_dashboard
+get_prometheus_data
 dnode-rm all
-#_reset_prometheus_db
+_reset_prometheus_db
 EOF
 }
 
-# TODO: update to prometheus docker volume
 get_prometheus_data() {
-  echo "Todo: fix"
-  return
   if _is_cc; then
     rm -f prometheus.tgz
-    systemctl stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 .
-    systemctl start prometheus
+    docker stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/docker/volumes/docker_prometheus/_data .
+    docker start prometheus
   else
-    ssh-cc "rm -f prometheus.tgz; systemctl stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/prometheus/metrics2 . ; systemctl start prometheus"
+    ssh-cc "rm -f prometheus.tgz; docker stop prometheus && tar -cvzf prometheus.tgz -C /var/lib/docker/volumes/docker_prometheus/_data . ; docker start prometheus"
     scp -r "root@$CANDC:prometheus.tgz" .
   fi
 }
 
-# TODO: update to prometheus docker volume
 _reset_prometheus_db() {
-  echo "Todo: fix"
-  return
   if _is_cc; then
-    systemctl stop prometheus
-    rm -rf /var/lib/prometheus/metrics2/*
-    systemctl start prometheus
+    docker stop prometheus
+    rm -rf /var/lib/docker/volumes/docker_prometheus/_data/*
+    docker start prometheus
   else
-    ssh-cc "systemctl stop prometheus && rm -rf /var/lib/prometheus/metrics2/*; systemctl start prometheus"
+    ssh-cc "docker stop prometheus && rm -rf /var/lib/docker/volumes/docker_prometheus/_data/*; docker start prometheus"
+  fi
+}
+
+_reset_elastic_db() {
+  if _is_cc; then
+    docker stop docker-elk-elasticsearch-1
+    rm -rf /var/lib/docker/volumes/docker-elk_elasticsearch/_data/*
+    docker start docker-elk-elasticsearch-1
+  else
+    ssh-cc "docker stop docker-elk-elasticsearch-1 && rm -rf /var/lib/docker/volumes/docker-elk_elasticsearch/_data/*; docker start docker-elk-elasticsearch-1"
   fi
 }
 
@@ -293,7 +298,7 @@ ${etc-hosts}
 EOF
 }
 
-_fetch_dashboard() {
+fetch_dashboard() {
   FROM="$${1:-now-15m}"
   TO="$${2:-now}"
 
@@ -303,7 +308,7 @@ _fetch_dashboard() {
   TZ="$${TZ:-America/Toronto}"
   TIMEZONE="$(echo "$TZ" | sed 's,/,%2F,g')"
 
-  for i in 1 17 3 15 8 19 1 18 21 20 7 6 22
+  for i in $(seq 1 30)
   do
     wget -O "$i.png" "http://$${CANDC}:3000/render/d-solo/fdo24nq8yvf28f/malachite-first-stab?from=$FROM&to=$TO&panelId=$i&width=$WIDTH&height=$HEIGHT&scale=$SCALE&tz=$TIMEZONE"
   done
