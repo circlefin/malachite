@@ -83,7 +83,7 @@ variable large {
 # Type of servers to deploy into each region
 variable cc_size {
   type = string
-  default = "g-4vcpu-16gb"
+  default = "so-4vcpu-32gb-intel"
 }
 variable "ams3_size" {
   type    = string
@@ -133,4 +133,9 @@ variable "tor1_size" {
 variable "instance_tags" {
   type    = list(string)
   default = ["Malachite"]
+}
+
+variable "ssh_timeout" {
+  type = string
+  default = "120s"
 }

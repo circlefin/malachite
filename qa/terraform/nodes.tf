@@ -106,7 +106,7 @@ resource terraform_data fra1-done {
 
   connection {
     host = digitalocean_droplet.fra1[count.index].ipv4_address
-    timeout = "120s"
+    timeout = var.ssh_timeout
     private_key = tls_private_key.ssh.private_key_openssh
   }
 
@@ -145,7 +145,7 @@ resource terraform_data lon1-done {
 
   connection {
     host = digitalocean_droplet.lon1[count.index].ipv4_address
-    timeout = "120s"
+    timeout = var.ssh_timeout
     private_key = tls_private_key.ssh.private_key_openssh
   }
 
@@ -184,7 +184,7 @@ resource terraform_data nyc1-done {
 
   connection {
     host = digitalocean_droplet.nyc1[count.index].ipv4_address
-    timeout = "120s"
+    timeout = var.ssh_timeout
     private_key = tls_private_key.ssh.private_key_openssh
   }
 
@@ -223,7 +223,7 @@ resource terraform_data nyc3-done {
 
   connection {
     host = digitalocean_droplet.nyc3[count.index].ipv4_address
-    timeout = "120s"
+    timeout = var.ssh_timeout
     private_key = tls_private_key.ssh.private_key_openssh
   }
 
@@ -262,7 +262,7 @@ resource terraform_data sfo2-done {
 
   connection {
     host = digitalocean_droplet.sfo2[count.index].ipv4_address
-    timeout = "120s"
+    timeout = var.ssh_timeout
     private_key = tls_private_key.ssh.private_key_openssh
   }
 
@@ -301,7 +301,7 @@ resource terraform_data sfo3-done {
 
   connection {
     host = digitalocean_droplet.sfo3[count.index].ipv4_address
-    timeout = "120s"
+    timeout = var.ssh_timeout
     private_key = tls_private_key.ssh.private_key_openssh
   }
 
@@ -340,7 +340,7 @@ resource terraform_data sgp1-done {
 
   connection {
     host = digitalocean_droplet.sgp1[count.index].ipv4_address
-    timeout = "120s"
+    timeout = var.ssh_timeout
     private_key = tls_private_key.ssh.private_key_openssh
   }
 
@@ -379,7 +379,7 @@ resource terraform_data syd1-done {
 
   connection {
     host = digitalocean_droplet.syd1[count.index].ipv4_address
-    timeout = "120s"
+    timeout = var.ssh_timeout
     private_key = tls_private_key.ssh.private_key_openssh
   }
 
@@ -418,7 +418,7 @@ resource terraform_data tor1-done {
 
   connection {
     host = digitalocean_droplet.tor1[count.index].ipv4_address
-    timeout = "120s"
+    timeout = var.ssh_timeout
     private_key = tls_private_key.ssh.private_key_openssh
   }
 

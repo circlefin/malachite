@@ -164,6 +164,26 @@ _reset_prometheus_db() {
   fi
 }
 
+_reset_prometheus_db2() {
+  # Mark all node_exporter data for deletion
+  #curl -s -X POST -g 'http://${cc.ip}:9090/api/v1/admin/tsdb/delete_series?match[]={job="node_exporter"}'
+  # Mark all malachite data for deletion
+  #curl -s -X POST -g 'http://${cc.ip}:9090/api/v1/admin/tsdb/delete_series?match[]={job="malachite"}'
+  # Mark all data for deletion
+  #curl -s -X POST -g 'http://${cc.ip}:9090/api/v1/admin/tsdb/delete_series?match[]={__name__=~".+"}'
+  # Set end of deletion frame to "now - 30 minutes".
+  END="$1"
+  if [ -z "$END" ]; then
+    END="$(($(date +%s) - 60 * 30))"
+  fi
+  # Mark node_exporter data for deletion
+  curl -s -X POST -g 'http://${cc.ip}:9090/api/v1/admin/tsdb/delete_series?match[]={job="node_exporter"}&end='"$END"
+  # Mark malachite data for deletion
+  curl -s -X POST -g 'http://${cc.ip}:9090/api/v1/admin/tsdb/delete_series?match[]={job="malachite"}&end='"$END"
+  # Physically delete data
+  curl -s -X POST -g 'http://${cc.ip}:9090/api/v1/admin/tsdb/clean_tombstones'
+}
+
 _reset_elastic_db() {
   if _is_cc; then
     docker stop docker-elk-elasticsearch-1
@@ -171,6 +191,20 @@ _reset_elastic_db() {
     docker start docker-elk-elasticsearch-1
   else
     ssh-cc "docker stop docker-elk-elasticsearch-1 && rm -rf /var/lib/docker/volumes/docker-elk_elasticsearch/_data/*; docker start docker-elk-elasticsearch-1"
+  fi
+}
+
+_reset_elastic_db2() {
+  if [ -f /root/docker-elk/.env ]; then
+    source /root/docker-elk/.env
+  fi
+  if [ -z "$ELASTIC_PASSWORD" ]; then
+    echo "Please set the ELASTIC_PASSWORD environment variable."
+  else
+    INDEX="$(curl -s -X GET --user "elastic:$ELASTIC_PASSWORD" http://${cc.ip}:9200/_cat/indices/*docker* | cut -d\  -f3)"
+    DS="$(echo $INDEX | sed -e 's/^.ds-logs-//' -e 's/-[^-]*$//')"
+    curl -X DELETE --user "elastic:$ELASTIC_PASSWORD" "http://${cc.ip}:9200/_data_stream/$DS"
+    curl -X DELETE --user "elastic:$ELASTIC_PASSWORD" "http://${cc.ip}:9200/$INDEX"
   fi
 }
 

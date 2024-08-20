@@ -23,10 +23,18 @@ resource "digitalocean_droplet" "cc" {
     prometheus_config = filebase64("../viewer/config-prometheus/prometheus.yml")
     grafana_data_sources = filebase64("../viewer/config-grafana/provisioning/datasources/prometheus.yml")
     grafana_dashboards_config = filebase64("../viewer/config-grafana/provisioning/dashboards/malachite.yml")
-    grafana_malachite_dashboard = filebase64("../viewer/config-grafana/provisioning/dashboards-data/main.json")
     elastic_password = random_string.elastic_password.result
     #ssh_key = tls_private_key.ssh.private_key_openssh
   })
+  connection {
+    host = digitalocean_droplet.cc.ipv4_address
+    timeout = var.ssh_timeout
+    private_key = tls_private_key.ssh.private_key_openssh
+  }
+  provisioner "file" {
+    source = "../viewer/config-grafana/provisioning/dashboards-data"
+    destination = "/root"
+  }
 }
 
 resource terraform_data cc-done {
@@ -38,7 +46,7 @@ resource terraform_data cc-done {
 
   connection {
     host = digitalocean_droplet.cc.ipv4_address
-    timeout = "120s"
+    timeout = var.ssh_timeout
     private_key = tls_private_key.ssh.private_key_openssh
   }
 

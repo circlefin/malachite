@@ -149,9 +149,6 @@ write_files:
   - path: /root/docker/malachite.yml
     encoding: b64
     content: ${grafana_dashboards_config}
-  - path: /root/dashboards/main.json
-    encoding: b64
-    content: ${grafana_malachite_dashboard}
   - path: /root/docker/compose.yml
     content: |
       services:
@@ -165,6 +162,12 @@ write_files:
             - prometheus:/prometheus
           extra_hosts:
             - "host.docker.internal:host-gateway"
+          command:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+            - "--web.console.templates=/usr/share/prometheus/consoles"
+            - "--web.enable-admin-api"
         registry:
           container_name: registry
           image: registry:2
@@ -181,7 +184,7 @@ write_files:
           volumes:
             - /root/docker/grafana.yml:/etc/grafana/provisioning/datasources/prometheus.yml
             - /root/docker/malachite.yml:/etc/grafana/provisioning/dashboards/malachite.yml
-            - /root/dashboards:/etc/grafana/provisioning/dashboards-data
+            - /root/dashboards-data:/etc/grafana/provisioning/dashboards-data
             - grafana:/var/lib/grafana
           ports:
             - 0.0.0.0:3000:3000
@@ -241,7 +244,6 @@ runcmd:
   - docker compose -f /root/docker-elk/docker-compose.yml up setup
   - docker compose -f /root/docker-elk/docker-compose.yml up elasticsearch kibana -d
 # Enable Prometheus metrics for this host
-  - curl -s -o /root/dashboards/node-exporter-full.json -L https://raw.githubusercontent.com/rfmoz/grafana-dashboards/master/prometheus/node-exporter-full.json
   - systemctl enable prometheus-node-exporter
   - systemctl start prometheus-node-exporter
 # Add custom sconfig for configuration management
