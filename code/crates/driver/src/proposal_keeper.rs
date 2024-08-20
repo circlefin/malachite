@@ -109,7 +109,7 @@ where
     pub fn apply_proposal(&mut self, proposal: Ctx::Proposal) {
         let per_round = self.per_round.entry(proposal.round()).or_default();
 
-        match per_round.add(proposal.clone()) {
+        match per_round.add(proposal) {
             Ok(()) => (),
             Err(RecordProposalError::ConflictingProposal {
                 existing,
