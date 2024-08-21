@@ -7,9 +7,9 @@ use eyre::eyre;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
-use tracing::{error, info};
+use tracing::{debug, error, info, warn};
 
-use malachite_common::{Context, Round, Timeout, TimeoutStep};
+use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType};
 use malachite_consensus::{Effect, GossipMsg, Resume};
 use malachite_driver::Driver;
 use malachite_gossip_consensus::{Channel, Event as GossipEvent};
@@ -224,6 +224,56 @@ where
                 };
 
                 state.timeouts.increase_timeout(timeout.step);
+
+                if matches!(timeout.step, TimeoutStep::Prevote | TimeoutStep::Precommit) {
+                    warn!(step = ?timeout.step, "Timeout elapsed");
+
+                    if let Some(per_round) = state
+                        .consensus
+                        .driver
+                        .vote_keeper
+                        .per_round()
+                        .get(&state.consensus.driver.round())
+                    {
+                        warn!(
+                            "Number of validators having voted: {} / {}",
+                            per_round.addresses_weights().get_inner().len(),
+                            state.consensus.driver.validator_set.count()
+                        );
+                        warn!(
+                            "Total voting power of validators: {}",
+                            state.consensus.driver.validator_set.total_voting_power()
+                        );
+                        warn!(
+                            "Voting power required: {}",
+                            state.consensus.driver.validator_set.total_voting_power() * 2 / 3
+                        );
+                        warn!(
+                            "Total voting power of validators having voted: {}",
+                            per_round.addresses_weights().sum()
+                        );
+                        warn!(
+                            "Total voting power of validators having prevoted nil: {}",
+                            per_round
+                                .votes()
+                                .get_weight(VoteType::Prevote, &NilOrVal::Nil)
+                        );
+                        warn!(
+                            "Total voting power of validators having precommited nil: {}",
+                            per_round
+                                .votes()
+                                .get_weight(VoteType::Precommit, &NilOrVal::Nil)
+                        );
+                        warn!(
+                            "Total weight of prevotes: {}",
+                            per_round.votes().weight_sum(VoteType::Prevote)
+                        );
+                        warn!(
+                            "Total weight of precommits: {}",
+                            per_round.votes().weight_sum(VoteType::Precommit)
+                        );
+                    }
+                }
 
                 let result = self
                     .process_msg(&myself, state, InnerMsg::TimeoutElapsed(timeout))
