@@ -89,7 +89,7 @@ impl StarknetHost {
             return None;
         }
 
-        debug!(parts.len = %parts.len(), "Building proposal content from parts");
+        trace!(parts.len = %parts.len(), "Building proposal content from parts");
 
         let block_hash = {
             let mut block_hasher = sha3::Keccak256::new();
@@ -99,7 +99,7 @@ impl StarknetHost {
             BlockHash::new(block_hasher.finalize().into())
         };
 
-        debug!(%block_hash, "Computed block hash");
+        trace!(%block_hash, "Computed block hash");
 
         let last_part = parts.last().expect("proposal_parts is not empty");
 
@@ -137,14 +137,14 @@ impl StarknetHost {
         let round = part.round;
         let sequence = part.sequence;
 
-        debug!("Received proposal part");
+        trace!("Received proposal part");
 
         // Prune all proposal parts for heights lower than `height - 1`
         state.part_store.prune(height.decrement().unwrap_or(height));
         state.part_store.store(part.clone());
 
         if let ProposalMessage::Transactions(txes) = &part.message {
-            debug!("Simulating tx execution and proof verification");
+            trace!("Simulating tx execution and proof verification");
 
             // Simulate Tx execution and proof verification (assumes success)
             // TODO: Add config knob for invalid blocks
@@ -152,7 +152,7 @@ impl StarknetHost {
             let exec_time = self.host.params().exec_time_per_tx * num_txes;
             tokio::time::sleep(exec_time).await;
 
-            debug!("Simulation took {exec_time:?} to execute {num_txes} txes");
+            trace!("Simulation took {exec_time:?} to execute {num_txes} txes");
         }
 
         // Get the "last" part, the one with highest sequence.
@@ -165,7 +165,7 @@ impl StarknetHost {
         // TODO: Do more validations, e.g. there is no higher tx proposal part,
         //       check that we have received the proof, etc.
         let ProposalMessage::Fin(_) = &last_part.message else {
-            debug!("Final proposal part has not been received yet");
+            trace!("Final proposal part has not been received yet");
             return None;
         };
 
@@ -175,7 +175,7 @@ impl StarknetHost {
             let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
             let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
 
-            debug!(%tx_count, %block_size, %num_parts, "All parts have been received already, building value");
+            trace!(%tx_count, %block_size, %num_parts, "All parts have been received already, building value");
 
             self.build_value_from_parts(&all_parts, height, round)
         } else {
@@ -218,6 +218,7 @@ impl Actor for StarknetHost {
                 let deadline = Instant::now() + timeout_duration;
 
                 debug!(%height, %round, "Building new proposal...");
+
                 let (mut rx_part, rx_hash) =
                     self.host.build_new_proposal(height, round, deadline).await;
 
