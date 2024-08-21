@@ -56,10 +56,6 @@ where
         commits: Vec<SignedMessage<Ctx, Ctx::Vote>>,
     },
 
-    /// A ProposalPart was received via the gossip layer
-    /// Resume with: Resume::Continue
-    ReceivedProposalPart(Ctx::ProposalPart),
-
     /// Verify a signature
     /// Resume with: Resume::SignatureValidity(valid)
     VerifySignature(SignedMessage<Ctx, ConsensusMsg<Ctx>>, PublicKey<Ctx>),

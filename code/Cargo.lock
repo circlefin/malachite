@@ -2249,11 +2249,9 @@ dependencies = [
 name = "malachite-gossip-consensus"
 version = "0.1.0"
 dependencies = [
- "derive-where",
+ "bytes",
  "futures",
  "libp2p",
- "malachite-common",
- "malachite-consensus",
  "malachite-metrics",
  "seahash",
  "tokio",
@@ -2343,6 +2341,7 @@ dependencies = [
  "libp2p-identity",
  "malachite-actors",
  "malachite-common",
+ "malachite-consensus",
  "malachite-gossip-consensus",
  "malachite-gossip-mempool",
  "malachite-metrics",
@@ -2368,7 +2367,6 @@ dependencies = [
  "bytesize",
  "derive-where",
  "eyre",
- "itertools",
  "malachite-actors",
  "malachite-common",
  "malachite-gossip-mempool",

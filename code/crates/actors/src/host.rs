@@ -5,8 +5,6 @@ use ractor::{ActorRef, RpcReplyPort};
 
 use malachite_common::{Context, Round, SignedVote};
 
-use crate::consensus::ConsensusRef;
-
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct LocallyProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
@@ -27,6 +25,8 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
 /// A value to propose that has just been received.
 pub use malachite_consensus::ProposedValue;
 
+use crate::consensus::ConsensusRef;
+
 /// A reference to the host actor.
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 
@@ -37,14 +37,14 @@ pub enum HostMsg<Ctx: Context> {
         height: Ctx::Height,
         round: Round,
         timeout_duration: Duration,
-        consensus: ConsensusRef<Ctx>,
         address: Ctx::Address,
+        consensus: ConsensusRef<Ctx>,
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
 
     /// ProposalPart received <-- consensus <-- gossip
-    ReceivedProposalPart {
-        part: Ctx::ProposalPart,
+    ReceivedProposalParts {
+        parts: Vec<Ctx::ProposalPart>,
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },
 

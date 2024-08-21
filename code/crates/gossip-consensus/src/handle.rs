@@ -1,28 +1,29 @@
-use malachite_common::Context;
-use malachite_consensus::GossipMsg;
+use bytes::Bytes;
 use tokio::sync::mpsc;
 use tokio::task;
 
 use crate::{BoxError, Channel, CtrlMsg, Event};
 
-pub struct RecvHandle<Ctx: Context> {
-    rx_event: mpsc::Receiver<Event<Ctx>>,
+pub struct RecvHandle {
+    rx_event: mpsc::Receiver<Event>,
 }
 
-impl<Ctx: Context> RecvHandle<Ctx> {
-    pub async fn recv(&mut self) -> Option<Event<Ctx>> {
+impl RecvHandle {
+    pub async fn recv(&mut self) -> Option<Event> {
         self.rx_event.recv().await
     }
 }
 
-pub struct CtrlHandle<Ctx: Context> {
-    tx_ctrl: mpsc::Sender<CtrlMsg<Ctx>>,
+pub struct CtrlHandle {
+    tx_ctrl: mpsc::Sender<CtrlMsg>,
     task_handle: task::JoinHandle<()>,
 }
 
-impl<Ctx: Context> CtrlHandle<Ctx> {
-    pub async fn broadcast(&self, channel: Channel, msg: GossipMsg<Ctx>) -> Result<(), BoxError> {
-        self.tx_ctrl.send(CtrlMsg::Broadcast(channel, msg)).await?;
+impl CtrlHandle {
+    pub async fn broadcast(&self, channel: Channel, data: Bytes) -> Result<(), BoxError> {
+        self.tx_ctrl
+            .send(CtrlMsg::BroadcastMsg(channel, data))
+            .await?;
         Ok(())
     }
 
@@ -33,7 +34,7 @@ impl<Ctx: Context> CtrlHandle<Ctx> {
     }
 
     pub async fn shutdown(&self) -> Result<(), BoxError> {
-        self.tx_ctrl.send(CtrlMsg::<Ctx>::Shutdown).await?;
+        self.tx_ctrl.send(CtrlMsg::Shutdown).await?;
         Ok(())
     }
 
@@ -43,15 +44,15 @@ impl<Ctx: Context> CtrlHandle<Ctx> {
     }
 }
 
-pub struct Handle<Ctx: Context> {
-    recv: RecvHandle<Ctx>,
-    ctrl: CtrlHandle<Ctx>,
+pub struct Handle {
+    recv: RecvHandle,
+    ctrl: CtrlHandle,
 }
 
-impl<Ctx: Context> Handle<Ctx> {
+impl Handle {
     pub fn new(
-        tx_ctrl: mpsc::Sender<CtrlMsg<Ctx>>,
-        rx_event: mpsc::Receiver<Event<Ctx>>,
+        tx_ctrl: mpsc::Sender<CtrlMsg>,
+        rx_event: mpsc::Receiver<Event>,
         task_handle: task::JoinHandle<()>,
     ) -> Self {
         Self {
@@ -63,16 +64,16 @@ impl<Ctx: Context> Handle<Ctx> {
         }
     }
 
-    pub fn split(self) -> (RecvHandle<Ctx>, CtrlHandle<Ctx>) {
+    pub fn split(self) -> (RecvHandle, CtrlHandle) {
         (self.recv, self.ctrl)
     }
 
-    pub async fn recv(&mut self) -> Option<Event<Ctx>> {
+    pub async fn recv(&mut self) -> Option<Event> {
         self.recv.recv().await
     }
 
-    pub async fn broadcast(&self, channel: Channel, msg: GossipMsg<Ctx>) -> Result<(), BoxError> {
-        self.ctrl.broadcast(channel, msg).await
+    pub async fn broadcast(&self, channel: Channel, data: Bytes) -> Result<(), BoxError> {
+        self.ctrl.broadcast(channel, data).await
     }
 
     pub async fn wait_shutdown(self) -> Result<(), BoxError> {

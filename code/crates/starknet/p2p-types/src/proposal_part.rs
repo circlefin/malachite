@@ -5,110 +5,43 @@ use malachite_starknet_p2p_proto as p2p_proto;
 use crate::{Address, BlockProof, Height, Transactions};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ProposalMessage {
+pub struct ProposalInit {
+    pub block_number: Height,
+    pub fork_id: u64,
+    pub proposal_round: Round,
+    pub proposer: Address,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProposalFin {
+    pub valid_round: Option<Round>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ProposalPart {
     Init(ProposalInit),
     Transactions(Transactions),
     BlockProof(BlockProof),
     Fin(ProposalFin),
 }
 
-impl ProposalMessage {
-    pub fn message_type(&self) -> MessageType {
-        match self {
-            Self::Init(_) => MessageType::Init,
-            Self::Transactions(_) => MessageType::Transactions,
-            Self::BlockProof(_) => MessageType::BlockProof,
-            Self::Fin(_) => MessageType::Fin,
-        }
-    }
-}
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum MessageType {
+pub enum PartType {
     Init,
     Transactions,
     BlockProof,
     Fin,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProposalPart {
-    pub height: Height,
-    pub round: Round,
-    pub sequence: u64,
-    pub validator: Address,
-    pub message: ProposalMessage,
-}
-
 impl ProposalPart {
-    pub fn init(
-        height: Height,
-        round: Round,
-        sequence: u64,
-        validator: Address,
-        init: ProposalInit,
-    ) -> Self {
-        Self {
-            height,
-            round,
-            sequence,
-            validator,
-            message: ProposalMessage::Init(init),
+    pub fn part_type(&self) -> PartType {
+        match self {
+            Self::Init(_) => PartType::Init,
+            Self::Transactions(_) => PartType::Transactions,
+            Self::BlockProof(_) => PartType::BlockProof,
+            Self::Fin(_) => PartType::Fin,
         }
     }
-
-    pub fn transactions(
-        height: Height,
-        round: Round,
-        sequence: u64,
-        validator: Address,
-        transactions: Transactions,
-    ) -> Self {
-        Self {
-            height,
-            round,
-            sequence,
-            validator,
-            message: ProposalMessage::Transactions(transactions),
-        }
-    }
-
-    pub fn block_proof(
-        height: Height,
-        round: Round,
-        sequence: u64,
-        validator: Address,
-        block_proof: BlockProof,
-    ) -> Self {
-        Self {
-            height,
-            round,
-            sequence,
-            validator,
-            message: ProposalMessage::BlockProof(block_proof),
-        }
-    }
-
-    pub fn fin(
-        height: Height,
-        round: Round,
-        sequence: u64,
-        validator: Address,
-        fin: ProposalFin,
-    ) -> Self {
-        Self {
-            height,
-            round,
-            sequence,
-            validator,
-            message: ProposalMessage::Fin(fin),
-        }
-    }
-
-    pub fn message_type(&self) -> MessageType {
-        self.message.message_type()
-    }
-
     pub fn to_sign_bytes(&self) -> Vec<u8> {
         proto::Protobuf::to_bytes(self).unwrap() // FIXME: unwrap
     }
@@ -118,9 +51,41 @@ impl ProposalPart {
     }
 
     pub fn tx_count(&self) -> usize {
-        match &self.message {
-            ProposalMessage::Transactions(txes) => txes.len(),
+        match self {
+            Self::Transactions(txes) => txes.len(),
             _ => 0,
+        }
+    }
+
+    pub fn as_init(&self) -> Option<&ProposalInit> {
+        if let Self::Init(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_transactions(&self) -> Option<&Transactions> {
+        if let Self::Transactions(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_block_proof(&self) -> Option<&BlockProof> {
+        if let Self::BlockProof(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_fin(&self) -> Option<&ProposalFin> {
+        if let Self::Fin(v) = self {
+            Some(v)
+        } else {
+            None
         }
     }
 }
@@ -136,38 +101,28 @@ impl proto::Protobuf for ProposalPart {
             .messages
             .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("messages"))?;
 
-        let message = match message {
-            Messages::Init(init) => ProposalMessage::Init(ProposalInit {
-                block_number: init.block_number,
+        Ok(match message {
+            Messages::Init(init) => ProposalPart::Init(ProposalInit {
+                block_number: Height::new(init.block_number),
                 fork_id: init.fork_id,
                 proposal_round: Round::new(i64::from(init.proposal_round)),
+                proposer: Address::from_proto(
+                    init.proposer
+                        .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("proposer"))?,
+                )?,
             }),
             Messages::Fin(fin) => {
                 let valid_round = fin.valid_round.map(|round| Round::new(i64::from(round)));
-                ProposalMessage::Fin(ProposalFin { valid_round })
+                ProposalPart::Fin(ProposalFin { valid_round })
             }
             Messages::Transactions(txes) => {
                 let transactions = Transactions::from_proto(txes)?;
-                ProposalMessage::Transactions(transactions)
+                ProposalPart::Transactions(transactions)
             }
             Messages::Proof(proof) => {
                 let block_proof = BlockProof::from_proto(proof)?;
-                ProposalMessage::BlockProof(block_proof)
+                ProposalPart::BlockProof(block_proof)
             }
-        };
-
-        let validator = Address::from_proto(
-            proto
-                .validator
-                .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("validator"))?,
-        )?;
-
-        Ok(Self {
-            height: Height::new(proto.height),
-            round: Round::new(i64::from(proto.round)),
-            sequence: proto.sequence,
-            validator,
-            message,
         })
     }
 
@@ -175,45 +130,28 @@ impl proto::Protobuf for ProposalPart {
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         use p2p_proto::proposal_part::Messages;
 
-        let message = match &self.message {
-            ProposalMessage::Init(init) => Messages::Init(p2p_proto::ProposalInit {
-                block_number: init.block_number,
+        let message = match self {
+            ProposalPart::Init(init) => Messages::Init(p2p_proto::ProposalInit {
+                block_number: init.block_number.as_u64(),
                 fork_id: init.fork_id,
                 proposal_round: init.proposal_round.as_i64() as u32, // FIXME: p2p-types
+                proposer: Some(init.proposer.to_proto()?),
             }),
-            ProposalMessage::Fin(fin) => Messages::Fin(p2p_proto::ProposalFin {
+            ProposalPart::Fin(fin) => Messages::Fin(p2p_proto::ProposalFin {
                 valid_round: fin.valid_round.map(|round| round.as_i64() as u32), // FIXME: p2p-types
             }),
-            ProposalMessage::Transactions(txes) => {
-                Messages::Transactions(p2p_proto::Transactions {
-                    transactions: txes
-                        .as_slice()
-                        .iter()
-                        .map(|tx| tx.to_proto())
-                        .collect::<Result<Vec<_>, _>>()?,
-                })
-            }
-            ProposalMessage::BlockProof(block_proof) => Messages::Proof(block_proof.to_proto()?),
+            ProposalPart::Transactions(txes) => Messages::Transactions(p2p_proto::Transactions {
+                transactions: txes
+                    .as_slice()
+                    .iter()
+                    .map(|tx| tx.to_proto())
+                    .collect::<Result<Vec<_>, _>>()?,
+            }),
+            ProposalPart::BlockProof(block_proof) => Messages::Proof(block_proof.to_proto()?),
         };
 
         Ok(p2p_proto::ProposalPart {
-            height: self.height.as_u64(),
-            round: self.round.as_i64() as u32, // FIXME: p2p-types
-            sequence: self.sequence,
-            validator: Some(self.validator.to_proto()?),
             messages: Some(message),
         })
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProposalInit {
-    pub block_number: u64,
-    pub fork_id: u64,
-    pub proposal_round: Round,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProposalFin {
-    pub valid_round: Option<Round>,
 }

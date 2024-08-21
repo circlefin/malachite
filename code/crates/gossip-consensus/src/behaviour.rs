@@ -5,6 +5,7 @@ use libp2p::{gossipsub, identify, ping};
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
+
 use malachite_metrics::Registry;
 
 use crate::PROTOCOL_VERSION;

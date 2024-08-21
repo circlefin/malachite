@@ -1,8 +1,7 @@
 use derive_where::derive_where;
+use malachite_common::{Context, Round, SignedProposal, SignedVote, Timeout};
 
-use malachite_common::*;
-
-use crate::types::{GossipEvent, ProposedValue};
+use crate::types::ProposedValue;
 
 /// Messages that can be handled by the consensus process
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -13,8 +12,11 @@ where
     /// Start a new height
     StartHeight(Ctx::Height),
 
-    /// Process a gossip event
-    GossipEvent(GossipEvent<Ctx>),
+    /// Process a vote
+    Vote(SignedVote<Ctx>),
+
+    /// Process a proposal
+    Proposal(SignedProposal<Ctx>),
 
     /// Propose a value
     ProposeValue(Ctx::Height, Round, Ctx::Value),

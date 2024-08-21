@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 
-use crate::{Context, Round};
+use crate::Context;
 
 /// Defines the requirements for a proposal part type.
 pub trait ProposalPart<Ctx>
@@ -8,15 +8,9 @@ where
     Self: Clone + Debug + Eq + Send + Sync + 'static,
     Ctx: Context,
 {
-    /// The part height
-    fn height(&self) -> Ctx::Height;
+    /// Is this the first proposal part?
+    fn is_first(&self) -> bool;
 
-    /// The part round
-    fn round(&self) -> Round;
-
-    /// The part sequence
-    fn sequence(&self) -> u64;
-
-    /// Address of the validator who created this part
-    fn validator_address(&self) -> &Ctx::Address;
+    /// Is this the last proposal part?
+    fn is_last(&self) -> bool;
 }

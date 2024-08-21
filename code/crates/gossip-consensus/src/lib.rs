@@ -8,7 +8,6 @@ use std::error::Error;
 use std::ops::ControlFlow;
 use std::time::Duration;
 
-use derive_where::derive_where;
 use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::swarm::{self, SwarmEvent};
@@ -16,19 +15,15 @@ use libp2p::{gossipsub, identify, SwarmBuilder};
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
-use malachite_common::Context;
 use malachite_metrics::SharedRegistry;
 
-pub use malachite_consensus::GossipMsg;
-
+pub use bytes::Bytes;
+pub use libp2p::gossipsub::MessageId;
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
 pub mod behaviour;
 pub mod handle;
-
-mod codec;
-pub use codec::NetworkCodec;
 
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
@@ -99,11 +94,18 @@ impl Config {
     }
 }
 
-pub type Event<Ctx> = malachite_consensus::GossipEvent<Ctx>;
+/// An event that can be emitted by the gossip layer
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Event {
+    Listening(Multiaddr),
+    Message(Channel, PeerId, MessageId, Bytes),
+    PeerConnected(PeerId),
+    PeerDisconnected(PeerId),
+}
 
-#[derive_where(Debug)]
-pub enum CtrlMsg<Ctx: Context> {
-    Broadcast(Channel, GossipMsg<Ctx>),
+#[derive(Debug)]
+pub enum CtrlMsg {
+    BroadcastMsg(Channel, Bytes),
     Shutdown,
 }
 
@@ -112,12 +114,11 @@ pub struct State {
     pub peers: HashMap<PeerId, identify::Info>,
 }
 
-pub async fn spawn<Ctx: Context>(
+pub async fn spawn(
     keypair: Keypair,
     config: Config,
-    codec: impl NetworkCodec<Ctx> + Send + Sync + 'static,
     registry: SharedRegistry,
-) -> Result<Handle<Ctx>, BoxError> {
+) -> Result<Handle, BoxError> {
     let mut swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, BoxError> {
         Ok(SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
@@ -144,18 +145,17 @@ pub async fn spawn<Ctx: Context>(
     let peer_id = swarm.local_peer_id();
     let span = error_span!("gossip-consensus", peer = %peer_id);
     let task_handle =
-        tokio::task::spawn(run(config, metrics, codec, swarm, rx_ctrl, tx_event).instrument(span));
+        tokio::task::spawn(run(config, metrics, swarm, rx_ctrl, tx_event).instrument(span));
 
     Ok(Handle::new(tx_ctrl, rx_event, task_handle))
 }
 
-async fn run<Ctx: Context>(
+async fn run(
     config: Config,
     metrics: Metrics,
-    codec: impl NetworkCodec<Ctx>,
     mut swarm: swarm::Swarm<Behaviour>,
-    mut rx_ctrl: mpsc::Receiver<CtrlMsg<Ctx>>,
-    tx_event: mpsc::Sender<Event<Ctx>>,
+    mut rx_ctrl: mpsc::Receiver<CtrlMsg>,
+    tx_event: mpsc::Sender<Event>,
 ) {
     if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
         error!("Error listening on {}: {e}", config.listen_addr);
@@ -176,11 +176,11 @@ async fn run<Ctx: Context>(
     loop {
         let result = tokio::select! {
             event = swarm.select_next_some() => {
-                handle_swarm_event(event, &metrics, &codec, &mut state, &tx_event).await
+                handle_swarm_event(event, &metrics, &mut swarm, &mut state, &tx_event).await
             }
 
             Some(ctrl) = rx_ctrl.recv() => {
-                handle_ctrl_msg(ctrl, &codec, &mut swarm).await
+                handle_ctrl_msg(ctrl, &mut swarm).await
             }
         };
 
@@ -191,21 +191,9 @@ async fn run<Ctx: Context>(
     }
 }
 
-async fn handle_ctrl_msg<Ctx: Context>(
-    msg: CtrlMsg<Ctx>,
-    codec: &impl NetworkCodec<Ctx>,
-    swarm: &mut swarm::Swarm<Behaviour>,
-) -> ControlFlow<()> {
+async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> ControlFlow<()> {
     match msg {
-        CtrlMsg::Broadcast(channel, msg) => {
-            let data = match codec.encode(msg) {
-                Ok(data) => data,
-                Err(e) => {
-                    error!("Error encoding message: {e}");
-                    return ControlFlow::Continue(());
-                }
-            };
-
+        CtrlMsg::BroadcastMsg(channel, data) => {
             let msg_size = data.len();
 
             let result = swarm
@@ -229,12 +217,12 @@ async fn handle_ctrl_msg<Ctx: Context>(
     }
 }
 
-async fn handle_swarm_event<Ctx: Context>(
+async fn handle_swarm_event(
     event: SwarmEvent<NetworkEvent>,
     metrics: &Metrics,
-    codec: &impl NetworkCodec<Ctx>,
+    _swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,
-    tx_event: &mpsc::Sender<Event<Ctx>>,
+    tx_event: &mpsc::Sender<Event>,
 ) -> ControlFlow<()> {
     if let SwarmEvent::Behaviour(NetworkEvent::GossipSub(e)) = &event {
         metrics.record(e);
@@ -337,12 +325,9 @@ async fn handle_swarm_event<Ctx: Context>(
                 message.data.len()
             );
 
-            let Ok(gossip_msg) = codec.decode(&message.data) else {
-                error!("Error decoding message {message_id} from {peer_id}: invalid format");
-                return ControlFlow::Continue(());
-            };
+            let event = Event::Message(channel, peer_id, message_id, Bytes::from(message.data));
 
-            if let Err(e) = tx_event.send(Event::Message(peer_id, gossip_msg)).await {
+            if let Err(e) = tx_event.send(event).await {
                 error!("Error sending message to handle: {e}");
                 return ControlFlow::Break(());
             }

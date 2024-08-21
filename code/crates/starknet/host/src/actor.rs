@@ -1,5 +1,6 @@
 #![allow(unused_variables, unused_imports)]
 
+use std::ops::Deref;
 use std::sync::Arc;
 
 use eyre::eyre;
@@ -12,13 +13,12 @@ use malachite_actors::consensus::ConsensusMsg;
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_common::{Round, Validity};
 use malachite_metrics::Metrics;
-use malachite_starknet_p2p_types::{Proposal, ProposalMessage};
 
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
 use crate::part_store::PartStore;
-use crate::types::{Address, BlockHash, Height, ProposalPart, ValidatorSet};
+use crate::types::{Address, BlockHash, Height, Proposal, ProposalPart, ValidatorSet};
 use crate::Host;
 
 pub struct StarknetHost {
@@ -101,50 +101,36 @@ impl StarknetHost {
 
         trace!(%block_hash, "Computed block hash");
 
-        let last_part = parts.last().expect("proposal_parts is not empty");
+        let init = parts.iter().find_map(|part| part.as_init()).unwrap(); // FIXME: Unwrap
+        let fin = parts.iter().find_map(|part| part.as_fin()).unwrap(); // FIXME: Unwrap;
 
         // TODO: How to compute validity?
-        //
-        // let Some(block_hash) = last_part.block_hash() else {
-        //     error!("Block is missing metadata");
-        //     return None;
-        // };
-        //
-        // let expected_value = BlockHash::new(block_hasher.finalize().into());
-        //
-        // let valid = if block_hash != expected_value {
-        //     error!("Invalid block received with value {block_hash}, expected {expected_value}");
-        //     Validity::Invalid
-        // } else {
-        //     Validity::Valid
-        // };
+        let validity = Validity::Valid;
 
-        Some((block_hash, last_part.validator.clone(), Validity::Valid))
+        Some((block_hash, init.proposer.clone(), validity))
     }
 
     #[tracing::instrument(skip_all, fields(
-        %part.height,
-        %part.round,
-        %part.sequence,
-        part.message = ?part.message_type(),
+        part.height = %height,
+        part.round = %round,
+        part.message = ?part.part_type(),
     ))]
     async fn build_value_from_part(
         &self,
         state: &mut HostState,
+        height: Height,
+        round: Round,
+        fork_id: u64,
         part: ProposalPart,
     ) -> Option<ProposedValue<MockContext>> {
-        let height = part.height;
-        let round = part.round;
-        let sequence = part.sequence;
-
-        trace!("Received proposal part");
+        debug!("Received proposal part");
 
         // Prune all proposal parts for heights lower than `height - 1`
         state.part_store.prune(height.decrement().unwrap_or(height));
-        state.part_store.store(part.clone());
+        state.part_store.store(height, round, part.clone());
 
-        if let ProposalMessage::Transactions(txes) = &part.message {
-            trace!("Simulating tx execution and proof verification");
+        if let ProposalPart::Transactions(txes) = &part {
+            debug!("Simulating tx execution and proof verification");
 
             // Simulate Tx execution and proof verification (assumes success)
             // TODO: Add config knob for invalid blocks
@@ -155,33 +141,24 @@ impl StarknetHost {
             trace!("Simulation took {exec_time:?} to execute {num_txes} txes");
         }
 
-        // Get the "last" part, the one with highest sequence.
-        // Block parts may not be received in order.
         let all_parts = state.part_store.all_parts(height, round);
-        let last_part = all_parts.last().expect("all_parts is not empty");
 
-        // Check if the part with the highest sequence number is a `Fin` message.
-        // Otherwise abort, and wait for this part to be received.
         // TODO: Do more validations, e.g. there is no higher tx proposal part,
         //       check that we have received the proof, etc.
-        let ProposalMessage::Fin(_) = &last_part.message else {
-            trace!("Final proposal part has not been received yet");
+        let Some(fin) = all_parts.iter().find_map(|part| part.as_fin()) else {
+            debug!("Final proposal part has not been received yet");
             return None;
         };
 
-        let num_parts = all_parts.len();
+        let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
+        let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
 
-        if num_parts == last_part.sequence as usize {
-            let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
-            let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
+        debug!(
+            %tx_count, %block_size, num_parts = %all_parts.len(),
+            "All parts have been received already, building value"
+        );
 
-            trace!(%tx_count, %block_size, %num_parts, "All parts have been received already, building value");
-
-            self.build_value_from_parts(&all_parts, height, round)
-        } else {
-            trace!("Not all parts have been received yet");
-            None
-        }
+        self.build_value_from_parts(&all_parts, height, round)
     }
 }
 
@@ -211,8 +188,8 @@ impl Actor for StarknetHost {
                 height,
                 round,
                 timeout_duration,
-                consensus,
                 address,
+                consensus,
                 reply_to,
             } => {
                 let deadline = Instant::now() + timeout_duration;
@@ -223,7 +200,8 @@ impl Actor for StarknetHost {
                     self.host.build_new_proposal(height, round, deadline).await;
 
                 while let Some(part) = rx_part.recv().await {
-                    state.part_store.store(part.clone());
+                    state.part_store.store(height, round, part.clone());
+                    debug!("Gossiping proposal part: {:?}", part.part_type());
                     consensus.cast(ConsensusMsg::GossipProposalPart(part))?;
                 }
 
@@ -243,9 +221,22 @@ impl Actor for StarknetHost {
                 Ok(())
             }
 
-            HostMsg::ReceivedProposalPart { part, reply_to } => {
-                if let Some(value) = self.build_value_from_part(state, part).await {
-                    reply_to.send(value)?;
+            HostMsg::ReceivedProposalParts { parts, reply_to } => {
+                match extract_parts_info(&parts) {
+                    Some((height, round, fork_id)) => {
+                        for part in parts {
+                            if let Some(value) = dbg!(
+                                self.build_value_from_part(state, height, round, fork_id, part)
+                                    .await
+                            ) {
+                                reply_to.send(value)?;
+                                break;
+                            }
+                        }
+                    }
+                    None => {
+                        error!("Failed to extract height and round from received parts");
+                    }
                 }
 
                 Ok(())
@@ -293,7 +284,7 @@ impl Actor for StarknetHost {
                 // Send Update to mempool to remove all the tx-es included in the block.
                 let mut tx_hashes = vec![];
                 for part in all_parts {
-                    if let ProposalMessage::Transactions(txes) = &part.as_ref().message {
+                    if let ProposalPart::Transactions(txes) = &part.as_ref() {
                         tx_hashes.extend(txes.as_slice().iter().map(|tx| tx.hash()));
                     }
                 }
@@ -311,4 +302,10 @@ impl Actor for StarknetHost {
             }
         }
     }
+}
+
+fn extract_parts_info(parts: &[ProposalPart]) -> Option<(Height, Round, u64)> {
+    let init = parts.iter().find_map(|part| part.as_init())?;
+
+    Some((init.block_number, init.proposal_round, init.fork_id))
 }

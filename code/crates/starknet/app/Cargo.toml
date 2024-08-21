@@ -10,6 +10,7 @@ rust-version.workspace = true
 [dependencies]
 malachite-actors.workspace             = true
 malachite-common.workspace             = true
+malachite-consensus.workspace          = true
 malachite-gossip-consensus.workspace   = true
 malachite-gossip-mempool.workspace     = true
 malachite-metrics.workspace            = true

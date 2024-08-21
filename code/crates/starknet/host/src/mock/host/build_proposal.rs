@@ -2,6 +2,7 @@
 
 use bytesize::ByteSize;
 use eyre::eyre;
+use rand::RngCore;
 use sha3::Digest;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
@@ -52,25 +53,20 @@ async fn run_build_proposal_task(
     let start = Instant::now();
     let build_duration = (deadline - start).mul_f32(params.time_allowance_factor);
 
-    let mut sequence = 1;
+    let mut sequence = 0;
     let mut block_size = 0;
     let mut block_tx_count = 0;
-    let mut max_block_size_reached = false;
     let mut block_hasher = sha3::Keccak256::new();
+    let mut max_block_size_reached = false;
 
     // Init
     {
-        let part = ProposalPart::init(
-            height,
-            round,
-            sequence,
-            proposer.clone(),
-            ProposalInit {
-                block_number: height.as_u64(),
-                fork_id: 1, // TODO: Add fork id
-                proposal_round: round,
-            },
-        );
+        let part = ProposalPart::Init(ProposalInit {
+            block_number: height,
+            fork_id: 1, // TODO: Add fork id
+            proposal_round: round,
+            proposer: proposer.clone(),
+        });
 
         block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;
@@ -80,7 +76,7 @@ async fn run_build_proposal_task(
     loop {
         trace!(%height, %round, %sequence, "Building local value");
 
-        let txes = mempool
+        let reaped_txes = mempool
             .call(
                 |reply| MempoolMsg::Reap {
                     height: height.as_u64(),
@@ -92,22 +88,27 @@ async fn run_build_proposal_task(
             .await?
             .success_or(eyre!("Failed to reap transactions from the mempool"))?;
 
-        trace!("Reaped {} transactions from the mempool", txes.len());
+        trace!("Reaped {} transactions from the mempool", reaped_txes.len());
 
-        if txes.is_empty() {
+        if reaped_txes.is_empty() {
             break;
         }
 
+        let max_block_size = params.max_block_size.as_u64() as usize;
+
+        let mut txes = Vec::new();
         let mut tx_count = 0;
 
-        'inner: for tx in &txes {
-            if block_size + tx.size_bytes() > params.max_block_size.as_u64() as usize {
+        for tx in reaped_txes {
+            if block_size + tx.size_bytes() > max_block_size {
                 max_block_size_reached = true;
-                break 'inner;
+                continue;
             }
 
             block_size += tx.size_bytes();
             tx_count += 1;
+
+            txes.push(tx);
         }
 
         block_tx_count += tx_count;
@@ -124,15 +125,7 @@ async fn run_build_proposal_task(
 
         // Transactions
         {
-            let txes = txes.into_iter().take(tx_count).collect::<Vec<_>>();
-
-            let part = ProposalPart::transactions(
-                height,
-                round,
-                sequence,
-                proposer.clone(),
-                Transactions::new(txes),
-            );
+            let part = ProposalPart::Transactions(Transactions::new(txes));
 
             block_hasher.update(part.to_sign_bytes());
             tx_part.send(part).await?;
@@ -151,14 +144,11 @@ async fn run_build_proposal_task(
     // BlockProof
     {
         // TODO: Compute actual "proof"
-        let proof = vec![42];
-        let part = ProposalPart::block_proof(
-            height,
-            round,
-            sequence,
-            proposer.clone(),
-            BlockProof::new(vec![proof]),
-        );
+        let mut rng = rand::rngs::OsRng;
+        let mut proof = Vec::with_capacity(32);
+        rng.fill_bytes(&mut proof);
+
+        let part = ProposalPart::BlockProof(BlockProof::new(vec![proof]));
 
         block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;
@@ -167,15 +157,8 @@ async fn run_build_proposal_task(
 
     // Fin
     {
-        let part = ProposalPart::fin(
-            height,
-            round,
-            sequence,
-            proposer.clone(),
-            ProposalFin {
-                valid_round: None, // TODO: What's this?
-            },
-        );
+        // TODO: Compute actual "valid_round"
+        let part = ProposalPart::Fin(ProposalFin { valid_round: None });
 
         block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;

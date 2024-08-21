@@ -29,6 +29,7 @@ message ProposalInit {
     uint64  block_number   = 2;
     uint64  fork_id        = 3;
     uint32  proposal_round = 4;
+    Address proposer       = 5;
 }
 
 // Finalize the Tendermint Proposal. When a validator receives this message it will presume that no
@@ -50,10 +51,10 @@ message ProposalFin {
 // lower bound should be "greater than the previous timestamp". Upper bounds don't suffer from this
 // problem.
 message ProposalPart {
-    uint64 height = 5;
-    uint32 round  = 6;
-    uint64 sequence = 7;
-    Address validator = 8;
+    // uint64 height = 5;
+    // uint32 round  = 6;
+    // uint64 sequence = 7;
+    // Address proposer = 8;
 
     oneof messages {
         ProposalInit init         = 1;
@@ -80,7 +81,6 @@ message ConsensusMessage {
     oneof messages {
         Vote     vote     = 1;
         Proposal proposal = 2;
-        ProposalPart proposal_part = 4;
     }
 
     // Signature by the initial sender (e.g. proposer, voter) of the message.

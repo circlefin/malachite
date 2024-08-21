@@ -47,6 +47,7 @@ message ProposalPart {
     uint64 sequence = 3;
     Address validator_address = 4;
     google.protobuf.Any content = 5;
+    bool fin = 6;
 }
 
 
