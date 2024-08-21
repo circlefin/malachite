@@ -7,7 +7,7 @@ use eyre::eyre;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType};
 use malachite_consensus::{Effect, GossipMsg, Resume};
