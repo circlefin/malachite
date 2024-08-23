@@ -20,8 +20,12 @@ pub struct Behaviour {
 }
 
 fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
-    let hash = seahash::hash(&message.data);
-    gossipsub::MessageId::new(hash.to_le_bytes().as_slice())
+    use seahash::SeaHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = SeaHasher::new();
+    message.hash(&mut hasher);
+    gossipsub::MessageId::new(hasher.finish().to_be_bytes().as_slice())
 }
 
 fn gossipsub_config() -> gossipsub::Config {
