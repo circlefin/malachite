@@ -1,4 +1,6 @@
 //! The state maintained by the round state machine
+use alloc::string::String;
+use alloc::vec::Vec;
 
 use derive_where::derive_where;
 
@@ -67,6 +69,9 @@ where
 
     /// The value we have decided on, None if no decision has been made yet.
     pub decision: Option<Ctx::Value>,
+
+    /// Buffer with traces of tendermint algorithm lines,
+    pub algorithm_traces: Vec<String>,
 }
 
 impl<Ctx> State<Ctx>
@@ -82,6 +87,7 @@ where
             locked: None,
             valid: None,
             decision: None,
+            algorithm_traces: Vec::default(),
         }
     }
 

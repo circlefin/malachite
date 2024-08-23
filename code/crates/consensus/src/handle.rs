@@ -385,6 +385,10 @@ where
     // Restore the commits. Note that they will be removed from `state`
     let commits = state.restore_precommits(height, round, &value);
 
+    debug!(
+        "Consensus traces {:?}",
+        state.driver.round_state.algorithm_traces
+    );
     perform!(
         co,
         Effect::DecidedOnValue {

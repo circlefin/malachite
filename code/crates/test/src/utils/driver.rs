@@ -141,6 +141,7 @@ pub fn propose_state(round: Round) -> State<TestContext> {
         locked: None,
         valid: None,
         decision: None,
+        algorithm_traces: vec![],
     }
 }
 
@@ -159,6 +160,7 @@ pub fn propose_state_with_proposal_and_valid(
         }),
         locked: None,
         decision: None,
+        algorithm_traces: vec![],
     }
 }
 
@@ -179,6 +181,7 @@ pub fn propose_state_with_proposal_and_locked_and_valid(
             round: Round::new(0),
         }),
         decision: None,
+        algorithm_traces: vec![],
     }
 }
 
@@ -190,6 +193,7 @@ pub fn prevote_state(round: Round) -> State<TestContext> {
         locked: None,
         valid: None,
         decision: None,
+        algorithm_traces: vec![],
     }
 }
 
@@ -208,6 +212,7 @@ pub fn prevote_state_with_proposal_and_valid(
         }),
         locked: None,
         decision: None,
+        algorithm_traces: vec![],
     }
 }
 
@@ -228,6 +233,7 @@ pub fn prevote_state_with_proposal_and_locked_and_valid(
             round: Round::new(0),
         }),
         decision: None,
+        algorithm_traces: vec![],
     }
 }
 
@@ -248,6 +254,7 @@ pub fn precommit_state_with_proposal_and_locked_and_valid(
             round: Round::new(0),
         }),
         decision: None,
+        algorithm_traces: vec![],
     }
 }
 
@@ -259,6 +266,7 @@ pub fn precommit_state(round: Round) -> State<TestContext> {
         locked: None,
         valid: None,
         decision: None,
+        algorithm_traces: vec![],
     }
 }
 
@@ -277,6 +285,7 @@ pub fn precommit_state_with_proposal_and_valid(
         }),
         locked: None,
         decision: None,
+        algorithm_traces: vec![],
     }
 }
 
@@ -288,6 +297,7 @@ pub fn new_round(round: Round) -> State<TestContext> {
         valid: None,
         locked: None,
         decision: None,
+        algorithm_traces: vec![],
     }
 }
 
@@ -302,6 +312,7 @@ pub fn new_round_with_proposal_and_valid(round: Round, proposal: Proposal) -> St
         }),
         locked: None,
         decision: None,
+        algorithm_traces: vec![],
     }
 }
 
@@ -322,6 +333,7 @@ pub fn new_round_with_proposal_and_locked_and_valid(
             round: Round::new(0),
         }),
         decision: None,
+        algorithm_traces: vec![],
     }
 }
 
@@ -333,6 +345,7 @@ pub fn decided_state(round: Round, value: Value) -> State<TestContext> {
         valid: None,
         locked: None,
         decision: Some(value),
+        algorithm_traces: vec![],
     }
 }
 
@@ -353,5 +366,6 @@ pub fn decided_state_with_proposal_and_locked_and_valid(
             round: Round::new(0),
         }),
         decision: Some(proposal.value),
+        algorithm_traces: vec![],
     }
 }

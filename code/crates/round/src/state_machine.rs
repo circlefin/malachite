@@ -1,5 +1,8 @@
 //! The consensus state machine.
 
+use alloc::string::ToString;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use malachite_common::{Context, NilOrVal, Proposal, Round, TimeoutStep, Value};
 
 use crate::input::Input;
@@ -80,6 +83,17 @@ where
 
         // L11/L14
         (Step::Unstarted, Input::NewRound(round)) if info.is_proposer() => {
+            state.algorithm_traces.push(state.height.to_string());
+            state.algorithm_traces.push(round.to_string());
+            state.algorithm_traces.push(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("failed to get time")
+                    .as_millis()
+                    .to_string(),
+            );
+            state.algorithm_traces.push("L11 - proposer".to_string());
+
             // Update the round
             state.round = round;
 
@@ -89,6 +103,19 @@ where
 
         // L11/L20
         (Step::Unstarted, Input::NewRound(round)) => {
+            state.algorithm_traces.push(state.height.to_string());
+            state.algorithm_traces.push(round.to_string());
+            state.algorithm_traces.push(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("failed to get time")
+                    .as_millis()
+                    .to_string(),
+            );
+            state
+                .algorithm_traces
+                .push("L11 - non-proposer: schedule proposeTimeout".to_string());
+
             // Update the round
             state.round = round;
 
@@ -100,7 +127,7 @@ where
         // From Propose. Input must be for current round.
         //
 
-        // L11/L14
+        // L18
         (Step::Propose, Input::ProposeValue(value)) if this_round => {
             debug_assert!(info.is_proposer());
 
@@ -111,73 +138,90 @@ where
         (Step::Propose, Input::Proposal(proposal))
             if this_round && proposal.pol_round().is_nil() =>
         {
-            if state
-                .locked
-                .as_ref()
-                .map_or(true, |locked| &locked.value == proposal.value())
-            {
-                // L24
-                prevote(state, info.address, &proposal)
-            } else {
-                // L26
-                prevote_nil(state, info.address)
-            }
+            state
+                .algorithm_traces
+                .push("L22 - proposal in propose step: prevote".to_string());
+            prevote(state, info.address, &proposal)
         }
+
+        // L22 with invalid proposal
+        (Step::Propose, Input::InvalidProposal) if this_round => prevote_nil(state, info.address),
 
         // L28 with valid proposal
         (Step::Propose, Input::ProposalAndPolkaPrevious(proposal))
             if this_round && is_valid_pol_round(&state, proposal.pol_round()) =>
         {
-            if state.locked.as_ref().map_or(false, |locked| {
-                locked.round <= proposal.pol_round() && &locked.value == proposal.value()
-            }) {
-                // L30
-                prevote(state, info.address, &proposal)
-            } else {
-                // L32
-                prevote_nil(state, info.address)
-            }
+            state.algorithm_traces.push("L28".to_string());
+            prevote_previous(state, info.address, &proposal)
         }
 
         // L28 with invalid proposal
         (Step::Propose, Input::InvalidProposalAndPolkaPrevious(proposal))
             if this_round && is_valid_pol_round(&state, proposal.pol_round()) =>
         {
+            state.algorithm_traces.push("L28".to_string());
+            state
+                .algorithm_traces
+                .push("L32 - invalid v and polka prev: propose nil".to_string());
+
             prevote_nil(state, info.address)
         }
-
-        // L22/L25
-        // L28/L31
-        (Step::Propose, Input::InvalidProposal) if this_round => prevote_nil(state, info.address),
 
         // L57
         // We are the proposer.
         (Step::Propose, Input::TimeoutPropose) if this_round && info.is_proposer() => {
+            state
+                .algorithm_traces
+                .push("L59 - proposeTimeout expired while waiting for v: prevote nil".to_string());
             prevote_nil(state, info.address)
         }
 
         // L57
         // We are not the proposer.
-        (Step::Propose, Input::TimeoutPropose) if this_round => prevote_nil(state, info.address),
+        (Step::Propose, Input::TimeoutPropose) if this_round => {
+            state.algorithm_traces.push(
+                "L59 - proposeTimeout expired while waiting for proposal: prevote nil".to_string(),
+            );
+            prevote_nil(state, info.address)
+        }
 
         //
         // From Prevote. Input must be for current round.
         //
 
         // L34
-        (Step::Prevote, Input::PolkaAny) if this_round => schedule_timeout_prevote(state),
+        (Step::Prevote, Input::PolkaAny) if this_round => {
+            state.algorithm_traces.push("L34".to_string());
+            state
+                .algorithm_traces
+                .push("L35 - prevoteTimeout scheduled".to_string());
+            schedule_timeout_prevote(state)
+        }
 
         // L45
-        (Step::Prevote, Input::PolkaNil) if this_round => precommit_nil(state, info.address),
+        (Step::Prevote, Input::PolkaNil) if this_round => {
+            state
+                .algorithm_traces
+                .push("L45 - polka nil: precommit nil".to_string());
+            precommit_nil(state, info.address)
+        }
 
         // L36/L37
         // NOTE: Only executed the first time, as the votekeeper will only emit this threshold once.
         (Step::Prevote, Input::ProposalAndPolkaCurrent(proposal)) if this_round => {
+            state
+                .algorithm_traces
+                .push("L36 - valid v and step == prevote: set locked, valid".to_string());
             precommit(state, info.address, proposal)
         }
 
         // L61
-        (Step::Prevote, Input::TimeoutPrevote) if this_round => precommit_nil(state, info.address),
+        (Step::Prevote, Input::TimeoutPrevote) if this_round => {
+            state
+                .algorithm_traces
+                .push("L59 - prevoteTimeout expired: precommit nil".to_string());
+            precommit_nil(state, info.address)
+        }
 
         //
         // From Precommit
@@ -186,6 +230,9 @@ where
         // L36/L42
         // NOTE: Only executed the first time, as the votekeeper will only emit this threshold once.
         (Step::Precommit, Input::ProposalAndPolkaCurrent(proposal)) if this_round => {
+            state
+                .algorithm_traces
+                .push("L36 - valid v and step == precommit: set valid".to_string());
             set_valid_value(state, &proposal)
         }
 
@@ -199,18 +246,34 @@ where
         //
 
         // L47
-        (_, Input::PrecommitAny) if this_round => schedule_timeout_precommit(state),
+        (_, Input::PrecommitAny) if this_round => {
+            state
+                .algorithm_traces
+                .push("L48 - precommit any: schedule precommitTimeout".to_string());
+            schedule_timeout_precommit(state)
+        }
 
         // L65
         (_, Input::TimeoutPrecommit) if this_round => {
+            state
+                .algorithm_traces
+                .push("L67 - precommitTimeout expired: move to next round".to_string());
             round_skip(state, info.input_round.increment())
         }
 
         // L55
-        (_, Input::SkipRound(round)) if state.round < round => round_skip(state, round),
+        (_, Input::SkipRound(round)) if state.round < round => {
+            state
+                .algorithm_traces
+                .push("L55 - f+1 for higher round: move to that round".to_string());
+            round_skip(state, round)
+        }
 
         // L49
         (_, Input::ProposalAndPrecommitValue(proposal)) => {
+            state
+                .algorithm_traces
+                .push("L49 - valid v and precommit quorum: commit".to_string());
             commit(state, info.input_round, proposal)
         }
 
@@ -226,11 +289,15 @@ where
 /// We are the proposer. Propose the valid value if present, otherwise schedule timeout propose
 /// and ask for a value.
 ///
-/// Ref: L15-L18
-pub fn propose_valid_or_get_value<Ctx>(state: State<Ctx>, address: &Ctx::Address) -> Transition<Ctx>
+/// Ref: L13-L16, L19
+pub fn propose_valid_or_get_value<Ctx>(
+    mut state: State<Ctx>,
+    address: &Ctx::Address,
+) -> Transition<Ctx>
 where
     Ctx: Context,
 {
+    state.algorithm_traces.push("L14".to_string());
     match &state.valid {
         Some(round_value) => {
             // L16
@@ -242,6 +309,8 @@ where
                 pol_round,
                 address.clone(),
             );
+            state.algorithm_traces.push("L16 - validValue".to_string());
+            state.algorithm_traces.push("L19 - proposal".to_string());
 
             Transition::to(state.with_step(Step::Propose)).with_output(proposal)
         }
@@ -252,6 +321,7 @@ where
                 state.round,
                 TimeoutStep::Propose,
             );
+            state.algorithm_traces.push("L18 - getValue()".to_string());
 
             Transition::to(state.with_step(Step::Propose)).with_output(output)
         }
@@ -261,8 +331,12 @@ where
 /// We are the proposer; propose the valid value if it exists,
 /// otherwise propose the given value.
 ///
-/// Ref: L11/L14
-pub fn propose<Ctx>(state: State<Ctx>, value: Ctx::Value, address: &Ctx::Address) -> Transition<Ctx>
+/// Ref: L13, L17-18
+pub fn propose<Ctx>(
+    mut state: State<Ctx>,
+    value: Ctx::Value,
+    address: &Ctx::Address,
+) -> Transition<Ctx>
 where
     Ctx: Context,
 {
@@ -274,6 +348,7 @@ where
         address.clone(),
     );
 
+    state.algorithm_traces.push("L19 - proposal".to_string());
     Transition::to(state.with_step(Step::Propose)).with_output(proposal)
 }
 
@@ -282,24 +357,87 @@ where
 //---------------------------------------------------------------------
 
 /// Received a complete proposal; prevote the value,
-/// unless we are locked on something else at a higher round.
+/// unless we are locked on something else.
 ///
-/// Ref: L22/L28
+/// Ref: L22 with valid proposal
 pub fn prevote<Ctx>(
-    state: State<Ctx>,
+    mut state: State<Ctx>,
     address: &Ctx::Address,
     proposal: &Ctx::Proposal,
 ) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let vr = proposal.round();
+    let vr = proposal.pol_round();
+    assert_eq!(vr, Round::Nil);
     let proposed = proposal.value().id();
     let value = match &state.locked {
-        Some(locked) if locked.round <= vr => NilOrVal::Val(proposed), // unlock and prevote
-        Some(locked) if locked.value.id() == proposed => NilOrVal::Val(proposed), // already locked on value
-        Some(_) => NilOrVal::Nil, // we're locked on a higher round with a different value, prevote nil
-        None => NilOrVal::Val(proposed), // not locked, prevote the value
+        Some(locked) if locked.value.id() == proposed => {
+            state
+                .algorithm_traces
+                .push("L24 - prevote v: valid(v) and lockedValue = v".to_string());
+            NilOrVal::Val(proposed)
+        } // already locked on value
+        Some(_) => {
+            state
+                .algorithm_traces
+                .push("L26 - prevote nil: valid(v) and lockedValue != v".to_string());
+            NilOrVal::Nil
+        } // locked on a different value
+        None => {
+            state
+                .algorithm_traces
+                .push("L24 - prevote v: valid(v) and lockedRound == -1".to_string());
+            NilOrVal::Val(proposed)
+        } // not locked, prevote the value
+    };
+
+    let output = Output::prevote(state.height, state.round, value, address.clone());
+    Transition::to(state.with_step(Step::Prevote)).with_output(output)
+}
+
+/// Received a proposal for a previously seen value and a polka from a previous round; prevote the value,
+/// unless we are locked on a different value at a higher round.
+///
+/// Ref: L28
+pub fn prevote_previous<Ctx>(
+    mut state: State<Ctx>,
+    address: &Ctx::Address,
+    proposal: &Ctx::Proposal,
+) -> Transition<Ctx>
+where
+    Ctx: Context,
+{
+    let vr = proposal.pol_round();
+    assert!(vr >= Round::Some(0));
+    assert!(vr < proposal.round());
+
+    let proposed = proposal.value().id();
+    let value = match &state.locked {
+        Some(locked) if locked.round <= vr => {
+            state
+                .algorithm_traces
+                .push("L30 - prevote v: valid(v) and 0 <= lockedRound <= vr".to_string());
+            NilOrVal::Val(proposed)
+        } // locked on lower or equal round, maybe on different value
+        Some(locked) if locked.value.id() == proposed => {
+            state
+                .algorithm_traces
+                .push("L30 - prevote v: valid(v) and lockedValue = v".to_string());
+            NilOrVal::Val(proposed)
+        } // already locked same value
+        Some(_) => {
+            state.algorithm_traces.push(
+                "L32 - prevote nil: valid(v) and lockedRound > vr and lockedValue != v".to_string(),
+            );
+            NilOrVal::Nil
+        } // we're locked on a different value in a higher round, prevote nil
+        None => {
+            state
+                .algorithm_traces
+                .push("L30 - prevote v: valid(v) and lockedRound == -1".to_string());
+            NilOrVal::Val(proposed)
+        } // not locked, prevote the value
     };
 
     let output = Output::prevote(state.height, state.round, value, address.clone());
@@ -374,10 +512,14 @@ where
 /// We're not the proposer; schedule timeout propose.
 ///
 /// Ref: L11, L20
-pub fn schedule_timeout_propose<Ctx>(state: State<Ctx>) -> Transition<Ctx>
+pub fn schedule_timeout_propose<Ctx>(mut state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
+    state
+        .algorithm_traces
+        .push("L21 - proposeTimeout scheduled".to_string());
+
     let timeout = Output::schedule_timeout(state.round, TimeoutStep::Propose);
     Transition::to(state.with_step(Step::Propose)).with_output(timeout)
 }
@@ -392,12 +534,8 @@ pub fn schedule_timeout_prevote<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    if state.step == Step::Prevote {
-        let output = Output::schedule_timeout(state.round, TimeoutStep::Prevote);
-        Transition::to(state).with_output(output)
-    } else {
-        Transition::to(state)
-    }
+    let output = Output::schedule_timeout(state.round, TimeoutStep::Prevote);
+    Transition::to(state).with_output(output)
 }
 
 /// We received +2/3 precommits for any; schedule timeout precommit.

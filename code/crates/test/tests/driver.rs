@@ -76,6 +76,7 @@ fn driver_steps_proposer() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -90,6 +91,7 @@ fn driver_steps_proposer() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -109,6 +111,7 @@ fn driver_steps_proposer() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -123,6 +126,7 @@ fn driver_steps_proposer() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -142,6 +146,7 @@ fn driver_steps_proposer() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -172,6 +177,7 @@ fn driver_steps_proposer() {
                     round: Round::new(0),
                 }),
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -192,6 +198,7 @@ fn driver_steps_proposer() {
                     round: Round::new(0),
                 }),
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -217,6 +224,7 @@ fn driver_steps_proposer() {
                     round: Round::new(0),
                 }),
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -242,6 +250,7 @@ fn driver_steps_proposer() {
                     round: Round::new(0),
                 }),
                 decision: Some(value),
+                algorithm_traces: vec![],
             },
         },
     ];
@@ -281,6 +290,7 @@ fn driver_steps_proposer_timeout_get_value() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -300,6 +310,7 @@ fn driver_steps_proposer_timeout_get_value() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
     ];
@@ -348,6 +359,7 @@ fn driver_steps_not_proposer_valid() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -367,6 +379,7 @@ fn driver_steps_not_proposer_valid() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -381,6 +394,7 @@ fn driver_steps_not_proposer_valid() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -400,6 +414,7 @@ fn driver_steps_not_proposer_valid() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -430,6 +445,7 @@ fn driver_steps_not_proposer_valid() {
                     round: Round::new(0),
                 }),
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -450,6 +466,7 @@ fn driver_steps_not_proposer_valid() {
                     round: Round::new(0),
                 }),
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -475,6 +492,7 @@ fn driver_steps_not_proposer_valid() {
                     round: Round::new(0),
                 }),
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -500,6 +518,7 @@ fn driver_steps_not_proposer_valid() {
                     round: Round::new(0),
                 }),
                 decision: Some(value),
+                algorithm_traces: vec![],
             },
         },
     ];
@@ -544,6 +563,7 @@ fn driver_steps_not_proposer_invalid() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -560,6 +580,7 @@ fn driver_steps_not_proposer_invalid() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -574,6 +595,7 @@ fn driver_steps_not_proposer_invalid() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -590,6 +612,7 @@ fn driver_steps_not_proposer_invalid() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -606,6 +629,7 @@ fn driver_steps_not_proposer_invalid() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -622,6 +646,7 @@ fn driver_steps_not_proposer_invalid() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
     ];
@@ -671,6 +696,7 @@ fn driver_steps_not_proposer_other_height() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -685,6 +711,7 @@ fn driver_steps_not_proposer_other_height() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
     ];
@@ -735,6 +762,7 @@ fn driver_steps_not_proposer_other_round() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -749,6 +777,7 @@ fn driver_steps_not_proposer_other_round() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
     ];
@@ -786,6 +815,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // Receive a propose timeout, prevote for nil (from v3)
@@ -806,6 +836,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // Receive our own prevote v3
@@ -821,6 +852,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // v1 prevotes for its own proposal
@@ -841,6 +873,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // v2 prevotes for nil, we get +2/3 nil prevotes and precommit for nil
@@ -866,6 +899,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // v3 receives its own precommit
@@ -881,6 +915,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // v1 precommits its proposal
@@ -901,6 +936,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // v2 precommits for nil
@@ -921,6 +957,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // we receive a precommit timeout, start a new round
@@ -936,6 +973,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         TestStep {
@@ -950,6 +988,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
     ];
@@ -1070,6 +1109,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // Receive a propose timeout, prevote for nil (from v3)
@@ -1090,6 +1130,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // Receive our own prevote v3
@@ -1105,6 +1146,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // v1 prevotes for its own proposal
@@ -1125,6 +1167,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // v2 prevotes for v1 proposal in round 1, expected output is to move to next round
@@ -1145,6 +1188,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
     ];
@@ -1183,6 +1227,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // Receive a propose timeout, prevote for nil (from v3)
@@ -1203,6 +1248,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // Receive our own prevote v3
@@ -1218,6 +1264,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // v1 prevotes for its own proposal
@@ -1238,6 +1285,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
         // v2 prevotes for v1 proposal in round 1, expected output is to move to next round
@@ -1258,6 +1306,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 locked: None,
                 valid: None,
                 decision: None,
+                algorithm_traces: vec![],
             },
         },
     ];
