@@ -94,12 +94,11 @@ impl PartStreamsMap {
         state: &mut StreamState<ProposalPart>,
         to_emit: &mut Vec<ProposalPart>,
     ) {
-        while !state.buffer.is_empty() {
-            let MinSeq(msg) = state.buffer.pop().unwrap();
+        while let Some(MinSeq(msg)) = state.buffer.peek() {
             if msg.sequence == state.next_sequence {
+                let MinSeq(msg) = state.buffer.pop().expect("peeked element should exist");
                 Self::emit(state, msg, to_emit);
             } else {
-                state.buffer.push(MinSeq(msg));
                 break;
             }
         }
