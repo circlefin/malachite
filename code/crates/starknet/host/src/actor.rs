@@ -227,8 +227,10 @@ impl Actor for StarknetHost {
                 reply_to,
             } => {
                 for part in parts {
+                    tracing::info!("Received proposal part: type={:?}", part.part_type());
+
                     if let Some(value) =
-                        dbg!(self.build_value_from_part(state, height, round, part).await)
+                        self.build_value_from_part(state, height, round, part).await
                     {
                         reply_to.send(value)?;
                         break;
