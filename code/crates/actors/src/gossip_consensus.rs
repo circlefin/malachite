@@ -6,12 +6,9 @@ use derive_where::derive_where;
 use libp2p::identity::Keypair;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
-use tracing::debug;
-use tracing::{error, error_span, Instrument};
+use tracing::{debug, error, error_span, Instrument};
 
-use malachite_common::{
-    Context, ProposalPart, Round, SignedProposal, SignedProposalPart, SignedVote,
-};
+use malachite_common::{Context, ProposalPart, SignedProposal, SignedProposalPart, SignedVote};
 use malachite_consensus::GossipMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
@@ -19,7 +16,7 @@ use malachite_metrics::SharedRegistry;
 use malachite_proto::Protobuf;
 
 use crate::util::codec::NetworkCodec;
-use crate::util::streaming::{PartStreamsMap, StreamContent, StreamMessage};
+use crate::util::streaming::{StreamContent, StreamMessage};
 
 pub type GossipConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
@@ -82,7 +79,7 @@ pub enum GossipEvent<Ctx: Context> {
     PeerDisconnected(PeerId),
     Vote(PeerId, SignedVote<Ctx>),
     Proposal(PeerId, SignedProposal<Ctx>),
-    ProposalParts(PeerId, Ctx::Height, Round, Vec<Ctx::ProposalPart>),
+    ProposalPart(PeerId, StreamMessage<Ctx::ProposalPart>),
 }
 
 #[derive(Default)]
@@ -96,7 +93,6 @@ pub enum State<Ctx: Context> {
     Running {
         peers: BTreeSet<PeerId>,
         subscribers: Vec<ActorRef<GossipEvent<Ctx>>>,
-        parts_streams: PartStreamsMap<Ctx>,
         outgoing_stream: OutgoingStream,
         ctrl_handle: CtrlHandle,
         recv_task: JoinHandle<()>,
@@ -158,7 +154,6 @@ where
         Ok(State::Running {
             peers: BTreeSet::new(),
             subscribers: Vec::new(),
-            parts_streams: PartStreamsMap::new(),
             outgoing_stream: OutgoingStream::default(),
             ctrl_handle,
             recv_task,
@@ -184,7 +179,6 @@ where
         let State::Running {
             peers,
             subscribers,
-            parts_streams,
             outgoing_stream,
             ctrl_handle,
             ..
@@ -279,26 +273,22 @@ where
             }
 
             Msg::NewEvent(Event::Message(Channel::ProposalParts, from, msg_id, data)) => {
-                let stream_msg = match Codec::decode_stream_msg::<Ctx::ProposalPart>(data) {
+                let msg = match Codec::decode_stream_msg::<Ctx::ProposalPart>(data) {
                     Ok(stream_msg) => stream_msg,
                     Err(e) => {
-                        error!(%from, "Failed to decode stream message {msg_id}: {e:?}");
+                        error!(%from, %msg_id, "Failed to decode stream message: {e:?}");
                         return Ok(());
                     }
                 };
 
                 debug!(
-                    stream_id = %stream_msg.stream_id,
-                    sequence = %stream_msg.sequence,
-                    "Received proposal part from {from}"
+                    %from,
+                    stream_id = %msg.stream_id,
+                    sequence = %msg.sequence,
+                    "Received proposal part"
                 );
 
-                if let Some((height, round, parts)) = parts_streams.insert(from, stream_msg) {
-                    self.publish(
-                        GossipEvent::ProposalParts(from, height, round, parts),
-                        subscribers,
-                    );
-                }
+                self.publish(GossipEvent::ProposalPart(from, msg), subscribers);
             }
 
             Msg::GetState { reply } => {

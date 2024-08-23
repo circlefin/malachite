@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use derive_where::derive_where;
+use libp2p::PeerId;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachite_common::{Context, Round, SignedVote};
@@ -26,6 +27,7 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
 pub use malachite_consensus::ProposedValue;
 
 use crate::consensus::ConsensusRef;
+use crate::util::streaming::StreamMessage;
 
 /// A reference to the host actor.
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
@@ -43,10 +45,9 @@ pub enum HostMsg<Ctx: Context> {
     },
 
     /// ProposalPart received <-- consensus <-- gossip
-    ReceivedProposalParts {
-        height: Ctx::Height,
-        round: Round,
-        parts: Vec<Ctx::ProposalPart>,
+    ReceivedProposalPart {
+        from: PeerId,
+        part: StreamMessage<Ctx::ProposalPart>,
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },
 

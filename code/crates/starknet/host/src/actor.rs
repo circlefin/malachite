@@ -18,6 +18,7 @@ use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
 use crate::part_store::PartStore;
+use crate::streaming::PartStreamsMap;
 use crate::types::{Address, BlockHash, Height, Proposal, ProposalPart, ValidatorSet};
 use crate::Host;
 
@@ -30,6 +31,7 @@ pub struct StarknetHost {
 #[derive(Default)]
 pub struct HostState {
     part_store: PartStore<MockContext>,
+    part_streams_map: PartStreamsMap,
 }
 
 pub type HostRef = malachite_actors::host::HostRef<MockContext>;
@@ -220,14 +222,17 @@ impl Actor for StarknetHost {
                 Ok(())
             }
 
-            HostMsg::ReceivedProposalParts {
-                height,
-                round,
-                parts,
+            HostMsg::ReceivedProposalPart {
+                from,
+                part,
                 reply_to,
             } => {
+                let Some((height, round, parts)) = state.part_streams_map.insert(from, part) else {
+                    return Ok(());
+                };
+
                 for part in parts {
-                    tracing::info!("Received proposal part: type={:?}", part.part_type());
+                    debug!("Received proposal part: type={:?}", part.part_type());
 
                     if let Some(value) =
                         self.build_value_from_part(state, height, round, part).await

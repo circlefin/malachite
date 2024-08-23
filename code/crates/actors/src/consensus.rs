@@ -283,13 +283,12 @@ where
                         Ok(())
                     }
 
-                    GossipEvent::ProposalParts(_from, height, round, parts) => {
+                    GossipEvent::ProposalPart(from, part) => {
                         self.host
                             .call_and_forward(
-                                |reply_to| HostMsg::ReceivedProposalParts {
-                                    height,
-                                    round,
-                                    parts,
+                                |reply_to| HostMsg::ReceivedProposalPart {
+                                    from,
+                                    part,
                                     reply_to,
                                 },
                                 &myself,
