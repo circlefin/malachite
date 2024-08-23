@@ -137,6 +137,10 @@ impl malachite_common::ProposalPart<TestContext> for ProposalPart {
     fn is_last(&self) -> bool {
         self.fin
     }
+
+    fn info(&self) -> Option<(Height, Round)> {
+        Some((self.height, self.round))
+    }
 }
 
 impl Protobuf for ProposalPart {

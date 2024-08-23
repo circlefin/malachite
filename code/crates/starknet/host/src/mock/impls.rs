@@ -14,6 +14,14 @@ impl common::ProposalPart<MockContext> for ProposalPart {
     fn is_last(&self) -> bool {
         self.part_type() == PartType::Fin
     }
+
+    fn info(&self) -> Option<(Height, Round)> {
+        if let ProposalPart::Init(init) = self {
+            Some((init.block_number, init.proposal_round))
+        } else {
+            None
+        }
+    }
 }
 
 impl common::Proposal<MockContext> for Proposal {

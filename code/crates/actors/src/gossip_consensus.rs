@@ -1,69 +1,25 @@
-use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
 use derive_where::derive_where;
 use libp2p::identity::Keypair;
-use malachite_common::ProposalPart;
-use malachite_common::SignedProposalPart;
-use malachite_gossip_mempool::proto::Protobuf;
-use ractor::ActorCell;
-use ractor::ActorProcessingErr;
-use ractor::ActorRef;
-use ractor::{Actor, RpcReplyPort};
+use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::debug;
 use tracing::{error, error_span, Instrument};
 
-use malachite_common::Context;
-use malachite_common::SignedProposal;
-use malachite_common::SignedVote;
+use malachite_common::{
+    Context, ProposalPart, Round, SignedProposal, SignedProposalPart, SignedVote,
+};
 use malachite_consensus::GossipMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
-use malachite_gossip_consensus::{Bytes, Channel, Config, Event, Multiaddr, PeerId};
+use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
 use malachite_metrics::SharedRegistry;
+use malachite_proto::Protobuf;
 
-pub trait NetworkCodec<Ctx: Context>: Sync + Send + 'static {
-    type Error: std::error::Error + Send + Sync + 'static;
-
-    fn decode_msg(bytes: Bytes) -> Result<GossipMsg<Ctx>, Self::Error>;
-    fn encode_msg(msg: GossipMsg<Ctx>) -> Result<Bytes, Self::Error>;
-
-    fn decode_stream_msg<T>(bytes: Bytes) -> Result<StreamMessage<T>, Self::Error>
-    where
-        T: Protobuf;
-    fn encode_stream_msg<T>(msg: StreamMessage<T>) -> Result<Bytes, Self::Error>
-    where
-        T: Protobuf;
-}
-
-pub struct StreamMessage<T> {
-    /// Receivers identify streams by (sender, stream_id).
-    /// This means each node can allocate stream_ids independently
-    /// and that many streams can be sent on a single network topic.
-    pub stream_id: u64,
-
-    /// Identifies the sequence of each message in the stream starting from 0.
-    pub sequence: u64,
-
-    /// The content of this stream message
-    pub content: StreamContent<T>,
-}
-
-pub enum StreamContent<T> {
-    /// Serialized content.
-    Data(T),
-
-    /// Fin must be set to true.
-    Fin(bool),
-}
-
-impl<T> StreamContent<T> {
-    fn is_fin(&self) -> bool {
-        matches!(self, Self::Fin(true))
-    }
-}
+use crate::util::codec::NetworkCodec;
+use crate::util::streaming::{PartStreamsMap, StreamContent, StreamMessage};
 
 pub type GossipConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
@@ -126,51 +82,7 @@ pub enum GossipEvent<Ctx: Context> {
     PeerDisconnected(PeerId),
     Vote(PeerId, SignedVote<Ctx>),
     Proposal(PeerId, SignedProposal<Ctx>),
-    ProposalParts(PeerId, Vec<Ctx::ProposalPart>),
-}
-
-#[derive_where(Default)]
-pub struct StreamsMap<T> {
-    streams: BTreeMap<(PeerId, u64), Vec<StreamMessage<T>>>,
-}
-
-impl<T> StreamsMap<T> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn insert(
-        &mut self,
-        peer_id: PeerId,
-        msg: StreamMessage<T>,
-    ) -> Option<Vec<StreamMessage<T>>> {
-        let stream_id = msg.stream_id;
-
-        let parts = self.streams.entry((peer_id, stream_id)).or_default();
-        parts.push(msg);
-
-        if let Some(fin_seq) = parts
-            .iter()
-            .find(|msg| msg.content.is_fin())
-            .map(|msg| msg.sequence)
-        {
-            if parts.len() - 1 == fin_seq as usize {
-                let mut parts = self.streams.remove(&(peer_id, stream_id))?;
-                parts.sort_unstable_by_key(|msg| msg.sequence);
-                Some(parts)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    pub fn get(&self, peer_id: PeerId, stream_id: u64) -> Option<&[StreamMessage<T>]> {
-        self.streams
-            .get(&(peer_id, stream_id))
-            .map(|v| v.as_slice())
-    }
+    ProposalParts(PeerId, Ctx::Height, Round, Vec<Ctx::ProposalPart>),
 }
 
 #[derive(Default)]
@@ -184,7 +96,7 @@ pub enum State<Ctx: Context> {
     Running {
         peers: BTreeSet<PeerId>,
         subscribers: Vec<ActorRef<GossipEvent<Ctx>>>,
-        parts_streams: StreamsMap<Ctx::ProposalPart>,
+        parts_streams: PartStreamsMap<Ctx>,
         outgoing_stream: OutgoingStream,
         ctrl_handle: CtrlHandle,
         recv_task: JoinHandle<()>,
@@ -246,7 +158,7 @@ where
         Ok(State::Running {
             peers: BTreeSet::new(),
             subscribers: Vec::new(),
-            parts_streams: StreamsMap::new(),
+            parts_streams: PartStreamsMap::new(),
             outgoing_stream: OutgoingStream::default(),
             ctrl_handle,
             recv_task,
@@ -381,16 +293,11 @@ where
                     "Received proposal part from {from}"
                 );
 
-                if let Some(msgs) = parts_streams.insert(from, stream_msg) {
-                    let parts = msgs
-                        .into_iter()
-                        .filter_map(|msg| match msg.content {
-                            StreamContent::Data(data) => Some(data),
-                            _ => None,
-                        })
-                        .collect();
-
-                    self.publish(GossipEvent::ProposalParts(from, parts), subscribers);
+                if let Some((height, round, parts)) = parts_streams.insert(from, stream_msg) {
+                    self.publish(
+                        GossipEvent::ProposalParts(from, height, round, parts),
+                        subscribers,
+                    );
                 }
             }
 

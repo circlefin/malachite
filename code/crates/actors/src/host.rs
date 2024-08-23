@@ -44,6 +44,8 @@ pub enum HostMsg<Ctx: Context> {
 
     /// ProposalPart received <-- consensus <-- gossip
     ReceivedProposalParts {
+        height: Ctx::Height,
+        round: Round,
         parts: Vec<Ctx::ProposalPart>,
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },

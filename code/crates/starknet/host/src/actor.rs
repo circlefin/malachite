@@ -120,7 +120,6 @@ impl StarknetHost {
         state: &mut HostState,
         height: Height,
         round: Round,
-        fork_id: u64,
         part: ProposalPart,
     ) -> Option<ProposedValue<MockContext>> {
         debug!("Received proposal part");
@@ -221,21 +220,18 @@ impl Actor for StarknetHost {
                 Ok(())
             }
 
-            HostMsg::ReceivedProposalParts { parts, reply_to } => {
-                match extract_parts_info(&parts) {
-                    Some((height, round, fork_id)) => {
-                        for part in parts {
-                            if let Some(value) = dbg!(
-                                self.build_value_from_part(state, height, round, fork_id, part)
-                                    .await
-                            ) {
-                                reply_to.send(value)?;
-                                break;
-                            }
-                        }
-                    }
-                    None => {
-                        error!("Failed to extract height and round from received parts");
+            HostMsg::ReceivedProposalParts {
+                height,
+                round,
+                parts,
+                reply_to,
+            } => {
+                for part in parts {
+                    if let Some(value) =
+                        dbg!(self.build_value_from_part(state, height, round, part).await)
+                    {
+                        reply_to.send(value)?;
+                        break;
                     }
                 }
 
@@ -302,10 +298,4 @@ impl Actor for StarknetHost {
             }
         }
     }
-}
-
-fn extract_parts_info(parts: &[ProposalPart]) -> Option<(Height, Round, u64)> {
-    let init = parts.iter().find_map(|part| part.as_init())?;
-
-    Some((init.block_number, init.proposal_round, init.fork_id))
 }

@@ -1,7 +1,8 @@
 use malachite_gossip_consensus::Bytes;
 use prost::Message;
 
-use malachite_actors::gossip_consensus::{NetworkCodec, StreamContent, StreamMessage};
+use malachite_actors::util::codec::NetworkCodec;
+use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_common::{SignedProposal, SignedVote};
 use malachite_consensus::GossipMsg;
 use malachite_proto::{Error as ProtoError, Protobuf};

@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 
-use crate::Context;
+use crate::{Context, Round};
 
 /// Defines the requirements for a proposal part type.
 pub trait ProposalPart<Ctx>
@@ -13,4 +13,7 @@ where
 
     /// Is this the last proposal part?
     fn is_last(&self) -> bool;
+
+    /// Height and round of this proposal part, if known.
+    fn info(&self) -> Option<(Ctx::Height, Round)>;
 }
