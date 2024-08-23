@@ -203,10 +203,13 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
 
             match result {
                 Ok(message_id) => {
-                    debug!("Broadcasted message {message_id} of {msg_size} bytes");
+                    debug!(
+                        %channel,
+                        "Broadcasted message {message_id} of {msg_size} bytes"
+                    );
                 }
                 Err(e) => {
-                    error!("Error broadcasting message: {e}");
+                    error!(%channel, "Error broadcasting message: {e}");
                 }
             }
 
