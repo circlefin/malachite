@@ -587,10 +587,18 @@ where
                 return Ok(());
             }
 
+            // Check if a complete block was received for the proposal POL round if defined or proposal round otherwise.
+            let proposal_pol_round = signed_proposal.pol_round();
+            let block_round = if proposal_pol_round.is_nil() {
+                &proposal_round
+            } else {
+                &proposal_pol_round
+            };
+
             let received_block = state
                 .received_blocks
                 .iter()
-                .find(|(height, round, ..)| height == &proposal_height && round == &proposal_round);
+                .find(|(height, round, ..)| height == &proposal_height && round == block_round);
 
             match received_block {
                 Some((_height, _round, _value, valid)) => {
