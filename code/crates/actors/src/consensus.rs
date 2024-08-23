@@ -57,9 +57,6 @@ pub enum Msg<Ctx: Context> {
     /// The proposal builder has built a value and can be used in a new proposal consensus message
     ProposeValue(Ctx::Height, Round, Ctx::Value),
 
-    /// The proposal builder has build a new proposal part, needs to be signed and gossiped by consensus
-    GossipProposalPart(Ctx::ProposalPart),
-
     /// Received and sssembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>),
 }
@@ -384,17 +381,6 @@ where
 
                 Ok(())
             }
-
-            Msg::GossipProposalPart(part) => {
-                let signed_part = self.ctx.sign_proposal_part(part);
-                let gossip_msg = GossipConsensusMsg::BroadcastProposalPart(signed_part);
-
-                if let Err(e) = self.gossip_consensus.cast(gossip_msg) {
-                    error!("Error when sending proposal part to gossip layer: {e:?}");
-                }
-
-                Ok(())
-            }
         }
     }
 
@@ -414,7 +400,6 @@ where
                 round,
                 timeout_duration,
                 address: self.params.address.clone(),
-                consensus: myself.clone(),
                 reply_to: reply,
             },
             myself,

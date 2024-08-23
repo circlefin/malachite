@@ -118,3 +118,9 @@ impl PartStreamsMap {
         Some((init_info.block_number, init_info.proposal_round, to_emit))
     }
 }
+
+#[derive(Default)]
+pub struct OutgoingStream {
+    pub stream_id: u64,
+    pub sequence: u64,
+}

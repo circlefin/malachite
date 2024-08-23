@@ -8,7 +8,7 @@ use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, error_span, Instrument};
 
-use malachite_common::{Context, ProposalPart, SignedProposal, SignedProposalPart, SignedVote};
+use malachite_common::{Context, SignedProposal, SignedVote};
 use malachite_consensus::GossipMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
@@ -16,9 +16,10 @@ use malachite_metrics::SharedRegistry;
 use malachite_proto::Protobuf;
 
 use crate::util::codec::NetworkCodec;
-use crate::util::streaming::{StreamContent, StreamMessage};
+use crate::util::streaming::StreamMessage;
 
 pub type GossipConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
+pub type GossipConsensusMsg<Ctx> = Msg<Ctx>;
 
 #[derive_where(Default)]
 pub struct GossipConsensus<Ctx, Codec> {
@@ -82,18 +83,11 @@ pub enum GossipEvent<Ctx: Context> {
     ProposalPart(PeerId, StreamMessage<Ctx::ProposalPart>),
 }
 
-#[derive(Default)]
-pub struct OutgoingStream {
-    pub stream_id: u64,
-    pub sequence: u64,
-}
-
 pub enum State<Ctx: Context> {
     Stopped,
     Running {
         peers: BTreeSet<PeerId>,
         subscribers: Vec<ActorRef<GossipEvent<Ctx>>>,
-        outgoing_stream: OutgoingStream,
         ctrl_handle: CtrlHandle,
         recv_task: JoinHandle<()>,
         marker: PhantomData<Ctx>,
@@ -108,7 +102,7 @@ pub enum Msg<Ctx: Context> {
     BroadcastMsg(GossipMsg<Ctx>),
 
     /// Broadcast a proposal part
-    BroadcastProposalPart(SignedProposalPart<Ctx>),
+    BroadcastProposalPart(StreamMessage<Ctx::ProposalPart>),
 
     /// Request for number of peers from gossip
     GetState { reply: RpcReplyPort<usize> },
@@ -154,7 +148,6 @@ where
         Ok(State::Running {
             peers: BTreeSet::new(),
             subscribers: Vec::new(),
-            outgoing_stream: OutgoingStream::default(),
             ctrl_handle,
             recv_task,
             marker: PhantomData,
@@ -179,7 +172,6 @@ where
         let State::Running {
             peers,
             subscribers,
-            outgoing_stream,
             ctrl_handle,
             ..
         } = state
@@ -195,49 +187,17 @@ where
                 Err(e) => error!("Failed to encode gossip message: {e:?}"),
             },
 
-            Msg::BroadcastProposalPart(part) => {
-                if part.message.is_first() {
-                    outgoing_stream.stream_id += 1;
-                    outgoing_stream.sequence = 0;
-                }
-
-                let is_last = part.message.is_last();
-
+            Msg::BroadcastProposalPart(msg) => {
                 debug!(
-                    is_first = %part.message.is_first(),
-                    is_last = %is_last,
-                    stream_id = %outgoing_stream.stream_id,
-                    sequence = %outgoing_stream.sequence,
+                    stream_id = %msg.stream_id,
+                    sequence = %msg.sequence,
                     "Broadcasting proposal part"
                 );
 
-                let data = Codec::encode_stream_msg::<Ctx::ProposalPart>(StreamMessage {
-                    stream_id: outgoing_stream.stream_id,
-                    sequence: outgoing_stream.sequence,
-                    content: StreamContent::Data(part.message),
-                });
-
+                let data = Codec::encode_stream_msg(msg);
                 match data {
-                    Ok(data) => {
-                        ctrl_handle.broadcast(Channel::ProposalParts, data).await?;
-                        outgoing_stream.sequence += 1;
-                    }
+                    Ok(data) => ctrl_handle.broadcast(Channel::ProposalParts, data).await?,
                     Err(e) => error!("Failed to encode proposal part: {e:?}"),
-                }
-
-                if is_last {
-                    let data = Codec::encode_stream_msg::<Ctx::ProposalPart>(StreamMessage {
-                        stream_id: outgoing_stream.stream_id,
-                        sequence: outgoing_stream.sequence,
-                        content: StreamContent::Fin(true),
-                    });
-
-                    match data {
-                        Ok(data) => {
-                            ctrl_handle.broadcast(Channel::ProposalParts, data).await?;
-                        }
-                        Err(e) => error!("Failed to encode proposal part: {e:?}"),
-                    }
                 }
             }
 

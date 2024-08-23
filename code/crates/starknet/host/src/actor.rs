@@ -4,6 +4,8 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use eyre::eyre;
+use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
+use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use sha3::Digest;
 use tokio::time::Instant;
@@ -18,13 +20,14 @@ use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
 use crate::part_store::PartStore;
-use crate::streaming::PartStreamsMap;
+use crate::streaming::{OutgoingStream, PartStreamsMap};
 use crate::types::{Address, BlockHash, Height, Proposal, ProposalPart, ValidatorSet};
 use crate::Host;
 
 pub struct StarknetHost {
     host: MockHost,
     mempool: MempoolRef,
+    gossip_consensus: GossipConsensusRef<MockContext>,
     metrics: Metrics,
 }
 
@@ -32,16 +35,23 @@ pub struct StarknetHost {
 pub struct HostState {
     part_store: PartStore<MockContext>,
     part_streams_map: PartStreamsMap,
+    next_stream_id: StreamId,
 }
 
 pub type HostRef = malachite_actors::host::HostRef<MockContext>;
 pub type HostMsg = malachite_actors::host::HostMsg<MockContext>;
 
 impl StarknetHost {
-    pub fn new(host: MockHost, mempool: MempoolRef, metrics: Metrics) -> Self {
+    pub fn new(
+        host: MockHost,
+        mempool: MempoolRef,
+        gossip_consensus: GossipConsensusRef<MockContext>,
+        metrics: Metrics,
+    ) -> Self {
         Self {
             host,
             mempool,
+            gossip_consensus,
             metrics,
         }
     }
@@ -49,11 +59,12 @@ impl StarknetHost {
     pub async fn spawn(
         host: MockHost,
         mempool: MempoolRef,
+        gossip_consensus: GossipConsensusRef<MockContext>,
         metrics: Metrics,
     ) -> Result<HostRef, SpawnErr> {
         let (actor_ref, _) = Actor::spawn(
             None,
-            Self::new(host, mempool, metrics),
+            Self::new(host, mempool, gossip_consensus, metrics),
             HostState::default(),
         )
         .await?;
@@ -190,7 +201,6 @@ impl Actor for StarknetHost {
                 round,
                 timeout_duration,
                 address,
-                consensus,
                 reply_to,
             } => {
                 let deadline = Instant::now() + timeout_duration;
@@ -200,11 +210,41 @@ impl Actor for StarknetHost {
                 let (mut rx_part, rx_hash) =
                     self.host.build_new_proposal(height, round, deadline).await;
 
+                let stream_id = state.next_stream_id;
+                state.next_stream_id += 1;
+
+                let mut sequence = 0;
+
                 while let Some(part) = rx_part.recv().await {
                     state.part_store.store(height, round, part.clone());
-                    debug!("Gossiping proposal part: {:?}", part.part_type());
-                    consensus.cast(ConsensusMsg::GossipProposalPart(part))?;
+
+                    debug!(
+                        %stream_id,
+                        %sequence,
+                        part_type = ?part.part_type(),
+                        "Broadcasting proposal part"
+                    );
+
+                    let msg = StreamMessage {
+                        stream_id,
+                        sequence,
+                        content: StreamContent::Data(part),
+                    };
+
+                    sequence += 1;
+
+                    self.gossip_consensus
+                        .cast(GossipConsensusMsg::BroadcastProposalPart(msg))?;
                 }
+
+                let msg = StreamMessage {
+                    stream_id,
+                    sequence,
+                    content: StreamContent::Fin(true),
+                };
+
+                self.gossip_consensus
+                    .cast(GossipConsensusMsg::BroadcastProposalPart(msg))?;
 
                 let block_hash = rx_hash.await?;
                 debug!("Got block with hash: {block_hash}");

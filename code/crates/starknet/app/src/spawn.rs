@@ -39,21 +39,23 @@ pub async fn spawn_node_actor(
     let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, registry).await;
     let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test).await;
 
+    // Spawn consensus gossip
+    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, &private_key, registry).await;
+
     // Spawn the host actor
     let host = spawn_host_actor(
         &cfg,
         &address,
         &initial_validator_set,
         mempool.clone(),
+        gossip_consensus.clone(),
         metrics.clone(),
     )
     .await;
 
-    // Spawn consensus and its gossip
-    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, &private_key, registry).await;
-
     let start_height = Height::new(1);
 
+    // Spawn consensus
     let consensus = spawn_consensus_actor(
         start_height,
         initial_validator_set,
@@ -174,6 +176,7 @@ async fn spawn_host_actor(
     address: &Address,
     initial_validator_set: &ValidatorSet,
     mempool: MempoolRef,
+    gossip_consensus: GossipConsensusRef<MockContext>,
     metrics: Metrics,
 ) -> HostRef<MockContext> {
     let mock_params = MockParams {
@@ -191,7 +194,7 @@ async fn spawn_host_actor(
         initial_validator_set.clone(),
     );
 
-    StarknetHost::spawn(mock_host, mempool, metrics)
+    StarknetHost::spawn(mock_host, mempool, gossip_consensus, metrics)
         .await
         .unwrap()
 }
