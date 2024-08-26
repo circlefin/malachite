@@ -31,11 +31,24 @@ pub struct StarknetHost {
     metrics: Metrics,
 }
 
-#[derive(Default)]
 pub struct HostState {
+    height: Height,
+    round: Round,
     part_store: PartStore<MockContext>,
     part_streams_map: PartStreamsMap,
     next_stream_id: StreamId,
+}
+
+impl Default for HostState {
+    fn default() -> Self {
+        Self {
+            height: Height::new(0),
+            round: Round::Nil,
+            part_store: PartStore::default(),
+            part_streams_map: PartStreamsMap::default(),
+            next_stream_id: StreamId::default(),
+        }
+    }
 }
 
 pub type HostRef = malachite_actors::host::HostRef<MockContext>;
@@ -135,8 +148,6 @@ impl StarknetHost {
         round: Round,
         part: ProposalPart,
     ) -> Option<ProposedValue<MockContext>> {
-        debug!("Received proposal part");
-
         // Prune all proposal parts for heights lower than `height - 1`
         state.part_store.prune(height.decrement().unwrap_or(height));
         state.part_store.store(height, round, part.clone());
@@ -196,6 +207,13 @@ impl Actor for StarknetHost {
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
+            HostMsg::StartRound(height, round) => {
+                state.height = height;
+                state.round = round;
+
+                Ok(())
+            }
+
             HostMsg::GetValue {
                 height,
                 round,
@@ -257,12 +275,40 @@ impl Actor for StarknetHost {
                 part,
                 reply_to,
             } => {
+                debug!(
+                    height = %state.height,
+                    round = %state.round,
+                    %part.sequence,
+                    "Received proposal part"
+                );
+
+                let sequence = part.sequence;
+
                 let Some((height, round, parts)) = state.part_streams_map.insert(from, part) else {
                     return Ok(());
                 };
 
+                if height < state.height || round < state.round {
+                    trace!(
+                        height = %state.height,
+                        round = %state.round,
+                        part.height = %height,
+                        part.round = %round,
+                        part.sequence = %sequence,
+                        "Received outdated proposal part, ignoring"
+                    );
+
+                    return Ok(());
+                }
+
                 for part in parts {
-                    debug!("Received proposal part: type={:?}", part.part_type());
+                    debug!(
+                        part.sequence = %sequence,
+                        part.height = %height,
+                        part.round = %round,
+                        part.message = ?part.part_type(),
+                        "Processing proposal part"
+                    );
 
                     if let Some(value) =
                         self.build_value_from_part(state, height, round, part).await

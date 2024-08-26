@@ -7,7 +7,6 @@ use malachite_actors::util::streaming::{Sequence, StreamId, StreamMessage};
 use malachite_common::Round;
 use malachite_gossip_mempool::PeerId;
 use malachite_starknet_p2p_types::{Height, ProposalInit, ProposalPart};
-use tracing::debug;
 
 struct MinSeq<T>(StreamMessage<T>);
 
@@ -115,7 +114,6 @@ impl PartStreamsMap {
 
         if state.has_emitted_all_messages() {
             self.streams.remove(&(peer_id, stream_id));
-            debug!(%peer_id, %stream_id, "Stream is complete");
         }
 
         result

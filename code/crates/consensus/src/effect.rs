@@ -35,6 +35,10 @@ where
     /// Resume with: Resume::Continue
     ScheduleTimeout(Timeout),
 
+    /// Consensus is starting a new round
+    /// Resume with: Resume::Continue
+    StartRound(Ctx::Height, Round),
+
     /// Broadcast a message
     /// Resume with: Resume::Continue
     Broadcast(GossipMsg<Ctx>),

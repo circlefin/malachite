@@ -33,6 +33,9 @@ pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 
 /// Messages that need to be handled by the host actor.
 pub enum HostMsg<Ctx: Context> {
+    /// Consensus has started a new round.
+    StartRound(Ctx::Height, Round),
+
     /// Request to build a local block/value from Driver
     GetValue {
         height: Ctx::Height,

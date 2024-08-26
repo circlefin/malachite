@@ -241,7 +241,7 @@ where
                                 .await;
 
                             if let Err(e) = result {
-                                error!("Error when start height {height}: {e:?}");
+                                error!("Error when starting height {height}: {e:?}");
                             }
                         }
 
@@ -454,6 +454,11 @@ where
                 let duration = timeouts.duration_for(timeout.step);
                 timers.start_timer(timeout, duration);
 
+                Ok(Resume::Continue)
+            }
+
+            Effect::StartRound(height, round) => {
+                self.host.cast(HostMsg::StartRound(height, round))?;
                 Ok(Resume::Continue)
             }
 

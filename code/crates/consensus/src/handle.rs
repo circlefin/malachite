@@ -62,10 +62,9 @@ where
     Ctx: Context,
 {
     let round = Round::new(0);
-    info!("Starting new height {height} at round {round}");
+    info!(%height, "Starting new height");
 
     let proposer = state.get_proposer(height, round).cloned()?;
-    info!("Proposer for height {height} and round {round}: {proposer}");
 
     apply_driver_input(
         co,
@@ -78,6 +77,8 @@ where
     metrics.block_start();
     metrics.height.set(height.as_u64() as i64);
     metrics.round.set(round.as_i64());
+
+    perform!(co, Effect::StartRound(height, round));
 
     replay_pending_msgs(co, state, metrics).await?;
 
@@ -149,8 +150,12 @@ where
     Ctx: Context,
 {
     match &input {
-        DriverInput::NewRound(_, _, _) => {
+        DriverInput::NewRound(height, round, proposer) => {
+            metrics.round.set(round.as_i64());
+
+            info!(%height, %round, %proposer, "Starting new round");
             perform!(co, Effect::CancelAllTimeouts);
+            perform!(co, Effect::StartRound(*height, *round));
         }
 
         DriverInput::ProposeValue(round, _) => {
@@ -257,11 +262,7 @@ where
 {
     match output {
         DriverOutput::NewRound(height, round) => {
-            info!("Starting round {round} at height {height}");
-            metrics.round.set(round.as_i64());
-
             let proposer = state.get_proposer(height, round)?;
-            info!("Proposer for height {height} and round {round}: {proposer}");
 
             apply_driver_input(
                 co,
