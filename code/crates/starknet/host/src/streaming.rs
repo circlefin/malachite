@@ -7,6 +7,7 @@ use malachite_actors::util::streaming::{Sequence, StreamId, StreamMessage};
 use malachite_common::Round;
 use malachite_gossip_mempool::PeerId;
 use malachite_starknet_p2p_types::{Height, ProposalInit, ProposalPart};
+use tracing::debug;
 
 struct MinSeq<T>(StreamMessage<T>);
 
@@ -59,6 +60,33 @@ struct StreamState<T> {
     next_sequence: Sequence,
     total_messages: usize,
     fin_received: bool,
+    emitted_messages: usize,
+}
+
+impl<T> StreamState<T> {
+    fn has_emitted_all_messages(&self) -> bool {
+        self.fin_received && self.emitted_messages == self.total_messages
+    }
+
+    fn emit(&mut self, msg: StreamMessage<T>, to_emit: &mut Vec<T>) {
+        if let Some(data) = msg.content.into_data() {
+            to_emit.push(data);
+        }
+
+        self.next_sequence = msg.sequence + 1;
+        self.emitted_messages += 1;
+    }
+
+    fn emit_eligible_messages(&mut self, to_emit: &mut Vec<T>) {
+        while let Some(msg) = self.buffer.peek() {
+            if msg.sequence == self.next_sequence {
+                let msg = self.buffer.pop().expect("peeked element should exist");
+                self.emit(msg, to_emit);
+            } else {
+                break;
+            }
+        }
+    }
 }
 
 #[derive(Default)]
@@ -76,54 +104,21 @@ impl PartStreamsMap {
         peer_id: PeerId,
         msg: StreamMessage<ProposalPart>,
     ) -> Option<(Height, Round, Vec<ProposalPart>)> {
-        let state = self.streams.entry((peer_id, msg.stream_id)).or_default();
+        let stream_id = msg.stream_id;
+        let state = self.streams.entry((peer_id, stream_id)).or_default();
 
-        if msg.is_first() {
-            return Self::insert_first(state, msg);
+        let result = if msg.is_first() {
+            Self::insert_first(state, msg)
+        } else {
+            Self::insert_other(state, msg)
+        };
+
+        if state.has_emitted_all_messages() {
+            self.streams.remove(&(peer_id, stream_id));
+            debug!(%peer_id, %stream_id, "Stream is complete");
         }
 
-        if msg.is_fin() {
-            state.fin_received = true;
-            state.total_messages = msg.sequence as usize + 1;
-        }
-
-        state.buffer.push(msg);
-
-        let mut to_emit = vec![];
-        Self::emit_eligible_messages(state, &mut to_emit);
-
-        if to_emit.is_empty() {
-            return None;
-        }
-
-        let init_info = state.init_info.as_ref().unwrap();
-        Some((init_info.block_number, init_info.proposal_round, to_emit))
-    }
-
-    fn emit(
-        state: &mut StreamState<ProposalPart>,
-        msg: StreamMessage<ProposalPart>,
-        to_emit: &mut Vec<ProposalPart>,
-    ) {
-        if let Some(data) = msg.content.into_data() {
-            to_emit.push(data);
-        }
-
-        state.next_sequence = msg.sequence + 1;
-    }
-
-    fn emit_eligible_messages(
-        state: &mut StreamState<ProposalPart>,
-        to_emit: &mut Vec<ProposalPart>,
-    ) {
-        while let Some(msg) = state.buffer.peek() {
-            if msg.sequence == state.next_sequence {
-                let msg = state.buffer.pop().expect("peeked element should exist");
-                Self::emit(state, msg, to_emit);
-            } else {
-                break;
-            }
-        }
+        result
     }
 
     fn insert_first(
@@ -132,9 +127,31 @@ impl PartStreamsMap {
     ) -> Option<(Height, Round, Vec<ProposalPart>)> {
         state.init_info = msg.content.as_data().and_then(|p| p.as_init()).cloned();
 
+        let mut to_emit = Vec::with_capacity(1);
+        state.emit(msg, &mut to_emit);
+        state.emit_eligible_messages(&mut to_emit);
+
+        let init_info = state.init_info.as_ref().unwrap();
+        Some((init_info.block_number, init_info.proposal_round, to_emit))
+    }
+
+    fn insert_other(
+        state: &mut StreamState<ProposalPart>,
+        msg: StreamMessage<ProposalPart>,
+    ) -> Option<(Height, Round, Vec<ProposalPart>)> {
+        if msg.is_fin() {
+            state.fin_received = true;
+            state.total_messages = msg.sequence as usize + 1;
+        }
+
+        state.buffer.push(msg);
+
         let mut to_emit = vec![];
-        Self::emit(state, msg, &mut to_emit);
-        Self::emit_eligible_messages(state, &mut to_emit);
+        state.emit_eligible_messages(&mut to_emit);
+
+        if to_emit.is_empty() {
+            return None;
+        }
 
         let init_info = state.init_info.as_ref().unwrap();
         Some((init_info.block_number, init_info.proposal_round, to_emit))
