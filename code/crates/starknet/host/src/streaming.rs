@@ -30,9 +30,31 @@ impl<T> PartialOrd for MinSeq<T> {
     }
 }
 
+struct MinHeap<T>(BinaryHeap<MinSeq<T>>);
+
+impl<T> Default for MinHeap<T> {
+    fn default() -> Self {
+        Self(BinaryHeap::new())
+    }
+}
+
+impl<T> MinHeap<T> {
+    fn push(&mut self, msg: StreamMessage<T>) {
+        self.0.push(MinSeq(msg));
+    }
+
+    fn pop(&mut self) -> Option<StreamMessage<T>> {
+        self.0.pop().map(|msg| msg.0)
+    }
+
+    fn peek(&self) -> Option<&StreamMessage<T>> {
+        self.0.peek().map(|msg| &msg.0)
+    }
+}
+
 #[derive_where(Default)]
 struct StreamState<T> {
-    buffer: BinaryHeap<MinSeq<T>>,
+    buffer: MinHeap<T>,
     init_info: Option<ProposalInit>,
     next_sequence: Sequence,
     total_messages: usize,
@@ -65,7 +87,7 @@ impl PartStreamsMap {
             state.total_messages = msg.sequence as usize + 1;
         }
 
-        state.buffer.push(MinSeq(msg));
+        state.buffer.push(msg);
 
         let mut to_emit = vec![];
         Self::emit_eligible_messages(state, &mut to_emit);
@@ -94,9 +116,9 @@ impl PartStreamsMap {
         state: &mut StreamState<ProposalPart>,
         to_emit: &mut Vec<ProposalPart>,
     ) {
-        while let Some(MinSeq(msg)) = state.buffer.peek() {
+        while let Some(msg) = state.buffer.peek() {
             if msg.sequence == state.next_sequence {
-                let MinSeq(msg) = state.buffer.pop().expect("peeked element should exist");
+                let msg = state.buffer.pop().expect("peeked element should exist");
                 Self::emit(state, msg, to_emit);
             } else {
                 break;
