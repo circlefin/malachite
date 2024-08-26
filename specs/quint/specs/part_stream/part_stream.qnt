@@ -4,27 +4,27 @@ module part_stream {
     import spells.* from "./spells"
     import binary_heap.* from "./binary_heap"
 
-    type SequenceNumber = int
+    type Sequence = int
     type Payload = str
 
     type MessageType = INIT | DATA | FIN
 
     type Message = {
-        sequence: SequenceNumber,
+        sequence: Sequence,
         msgType: MessageType,
         payload: Payload
     }
 
-    pure def createMessage(seq: SequenceNumber, typ: MessageType, payload: Payload): Message =
+    pure def createMessage(seq: Sequence, typ: MessageType, payload: Payload): Message =
         { sequence: seq, msgType: typ, payload: payload }
 
     type State = {
         buffer: BinaryHeap[Message],
         initReceived: bool,
-        nextSequence: SequenceNumber,
-        totalMessages: int,
-        initMessage: Option[Message],
         finReceived: bool,
+        initMessage: Option[Message],
+        nextSequence: Sequence,
+        totalMessages: int,
         emitted: List[Message],
         received: Set[Message]
     }
@@ -55,7 +55,7 @@ module part_stream {
 
     action step = any {
         done,
-        all {
+        {
             nondet msg = oneOf(messages.exclude(state.received))
             processMessage(msg)
         }
@@ -72,13 +72,6 @@ module part_stream {
             | FIN => handleFin(message)
             | _ => handleOther(message)
         }
-    }
-
-    val inv = isDone implies all {
-        state.initReceived,
-        state.finReceived,
-        state.received == messages,
-        state.emitted == orderedMessages,
     }
 
     action handleInit(message: Message): bool = all {
@@ -145,9 +138,25 @@ module part_stream {
         }
     }
 
-    def isDone: bool = all {
-        state.initReceived, 
-        state.finReceived,
-        state.emitted.length() == state.totalMessages
+    val isDone: bool = {
+        messages.exclude(state.received) == Set()
     }
+
+    val inv = {
+        if (isDone) all {
+            state.initReceived,
+            state.finReceived,
+            state.received == messages,
+            state.emitted == orderedMessages,
+            state.emitted.length() == state.totalMessages,
+        } else all {
+            state.initReceived implies state.initMessage != None,
+            state.finReceived implies (state.totalMessages > 0 and state.nextSequence <= state.totalMessages),
+            state.received.subseteq(messages),
+            state.emitted.toSet().subseteq(messages),
+        }
+    }
+
+    temporal eventuallyDone =
+        eventually(isDone)
 }
