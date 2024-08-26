@@ -20,7 +20,7 @@ use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
 use crate::part_store::PartStore;
-use crate::streaming::{OutgoingStream, PartStreamsMap};
+use crate::streaming::PartStreamsMap;
 use crate::types::{Address, BlockHash, Height, Proposal, ProposalPart, ValidatorSet};
 use crate::Host;
 
@@ -214,7 +214,6 @@ impl Actor for StarknetHost {
                 state.next_stream_id += 1;
 
                 let mut sequence = 0;
-
                 while let Some(part) = rx_part.recv().await {
                     state.part_store.store(height, round, part.clone());
 
@@ -225,23 +224,14 @@ impl Actor for StarknetHost {
                         "Broadcasting proposal part"
                     );
 
-                    let msg = StreamMessage {
-                        stream_id,
-                        sequence,
-                        content: StreamContent::Data(part),
-                    };
-
+                    let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(part));
                     sequence += 1;
 
                     self.gossip_consensus
                         .cast(GossipConsensusMsg::BroadcastProposalPart(msg))?;
                 }
 
-                let msg = StreamMessage {
-                    stream_id,
-                    sequence,
-                    content: StreamContent::Fin(true),
-                };
+                let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin(true));
 
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::BroadcastProposalPart(msg))?;
