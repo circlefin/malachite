@@ -34,6 +34,7 @@ pub struct StarknetHost {
 pub struct HostState {
     height: Height,
     round: Round,
+    proposer: Option<Address>,
     part_store: PartStore<MockContext>,
     part_streams_map: PartStreamsMap,
     next_stream_id: StreamId,
@@ -44,6 +45,7 @@ impl Default for HostState {
         Self {
             height: Height::new(0),
             round: Round::Nil,
+            proposer: None,
             part_store: PartStore::default(),
             part_streams_map: PartStreamsMap::default(),
             next_stream_id: StreamId::default(),
@@ -214,9 +216,14 @@ impl Actor for StarknetHost {
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            HostMsg::StartRound(height, round) => {
+            HostMsg::StartRound {
+                height,
+                round,
+                proposer,
+            } => {
                 state.height = height;
                 state.round = round;
+                state.proposer = Some(proposer);
 
                 Ok(())
             }
@@ -291,16 +298,16 @@ impl Actor for StarknetHost {
 
                 let sequence = part.sequence;
 
-                let Some((height, round, parts)) = state.part_streams_map.insert(from, part) else {
+                let Some(parts) = state.part_streams_map.insert(from, part) else {
                     return Ok(());
                 };
 
-                if height < state.height || round < state.round {
+                if parts.height < state.height || parts.round < state.round {
                     trace!(
                         height = %state.height,
                         round = %state.round,
-                        part.height = %height,
-                        part.round = %round,
+                        part.height = %parts.height,
+                        part.round = %parts.round,
                         part.sequence = %sequence,
                         "Received outdated proposal part, ignoring"
                     );
@@ -308,17 +315,30 @@ impl Actor for StarknetHost {
                     return Ok(());
                 }
 
-                for part in parts {
+                // if state.proposer.as_ref() != Some(&parts.proposer) {
+                //     debug!(
+                //         height = %state.height,
+                //         round = %state.round,
+                //         proposer = ?state.proposer,
+                //         part.proposer = %parts.proposer,
+                //         "Received proposal part from a different proposer, ignoring"
+                //     );
+                //
+                //     return Ok(());
+                // }
+
+                for part in parts.parts {
                     debug!(
                         part.sequence = %sequence,
-                        part.height = %height,
-                        part.round = %round,
+                        part.height = %parts.height,
+                        part.round = %parts.round,
                         part.message = ?part.part_type(),
                         "Processing proposal part"
                     );
 
-                    if let Some(value) =
-                        self.build_value_from_part(state, height, round, part).await
+                    if let Some(value) = self
+                        .build_value_from_part(state, parts.height, parts.round, part)
+                        .await
                     {
                         reply_to.send(value)?;
                         break;

@@ -457,8 +457,13 @@ where
                 Ok(Resume::Continue)
             }
 
-            Effect::StartRound(height, round) => {
-                self.host.cast(HostMsg::StartRound(height, round))?;
+            Effect::StartRound(height, round, proposer) => {
+                self.host.cast(HostMsg::StartRound {
+                    height,
+                    round,
+                    proposer,
+                })?;
+
                 Ok(Resume::Continue)
             }
 

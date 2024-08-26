@@ -6,7 +6,7 @@ use derive_where::derive_where;
 use malachite_actors::util::streaming::{Sequence, StreamId, StreamMessage};
 use malachite_common::Round;
 use malachite_gossip_mempool::PeerId;
-use malachite_starknet_p2p_types::{Height, ProposalInit, ProposalPart};
+use malachite_starknet_p2p_types::{Address, Height, ProposalInit, ProposalPart};
 
 struct MinSeq<T>(StreamMessage<T>);
 
@@ -88,6 +88,15 @@ impl<T> StreamState<T> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProposalParts {
+    pub height: Height,
+    pub round: Round,
+    pub fork_id: u64,
+    pub proposer: Address,
+    pub parts: Vec<ProposalPart>,
+}
+
 #[derive(Default)]
 pub struct PartStreamsMap {
     streams: BTreeMap<(PeerId, StreamId), StreamState<ProposalPart>>,
@@ -102,7 +111,7 @@ impl PartStreamsMap {
         &mut self,
         peer_id: PeerId,
         msg: StreamMessage<ProposalPart>,
-    ) -> Option<(Height, Round, Vec<ProposalPart>)> {
+    ) -> Option<ProposalParts> {
         let stream_id = msg.stream_id;
         let state = self.streams.entry((peer_id, stream_id)).or_default();
 
@@ -122,7 +131,7 @@ impl PartStreamsMap {
     fn insert_first(
         state: &mut StreamState<ProposalPart>,
         msg: StreamMessage<ProposalPart>,
-    ) -> Option<(Height, Round, Vec<ProposalPart>)> {
+    ) -> Option<ProposalParts> {
         state.init_info = msg.content.as_data().and_then(|p| p.as_init()).cloned();
 
         let mut to_emit = Vec::with_capacity(1);
@@ -130,13 +139,20 @@ impl PartStreamsMap {
         state.emit_eligible_messages(&mut to_emit);
 
         let init_info = state.init_info.as_ref().unwrap();
-        Some((init_info.block_number, init_info.proposal_round, to_emit))
+
+        Some(ProposalParts {
+            height: init_info.block_number,
+            round: init_info.proposal_round,
+            fork_id: init_info.fork_id,
+            proposer: init_info.proposer.clone(),
+            parts: to_emit,
+        })
     }
 
     fn insert_other(
         state: &mut StreamState<ProposalPart>,
         msg: StreamMessage<ProposalPart>,
-    ) -> Option<(Height, Round, Vec<ProposalPart>)> {
+    ) -> Option<ProposalParts> {
         if msg.is_fin() {
             state.fin_received = true;
             state.total_messages = msg.sequence as usize + 1;
@@ -152,6 +168,13 @@ impl PartStreamsMap {
         }
 
         let init_info = state.init_info.as_ref().unwrap();
-        Some((init_info.block_number, init_info.proposal_round, to_emit))
+
+        Some(ProposalParts {
+            height: init_info.block_number,
+            round: init_info.proposal_round,
+            fork_id: init_info.fork_id,
+            proposer: init_info.proposer.clone(),
+            parts: to_emit,
+        })
     }
 }

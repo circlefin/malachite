@@ -70,7 +70,7 @@ where
         co,
         state,
         metrics,
-        DriverInput::NewRound(height, round, proposer),
+        DriverInput::NewRound(height, round, proposer.clone()),
     )
     .await?;
 
@@ -78,7 +78,7 @@ where
     metrics.height.set(height.as_u64() as i64);
     metrics.round.set(round.as_i64());
 
-    perform!(co, Effect::StartRound(height, round));
+    perform!(co, Effect::StartRound(height, round, proposer));
 
     replay_pending_msgs(co, state, metrics).await?;
 
@@ -155,7 +155,7 @@ where
 
             info!(%height, %round, %proposer, "Starting new round");
             perform!(co, Effect::CancelAllTimeouts);
-            perform!(co, Effect::StartRound(*height, *round));
+            perform!(co, Effect::StartRound(*height, *round, proposer.clone()));
         }
 
         DriverInput::ProposeValue(round, _) => {

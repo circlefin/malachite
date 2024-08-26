@@ -35,9 +35,9 @@ where
     /// Resume with: Resume::Continue
     ScheduleTimeout(Timeout),
 
-    /// Consensus is starting a new round
+    /// Consensus is starting a new round with the given proposer
     /// Resume with: Resume::Continue
-    StartRound(Ctx::Height, Round),
+    StartRound(Ctx::Height, Round, Ctx::Address),
 
     /// Broadcast a message
     /// Resume with: Resume::Continue
