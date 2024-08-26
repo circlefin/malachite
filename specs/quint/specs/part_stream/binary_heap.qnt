@@ -1,3 +1,5 @@
+// -*- mode: Bluespec; -*-
+
 module binary_heap {
     import spells.* from "./spells"
 

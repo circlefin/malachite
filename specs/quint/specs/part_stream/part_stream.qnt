@@ -1,3 +1,5 @@
+// -*- mode: Bluespec; -*-
+
 module part_stream {
     import spells.* from "./spells"
     import binary_heap.* from "./binary_heap"

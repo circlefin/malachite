@@ -1,3 +1,5 @@
+// -*- mode: Bluespec; -*-
+
 module spells {
 
   type Option[a] =
