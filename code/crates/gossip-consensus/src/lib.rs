@@ -309,10 +309,14 @@ async fn handle_swarm_event(
         }
 
         SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Message {
-            propagation_source: peer_id,
             message_id,
             message,
+            ..
         })) => {
+            let Some(peer_id) = message.source else {
+                return ControlFlow::Continue(());
+            };
+
             let Some(channel) = Channel::from_topic_hash(&message.topic) else {
                 trace!(
                     "Received message {message_id} from {peer_id} on different channel: {}",
