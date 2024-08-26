@@ -115,6 +115,16 @@ impl StarknetHost {
             return None;
         }
 
+        let Some(init) = parts.iter().find_map(|part| part.as_init()) else {
+            error!("No Init part found in the proposal parts");
+            return None;
+        };
+
+        let Some(fin) = parts.iter().find_map(|part| part.as_fin()) else {
+            error!("No Fin part found in the proposal parts");
+            return None;
+        };
+
         trace!(parts.len = %parts.len(), "Building proposal content from parts");
 
         let block_hash = {
@@ -126,9 +136,6 @@ impl StarknetHost {
         };
 
         trace!(%block_hash, "Computed block hash");
-
-        let init = parts.iter().find_map(|part| part.as_init()).unwrap(); // FIXME: Unwrap
-        let fin = parts.iter().find_map(|part| part.as_fin()).unwrap(); // FIXME: Unwrap;
 
         // TODO: How to compute validity?
         let validity = Validity::Valid;
