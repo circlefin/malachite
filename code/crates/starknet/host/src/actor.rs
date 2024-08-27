@@ -291,13 +291,6 @@ impl Actor for StarknetHost {
                 part,
                 reply_to,
             } => {
-                debug!(
-                    height = %state.height,
-                    round = %state.round,
-                    %part.sequence,
-                    "Received proposal part"
-                );
-
                 let sequence = part.sequence;
 
                 let Some(parts) = state.part_streams_map.insert(from, part) else {
@@ -316,18 +309,6 @@ impl Actor for StarknetHost {
 
                     return Ok(());
                 }
-
-                // if state.proposer.as_ref() != Some(&parts.proposer) {
-                //     debug!(
-                //         height = %state.height,
-                //         round = %state.round,
-                //         proposer = ?state.proposer,
-                //         part.proposer = %parts.proposer,
-                //         "Received proposal part from a different proposer, ignoring"
-                //     );
-                //
-                //     return Ok(());
-                // }
 
                 for part in parts.parts {
                     debug!(
