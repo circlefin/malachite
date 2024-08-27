@@ -100,7 +100,7 @@ where
         // From Propose. Input must be for current round.
         //
 
-        // L11/L14
+        // L18
         (Step::Propose, Input::ProposeValue(value)) if this_round => {
             debug_assert!(info.is_proposer());
 
@@ -111,32 +111,17 @@ where
         (Step::Propose, Input::Proposal(proposal))
             if this_round && proposal.pol_round().is_nil() =>
         {
-            if state
-                .locked
-                .as_ref()
-                .map_or(true, |locked| &locked.value == proposal.value())
-            {
-                // L24
-                prevote(state, info.address, &proposal)
-            } else {
-                // L26
-                prevote_nil(state, info.address)
-            }
+            prevote(state, info.address, &proposal)
         }
+
+        // L22 with invalid proposal
+        (Step::Propose, Input::InvalidProposal) if this_round => prevote_nil(state, info.address),
 
         // L28 with valid proposal
         (Step::Propose, Input::ProposalAndPolkaPrevious(proposal))
             if this_round && is_valid_pol_round(&state, proposal.pol_round()) =>
         {
-            if state.locked.as_ref().map_or(false, |locked| {
-                locked.round <= proposal.pol_round() && &locked.value == proposal.value()
-            }) {
-                // L30
-                prevote(state, info.address, &proposal)
-            } else {
-                // L32
-                prevote_nil(state, info.address)
-            }
+            prevote_previous(state, info.address, &proposal)
         }
 
         // L28 with invalid proposal
@@ -145,10 +130,6 @@ where
         {
             prevote_nil(state, info.address)
         }
-
-        // L22/L25
-        // L28/L31
-        (Step::Propose, Input::InvalidProposal) if this_round => prevote_nil(state, info.address),
 
         // L57
         // We are the proposer.
@@ -226,7 +207,7 @@ where
 /// We are the proposer. Propose the valid value if present, otherwise schedule timeout propose
 /// and ask for a value.
 ///
-/// Ref: L15-L18
+/// Ref: L13-L16, L19
 pub fn propose_valid_or_get_value<Ctx>(state: State<Ctx>, address: &Ctx::Address) -> Transition<Ctx>
 where
     Ctx: Context,
@@ -261,7 +242,7 @@ where
 /// We are the proposer; propose the valid value if it exists,
 /// otherwise propose the given value.
 ///
-/// Ref: L11/L14
+/// Ref: L13, L17-18
 pub fn propose<Ctx>(state: State<Ctx>, value: Ctx::Value, address: &Ctx::Address) -> Transition<Ctx>
 where
     Ctx: Context,
@@ -282,9 +263,9 @@ where
 //---------------------------------------------------------------------
 
 /// Received a complete proposal; prevote the value,
-/// unless we are locked on something else at a higher round.
+/// unless we are locked on something else.
 ///
-/// Ref: L22/L28
+/// Ref: L22 with valid proposal
 pub fn prevote<Ctx>(
     state: State<Ctx>,
     address: &Ctx::Address,
@@ -293,13 +274,54 @@ pub fn prevote<Ctx>(
 where
     Ctx: Context,
 {
-    let vr = proposal.round();
+    let vr = proposal.pol_round();
+    assert_eq!(vr, Round::Nil);
+
     let proposed = proposal.value().id();
     let value = match &state.locked {
-        Some(locked) if locked.round <= vr => NilOrVal::Val(proposed), // unlock and prevote
-        Some(locked) if locked.value.id() == proposed => NilOrVal::Val(proposed), // already locked on value
-        Some(_) => NilOrVal::Nil, // we're locked on a higher round with a different value, prevote nil
-        None => NilOrVal::Val(proposed), // not locked, prevote the value
+        // already locked on value
+        Some(locked) if locked.value.id() == proposed => NilOrVal::Val(proposed),
+
+        // locked on a different value
+        Some(_) => NilOrVal::Nil,
+
+        // not locked, prevote the value
+        None => NilOrVal::Val(proposed),
+    };
+
+    let output = Output::prevote(state.height, state.round, value, address.clone());
+    Transition::to(state.with_step(Step::Prevote)).with_output(output)
+}
+
+/// Received a proposal for a previously seen value and a polka from a previous round; prevote the value,
+/// unless we are locked on a different value at a higher round.
+///
+/// Ref: L28
+pub fn prevote_previous<Ctx>(
+    state: State<Ctx>,
+    address: &Ctx::Address,
+    proposal: &Ctx::Proposal,
+) -> Transition<Ctx>
+where
+    Ctx: Context,
+{
+    let vr = proposal.pol_round();
+    assert!(vr >= Round::Some(0));
+    assert!(vr < proposal.round());
+
+    let proposed = proposal.value().id();
+    let value = match &state.locked {
+        // locked on lower or equal round, maybe on different value
+        Some(locked) if locked.round <= vr => NilOrVal::Val(proposed),
+
+        // already locked same value
+        Some(locked) if locked.value.id() == proposed => NilOrVal::Val(proposed),
+
+        // we're locked on a different value in a higher round, prevote nil
+        Some(_) => NilOrVal::Nil,
+
+        // not locked, prevote the value
+        None => NilOrVal::Val(proposed),
     };
 
     let output = Output::prevote(state.height, state.round, value, address.clone());
@@ -392,12 +414,8 @@ pub fn schedule_timeout_prevote<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    if state.step == Step::Prevote {
-        let output = Output::schedule_timeout(state.round, TimeoutStep::Prevote);
-        Transition::to(state).with_output(output)
-    } else {
-        Transition::to(state)
-    }
+    let output = Output::schedule_timeout(state.round, TimeoutStep::Prevote);
+    Transition::to(state).with_output(output)
 }
 
 /// We received +2/3 precommits for any; schedule timeout precommit.
