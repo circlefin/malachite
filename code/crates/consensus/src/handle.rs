@@ -613,7 +613,7 @@ where
     let height = state.driver.height();
     let round = state.driver.round();
 
-    if timeout.round != round {
+    if timeout.round != round && timeout.step != TimeoutStep::Commit {
         debug!(
             "Ignoring timeout for round {} at height {}, current round: {round}",
             timeout.round, height
