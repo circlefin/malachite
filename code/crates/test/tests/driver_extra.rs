@@ -812,7 +812,7 @@ fn driver_steps_polka_previous_with_no_locked() {
             ),
         },
         TestStep {
-            desc: "Receive our own proposal, prevote nil as we are not locked on the value",
+            desc: "Receive our own proposal, prevote value even if we are not locked on it (L29 with lockedRoundp == nil < vr)",
             input: proposal_input(
                 Round::new(1),
                 value,
@@ -820,7 +820,7 @@ fn driver_steps_polka_previous_with_no_locked() {
                 Validity::Valid,
                 v2.address,
             ),
-            expected_outputs: vec![prevote_nil_output(Round::new(1), &my_addr)],
+            expected_outputs: vec![prevote_output(Round::new(1), value, &my_addr)],
             expected_round: Round::new(1),
             new_state: prevote_state_with_proposal_and_valid(
                 Round::new(1),
