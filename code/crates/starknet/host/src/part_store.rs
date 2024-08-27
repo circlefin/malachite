@@ -53,4 +53,8 @@ impl<Ctx: Context> PartStore<Ctx> {
     pub fn prune(&mut self, min_height: Ctx::Height) {
         self.store.retain(|(height, _), _| *height >= min_height);
     }
+
+    pub fn blocks_stored(&self) -> usize {
+        self.store.len()
+    }
 }

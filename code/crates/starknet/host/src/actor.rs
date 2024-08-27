@@ -175,6 +175,8 @@ impl StarknetHost {
 
         let all_parts = state.part_store.all_parts(height, round);
 
+        debug!("The store has {} blocks", state.part_store.blocks_stored());
+
         // TODO: Do more validations, e.g. there is no higher tx proposal part,
         //       check that we have received the proof, etc.
         let Some(fin) = all_parts.iter().find_map(|part| part.as_fin()) else {
@@ -395,8 +397,10 @@ impl Actor for StarknetHost {
                     }
                 }
 
-                // Prune the PartStore of all parts for heights lower than `height - 1`
-                state.part_store.prune(height.decrement().unwrap_or(height));
+                // Prune the PartStore of all parts for heights lower than `state.height - 1`
+                state
+                    .part_store
+                    .prune(state.height.decrement().unwrap_or(state.height));
 
                 // Notify the mempool to remove corresponding txs
                 self.mempool.cast(MempoolMsg::Update { tx_hashes })?;
