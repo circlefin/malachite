@@ -409,45 +409,60 @@ async fn on_vote<Ctx>(
 where
     Ctx: Context,
 {
-    let height = signed_vote.height();
+    let consensus_height = state.driver.height();
+    let consensus_round = state.driver.round();
+    let vote_height = signed_vote.height();
+    let validator_address = signed_vote.validator_address();
 
     // Queue messages if driver is not initialized, or if they are for higher height.
     // Process messages received for the current height.
     // Drop all others.
-    if state.driver.round() == Round::Nil {
-        debug!("Received vote at round -1, queuing for later");
-        state.msg_queue.push_back(Msg::Vote(signed_vote));
-        return Ok(());
-    }
-
-    if state.driver.height() < height {
-        debug!("Received vote for higher height, queuing for later");
-        state.msg_queue.push_back(Msg::Vote(signed_vote));
-        return Ok(());
-    }
-
-    if state.driver.height() > height {
-        debug!("Received vote for lower height, dropping");
-        return Ok(());
-    }
-
-    let validator_address = signed_vote.validator_address();
-
-    info!(validator = %validator_address, "Received vote: {}", PrettyVote::<Ctx>(&signed_vote.message));
-
-    if signed_vote.height() != state.driver.height() {
-        warn!(
+    if consensus_round == Round::Nil {
+        debug!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
             validator = %validator_address,
-            "Ignoring vote for height {}, current height: {}",
-            signed_vote.height(),
-            state.driver.height()
+            "Received vote at round -1, queuing for later"
+        );
+
+        state.msg_queue.push_back(Msg::Vote(signed_vote));
+        return Ok(());
+    }
+
+    if consensus_height < vote_height {
+        debug!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
+            validator = %validator_address,
+            "Received vote for higher height, queuing for later"
+        );
+
+        state.msg_queue.push_back(Msg::Vote(signed_vote));
+        return Ok(());
+    }
+
+    if consensus_height > vote_height {
+        debug!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
+            validator = %validator_address,
+            "Received vote for lower height, dropping"
         );
 
         return Ok(());
     }
 
+    info!(
+        consensus.height = %consensus_height,
+        vote.height = %vote_height,
+        validator = %validator_address,
+        "Received vote: {}", PrettyVote::<Ctx>(&signed_vote.message)
+    );
+
     let Some(validator) = state.driver.validator_set.get_by_address(validator_address) else {
         warn!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
             validator = %validator_address,
             "Received vote from unknown validator"
         );
