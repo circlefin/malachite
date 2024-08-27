@@ -659,17 +659,19 @@ where
         ..
     } = proposed_value;
 
-    info!("Received proposed value");
-
     // Store the block and validity information. It will be removed when a decision is reached for that height.
     state
         .received_blocks
         .push((height, round, value.clone(), validity));
 
     if let Some(proposal) = state.driver.proposal_keeper.get_proposal_for_round(round) {
-        debug!("We have a proposal for this round, checking...");
+        debug!(
+            proposal.height = %proposal.height(),
+            proposal.round = %proposal.round(),
+            "We have a proposal for this round, checking..."
+        );
 
-        if height != proposal.height() || round != proposal.round() {
+        if height != proposal.height() {
             // The value we received is not for the current proposal, ignoring
             debug!("Proposed value is not for the current proposal, ignoring...");
             return Ok(());
@@ -686,7 +688,7 @@ where
         )
         .await?;
     } else {
-        debug!("No proposal for this round yet, storing proposed value for later");
+        debug!("No proposal for this round yet, stored proposed value for later");
     }
 
     Ok(())
