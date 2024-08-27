@@ -173,16 +173,6 @@ where
                 return Ok(());
             }
 
-            if proposal.round() < state.driver.round() {
-                warn!(
-                    "Ignoring proposal for round {}, smaller than current round: {}",
-                    proposal.round(),
-                    state.driver.round()
-                );
-
-                return Ok(());
-            }
-
             perform!(
                 co,
                 Effect::CancelTimeout(Timeout::propose(proposal.round()))
