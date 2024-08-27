@@ -304,7 +304,7 @@ impl Actor for StarknetHost {
                     return Ok(());
                 };
 
-                if parts.height < state.height || parts.round < state.round {
+                if parts.height < state.height {
                     trace!(
                         height = %state.height,
                         round = %state.round,
