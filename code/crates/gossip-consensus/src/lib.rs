@@ -274,10 +274,41 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Subscribed {
-            peer_id,
-            topic,
-        })) => {
+        SwarmEvent::Behaviour(NetworkEvent::Ping(event)) => {
+            match &event.result {
+                Ok(rtt) => {
+                    trace!("Received pong from {} in {rtt:?}", event.peer);
+                }
+                Err(e) => {
+                    trace!("Received pong from {} with error: {e}", event.peer);
+                }
+            }
+
+            // Record metric for round-trip time sending a ping and receiving a pong
+            metrics.record(&event);
+        }
+
+        SwarmEvent::Behaviour(NetworkEvent::GossipSub(event)) => {
+            return handle_gossipsub_event(event, metrics, _swarm, state, tx_event).await;
+        }
+
+        swarm_event => {
+            metrics.record(&swarm_event);
+        }
+    }
+
+    ControlFlow::Continue(())
+}
+
+async fn handle_gossipsub_event(
+    event: gossipsub::Event,
+    _metrics: &Metrics,
+    _swarm: &mut swarm::Swarm<Behaviour>,
+    _state: &mut State,
+    tx_event: &mpsc::Sender<Event>,
+) -> ControlFlow<()> {
+    match event {
+        gossipsub::Event::Subscribed { peer_id, topic } => {
             if !Channel::has_topic(&topic) {
                 trace!("Peer {peer_id} tried to subscribe to unknown topic: {topic}");
                 return ControlFlow::Continue(());
@@ -291,10 +322,7 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Unsubscribed {
-            peer_id,
-            topic,
-        })) => {
+        gossipsub::Event::Unsubscribed { peer_id, topic } => {
             if !Channel::has_topic(&topic) {
                 trace!("Peer {peer_id} tried to unsubscribe from unknown topic: {topic}");
                 return ControlFlow::Continue(());
@@ -308,11 +336,11 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Message {
+        gossipsub::Event::Message {
             message_id,
             message,
             ..
-        })) => {
+        } => {
             let Some(peer_id) = message.source else {
                 return ControlFlow::Continue(());
             };
@@ -339,23 +367,8 @@ async fn handle_swarm_event(
                 return ControlFlow::Break(());
             }
         }
-
-        SwarmEvent::Behaviour(NetworkEvent::Ping(event)) => {
-            match &event.result {
-                Ok(rtt) => {
-                    trace!("Received pong from {} in {rtt:?}", event.peer);
-                }
-                Err(e) => {
-                    trace!("Received pong from {} with error: {e}", event.peer);
-                }
-            }
-
-            // Record metric for round-trip time sending a ping and receiving a pong
-            metrics.record(&event);
-        }
-
-        swarm_event => {
-            metrics.record(&swarm_event);
+        gossipsub::Event::GossipsubNotSupported { peer_id } => {
+            trace!("Peer {peer_id} does not support GossipSub");
         }
     }
 
