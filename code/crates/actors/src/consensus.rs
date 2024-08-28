@@ -7,7 +7,7 @@ use libp2p::PeerId;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType};
 use malachite_consensus::{Effect, Resume};
@@ -224,15 +224,15 @@ where
 
                         info!("Connected to peer {peer_id}");
 
+                        let connected_peers = state.connected_peers.len();
+                        let total_peers = state.consensus.driver.validator_set.count() - 1;
+
+                        debug!("Connected to {connected_peers}/{total_peers} peers");
+
                         self.metrics.connected_peers.inc();
 
-                        if state.connected_peers.len()
-                            == state.consensus.driver.validator_set.count() - 1
-                        {
-                            info!(
-                                "Enough peers ({}) connected to start consensus",
-                                state.connected_peers.len()
-                            );
+                        if connected_peers == total_peers {
+                            info!("Enough peers ({connected_peers}) connected to start consensus");
 
                             let height = state.consensus.driver.height();
 
