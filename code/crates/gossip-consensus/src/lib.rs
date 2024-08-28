@@ -130,12 +130,7 @@ pub async fn spawn(
             .build())
     })?;
 
-    for channel in Channel::all() {
-        swarm
-            .behaviour_mut()
-            .gossipsub
-            .subscribe(&channel.to_topic())?;
-    }
+    swarm.behaviour_mut().subscribe(Channel::all())?;
 
     let metrics = registry.with_prefix(METRICS_PREFIX, Metrics::new);
 
@@ -196,21 +191,11 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
         CtrlMsg::BroadcastMsg(channel, data) => {
             let msg_size = data.len();
 
-            let result = swarm
-                .behaviour_mut()
-                .gossipsub
-                .publish(channel.topic_hash(), data);
+            let result = swarm.behaviour_mut().publish(channel, data);
 
             match result {
-                Ok(message_id) => {
-                    debug!(
-                        %channel,
-                        "Broadcasted message {message_id} of {msg_size} bytes"
-                    );
-                }
-                Err(e) => {
-                    error!(%channel, "Error broadcasting message: {e}");
-                }
+                Ok(()) => debug!(%channel, "Broadcasted message ({msg_size} bytes)"),
+                Err(e) => error!(%channel, "Error broadcasting message: {e}"),
             }
 
             ControlFlow::Continue(())
