@@ -1,15 +1,15 @@
 127.0.0.1       localhost
-${cc.ip}        g-${cc.name}
-%{~ for n in small }
-${n.ip}        g-${n.name}
+${cc.ip}        ${cc.name}
+${cc.internal_ip}        l-${cc.name}
+%{~ for i, n in nodes }
+${n.ip}        node${i}
 %{~ endfor }
-%{~ for n in large }
-${n.ip}        g-${n.name}
+%{~ for i,n in nodes }
+${n.internal_ip}        l-node${i}
 %{~ endfor }
-${cc.internal_ip}        ${cc.name}
-%{~ for n in small }
-${n.internal_ip}        ${n.name}
+%{~ for n in nodes }
+${n.ip}        ${n.name}
 %{~ endfor }
-%{~ for n in large }
-${n.internal_ip}        ${n.name}
+%{~ for n in nodes }
+${n.internal_ip}        l-${n.name}
 %{~ endfor }
