@@ -14,7 +14,7 @@ use tracing::info;
 use malachite_common::{PrivateKey, PublicKey};
 use malachite_node::config::{
     App, Config, ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MempoolConfig, MetricsConfig,
-    P2pConfig, RuntimeConfig, TestConfig, TimeoutConfig,
+    P2pConfig, PubSubProtocol, RuntimeConfig, TestConfig, TimeoutConfig,
 };
 use malachite_node::Node;
 use malachite_starknet_app::node::StarknetNode;
@@ -189,6 +189,7 @@ pub fn generate_config(
             max_block_size: ByteSize::mib(1),
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
+                protocol: PubSubProtocol::GossipSub,
                 listen_addr: format!("/ip4/127.0.0.1/udp/{consensus_port}/quic-v1")
                     .parse()
                     .unwrap(),
@@ -204,6 +205,7 @@ pub fn generate_config(
         },
         mempool: MempoolConfig {
             p2p: P2pConfig {
+                protocol: PubSubProtocol::GossipSub,
                 listen_addr: format!("/ip4/127.0.0.1/udp/{mempool_port}/quic-v1")
                     .parse()
                     .unwrap(),

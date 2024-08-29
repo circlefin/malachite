@@ -13,8 +13,11 @@ workspace = true
 malachite-metrics   = { workspace = true }
 
 bytes              = { workspace = true }
+either             = { workspace = true }
 futures            = { workspace = true }
 libp2p             = { workspace = true }
+libp2p-broadcast   = { workspace = true }
 seahash            = { workspace = true }
+serde              = { workspace = true }
 tokio              = { workspace = true }
 tracing            = { workspace = true }

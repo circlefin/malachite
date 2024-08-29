@@ -70,6 +70,17 @@ pub struct P2pConfig {
     pub listen_addr: Multiaddr,
     /// List of nodes to keep persistent connections to
     pub persistent_peers: Vec<Multiaddr>,
+    /// The type of pub-sub protocol to use for consensus
+    pub protocol: PubSubProtocol,
+}
+
+/// The type of pub-sub protocol
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PubSubProtocol {
+    #[default]
+    GossipSub,
+    Broadcast,
 }
 
 /// Mempool configuration options

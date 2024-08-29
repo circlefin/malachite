@@ -1,7 +1,7 @@
 #!/usr/bin/env fish
 
 # This script takes:
-# - a number of nodes to run as an argument, 
+# - a number of nodes to run as an argument,
 # - the home directory for the nodes configuration folders
 
 function help
@@ -47,7 +47,7 @@ else
     set build_folder release
 end
 
-set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "1MB"
+set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "1MiB"
 set -x MALACHITE__CONSENSUS__TIMEOUT_PROPOSE "5s"
 set -x MALACHITE__CONSENSUS__TIMEOUT_PREVOTE "3s"
 set -x MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT "3s"
@@ -55,9 +55,10 @@ set -x MALACHITE__CONSENSUS__TIMEOUT_COMMIT "0s"
 set -x MALACHITE__MEMPOOL__MAX_TX_COUNT "1000"
 set -x MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE 0
 set -x MALACHITE__TEST__TX_SIZE "1KB"
-set -x MALACHITE__TEST__TXS_PER_PART 16
+set -x MALACHITE__TEST__TXS_PER_PART 64
 set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.5
 set -x MALACHITE__TEST__EXEC_TIME_PER_TX "100us"
+set -x MALACHITE__CONSENSUS__P2P__PROTOCOL "broadcast"
 
 echo "Compiling Malachite..."
 cargo build --profile $build_profile
@@ -75,7 +76,7 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
     mkdir -p "$NODE_HOME/traces"
 
     rm -f "$NODE_HOME/logs/*.log"
-    
+
     set pane $(tmux new-window -P -n "node-$NODE" /bin/zsh)
 
     echo "[Node $NODE] Spawning node..."
@@ -89,7 +90,7 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
         "
 
         set cmd_prefix "rust-lldb --source =(echo \"$lldb_script\") ./target/$build_folder/malachite-cli -- "
-        
+
         tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME'" Enter
     else if $profile; and [ $NODE = 0 ]
         set cmd_prefix "cargo instruments --profile $build_profile --template $profile_template --time-limit 60000 --output '$NODE_HOME/traces/' --"

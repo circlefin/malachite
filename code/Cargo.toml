@@ -77,6 +77,7 @@ config             = { version = "0.14", features = ["toml"], default-features =
 derive-where       = "1.2.7"
 directories        = "5.0.1"
 ed25519-consensus  = "2.1.0"
+either             = "1"
 eyre               = "0.6"
 futures            = "0.3"
 genawaiter         = { version = "0.99.1", default-features = false }
@@ -86,8 +87,9 @@ humantime          = "2.1.0"
 humantime-serde    = "1.1.1"
 itertools          = "0.13"
 itf                = "0.2.3"
-libp2p             = { version = "0.54.1", features = ["macros", "mdns",  "identify", "tokio", "ed25519", "ecdsa", "quic", "gossipsub", "dns", "ping", "metrics"] }
+libp2p             = { version = "0.54.1", features = ["macros", "identify", "tokio", "ed25519", "ecdsa", "quic", "gossipsub", "floodsub", "cbor", "dns", "ping", "metrics"] }
 libp2p-identity    = "0.2.9"
+libp2p-broadcast   = { version = "0.12.0", git = "https://github.com/romac/libp2p-broadcast.git" }
 multiaddr          = "0.18.1"
 num-bigint         = "0.4.4"
 num-traits         = "0.2.17"
