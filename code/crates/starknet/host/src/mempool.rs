@@ -237,6 +237,8 @@ fn generate_and_broadcast_txes(
 ) -> Result<Vec<Transaction>, ActorProcessingErr> {
     debug!("Generating {} transactions of size {} bytes", count, size);
 
+    let batch_size = std::cmp::min(config.gossip_batch_size, count);
+
     let mut transactions = vec![];
     let mut tx_batch = Transactions::default();
     let mut rng = rand::thread_rng();
@@ -255,7 +257,7 @@ fn generate_and_broadcast_txes(
         tx_batch.push(tx.clone());
 
         // Gossip tx-es to peers in batches
-        if config.gossip_batch_size > 0 && tx_batch.len() >= config.gossip_batch_size {
+        if config.gossip_batch_size > 0 && tx_batch.len() >= batch_size {
             let tx_batch = std::mem::take(&mut tx_batch);
 
             let Ok(tx_batch_any) = tx_batch.to_any() else {
