@@ -28,15 +28,6 @@ pub enum ConsensusMsg<Ctx: Context> {
     Proposal(Ctx::Proposal),
 }
 
-// /// An event that can be emitted by the gossip layer
-// #[derive_where(Clone, Debug, PartialEq, Eq)]
-// pub enum GossipEvent<Ctx: Context> {
-//     Listening(Multiaddr),
-//     Message(PeerId, GossipMsg<Ctx>),
-//     PeerConnected(PeerId),
-//     PeerDisconnected(PeerId),
-// }
-
 /// A value proposed by a validator
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct ProposedValue<Ctx: Context> {

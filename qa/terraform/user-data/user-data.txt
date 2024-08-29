@@ -80,7 +80,6 @@ packages:
   - git
   - gcc
   - golang-1.21-go
-  - prometheus
   - prometheus-node-exporter
   - ntpstat
   - jq
@@ -95,32 +94,13 @@ packages:
   - docker-ce-cli
   - containerd.io
   - nfs-common
+  - kitty-terminfo
 write_files:
-# Prometheus node exporter service
-  - path: /etc/prometheus/prometheus-node-exporter.service
-    content: |
-      [Unit]
-      Description=Node Exporter
-      Wants=network-online.target
-      After=network-online.target
-      [Service]
-      User=prometheus
-      Group=prometheus
-      Type=simple
-      ExecStart=/usr/bin/prometheus-node-exporter
-      [Install]
-      WantedBy=multi-user.target
-# Allow docker to download from insecure registries
-  - path: /etc/docker/daemon.json
-    content: |
-      {
-        "insecure-registries" : ["${cc.internal_ip}"]
-      }
 # Force systemd-resolved to use custom DNS server
   - path: /etc/systemd/resolved.conf.d/DigitalOcean.conf
     content: |
       [Resolve]
-      DNS=${cc.internal_ip}
+      DNS=${cc.ip}
 # Force resolv to use DNS for host resolution
   - path: /etc/nsswitch.conf
     content: |
@@ -140,26 +120,26 @@ write_files:
     content: |
       ${id}
 runcmd:
-# Integrate Prometheus node exporter service
-  - systemctl daemon-reload
 # Update resolv.conf with forced DNS server
   - systemctl restart systemd-resolved
-# Start prometheus node exporter
-  - systemctl enable prometheus-node-exporter
-  - systemctl start prometheus-node-exporter
 # Start docker
-  - systemctl enable docker
   - systemctl start docker
+  - systemctl enable docker
+  - docker plugin install --grant-all-permissions elastic/elastic-logging-plugin:8.14.3
+# Override docker logging and restart docker
+  - echo '{"insecure-registries":["${cc.ip}"],"log-driver":"elastic/elastic-logging-plugin:8.14.3","log-opts":{"hosts":"http://${cc.ip}:9200","user":"elastic","password":"${elastic_password}","pipeline":"logs@json-pipeline"}}' > /etc/docker/daemon.json
+  - systemctl restart docker
 # Fix journald not logging entries
   - systemctl restart systemd-journald
 # Set up config directory
   - ln -s /data/${id} /config
-# Set up NFS share
+# Set up NFS share, (Mounting will happen post-install)
   - mkdir /data
   - chown nobody:nogroup /data
-  - echo "${cc.internal_ip}:/data /data nfs defaults 0 0" >> /etc/fstab
-# Mount NFS share
-  - sleep 60 # Wait for CC NFS Server to come up with fingers crossed
-  - mount /data
+  - echo "${cc.ip}:/data /data nfs tcp,ro,nosuid,noexec 0 0" >> /etc/fstab
+  - systemctl daemon-reload # fstab changes require this.
+# Start prometheus node exporter
+  - systemctl start prometheus-node-exporter
+  - systemctl enable prometheus-node-exporter
 # Indicate finish
   - date > /etc/done
