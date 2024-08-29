@@ -17,6 +17,7 @@ malachite-gossip-consensus.workspace = true
 malachite-gossip-mempool.workspace   = true
 malachite-metrics.workspace          = true
 malachite-node.workspace             = true
+malachite-proto.workspace            = true
 malachite-vote.workspace             = true
 
 async-trait        = { workspace = true }

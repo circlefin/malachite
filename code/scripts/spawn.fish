@@ -47,13 +47,20 @@ else
     set build_folder release
 end
 
-# set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "1 MiB"
-# set -x MALACHITE__TEST__TXS_PER_PART 50
-# set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.7
-# set -x MALACHITE__TEST__EXEC_TIME_PER_PART 10ms
+set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "1MB"
+set -x MALACHITE__CONSENSUS__TIMEOUT_PROPOSE "5s"
+set -x MALACHITE__CONSENSUS__TIMEOUT_PREVOTE "3s"
+set -x MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT "3s"
+set -x MALACHITE__CONSENSUS__TIMEOUT_COMMIT "0s"
+set -x MALACHITE__MEMPOOL__MAX_TX_COUNT "1000"
+set -x MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE 0
+set -x MALACHITE__TEST__TX_SIZE "1KB"
+set -x MALACHITE__TEST__TXS_PER_PART 16
+set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.5
+set -x MALACHITE__TEST__EXEC_TIME_PER_TX "100us"
 
 echo "Compiling Malachite..."
-# cargo build --profile $build_profile
+cargo build --profile $build_profile
 
 set session malachite
 tmux kill-session -t $session

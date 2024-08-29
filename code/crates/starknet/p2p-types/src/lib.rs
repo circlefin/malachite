@@ -27,7 +27,7 @@ mod validator_set;
 pub use validator_set::ValidatorSet;
 
 mod proposal_part;
-pub use proposal_part::{ProposalFin, ProposalInit, ProposalMessage, ProposalPart};
+pub use proposal_part::{PartType, ProposalFin, ProposalInit, ProposalPart};
 
 mod block_proof;
 pub use block_proof::BlockProof;
@@ -36,7 +36,7 @@ mod hash;
 pub use hash::{BlockHash, Hash, MessageHash};
 
 mod streaming;
-pub use streaming::{Stream, StreamContent};
+pub use streaming::{StreamContent, StreamMessage};
 
 mod signing;
 

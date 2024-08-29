@@ -10,11 +10,9 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
-malachite-common    = { workspace = true }
-malachite-consensus = { workspace = true }
 malachite-metrics   = { workspace = true }
 
-derive-where       = { workspace = true }
+bytes              = { workspace = true }
 futures            = { workspace = true }
 libp2p             = { workspace = true }
 seahash            = { workspace = true }

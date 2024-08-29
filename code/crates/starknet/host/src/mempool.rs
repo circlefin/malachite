@@ -3,9 +3,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
-use rand::distributions::Uniform;
-use rand::Rng;
-use tracing::{info, trace};
+use rand::RngCore;
+use tracing::{debug, info, trace};
 
 use malachite_actors::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use malachite_actors::util::forward::forward;
@@ -198,7 +197,7 @@ impl Actor for Mempool {
             } => {
                 let txes = generate_and_broadcast_txes(
                     num_txes,
-                    self.test_config.tx_size.as_u64(),
+                    self.test_config.tx_size.as_u64() as usize,
                     &self.mempool_config,
                     state,
                     &self.gossip_mempool,
@@ -231,19 +230,21 @@ impl Actor for Mempool {
 
 fn generate_and_broadcast_txes(
     count: usize,
-    size: u64,
+    size: usize,
     config: &MempoolConfig,
     state: &mut State,
     gossip_mempool: &GossipMempoolRef,
 ) -> Result<Vec<Transaction>, ActorProcessingErr> {
+    debug!("Generating {} transactions of size {} bytes", count, size);
+
     let mut transactions = vec![];
     let mut tx_batch = Transactions::default();
     let mut rng = rand::thread_rng();
 
     for _ in 0..count {
         // Generate transaction
-        let range = Uniform::new(32, 64);
-        let tx_bytes: Vec<u8> = (0..size).map(|_| rng.sample(range)).collect();
+        let mut tx_bytes = vec![0; size];
+        rng.fill_bytes(&mut tx_bytes);
         let tx = Transaction::new(tx_bytes);
 
         // Add transaction to state

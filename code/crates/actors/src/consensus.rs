@@ -1,23 +1,22 @@
 use std::collections::{BTreeSet, VecDeque};
-use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::eyre;
+use libp2p::PeerId;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 use tracing::{error, info, warn};
 
 use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType};
-use malachite_consensus::{Effect, GossipMsg, Resume};
+use malachite_consensus::{Effect, Resume};
 use malachite_driver::Driver;
-use malachite_gossip_consensus::{Channel, Event as GossipEvent};
 use malachite_metrics::Metrics;
 use malachite_node::config::TimeoutConfig;
 use malachite_vote::ThresholdParams;
 
-use crate::gossip_consensus::{GossipConsensusRef, Msg as GossipConsensusMsg};
+use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::forward::forward;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
@@ -50,13 +49,14 @@ pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
 pub enum Msg<Ctx: Context> {
     /// Received an event from the gossip layer
-    GossipEvent(Arc<GossipEvent<Ctx>>),
+    GossipEvent(GossipEvent<Ctx>),
+
     /// A timeout has elapsed
     TimeoutElapsed(TimeoutElapsed<Timeout>),
+
     /// The proposal builder has built a value and can be used in a new proposal consensus message
     ProposeValue(Ctx::Height, Round, Ctx::Value),
-    /// The proposal builder has build a new proposal part, needs to be signed and gossiped by consensus
-    GossipProposalPart(Ctx::ProposalPart),
+
     /// Received and sssembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>),
 }
@@ -105,9 +105,17 @@ impl Timeouts {
 }
 
 pub struct State<Ctx: Context> {
+    /// Scheduler for timers
     timers: Timers<Ctx>,
+
+    /// Timeouts configuration
     timeouts: Timeouts,
+
+    /// The state of the consensus state machine
     consensus: malachite_consensus::State<Ctx>,
+
+    /// The set of peers we are connected to.
+    connected_peers: BTreeSet<PeerId>,
 }
 
 impl<Ctx: Context> State<Ctx> {}
@@ -202,19 +210,95 @@ where
             }
 
             Msg::GossipEvent(event) => {
-                let result = self
-                    .process_msg(
-                        &myself,
-                        state,
-                        InnerMsg::GossipEvent(Arc::unwrap_or_clone(event)),
-                    )
-                    .await;
+                match event {
+                    GossipEvent::Listening(addr) => {
+                        info!("Listening on {addr}");
+                        Ok(())
+                    }
 
-                if let Err(e) = result {
-                    error!("Error when processing GossipEvent message: {e:?}");
+                    GossipEvent::PeerConnected(peer_id) => {
+                        if !state.connected_peers.insert(peer_id) {
+                            // We already saw that peer, ignoring...
+                            return Ok(());
+                        }
+
+                        info!("Connected to peer {peer_id}");
+
+                        self.metrics.connected_peers.inc();
+
+                        if state.connected_peers.len()
+                            == state.consensus.driver.validator_set.count() - 1
+                        {
+                            info!(
+                                "Enough peers ({}) connected to start consensus",
+                                state.connected_peers.len()
+                            );
+
+                            let height = state.consensus.driver.height();
+
+                            let result = self
+                                .process_msg(&myself, state, InnerMsg::StartHeight(height))
+                                .await;
+
+                            if let Err(e) = result {
+                                error!("Error when starting height {height}: {e:?}");
+                            }
+                        }
+
+                        Ok(())
+                    }
+
+                    GossipEvent::PeerDisconnected(peer_id) => {
+                        info!("Disconnected from peer {peer_id}");
+
+                        if state.connected_peers.remove(&peer_id) {
+                            self.metrics.connected_peers.dec();
+
+                            // TODO: pause/stop consensus, if necessary
+                        }
+
+                        Ok(())
+                    }
+
+                    GossipEvent::Vote(from, vote) => {
+                        if let Err(e) = self.process_msg(&myself, state, InnerMsg::Vote(vote)).await
+                        {
+                            error!(%from, "Error when processing vote: {e:?}");
+                        }
+
+                        Ok(())
+                    }
+
+                    GossipEvent::Proposal(from, proposal) => {
+                        if let Err(e) = self
+                            .process_msg(&myself, state, InnerMsg::Proposal(proposal))
+                            .await
+                        {
+                            error!(%from, "Error when processing proposal: {e:?}");
+                        }
+
+                        Ok(())
+                    }
+
+                    GossipEvent::ProposalPart(from, part) => {
+                        self.host
+                            .call_and_forward(
+                                |reply_to| HostMsg::ReceivedProposalPart {
+                                    from,
+                                    part,
+                                    reply_to,
+                                },
+                                &myself,
+                                |value| Msg::ReceivedProposedValue(value),
+                                None,
+                            )
+                            .map_err(|e| {
+                                eyre!("Error when forwarding proposal parts to host: {e:?}")
+                            })?;
+
+                        Ok(())
+                    }
                 }
-
-                Ok(())
             }
 
             Msg::TimeoutElapsed(elapsed) => {
@@ -297,20 +381,6 @@ where
 
                 Ok(())
             }
-
-            Msg::GossipProposalPart(part) => {
-                let signed_part = self.ctx.sign_proposal_part(part);
-                let gossip_msg = GossipConsensusMsg::Broadcast(
-                    Channel::ProposalParts,
-                    GossipMsg::ProposalPart(signed_part),
-                );
-
-                if let Err(e) = self.gossip_consensus.cast(gossip_msg) {
-                    error!("Error when sending proposal part to gossip layer: {e:?}");
-                }
-
-                Ok(())
-            }
         }
     }
 
@@ -330,7 +400,6 @@ where
                 round,
                 timeout_duration,
                 address: self.params.address.clone(),
-                consensus: myself.clone(),
                 reply_to: reply,
             },
             myself,
@@ -352,7 +421,7 @@ where
             height,
             reply_to
         })
-        .map_err(|e| format!("Error at height {height} when waiting for validator set: {e:?}"))?;
+        .map_err(|e| eyre!("Error at height {height} when waiting for validator set: {e:?}"))?;
 
         Ok(validator_set)
     }
@@ -388,6 +457,16 @@ where
                 Ok(Resume::Continue)
             }
 
+            Effect::StartRound(height, round, proposer) => {
+                self.host.cast(HostMsg::StartRound {
+                    height,
+                    round,
+                    proposer,
+                })?;
+
+                Ok(Resume::Continue)
+            }
+
             Effect::VerifySignature(msg, pk) => {
                 use malachite_consensus::ConsensusMsg as Msg;
 
@@ -396,10 +475,6 @@ where
                 let valid = match msg.message {
                     Msg::Vote(v) => self.ctx.verify_signed_vote(&v, &msg.signature, &pk),
                     Msg::Proposal(p) => self.ctx.verify_signed_proposal(&p, &msg.signature, &pk),
-                    Msg::ProposalPart(bp) => {
-                        self.ctx
-                            .verify_signed_proposal_part(&bp, &msg.signature, &pk)
-                    }
                 };
 
                 self.metrics
@@ -411,10 +486,7 @@ where
 
             Effect::Broadcast(gossip_msg) => {
                 self.gossip_consensus
-                    .cast(GossipConsensusMsg::Broadcast(
-                        Channel::Consensus,
-                        gossip_msg,
-                    ))
+                    .cast(GossipConsensusMsg::BroadcastMsg(gossip_msg))
                     .map_err(|e| eyre!("Error when broadcasting gossip message: {e:?}"))?;
 
                 Ok(Resume::Continue)
@@ -422,16 +494,16 @@ where
 
             Effect::GetValue(height, round, timeout) => {
                 let timeout_duration = timeouts.duration_for(timeout.step);
-                if let Err(e) = self.get_value(myself, height, round, timeout_duration) {
-                    error!("Error when asking for value to be built: {e:?}");
-                }
+
+                self.get_value(myself, height, round, timeout_duration)
+                    .map_err(|e| eyre!("Error when asking for value to be built: {e:?}"))?;
 
                 Ok(Resume::Continue)
             }
 
             Effect::GetValidatorSet(height) => {
                 let validator_set = self.get_validator_set(height).await.map_err(|e| {
-                    format!("Error when getting validator set at height {height}: {e:?}")
+                    eyre!("Error when getting validator set at height {height}: {e:?}")
                 })?;
 
                 Ok(Resume::ValidatorSet(height, validator_set))
@@ -454,20 +526,7 @@ where
                         value,
                         commits,
                     })
-                    .map_err(|e| format!("Error when sending decided value to host: {e:?}"))?;
-
-                Ok(Resume::Continue)
-            }
-
-            Effect::ReceivedProposalPart(part) => {
-                self.host
-                    .call_and_forward(
-                        |reply_to| HostMsg::ReceivedProposalPart { part, reply_to },
-                        myself,
-                        |value| Msg::ReceivedProposedValue(value),
-                        None,
-                    )
-                    .map_err(|e| format!("Error when forwarding proposal part to host: {e:?}"))?;
+                    .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
                 Ok(Resume::Continue)
             }
@@ -507,7 +566,6 @@ where
             ctx: self.ctx.clone(),
             driver,
             msg_queue: VecDeque::new(),
-            connected_peers: BTreeSet::new(),
             received_blocks: vec![],
             signed_precommits: Default::default(),
         };
@@ -516,6 +574,7 @@ where
             timers: Timers::new(myself),
             timeouts: Timeouts::new(self.timeout_config),
             consensus: consensus_state,
+            connected_peers: BTreeSet::new(),
         })
     }
 

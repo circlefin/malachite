@@ -1,25 +1,18 @@
 use malachite_common::{self as common, NilOrVal, Round, VoteType, VotingPower};
 use malachite_starknet_p2p_types::{
-    Address, BlockHash, Height, Proposal, ProposalPart, PublicKey, Validator, ValidatorSet, Vote,
+    Address, BlockHash, Height, PartType, Proposal, ProposalPart, PublicKey, Validator,
+    ValidatorSet, Vote,
 };
 
 use crate::mock::context::MockContext;
 
 impl common::ProposalPart<MockContext> for ProposalPart {
-    fn height(&self) -> Height {
-        self.height
+    fn is_first(&self) -> bool {
+        self.part_type() == PartType::Init
     }
 
-    fn round(&self) -> Round {
-        self.round
-    }
-
-    fn sequence(&self) -> u64 {
-        self.sequence
-    }
-
-    fn validator_address(&self) -> &Address {
-        &self.validator
+    fn is_last(&self) -> bool {
+        self.part_type() == PartType::Fin
     }
 }
 

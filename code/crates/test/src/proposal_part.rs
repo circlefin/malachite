@@ -94,6 +94,7 @@ pub struct ProposalPart {
     pub sequence: u64,
     pub content: Arc<Content>,
     pub validator_address: Address,
+    pub fin: bool,
 }
 
 impl ProposalPart {
@@ -103,6 +104,7 @@ impl ProposalPart {
         sequence: u64,
         validator_address: Address,
         content: Content,
+        fin: bool,
     ) -> Self {
         Self {
             height,
@@ -110,6 +112,7 @@ impl ProposalPart {
             sequence,
             content: Arc::new(content),
             validator_address,
+            fin,
         }
     }
 
@@ -127,20 +130,12 @@ impl ProposalPart {
 }
 
 impl malachite_common::ProposalPart<TestContext> for ProposalPart {
-    fn height(&self) -> Height {
-        self.height
+    fn is_first(&self) -> bool {
+        self.sequence == 0
     }
 
-    fn round(&self) -> Round {
-        self.round
-    }
-
-    fn sequence(&self) -> u64 {
-        self.sequence
-    }
-
-    fn validator_address(&self) -> &Address {
-        &self.validator_address
+    fn is_last(&self) -> bool {
+        self.fin
     }
 }
 
@@ -167,6 +162,7 @@ impl Protobuf for ProposalPart {
                     .validator_address
                     .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("validator_address"))?,
             )?,
+            fin: proto.fin,
         })
     }
 
@@ -178,6 +174,7 @@ impl Protobuf for ProposalPart {
             sequence: self.sequence,
             content: Some(self.content.to_any()?),
             validator_address: Some(self.validator_address.to_proto()?),
+            fin: self.fin,
         })
     }
 }

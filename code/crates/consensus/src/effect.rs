@@ -35,6 +35,10 @@ where
     /// Resume with: Resume::Continue
     ScheduleTimeout(Timeout),
 
+    /// Consensus is starting a new round with the given proposer
+    /// Resume with: Resume::Continue
+    StartRound(Ctx::Height, Round, Ctx::Address),
+
     /// Broadcast a message
     /// Resume with: Resume::Continue
     Broadcast(GossipMsg<Ctx>),
@@ -55,10 +59,6 @@ where
         value: Ctx::Value,
         commits: Vec<SignedMessage<Ctx, Ctx::Vote>>,
     },
-
-    /// A ProposalPart was received via the gossip layer
-    /// Resume with: Resume::Continue
-    ReceivedProposalPart(Ctx::ProposalPart),
 
     /// Verify a signature
     /// Resume with: Resume::SignatureValidity(valid)

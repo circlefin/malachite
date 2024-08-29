@@ -1,7 +1,7 @@
 use malachite_proto::Protobuf;
 use malachite_starknet_p2p_proto as p2p_proto;
 
-pub struct Stream {
+pub struct StreamMessage {
     /// Receivers identify streams by (sender, stream_id).
     /// This means each node can allocate stream_ids independently
     /// and that many streams can be sent on a single network topic.
@@ -21,7 +21,7 @@ pub enum StreamContent {
     Fin(bool),
 }
 
-impl Protobuf for Stream {
+impl Protobuf for StreamMessage {
     type Proto = p2p_proto::Stream;
 
     #[cfg_attr(coverage_nightly, coverage(off))]
