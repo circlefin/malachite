@@ -71,6 +71,7 @@ where
     pub decision: Option<Ctx::Value>,
 
     /// Buffer with traces of tendermint algorithm lines,
+    #[derive_where(skip)]
     pub algorithm_traces: Vec<String>,
 }
 
