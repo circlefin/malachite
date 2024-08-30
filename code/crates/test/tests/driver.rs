@@ -478,6 +478,7 @@ fn driver_steps_not_proposer_valid() {
                     value,
                     round: Round::new(0),
                 }),
+                decision: Some(value),
                 ..Default::default()
             },
         },
