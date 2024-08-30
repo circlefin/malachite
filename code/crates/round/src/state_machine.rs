@@ -101,7 +101,8 @@ where
         (Step::Unstarted, Input::NewRound(round)) if info.is_proposer() => {
             debug_trace!(state, state.height);
             debug_trace!(state, round);
-            debug_trace!(state,
+            debug_trace!(
+                state,
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .expect("failed to get time")
@@ -121,7 +122,8 @@ where
         (Step::Unstarted, Input::NewRound(round)) => {
             debug_trace!(state, state.height);
             debug_trace!(state, round);
-            debug_trace!(state,
+            debug_trace!(
+                state,
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .expect("failed to get time")
@@ -179,14 +181,20 @@ where
         // L57
         // We are the proposer.
         (Step::Propose, Input::TimeoutPropose) if this_round && info.is_proposer() => {
-            debug_trace!(state, "L59 - proposeTimeout expired while waiting for v: prevote nil");
+            debug_trace!(
+                state,
+                "L59 - proposeTimeout expired while waiting for v: prevote nil"
+            );
             prevote_nil(state, info.address)
         }
 
         // L57
         // We are not the proposer.
         (Step::Propose, Input::TimeoutPropose) if this_round => {
-            debug_trace!(state, "L59 - proposeTimeout expired while waiting for proposal: prevote nil");
+            debug_trace!(
+                state,
+                "L59 - proposeTimeout expired while waiting for proposal: prevote nil"
+            );
             prevote_nil(state, info.address)
         }
 
@@ -210,7 +218,10 @@ where
         // L36/L37
         // NOTE: Only executed the first time, as the votekeeper will only emit this threshold once.
         (Step::Prevote, Input::ProposalAndPolkaCurrent(proposal)) if this_round => {
-            debug_trace!(state, "L36 - valid v and step == prevote: set locked, valid");
+            debug_trace!(
+                state,
+                "L36 - valid v and step == prevote: set locked, valid"
+            );
             precommit(state, info.address, proposal)
         }
 
@@ -360,15 +371,24 @@ where
     let proposed = proposal.value().id();
     let value = match &state.locked {
         Some(locked) if locked.value.id() == proposed => {
-            debug_trace!(state, "L24 - prevote v: valid(v) and lockedValue = v".to_string());
+            debug_trace!(
+                state,
+                "L24 - prevote v: valid(v) and lockedValue = v".to_string()
+            );
             NilOrVal::Val(proposed)
         } // already locked on value
         Some(_) => {
-            debug_trace!(state, "L26 - prevote nil: valid(v) and lockedValue != v".to_string());
+            debug_trace!(
+                state,
+                "L26 - prevote nil: valid(v) and lockedValue != v".to_string()
+            );
             NilOrVal::Nil
         } // locked on a different value
         None => {
-            debug_trace!(state, "L24 - prevote v: valid(v) and lockedRound == -1".to_string());
+            debug_trace!(
+                state,
+                "L24 - prevote v: valid(v) and lockedRound == -1".to_string()
+            );
             NilOrVal::Val(proposed)
         } // not locked, prevote the value
     };
@@ -396,20 +416,31 @@ where
     let proposed = proposal.value().id();
     let value = match &state.locked {
         Some(locked) if locked.round <= vr => {
-            debug_trace!(state, "L30 - prevote v: valid(v) and 0 <= lockedRound <= vr".to_string());
+            debug_trace!(
+                state,
+                "L30 - prevote v: valid(v) and 0 <= lockedRound <= vr".to_string()
+            );
             NilOrVal::Val(proposed)
         } // locked on lower or equal round, maybe on different value
         Some(locked) if locked.value.id() == proposed => {
-            debug_trace!(state, "L30 - prevote v: valid(v) and lockedValue = v".to_string());
+            debug_trace!(
+                state,
+                "L30 - prevote v: valid(v) and lockedValue = v".to_string()
+            );
             NilOrVal::Val(proposed)
         } // already locked same value
         Some(_) => {
-            debug_trace!(state, "L32 - prevote nil: valid(v) and lockedRound > vr and lockedValue != v".to_string(),
+            debug_trace!(
+                state,
+                "L32 - prevote nil: valid(v) and lockedRound > vr and lockedValue != v".to_string(),
             );
             NilOrVal::Nil
         } // we're locked on a different value in a higher round, prevote nil
         None => {
-            debug_trace!(state, "L30 - prevote v: valid(v) and lockedRound == -1".to_string());
+            debug_trace!(
+                state,
+                "L30 - prevote v: valid(v) and lockedRound == -1".to_string()
+            );
             NilOrVal::Val(proposed)
         } // not locked, prevote the value
     };
