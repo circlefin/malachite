@@ -12,7 +12,8 @@ use tracing::{error, error_span, Instrument};
 
 use malachite_gossip_mempool::handle::CtrlHandle;
 use malachite_gossip_mempool::types::MempoolTransactionBatch;
-use malachite_gossip_mempool::{Channel, Config, Event, NetworkMsg, PeerId};
+use malachite_gossip_mempool::Channel::Mempool;
+use malachite_gossip_mempool::{Config, Event, NetworkMsg, PeerId};
 use malachite_metrics::SharedRegistry;
 
 pub type GossipMempoolRef = ActorRef<Msg>;
@@ -63,7 +64,7 @@ pub enum Msg {
     Subscribe(ActorRef<Arc<Event>>),
 
     /// Broadcast a message to all peers
-    Broadcast(Channel, MempoolTransactionBatch),
+    BroadcastMsg(MempoolTransactionBatch),
 
     /// Request the number of connected peers
     GetState { reply: RpcReplyPort<usize> },
@@ -135,10 +136,10 @@ impl Actor for GossipMempool {
 
         match msg {
             Msg::Subscribe(subscriber) => subscribers.push(subscriber),
-            Msg::Broadcast(channel, batch) => {
+            Msg::BroadcastMsg(batch) => {
                 match NetworkMsg::TransactionBatch(batch).to_network_bytes() {
                     Ok(bytes) => {
-                        ctrl_handle.broadcast(channel, bytes).await?;
+                        ctrl_handle.broadcast(Mempool, bytes).await?;
                     }
                     Err(e) => {
                         error!("Failed to serialize transaction batch: {e}");

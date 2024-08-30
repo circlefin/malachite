@@ -20,7 +20,9 @@ pub struct CtrlHandle {
 
 impl CtrlHandle {
     pub async fn broadcast(&self, channel: Channel, data: Vec<u8>) -> Result<(), BoxError> {
-        self.tx_ctrl.send(CtrlMsg::Broadcast(channel, data)).await?;
+        self.tx_ctrl
+            .send(CtrlMsg::BroadcastMsg(channel, data))
+            .await?;
         Ok(())
     }
 
@@ -51,7 +53,7 @@ impl Handle {
         tx_ctrl: mpsc::Sender<CtrlMsg>,
         rx_event: mpsc::Receiver<Event>,
         task_handle: task::JoinHandle<()>,
-    ) -> Handle {
+    ) -> Self {
         Self {
             recv: RecvHandle { rx_event },
             ctrl: CtrlHandle {

@@ -9,7 +9,7 @@ use tracing::{debug, info, trace};
 use malachite_actors::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use malachite_actors::util::forward::forward;
 use malachite_gossip_mempool::types::MempoolTransactionBatch;
-use malachite_gossip_mempool::{Channel, Event as GossipEvent, NetworkMsg, PeerId};
+use malachite_gossip_mempool::{Event as GossipEvent, NetworkMsg, PeerId};
 use malachite_node::config::{MempoolConfig, TestConfig};
 use malachite_proto::Protobuf;
 
@@ -111,7 +111,7 @@ impl Mempool {
             GossipEvent::PeerDisconnected(peer_id) => {
                 info!("Disconnected from peer {peer_id}");
             }
-            GossipEvent::Message(from, msg) => {
+            GossipEvent::Message(_channel, from, _msg_id, msg) => {
                 trace!(%from, "Received message of size {} bytes", msg.size_bytes());
 
                 trace!(%from, "Received message");
@@ -266,7 +266,7 @@ fn generate_and_broadcast_txes(
             };
 
             let mempool_batch = MempoolTransactionBatch::new(tx_batch_any);
-            gossip_mempool.cast(GossipMempoolMsg::Broadcast(Channel::Mempool, mempool_batch))?;
+            gossip_mempool.cast(GossipMempoolMsg::BroadcastMsg(mempool_batch))?;
         }
 
         transactions.push(tx);
