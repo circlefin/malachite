@@ -10,10 +10,9 @@ use tracing::{error, info, Instrument};
 
 use malachite_common::VotingPower;
 use malachite_node::config::{
-    Config as NodeConfig, LoggingConfig, PubSubProtocol, TransportProtocol,
+    Config as NodeConfig, Config, LoggingConfig, PubSubProtocol, TestConfig, TransportProtocol,
 };
 use malachite_starknet_app::spawn::spawn_node_actor;
-
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
 
 pub use malachite_node::config::App;
@@ -46,6 +45,22 @@ impl fmt::Display for Expected {
             Expected::AtMost(n) => write!(f, "at most {n}"),
             Expected::LessThan(n) => write!(f, "less than {n}"),
             Expected::GreaterThan(n) => write!(f, "greater than {n}"),
+        }
+    }
+}
+
+pub struct TestParams {
+    protocol: PubSubProtocol,
+    block_size: u64,
+    tx_size: u64,
+}
+
+impl TestParams {
+    pub fn new(protocol: PubSubProtocol, block_size: u64, tx_size: u64) -> Self {
+        Self {
+            protocol,
+            block_size,
+            tx_size,
         }
     }
 }
@@ -85,12 +100,60 @@ impl<const N: usize> Test<N> {
         voting_powers
     }
 
+    pub fn generate_default_configs(&self, app: App) -> Vec<Config> {
+        let mut configs = vec![];
+        for i in 0..2 {
+            let default_config = make_node_config(self, i, app);
+            configs.push(default_config)
+        }
+        configs
+    }
+
+    pub fn generate_custom_configs(&self, app: App, test_params: TestParams) -> Vec<Config> {
+        let mut configs = vec![];
+        for i in 0..2 {
+            let node_config = make_node_config(self, i, app);
+            let modified_config = Config {
+                mempool: MempoolConfig {
+                    gossip_batch_size: 0,
+                    ..node_config.mempool
+                },
+                consensus: ConsensusConfig {
+                    max_block_size: ByteSize::b(test_params.block_size),
+                    p2p: P2pConfig {
+                        protocol: test_params.protocol,
+                        ..node_config.consensus.p2p
+                    },
+                    ..node_config.consensus
+                },
+                test: TestConfig {
+                    tx_size: ByteSize::b(test_params.tx_size),
+                    txs_per_part: 1,
+                    ..node_config.test
+                },
+                ..node_config
+            };
+            configs.push(modified_config)
+        }
+        configs
+    }
+
     pub async fn run(self, app: App) {
+        let node_configs = self.generate_default_configs(app);
+        self.run_with_config(&node_configs).await
+    }
+
+    pub async fn run_with_custom_config(self, app: App, test_params: TestParams) {
+        let node_configs = self.generate_custom_configs(app, test_params);
+        self.run_with_config(&node_configs).await
+    }
+
+    pub async fn run_with_config(self, configs: &[Config]) {
         init_logging();
 
         let mut handles = Vec::with_capacity(N);
 
-        for i in 0..N {
+        for (i, config) in configs.iter().enumerate().take(N) {
             if self.nodes[i].faults.contains(&Fault::NoStart) {
                 continue;
             }
@@ -98,10 +161,8 @@ impl<const N: usize> Test<N> {
             let (_, private_key) = &self.vals_and_keys[i];
             let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
 
-            let node_config = make_node_config(&self, i, app);
-
             let node = tokio::spawn(spawn_node_actor(
-                node_config,
+                config.clone(),
                 self.validator_set.clone(),
                 *private_key,
                 Some(tx_decision),
