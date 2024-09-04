@@ -214,7 +214,7 @@ impl Default for TestConfig {
         Self {
             tx_size: ByteSize::kib(1),
             txs_per_part: 256,
-            time_allowance_factor: 0.3,
+            time_allowance_factor: 0.5,
             exec_time_per_tx: Duration::from_millis(1),
         }
     }
