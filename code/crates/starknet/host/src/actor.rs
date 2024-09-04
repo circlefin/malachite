@@ -331,18 +331,6 @@ impl Actor for StarknetHost {
                 Ok(())
             }
 
-            HostMsg::GetReceivedValue {
-                height,
-                round,
-                reply_to,
-            } => {
-                let proposal_parts = state.part_store.all_parts(height, round);
-                let proposed_value = self.build_value_from_parts(&proposal_parts, height, round);
-                reply_to.send(proposed_value)?;
-
-                Ok(())
-            }
-
             HostMsg::GetValidatorSet { height, reply_to } => {
                 if let Some(validators) = self.host.validators(height).await {
                     reply_to.send(ValidatorSet::new(validators))?;
