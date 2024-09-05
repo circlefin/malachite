@@ -1,15 +1,15 @@
 127.0.0.1       localhost
-${cc.ip}        ${cc.name}
-${cc.internal_ip}        l-${cc.name}
+${cc.ip}        ${cc.name} ${cc.name}.testnet
+${cc.internal_ip}        l-${cc.name} l-${cc.name}.testnet
 %{~ for i, n in nodes }
-${n.ip}        node${i}
+${n.ip}        node${i} node${i}.testnet
 %{~ endfor }
 %{~ for i,n in nodes }
-${n.internal_ip}        l-node${i}
+${n.internal_ip}        l-node${i} l-node${i}.testnet
 %{~ endfor }
 %{~ for n in nodes }
-${n.ip}        ${n.name}
+${n.ip}        ${n.name} ${n.name}.testnet
 %{~ endfor }
 %{~ for n in nodes }
-${n.internal_ip}        l-${n.name}
+${n.internal_ip}        l-${n.name} l-${n.name}.testnet
 %{~ endfor }
