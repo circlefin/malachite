@@ -56,7 +56,7 @@ run runToDecision =
 // testedVal has moved on to round 1
     .expect(system.get(testedVal).es.cs.round == 1) 
 
-// at this testedVal's progess can only be ensured by receiving certificates
+// at this testedVal's progress can only be ensured by receiving certificates
 // so now we deliver the certificates and the proposal
 
     .then(deliverSomeCertificate(testedVal))
