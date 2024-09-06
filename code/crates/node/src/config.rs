@@ -156,7 +156,7 @@ impl TimeoutConfig {
 impl Default for TimeoutConfig {
     fn default() -> Self {
         Self {
-            timeout_propose: Duration::from_secs(5),
+            timeout_propose: Duration::from_secs(3),
             timeout_propose_delta: Duration::from_millis(500),
             timeout_prevote: Duration::from_secs(1),
             timeout_prevote_delta: Duration::from_millis(500),
