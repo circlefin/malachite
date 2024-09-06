@@ -359,13 +359,31 @@ pure def countVotes (votes: Set[Vote], v: ValueId, valset: ValidatorSet) : Weigh
 pure def voteCountFromCertificate (certificate: Set[Vote], oldVotes: Set[Vote], valset: ValidatorSet) : VoteCount =
     val newVotes = certificate.union(oldVotes)
     val values = newVotes.map(x => x.valueId)
-    //val countedVotes = newVotes.filter(v => v.valueId == certificate.certificateValue())
-
-    {   totalWeight: 1,
-        valuesWeights: Map(certificateValue(certificate) -> 1),
+    {   totalWeight: valset.totalWeight(),
+        valuesWeights: values.mapBy(x => newVotes.countVotes(x, valset)),
         votesAddresses: newVotes.map(x => x.srcAddress),
-        receivedVotes: certificate,
+        receivedVotes: newVotes,
     }
+
+run voteCountFromCertificateTest =
+    val old = Set(
+        { height: 0, round: 0, srcAddress: "v2", valueId: Val("blue"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v3", valueId: Val("red"), voteType: Prevote }
+    )
+    val cert = Set(
+        { height: 0, round: 0, srcAddress: "v2", valueId: Val("red"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v3", valueId: Val("red"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v4", valueId: Val("red"), voteType: Prevote }
+    )
+    val validatorSet = Set("v1", "v2", "v3", "v4").mapBy(x => 1)
+    val res = voteCountFromCertificate(cert, old, validatorSet)
+    assert(all{
+        res.totalWeight == 4, 
+        res.valuesWeights.get(Val("red")) == 3,
+        res.valuesWeights.get(Val("blue")) == 1,
+        res.votesAddresses == Set("v2", "v3", "v4"),
+        res.receivedVotes == old.union(cert),
+    })
 
 pure def roundVotesAndEvidenceFromCertificate (certificate: Set[Vote], roundVotes: RoundVotes, valset: ValidatorSet) : (RoundVotes, Set[Set[Vote]]) = 
     // compute evidence
