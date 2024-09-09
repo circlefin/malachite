@@ -68,8 +68,43 @@ pub struct Config {
 pub struct P2pConfig {
     // Address to listen for incoming connections
     pub listen_addr: Multiaddr,
+
     /// List of nodes to keep persistent connections to
     pub persistent_peers: Vec<Multiaddr>,
+
+    /// Transport protocol to use
+    pub transport: TransportProtocol,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TransportProtocol {
+    #[default]
+    Tcp,
+    Quic,
+}
+
+impl TransportProtocol {
+    pub fn multiaddr(&self, host: &str, port: usize) -> Multiaddr {
+        match self {
+            Self::Tcp => format!("/ip4/{host}/tcp/{port}").parse().unwrap(),
+            Self::Quic => format!("/ip4/{host}/udp/{port}/quic-v1").parse().unwrap(),
+        }
+    }
+}
+
+impl FromStr for TransportProtocol {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "tcp" => Ok(Self::Tcp),
+            "quic" => Ok(Self::Quic),
+            e => Err(format!(
+                "unknown transport protocol: {e}, available: tcp, quic"
+            )),
+        }
+    }
 }
 
 /// Mempool configuration options

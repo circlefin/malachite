@@ -14,7 +14,7 @@ use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
-use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig};
+use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig, TransportProtocol};
 use malachite_starknet_host::actor::StarknetHost;
 use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use malachite_starknet_host::mock::context::MockContext;
@@ -127,6 +127,10 @@ async fn spawn_gossip_consensus_actor(
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
         idle_connection_timeout: Duration::from_secs(60),
+        transport: match cfg.consensus.p2p.transport {
+            TransportProtocol::Tcp => malachite_gossip_consensus::TransportProtocol::Tcp,
+            TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
+        },
     };
 
     let keypair = make_keypair(private_key);
@@ -163,6 +167,10 @@ async fn spawn_gossip_mempool_actor(
         listen_addr: cfg.mempool.p2p.listen_addr.clone(),
         persistent_peers: cfg.mempool.p2p.persistent_peers.clone(),
         idle_connection_timeout: Duration::from_secs(60),
+        transport: match cfg.mempool.p2p.transport {
+            TransportProtocol::Tcp => malachite_gossip_mempool::TransportProtocol::Tcp,
+            TransportProtocol::Quic => malachite_gossip_mempool::TransportProtocol::Quic,
+        },
     };
 
     let keypair = make_keypair(private_key);

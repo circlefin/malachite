@@ -9,7 +9,7 @@ use tokio::time::{sleep, Duration};
 use tracing::{error, info, Instrument};
 
 use malachite_common::VotingPower;
-use malachite_node::config::{Config as NodeConfig, LoggingConfig};
+use malachite_node::config::{Config as NodeConfig, LoggingConfig, TransportProtocol};
 use malachite_starknet_app::spawn::spawn_node_actor;
 
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
@@ -278,6 +278,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                         .unwrap()
                     })
                     .collect(),
+                transport: TransportProtocol::Quic,
             },
         },
         mempool: MempoolConfig {
@@ -293,6 +294,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                             .unwrap()
                     })
                     .collect(),
+                transport: TransportProtocol::Quic,
             },
             max_tx_count: 10000,
             gossip_batch_size: 100,
