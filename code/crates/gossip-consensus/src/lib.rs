@@ -131,7 +131,7 @@ pub async fn spawn(
         match config.transport {
             TransportProtocol::Tcp => Ok(builder
                 .with_tcp(
-                    libp2p::tcp::Config::new().nodelay(true),
+                    libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
                     libp2p::noise::Config::new,
                     libp2p::yamux::Config::default,
                 )?
