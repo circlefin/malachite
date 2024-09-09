@@ -17,11 +17,11 @@
 # ok_cc - check if the CC server has all services installed
 # deploy_cc - build the local source code into a docker image on the cc server and push it to the cc registry
 # setup_config - create configuration on the cc server
-# done-pull - pull the node image on all the node servers.  Accepts list of IDs or "all". (example: dnode-pull 0 1 2)
-# dnode-run - run the application on a node server. Accepts list of IDs or "all". (example: dnode-run 0 1 2)
-# dnode-log - get the logs of the application from a node server (example: dnode-log 0 -f)
-# dnode-stop - stop the application on a node server. Accepts list of IDs or "all". (example: dnode-stop 0 2)
-# dnode-rm - remove node container from server. Accepts list of IDs or "all". (example: dnode-rm 0 1 2)
+# done-pull - pull the node image on all the node servers.  Accepts list of IDs or "all". (example: d_pull 0 1 2)
+# d_run - run the application on a node server. Accepts list of IDs or "all". (example: d_run 0 1 2)
+# d_log - get the logs of the application from a node server (example: d_log 0 -f)
+# d_stop - stop the application on a node server. Accepts list of IDs or "all". (example: d_stop 0 2)
+# d_rm - remove node container from server. Accepts list of IDs or "all". (example: d_rm 0 1 2)
 # cheat_sheet - get some help on the order of commands to run
 # fetch_dashboard - fetch the dashboard graphs from Grafana (example: fetch_dashboard now-30m now-15m)
 # get_prometheus_data - create a compressed prometheus data file (and download it from the cc server)
@@ -39,13 +39,17 @@ export PSSH_V="-v"
 export MALACHITE_DIR="$(dirname "$(dirname "${path}")")"
 export IS_CC=0
 
-alias ssh-cc="ssh -A -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@${cc.ip}"
+alias ssh-cc="ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@${cc.ip}"
 %{~ for i,n in nodes }
-alias ssh-node${i}="ssh -A -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@${n.ip}"
+alias ssh-node${i}="ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@${n.ip}"
 %{~ endfor }
 
 xssh() {
-  pssh -l root -i $PSSH_V -O LogLevel=ERROR -O StrictHostKeyChecking=no -O UserKnownHostsFile=/dev/null -O GlobalKnownHostsFile=/dev/null -p $PSSH_P -t $PSSH_T -H "$PSSH_H" "$@"
+  if _is_cc; then
+    pssh -i $PSSH_V -p $PSSH_P -t $PSSH_T -H "$PSSH_H" "$@"
+  else
+    pssh -l root -O LogLevel=ERROR -O StrictHostKeyChecking=no -O UserKnownHostsFile=/dev/null -O GlobalKnownHostsFile=/dev/null -i $PSSH_V -p $PSSH_P -t $PSSH_T -H "$PSSH_H" "$@"
+  fi
 }
 
 get_ip() {
@@ -88,24 +92,24 @@ deploy_cc() {
 
 setup_config() {
   if _is_cc; then
-    docker run -d --pull always --dns $CANDC -v /data:/data -e RUST_LOG $CANDC/node --home /data testnet --nodes "$D_N" --deterministic
+    rm -r /data/*
+    docker run --pull always --dns $CANDC --mount type=bind,source=/data,target=/data -e RUST_LOG $CANDC/node --home /data testnet --nodes "$D_N" --deterministic
     _change_config all
-    _change_test_du_jour
     _create_hostname_links
   else
-    ssh -A -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$CANDC "source /etc/profile.d/commands.sh && docker run -d --pull always --dns $CANDC -v /data:/data -e RUST_LOG $CANDC/node --home /data testnet --nodes $D_N --deterministic && _change_config all && _change_test_du_jour && _create_hostname_links"
+    ssh-cc "source /etc/profile.d/commands.sh && setup_config"
   fi
 }
 
-dnode-pull() {
+d_pull() {
   PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker pull $CANDC/node
 }
 
-dnode-run() {
-  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --dns $CANDC -v /data:/data -v /config:/config -e RUST_LOG $CANDC/node --home /config start
+d_run() {
+  PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker run -d -p 27000:27000/udp -p 28000:28000/udp -p 9000:9000/tcp --name node --cap-add=NET_ADMIN --dns $CANDC --mount type=bind,source=/data,target=/data --mount type=bind,source=/config,target=/config -e RUST_LOG $CANDC/node --home /config start
 }
 
-dnode-log() {
+d_log() {
   IP="$(get_ip "$1")"
   F=""
   if [ "$${1:-}" = "-f" ]; then
@@ -119,11 +123,11 @@ dnode-log() {
   ssh -A -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$IP docker logs $F node
 }
 
-dnode-stop() {
+d_stop() {
   PSSH_H="$(_parse_multiple_hosts "$@")" xssh docker stop node
 }
 
-dnode-rm() {
+d_rm() {
   PSSH_H="$(_parse_multiple_hosts "$@")" xssh "docker stop node 2> /dev/null; docker rm node"
 }
 
@@ -132,13 +136,13 @@ cat <<EOF
 deploy_cc
 ssh-cc
 setup_config
-dnode-pull all
-dnode-run all
+d_pull all
+d_run all
 (wait for data)
-dnode-stop all
+d_stop all
 fetch_dashboard
 get_prometheus_data
-dnode-rm all
+d_rm all
 _reset_prometheus_db
 EOF
 }
@@ -225,22 +229,6 @@ _keyscan_servers() {
 %{~ endfor }
 }
 
-#_deploy_sync_code() {
-#  rsync -avz --exclude target "$MALACHITE_DIR/code" "root@$${CANDC}:/root/malachite/"
-#}
-
-#_deploy_sync_qa() {
-#  rsync -avz --exclude terraform --exclude viewer "$MALACHITE_DIR/qa" "root@$${CANDC}:/root/malachite/"
-#}
-
-#_deploy_build() {
-#  if _is_cc; then
-#    docker build --push -t cc.testnet/node --build-context code="$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
-#  else
-#    ssh-cc docker build --push -t cc.testnet/node --build-context code="$MALACHITE_DIR/code" "$MALACHITE_DIR/qa/docker"
-#  fi
-#}
-
 _compose_persistent_peers() {
   skip=$${1:-10000}
   port=$${2:-27000}
@@ -268,10 +256,14 @@ _change_config() {
       "moniker=test-$i" \
       "consensus.p2p.listen_addr=/ip4/0.0.0.0/udp/27000/quic-v1" \
       "mempool.p2p.listen_addr=/ip4/0.0.0.0/udp/28000/quic-v1" \
-      "metrics.listen_addr=0.0.0.0:9000" && \
+      "metrics.listen_addr=0.0.0.0:9000" \
+      "runtime.flavor=multi_threaded" \
+      "logging.log_format=json" && \
     sconfig "$file" -t stringSlice \
       "consensus.p2p.persistent_peers=$(_compose_persistent_peers $i)" \
-      "mempool.p2p.persistent_peers=$(_compose_persistent_peers $i 28000)"
+      "mempool.p2p.persistent_peers=$(_compose_persistent_peers $i 28000)" && \
+    sconfig "$file" -t int \
+      "runtime.worker_threads=0"
   done
 }
 
@@ -308,22 +300,6 @@ _parse_multiple_hosts() {
     done
   fi
   echo "$PSSH_X"
-}
-
-_change_test_du_jour() {
-  _change_one_config_entry mempool.gossip_batch_size=0
-  _change_one_config_entry test.time_allowance_factor=0.5
-  _change_one_config_entry runtime.flavor=multi_threaded
-  _change_one_config_entry -t int runtime.worker_threads=0
-  _change_one_config_entry logging.log_format=json
-  # Minimize block size
-  _change_one_config_entry test.txs_per_part=1
-  _change_one_config_entry consensus.max_block_size=1KiB
-  _change_one_config_entry test.tx_size=1KiB
-  _change_one_config_entry test.txs_per_part=1
-  # Allow far-away nodes to keep in sync
-  _change_one_config_entry consensus.timeout_prevote=6s
-  _change_one_config_entry consensus.timeout_precommit=6s
 }
 
 _print_hosts() {

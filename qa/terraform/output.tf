@@ -5,8 +5,8 @@ output "ssh-cc" {
 output "next_steps" {
   value = <<EOT
 source commands.sh
-ok_cc
 deploy_cc
+ssh-cc
 cheat_sheet
 EOT
 }
@@ -17,8 +17,4 @@ output grafana_url {
 
 output elastic_url {
   value = "http://${digitalocean_droplet.cc.ipv4_address}:5601"
-}
-
-output elastic_user_password {
-  value = random_string.elastic_password.result
 }

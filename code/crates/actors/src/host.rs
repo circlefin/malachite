@@ -56,13 +56,6 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },
 
-    /// Retrieve a block/value for which all parts have been received
-    GetReceivedValue {
-        height: Ctx::Height,
-        round: Round,
-        reply_to: RpcReplyPort<Option<ProposedValue<Ctx>>>,
-    },
-
     /// Get the validator set at a given height
     GetValidatorSet {
         height: Ctx::Height,

@@ -14,13 +14,13 @@ resource "digitalocean_droplet" "ams3" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
-    elastic_password = random_string.elastic_password.result
+    elastic_password = random_password.elastic_password.result
   })
 }
 
 resource terraform_data ams3-done {
   triggers_replace = [
-    terraform_data.cc-done.id,
+    terraform_data.cc-nfs.id,
     digitalocean_droplet.ams3[*].id
   ]
 
@@ -53,13 +53,13 @@ resource "digitalocean_droplet" "blr1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
-    elastic_password = random_string.elastic_password.result
+    elastic_password = random_password.elastic_password.result
   })
 }
 
 resource terraform_data blr1-done {
   triggers_replace = [
-    terraform_data.cc-done.id,
+    terraform_data.cc-nfs.id,
     digitalocean_droplet.blr1[*].id
   ]
 
@@ -92,13 +92,13 @@ resource "digitalocean_droplet" "fra1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
-    elastic_password = random_string.elastic_password.result
+    elastic_password = random_password.elastic_password.result
   })
 }
 
 resource terraform_data fra1-done {
   triggers_replace = [
-    terraform_data.cc-done.id,
+    terraform_data.cc-nfs.id,
     digitalocean_droplet.fra1[*].id
   ]
 
@@ -131,13 +131,13 @@ resource "digitalocean_droplet" "lon1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
-    elastic_password = random_string.elastic_password.result
+    elastic_password = random_password.elastic_password.result
   })
 }
 
 resource terraform_data lon1-done {
   triggers_replace = [
-    terraform_data.cc-done.id,
+    terraform_data.cc-nfs.id,
     digitalocean_droplet.lon1[*].id
   ]
 
@@ -170,13 +170,13 @@ resource "digitalocean_droplet" "nyc1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
-    elastic_password = random_string.elastic_password.result
+    elastic_password = random_password.elastic_password.result
   })
 }
 
 resource terraform_data nyc1-done {
   triggers_replace = [
-    terraform_data.cc-done.id,
+    terraform_data.cc-nfs.id,
     digitalocean_droplet.nyc1[*].id
   ]
 
@@ -209,13 +209,13 @@ resource "digitalocean_droplet" "nyc3" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
-    elastic_password = random_string.elastic_password.result
+    elastic_password = random_password.elastic_password.result
   })
 }
 
 resource terraform_data nyc3-done {
   triggers_replace = [
-    terraform_data.cc-done.id,
+    terraform_data.cc-nfs.id,
     digitalocean_droplet.nyc3[*].id
   ]
 
@@ -248,13 +248,13 @@ resource "digitalocean_droplet" "sfo2" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
-    elastic_password = random_string.elastic_password.result
+    elastic_password = random_password.elastic_password.result
   })
 }
 
 resource terraform_data sfo2-done {
   triggers_replace = [
-    terraform_data.cc-done.id,
+    terraform_data.cc-nfs.id,
     digitalocean_droplet.sfo2[*].id
   ]
 
@@ -287,13 +287,13 @@ resource "digitalocean_droplet" "sfo3" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
-    elastic_password = random_string.elastic_password.result
+    elastic_password = random_password.elastic_password.result
   })
 }
 
 resource terraform_data sfo3-done {
   triggers_replace = [
-    terraform_data.cc-done.id,
+    terraform_data.cc-nfs.id,
     digitalocean_droplet.sfo3[*].id
   ]
 
@@ -326,13 +326,13 @@ resource "digitalocean_droplet" "sgp1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
-    elastic_password = random_string.elastic_password.result
+    elastic_password = random_password.elastic_password.result
   })
 }
 
 resource terraform_data sgp1-done {
   triggers_replace = [
-    terraform_data.cc-done.id,
+    terraform_data.cc-nfs.id,
     digitalocean_droplet.sgp1[*].id
   ]
 
@@ -365,13 +365,13 @@ resource "digitalocean_droplet" "syd1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
-    elastic_password = random_string.elastic_password.result
+    elastic_password = random_password.elastic_password.result
   })
 }
 
 resource terraform_data syd1-done {
   triggers_replace = [
-    terraform_data.cc-done.id,
+    terraform_data.cc-nfs.id,
     digitalocean_droplet.syd1[*].id
   ]
 
@@ -404,13 +404,13 @@ resource "digitalocean_droplet" "tor1" {
       ip          = digitalocean_droplet.cc.ipv4_address
       internal_ip = digitalocean_droplet.cc.ipv4_address_private
     }
-    elastic_password = random_string.elastic_password.result
+    elastic_password = random_password.elastic_password.result
   })
 }
 
 resource terraform_data tor1-done {
   triggers_replace = [
-    terraform_data.cc-done.id,
+    terraform_data.cc-nfs.id,
     digitalocean_droplet.tor1[*].id
   ]
 
