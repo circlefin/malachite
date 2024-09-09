@@ -69,7 +69,7 @@ timeout_commit = "0s"
 #######################################################
 [consensus.p2p]
 # Address to listen for incoming connections
-listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
+listen_addr = "/ip4/0.0.0.0/tcp/0"
 
 # List of nodes to keep persistent connections to
 persistent_peers = []
@@ -97,7 +97,7 @@ gossip_batch_size = 0
 #######################################################
 [mempool.p2p]
 # Address to listen for incoming connections
-listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
+listen_addr = "/ip4/0.0.0.0/tcp/0"
 
 # List of nodes to keep persistent connections to
 persistent_peers = []
