@@ -108,6 +108,15 @@ listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
 # List of nodes to keep persistent connections to
 persistent_peers = []
 
+# The type of pub-sub protocol to use for the mempool
+# /!\ This setting has no effect on the mempool yet /!\
+#
+# Possible values:
+# - "gossipsub": Use the GossipSub v1.1 protocol (gossip, recommended)
+# - "broadcast": Use the Broadcast protocol (no gossip, experimental)
+# Override with MALACHITE__CONSENSUS__MEMPOOL__PROTOCOL env variable
+protocol = "gossipsub"
+
 #######################################################
 ###          Metrics Configuration Options          ###
 #######################################################
