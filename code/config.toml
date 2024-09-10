@@ -76,9 +76,9 @@ persistent_peers = []
 
 # Transport protocol to use for P2P communication
 # Valid values:
-# - "tcp": TCP
+# - "tcp": TCP + Noise
 # - "quic": QUIC
-transport = "tcp"
+transport = "quic"
 
 #######################################################
 ###          Mempool Configuration Options          ###
@@ -104,9 +104,9 @@ persistent_peers = []
 
 # Transport protocol to use for P2P communication
 # Valid values:
-# - "tcp": TCP
+# - "tcp": TCP + Noise
 # - "quic": QUIC
-transport = "tcp"
+transport = "quic"
 
 #######################################################
 ###          Metrics Configuration Options          ###

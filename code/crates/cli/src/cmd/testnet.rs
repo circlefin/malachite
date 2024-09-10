@@ -77,9 +77,9 @@ pub struct TestnetCmd {
 
     /// The transport protocol to use for P2P communication
     /// Possible values:
-    /// - "tcp": TCP (default)
     /// - "quic": QUIC
-    #[clap(short, long, default_value = "tcp", verbatim_doc_comment)]
+    /// - "tcp": TCP + Noise (default)
+    #[clap(short, long, default_value = "quic", verbatim_doc_comment)]
     pub transport: TransportProtocol,
 }
 
@@ -210,7 +210,7 @@ pub fn generate_config(
                     .filter(|j| *j != index)
                     .map(|j| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j))
                     .collect(),
-                transport: TransportProtocol::Tcp,
+                transport,
             },
         },
         mempool: MempoolConfig {
@@ -220,7 +220,7 @@ pub fn generate_config(
                     .filter(|j| *j != index)
                     .map(|j| transport.multiaddr("127.0.0.1", MEMPOOL_BASE_PORT + j))
                     .collect(),
-                transport: TransportProtocol::Tcp,
+                transport,
             },
             max_tx_count: 10000,
             gossip_batch_size: 0,

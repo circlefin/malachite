@@ -1,7 +1,7 @@
 #!/usr/bin/env fish
 
 # This script takes:
-# - a number of nodes to run as an argument, 
+# - a number of nodes to run as an argument,
 # - the home directory for the nodes configuration folders
 
 function help
@@ -75,7 +75,7 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
     mkdir -p "$NODE_HOME/traces"
 
     rm -f "$NODE_HOME/logs/*.log"
-    
+
     set pane $(tmux new-window -P -n "node-$NODE" /bin/zsh)
 
     echo "[Node $NODE] Spawning node..."
@@ -89,7 +89,7 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
         "
 
         set cmd_prefix "rust-lldb --source =(echo \"$lldb_script\") ./target/$build_folder/malachite-cli -- "
-        
+
         tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME'" Enter
     else if $profile; and [ $NODE = 0 ]
         set cmd_prefix "cargo instruments --profile $build_profile --template $profile_template --time-limit 60000 --output '$NODE_HOME/traces/' --"
