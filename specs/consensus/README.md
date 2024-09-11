@@ -144,4 +144,21 @@ actually be in the `precommit` round step. More specifically:
 > [Exit transitions](../english/consensus/README.md#exit-transitions) section
 > of the specification.
 
+## Messages
+
+TODO: there is a lot of content to move or re-use [here](../english/consensus/README.md#message-handling)
+
+## Events
+
+TODO: describe the "complex" events derived from the reception of several
+single events, the ones we deliver to the consensus state-machine.
+
+## External components
+
+TODO: Describe the functions used in the pseudo-code.
+
+This includes `proposer()`, `valid()`, `getValue()`.
+
+Possibly **broadcast** and **schedule** as well.
+
 [pseudo-code]: ./pseudo-code.md
