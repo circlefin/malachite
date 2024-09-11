@@ -1833,12 +1833,13 @@ dependencies = [
 [[package]]
 name = "libp2p-broadcast"
 version = "0.12.0"
-source = "git+https://github.com/romac/libp2p-broadcast.git#14840bd41c6aba560affad71178a79d87f5af7c5"
+source = "git+https://github.com/romac/libp2p-broadcast.git#6975d67ad4621893fc5de34c68885c5b311f0fb1"
 dependencies = [
  "bytes",
  "fnv",
  "futures",
  "libp2p",
+ "prometheus-client",
  "unsigned-varint 0.8.0",
 ]
 

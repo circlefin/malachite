@@ -111,16 +111,17 @@ impl Behaviour {
                 gossipsub::Behaviour::new_with_metrics(
                     gossipsub::MessageAuthenticity::Signed(keypair.clone()),
                     gossipsub_config(),
-                    registry,
+                    registry.sub_registry_with_prefix("gossipsub"),
                     Default::default(),
                 )
                 .unwrap(),
             ),
-            PubSubProtocol::Broadcast => {
-                Either::Right(broadcast::Behaviour::new(broadcast::Config {
+            PubSubProtocol::Broadcast => Either::Right(broadcast::Behaviour::new_with_metrics(
+                broadcast::Config {
                     max_buf_size: MAX_TRANSMIT_SIZE,
-                }))
-            }
+                },
+                registry.sub_registry_with_prefix("broadcast"),
+            )),
         };
 
         Self {
