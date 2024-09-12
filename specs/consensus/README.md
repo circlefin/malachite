@@ -23,7 +23,12 @@ particular it can, deliberately or not, disregard the rules imposed by the
 algorithm.
 Tendermint can solve consensus as long as **less than one third of the
 processes are Byzantine**, i.e., operate arbitrarily.
-Byzantine nodes are assumed to not to be able to break digital signatures, that is, pretend to forward messages by correct nodes that were never send (a.k.a. non-masquerading).
+
+> Byzantine nodes are assumed to not to be able to break digital signatures,
+> that is, pretend to forward messages by correct nodes that were never send
+> (a.k.a. non-masquerading).
+>
+> FIXME: move this to the communication assumptions?
 
 ### Heights
 
