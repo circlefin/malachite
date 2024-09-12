@@ -126,7 +126,7 @@ module driver {
                 val r: Round = round_value._1
                 val v: NonNilValue = round_value._2
                 if (es.existsProposal(r, v))
-                    callConsensus(es, es.bk, c, ProposalAndCommitAndValidCInput((r, v)))
+                    callConsensus(es, es.bk, c, ProposalAndCommitAndValidCInput(round_value))
                 else if (r == es.cs.round)
                     callConsensus(es, es.bk, c, PrecommitAnyCInput)
                 else if (r > es.cs.round)
@@ -311,7 +311,8 @@ module driver {
             | Commit(v) => v
             | _ => Set() // This cannot happen
         }
-        val dc = {decision: rv._2, commit: commit}
+        val v = rv._2
+        val dc = {decision: v, commit: commit}
         toDriverOutput({ ...es, chain: es.chain.append(dc) }, res, c)
 
     // take input out of pending inputs and then call consensus with that input

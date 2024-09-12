@@ -253,10 +253,12 @@ module consensus {
 
         // line 49
         | ProposalAndCommitAndValidCInput(round_value) => 
+                val r = round_value._1
+                val v = round_value._2
             if (state.step != CommitStep)   // "CommitStep" doesn't exist in the arXiv paper. This ensures
                 state                       // that we do not decide more than once in a round.
                     .with("step", CommitStep)
-                    .toDecidedOutput(round_value._1, round_value._2)
+                    .toDecidedOutput(r, v)
             else state.toErrorOutput("ProposalAndCommitAndValidCInput when in CommitStep")
 
         // line 55
