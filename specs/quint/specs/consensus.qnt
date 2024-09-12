@@ -258,7 +258,7 @@ module consensus {
             if (state.step != CommitStep) // TODO: check condition and error message
                 state
                     .with("step", CommitStep)
-                    .toDecidedOutput(round_value._1, round_value._2)
+                    .toDecidedOutput(r, v)
             else state.toErrorOutput("ProposalAndCommitAndValidCInput when in CommitStep")
 
         // line 55
