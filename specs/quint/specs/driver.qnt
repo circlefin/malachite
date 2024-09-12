@@ -21,7 +21,7 @@ module driver {
         pendingStepChange: Step, // NoStep if last consensus call did not change the step
         started: bool,
         voteKeeperOutput: VoteKeeperOutput,
-        chain: List[Value],
+        chain: List[{decision: NonNilValue, commit: Set[Vote]}],
         certificates: Set[Certificate], // we store the Polka and Commits we have seen
     }
 
@@ -126,7 +126,7 @@ module driver {
                 val r: Round = round_value._1
                 val v: NonNilValue = round_value._2
                 if (es.existsProposal(r, v))
-                    callConsensus(es, es.bk, c, ProposalAndCommitAndValidCInput(vote.valueId))
+                    callConsensus(es, es.bk, c, ProposalAndCommitAndValidCInput(round_value))
                 else if (r == es.cs.round)
                     callConsensus(es, es.bk, c, PrecommitAnyCInput)
                 else if (r > es.cs.round)
@@ -206,7 +206,7 @@ module driver {
             if (receivedCommit)
                 // we have a commit that matches the proposal. We don't need to compare against
                 // es.cs.round
-                callConsensus(newES, newES.bk, NoCertificate, ProposalAndCommitAndValidCInput(Val(prop.proposal))) // FIXME: shouldn't be an ID here?
+                callConsensus(newES, newES.bk, NoCertificate, ProposalAndCommitAndValidCInput((prop.round, prop.proposal))) 
             else if (es.cs.round != prop.round or es.cs.height != prop.height) 
                 // the proposal is from the right proposer and valid, but not for this round
                 // keep the proposal, do nothing else
@@ -233,7 +233,7 @@ module driver {
                         // We do commit and append polka to pending
                         val pending = (ProposalAndPolkaAndValidCInput(propId), newES.cs.height, newES.cs.round)
                         val newES2 = { ...newES, pendingInputs: newES.pendingInputs.union(Set(pending))}
-                        callConsensus(newES2, newES.bk, NoCertificate, ProposalAndCommitAndValidCInput(propId))
+                        callConsensus(newES2, newES.bk, NoCertificate, ProposalAndCommitAndValidCInput((prop.round, prop.proposal)))
                     else if (receivedPolkaCurrentVal)
                         callConsensus(newES, newES.bk, NoCertificate, ProposalAndPolkaAndValidCInput(propId))
                     else toDriverOutputNoCertificate(newES, NoConsensusOutput)
@@ -295,7 +295,7 @@ module driver {
             callConsensus(es, es.bk, NoCertificate, NewRoundCInput(r)) 
 
     // We do this when we have decided
-    pure def handleDecided(es: DriverState, res: ConsensusOutput, value: Value, c: Certificate): DriverResult =
+    pure def handleDecided(es: DriverState, res: ConsensusOutput, rv: (Round, NonNilValue), c: Certificate): DriverResult =
         // here we call consensus to set a new height, that is, to initialize the state machine
         // and then we call skip to start round 0
 
@@ -307,7 +307,13 @@ module driver {
         val s1 = callConsensus(s, s.bk, NewHeightCInput(s.cs.height + 1))  
         skip (s1._1, 0) 
     */
-        toDriverOutput({ ...es, chain: es.chain.append(value) }, res, c)
+        val commit = match es.bk.getCertificate(PrecommitValueVKOutput(rv)) {
+            | Commit(v) => v
+            | _ => Set() // This cannot happen
+        }
+        val v = rv._2
+        val dc = {decision: v, commit: commit}
+        toDriverOutput({ ...es, chain: es.chain.append(dc) }, res, c)
 
     // take input out of pending inputs and then call consensus with that input
     // We do this when the driver is asked to work on pending events
