@@ -253,8 +253,8 @@ module consensus {
 
         // line 49
         | ProposalAndCommitAndValidCInput(round_value) => 
-            if (state.step != CommitStep) // TODO: check condition and error message
-                state
+            if (state.step != CommitStep)   // "CommitStep" doesn't exist in the arXiv paper. This ensures
+                state                       // that we do not decide more than once in a round.
                     .with("step", CommitStep)
                     .toDecidedOutput(round_value._1, round_value._2)
             else state.toErrorOutput("ProposalAndCommitAndValidCInput when in CommitStep")

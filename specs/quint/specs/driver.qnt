@@ -206,7 +206,7 @@ module driver {
             if (receivedCommit)
                 // we have a commit that matches the proposal. We don't need to compare against
                 // es.cs.round
-                callConsensus(newES, newES.bk, NoCertificate, ProposalAndCommitAndValidCInput((prop.round, prop.proposal))) // FIXME: shouldn't be an ID here?
+                callConsensus(newES, newES.bk, NoCertificate, ProposalAndCommitAndValidCInput((prop.round, prop.proposal))) 
             else if (es.cs.round != prop.round or es.cs.height != prop.height) 
                 // the proposal is from the right proposer and valid, but not for this round
                 // keep the proposal, do nothing else
