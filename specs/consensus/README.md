@@ -225,7 +225,7 @@ rules. More precisely:
 3. `q` may broadcast a `⟨PROPOSAL, h, r, v, vr⟩` message while `-1 < vr != validRound_q`;
 4. `q` may broadcast multiple `⟨PROPOSAL, h, r, *, *⟩` messages, each proposing a different value.
 
-Attack 1. is simple to identify and deal as long as Proposals contain **digital signatures**.
+Attack 1. is simple to identify and deal as long as proposals contain **digital signatures**.
 
 Attacks 2. and 3. are constitute forms of the **amnesia attack** and are harder
 to identify.
@@ -242,7 +242,10 @@ However, it is possible that a different `⟨PROPOSAL, h, r, v', *⟩` with
 `v' != v` is received and triggers the state transitions from the `prevote` or
 `precommit` round steps.
 So, a priori, a correct process must potentially store all the  multiple
-Proposals broadcast by a Byzantine proposer.
+proposals broadcast by a Byzantine proposer.
+
+> TODO: storing all received proposals, from a Byzantine proposer, constitutes
+> an attack vector
 
 Notice that while hard to prevent, equivocation attacks are easy to detect,
 once distinct messages for the same height, round, and round step are received
@@ -252,12 +255,25 @@ and they are signed by the same process.
 
 ### Votes
 
-## Events
+Vote is the generic name for `⟨PREVOTE, h, r, *⟩` and `⟨PRECOMMIT, h, r, *⟩` messages.
+Tendermint includes two voting steps, the `prevote` and the `precommit` round
+steps, where the corresponding votes are exchanged.
 
-TODO: describe the "complex" events derived from the reception of several
-single events, the ones we deliver to the consensus state-machine.
+Differently from proposals, that are broadcast by the rounds' proposers to all
+processes (1-to-n communication pattern), every process is expected to
+broadcast its votes (n-to-n communication pattern), two votes per round.
+However, while proposals carry a (full) proposed value `v`, with variable size,
+votes only carry a (fixed-size and small) unique identifier `id(v)` of the
+proposed value, or the special value `nil` (which means "no value").
 
-## External components
+#### Byzantine Voters
+
+TODO:
+
+> TODO: storing all received votes, from a Byzantine equivocating voter,
+> constitutes an attack vector
+
+## External Functions
 
 TODO: Describe the functions used in the pseudo-code.
 
