@@ -152,7 +152,24 @@ actually be in the `precommit` round step. More specifically:
 
 ## Messages
 
-TODO: there is a lot of content to move or re-use [here](../english/consensus/README.md#message-handling)
+The Tendermint consensus algorithm defines three message types, each type
+associated to a [round step](#round-steps):
+
+- `⟨PROPOSAL, h, r, v, vr⟩`: broadcast by the process returned by `proposer(h, r)`
+  function when entering the [`propose` step](#propose) of round `h` of height `h`.
+  Carries the proposed value `v` for height `h` of consensus.
+  Since only proposed values can be decided, the success of round `r` depends
+  on the reception of this message.
+- `⟨PREVOTE, h, r, *⟩` broadcast by all processes when entering the
+  [`prevote` step](#prevote) of round `h` of height `h`.
+  The last field can be either the unique identifier `id(v)` of the value
+  carried by a `⟨PROPOSAL, h, r, v, *⟩` message, meaning that it was received
+  and `v` has been accepted, or the special `nil` value otherwise.
+- `⟨PRECOMMIT, h, r, *⟩`: broadcast by all processes when entering the
+  [`precommit` step](#precommit) of round `h` of height `h`.
+  The last field can be either the unique identifier `id(v)` of a proposed
+  value `v` for which the process has received an enough number of 
+  `⟨PREVOTE, h, r, id(v)⟩` messages, or the special `nil` value otherwise.
 
 ## Events
 
