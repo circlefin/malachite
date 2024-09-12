@@ -126,7 +126,7 @@ module driver {
                 val r: Round = round_value._1
                 val v: NonNilValue = round_value._2
                 if (es.existsProposal(r, v))
-                    callConsensus(es, es.bk, c, ProposalAndCommitAndValidCInput((r, v)))
+                    callConsensus(es, es.bk, c, ProposalAndCommitAndValidCInput(round_value))
                 else if (r == es.cs.round)
                     callConsensus(es, es.bk, c, PrecommitAnyCInput)
                 else if (r > es.cs.round)
