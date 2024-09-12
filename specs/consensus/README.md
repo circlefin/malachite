@@ -18,11 +18,12 @@ correct processes **decide** the same value, among the proposed ones.
 Tendermint is a Byzantine Fault-Tolerant (BFT) consensus algorithm, which means
 that it is designed to tolerate the most comprehensive set of faulty
 behaviours.
-If fact, a Byzantine process is faulty process that can operate arbitrarily, in
+If fact, a Byzantine process is a faulty process that can operate arbitrarily, in
 particular it can, deliberately or not, disregard the rules imposed by the
 algorithm.
 Tendermint can solve consensus as long as **less than one third of the
 processes are Byzantine**, i.e., operate arbitrarily.
+Byzantine nodes are assumed to not to be able to break digital signatures, that is, pretend to forward messages by correct nodes that were never send (a.k.a. non-masquerading).
 
 ### Heights
 
