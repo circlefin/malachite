@@ -253,6 +253,8 @@ module consensus {
 
         // line 49
         | ProposalAndCommitAndValidCInput(round_value) => 
+                val r = round_value._1
+                val v = round_value._2
             if (state.step != CommitStep) // TODO: check condition and error message
                 state
                     .with("step", CommitStep)
