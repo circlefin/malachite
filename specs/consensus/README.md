@@ -168,8 +168,89 @@ associated to a [round step](#round-steps):
 - `⟨PRECOMMIT, h, r, *⟩`: broadcast by all processes when entering the
   [`precommit` step](#precommit) of round `h` of height `h`.
   The last field can be either the unique identifier `id(v)` of a proposed
-  value `v` for which the process has received an enough number of 
+  value `v` for which the process has received an enough number of
   `⟨PREVOTE, h, r, id(v)⟩` messages, or the special `nil` value otherwise.
+
+### Proposals
+
+Proposals are produced and broadcast by the `StartRound(round)` function of the
+[pseudo-code][pseudo-code], by the process selected returned by the
+`proposer(h_p, round)` external function, where `round = round_p` is the
+started round.
+
+Every process expects to receive the `⟨PROPOSAL, h, r, v, *⟩` broadcast by
+`proposer(h, r)`, as its reception is a condition for all state transitions
+that propitiate a successful round `r`, namely the pseudo-code blocks starting
+from lines 22 or 28, 36, and 49.
+The success of round `r` results in `v` being the decision value for height `h`.
+
+#### Value Selection
+
+The proposer of a round `r` defines which value `v` it will propose based on
+the values of the two state variables `validValue_p` and `validRound_p`.
+They are initialized to `nil` and `-1` at the beginning of each height, meaning
+that the process is not aware of any proposed value that has became **valid**
+in a previous round.
+A value becomes **valid** when a `PROPOSAL` for it and an enough number of
+`PREVOTE`s accepting it are received during a round.
+This logic is part of the pseudo-code block from line 36, where `validValue_p`
+and `validRound_p` are updated.
+
+If the proposer `p` of a round `r` of height `h` has `validValue_p != nil`,
+meaning that `p` knows a valid value, it must propose that value again.
+The message it broadcasts when entering the `prevote` step of round `r` is
+thus `⟨PROPOSAL, h, r, validValue_p, validRound_p⟩`.
+Note that, by construction, `r < validRound_p < -1`.
+
+If the proposer `p` of a round `r` of height `h` has `validValue_p = nil`, `p`
+may propose any value it wants.
+The external function `getValue()` is invoked, which returns a new value to be
+proposed.
+The message it broadcasts when entering the `prevote` step of round `r` is
+thus `⟨PROPOSAL, h, r, getValue(), -1⟩`.
+Observe that this is always the case in the first round `r = 0` of any height
+`h`, and the most common case in ordinary executions.
+
+#### Byzantine Proposers
+
+A correct process `p` will only broadcast a `⟨PROPOSAL, h, r, v, vr⟩` message
+if `p = proposer(h, r)`, i.e., it is the round's proposer, it will follow the
+value selection algorithm and propose at most one value `v` per round.
+
+A Byzantine process `q` may not follow any of the above mentioned algorithm
+rules. More precisely:
+
+1. `q` may broadcast a `⟨PROPOSAL, h, r, v, vr⟩` message while `q !=  proposer(h, r)`;
+2. `q` may broadcast a `⟨PROPOSAL, h, r, v, -1⟩` message while `v != validValue_q != nil`;
+3. `q` may broadcast a `⟨PROPOSAL, h, r, v, vr⟩` message while `-1 < vr != validRound_q`;
+4. `q` may broadcast multiple `⟨PROPOSAL, h, r, *, *⟩` messages, each proposing a different value.
+
+Attack 1. is simple to identify and deal as long as Proposals contain **digital signatures**.
+
+Attacks 2. and 3. are constitute forms of the **amnesia attack** and are harder
+to identify.
+Notice, however, that a correct process checks whether it can accept a proposed
+value `v` with valid round `vr` based in the content of its state variables
+`lockedValue_p` and `lockedRound_p` (lines 23 and 29) and are likely to reject
+such proposals.
+
+Attack 4. constitutes a double-signing or **equivocation** attack. 
+It is virtually impossible to prevent, and the only approach for a correct
+process is to only consider the first `⟨PROPOSAL, h, r, v, *⟩` received in the
+`propose` step, which can be accepted or rejected.
+However, it is possible that a different `⟨PROPOSAL, h, r, v', *⟩` with
+`v' != v` is received and triggers the state transitions from the `prevote` or
+`precommit` round steps.
+So, a priori, a correct process must potentially store all the  multiple
+Proposals broadcast by a Byzantine proposer.
+
+Notice that while hard to prevent, equivocation attacks are easy to detect,
+once distinct messages for the same height, round, and round step are received
+and they are signed by the same process.
+
+> TODO: reference to evidence production.
+
+### Votes
 
 ## Events
 
