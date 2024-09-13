@@ -45,7 +45,7 @@ module consensusTest {
             fireInput(PolkaAnyCInput),
             fireInput(ProposalAndPolkaAndValidCInput(Val(v))),
             fireInput(PrecommitAnyCInput),
-            fireInput(ProposalAndCommitAndValidCInput(Val(v))),
+            fireInput(ProposalAndCommitAndValidCInput((r, v))),
             fireInput(RoundSkipCInput(r)),
             fireInput(TimeoutProposeCInput((h, r))),
             fireInput(TimeoutPrevoteCInput((h, r))),
@@ -79,8 +79,8 @@ module consensusTest {
         .then(fireInput(ProposalAndPolkaAndValidCInput(Val("block"))))
         .expect(output.isVoteMsgWith(Precommit, Val("block")))
         
-        .then(fireInput(ProposalAndCommitAndValidCInput(Val("block"))))
-        .expect(output == DecidedOutput(Val("block")))
+        .then(fireInput(ProposalAndCommitAndValidCInput((0, "block"))))
+        .expect(output == DecidedOutput((0, "block")))
 
     // TODO: rename test?
     run DecideNonProposerAtHeight2Test =
