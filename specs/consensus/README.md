@@ -146,9 +146,9 @@ actually be in the `precommit` round step. More specifically:
   Notice that `r` can be the current round (`r = round_p`), a previous failed
   round (`r < round_p`), or even a future round (`r > round_p`).
 
-> Those special conditions are currently listed and discussed in the 
+> Those special conditions are currently listed and discussed in the
 > [Exit transitions](../english/consensus/README.md#exit-transitions) section
-> of the specification.
+> of the Malachite specification.
 
 ## Messages
 
@@ -177,6 +177,9 @@ Proposals are produced and broadcast by the `StartRound(round)` function of the
 [pseudo-code][pseudo-code], by the process selected returned by the
 `proposer(h_p, round)` external function, where `round = round_p` is the
 started round.
+
+> TODO: not in this document, but we probably should mention that proposals are
+> signed by the proposer.
 
 Every process expects to receive the `⟨PROPOSAL, h, r, v, *⟩` broadcast by
 `proposer(h, r)`, as its reception is a condition for all state transitions
@@ -234,7 +237,7 @@ value `v` with valid round `vr` based in the content of its state variables
 `lockedValue_p` and `lockedRound_p` (lines 23 and 29) and are likely to reject
 such proposals.
 
-Attack 4. constitutes a double-signing or **equivocation** attack. 
+Attack 4. constitutes a double-signing or **equivocation** attack.
 It is virtually impossible to prevent, and the only approach for a correct
 process is to only consider the first `⟨PROPOSAL, h, r, v, *⟩` received in the
 `propose` step, which can be accepted or rejected.
@@ -245,13 +248,31 @@ So, a priori, a correct process must potentially store all the  multiple
 proposals broadcast by a Byzantine proposer.
 
 > TODO: storing all received proposals, from a Byzantine proposer, constitutes
-> an attack vector
+> an attack vector.
+> Previous content:
+>  - A correct process could in theory only consider the first proposal
+>    message received for a round, say it proposes `v`.
+>    The problem of this approach is that `2f + 1` processes might accept, or
+>    even decide, a different value `v' != v`.
+>    By ignoring the equivocating proposal for `v'`, the process will not be
+>    able to vote for or decide `v'`, which in Tendermint consensus algorithm
+>    may compromise liveness.
+>
+>    **Note:** in contrast to algorithms from theoretical papers, a node running Tendermint consensus terminates
+>    a consensus instance after it has decided; it will no longer react on messages from that instance or send
+>    messages for that instance (if it is a process). In contrast, in theoretical algorithms, even after deciding, processes keep on
+>    participating and sending messages. In the theoretical setting these processes will help the process that
+>    has only considered to first proposal from a faulty proposer, to make progress. In Tendermint consensus, this
+>    help is not there. Thus, there is above discussed liveness issue.
+>  - Storing multiple proposal messages for the same round is, by itself, an
+>    attack vector. Validators must thus restrict the number of proposal
+>    messages stored in rounds where multiple proposals are produced.
 
 Notice that while hard to prevent, equivocation attacks are easy to detect,
 once distinct messages for the same height, round, and round step are received
 and they are signed by the same process.
 
-> TODO: reference to evidence production.
+> TODO: reference to evidence production and handling document.
 
 ### Votes
 
@@ -265,6 +286,59 @@ broadcast its votes (n-to-n communication pattern), two votes per round.
 However, while proposals carry a (full) proposed value `v`, with variable size,
 votes only carry a (fixed-size and small) unique identifier `id(v)` of the
 proposed value, or the special value `nil` (which means "no value").
+
+Moreover, the analysis of the [pseudo-code][pseudo-code] reveals that, while
+the reception of a proposal is considered by itself an event that may trigger a
+state transition, the reception of a _single_ vote message does not by itself
+trigger any state transition.
+The main reason for that is the fact that up to `f` processes are assumed to be
+Byzantine, which by definition can produce arbitrary vote messages.
+As a result, no information produced by a single, or by a set with at most `f`
+processes can be considered legit and should not drive the operation of correct
+processes.
+
+#### Voting power
+
+Up to this point, this document is aligned with the pseudo-code and has the
+following failure assumptions:
+
+1. The algorithm tolerates `f` Byzantine-faulty processes, which may behave
+   arbitrarily;
+2. The algorithm requires that less than one third of the processes are
+   Byzantine. So, if `n` is the total number of processes, the algorithm
+   assumes `f < n/3`. In fact, the algorithm considers a set of `n = 3f + 1`
+   processes.
+
+These are built from the common assumption that processes are homogeneous, in
+the sense that the vote of any process counts the same: one process, one vote.
+In other words, all processes have the same voting power.
+
+Tendermint was designed to support the operation of blockchains that adopt the
+Proof-of-Stake (PoS) strategy.
+In this strategy, processes are assumed to stake (deposit) some amount to be
+active actors in the blockchain and to have a voting power that is proportional
+to the staked amount.
+In other words, when adopting the PoS framework, processes are assumed to have
+distinct voting powers.
+The failures assumptions are thus updated as follows:
+
+1. Each process `p` owns or has an associated voting power `p.power > 0`;
+2. The system is composed by a set of process whose aggregated or total voting
+   power is `n`;
+3. The maximum voting power owned by or associated to Byzantine validators is
+   assumed to be `f < n/3`.
+
+This means, in particular, that when `f + 1` is used in the pseudo-code, it
+must be considered a set of processes whose aggregated voting power is strictly
+higher than `f`, namely strictly higher than `1/3` of the processes' total
+voting power `n`.
+This means that, among the considered processes, **at least one process is correct**.
+
+Analogously, when `2f + 1` is used in the pseudo-code, this should be interpreted
+as a set of processes in which the aggregated voting power of correct processes
+in the set is strictly higher than the aggregated voting power of (potentially)
+Byzantine processes in the set.
+In other words, **the majority of the processes is correct**.
 
 #### Byzantine Voters
 
