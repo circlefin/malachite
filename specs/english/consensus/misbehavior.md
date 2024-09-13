@@ -1,14 +1,6 @@
 # Misbehavior detection and handling
 
-TODO Generate the sense for the problem
 
-Copy from below:
-While a single instance of an unintentional double vote of one validator does
-not pose big problems (it cannot bring disagreement), repeated unintentional
-double votes by several validator operators having large voting power might
-eventually lead to disagreement and a chain halt. Therefore it make sense to
-incentivize individual operators to fix their setup while the whole system is
-still operational.
 
 ## Background
 
@@ -25,7 +17,8 @@ actively deviate from the [protocol](TODO link to Daniel's pseudo code). By
 superficial inspection of the pseudo code we observe that 
 
 - **[Double vote]** correct validators never send two (different) vote messages
-  (prevote, precommit) for the same height and round, and
+  (prevote, precommit) for the same height and round (that is the messages
+  differ in the value they carry; also nil is considered a value here), and
 - **[Double propose]** a correct proposer never send two different proposals for
   the same height and round, and
 - **[Bad proposer]** a correct validator whose ID is different from
@@ -90,24 +83,28 @@ incentivize individual operators to fix their setup while the whole system is
 still operational.
 
  
-## Misbehavior detection and verification
+## Misbehavior detection and verification based on Tendermint consensus
 
-### What can be done based on Tendermint consensus
+### What can be done 
 
 #### Double vote
 
-- Detection: One needs to observe two different vote messages signed by the same validator
-for the same
+- Detection: One needs to observe two different vote messages signed by the same
+validator for the same
     - step (prevote, precomit)
     - round
     - height
-    - chainID (this is relevant in the context resetting to previous heights or multiple chains)
+    - chainID (this is relevant in the context resetting to previous heights or
+      multiple chains)
 
-We observe that the verification data is very minimal. We do not need any application-level data, and can even use it to convince an outside observer that the node misbehaved.
+We observe that the verification data is very minimal. We do not need any
+application-level data, and can even use it to convince an outside observer that
+the node misbehaved.
 
 #### Double propose
 
-Similar to double vote.
+Similar to double vote. Observe that in the implementation there is a difference between
+a small proposal message carrying only the has of the value, and the big proposal with all the data that comes in parts.
 
 #### Bad proposer
 
@@ -116,26 +113,37 @@ Similar to double vote.
         - round
         - height
         - chainID
-    - knowledge of the `proposer(h, round)` function and the context in which it is run.   
+    - knowledge of the `proposer(h, round)` function and the context in which it
+      is run.   
 
-Observe that the way it is typically implemented, `proposer(h, round)` is not a "mathematical function" that takes as input the height and the round and produces an ID. Rather it is typically implemented as a stateful function that is based on priorities. The latter depend on voting powers and who has been proposer in previous heights.
+Observe that the way it is typically implemented, `proposer(h, round)` is not a
+"mathematical function" that takes as input the height and the round and
+produces an ID. Rather it is typically implemented as a stateful function that
+is based on priorities. The latter depend on voting powers and who has been
+proposer in previous heights.
 
 Verification is more complex than double vote and double propose:
 
-- In contrast to double vote, where it is still trivial to verify the misbehavior evidence a week after it was generated, in order to verify bad proposer we need knowledge on the validator priorities at that time. 
+- In contrast to double vote, where it is still trivial to verify the
+  misbehavior evidence a week after it was generated, in order to verify bad
+  proposer we need knowledge on the validator priorities at that time. 
 - multiple layers are involved
-    - maintaining and updating voting powers is typically an application level concern
+    - maintaining and updating voting powers is typically an application level
+      concern
     - the `proposer` function is situated at the consensus level
     - misbehavior detection can only happen and consensus level
-    - in order to use the evidence, the application must be able to verify the evidence. This this case it means that the application must
+    - in order to use the evidence, the application must be able to verify the
+      evidence. This this case it means that the application must
         - be aware of the consensus-level `proposer` function and priorities
-        - potentially have historical data (the evidence might come a couple of blocks after the fact) on validator sets
+        - potentially have historical data (the evidence might come a couple of
+          blocks after the fact) on validator sets
 
-### What cannot be done based on Tendermint consensus
+### What cannot be done
 
 #### Amnesia
 
-Let's consider the following case, we have received the following signed message from validator `p`
+Let's consider the following case, we have received the following signed message
+from validator `p`
 
 - `⟨precommit, h, 0, id(v))`.
 
@@ -148,11 +156,13 @@ Now assume we receive any of the following messages signed by `p`.
 
 The question is, did `p` misbehave? Let's consider some cases
 
-**Case 1.** There are at most f faulty validators and validator `p` is the only one who locked or updated validValue in round 0. 
+**Case 1.** There are at most f faulty validators and validator `p` is the only
+one who locked or updated validValue in round 0. 
+
     - Then a correct proposer of round 1 will propose a different value `v'`, 
     - 2f+1 correct validators will vote for `v'` in round 1 (`p` cannot because it is locked)
     - There are some faulty prevote nil that are received the prevote from the correct processes
-    - so that all prosess run into timeoutPrevote
+    - so that all process run into timeoutPrevote
     - after that all correct processes will get all the prevotes for `v'` and will update validValue
     - assume in round 2, `p` is the proposer
         - it will send `(propose, h, 2, id(v'), 1)` (although it still has a lock on `v`)
@@ -160,7 +170,10 @@ The question is, did `p` misbehave? Let's consider some cases
             - `(prevote, h, 2, id(v'))`, and later
             - `(precommit, h, 2, id(v'))`
         
-**Case 2.** There are at most f faulty validators and all correct processes lock and updated validValue in round 0. As discussed in the background section, the algorithm is designed in a way that no correct process will ever send any propose, prevote, or precommit message for a value different from `v`. 
+**Case 2.** There are at most f faulty validators and all correct processes lock
+and updated validValue in round 0. As discussed in the background section, the
+algorithm is designed in a way that no correct process will ever send any
+propose, prevote, or precommit message for a value different from `v`. 
 
 So after sending `⟨precommit, h, 0, id(v))`, validator `p`:
 
@@ -170,4 +183,42 @@ So after sending `⟨precommit, h, 0, id(v))`, validator `p`:
 So the pair (`⟨precommit, h, 0, id(v))`, `(prevote, h, 2, id(v'))`), or the pairs with a proposal or a precommit for `v'`, do not constitute misbehavior. 
 
 
- 
+ ## Misbehavior detection and verification in Accountable Tendermint
+
+The extended version of this
+[paper](https://infoscience.epfl.ch/server/api/core/bitstreams/bb494e9a-22aa-43a2-b995-69c7a2cc893e/content)
+proposes a slight change to the Tendermint algorithm that allows us to achieve
+the following property
+
+**Accountability.** If there are at most 2f faulty processes and (at least) two
+correct processes decide different values, then every correct process eventually
+detects at least f+1 faulty processes.
+
+The change to Tendermint is just that prevote messages have an additional field
+that carries the content of the `vr` field of the propose message that triggered
+the sending of the prevote. Here are the most relevant changed pseudo code
+parts:
+
+``` go
+22: upon ⟨PROPOSAL, h_p, round_p, v, −1⟩ from proposer(h_p, round_p) while step_p = propose do
+23:    if valid(v) ∧ (lockedRound_p = −1 ∨ lockedValue_p = v) then
+24:       broadcast ⟨PREVOTE, h_p, round_p, id(v), -1⟩
+25:    else
+26:       broadcast ⟨PREVOTE, h_p, round_p, nil, -1⟩
+27:    step_p ← prevote
+
+28: upon ⟨PROPOSAL, h_p, round_p, v, vr⟩ from proposer(h_p, round_p) AND 2f + 1 ⟨PREVOTE, h_p, vr, id(v), vr'⟩
+    while step_p = propose ∧ (vr ≥ 0 ∧ vr < round_p) do
+29:    if valid(v) ∧ (lockedRound_p ≤ vr ∨ lockedValue_p = v) then
+30:       broadcast ⟨PREVOTE, h_p, round_p, id(v), vr⟩
+31:    else
+32:       broadcast ⟨PREVOTE, h_p, round_p, nil, vr⟩
+33:    step_p ← prevote
+```
+
+The analysis in the paper is written in the context of individual messages.
+
+TODO: I will open an issue to discuss this in the context of the
+[certificates](https://github.com/informalsystems/malachite/pull/364) that we
+introduced to deal with equivocation.
+
