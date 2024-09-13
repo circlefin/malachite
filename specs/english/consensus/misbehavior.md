@@ -159,16 +159,16 @@ The question is, did `p` misbehave? Let's consider some cases
 **Case 1.** There are at most f faulty validators and validator `p` is the only
 one who locked or updated validValue in round 0. 
 
-    - Then a correct proposer of round 1 will propose a different value `v'`, 
-    - 2f+1 correct validators will vote for `v'` in round 1 (`p` cannot because it is locked)
-    - There are some faulty prevote nil that are received the prevote from the correct processes
-    - so that all process run into timeoutPrevote
-    - after that all correct processes will get all the prevotes for `v'` and will update validValue
-    - assume in round 2, `p` is the proposer
-        - it will send `(propose, h, 2, id(v'), 1)` (although it still has a lock on `v`)
-        - in the lucky path all correct processes, including `p` will send 
-            - `(prevote, h, 2, id(v'))`, and later
-            - `(precommit, h, 2, id(v'))`
+- Then a correct proposer of round 1 will propose a different value `v'`, 
+- 2f+1 correct validators will vote for `v'` in round 1 (`p` cannot because it is locked)
+- There are some faulty prevote nil that are received the prevote from the correct processes
+- so that all process run into timeoutPrevote
+- after that all correct processes will get all the prevotes for `v'` and will update validValue
+- assume in round 2, `p` is the proposer
+    - it will send `(propose, h, 2, id(v'), 1)` (although it still has a lock on `v`)
+    - in the lucky path all correct processes, including `p` will send 
+        - `(prevote, h, 2, id(v'))`, and later
+        - `(precommit, h, 2, id(v'))`
         
 **Case 2.** There are at most f faulty validators and all correct processes lock
 and updated validValue in round 0. As discussed in the background section, the
@@ -220,5 +220,6 @@ The analysis in the paper is written in the context of individual messages.
 
 TODO: I will open an issue to discuss this in the context of the
 [certificates](https://github.com/informalsystems/malachite/pull/364) that we
-introduced to deal with equivocation.
+introduced to deal with equivocation. It seems that we can do amnesia detection
+and verification solely based on certificates (polkas and commits).
 
