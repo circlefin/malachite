@@ -410,12 +410,69 @@ correct behaviour provided that `p` is able to prove the existence of a
 > TODO: refer to the variation of Tendermint protocol that renders it possible
 > to detect and produce evidence for the amnesia attack.
 
-## External Functions
+## External Components
 
-TODO: Describe the functions used in the pseudo-code.
+The [pseudo-code][pseudo-code] of the consensus algorithm includes calls to
+functions and primitives that are not defined in the pseudo-code itself, but
+are assumed to be implemented by the processes running the consensus protocol.
 
-This includes `proposer()`, `valid()`, `getValue()`.
+### Functions
 
-Possibly **broadcast** and **schedule** as well.
+#### Proposer Selection
+
+The first external function is `proposer(h, r)` that returns the process
+selected as the proposer of round `r` of height `h` of consensus. The roles of
+the proposer of a round are described in the [propose round step](#propose).
+
+> TODO: determinism
+
+> TODO: minimal requirement is that eventually a correct process is selected as
+> the proposer of a round
+
+#### Proposal value
+
+The external function `getValue()` is invoked by the proposer of a round as
+part of the transition to the [propose round step](#propose).
+It should return a value to be proposed by the process `p` for the current
+height of consensus `h_p`.
+
+> TODO: synchronous/asynchronoous implementations?
+
+#### Validation
+
+The external function `valid(v)` is invoked by a process when it receives a
+`⟨PROPOSAL, h, r, v, *⟩` from the proposer of round `r` of height `h`.
+It should return whether the `v` is a valid value according to the semantics of 
+the "client" of the consensus protocol, i.e., the application that uses
+consensus to agree on proposed values.
+
+> TODO: typically depends on `h` as well. Should not ordinarily depend on `r`.
+
+> TODO: determinism
+
+> TODO: validity property of consensus
+
+### Primitives
+
+#### Network
+
+The only network primitive adopted in the pseudo-code is the `broadcast`
+primitive, which should send a given [consensus message](#messages) to all
+processes, thus implementing a 1-to-n communication primitive.
+
+> TODO: reliable broadcast properties
+
+#### Timeouts
+
+The `schedule` primitive is adopted in the pseudo-code to schedule the
+execution of `OnTimeout<Step>(height, round)` functions, where `<Step>` is one
+of `Propose`, `Prevote`, and `Precommit` (i.e., the three [round steps](#round-steps)),
+to the current time plus the duration returned by the corresponding functions
+`timeout<Step>(round)`.
+
+> TODO: assumptions regarding timeouts, they should increase over time, GST, etc.
+
+> TODO: most timeouts can be cancelled when the associated conditions are not
+> any longer observed (round or height changed, round step changed).
 
 [pseudo-code]: ./pseudo-code.md
