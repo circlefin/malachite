@@ -342,10 +342,73 @@ In other words, **the majority of the processes is correct**.
 
 #### Byzantine Voters
 
-TODO:
+A correct process `p` will only broadcast one `⟨PREVOTE, h, r, *⟩` and one
+`⟨PRECOMMIT, h, r, *⟩` messages in round `r` of height `h`.
+The votes `p` broadcasts in each round step will carry either the unique
+identifier `id(v)` of the value `v`, received in a `⟨PROPOSAL, h, r, v, *⟩`
+message from `proposer(h, r)`, or the special value `nil`.
 
-> TODO: storing all received votes, from a Byzantine equivocating voter,
-> constitutes an attack vector
+Byzantine processes, however, can broadcast multiple vote messages for the same
+round step, carrying any value they received or produced, including values that
+were not proposed on any round, and the special `nil` value.
+The main attacks that are worth considering, because of their potential of
+inducing undesirable behaviour, are two:
+
+1. **Equivocation**: a Byzantine process can broadcast multiple
+   `⟨PREVOTE, h, r, *⟩` or `⟨PRECOMMIT, h, r, *⟩` messages in the same round
+   `r` of height `h`, for distinct values: `nil`, `id(v)`, or `id(v')`
+   with `v != v'`.
+2. **Amnesia**: a Byzantine process `q` can broadcast `⟨PREVOTE, h, r, *⟩` or
+   `⟨PRECOMMIT, h, r, *⟩` messages for values that are not in line with the
+   expected contents of its `lockedValue_q` and `lockedRound_q` variables.
+
+It is virtually impossible to prevent **equivocation attacks**, and the way
+that a correct process can deal with it is by only considering the first
+`⟨PREVOTE, h, r, *⟩` or `⟨PRECOMMIT, h, r, *⟩` messages received from a process
+in a round `r` of height `h`.
+Different (equivocating) versions of the same message from the same sender
+should, from a defensive point of view, be disregarded and dropped by the
+consensus logic as they were duplicated messages.
+The reason for which is the fact that a Byzantine process can produce an
+arbitrary number of such messages.
+
+Unfortunately, there are multiple scenarios in which correct processes may
+receive equivocating messages from Byzantine voters in different orders, and
+by only considering the first received one, they may end up performing
+different state transitions in the consensus protocol.
+While this does not pose a threat to the safety of consensus, this might
+produce liveness issues, as correct processes may be left behind in the
+consensus computation.
+
+> TODO: more details on this [here](somewhere).
+> Previous content:
+>  - A correct validator could "in theory" only consider the first vote message
+>    received from a sender per round step, say it carries `id(v)`.
+>    The problem of this approach is that `2f + 1`  validators might only
+>    consider a different vote message from the same sender and round step,
+>    carrying `id(v')` with `v' != v`. This may lead other validators to decide `v'`.
+>    By ignoring the equivocating voting message carrying `id(v')`, the
+>    validator might not be able to decide `v'`, which may compromise
+>    liveness of the consensus algorithm.
+
+The **amnesia attack** is also virtually impossible to prevent and it is also
+harder to detect than equivocation ones.
+A correct process `p` that broadcasts a `⟨PRECOMMIT, h, r, id(v)⟩` must update
+its variables `lockedValue_p ← v` and `lockedRound_p ← r`, as shown in the
+pseudo-code block from line 36.
+From this point, `p` is locked on value `v`, which means that upon receiving a
+`⟨PROPOSAL, h, r', v', vr⟩` message for a round `r' > r`, it must reject the
+proposed value `v'` if it does not match its locked value `v`, i.e., it must
+broadcast a `⟨PREVOTE, h, r', nil⟩` message.
+The only possible exception is when the proposal's valid round `vr > r`
+corresponds to a round where there was an agreement on the proposed value
+`v' != lockedValue_p`, as shown in the pseudo-code block from line 28.
+In this case, issuing a `⟨PREVOTE, h, r', id(v')⟩` can be justified as a
+correct behaviour provided that `p` is able to prove the existence of a
+`2f + 1 ⟨PREVOTE, h, vr, id(v')⟩` set of messages accepting `v'`.
+
+> TODO: refer to the variation of Tendermint protocol that renders it possible
+> to detect and produce evidence for the amnesia attack.
 
 ## External Functions
 

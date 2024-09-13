@@ -29,37 +29,6 @@ current state and a consensus input.
 
 Most of this content has been moved into the [Consensus algorithm overview](../../consensus/README.md#messages)
 
-### Counting votes
-
-General assumptions regarding vote messages:
-
-- Vote messages are produced, signed and broadcast by a validator,
-  referred the message's *sender*.
-  - The sender of a vote message must be part of the current *validator set*.
-    To define whether a vote message from height `h` is valid, the validator
-    set for height `h` must be known.
-- To each validator in the validator set of a height `h` is associated a *voting power*.
-  - Thresholds are computed from the voting power associated to the
-    sender of each vote message.
-- Correct validators broadcast at most one vote message per round step:
-  carrying either a `id(v)` or `nil`.
-- Byzantine validators may broadcast multiple distinct vote messages for the same
-  round step: equivocation attack. Equivocating vote messages differ on the
-  value they carry: `nil`, `id(v)`, `id(v')` with `v' != v`.
-  - A correct validator could "in theory" only consider the first vote message
-    received from a sender per round step, say it carries `id(v)`.
-    The problem of this approach is that `2f + 1`  validators might only
-    consider a different vote message from the same sender and round step,
-    carrying `id(v')` with `v' != v`. This may lead other validators to decide `v'`.
-    By ignoring the equivocating voting message carrying `id(v')`, the
-    validator might not be able to decide `v'`, which may compromise
-    liveness of the consensus algorithm.
-
-    **Note**: the consequences on liveness are the same discussed in the note for Proposal messages.
-  - Storing multiple vote messages from the same sender and referring to the
-    same round step is, by itself, an attack vector. Validators must thus
-    restrict the number of votes stored per sender and round step.
-
 ### Different rounds
 
 Messages matching the current height and round of a validator produce most of
