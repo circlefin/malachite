@@ -52,7 +52,7 @@ It has been shown by formal verification (see results obtained with
 [Ivy](https://github.com/cometbft/cometbft/tree/main/spec/ivy-proofs), and
 [Apalache](https://github.com/cometbft/cometbft/blob/main/spec/light-client/accountability/Synopsis.md))
 that if there are between one third and two thirds of faults, every attack on
-Tendermint consensus that leads to violation of agreement is either the a
+Tendermint consensus that leads to violation of agreement is either a
 "double vote" or an "amnesia attack". 
 
 ### Accountability
