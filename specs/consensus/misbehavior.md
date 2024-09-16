@@ -191,7 +191,7 @@ The extended version of this
 proposes a slight change to the Tendermint algorithm that allows us to achieve
 the following property
 
-**Accountability.** If there are at most 2f faulty processes and (at least) two
+**Accountability.** If there are at most `2f` Byzantine-faulty processes and (at least) two
 correct processes decide different values, then every correct process eventually
 detects at least f+1 faulty processes.
 
