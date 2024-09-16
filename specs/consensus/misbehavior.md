@@ -92,7 +92,7 @@ still operational.
 
 - Detection: One needs to observe two different vote messages signed by the same
 process for the same
-    - step (prevote, precomit)
+    - round step (`prevote` or `precomit`)
     - round
     - height
     - chainID (this is relevant in the context resetting to previous heights or
