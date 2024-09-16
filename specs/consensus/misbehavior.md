@@ -34,7 +34,7 @@ lockedRound` (line 29). In other words
 
 - **[Amnesia]** a correct process never sends a prevote for a value `val` if
   it has locked a different value `val2` before and hasn't received a proposal
-  and sufficiently many prevotes for `val2` with `vr >= lockedRound`.
+  and sufficiently many prevotes for `val2` with valid round `vr >= lockedRound_p`.
 
 Remark on the term "amnesia". Amnesia a violation of the locking mechanism
 introduced by Dwork, Lynch, and Stockmeyer into their algorithm: a process locks
