@@ -21,7 +21,7 @@ superficial inspection of the pseudo code we observe that
   differ in the value they carry; also `nil` is considered a value here), and
 - **[Double propose]** a correct proposer never send two different proposals for
   the same height and round, and
-- **[Bad proposer]** a correct validator whose ID is different from
+- **[Bad proposer]** a correct validator whose ID is different from the returned by
   `proposer(h, round)`  does not send a proposal for that height and round.
 
 A little bit more involved inspection shows that if a correct processes locks a
