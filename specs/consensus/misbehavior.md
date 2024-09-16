@@ -196,7 +196,7 @@ correct processes decide different values, then every correct process eventually
 detects at least `f+1` faulty processes.
 
 The change to Tendermint is just that prevote messages have an additional field
-that carries the content of the `vr` field of the propose message that triggered
+that carries the content of the `vr` field of the proposal that triggered
 the sending of the prevote. Here are the most relevant changed pseudo code
 parts:
 
