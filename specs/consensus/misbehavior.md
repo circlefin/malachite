@@ -117,7 +117,7 @@ a small proposal message carrying only the has of the value, and the big proposa
     - knowledge of the `proposer(h, r)` function and the context in which it
       is run.   
 
-Observe that the way it is typically implemented, `proposer(h, round)` is not a
+Observe that the way it is typically implemented, `proposer(h, r)` is not a
 "mathematical function" that takes as input the height and the round and
 produces an ID. Rather it is typically implemented as a stateful function that
 is based on priorities. The latter depend on voting powers and who has been
