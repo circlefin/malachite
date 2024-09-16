@@ -13,7 +13,7 @@ the validators are faulty, agreement is guaranteed. If there are more than two
 thirds of faulty validators, they have control over the system.
 
 In order to bring the system to disagreement, the faulty validators need to
-actively deviate from the [protocol](TODO link to Daniel's pseudo code). By
+actively deviate from the [protocol](./pseudo-code.md). By
 superficial inspection of the pseudo code we observe that 
 
 - **[Double vote]** correct validators never send two (different) vote messages
