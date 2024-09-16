@@ -22,8 +22,8 @@ superficial inspection of the pseudo code we observe that
 - **[Double propose]** a correct proposer never send two different proposals for
   the same height and round, and
 - **[Bad proposer]** a correct processes whose ID is different from the one
-  returned by `proposer(h, round)`  does not send a proposal for that height and
-  round.
+  returned by `proposer(h, r)`  does not send a proposal for height `h` and 
+  round `r `.
 
 A little bit more involved inspection shows that if a correct processes locks a
 value (setting `lockedValue` and `lockedRound` in lines 38 and 39) then it sends
