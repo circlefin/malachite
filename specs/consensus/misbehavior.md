@@ -135,7 +135,7 @@ Verification is more complex than double vote and double propose:
     - misbehavior detection can only happen and consensus level
     - in order to use the evidence, the application must be able to verify the
       evidence. This this case it means that the application must
-        - be aware of the consensus-level `proposer` function and priorities
+        - be aware of the consensus-level `proposer` function and priorities, namely, be able to reproduce the output of `proposer(h, r)` for any given state
         - potentially have historical data (the evidence might come a couple of
           blocks after the fact) on validator sets
 
