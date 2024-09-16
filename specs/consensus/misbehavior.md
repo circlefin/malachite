@@ -58,7 +58,7 @@ Tendermint consensus that leads to violation of agreement is either a
 ### Accountability
 
 The question we are interested is, while we cannot prevent disagreement in all
-cases, wether we can keep misbehaving nodes accountable by ensuring to collect
+cases, whether we can keep misbehaving nodes accountable by ensuring to collect
 evidence of misbehavior, either for online evidence handling (e.g., penalties),
 or in case of a forking event, forensic analysis of the attack scenario that can
 constitute a source of information for social or legal actions after-the-fact.
