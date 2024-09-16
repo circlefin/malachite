@@ -13,16 +13,17 @@ the processes are faulty, agreement is guaranteed. If there are more than two
 thirds of faulty processes, they have control over the system.
 
 In order to bring the system to disagreement, the faulty processes need to
-actively deviate from the [protocol](TODO link to Daniel's pseudo code). By
+actively deviate from the [protocol](./pseudo-code.md). By
 superficial inspection of the pseudo code we observe that 
 
-- **[Double vote]** correct processes never send two (different) vote messages
-  (prevote, precommit) for the same height and round (that is the messages
-  differ in the value they carry; also nil is considered a value here), and
+- **[Double vote]** correct processeses never send two (different) vote messages
+  (`PREVOTE`, `PRECOMMIT`) for the same height and round (that is the messages
+  differ in the value they carry; also `nil` is considered a value here), and
 - **[Double propose]** a correct proposer never send two different proposals for
   the same height and round, and
-- **[Bad proposer]** a correct process whose ID is different from
-  `proposer(h, round)`  does not send a proposal for that height and round.
+- **[Bad proposer]** a correct processes whose ID is different from the one
+  returned by `proposer(h, round)`  does not send a proposal for that height and
+  round.
 
 A little bit more involved inspection shows that if a correct processes locks a
 value (setting `lockedValue` and `lockedRound` in lines 38 and 39) then it sends
