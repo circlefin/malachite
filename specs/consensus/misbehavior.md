@@ -111,7 +111,7 @@ a small proposal message carrying only the has of the value, and the big proposa
 
 - Detection: One needs to observe 
     - a propose message for
-        - round
+        - round `r`
         - height
         - chainID
     - knowledge of the `proposer(h, r)` function and the context in which it
