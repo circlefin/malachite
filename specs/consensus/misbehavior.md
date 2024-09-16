@@ -38,7 +38,7 @@ lockedRound_p` (line 29). In other words
 
 Remark on the term "amnesia". Amnesia a violation of the locking mechanism
 introduced by Dwork, Lynch, and Stockmeyer into their algorithm: a process locks
-a value in a round if the value is supported by more than 2/3. A process that
+a value in a round if the value is supported by more than 2/3 of the processes. A process that
 has locked a value can only be convinced to release that lock if more than two
 thirds of the processes have a lock for a later round. In the case of less than
 a third faults, if a process decides value v in a round r the algorithm ensures
