@@ -193,7 +193,7 @@ the following property
 
 **Accountability.** If there are at most `2f` Byzantine-faulty processes and (at least) two
 correct processes decide different values, then every correct process eventually
-detects at least f+1 faulty processes.
+detects at least `f+1` faulty processes.
 
 The change to Tendermint is just that prevote messages have an additional field
 that carries the content of the `vr` field of the propose message that triggered
