@@ -110,7 +110,7 @@ a small proposal message carrying only the has of the value, and the big proposa
 #### Bad proposer
 
 - Detection: One needs to observe 
-    - a propose message for
+    - a `PROPOSAL` message for
         - round `r`
         - height `h`
         - chainID
