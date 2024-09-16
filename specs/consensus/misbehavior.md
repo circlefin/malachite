@@ -25,7 +25,7 @@ superficial inspection of the pseudo code we observe that
   returned by `proposer(h, round)`  does not send a proposal for that height and
   round.
 
-A little bit more involved inspection shows that if a correct processes locks a
+A little bit more involved inspection shows that if a correct process `p` locks a
 value (setting `lockedValue` and `lockedRound` in lines 38 and 39) then it sends
 a prevote for a different value in a later round (line 30) **only if** the
 condition of lines 28/29 is satisfied, that is, only of it receives a proposal
