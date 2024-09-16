@@ -114,7 +114,7 @@ a small proposal message carrying only the has of the value, and the big proposa
         - round
         - height
         - chainID
-    - knowledge of the `proposer(h, round)` function and the context in which it
+    - knowledge of the `proposer(h, r)` function and the context in which it
       is run.   
 
 Observe that the way it is typically implemented, `proposer(h, round)` is not a
