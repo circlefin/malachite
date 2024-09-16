@@ -131,7 +131,7 @@ Verification is more complex than double vote and double propose:
 - multiple layers are involved
     - maintaining and updating voting powers is typically an application level
       concern
-    - the `proposer` function is situated at the consensus level
+    - the `proposer(h, r)` function is situated at the consensus level
     - misbehavior detection can only happen and consensus level
     - in order to use the evidence, the application must be able to verify the
       evidence. This this case it means that the application must
