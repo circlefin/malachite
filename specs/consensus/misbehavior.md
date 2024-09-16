@@ -26,7 +26,7 @@ superficial inspection of the pseudo code we observe that
   round.
 
 A little bit more involved inspection shows that if a correct process `p` locks a
-value (setting `lockedValue` and `lockedRound` in lines 38 and 39) then it sends
+value (setting `lockedValue_p` and `lockedRound_p` in lines 38 and 39) then it sends
 a prevote for a different value in a later round (line 30) **only if** the
 condition of lines 28/29 is satisfied, that is, only of it receives a proposal
 and 2f+1 matching prevotes that carry the value `vr` that satisfies `vr >=
