@@ -1,6 +1,6 @@
 # Misbehavior detection and handling
 
-
+This document is a work in progress. Refer to issue [#340](https://github.com/informalsystems/malachite/issues/340) for more information.
 
 ## Background
 
