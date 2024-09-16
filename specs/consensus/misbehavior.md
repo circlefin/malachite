@@ -21,7 +21,7 @@ superficial inspection of the pseudo code we observe that
   differ in the value they carry; also nil is considered a value here), and
 - **[Double propose]** a correct proposer never send two different proposals for
   the same height and round, and
-- **[Bad proposer]** a correct validator whose ID is different from
+- **[Bad proposer]** a correct process whose ID is different from
   `proposer(h, round)`  does not send a proposal for that height and round.
 
 A little bit more involved inspection shows that if a correct processes locks a
@@ -75,7 +75,7 @@ fees to the validator for some time, taking a small penalty of their stake), as
 part of the incentivization scheme motivating validator operators to fix such
 issues and ensure reliability of their node. 
 
-While a single instance of an unintentional double vote of one validator does
+While a single instance of an unintentional double vote of one process does
 not pose big problems (it cannot bring disagreement), repeated unintentional
 double votes by several validator operators having large voting power might
 eventually lead to disagreement and a chain halt. Therefore it make sense to
@@ -90,7 +90,7 @@ still operational.
 #### Double vote
 
 - Detection: One needs to observe two different vote messages signed by the same
-validator for the same
+process for the same
     - step (prevote, precomit)
     - round
     - height
@@ -143,7 +143,7 @@ Verification is more complex than double vote and double propose:
 #### Amnesia
 
 Let's consider the following case, we have received the following signed message
-from validator `p`
+from process `p`
 
 - `⟨precommit, h, 0, id(v))`.
 
@@ -156,7 +156,7 @@ Now assume we receive any of the following messages signed by `p`.
 
 The question is, did `p` misbehave? Let's consider some cases
 
-**Case 1.** There are at most f faulty processes and validator `p` is the only
+**Case 1.** There are at most f faulty processes and process `p` is the only
 one who locked or updated validValue in round 0. 
 
 - Then a correct proposer of round 1 will propose a different value `v'`, 
@@ -175,7 +175,7 @@ and updated validValue in round 0. As discussed in the background section, the
 algorithm is designed in a way that no correct process will ever send any
 propose, prevote, or precommit message for a value different from `v`. 
 
-So after sending `⟨precommit, h, 0, id(v))`, validator `p`:
+So after sending `⟨precommit, h, 0, id(v))`, process `p`:
 
 - in runs of Case 1 is allowed (even forced) to also send these three messages, while
 - in runs of Case 2 it would be misbehaving.
