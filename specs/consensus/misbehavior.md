@@ -132,7 +132,7 @@ Verification is more complex than double vote and double propose:
     - maintaining and updating voting powers is typically an application level
       concern
     - the `proposer(h, r)` function is situated at the consensus level
-    - misbehavior detection can only happen and consensus level
+    - misbehavior detection can only happen at consensus level
     - in order to use the evidence, the application must be able to verify the
       evidence. This this case it means that the application must
         - be aware of the consensus-level `proposer` function and priorities, namely, be able to reproduce the output of `proposer(h, r)` for any given state
@@ -151,14 +151,14 @@ from process `p`
 By code inspection, we understand that `p` has locked value `v` in round `0`.
 Now assume we receive any of the following messages signed by `p`. 
 
-- `(propose, h, 2, id(v'), 1)`
-- `(prevote, h, 2, id(v'))`
-- `(precommit, h, 2, id(v'))`
+- `(PROPOSAL, h, 2, id(v'), 1)`
+- `(PREVOTE, h, 2, id(v'))`
+- `(PRECOMMIT, h, 2, id(v'))`
 
 The question is, did `p` misbehave? Let's consider some cases
 
 **Case 1.** There are at most f faulty processes and process `p` is the only
-one who locked or updated validValue in round 0. 
+one who locked or updated its valid value in round 0. 
 
 - Then a correct proposer of round 1 will propose a different value `v'`, 
 - 2f+1 correct processes will vote for `v'` in round 1 (`p` cannot because it is locked)
@@ -166,22 +166,22 @@ one who locked or updated validValue in round 0.
 - so that all process run into timeoutPrevote
 - after that all correct processes will get all the prevotes for `v'` and will update validValue
 - assume in round 2, `p` is the proposer
-    - it will send `(propose, h, 2, id(v'), 1)` (although it still has a lock on `v`)
+    - it will send `(PROPOSAL, h, 2, id(v'), 1)` (although it still has a lock on `v`)
     - in the lucky path all correct processes, including `p` will send 
-        - `(prevote, h, 2, id(v'))`, and later
-        - `(precommit, h, 2, id(v'))`
+        - `(PREVOTE, h, 2, id(v'))`, and later
+        - `(PRECOMMIT, h, 2, id(v'))`
         
 **Case 2.** There are at most f faulty processes and all correct processes lock
-and updated validValue in round 0. As discussed in the background section, the
+and updated their valid value in round 0. As discussed in the background section, the
 algorithm is designed in a way that no correct process will ever send any
-propose, prevote, or precommit message for a value different from `v`. 
+message for a value different from `v`. 
 
 So after sending `⟨precommit, h, 0, id(v))`, process `p`:
 
 - in runs of Case 1 is allowed (even forced) to also send these three messages, while
 - in runs of Case 2 it would be misbehaving.
 
-So the pair (`⟨precommit, h, 0, id(v))`, `(prevote, h, 2, id(v'))`), or the pairs with a proposal or a precommit for `v'`, do not constitute misbehavior. 
+So the pair (`⟨PRECOMMIT, h, 0, id(v))`, `(PREVOTE, h, 2, id(v'))`), or the pairs with a proposal or a precommit for `v'`, do not constitute misbehavior. 
 
 
  ## Misbehavior detection and verification in Accountable Tendermint
