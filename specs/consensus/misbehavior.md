@@ -18,7 +18,7 @@ superficial inspection of the pseudo code we observe that
 
 - **[Double vote]** correct validators never send two (different) vote messages
   (`PREVOTE`, `PRECOMMIT`) for the same height and round (that is the messages
-  differ in the value they carry; also nil is considered a value here), and
+  differ in the value they carry; also `nil` is considered a value here), and
 - **[Double propose]** a correct proposer never send two different proposals for
   the same height and round, and
 - **[Bad proposer]** a correct validator whose ID is different from
