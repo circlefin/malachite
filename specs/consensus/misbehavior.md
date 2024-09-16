@@ -1,6 +1,6 @@
 # Misbehavior detection and handling
 
-
+This document is a work in progress. Refer to issue [#340](https://github.com/informalsystems/malachite/issues/340) for more information.
 
 ## Background
 
@@ -25,40 +25,40 @@ superficial inspection of the pseudo code we observe that
   returned by `proposer(h, r)`  does not send a proposal for height `h` and 
   round `r `.
 
-A little bit more involved inspection shows that if a correct processes locks a
-value (setting `lockedValue` and `lockedRound` in lines 38 and 39) then it sends
+A little bit more involved inspection shows that if a correct process `p` locks a
+value (setting `lockedValue_p` and `lockedRound_p` in lines 38 and 39) then it sends
 a prevote for a different value in a later round (line 30) **only if** the
 condition of lines 28/29 is satisfied, that is, only of it receives a proposal
-and 2f+1 matching prevotes that carry the value `vr` that satisfies `vr >=
-lockedRound` (line 29). In other words
+and 2f+1 matching prevotes for the value in round `vr` that satisfies `vr >=
+lockedRound_p` (line 29). In other words
 
 - **[Amnesia]** a correct process never sends a prevote for a value `val` if
   it has locked a different value `val2` before and hasn't received a proposal
-  and sufficiently many prevotes for `val2` with `vr >= lockedRound`.
+  and sufficiently many prevotes for `val2` with valid round `vr >= lockedRound_p`.
 
 Remark on the term "amnesia". Amnesia a violation of the locking mechanism
 introduced by Dwork, Lynch, and Stockmeyer into their algorithm: a process locks
-a value in a round if the value is supported by more than 2/3. A process that
+a value in a round if the value is supported by more than 2/3 of the processes. A process that
 has locked a value can only be convinced to release that lock if more than two
 thirds of the processes have a lock for a later round. In the case of less than
-a third faults, if a process decides value v in a round r the algorithm ensures
-that more than two thirds have a lock on value v for that round. As a result
-once a value is decided, no other value w will be supported by enough correct
+a third faults, if a process decides value `v` in a round `r` the algorithm ensures
+that more than two thirds have a lock on value `v` for that round. As a result
+once a value is decided, no other value `v' != v` will be supported by enough correct
 processes. However, if there are more than a third faults, adversarial processes
-may lock a value v and in a later round “forget” they did that and support a
+may lock a value `v` and in a later round "forget" they did that and support a
 different value.
 
 It has been shown by formal verification (see results obtained with
 [Ivy](https://github.com/cometbft/cometbft/tree/main/spec/ivy-proofs), and
 [Apalache](https://github.com/cometbft/cometbft/blob/main/spec/light-client/accountability/Synopsis.md))
 that if there are between one third and two thirds of faults, every attack on
-Tendermint consensus that leads to violation of agreement is either the a
-"double vote" or an "amnesia attack". 
+Tendermint consensus that leads to violation of agreement is either a
+"double vote" equivocation or an "amnesia attack". 
 
 ### Accountability
 
 The question we are interested is, while we cannot prevent disagreement in all
-cases, wether we can keep misbehaving nodes accountable by ensuring to collect
+cases, whether we can keep misbehaving nodes accountable by ensuring to collect
 evidence of misbehavior, either for online evidence handling (e.g., penalties),
 or in case of a forking event, forensic analysis of the attack scenario that can
 constitute a source of information for social or legal actions after-the-fact.
@@ -92,7 +92,7 @@ still operational.
 
 - Detection: One needs to observe two different vote messages signed by the same
 process for the same
-    - step (prevote, precomit)
+    - round step (`prevote` or `precomit`)
     - round
     - height
     - chainID (this is relevant in the context resetting to previous heights or
@@ -110,14 +110,14 @@ a small proposal message carrying only the has of the value, and the big proposa
 #### Bad proposer
 
 - Detection: One needs to observe 
-    - a propose message for
-        - round
-        - height
+    - a `PROPOSAL` message for
+        - round `r`
+        - height `h`
         - chainID
-    - knowledge of the `proposer(h, round)` function and the context in which it
+    - knowledge of the `proposer(h, r)` function and the context in which it
       is run.   
 
-Observe that the way it is typically implemented, `proposer(h, round)` is not a
+Observe that the way it is typically implemented, `proposer(h, r)` is not a
 "mathematical function" that takes as input the height and the round and
 produces an ID. Rather it is typically implemented as a stateful function that
 is based on priorities. The latter depend on voting powers and who has been
@@ -131,11 +131,11 @@ Verification is more complex than double vote and double propose:
 - multiple layers are involved
     - maintaining and updating voting powers is typically an application level
       concern
-    - the `proposer` function is situated at the consensus level
-    - misbehavior detection can only happen and consensus level
+    - the `proposer(h, r)` function is situated at the consensus level
+    - misbehavior detection can only happen at consensus level
     - in order to use the evidence, the application must be able to verify the
       evidence. This this case it means that the application must
-        - be aware of the consensus-level `proposer` function and priorities
+        - be aware of the consensus-level `proposer` function and priorities, namely, be able to reproduce the output of `proposer(h, r)` for any given state
         - potentially have historical data (the evidence might come a couple of
           blocks after the fact) on validator sets
 
@@ -146,19 +146,19 @@ Verification is more complex than double vote and double propose:
 Let's consider the following case, we have received the following signed message
 from process `p`
 
-- `⟨precommit, h, 0, id(v))`.
+- `⟨PRECOMMIT, h, 0, id(v))`.
 
 By code inspection, we understand that `p` has locked value `v` in round `0`.
 Now assume we receive any of the following messages signed by `p`. 
 
-- `(propose, h, 2, id(v'), 1)`
-- `(prevote, h, 2, id(v'))`
-- `(precommit, h, 2, id(v'))`
+- `(PROPOSAL, h, 2, id(v'), 1)`
+- `(PREVOTE, h, 2, id(v'))`
+- `(PRECOMMIT, h, 2, id(v'))`
 
 The question is, did `p` misbehave? Let's consider some cases
 
 **Case 1.** There are at most f faulty processes and process `p` is the only
-one who locked or updated validValue in round 0. 
+one who locked or updated its valid value in round 0. 
 
 - Then a correct proposer of round 1 will propose a different value `v'`, 
 - 2f+1 correct processes will vote for `v'` in round 1 (`p` cannot because it is locked)
@@ -166,22 +166,22 @@ one who locked or updated validValue in round 0.
 - so that all process run into timeoutPrevote
 - after that all correct processes will get all the prevotes for `v'` and will update validValue
 - assume in round 2, `p` is the proposer
-    - it will send `(propose, h, 2, id(v'), 1)` (although it still has a lock on `v`)
+    - it will send `(PROPOSAL, h, 2, id(v'), 1)` (although it still has a lock on `v`)
     - in the lucky path all correct processes, including `p` will send 
-        - `(prevote, h, 2, id(v'))`, and later
-        - `(precommit, h, 2, id(v'))`
+        - `(PREVOTE, h, 2, id(v'))`, and later
+        - `(PRECOMMIT, h, 2, id(v'))`
         
 **Case 2.** There are at most f faulty processes and all correct processes lock
-and updated validValue in round 0. As discussed in the background section, the
+and updated their valid value in round 0. As discussed in the background section, the
 algorithm is designed in a way that no correct process will ever send any
-propose, prevote, or precommit message for a value different from `v`. 
+message for a value different from `v`. 
 
 So after sending `⟨precommit, h, 0, id(v))`, process `p`:
 
 - in runs of Case 1 is allowed (even forced) to also send these three messages, while
 - in runs of Case 2 it would be misbehaving.
 
-So the pair (`⟨precommit, h, 0, id(v))`, `(prevote, h, 2, id(v'))`), or the pairs with a proposal or a precommit for `v'`, do not constitute misbehavior. 
+So the pair (`⟨PRECOMMIT, h, 0, id(v))`, `(PREVOTE, h, 2, id(v'))`), or the pairs with a proposal or a precommit for `v'`, do not constitute misbehavior. 
 
 
  ## Misbehavior detection and verification in Accountable Tendermint
@@ -191,12 +191,12 @@ The extended version of this
 proposes a slight change to the Tendermint algorithm that allows us to achieve
 the following property
 
-**Accountability.** If there are at most 2f faulty processes and (at least) two
+**Accountability.** If there are at most `2f` Byzantine-faulty processes and (at least) two
 correct processes decide different values, then every correct process eventually
-detects at least f+1 faulty processes.
+detects at least `f+1` faulty processes.
 
 The change to Tendermint is just that prevote messages have an additional field
-that carries the content of the `vr` field of the propose message that triggered
+that carries the content of the `vr` field of the proposal that triggered
 the sending of the prevote. Here are the most relevant changed pseudo code
 parts:
 
