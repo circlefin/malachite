@@ -9,14 +9,14 @@
 Tendermint is a variant of the [seminal
 algorithm](https://groups.csail.mit.edu/tds/papers/Lynch/MIT-LCS-TM-270.pdf) by
 Dwork, Lynch and Stockmeyer. It shares the property that if less than a third of
-the validators are faulty, agreement is guaranteed. If there are more than two
-thirds of faulty validators, they have control over the system.
+the processes are faulty, agreement is guaranteed. If there are more than two
+thirds of faulty processes, they have control over the system.
 
-In order to bring the system to disagreement, the faulty validators need to
+In order to bring the system to disagreement, the faulty processes need to
 actively deviate from the [protocol](TODO link to Daniel's pseudo code). By
 superficial inspection of the pseudo code we observe that 
 
-- **[Double vote]** correct validators never send two (different) vote messages
+- **[Double vote]** correct processes never send two (different) vote messages
   (prevote, precommit) for the same height and round (that is the messages
   differ in the value they carry; also nil is considered a value here), and
 - **[Double propose]** a correct proposer never send two different proposals for
@@ -31,7 +31,7 @@ condition of lines 28/29 is satisfied, that is, only of it receives a proposal
 and 2f+1 matching prevotes that carry the value `vr` that satisfies `vr >=
 lockedRound` (line 29). In other words
 
-- **[Amnesia]** a correct validators never sends a prevote for a value `val` if
+- **[Amnesia]** a correct process never sends a prevote for a value `val` if
   it has locked a different value `val2` before and hasn't received a proposal
   and sufficiently many prevotes for `val2` with `vr >= lockedRound`.
 
@@ -156,11 +156,11 @@ Now assume we receive any of the following messages signed by `p`.
 
 The question is, did `p` misbehave? Let's consider some cases
 
-**Case 1.** There are at most f faulty validators and validator `p` is the only
+**Case 1.** There are at most f faulty processes and validator `p` is the only
 one who locked or updated validValue in round 0. 
 
 - Then a correct proposer of round 1 will propose a different value `v'`, 
-- 2f+1 correct validators will vote for `v'` in round 1 (`p` cannot because it is locked)
+- 2f+1 correct processes will vote for `v'` in round 1 (`p` cannot because it is locked)
 - There are some faulty prevote nil that are received the prevote from the correct processes
 - so that all process run into timeoutPrevote
 - after that all correct processes will get all the prevotes for `v'` and will update validValue
@@ -170,7 +170,7 @@ one who locked or updated validValue in round 0.
         - `(prevote, h, 2, id(v'))`, and later
         - `(precommit, h, 2, id(v'))`
         
-**Case 2.** There are at most f faulty validators and all correct processes lock
+**Case 2.** There are at most f faulty processes and all correct processes lock
 and updated validValue in round 0. As discussed in the background section, the
 algorithm is designed in a way that no correct process will ever send any
 propose, prevote, or precommit message for a value different from `v`. 
