@@ -53,7 +53,7 @@ It has been shown by formal verification (see results obtained with
 [Apalache](https://github.com/cometbft/cometbft/blob/main/spec/light-client/accountability/Synopsis.md))
 that if there are between one third and two thirds of faults, every attack on
 Tendermint consensus that leads to violation of agreement is either a
-"double vote" or an "amnesia attack". 
+"double vote" equivocation or an "amnesia attack". 
 
 ### Accountability
 
