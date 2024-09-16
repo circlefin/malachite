@@ -146,7 +146,7 @@ Verification is more complex than double vote and double propose:
 Let's consider the following case, we have received the following signed message
 from process `p`
 
-- `⟨precommit, h, 0, id(v))`.
+- `⟨PRECOMMIT, h, 0, id(v))`.
 
 By code inspection, we understand that `p` has locked value `v` in round `0`.
 Now assume we receive any of the following messages signed by `p`. 
