@@ -24,6 +24,7 @@ and on what conditions to generate consensus inputs.
 - [Round state machine](#round-state-machine): How to change state depending on the
 current state and a consensus input.
 
+- [Misbehavior detection and handling](../../consensus/misbehavior.md): How Faulty nodes can misbehave, how it can be detected, and how objective proof of misbehavior can be computed that can be soundly used to incentivize nodes to behave nicely (penalties, slashing, etc. are not in the scope of the consensus engine, and will thus not be discussed here).
 
 ## Message Handling
 

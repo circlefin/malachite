@@ -50,6 +50,7 @@ val AllFaultyProposals : Set[Proposal] =
 // Global State
 var system : Address -> NodeState
 var propBuffer : Address -> Set[Proposal]
+var certBuffer : Address -> Set[Set[Vote]]
 var voteBuffer : Address -> Set[Vote]
 var _hist: { validator: Address, input: DriverInput, output: ConsensusOutput }
 
@@ -57,6 +58,7 @@ action unchangedAll = all {
     system' = system,
     propBuffer' = propBuffer,
     voteBuffer' = voteBuffer,
+    certBuffer' = certBuffer,
     _hist' = _hist
 }
 
@@ -70,6 +72,7 @@ action init = all {
     system' = Correct.mapBy(v => initNode(v, validatorSet)),
     propBuffer' = Correct.mapBy(v => Set()),
     voteBuffer' = Correct.mapBy(v => Set()),
+    certBuffer' = Correct.mapBy(v => Set()),
     _hist' = { validator: "INIT", input: NoDInput, output: NoConsensusOutput }
 }
 
@@ -78,8 +81,16 @@ pure def sendProposal(buffer: Address -> Set[Proposal], prop: Proposal): Address
     buffer.keys().mapBy(x => { buffer.get(x).union(Set(prop)) })
 
 // Put the vote into the inbuffers of all validators
-pure def sendVote(sys: Address -> Set[Vote], vote: Vote): Address -> Set[Vote] =
-    sys.keys().mapBy(x => { ...sys.get(x).union(Set(vote)) })
+pure def sendVote(buffer: Address -> Set[Vote], vote: Vote): Address -> Set[Vote] =
+    buffer.keys().mapBy(x => { ...buffer.get(x).union(Set(vote)) })
+
+// Put the certificate into the inbuffers of all validators
+pure def sendCertificate(buffer : Address -> Set[Set[Vote]], cert: Certificate): Address -> Set[Set[Vote]] =
+    match cert {
+        | NoCertificate => buffer
+        | Polka(c) => buffer.keys().mapBy(x => { ...buffer.get(x).union(Set(c)) })
+        | Commit(c) => buffer.keys().mapBy(x => { ...buffer.get(x).union(Set(c)) })
+    }
 
 // Record that a timeout has started at node v
 // As we do set union here, there is no need to check whether this happens the first time
@@ -100,8 +111,8 @@ action valStep(v: Address) : bool = {
     val sys1 = system.put(v, node_state)
     // call driver
     val res = driver(sys1.get(v).es, driver_input)
-    val driver_state = res._1
-    val consensus_output = res._2
+    val driver_state = res.ds
+    val consensus_output = res.out
     all {
         // update v's state after the step
         val sys = sys1.put(v, { ...sys1.get(v), es: driver_state})
@@ -147,10 +158,17 @@ action valStep(v: Address) : bool = {
                 system' = sys,
             }
         },
+
+        // we make a certificate available to the others. In the implementation (and potentially
+        // a more high-level node spec) we will need to be more clever about this, e.g., only
+        // send the certificate if I am in a future round and the proposer
+        certBuffer' = sendCertificate(certBuffer, res.certificate),
+
         _hist' = { validator: v, input: driver_input, output: consensus_output }
 //         _histSimple' = (v, input._2.name, res._2.name)
     }
 }
+
 
 action setNextValueToPropose(v: Address, value: NonNilValue) : bool = all {
     val newNS = setValue(system.get(v), value)
@@ -158,8 +176,8 @@ action setNextValueToPropose(v: Address, value: NonNilValue) : bool = all {
     _hist' = _hist,
     propBuffer' = propBuffer,
     voteBuffer' = voteBuffer,
+    certBuffer' = certBuffer,
 }
-
 
 
 action deliverProposal(v: Address, p: Proposal) : bool = all {
@@ -168,6 +186,7 @@ action deliverProposal(v: Address, p: Proposal) : bool = all {
     system' = system.put(v, { ...system.get(v), incomingProposals: system.get(v).incomingProposals.union(Set(p)) }),
     _hist' = _hist,
     voteBuffer' = voteBuffer, 
+    certBuffer' = certBuffer,
 }
 
 action deliverSomeProposal(v: Address) : bool = any {
@@ -181,15 +200,34 @@ action deliverVote(v: Address, vote: Vote) : bool = all {
     system' = system.put(v, { ...system.get(v), incomingVotes: system.get(v).incomingVotes.union(Set(vote)) }),
     _hist' = _hist,
     propBuffer' = propBuffer, 
+    certBuffer' = certBuffer,
 }
 
-// deliver a message. Take it from the network buffer of from the faulty set
-//  and put it into the incoming sets
+action deliverCertificate(v: Address, c: Set[Vote]) : bool = all {
+    certBuffer.get(v).contains(c), // the cert must be sent 
+    certBuffer' = certBuffer.put(v, certBuffer.get(v).exclude(Set(c))),
+    system' = system.put(v, { ...system.get(v), incomingCertificates: system.get(v).incomingCertificates.union(Set(c)) }),
+    _hist' = _hist,
+    propBuffer' = propBuffer,    
+    voteBuffer' = voteBuffer, 
+}
+
+action deliverSomeCertificate(v: Address) : bool = any {
+    nondet c = oneOf(certBuffer.get(v))
+    deliverCertificate(v, c)
+}
+
+
+// deliver a message or a certiciate. 
+// Take it from the network buffer of from the faulty set and put it into the incoming sets
 action deliver(v: Address) : bool = any {
     nondet prop = oneOf(propBuffer.get(v).union(AllFaultyProposals))
     deliverProposal(v, prop),
     nondet vote = oneOf(voteBuffer.get(v).union(AllFaultyVotes))
-    deliverVote(v, vote)
+    deliverVote(v, vote),
+    deliverSomeCertificate(v),  // we might do fault injection here. But faulty nodes cannot
+                                // totally make up certificates. They cannot forge messages to look 
+                                // like being sent by correct nodes
 }
 
 action step = {
