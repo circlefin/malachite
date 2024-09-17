@@ -62,7 +62,7 @@ The execution of each round of consensus is led by a process selected as the
 **proposer** of that round.
 Tendermint assumes the existence of a deterministic proposer selection
 algorithm represented in the pseudo-code by calls to the `proposer(h, r)`
-external function that returns the process that should led round `r` of
+external function that returns the process that should lead round `r` of
 consensus height `h`.
 
 ### Round Steps
