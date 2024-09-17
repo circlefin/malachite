@@ -258,9 +258,12 @@ impl ItfRunner for ConsensusRunner {
                     assert_eq!(output_timeout.step, model_timeout.to_common());
                 }
 
-                (Output::Decision(decision), ModelOutput::Decided(expected_decided_value)) => {
+                (
+                    Output::Decision(_round, proposal),
+                    ModelOutput::Decided(expected_decided_value),
+                ) => {
                     assert_eq!(
-                        Some(decision.value),
+                        Some(proposal.value),
                         value_from_model(expected_decided_value),
                         "unexpected decided value"
                     );

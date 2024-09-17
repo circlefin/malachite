@@ -227,7 +227,7 @@ fn driver_steps_proposer() {
                 NilOrVal::Val(value.id()),
                 v3.address,
             ))),
-            expected_outputs: vec![Output::Decide(Round::new(0), value)],
+            expected_outputs: vec![Output::Decide(Round::new(0), proposal)],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -485,7 +485,7 @@ fn driver_steps_not_proposer_valid() {
                 NilOrVal::Val(value.id()),
                 v3.address,
             ))),
-            expected_outputs: vec![Output::Decide(Round::new(0), value)],
+            expected_outputs: vec![Output::Decide(Round::new(0), proposal)],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),

@@ -188,7 +188,7 @@ where
                 outputs.push(Output::GetValue(height, round, timeout));
             }
 
-            RoundOutput::Decision(value) => outputs.push(Output::Decide(value.round, value.value)),
+            RoundOutput::Decision(round, proposal) => outputs.push(Output::Decide(round, proposal)),
         }
     }
 

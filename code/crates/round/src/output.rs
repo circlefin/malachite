@@ -4,8 +4,6 @@ use derive_where::derive_where;
 
 use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValueId};
 
-use crate::state::RoundValue;
-
 /// Output of the round state machine.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum Output<Ctx>
@@ -29,7 +27,7 @@ where
     GetValueAndScheduleTimeout(Ctx::Height, Round, Timeout),
 
     /// Decide the value.
-    Decision(RoundValue<Ctx::Value>),
+    Decision(Round, Ctx::Proposal),
 }
 
 impl<Ctx: Context> Output<Ctx> {
@@ -79,7 +77,7 @@ impl<Ctx: Context> Output<Ctx> {
     }
 
     /// Build a `Decision` output.
-    pub fn decision(round: Round, value: Ctx::Value) -> Self {
-        Output::Decision(RoundValue { round, value })
+    pub fn decision(round: Round, proposal: Ctx::Proposal) -> Self {
+        Output::Decision(round, proposal)
     }
 }

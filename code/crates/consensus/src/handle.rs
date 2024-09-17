@@ -1,6 +1,7 @@
 use async_recursion::async_recursion;
 use tracing::{debug, error, info, warn};
 
+use malachite_common::Value;
 use malachite_common::*;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
@@ -301,13 +302,16 @@ where
             apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.message)).await
         }
 
-        DriverOutput::Decide(round, value) => {
+        DriverOutput::Decide(decision_round, proposal) => {
             // TODO: Remove proposal, votes, block for the round
-            info!("Decided on value {}", value.id());
+            info!(
+                "Decided in round {} on proposal {:?}",
+                decision_round, proposal
+            );
 
-            perform!(co, Effect::ScheduleTimeout(Timeout::commit(round)));
+            perform!(co, Effect::ScheduleTimeout(Timeout::commit(decision_round)));
 
-            decided(co, state, metrics, state.driver.height(), round, value).await
+            decided(co, state, metrics, decision_round, proposal).await
         }
 
         DriverOutput::ScheduleTimeout(timeout) => {
@@ -364,25 +368,32 @@ async fn decided<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    height: Ctx::Height,
-    round: Round,
-    value: Ctx::Value,
+    _decision_round: Round,
+    proposal: Ctx::Proposal,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
+    let height = proposal.height();
+    let round = proposal.round();
+    let value = proposal.value();
     // Remove the block information as it is not needed anymore
-    state.remove_received_block(height, round);
+    let block_round = if proposal.pol_round().is_defined() {
+        proposal.pol_round()
+    } else {
+        proposal.round()
+    };
+    state.remove_received_block(proposal.height(), block_round);
 
     // Restore the commits. Note that they will be removed from `state`
-    let commits = state.restore_precommits(height, round, &value);
+    let commits = state.restore_precommits(height, round, value);
 
     perform!(
         co,
         Effect::DecidedOnValue {
             height,
             round,
-            value,
+            value: value.clone(),
             commits
         }
     );
@@ -393,6 +404,8 @@ where
 
     metrics.block_end();
     metrics.finalized_blocks.inc();
+
+    // TODO: Show also the decision_round in a different metric
     metrics
         .rounds_per_block
         .observe((round.as_i64() + 1) as f64);
