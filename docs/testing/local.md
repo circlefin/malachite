@@ -40,7 +40,7 @@ $ docker run -it -v .:/app --cap-add=NET_ADMIN rust:1-slim /bin/bash
 5. Build Malachite
 
 ```
-# cd malachite/code
+# cd app/code
 # cargo build --release
 ```
 
