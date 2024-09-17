@@ -24,11 +24,12 @@ algorithm.
 Tendermint can solve consensus as long as **less than one third of the
 processes are Byzantine**, i.e., operate arbitrarily.
 
-> Byzantine nodes are assumed to not to be able to break digital signatures,
-> that is, pretend to forward messages by correct nodes that were never send
-> (a.k.a. non-masquerading).
->
-> FIXME: move this to the communication assumptions?
+Tendermint assumes that all consensus messages contain a **digital signature**.
+This enables a process receiving a message to authenticate its sender and
+content.
+Byzantine nodes are assumed to not to be able to break digital signatures,
+that is, they cannot forge messages and impersonate correct senders
+(a.k.a. non-masquerading).
 
 ### Heights
 
@@ -177,9 +178,6 @@ Proposals are produced and broadcast by the `StartRound(round)` function of the
 [pseudo-code][pseudo-code], by the process selected returned by the
 `proposer(h_p, round)` external function, where `round = round_p` is the
 started round.
-
-> TODO: not in this document, but we probably should mention that proposals are
-> signed by the proposer.
 
 Every process expects to receive the `⟨PROPOSAL, h, r, v, *⟩` broadcast by
 `proposer(h, r)`, as its reception is a condition for all state transitions
