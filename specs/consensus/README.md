@@ -269,8 +269,8 @@ proposals broadcast by a Byzantine proposer.
 Notice that while hard to prevent, equivocation attacks are easy to detect,
 once distinct messages for the same height, round, and round step are received
 and they are signed by the same process.
-
-> TODO: reference to evidence production and handling document.
+For a more comprehensive discussion on misbehavior detection, evidence
+production and dissemination refer to this [document](./misbehavior.md).
 
 ### Votes
 
@@ -370,6 +370,9 @@ consensus logic as they were duplicated messages.
 The reason for which is the fact that a Byzantine process can produce an
 arbitrary number of such messages.
 
+> For a more comprehensive discussion on producing evidences of equivocation
+> refer to this [document](./misbehavior.md).
+
 Unfortunately, there are multiple scenarios in which correct processes may
 receive equivocating messages from Byzantine voters in different orders, and
 by only considering the first received one, they may end up performing
@@ -405,8 +408,10 @@ In this case, issuing a `⟨PREVOTE, h, r', id(v')⟩` can be justified as a
 correct behaviour provided that `p` is able to prove the existence of a
 `2f + 1 ⟨PREVOTE, h, vr, id(v')⟩` set of messages accepting `v'`.
 
-> TODO: refer to the variation of Tendermint protocol that renders it possible
-> to detect and produce evidence for the amnesia attack.
+> A variation of Tendermint consensus protocol, known as
+> [Accountable Tendermint][accountable-tendermint], proposes some changes in
+> the algorithm to render it possible to detect and produce evidence for the
+> amnesia attack (see also [#398](https://github.com/informalsystems/malachite/issues/398)).
 
 ## External Components
 
@@ -478,3 +483,4 @@ to the current time plus the duration returned by the corresponding functions
   names are adopted and are equivalent.
 
 [pseudo-code]: ./pseudo-code.md
+[accountable-tendermint]: ./misbehavior.md#misbehavior-detection-and-verification-in-accountable-tendermint
