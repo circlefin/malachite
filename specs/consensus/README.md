@@ -422,10 +422,9 @@ The first external function is `proposer(h, r)` that returns the process
 selected as the proposer of round `r` of height `h` of consensus. The roles of
 the proposer of a round are described in the [propose round step](#propose).
 
-> TODO: determinism
-
-> TODO: minimal requirement is that eventually a correct process is selected as
-> the proposer of a round
+> The formalization of the properties requires for the proposer selection
+> algorithm is a work in progress, see
+> https://github.com/informalsystems/malachite/issues/396.
 
 #### Proposal value
 
