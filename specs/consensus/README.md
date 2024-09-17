@@ -11,6 +11,9 @@ reference is copied into the [pseudo-code.md][pseudo-code] file.
 
 ## Overview
 
+> TODO: the content of this big section should be moved into a `./overview.md`
+> file, linked in `README.md`.
+
 A consensus algorithm is run by a (previously defined) set of **processes**[^1], some
 of which may fail, that **propose** values and guarantees that eventually all
 correct processes **decide** the same value, among the proposed ones.
@@ -438,7 +441,8 @@ part of the transition to the [propose round step](#propose).
 It should return a value to be proposed by the process `p` for the current
 height of consensus `h_p`.
 
-> TODO: synchronous/asynchronoous implementations?
+> TODO: synchronous/asynchronous implementations, currently discussed
+> [here](../english/consensus/README.md#asynchronous-getvalue-and-proposevaluev).
 
 #### Validation
 
@@ -448,11 +452,10 @@ It should return whether the `v` is a valid value according to the semantics of
 the "client" of the consensus protocol, i.e., the application that uses
 consensus to agree on proposed values.
 
-> TODO: typically depends on `h` as well. Should not ordinarily depend on `r`.
-
-> TODO: determinism
-
-> TODO: validity property of consensus
+> TODO: relevant observation:
+> - Validation typically depends on `h` as well. Should not ordinarily depend on `r`.
+> - Determinism: is `valid(v)` a function?
+> - Needed because of validity property of consensus, defined in the paper
 
 ### Primitives
 
