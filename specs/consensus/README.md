@@ -11,7 +11,7 @@ reference is copied into the [pseudo-code.md][pseudo-code] file.
 
 ## Overview
 
-A consensus algorithm is run by a (previously defined) set of processes, some
+A consensus algorithm is run by a (previously defined) set of **processes**[^1], some
 of which may fail, that **propose** values and guarantees that eventually all
 correct processes **decide** the same value, among the proposed ones.
 
@@ -475,5 +475,9 @@ to the current time plus the duration returned by the corresponding functions
 > TODO: most timeouts can be cancelled when the associated conditions are not
 > any longer observed (round or height changed, round step changed).
 
+[^1]: This document adopts _process_ to refer to the active participants of the
+  consensus algorithm, which can propose and vote for values. In the blockchain
+  terminology, a _process_ would be a _validator_. In the specification both
+  names are adopted and are equivalent.
 
 [pseudo-code]: ./pseudo-code.md
