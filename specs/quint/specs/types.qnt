@@ -75,4 +75,13 @@ module types {
     pure def mkVote(voteType, srcAddress, height, round, valueId) = 
         { voteType: voteType, srcAddress: srcAddress, height: height, round: round, valueId: valueId }
 
+    val emptyProposal = mkProposal(noAddress, 0, 0, "", 0)
+    val emptyVote = mkVote(Prevote, noAddress, 0, 0, Nil)
+
+    type Certificate = 
+        | NoCertificate
+        | Polka(Set[Vote])
+        | Commit(Set[Vote])
+
+
 }

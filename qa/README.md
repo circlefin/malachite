@@ -23,8 +23,7 @@ The developer can create the testnet configuration remotely on the `cc` server u
 The configuration is stored in the `/data` folder on the server which is shared over NFS with the QA nodes.
 
 The `cc` server also hosts a Prometheus server with Grafana for monitoring the nodes and an ElasticSearch database with
-Kibana to collect the logs. The services can be reached at their default port 3000 and port 5601. The ElasticSearch
-password is printed by Terraform. (Username is `elastic`.)
+Kibana to collect the logs. The services can be reached at their default port 3000 and port 5601.
 
 Finally, the `cc` server also works as the DNS server for the QA nodes. All node IPs can be resolved by simple names on
 the servers. This is especially useful when configuring persistent peers.
@@ -47,7 +46,7 @@ the `cc` server with the QA nodes in one go.
 The above will create a 7-node Digital Ocean QA environment and a `commands.sh` file with the custom commands.
 
 Most of the node setup is done automatically in cloud-init. When terraform finishes, the CC server is still installing
-services for Elasitc and Prometheus.
+services for ElasticSearch and Prometheus.
 
 (Optional) Use the `ok_cc` command to check if all services are up and running. By the time you deploy a binary, all
 services should be running.
@@ -55,10 +54,6 @@ services should be running.
 ## Post-terraform tasks
 
 There are a few custom commands to make managing the nodes easier. They are explained in the `commands.sh` file.
-
-Note: most of these commands require SSH authentication. If you use a Yubikey for SSH authentication, you can
-saturate your machine's SSH connection with the default settings. Use a key file and `ssh-agent` or change
-connection settings.
 
 ### 0. TL;DR
 
@@ -71,15 +66,14 @@ source commands.sh # do this in all new terminal window on your machine. No need
 deploy_cc # Takes 4-5 minutes.
           # You can run it on cc server as well, but you have to manually put the source code at /root/malachite.
 ssh-cc # (optional) move to the CC server and run the rest of the commands closer to the QA nodes.
-setup_config # depends on deploy_cc, only run it if that finished.
+setup_config # only run it after deploy_cc finished.
 
-dnode-run all # run malachite on all QA servers
+d_pull all # run `docker pull` on all QA servers
+d_run all # run malachite on all QA servers
 
 # Wait some time to generate data
 
-dnode-stop all # stop all malachite nodes. It does not remove the docker container so the logs can be viewed.
-
-dnode-rm all # remove the docker container "node" from the servers so the application can be re-run
+d_rm all # stop and remove the docker container "node" from the servers
 ```
 
 ### 1. Import custom commands
@@ -101,12 +95,9 @@ Builds the application using Docker and deploys it into the CC server Docker Reg
 
 This will take a few minutes. (4.5 minutes in Lausanne, connecting to a 4vCPU/8GB fra1 server in Digital Ocean.)
 
-You can continue executing the rest of the setup commands, until you want to configure the network with `setup_config`.
-You will need the application for the correct generation of the application configuration.
+You can also run this command on the `cc` server, but you need to copy or clone the source code over to the server.
 
-You can also run this command on the `cc` server, but you need to copy the source code over to the server.
-
-### 2.5 (optional) Connect to the CC server
+### 3. Connect to the CC server
 
 ```bash
 ssh-cc
@@ -119,7 +110,7 @@ The custom commands are automatically available on the CC server. No need to `so
 
 You can keep running on your local machine, though, if that is more convenient.
 
-### 3. Create the configuration data on the cc server
+### 4. Create the configuration data on the cc server
 
 ```bash
 setup_config
@@ -127,22 +118,22 @@ setup_config
 
 The configuration data is stored on the CC server under `/data`. This path is also shared with the QA nodes over NFS.
 
-Depends on an up-to-date host count. Re-run it after `ok_cc` if you changed the number of servers.
+Depends on an up-to-date host count. Re-run it, if you changed the number of servers.
 
-### 4. Start the nodes
+### 5. Start the nodes
 
 ```bash
-dnode-run 0 2 3
-RUST_LOG=debug dnode-run 1
+d_run 0 2 3
+RUST_LOG=debug d_run 1
 ```
 
 You can also use the `all` keyword to start or stop all nodes at once.
 
 ```bash
-dnode-run all
+d_run all
 ```
 
-You can use `dnode`, `dnode-run`, `dnode-log`, `dnode-stop` and `dnode-rm` to manage the docker containers.
+You can use `d_run`, `d_log`, `d_stop` and `d_rm` to manage the docker containers.
 
 ### (optional) Make sure CC installed all services
 
@@ -166,8 +157,6 @@ when you SSH into the server.
 
 ## prometheus.tgz file
 
-> Warning: `get_prometheus_data` is currently not working.
-
 This file gets exported using the `get_prometheus_data` command. Import it in the viewer for further analysis.
 
 # Viewer
@@ -186,15 +175,13 @@ The `Makefile` is in the `viewer` directory.
 
 ## 1. Download the data
 
-> Warning: `download_data` is currently not working.
-
 This command is part of the terraform-created `commands.sh` file.
 
 ```bash
-download_data
+get_prometheus_data
 ```
 
-This will download compressed `prometheus.tgz` file from the `cc` server.
+This will download a compressed `prometheus.tgz` file from the `cc` server.
 
 ## 2. Extract the data to its destination
 
@@ -219,3 +206,4 @@ When you are done with the data, you can stop the viewer.
 ```bash
 make viewer-stop
 ```
+

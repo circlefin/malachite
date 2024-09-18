@@ -1,4 +1,4 @@
-resource "random_string" "elastic_password" {
+resource "random_password" "elastic_password" {
   length           = 30
   special          = false
 }
@@ -23,8 +23,7 @@ resource "digitalocean_droplet" "cc" {
     prometheus_config = filebase64("../viewer/config-prometheus/prometheus.yml")
     grafana_data_sources = filebase64("../viewer/config-grafana/provisioning/datasources/prometheus.yml")
     grafana_dashboards_config = filebase64("../viewer/config-grafana/provisioning/dashboards/malachite.yml")
-    elastic_password = random_string.elastic_password.result
-    #ssh_key = tls_private_key.ssh.private_key_openssh
+    elastic_password = random_password.elastic_password.result
   })
   connection {
     host = digitalocean_droplet.cc.ipv4_address
@@ -35,13 +34,32 @@ resource "digitalocean_droplet" "cc" {
     source = "../viewer/config-grafana/provisioning/dashboards-data"
     destination = "/root"
   }
+  provisioner "file" {
+    content = tls_private_key.ssh.private_key_openssh
+    destination = "/root/.ssh/id_rsa"
+  }
 }
 
 resource terraform_data cc-done {
   triggers_replace = [
-    local.commands-sh,
-    local.etc-hosts,
     digitalocean_droplet.cc.id
+  ]
+
+  connection {
+    host = digitalocean_droplet.cc.ipv4_address
+    timeout = var.ssh_timeout
+    private_key = tls_private_key.ssh.private_key_openssh
+  }
+
+  provisioner "remote-exec" {
+    script = "scripts/cc-done.sh"
+  }
+}
+
+resource terraform_data cc-commands {
+  triggers_replace = [
+    local.commands-sh,
+    terraform_data.cc-done.id
   ]
 
   connection {
@@ -54,12 +72,64 @@ resource terraform_data cc-done {
     content = local.commands-sh
     destination = "/etc/profile.d/commands.sh"
   }
+
+  provisioner "remote-exec" {
+    script = "scripts/cc-commands.sh"
+  }
+}
+
+resource terraform_data cc-dns {
+  triggers_replace = [
+    local.etc-hosts,
+    terraform_data.cc-done.id
+  ]
+
+  connection {
+    host = digitalocean_droplet.cc.ipv4_address
+    timeout = var.ssh_timeout
+    private_key = tls_private_key.ssh.private_key_openssh
+  }
+
   provisioner "file" {
     content = local.etc-hosts
     destination = "/etc/hosts"
   }
 
   provisioner "remote-exec" {
-    script = "scripts/cc-done.sh"
+    script = "scripts/cc-dns.sh"
   }
 }
+
+resource terraform_data cc-nfs {
+  triggers_replace = [
+    terraform_data.cc-done.id
+  ]
+
+  connection {
+    host = digitalocean_droplet.cc.ipv4_address
+    timeout = var.ssh_timeout
+    private_key = tls_private_key.ssh.private_key_openssh
+  }
+
+  provisioner "remote-exec" {
+    script = "scripts/cc-nfs.sh"
+  }
+}
+
+resource terraform_data cc-ssh {
+  triggers_replace = [
+    tls_private_key.ssh.id,
+    terraform_data.cc-done.id
+  ]
+
+  connection {
+    host = digitalocean_droplet.cc.ipv4_address
+    timeout = var.ssh_timeout
+    private_key = tls_private_key.ssh.private_key_openssh
+  }
+
+  provisioner "remote-exec" {
+    script = "scripts/cc-ssh.sh"
+  }
+}
+

@@ -99,11 +99,11 @@ write_files:
   - path: /root/.ssh/config
     content: |
       Host *
-        ForwardAgent yes
         LogLevel ERROR
         StrictHostKeyChecking no
         UserKnownHostsFile /dev/null
         GlobalKnownHostsFile /dev/null
+        IdentityFile /root/.ssh/id_rsa
   - path: /etc/exports
     content: |
       /data 10.0.0.0/8(ro,sync,no_subtree_check)
@@ -217,16 +217,19 @@ write_files:
         prometheus:
         registry:
         grafana:
+  - path: /root/docker/kibana-autologin.yml
+    content: |
+      xpack.security.authc.providers:
+        anonymous.me1:
+          order: 0
+          credentials:
+            username: "elastic"
+            password: "${elastic_password}"
 runcmd:
 # Parallel SSH naming fix
   - ln /usr/bin/parallel-ssh /usr/bin/pssh
 # Restart resolved so it disconnects port 53.
   - systemctl restart systemd-resolved
-# NFS server
-  - mkdir /data
-  - chown nobody:nogroup /data
-  - systemctl start nfs-kernel-server
-  - systemctl enable nfs-kernel-server
 # Indicate, that the server is ready for post-installation tasks.
   - date > /etc/done
 # Start docker service
@@ -241,6 +244,7 @@ runcmd:
   - sed -i 's/^ELASTIC_PASSWORD=.*/ELASTIC_PASSWORD='"'${elastic_password}'"'/' /root/docker-elk/.env
   - sed -i 's/^LOGSTASH_INTERNAL_PASSWORD=.*/LOGSTASH_INTERNAL_PASSWORD='"'$(pwgen 30 1)'"'/' /root/docker-elk/.env
   - sed -i 's/^KIBANA_SYSTEM_PASSWORD=.*/KIBANA_SYSTEM_PASSWORD='"'$(pwgen 30 1)'"'/' /root/docker-elk/.env
+  - cat /root/docker/kibana-autologin.yml >> /root/docker-elk/kibana/config/kibana.yml
   - docker compose -f /root/docker-elk/docker-compose.yml up setup
   - docker compose -f /root/docker-elk/docker-compose.yml up elasticsearch kibana -d
 # Enable Prometheus metrics for this host

@@ -217,7 +217,7 @@ pub fn generate_config(
                     .collect(),
             },
             max_tx_count: 10000,
-            gossip_batch_size: 256,
+            gossip_batch_size: 0,
         },
         metrics: MetricsConfig {
             enabled: true,

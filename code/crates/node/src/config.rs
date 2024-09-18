@@ -156,7 +156,7 @@ impl TimeoutConfig {
 impl Default for TimeoutConfig {
     fn default() -> Self {
         Self {
-            timeout_propose: Duration::from_secs(5),
+            timeout_propose: Duration::from_secs(3),
             timeout_propose_delta: Duration::from_millis(500),
             timeout_prevote: Duration::from_secs(1),
             timeout_prevote_delta: Duration::from_millis(500),
@@ -214,7 +214,7 @@ impl Default for TestConfig {
         Self {
             tx_size: ByteSize::kib(1),
             txs_per_part: 256,
-            time_allowance_factor: 0.3,
+            time_allowance_factor: 0.5,
             exec_time_per_tx: Duration::from_millis(1),
         }
     }

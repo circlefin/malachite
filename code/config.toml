@@ -39,7 +39,7 @@ max_block_size = "1 MiB"
 ## Timeouts
 # How long we wait for a proposal block before prevoting nil
 # Override with MALACHITE__CONSENSUS__TIMEOUT_PROPOSE env variable
-timeout_propose = "5s"
+timeout_propose = "3s"
 
 # How much timeout_propose increases with each round
 timeout_propose_delta = "500ms"
@@ -84,7 +84,7 @@ max_tx_count = 10000
 
 # Maximum number of transactions to gossip at once in a batch. If set to 0, mempool does not gossip the transactions.
 # Override with MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE
-gossip_batch_size = 100
+gossip_batch_size = 0
 
 #######################################################
 ###       Mempool P2P Configuration Options       ###
@@ -126,6 +126,6 @@ tx_size = "1 KiB"
 # Override with MALACHITE__TEST__TXS_PER_PART env variable
 txs_per_part = 256
 # Override with MALACHITE__TEST__TIME_ALLOWANCE_FACTOR env variable
-time_allowance_factor = 0.3
+time_allowance_factor = 0.5
 # Override with MALACHITE__TEST__EXEC_TIME_PER_TX env variable
 exec_time_per_tx = "1ms"
