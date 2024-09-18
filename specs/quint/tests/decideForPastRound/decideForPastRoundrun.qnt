@@ -19,7 +19,7 @@ val others = otherSet.fold(List(), (s, x) => s.append(x))
 
 */
 
-run runToDecision = {
+run runToDecision = 
     val nextProposer = proposer(validatorSet, 0, 1)
     init
     .then(valStep(testedVal))
@@ -46,16 +46,35 @@ run runToDecision = {
 // correct ones (others and testedVal) take steps to process all incoming precommits
     .then(others.concat(faultyList).length().reps(_ => ListTakeAStep(others.concat(List(testedVal)))))
 
+    .then(ListTakeAStep(others.concat(List(testedVal))))
+
 // at this point others have decided and testedVal is ready to go into next round.
+    .expect(otherSet.forall(x => system.get(x).es.chain[0].decision == "blue"))
+    .expect(system.get(testedVal).es.chain == List())
     .then(valStep(testedVal))
 
-// TODO: at this point we are stuck. Let's discuss
+// testedVal has moved on to round 1
+    .expect(system.get(testedVal).es.cs.round == 1) 
 
-//    .then(ProcessDeliverAllVotes ("Precommit", testedVal, faultyList, validatorSet, 0, 0, "blue"))
- //   .then(valStep(testedVal))
- //   .then(deliverSomeProposal(testedVal))
- //   .then(valStep(testedVal))
-// not sure what should happen now.
-}
+// at this testedVal's progress can only be ensured by receiving certificates
+// so now we deliver the certificates and the proposal
+
+    .then(deliverSomeCertificate(testedVal))
+    .then(deliverSomeCertificate(testedVal))
+    .then(deliverSomeProposal(testedVal))
+    .then(valStep(testedVal))
+    .then(valStep(testedVal))
+    .then(valStep(testedVal))
+
+// now we are good. everyone has decided
+    .expect(Correct.forall(x => system.get(x).es.chain[0].decision == "blue"))
+
+// moreover, testedVal has evidence
+    .expect(Faulty.forall(f =>
+        system.get(testedVal).es.bk.evidence.contains(
+            Set(
+                { height: 0, round: 0, srcAddress: f, valueId: Nil, voteType: Precommit },
+                { height: 0, round: 0, srcAddress: f, valueId: Val("blue"), voteType: Precommit }
+                ))))
 
 }

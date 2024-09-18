@@ -58,8 +58,8 @@ action valStep(v: Address): bool =
     val sys1 = system.put(v, node_state)
     // call driver
     val res = driver(sys1.get(v).es, driver_input)
-    val driver_state = res._1
-    val consensus_output = res._2
+    val driver_state = res.ds
+    val consensus_output = res.out
     all {
         // update v's state after the step
         val sys = sys1.put(v, { ...sys1.get(v), es: driver_state})
@@ -106,8 +106,8 @@ action valStepCommand(v: Address, command: Command): bool =
     val sys1 = system.put(v, input._1)
     // call driver
     val res = driver(sys1.get(v).es, input._2)
-    val driver_state = res._1
-    val consensus_output = res._2
+    val driver_state = res.ds
+    val consensus_output = res.out
     all {
         // update v's state after the step
         val sys = sys1.put(v, { ...sys1.get(v), es: driver_state})
@@ -173,7 +173,7 @@ run DecidingRunTest =
         })
     .then(all{
         // validator 3 decided on "a block"
-        assert(system.get("v3").es.chain.head() == Val("a block")),
+        assert(system.get("v3").es.chain.head().decision == "a block"),
         system' = system,
         _hist' = _hist
     })
