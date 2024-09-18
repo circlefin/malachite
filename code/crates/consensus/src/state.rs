@@ -21,9 +21,6 @@ where
     /// driver started the new height and was still at round Nil.
     pub msg_queue: VecDeque<Msg<Ctx>>,
 
-    /// The value and validity of received blocks.
-    pub received_blocks: Vec<(Ctx::Height, Round, Ctx::Value, Validity)>,
-
     /// Store Precommit votes to be sent along the decision to the host
     pub signed_precommits: BTreeMap<(Ctx::Height, Round), Vec<SignedVote<Ctx>>>,
 }
@@ -54,11 +51,6 @@ where
             .ok_or(Error::ProposerNotFound(height, round))?;
 
         Ok(proposer.address())
-    }
-
-    pub fn remove_received_block(&mut self, height: Ctx::Height, round: Round) {
-        self.received_blocks
-            .retain(|&(h, r, ..)| h != height && r != round);
     }
 
     pub fn store_signed_precommit(&mut self, precommit: SignedVote<Ctx>) {

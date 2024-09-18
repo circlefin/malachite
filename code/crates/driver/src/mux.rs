@@ -81,10 +81,6 @@ where
         // Should only receive proposals for our height.
         assert_eq!(self.round_state.height, proposal.height());
 
-        // Store the proposal
-        // TODO - store validity as well
-        self.proposal_keeper.apply_proposal(proposal.clone());
-
         // Check that there is an ongoing round
         if self.round_state.round == Round::Nil {
             return None;

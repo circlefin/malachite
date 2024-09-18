@@ -13,7 +13,7 @@ use crate::gen::Co;
 use crate::msg::Msg;
 use crate::perform;
 use crate::state::State;
-use crate::types::{GossipMsg, ProposedValue};
+use crate::types::GossipMsg;
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
 use crate::ConsensusMsg;
 
@@ -42,14 +42,13 @@ where
     match msg {
         Msg::StartHeight(height) => start_height(co, state, metrics, height).await,
         Msg::Vote(vote) => on_vote(co, state, metrics, vote).await,
-        Msg::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
+        Msg::Proposal(proposal, validity) => {
+            on_proposal(co, state, metrics, proposal, validity).await
+        }
         Msg::ProposeValue(height, round, value) => {
             propose_value(co, state, metrics, height, round, value).await
         }
         Msg::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
-        Msg::ReceivedProposedValue(block) => {
-            on_received_proposed_value(co, state, metrics, block).await
-        }
     }
 }
 
@@ -173,6 +172,13 @@ where
 
                 return Ok(());
             }
+
+            // Store the proposal
+            // TODO - store validity as well
+            state
+                .driver
+                .proposal_keeper
+                .apply_proposal(proposal.clone());
 
             perform!(
                 co,
@@ -375,15 +381,13 @@ where
     Ctx: Context,
 {
     let height = proposal.height();
-    let round = proposal.round();
     let value = proposal.value();
     // Remove the block information as it is not needed anymore
-    let block_round = if proposal.pol_round().is_defined() {
+    let round = if proposal.pol_round().is_defined() {
         proposal.pol_round()
     } else {
         proposal.round()
     };
-    state.remove_received_block(proposal.height(), block_round);
 
     // Restore the commits. Note that they will be removed from `state`
     let commits = state.restore_precommits(height, round, value);
@@ -509,6 +513,7 @@ async fn on_proposal<Ctx>(
     state: &mut State<Ctx>,
     metrics: &Metrics,
     signed_proposal: SignedProposal<Ctx>,
+    validity: Validity,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -521,13 +526,17 @@ where
     // Drop all others.
     if state.driver.round() == Round::Nil {
         debug!("Received proposal at round -1, queuing for later");
-        state.msg_queue.push_back(Msg::Proposal(signed_proposal));
+        state
+            .msg_queue
+            .push_back(Msg::Proposal(signed_proposal, validity));
         return Ok(());
     }
 
     if state.driver.height() < proposal_height {
         debug!("Received proposal for higher height, queuing for later");
-        state.msg_queue.push_back(Msg::Proposal(signed_proposal));
+        state
+            .msg_queue
+            .push_back(Msg::Proposal(signed_proposal, validity));
         return Ok(());
     }
 
@@ -572,44 +581,13 @@ where
         return Ok(());
     }
 
-    // Check if a complete block was received for the proposal POL round if defined or proposal round otherwise.
-    let proposal_pol_round = signed_proposal.pol_round();
-    let block_round = if proposal_pol_round.is_nil() {
-        proposal_round
-    } else {
-        proposal_pol_round
-    };
-
-    let received_block = state
-        .received_blocks
-        .iter()
-        .find(|(height, round, ..)| height == &proposal_height && round == &block_round);
-
-    match received_block {
-        Some((_height, _round, _value, valid)) => {
-            apply_driver_input(
-                co,
-                state,
-                metrics,
-                DriverInput::Proposal(signed_proposal.message.clone(), *valid),
-            )
-            .await?;
-        }
-        None => {
-            // Store the proposal and wait for all proposal parts
-            info!(
-                height = %signed_proposal.height(),
-                round = %signed_proposal.round(),
-                "Received proposal before all proposal parts, storing it"
-            );
-
-            // TODO - we should store the validity but we don't know it yet
-            state
-                .driver
-                .proposal_keeper
-                .apply_proposal(signed_proposal.message.clone());
-        }
-    }
+    apply_driver_input(
+        co,
+        state,
+        metrics,
+        DriverInput::Proposal(signed_proposal.message.clone(), validity),
+    )
+    .await?;
 
     Ok(())
 }
@@ -641,67 +619,6 @@ where
 
     if timeout.step == TimeoutStep::Commit {
         move_to_height(co, state, metrics, height.increment()).await?;
-    }
-
-    Ok(())
-}
-
-#[tracing::instrument(
-    skip_all,
-    fields(
-        height = %proposed_value.height,
-        round = %proposed_value.round,
-        validity = ?proposed_value.validity,
-        id = %proposed_value.value.id()
-    )
-)]
-async fn on_received_proposed_value<Ctx>(
-    co: &Co<Ctx>,
-    state: &mut State<Ctx>,
-    metrics: &Metrics,
-    proposed_value: ProposedValue<Ctx>,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    let ProposedValue {
-        height,
-        round,
-        value,
-        validity,
-        ..
-    } = proposed_value;
-
-    // Store the block and validity information. It will be removed when a decision is reached for that height.
-    state
-        .received_blocks
-        .push((height, round, value.clone(), validity));
-
-    if let Some(proposal) = state.driver.proposal_keeper.get_proposal_for_round(round) {
-        debug!(
-            proposal.height = %proposal.height(),
-            proposal.round = %proposal.round(),
-            "We have a proposal for this round, checking..."
-        );
-
-        if height != proposal.height() {
-            // The value we received is not for the current proposal, ignoring
-            debug!("Proposed value is not for the current proposal, ignoring...");
-            return Ok(());
-        }
-
-        let validity = Validity::from_bool(proposal.value() == &value && validity.is_valid());
-        debug!("Applying proposal with validity {validity:?}");
-
-        apply_driver_input(
-            co,
-            state,
-            metrics,
-            DriverInput::Proposal(proposal.clone(), validity),
-        )
-        .await?;
-    } else {
-        debug!("No proposal for this round yet, stored proposed value for later");
     }
 
     Ok(())

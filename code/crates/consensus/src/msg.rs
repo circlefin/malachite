@@ -1,7 +1,5 @@
 use derive_where::derive_where;
-use malachite_common::{Context, Round, SignedProposal, SignedVote, Timeout};
-
-use crate::types::ProposedValue;
+use malachite_common::{Context, Round, SignedProposal, SignedVote, Timeout, Validity};
 
 /// Messages that can be handled by the consensus process
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -16,14 +14,11 @@ where
     Vote(SignedVote<Ctx>),
 
     /// Process a proposal
-    Proposal(SignedProposal<Ctx>),
+    Proposal(SignedProposal<Ctx>, Validity),
 
     /// Propose a value
     ProposeValue(Ctx::Height, Round, Ctx::Value),
 
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),
-
-    /// A block to propose has been received
-    ReceivedProposedValue(ProposedValue<Ctx>),
 }
