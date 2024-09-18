@@ -1,11 +1,6 @@
 use std::collections::HashSet;
 
-use libp2p::{
-    request_response,
-    swarm::behaviour::toggle::Toggle,
-    Multiaddr,
-    PeerId,
-};
+use libp2p::{request_response, swarm::behaviour::toggle::Toggle, Multiaddr, PeerId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

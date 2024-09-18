@@ -2,15 +2,14 @@
 #![allow(unexpected_cfgs)]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
-use std::{collections::{HashMap, HashSet}, time::{Duration, Instant}};
+use std::{
+    collections::{HashMap, HashSet},
+    time::{Duration, Instant},
+};
 use tracing::{self as _, info};
 
 use libp2p::{
-    PeerId,
-    Multiaddr,
-    identify,
-    swarm::ConnectionId,
-    request_response::OutboundRequestId,
+    identify, request_response::OutboundRequestId, swarm::ConnectionId, Multiaddr, PeerId,
 };
 
 pub mod behaviour;

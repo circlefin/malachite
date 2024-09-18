@@ -11,14 +11,14 @@ use std::time::Duration;
 use futures::StreamExt;
 use libp2p::core::ConnectedPoint;
 use libp2p::metrics::{Metrics, Recorder};
-use libp2p::swarm::{self, SwarmEvent, dial_opts::DialOpts};
+use libp2p::swarm::{self, dial_opts::DialOpts, SwarmEvent};
 use libp2p::{gossipsub, identify, request_response, SwarmBuilder};
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, info, trace, Instrument};
 
 use malachite_discovery::{
-    Discovery,
     behaviour::{ReqResEvent, Request, Response},
+    Discovery,
 };
 use malachite_metrics::SharedRegistry;
 
@@ -139,7 +139,9 @@ pub async fn spawn(
             .with_quic()
             .with_dns()?
             .with_bandwidth_metrics(registry)
-            .with_behaviour(|kp| Behaviour::new_with_metrics(kp, config.enable_discovery, registry))?
+            .with_behaviour(|kp| {
+                Behaviour::new_with_metrics(kp, config.enable_discovery, registry)
+            })?
             .with_swarm_config(|cfg| config.apply(cfg))
             .build())
     })?;
@@ -175,10 +177,17 @@ async fn run(
         error!("Error listening on {}: {e}", config.listen_addr);
         return;
     };
-    
+
     let mut state = State::new(config.enable_discovery);
-    
-    info!("Discovery is {}", if state.discovery.is_enabled { "enabled" } else { "disabled" });
+
+    info!(
+        "Discovery is {}",
+        if state.discovery.is_enabled {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    );
 
     for persistent_peer in config.persistent_peers {
         trace!("Dialing persistent peer: {persistent_peer}");
@@ -189,7 +198,10 @@ async fn run(
         let connection_id = dial_opts.connection_id();
 
         if state.discovery.is_enabled {
-            state.discovery.dialed_multiaddrs.insert(persistent_peer.clone());
+            state
+                .discovery
+                .dialed_multiaddrs
+                .insert(persistent_peer.clone());
             state.discovery.pending_connections.insert(connection_id);
             state.discovery.total_interactions += 1;
         }
@@ -197,8 +209,8 @@ async fn run(
         if let Err(e) = swarm.dial(dial_opts) {
             error!("Error dialing persistent peer {persistent_peer}: {e}");
             if state.discovery.is_enabled {
-            state.discovery.pending_connections.remove(&connection_id);
-            state.discovery.total_interactions_failed += 1;
+                state.discovery.pending_connections.remove(&connection_id);
+                state.discovery.total_interactions_failed += 1;
             }
         }
 
@@ -275,7 +287,12 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::ConnectionEstablished { peer_id, connection_id, endpoint, .. } => {
+        SwarmEvent::ConnectionEstablished {
+            peer_id,
+            connection_id,
+            endpoint,
+            ..
+        } => {
             match endpoint {
                 ConnectedPoint::Dialer { .. } => {
                     debug!("Connected to {peer_id}");
@@ -301,7 +318,11 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::OutgoingConnectionError { connection_id, error, .. } => {
+        SwarmEvent::OutgoingConnectionError {
+            connection_id,
+            error,
+            ..
+        } => {
             error!("Error dialing peer: {error}");
             if state.discovery.is_enabled {
                 state.discovery.pending_connections.remove(&connection_id);
@@ -441,26 +462,35 @@ async fn handle_swarm_event(
             metrics.record(&event);
         }
 
-        SwarmEvent::Behaviour(NetworkEvent::RequestResponse(
-            ReqResEvent::Message {
-                peer,
-                message: request_response::Message::Request { request, channel, .. },
-            },
-        )) => {
+        SwarmEvent::Behaviour(NetworkEvent::RequestResponse(ReqResEvent::Message {
+            peer,
+            message:
+                request_response::Message::Request {
+                    request, channel, ..
+                },
+        })) => {
             match request {
                 Request::Peers => {
                     debug!("Received request for peers from {peer}");
-                    let peers: HashSet<_> = state.discovery.peers.iter()
+                    let peers: HashSet<_> = state
+                        .discovery
+                        .peers
+                        .iter()
                         .filter_map(|(peer_id, info)| {
                             if peer_id != &peer {
-                                info.listen_addrs.get(0).map(|addr| (peer_id.clone(), addr.clone()))
+                                info.listen_addrs
+                                    .get(0)
+                                    .map(|addr| (peer_id.clone(), addr.clone()))
                             } else {
                                 None
                             }
                         })
                         .collect();
                     if let Some(behaviour) = swarm.behaviour_mut().request_response.as_mut() {
-                        if behaviour.send_response(channel, Response::Peers(peers)).is_err() {
+                        if behaviour
+                            .send_response(channel, Response::Peers(peers))
+                            .is_err()
+                        {
                             error!("Error sending peers to {peer}");
                         } else {
                             trace!("Sent peers to {peer}");
@@ -473,12 +503,15 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::Behaviour(NetworkEvent::RequestResponse(
-            ReqResEvent::Message {
-                peer,
-                message: request_response::Message::Response { response, request_id, .. },
-            },
-        )) => {
+        SwarmEvent::Behaviour(NetworkEvent::RequestResponse(ReqResEvent::Message {
+            peer,
+            message:
+                request_response::Message::Response {
+                    response,
+                    request_id,
+                    ..
+                },
+        })) => {
             match response {
                 Response::Peers(peers) => {
                     state.discovery.pending_requests.remove(&request_id);
@@ -500,7 +533,10 @@ async fn handle_swarm_event(
                         let connection_id = dial_opts.connection_id();
 
                         state.discovery.dialed_peer_ids.insert(peer_id.clone());
-                        state.discovery.dialed_multiaddrs.insert(listen_addr.clone());
+                        state
+                            .discovery
+                            .dialed_multiaddrs
+                            .insert(listen_addr.clone());
                         state.discovery.pending_connections.insert(connection_id);
                         state.discovery.total_interactions += 1;
 
@@ -515,13 +551,11 @@ async fn handle_swarm_event(
             }
         }
 
-        SwarmEvent::Behaviour(NetworkEvent::RequestResponse(
-            ReqResEvent::OutboundFailure {
-                peer,
-                request_id,
-                error,
-            },
-        )) => {
+        SwarmEvent::Behaviour(NetworkEvent::RequestResponse(ReqResEvent::OutboundFailure {
+            peer,
+            request_id,
+            error,
+        })) => {
             error!("Outbound request to {peer} failed: {error}");
             state.discovery.pending_requests.remove(&request_id);
             state.discovery.total_interactions_failed += 1;

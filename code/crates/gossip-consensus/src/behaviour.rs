@@ -3,9 +3,7 @@ use std::time::Duration;
 
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{
-    gossipsub,
-    identify,
-    ping,
+    gossipsub, identify, ping,
     request_response::{self, ProtocolSupport},
     StreamProtocol,
 };
@@ -13,11 +11,7 @@ use libp2p::{
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
-use malachite_discovery::behaviour::{
-    ReqResBehaviour,
-    ReqResEvent,
-    ToggleReqResBehaviour,
-};
+use malachite_discovery::behaviour::{ReqResBehaviour, ReqResEvent, ToggleReqResBehaviour};
 use malachite_metrics::Registry;
 
 use crate::PROTOCOL_VERSION;
@@ -74,20 +68,21 @@ impl Behaviour {
             .unwrap(),
             request_response: if enable_discovery {
                 ToggleReqResBehaviour::from(Some(ReqResBehaviour::new(
-                    iter::once((
-                        StreamProtocol::new(PROTOCOL_VERSION),
-                        ProtocolSupport::Full,
-                    )),
+                    iter::once((StreamProtocol::new(PROTOCOL_VERSION), ProtocolSupport::Full)),
                     request_response::Config::default()
                         .with_request_timeout(Duration::from_secs(5)),
                 )))
             } else {
                 ToggleReqResBehaviour::from(None)
-            }
+            },
         }
     }
 
-    pub fn new_with_metrics(keypair: &Keypair, enable_discovery: bool, registry: &mut Registry) -> Self {
+    pub fn new_with_metrics(
+        keypair: &Keypair,
+        enable_discovery: bool,
+        registry: &mut Registry,
+    ) -> Self {
         Self {
             identify: identify::Behaviour::new(identify::Config::new(
                 PROTOCOL_VERSION.to_string(),
@@ -103,16 +98,13 @@ impl Behaviour {
             .unwrap(),
             request_response: if enable_discovery {
                 ToggleReqResBehaviour::from(Some(ReqResBehaviour::new(
-                    iter::once((
-                        StreamProtocol::new(PROTOCOL_VERSION),
-                        ProtocolSupport::Full,
-                    )),
+                    iter::once((StreamProtocol::new(PROTOCOL_VERSION), ProtocolSupport::Full)),
                     request_response::Config::default()
                         .with_request_timeout(Duration::from_secs(5)),
                 )))
             } else {
                 ToggleReqResBehaviour::from(None)
-            }
+            },
         }
     }
 }

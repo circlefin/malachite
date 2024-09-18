@@ -8,7 +8,7 @@ use clap::Parser;
 use color_eyre::eyre::Result;
 use rand::prelude::StdRng;
 use rand::rngs::OsRng;
-use rand::{Rng, SeedableRng, seq::IteratorRandom};
+use rand::{seq::IteratorRandom, Rng, SeedableRng};
 use tracing::info;
 
 use malachite_common::{PrivateKey, PublicKey};
@@ -121,7 +121,15 @@ impl TestnetCmd {
             // Save config
             save_config(
                 &args.get_config_file_path()?,
-                &generate_config(self.app, i, self.nodes, self.runtime, log_level, log_format, self.enable_discovery),
+                &generate_config(
+                    self.app,
+                    i,
+                    self.nodes,
+                    self.runtime,
+                    log_level,
+                    log_format,
+                    self.enable_discovery,
+                ),
             )?;
         }
         Ok(())
@@ -199,20 +207,15 @@ pub fn generate_config(
                     .parse()
                     .unwrap(),
                 persistent_peers: if enable_discovery {
-                    vec![
-                        format!(
-                            "/ip4/127.0.0.1/udp/{}/quic-v1",
-                            CONSENSUS_BASE_PORT + {
-                                let mut rng = rand::thread_rng();
-                                (0..total)
-                                    .filter(|j| *j != index)
-                                    .choose(&mut rng)
-                                    .unwrap()
-                            }
-                        )
-                            .parse()
-                            .unwrap(),
-                    ]
+                    vec![format!(
+                        "/ip4/127.0.0.1/udp/{}/quic-v1",
+                        CONSENSUS_BASE_PORT + {
+                            let mut rng = rand::thread_rng();
+                            (0..total).filter(|j| *j != index).choose(&mut rng).unwrap()
+                        }
+                    )
+                    .parse()
+                    .unwrap()]
                 } else {
                     (0..total)
                         .filter(|j| *j != index)
