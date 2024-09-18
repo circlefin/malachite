@@ -278,6 +278,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                         .unwrap()
                     })
                     .collect(),
+                enable_discovery: false,
             },
         },
         mempool: MempoolConfig {
@@ -293,6 +294,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                             .unwrap()
                     })
                     .collect(),
+                enable_discovery: false,
             },
             max_tx_count: 10000,
             gossip_batch_size: 100,

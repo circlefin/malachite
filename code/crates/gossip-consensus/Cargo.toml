@@ -11,6 +11,7 @@ workspace = true
 
 [dependencies]
 malachite-metrics   = { workspace = true }
+malachite-discovery = { workspace = true }
 
 bytes              = { workspace = true }
 futures            = { workspace = true }

@@ -126,6 +126,7 @@ async fn spawn_gossip_consensus_actor(
     let config_gossip = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
+        enable_discovery: cfg.consensus.p2p.enable_discovery,
         idle_connection_timeout: Duration::from_secs(60),
     };
 

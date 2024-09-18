@@ -66,10 +66,12 @@ pub struct Config {
 /// P2P configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct P2pConfig {
-    // Address to listen for incoming connections
+    /// Address to listen for incoming connections
     pub listen_addr: Multiaddr,
     /// List of nodes to keep persistent connections to
     pub persistent_peers: Vec<Multiaddr>,
+    /// Enable peer discovery
+    pub enable_discovery: bool,
 }
 
 /// Mempool configuration options

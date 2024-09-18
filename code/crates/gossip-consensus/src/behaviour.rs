@@ -1,11 +1,23 @@
+use std::iter;
 use std::time::Duration;
 
 use libp2p::swarm::NetworkBehaviour;
-use libp2p::{gossipsub, identify, ping};
+use libp2p::{
+    gossipsub,
+    identify,
+    ping,
+    request_response::{self, ProtocolSupport},
+    StreamProtocol,
+};
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
+use malachite_discovery::behaviour::{
+    ReqResBehaviour,
+    ReqResEvent,
+    ToggleReqResBehaviour,
+};
 use malachite_metrics::Registry;
 
 use crate::PROTOCOL_VERSION;
@@ -18,6 +30,7 @@ pub struct Behaviour {
     pub identify: identify::Behaviour,
     pub ping: ping::Behaviour,
     pub gossipsub: gossipsub::Behaviour,
+    pub request_response: ToggleReqResBehaviour,
 }
 
 fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
@@ -47,7 +60,7 @@ fn gossipsub_config() -> gossipsub::Config {
 }
 
 impl Behaviour {
-    pub fn new(keypair: &Keypair) -> Self {
+    pub fn new(keypair: &Keypair, enable_discovery: bool) -> Self {
         Self {
             identify: identify::Behaviour::new(identify::Config::new(
                 PROTOCOL_VERSION.to_string(),
@@ -59,10 +72,22 @@ impl Behaviour {
                 gossipsub_config(),
             )
             .unwrap(),
+            request_response: if enable_discovery {
+                ToggleReqResBehaviour::from(Some(ReqResBehaviour::new(
+                    iter::once((
+                        StreamProtocol::new(PROTOCOL_VERSION),
+                        ProtocolSupport::Full,
+                    )),
+                    request_response::Config::default()
+                        .with_request_timeout(Duration::from_secs(5)),
+                )))
+            } else {
+                ToggleReqResBehaviour::from(None)
+            }
         }
     }
 
-    pub fn new_with_metrics(keypair: &Keypair, registry: &mut Registry) -> Self {
+    pub fn new_with_metrics(keypair: &Keypair, enable_discovery: bool, registry: &mut Registry) -> Self {
         Self {
             identify: identify::Behaviour::new(identify::Config::new(
                 PROTOCOL_VERSION.to_string(),
@@ -76,6 +101,18 @@ impl Behaviour {
                 Default::default(),
             )
             .unwrap(),
+            request_response: if enable_discovery {
+                ToggleReqResBehaviour::from(Some(ReqResBehaviour::new(
+                    iter::once((
+                        StreamProtocol::new(PROTOCOL_VERSION),
+                        ProtocolSupport::Full,
+                    )),
+                    request_response::Config::default()
+                        .with_request_timeout(Duration::from_secs(5)),
+                )))
+            } else {
+                ToggleReqResBehaviour::from(None)
+            }
         }
     }
 }
@@ -85,6 +122,7 @@ pub enum NetworkEvent {
     Identify(identify::Event),
     Ping(ping::Event),
     GossipSub(gossipsub::Event),
+    RequestResponse(ReqResEvent),
 }
 
 impl From<identify::Event> for NetworkEvent {
@@ -102,5 +140,11 @@ impl From<ping::Event> for NetworkEvent {
 impl From<gossipsub::Event> for NetworkEvent {
     fn from(event: gossipsub::Event) -> Self {
         Self::GossipSub(event)
+    }
+}
+
+impl From<ReqResEvent> for NetworkEvent {
+    fn from(event: ReqResEvent) -> Self {
+        Self::RequestResponse(event)
     }
 }

@@ -8,7 +8,7 @@ use clap::Parser;
 use color_eyre::eyre::Result;
 use rand::prelude::StdRng;
 use rand::rngs::OsRng;
-use rand::{Rng, SeedableRng};
+use rand::{Rng, SeedableRng, seq::IteratorRandom};
 use tracing::info;
 
 use malachite_common::{PrivateKey, PublicKey};
@@ -74,6 +74,11 @@ pub struct TestnetCmd {
     ///   Use a value of 0 for N to use the number of cores available on the system.
     #[clap(short, long, default_value = "single-threaded", verbatim_doc_comment)]
     pub runtime: RuntimeFlavour,
+
+    /// Enable peer discovery.
+    /// If enabled, the node will attempt to discover other nodes in the network
+    #[clap(long, default_value = "false")]
+    pub enable_discovery: bool,
 }
 
 impl TestnetCmd {
@@ -116,7 +121,7 @@ impl TestnetCmd {
             // Save config
             save_config(
                 &args.get_config_file_path()?,
-                &generate_config(self.app, i, self.nodes, self.runtime, log_level, log_format),
+                &generate_config(self.app, i, self.nodes, self.runtime, log_level, log_format, self.enable_discovery),
             )?;
         }
         Ok(())
@@ -177,6 +182,7 @@ pub fn generate_config(
     runtime: RuntimeFlavour,
     log_level: LogLevel,
     log_format: LogFormat,
+    enable_discovery: bool,
 ) -> Config {
     let consensus_port = CONSENSUS_BASE_PORT + index;
     let mempool_port = MEMPOOL_BASE_PORT + index;
@@ -192,14 +198,32 @@ pub fn generate_config(
                 listen_addr: format!("/ip4/127.0.0.1/udp/{consensus_port}/quic-v1")
                     .parse()
                     .unwrap(),
-                persistent_peers: (0..total)
-                    .filter(|j| *j != index)
-                    .map(|j| {
-                        format!("/ip4/127.0.0.1/udp/{}/quic-v1", CONSENSUS_BASE_PORT + j)
+                persistent_peers: if enable_discovery {
+                    vec![
+                        format!(
+                            "/ip4/127.0.0.1/udp/{}/quic-v1",
+                            CONSENSUS_BASE_PORT + {
+                                let mut rng = rand::thread_rng();
+                                (0..total)
+                                    .filter(|j| *j != index)
+                                    .choose(&mut rng)
+                                    .unwrap()
+                            }
+                        )
                             .parse()
-                            .unwrap()
-                    })
-                    .collect(),
+                            .unwrap(),
+                    ]
+                } else {
+                    (0..total)
+                        .filter(|j| *j != index)
+                        .map(|j| {
+                            format!("/ip4/127.0.0.1/udp/{}/quic-v1", CONSENSUS_BASE_PORT + j)
+                                .parse()
+                                .unwrap()
+                        })
+                        .collect()
+                },
+                enable_discovery,
             },
         },
         mempool: MempoolConfig {
@@ -215,6 +239,8 @@ pub fn generate_config(
                             .unwrap()
                     })
                     .collect(),
+                // TODO: Enable discovery for mempool
+                enable_discovery: false,
             },
             max_tx_count: 10000,
             gossip_batch_size: 0,
