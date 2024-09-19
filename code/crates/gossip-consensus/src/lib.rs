@@ -114,7 +114,9 @@ pub async fn spawn(
             .with_quic()
             .with_dns()?
             .with_bandwidth_metrics(registry)
-            .with_behaviour(|kp| Behaviour::new_with_metrics(config.protocol, kp, config.enable_discovery, registry))?
+            .with_behaviour(|kp| {
+                Behaviour::new_with_metrics(config.protocol, kp, config.enable_discovery, registry)
+            })?
             .with_swarm_config(|cfg| config.apply(cfg))
             .build())
     })?;
