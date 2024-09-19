@@ -5,9 +5,6 @@ that over time can harm the system (lead to disagreement), and how this
 misbehavior is defined and can be detected.
 
 
-<!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
-
-
 ## Background
 
 ### Misbehavior types
