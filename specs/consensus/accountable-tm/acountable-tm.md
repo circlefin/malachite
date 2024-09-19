@@ -175,13 +175,13 @@ is evidence in the system.
     - So we must have`vr <= commitRound`.
 4. We now do a case distinction.  
 5. `vr = commitRound`. By line 28, Process `p` sends the message on a 
-   `Polka(vr, v, _))`. Observe that `vr = commitRound`, so we have `Polka(commitRound,
-   v, _))`
+   `Polka(vr, v, _)`. Observe that `vr = commitRound`, so we have `Polka(commitRound,
+   v, _)`
     - By the assumption of the proposition we have a `commit(commitRound,
     commitValue)`. As every certificate contains a message by at least one
     correct process, and by line 36, there must be a `Polka(commitRound,
-    commitValue, _))`
-    - `Polka(commitRound, v, _))` and `Polka(commitRound, commitValue, _))`
+    commitValue, _)`
+    - `Polka(commitRound, v, _)` and `Polka(commitRound, commitValue, _)`
     contain evidence in the form of conflicting prevotes from at least `f+1`
     processes. See function [doubleVotes](./misbehavior.qnt).
 6. `vr < commitRound`. We have amnesia evidence (see function
