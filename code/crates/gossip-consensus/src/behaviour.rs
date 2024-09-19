@@ -1,12 +1,14 @@
 use std::iter;
 use std::time::Duration;
 
+use either::Either;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{
     gossipsub, identify, ping,
     request_response::{self, ProtocolSupport},
     StreamProtocol,
 };
+use libp2p_broadcast as broadcast;
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
@@ -14,16 +16,68 @@ pub use libp2p::{Multiaddr, PeerId};
 use malachite_discovery::behaviour::{ReqResBehaviour, ReqResEvent, ToggleReqResBehaviour};
 use malachite_metrics::Registry;
 
-use crate::PROTOCOL_VERSION;
+use crate::{PubSubProtocol, PROTOCOL_VERSION};
 
 const MAX_TRANSMIT_SIZE: usize = 4 * 1024 * 1024; // 4 MiB
+
+#[derive(Debug)]
+pub enum NetworkEvent {
+    Identify(identify::Event),
+    Ping(ping::Event),
+    GossipSub(gossipsub::Event),
+    Broadcast(broadcast::Event),
+    RequestResponse(ReqResEvent),
+}
+
+impl From<identify::Event> for NetworkEvent {
+    fn from(event: identify::Event) -> Self {
+        Self::Identify(event)
+    }
+}
+
+impl From<ping::Event> for NetworkEvent {
+    fn from(event: ping::Event) -> Self {
+        Self::Ping(event)
+    }
+}
+
+impl From<gossipsub::Event> for NetworkEvent {
+    fn from(event: gossipsub::Event) -> Self {
+        Self::GossipSub(event)
+    }
+}
+
+impl From<broadcast::Event> for NetworkEvent {
+    fn from(event: broadcast::Event) -> Self {
+        Self::Broadcast(event)
+    }
+}
+
+impl From<ReqResEvent> for NetworkEvent {
+    fn from(event: ReqResEvent) -> Self {
+        Self::RequestResponse(event)
+    }
+}
+
+impl<A, B> From<Either<A, B>> for NetworkEvent
+where
+    A: Into<NetworkEvent>,
+    B: Into<NetworkEvent>,
+{
+    fn from(event: Either<A, B>) -> Self {
+        match event {
+            Either::Left(event) => event.into(),
+            Either::Right(event) => event.into(),
+        }
+    }
+}
 
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "NetworkEvent")]
 pub struct Behaviour {
     pub identify: identify::Behaviour,
     pub ping: ping::Behaviour,
-    pub gossipsub: gossipsub::Behaviour,
+    pub pubsub: Either<gossipsub::Behaviour, broadcast::Behaviour>,
     pub request_response: ToggleReqResBehaviour,
 }
 
@@ -54,89 +108,51 @@ fn gossipsub_config() -> gossipsub::Config {
 }
 
 impl Behaviour {
-    pub fn new(keypair: &Keypair, enable_discovery: bool) -> Self {
-        Self {
-            identify: identify::Behaviour::new(identify::Config::new(
-                PROTOCOL_VERSION.to_string(),
-                keypair.public(),
-            )),
-            ping: ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5))),
-            gossipsub: gossipsub::Behaviour::new(
-                gossipsub::MessageAuthenticity::Signed(keypair.clone()),
-                gossipsub_config(),
-            )
-            .unwrap(),
-            request_response: if enable_discovery {
-                ToggleReqResBehaviour::from(Some(ReqResBehaviour::new(
-                    iter::once((StreamProtocol::new(PROTOCOL_VERSION), ProtocolSupport::Full)),
-                    request_response::Config::default()
-                        .with_request_timeout(Duration::from_secs(5)),
-                )))
-            } else {
-                ToggleReqResBehaviour::from(None)
-            },
-        }
-    }
-
     pub fn new_with_metrics(
+        tpe: PubSubProtocol,
         keypair: &Keypair,
         enable_discovery: bool,
         registry: &mut Registry,
     ) -> Self {
-        Self {
-            identify: identify::Behaviour::new(identify::Config::new(
-                PROTOCOL_VERSION.to_string(),
-                keypair.public(),
+        let identify = identify::Behaviour::new(identify::Config::new(
+            PROTOCOL_VERSION.to_string(),
+            keypair.public(),
+        ));
+
+        let ping = ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5)));
+
+        let pubsub = match tpe {
+            PubSubProtocol::GossipSub => Either::Left(
+                gossipsub::Behaviour::new_with_metrics(
+                    gossipsub::MessageAuthenticity::Signed(keypair.clone()),
+                    gossipsub_config(),
+                    registry.sub_registry_with_prefix("gossipsub"),
+                    Default::default(),
+                )
+                .unwrap(),
+            ),
+            PubSubProtocol::Broadcast => Either::Right(broadcast::Behaviour::new_with_metrics(
+                broadcast::Config {
+                    max_buf_size: MAX_TRANSMIT_SIZE,
+                },
+                registry.sub_registry_with_prefix("broadcast"),
             )),
-            ping: ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5))),
-            gossipsub: gossipsub::Behaviour::new_with_metrics(
-                gossipsub::MessageAuthenticity::Signed(keypair.clone()),
-                gossipsub_config(),
-                registry,
-                Default::default(),
-            )
-            .unwrap(),
-            request_response: if enable_discovery {
-                ToggleReqResBehaviour::from(Some(ReqResBehaviour::new(
-                    iter::once((StreamProtocol::new(PROTOCOL_VERSION), ProtocolSupport::Full)),
-                    request_response::Config::default()
-                        .with_request_timeout(Duration::from_secs(5)),
-                )))
-            } else {
-                ToggleReqResBehaviour::from(None)
-            },
+        };
+
+        let request_response = if enable_discovery {
+            ToggleReqResBehaviour::from(Some(ReqResBehaviour::new(
+                iter::once((StreamProtocol::new(PROTOCOL_VERSION), ProtocolSupport::Full)),
+                request_response::Config::default().with_request_timeout(Duration::from_secs(5)),
+            )))
+        } else {
+            ToggleReqResBehaviour::from(None)
+        };
+
+        Self {
+            identify,
+            ping,
+            pubsub,
+            request_response,
         }
-    }
-}
-
-#[derive(Debug)]
-pub enum NetworkEvent {
-    Identify(identify::Event),
-    Ping(ping::Event),
-    GossipSub(gossipsub::Event),
-    RequestResponse(ReqResEvent),
-}
-
-impl From<identify::Event> for NetworkEvent {
-    fn from(event: identify::Event) -> Self {
-        Self::Identify(event)
-    }
-}
-
-impl From<ping::Event> for NetworkEvent {
-    fn from(event: ping::Event) -> Self {
-        Self::Ping(event)
-    }
-}
-
-impl From<gossipsub::Event> for NetworkEvent {
-    fn from(event: gossipsub::Event) -> Self {
-        Self::GossipSub(event)
-    }
-}
-
-impl From<ReqResEvent> for NetworkEvent {
-    fn from(event: ReqResEvent) -> Self {
-        Self::RequestResponse(event)
     }
 }

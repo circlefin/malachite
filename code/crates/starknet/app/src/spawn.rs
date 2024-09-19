@@ -14,7 +14,7 @@ use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
-use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig};
+use malachite_node::config::{Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig};
 use malachite_starknet_host::actor::StarknetHost;
 use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use malachite_starknet_host::mock::context::MockContext;
@@ -128,6 +128,10 @@ async fn spawn_gossip_consensus_actor(
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
         enable_discovery: cfg.consensus.p2p.enable_discovery,
         idle_connection_timeout: Duration::from_secs(60),
+        protocol: match cfg.consensus.p2p.protocol {
+            PubSubProtocol::GossipSub => malachite_gossip_consensus::PubSubProtocol::GossipSub,
+            PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
+        },
     };
 
     let keypair = make_keypair(private_key);

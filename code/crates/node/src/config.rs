@@ -72,6 +72,17 @@ pub struct P2pConfig {
     pub persistent_peers: Vec<Multiaddr>,
     /// Enable peer discovery
     pub enable_discovery: bool,
+    /// The type of pub-sub protocol to use for consensus
+    pub protocol: PubSubProtocol,
+}
+
+/// The type of pub-sub protocol
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PubSubProtocol {
+    #[default]
+    GossipSub,
+    Broadcast,
 }
 
 /// Mempool configuration options
