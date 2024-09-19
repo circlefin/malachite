@@ -47,7 +47,8 @@ pure def validCertificate (certificate: Set[Vote], valset: ValidatorSet) : bool 
         certificate.countVotes(v.valueId, valset) * 3 > 2 * valset.totalWeight(), 
     }
 
-
+// checks for conflicting votes for the same round and returns a set that contains sets
+// that contain prevotes from the same process for different values
 pure def doubleVotes (cert1: Certificate, cert2: Certificate, valset: ValidatorSet) : Set[Set[Vote]] =
     val c1 = match cert1 {
             | Polka(c) => c
@@ -67,7 +68,8 @@ pure def doubleVotes (cert1: Certificate, cert2: Certificate, valset: ValidatorS
         val bad = c1.map(x => x.srcAddress).intersect(c2.map(x => x.srcAddress))
         bad.map(b => c1.filter( x => x.srcAddress == b).union(c2.filter( x => x.srcAddress == b)))
     else Set()
-    
+
+// checks for conflicting votes for different rounds. 
 pure def amnesiaVotes (cert1: Certificate, cert2: Certificate, valset: ValidatorSet) : Set[Set[Vote]] =
     val commit = match cert1 {
             | Commit(c) => c
