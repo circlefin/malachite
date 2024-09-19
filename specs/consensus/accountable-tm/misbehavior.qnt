@@ -48,7 +48,7 @@ pure def validCertificate (certificate: Set[Vote], valset: ValidatorSet) : bool 
     }
 
 
-pure def Detectable1 (cert1: Certificate, cert2: Certificate, valset: ValidatorSet) : Set[Set[Vote]] =
+pure def doubleVotes (cert1: Certificate, cert2: Certificate, valset: ValidatorSet) : Set[Set[Vote]] =
     val c1 = match cert1 {
             | Polka(c) => c
             | _ => Set()
@@ -68,7 +68,7 @@ pure def Detectable1 (cert1: Certificate, cert2: Certificate, valset: ValidatorS
         bad.map(b => c1.filter( x => x.srcAddress == b).union(c2.filter( x => x.srcAddress == b)))
     else Set()
     
-pure def Detectable2 (cert1: Certificate, cert2: Certificate, valset: ValidatorSet) : Set[Set[Vote]] =
+pure def amnesiaVotes (cert1: Certificate, cert2: Certificate, valset: ValidatorSet) : Set[Set[Vote]] =
     val commit = match cert1 {
             | Commit(c) => c
             | _ => Set()
@@ -110,7 +110,7 @@ run detectableTest =
     ))
      
     all{
-        assert(Detectable1(polkaBlue, polkaRed, validatorSet) == Set(
+        assert(doubleVotes(polkaBlue, polkaRed, validatorSet) == Set(
             Set(
                 { height: 0, round: 10, srcAddress: "v2", valueId: Val("blue"), voteType: Prevote, validRound: 5 },
                 { height: 0, round: 10, srcAddress: "v2", valueId: Val("red"), voteType: Prevote, validRound: 5 }
@@ -120,7 +120,7 @@ run detectableTest =
                 { height: 0, round: 10, srcAddress: "v3", valueId: Val("red"), voteType: Prevote, validRound: 5 }
             )
         )),
-        assert(Detectable2(commitBlue, polkaRed, validatorSet) == Set(
+        assert(amnesiaVotes(commitBlue, polkaRed, validatorSet) == Set(
             Set(
                 { height: 0, round: 6, srcAddress: "v2", valueId: Val("blue"), voteType: Precommit, validRound: -1 },
                 { height: 0, round: 10, srcAddress: "v2", valueId: Val("red"), voteType: Prevote, validRound: 5 }
