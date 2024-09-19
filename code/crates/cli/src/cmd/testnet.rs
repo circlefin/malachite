@@ -12,10 +12,7 @@ use rand::{seq::IteratorRandom, Rng, SeedableRng};
 use tracing::info;
 
 use malachite_common::{PrivateKey, PublicKey};
-use malachite_node::config::{
-    App, Config, ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MempoolConfig, MetricsConfig,
-    P2pConfig, PubSubProtocol, RuntimeConfig, TestConfig, TimeoutConfig,
-};
+use malachite_node::config::*;
 use malachite_node::Node;
 use malachite_starknet_app::node::StarknetNode;
 
@@ -79,6 +76,13 @@ pub struct TestnetCmd {
     /// If enabled, the node will attempt to discover other nodes in the network
     #[clap(long, default_value = "false")]
     pub enable_discovery: bool,
+
+    /// The transport protocol to use for P2P communication
+    /// Possible values:
+    /// - "quic": QUIC (default)
+    /// - "tcp": TCP + Noise
+    #[clap(short, long, default_value = "quic", verbatim_doc_comment)]
+    pub transport: TransportProtocol,
 }
 
 impl TestnetCmd {
@@ -126,9 +130,10 @@ impl TestnetCmd {
                     i,
                     self.nodes,
                     self.runtime,
+                    self.enable_discovery,
+                    self.transport,
                     log_level,
                     log_format,
-                    self.enable_discovery,
                 ),
             )?;
         }
@@ -188,9 +193,10 @@ pub fn generate_config(
     index: usize,
     total: usize,
     runtime: RuntimeFlavour,
+    enable_discovery: bool,
+    transport: TransportProtocol,
     log_level: LogLevel,
     log_format: LogFormat,
-    enable_discovery: bool,
 ) -> Config {
     let consensus_port = CONSENSUS_BASE_PORT + index;
     let mempool_port = MEMPOOL_BASE_PORT + index;
@@ -208,44 +214,34 @@ pub fn generate_config(
                     .parse()
                     .unwrap(),
                 persistent_peers: if enable_discovery {
-                    vec![format!(
-                        "/ip4/127.0.0.1/udp/{}/quic-v1",
+                    vec![transport.multiaddr(
+                        "127.0.0.1",
                         CONSENSUS_BASE_PORT + {
                             let mut rng = rand::thread_rng();
                             (0..total).filter(|j| *j != index).choose(&mut rng).unwrap()
-                        }
-                    )
-                    .parse()
-                    .unwrap()]
+                        },
+                    )]
                 } else {
                     (0..total)
                         .filter(|j| *j != index)
-                        .map(|j| {
-                            format!("/ip4/127.0.0.1/udp/{}/quic-v1", CONSENSUS_BASE_PORT + j)
-                                .parse()
-                                .unwrap()
-                        })
+                        .map(|j| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j))
                         .collect()
                 },
                 enable_discovery,
+                transport,
             },
         },
         mempool: MempoolConfig {
             p2p: P2pConfig {
                 protocol: PubSubProtocol::GossipSub,
-                listen_addr: format!("/ip4/127.0.0.1/udp/{mempool_port}/quic-v1")
-                    .parse()
-                    .unwrap(),
+                listen_addr: transport.multiaddr("127.0.0.1", mempool_port),
                 persistent_peers: (0..total)
                     .filter(|j| *j != index)
-                    .map(|j| {
-                        format!("/ip4/127.0.0.1/udp/{}/quic-v1", MEMPOOL_BASE_PORT + j)
-                            .parse()
-                            .unwrap()
-                    })
+                    .map(|j| transport.multiaddr("127.0.0.1", MEMPOOL_BASE_PORT + j))
                     .collect(),
                 // TODO: Enable discovery for mempool
                 enable_discovery: false,
+                transport,
             },
             max_tx_count: 10000,
             gossip_batch_size: 0,

@@ -66,6 +66,7 @@ pub struct Config {
     pub persistent_peers: Vec<Multiaddr>,
     pub enable_discovery: bool,
     pub idle_connection_timeout: Duration,
+    pub transport: TransportProtocol,
     pub protocol: PubSubProtocol,
 }
 
@@ -73,6 +74,12 @@ impl Config {
     fn apply(&self, cfg: swarm::Config) -> swarm::Config {
         cfg.with_idle_connection_timeout(self.idle_connection_timeout)
     }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum TransportProtocol {
+    Tcp,
+    Quic,
 }
 
 /// An event that can be emitted by the gossip layer
@@ -109,16 +116,41 @@ pub async fn spawn(
     registry: SharedRegistry,
 ) -> Result<Handle, BoxError> {
     let swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, BoxError> {
-        Ok(SwarmBuilder::with_existing_identity(keypair)
-            .with_tokio()
-            .with_quic()
-            .with_dns()?
-            .with_bandwidth_metrics(registry)
-            .with_behaviour(|kp| {
-                Behaviour::new_with_metrics(config.protocol, kp, config.enable_discovery, registry)
-            })?
-            .with_swarm_config(|cfg| config.apply(cfg))
-            .build())
+        let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
+        match config.transport {
+            TransportProtocol::Tcp => Ok(builder
+                .with_tcp(
+                    libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
+                    libp2p::noise::Config::new,
+                    libp2p::yamux::Config::default,
+                )?
+                .with_dns()?
+                .with_bandwidth_metrics(registry)
+                .with_behaviour(|kp| {
+                    Behaviour::new_with_metrics(
+                        config.protocol,
+                        kp,
+                        config.enable_discovery,
+                        registry,
+                    )
+                })?
+                .with_swarm_config(|cfg| config.apply(cfg))
+                .build()),
+            TransportProtocol::Quic => Ok(builder
+                .with_quic()
+                .with_dns()?
+                .with_bandwidth_metrics(registry)
+                .with_behaviour(|kp| {
+                    Behaviour::new_with_metrics(
+                        config.protocol,
+                        kp,
+                        config.enable_discovery,
+                        registry,
+                    )
+                })?
+                .with_swarm_config(|cfg| config.apply(cfg))
+                .build()),
+        }
     })?;
 
     let metrics = registry.with_prefix(METRICS_PREFIX, Metrics::new);
