@@ -74,6 +74,9 @@ pub struct P2pConfig {
 
     /// Transport protocol to use
     pub transport: TransportProtocol,
+
+    /// The type of pub-sub protocol to use for consensus
+    pub protocol: PubSubProtocol,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -105,6 +108,15 @@ impl FromStr for TransportProtocol {
             )),
         }
     }
+}
+
+/// The type of pub-sub protocol
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PubSubProtocol {
+    #[default]
+    GossipSub,
+    Broadcast,
 }
 
 /// Mempool configuration options

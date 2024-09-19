@@ -14,7 +14,9 @@ use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
-use malachite_node::config::{Config as NodeConfig, MempoolConfig, TestConfig, TransportProtocol};
+use malachite_node::config::{
+    Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig, TransportProtocol,
+};
 use malachite_starknet_host::actor::StarknetHost;
 use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use malachite_starknet_host::mock::context::MockContext;
@@ -130,6 +132,10 @@ async fn spawn_gossip_consensus_actor(
         transport: match cfg.consensus.p2p.transport {
             TransportProtocol::Tcp => malachite_gossip_consensus::TransportProtocol::Tcp,
             TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
+        },
+        protocol: match cfg.consensus.p2p.protocol {
+            PubSubProtocol::GossipSub => malachite_gossip_consensus::PubSubProtocol::GossipSub,
+            PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
         },
     };
 
