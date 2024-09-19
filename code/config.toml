@@ -75,6 +75,9 @@ listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
 # List of nodes to keep persistent connections to
 persistent_peers = []
 
+# Enable the discovery protocol to find more peers
+enable_discovery = true
+
 # The type of pub-sub protocol to use for consensus
 # Possible values:
 # - "gossipsub": Use the GossipSub v1.1 protocol (gossip, recommended)
