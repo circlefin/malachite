@@ -14,7 +14,7 @@ More formally, we are interested in the following property:
 
 #### **[Accountability]**
 - If there are less than`2f + 1` Byzantine faulty processes, and 
-- if agreement is violated (two processes decide differently), 
+- if agreement is violated (two correct processes decide differently), 
 - then a correct node collects sufficient data to identify at least `f + 1`
 Byzantine nodes.
 
@@ -64,6 +64,11 @@ algorithm is as follows:
 - line 36: it is just checked in the guard that the `validRound` field in the
   `2f + 1` prevotes is matching `validRound` of the proposal.
 
+In the following we will use the following abbreviations
+- `decide(r, v)`: a process decides in round `r` on value `v`
+- `commit(r,v)`: a set of `2f + 1` precommit messages for round `r` on value `v`
+- `polka(r,v)`: a set of `2f + 1` prevote messages for round `r` on value `v`
+
 
 ## Why Accountable Tendermint works
 
@@ -86,17 +91,17 @@ algorithm is as follows:
         - Let `r'` be the larger rounds of these two. By Point 2, one of the
           precommit messages are sent by a correct process
         - This process only sends the precommit in round `r'`, only if it has
-          received a polka for this round. That is, we there is a `Polka(v',r')`
+          received a polka for this round. That is, when there is a `Polka(v',r',_)`
         - In the new algorithm, the prevote messages in the polka contain `validRound`
-        - Again by Point 2, `Polka(v',r')` contains a message from a correct process
+        - Again by Point 2, `Polka(v',r',_)` contains a message from a correct process
         - By careful case distinction (see below), one can show that from the
-          existence of the two certificates `Commit(v,r)` and `Polka(v',r')` we
+          existence of the two certificates `Commit(v,r)` and `Polka(v',r',_)` we
           can prove that there are two certificates `Commit(v,r)` and
-          `Polka(v_e,r_e)` (observe that the polka need to be the one of round
+          `Polka(v_e,r_e,_)` (observe that the polka need to be the one of round
           `r'`) that have the property that the intersection of the senders of
           the messages in the certificate 
             - contains only faulty processes
-            - contains at least f+1 processes 
+            - contains at least `f + 1` processes 
 
 If we have the gossip assumption on certificates (if a correct process receives
 a certificate `c` then every correct process will eventually deliver `c`), then
@@ -113,10 +118,6 @@ These functions take as input two certificates (two polkas or a commit and a
 polka), check for conflicts, and return the votes of misbehaving nodes in the
 case of conflicts. 
 
-In the following we will use the following abbreviations
-- `decide(r, v)`: a process decides in round `r` on value `v`
-- `commit(r,v)`: a set of `2f + 1` precommit messages for round `r` on value `v`
-- `polka(r,v)`: a set of `2f + 1` prevote messages for round `r` on value `v`
 
 In the following, we discuss that in the case of disagreement,
 the system generates certificates that can be used to detect evidence. If we
@@ -127,25 +128,25 @@ this ensures that eventually all correct processes will detect evidence.
 
 - In order to decide on a value `commitValue` in a round `commitRound`, a 
   correct process needs to see a
-  - **Certificate 1** `commit(commitRound, commitValue)`
+  - **Certificate 1:** `commit(commitRound, commitValue)`
 - In order to see such a commit, a (potentially different) correct process must
   send a commit message for which it needs to see a 
-  - **Certificate 2** `polka(commitRound, commitValue, vr)`
+  - **Certificate 2:** `polka(commitRound, commitValue, vr)`
 - If two processes decide differently, then in addition to `decide(commitRound,
   commitValue)` we have `decide(r, v)` for `commitValue != v`. By the reasoning
 of above, we also must have a 
-  - **Certificate 3** `polka(r, v, conflictRound⟩)`
+  - **Certificate 3:** `polka(r, v, conflictRound⟩)`
 - if  `commitRound = r`, then there are two conflicting polkas 
- `polka(commitRound, commitValue, vr)` and `polka(commitRound, v, conflictRound)` (Certificate 2 and Certificate 3), which is evidence according to [doubleVotes](./misbehavior.qnt)
+ `polka(commitRound, commitValue, vr)` and `polka(commitRound, v, conflictRound)` (Certificate 2 and Certificate 3), which is evidence according to [doubleVotes](./misbehavior.qnt).
 - otherwise, let's denote by `commitRound` the smaller round, that is `commitRound < r`
   - we have 
     - `commit(commitRound, commitValue)` (Certificate 1) and 
     - `polka(r, v, conflictRound⟩)` (Certificate 3),
   - and the following case distinction
-    - `conflictRound < commitRound`. Certificate 1 and Certificate 3 are amnesia evidence according to [amnesiaVotes](./misbehavior.qnt)
+    - `conflictRound < commitRound`. Certificate 1 and Certificate 3 are amnesia evidence according to [amnesiaVotes](./misbehavior.qnt).
     - `conflictRound = commitRound`. In order to have `polka(r, v, conflictRound⟩`, we need a 
-      - **Certificate 4** `polka(conflictRound, v, _)` 
-      - Certificate 4 together with `polka(commitRound, commitValue, vr)` (Certificate 2) is evidence according to [doubleVotes](./misbehavior.qnt)
+      - **Certificate 4:** `polka(conflictRound, v, _)` 
+      - Certificate 4 together with `polka(commitRound, commitValue, vr)` (Certificate 2) is evidence according to [doubleVotes](./misbehavior.qnt).
     - `conflictRound > commitRound`: We are in the case of the Proposition below, that is, we have
       - `commit(commitRound, commitValue)` (Certificate 1),  
       - `polka(r, v, conflictRound⟩)` (Certificate 3),
@@ -155,8 +156,8 @@ of above, we also must have a
 
 
 **Proposition.** If there is a `commit(commitRound, commitValue)`, and a correct
-processes `p` sends `⟨PREVOTE, r, v, conflictRound⟩` for `conflictRound
-> commitRound` and `r > commitRound` and `v != commitValue`, then there
+processes `p` sends `⟨PREVOTE, r, v, conflictRound⟩` for `conflictRound > commitRound` 
+and `r > commitRound`  and `v != commitValue`, then there
 is evidence in the system.
 
 1. Let `p` be the first correct processes who sends such a prevote for the
@@ -164,13 +165,17 @@ is evidence in the system.
 2. It does so in Line 30 based on a `polka(conflictRound, v, vr)`, that is,
    `2f + 1` prevotes with these values
 3. Observe that `vr <= commitRound`, as otherwise `p` would not be the first
-   process who sends such a message. To see that observe that `conflictRound >
-   commitRound` and by line 28, `conflictRound <= round_p`, so `conflictRound`
-   satisfies the characterization of a message, which requires that `vr`
-   violates it so that `vr <= commitRound`
+   process who sends such a message. 
+   - To see why this is the case, observe that `conflictRound > commitRound` and
+     by line 28, we would have `conflictRound <= r`. 
+   - If, by contradiction, we would have that `vr > commitRound`, the prevote in
+     `polka(conflictRound, v, vr)` would satisfy the characterization of a
+     prevote message of the statement of the proposition, so that the sender of
+     this prevote message would be the first one instead of `p`; a contradiction. 
+   - So we must have`vr <= commitRound`.
 4. We now do a case distinction.  
-5. `vr = commitRound`. By line 28, Process `p` sends the message on a `Polka(vr,
-   v, _))`. Observe that `vr = commitRound`, so we have `Polka(commitRound,
+5. `vr = commitRound`. By line 28, Process `p` sends the message on a 
+   `Polka(vr, v, _))`. Observe that `vr = commitRound`, so we have `Polka(commitRound,
    v, _))`
   - By the assumption of the proposition we have a `commit(commitRound,
     commitValue)`. As every certificate contains a message by at least one
@@ -178,9 +183,9 @@ is evidence in the system.
     commitValue, _))`
   - `Polka(commitRound, v, _))` and `Polka(commitRound, commitValue, _))`
     contain evidence in the form of conflicting prevotes from at least `f+1`
-    processes. See function [doubleVotes](./misbehavior.qnt)
+    processes. See function [doubleVotes](./misbehavior.qnt).
 6. `vr < commitRound`. We have amnesia evidence (see function
    [amnesiaVotes](./misbehavior.qnt))
-  - Proposition statement`commit(commitRound, commitValue)` 
-  - Line 2: `polka(conflictRound, v, vr)`
-  - `commitRound < conflictRound` and `vr < commitRound`
+  - By the Proposition statement there is: `commit(commitRound, commitValue)` ,
+  - by Line 2 there is: `polka(conflictRound, v, vr)`,
+  - for `commitRound < conflictRound` and `vr < commitRound`
