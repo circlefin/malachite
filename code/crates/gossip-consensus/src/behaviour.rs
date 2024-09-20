@@ -149,11 +149,7 @@ impl Behaviour {
             )),
         };
 
-        let request_response = if enable_discovery {
-            Toggle::<discovery::Behaviour>::from(Some(discovery::new_behaviour()))
-        } else {
-            Toggle::<discovery::Behaviour>::from(None)
-        };
+        let request_response = Toggle::from(enable_discovery.then(discovery::new_behaviour));
 
         Self {
             identify,

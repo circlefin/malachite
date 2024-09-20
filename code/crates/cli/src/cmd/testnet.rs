@@ -210,9 +210,7 @@ pub fn generate_config(
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: PubSubProtocol::GossipSub,
-                listen_addr: format!("/ip4/127.0.0.1/udp/{consensus_port}/quic-v1")
-                    .parse()
-                    .unwrap(),
+                listen_addr: transport.multiaddr("127.0.0.1", consensus_port),
                 persistent_peers: if enable_discovery {
                     vec![transport.multiaddr(
                         "127.0.0.1",
