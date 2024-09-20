@@ -1,19 +1,16 @@
-use std::iter;
 use std::time::Duration;
 
 use either::Either;
+use libp2p::request_response::ResponseChannel;
+use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
-use libp2p::{
-    gossipsub, identify, ping,
-    request_response::{self, ProtocolSupport},
-    StreamProtocol,
-};
+use libp2p::{gossipsub, identify, ping};
 use libp2p_broadcast as broadcast;
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
-use malachite_discovery::behaviour::{ReqResBehaviour, ReqResEvent, ToggleReqResBehaviour};
+use malachite_discovery as discovery;
 use malachite_metrics::Registry;
 
 use crate::{PubSubProtocol, PROTOCOL_VERSION};
@@ -26,7 +23,7 @@ pub enum NetworkEvent {
     Ping(ping::Event),
     GossipSub(gossipsub::Event),
     Broadcast(broadcast::Event),
-    RequestResponse(ReqResEvent),
+    RequestResponse(discovery::Event),
 }
 
 impl From<identify::Event> for NetworkEvent {
@@ -53,8 +50,8 @@ impl From<broadcast::Event> for NetworkEvent {
     }
 }
 
-impl From<ReqResEvent> for NetworkEvent {
-    fn from(event: ReqResEvent) -> Self {
+impl From<discovery::Event> for NetworkEvent {
+    fn from(event: discovery::Event) -> Self {
         Self::RequestResponse(event)
     }
 }
@@ -78,7 +75,20 @@ pub struct Behaviour {
     pub identify: identify::Behaviour,
     pub ping: ping::Behaviour,
     pub pubsub: Either<gossipsub::Behaviour, broadcast::Behaviour>,
-    pub request_response: ToggleReqResBehaviour,
+    pub request_response: Toggle<discovery::Behaviour>,
+}
+
+impl discovery::SendResponse for Behaviour {
+    fn send_response(
+        &mut self,
+        ch: ResponseChannel<discovery::Response>,
+        rs: discovery::Response,
+    ) -> Result<(), discovery::Response> {
+        self.request_response
+            .as_mut()
+            .expect("Request-response behaviour is not available")
+            .send_response(ch, rs)
+    }
 }
 
 fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
@@ -140,12 +150,9 @@ impl Behaviour {
         };
 
         let request_response = if enable_discovery {
-            ToggleReqResBehaviour::from(Some(ReqResBehaviour::new(
-                iter::once((StreamProtocol::new(PROTOCOL_VERSION), ProtocolSupport::Full)),
-                request_response::Config::default().with_request_timeout(Duration::from_secs(5)),
-            )))
+            Toggle::<discovery::Behaviour>::from(Some(discovery::new_behaviour()))
         } else {
-            ToggleReqResBehaviour::from(None)
+            Toggle::<discovery::Behaviour>::from(None)
         };
 
         Self {
