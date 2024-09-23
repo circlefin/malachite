@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeSet, VecDeque};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -11,7 +11,7 @@ use tracing::{debug, error, info, warn};
 
 use malachite_common::{
     Context, NilOrVal, Proposal, Round, SignedProposal, Timeout, TimeoutStep, ValidatorSet,
-    Validity, Value, VoteType,
+    Validity, VoteType,
 };
 use malachite_consensus::{Effect, Resume};
 use malachite_driver::Driver;
@@ -22,6 +22,7 @@ use malachite_vote::ThresholdParams;
 use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::forward::forward;
+use crate::util::full_proposer_keeper::FullProposalKeeper;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
 pub struct ConsensusParams<Ctx: Context> {
@@ -120,63 +121,32 @@ pub struct State<Ctx: Context> {
     /// The set of peers we are connected to.
     connected_peers: BTreeSet<PeerId>,
 
-    /// The value and validity of received blocks.
-    pub received_blocks: Vec<(Ctx::Height, Round, Ctx::Value, Validity)>,
-
     /// The proposals to decide on.
-    pub proposal_keeper: BTreeMap<(Ctx::Height, Round), Option<SignedProposal<Ctx>>>,
+    pub full_proposal_keeper: FullProposalKeeper<Ctx>,
 }
 
 impl<Ctx: Context> State<Ctx> {
-    pub fn get_proposal(&self, height: Ctx::Height, round: Round) -> Option<&SignedProposal<Ctx>> {
-        self.proposal_keeper
-            .get(&(height, round))
-            .and_then(|proposal| proposal.as_ref())
-    }
-
-    pub fn store_proposal(&mut self, proposal: SignedProposal<Ctx>) {
-        // TODO check existing
-        self.proposal_keeper
-            .insert((proposal.height(), proposal.round()), Some(proposal));
-    }
-
-    pub fn remove_proposal(&mut self, height: Ctx::Height, round: Round) {
-        // TODO - keep some heights back?
-        self.proposal_keeper.remove_entry(&(height, round));
-    }
-
-    pub fn get_block(
+    pub fn get_full_proposal(
         &self,
         height: &Ctx::Height,
-        round: &Round,
-    ) -> Option<&(Ctx::Height, Round, Ctx::Value, Validity)> {
-        self.received_blocks
-            .iter()
-            .find(|(h, r, ..)| h == height && r == round)
+        round: Round,
+        value: &Ctx::Value,
+    ) -> Option<(SignedProposal<Ctx>, Validity)> {
+        self.full_proposal_keeper
+            .get_full_proposal(height, round, value)
     }
 
-    pub fn store_block(&mut self, block: ProposedValue<Ctx>) {
-        debug!(
-            "Adding block {} {} {:?} {:?}",
-            block.height,
-            block.round,
-            block.value.id(),
-            block.validity
-        );
-        self.received_blocks
-            .push((block.height, block.round, block.value, block.validity));
+    pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>) {
+        self.full_proposal_keeper.store_proposal(new_proposal)
     }
 
-    pub fn remove_block(&mut self, height: Ctx::Height, round: Round) {
-        // TODO - keep some heights back?
-        debug!("Removing blocks {} {}", height, round);
-        debug!("Before {:?}", self.received_blocks);
-        let number_blocks = self.received_blocks.len();
-        self.received_blocks
-            .retain(|&(h, r, ..)| h != height && r != round);
-        debug!("After {:?}", self.received_blocks);
+    pub fn store_value(&mut self, new_value: ProposedValue<Ctx>) {
+        self.full_proposal_keeper.store_value(new_value)
+    }
 
-        assert_eq!(number_blocks - 1, self.received_blocks.len());
+    pub fn remove_full_proposals(&mut self, height: Ctx::Height, round: Round) {
+        self.full_proposal_keeper
+            .remove_full_proposals(height, round)
     }
 }
 
@@ -332,41 +302,26 @@ where
                     GossipEvent::Proposal(from, proposal) => {
                         state.store_proposal(proposal.clone());
 
-                        // Check if a complete block was received for the proposal POL round if defined or proposal round otherwise.
-                        let block_round = match proposal.pol_round() {
-                            Round::Nil => proposal.round(),
-                            Round::Some(_) => proposal.pol_round(),
-                        };
-
-                        match state.get_block(&proposal.height(), &block_round) {
-                            None => {
-                                debug!(
-                                    value.height = %proposal.height(),
-                                    value.round = %proposal.round(),
-                                    "No value for this proposal, stored proposal for later");
+                        if let Some((full_proposal, validity)) = state.get_full_proposal(
+                            &proposal.height(),
+                            proposal.round(),
+                            proposal.value(),
+                        ) {
+                            if let Err(e) = self
+                                .process_msg(
+                                    &myself,
+                                    state,
+                                    InnerMsg::Proposal(full_proposal, validity),
+                                )
+                                .await
+                            {
+                                error!(%from, "Error when processing proposal: {e:?}");
                             }
-                            Some((height, round, value, validity)) => {
-                                assert_eq!(proposal.height(), *height);
-                                assert_eq!(block_round, *round);
-                                debug!(
-                                    value.height = %proposal.height(),
-                                    value.round = %proposal.round(),
-                                    "We have a value for the proposal height and round, checking..."
-                                );
-                                let validity = Validity::from_bool(
-                                    proposal.value().id() == value.id() && validity.is_valid(),
-                                );
-                                if let Err(e) = self
-                                    .process_msg(
-                                        &myself,
-                                        state,
-                                        InnerMsg::Proposal(proposal, validity),
-                                    )
-                                    .await
-                                {
-                                    error!(%from, "Error when processing proposal: {e:?}");
-                                }
-                            }
+                        } else {
+                            debug!(
+                                value.height = %proposal.height(),
+                                value.round = %proposal.round(),
+                                "No full proposal for this round yet, stored proposal for later");
                         }
 
                         Ok(())
@@ -462,34 +417,22 @@ where
                 Ok(())
             }
 
-            Msg::ReceivedProposedValue(block) => {
-                state.store_block(block.clone());
-                if let Some(proposal) = state.get_proposal(block.height, block.round) {
-                    debug!(
-                        proposal.height = %block.height,
-                        proposal.round = %block.round,
-                        "We have a proposal for this height and round, checking..."
-                    );
-
-                    let validity = Validity::from_bool(
-                        proposal.value().id() == block.value.id() && block.validity.is_valid(),
-                    );
-                    debug!("Applying proposal with validity {validity:?}");
+            Msg::ReceivedProposedValue(value) => {
+                state.store_value(value.clone());
+                if let Some((full_proposal, validity)) =
+                    state.get_full_proposal(&value.height, value.round, &value.value)
+                {
                     if let Err(e) = self
-                        .process_msg(
-                            &myself,
-                            state,
-                            InnerMsg::Proposal(proposal.clone(), validity),
-                        )
+                        .process_msg(&myself, state, InnerMsg::Proposal(full_proposal, validity))
                         .await
                     {
                         error!("Error when processing proposal: {e:?}");
                     }
                 } else {
                     debug!(
-                        value.height = %block.height,
-                        value.round = %block.round,
-                        "No proposal for this round yet, stored proposed value for later");
+                        value.height = %value.height,
+                        value.round = %value.round,
+                        "No full proposal for this round yet, stored proposed value for later");
                 }
 
                 Ok(())
@@ -632,9 +575,9 @@ where
                     let _ = tx_decision.send((height, round, value.clone())).await;
                 }
 
+                // Clean state
                 // TODO clean state
-                // state.remove_block(height, round);
-                // state.remove_proposal(height, round);
+                // state.remove_full_proposals(height, round)
 
                 self.host
                     .cast(HostMsg::DecidedOnValue {
@@ -691,8 +634,7 @@ where
             timeouts: Timeouts::new(self.timeout_config),
             consensus: consensus_state,
             connected_peers: BTreeSet::new(),
-            received_blocks: vec![],
-            proposal_keeper: Default::default(),
+            full_proposal_keeper: Default::default(),
         })
     }
 

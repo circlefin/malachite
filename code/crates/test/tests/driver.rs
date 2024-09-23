@@ -403,7 +403,7 @@ fn driver_steps_not_proposer_valid() {
             },
         },
         TestStep {
-            desc: "v3 prevotes for v1's proposal, it gets +2/3 prevotes, precommit for it (v2)",
+            desc: "v3 prevotes for v1's proposal, v2 gets +2/3 prevotes, precommits for it",
             input: Some(Input::Vote(Vote::new_prevote(
                 Height::new(1),
                 Round::new(0),
