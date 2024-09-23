@@ -1,6 +1,6 @@
 use malachite_actors::host::ProposedValue;
-use malachite_actors::util::full_proposer_keeper::FullProposalKeeper;
 use malachite_common::{Context, Round, SignedProposal, Validity};
+use malachite_consensus::FullProposalKeeper;
 use malachite_test::utils::validators::make_validators;
 use malachite_test::{Address, Proposal, Value};
 use malachite_test::{Height, TestContext};

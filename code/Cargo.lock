@@ -2433,6 +2433,7 @@ dependencies = [
  "hex",
  "malachite-actors",
  "malachite-common",
+ "malachite-consensus",
  "malachite-crypto",
  "malachite-driver",
  "malachite-node",

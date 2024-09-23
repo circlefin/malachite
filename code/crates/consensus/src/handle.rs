@@ -11,11 +11,11 @@ use crate::effect::{Effect, Resume};
 use crate::error::Error;
 use crate::gen::Co;
 use crate::msg::Msg;
-use crate::perform;
 use crate::state::State;
 use crate::types::GossipMsg;
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
 use crate::ConsensusMsg;
+use crate::{perform, ProposedValue};
 
 pub async fn handle<Ctx>(
     co: Co<Ctx>,
@@ -42,13 +42,14 @@ where
     match msg {
         Msg::StartHeight(height) => start_height(co, state, metrics, height).await,
         Msg::Vote(vote) => on_vote(co, state, metrics, vote).await,
-        Msg::Proposal(proposal, validity) => {
-            on_proposal(co, state, metrics, proposal, validity).await
-        }
+        Msg::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
         Msg::ProposeValue(height, round, value) => {
             propose_value(co, state, metrics, height, round, value).await
         }
         Msg::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
+        Msg::ReceivedProposedValue(block) => {
+            on_received_proposed_value(co, state, metrics, block).await
+        }
     }
 }
 
@@ -431,33 +432,6 @@ where
     let vote_height = signed_vote.height();
     let validator_address = signed_vote.validator_address();
 
-    // Queue messages if driver is not initialized, or if they are for higher height.
-    // Process messages received for the current height.
-    // Drop all others.
-    if consensus_round == Round::Nil {
-        debug!(
-            consensus.height = %consensus_height,
-            vote.height = %vote_height,
-            validator = %validator_address,
-            "Received vote at round -1, queuing for later"
-        );
-
-        state.msg_queue.push_back(Msg::Vote(signed_vote));
-        return Ok(());
-    }
-
-    if consensus_height < vote_height {
-        debug!(
-            consensus.height = %consensus_height,
-            vote.height = %vote_height,
-            validator = %validator_address,
-            "Received vote for higher height, queuing for later"
-        );
-
-        state.msg_queue.push_back(Msg::Vote(signed_vote));
-        return Ok(());
-    }
-
     if consensus_height > vote_height {
         debug!(
             consensus.height = %consensus_height,
@@ -498,6 +472,33 @@ where
         return Ok(());
     }
 
+    // Queue messages if driver is not initialized, or if they are for higher height.
+    // Process messages received for the current height.
+    // Drop all others.
+    if consensus_round == Round::Nil {
+        debug!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
+            validator = %validator_address,
+            "Received vote at round -1, queuing for later"
+        );
+
+        state.msg_queue.push_back(Msg::Vote(signed_vote));
+        return Ok(());
+    }
+
+    if consensus_height < vote_height {
+        debug!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
+            validator = %validator_address,
+            "Received vote for higher height, queuing for later"
+        );
+
+        state.msg_queue.push_back(Msg::Vote(signed_vote));
+        return Ok(());
+    }
+
     // Store the non-nil Precommits.
     if signed_vote.vote_type() == VoteType::Precommit && signed_vote.value().is_val() {
         state.store_signed_precommit(signed_vote.clone());
@@ -513,32 +514,12 @@ async fn on_proposal<Ctx>(
     state: &mut State<Ctx>,
     metrics: &Metrics,
     signed_proposal: SignedProposal<Ctx>,
-    validity: Validity,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
     let proposal_height = signed_proposal.height();
     let proposal_round = signed_proposal.round();
-
-    // Queue messages if driver is not initialized, or if they are for higher height.
-    // Process messages received for the current height.
-    // Drop all others.
-    if state.driver.round() == Round::Nil {
-        debug!("Received proposal at round -1, queuing for later");
-        state
-            .msg_queue
-            .push_back(Msg::Proposal(signed_proposal, validity));
-        return Ok(());
-    }
-
-    if state.driver.height() < proposal_height {
-        debug!("Received proposal for higher height, queuing for later");
-        state
-            .msg_queue
-            .push_back(Msg::Proposal(signed_proposal, validity));
-        return Ok(());
-    }
 
     if state.driver.height() > proposal_height {
         debug!("Received proposal for lower height, dropping");
@@ -561,15 +542,6 @@ where
         return Ok(());
     };
 
-    if proposal_height != state.driver.height() {
-        warn!(
-            "Ignoring proposal for height {proposal_height}, current height: {}",
-            state.driver.height()
-        );
-
-        return Ok(());
-    }
-
     let signed_msg = signed_proposal.clone().map(ConsensusMsg::Proposal);
     let verify_sig = Effect::VerifySignature(signed_msg, proposer.public_key().clone());
     if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
@@ -581,14 +553,48 @@ where
         return Ok(());
     }
 
-    apply_driver_input(
-        co,
-        state,
-        metrics,
-        DriverInput::Proposal(signed_proposal.message.clone(), validity),
-    )
-    .await?;
+    // Queue messages if driver is not initialized, or if they are for higher height.
+    // Process messages received for the current height.
+    // Drop all others.
+    if state.driver.round() == Round::Nil {
+        debug!("Received proposal at round -1, queuing for later");
+        state.msg_queue.push_back(Msg::Proposal(signed_proposal));
+        return Ok(());
+    }
 
+    if state.driver.height() < proposal_height {
+        debug!("Received proposal for higher height, queuing for later");
+        state.msg_queue.push_back(Msg::Proposal(signed_proposal));
+        return Ok(());
+    }
+
+    if proposal_height != state.driver.height() {
+        warn!(
+            "Ignoring proposal for height {proposal_height}, current height: {}",
+            state.driver.height()
+        );
+
+        return Ok(());
+    }
+
+    state.store_proposal(signed_proposal.clone());
+
+    if let Some((full_proposal, validity)) =
+        state.get_full_proposal(&proposal_height, proposal_round, signed_proposal.value())
+    {
+        apply_driver_input(
+            co,
+            state,
+            metrics,
+            DriverInput::Proposal(full_proposal.message.clone(), validity),
+        )
+        .await?;
+    } else {
+        debug!(
+            proposal.height = %proposal_height,
+            proposal.round = %proposal_round,
+            "No full proposal for this round yet, stored proposal for later");
+    }
     Ok(())
 }
 
@@ -619,6 +625,58 @@ where
 
     if timeout.step == TimeoutStep::Commit {
         move_to_height(co, state, metrics, height.increment()).await?;
+    }
+
+    Ok(())
+}
+
+#[tracing::instrument(
+    skip_all,
+    fields(
+        height = %proposed_value.height,
+        round = %proposed_value.round,
+        validity = ?proposed_value.validity,
+        id = %proposed_value.value.id()
+    )
+)]
+async fn on_received_proposed_value<Ctx>(
+    co: &Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    proposed_value: ProposedValue<Ctx>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    state.store_value(proposed_value.clone());
+
+    let ProposedValue {
+        height,
+        round,
+        value,
+        validity,
+        ..
+    } = proposed_value;
+
+    if let Some((signed_proposal, _)) = state.get_full_proposal(&height, round, &value) {
+        debug!(
+            proposal.height = %signed_proposal.height(),
+            proposal.round = %signed_proposal.round(),
+            "We have a full proposal for this round, checking..."
+        );
+
+        apply_driver_input(
+            co,
+            state,
+            metrics,
+            DriverInput::Proposal(signed_proposal.message.clone(), validity),
+        )
+        .await?;
+    } else {
+        debug!(
+            value.height = %height,
+            value.round = %round,
+            "No full proposal for this round yet, stored value for later");
     }
 
     Ok(())

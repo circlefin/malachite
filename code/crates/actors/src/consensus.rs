@@ -9,10 +9,7 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
-use malachite_common::{
-    Context, NilOrVal, Proposal, Round, SignedProposal, Timeout, TimeoutStep, ValidatorSet,
-    Validity, VoteType,
-};
+use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType};
 use malachite_consensus::{Effect, Resume};
 use malachite_driver::Driver;
 use malachite_metrics::Metrics;
@@ -22,7 +19,6 @@ use malachite_vote::ThresholdParams;
 use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::forward::forward;
-use crate::util::full_proposer_keeper::FullProposalKeeper;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
 pub struct ConsensusParams<Ctx: Context> {
@@ -120,34 +116,6 @@ pub struct State<Ctx: Context> {
 
     /// The set of peers we are connected to.
     connected_peers: BTreeSet<PeerId>,
-
-    /// The proposals to decide on.
-    pub full_proposal_keeper: FullProposalKeeper<Ctx>,
-}
-
-impl<Ctx: Context> State<Ctx> {
-    pub fn get_full_proposal(
-        &self,
-        height: &Ctx::Height,
-        round: Round,
-        value: &Ctx::Value,
-    ) -> Option<(SignedProposal<Ctx>, Validity)> {
-        self.full_proposal_keeper
-            .get_full_proposal(height, round, value)
-    }
-
-    pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>) {
-        self.full_proposal_keeper.store_proposal(new_proposal)
-    }
-
-    pub fn store_value(&mut self, new_value: ProposedValue<Ctx>) {
-        self.full_proposal_keeper.store_value(new_value)
-    }
-
-    pub fn remove_full_proposals(&mut self, height: Ctx::Height, round: Round) {
-        self.full_proposal_keeper
-            .remove_full_proposals(height, round)
-    }
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -300,28 +268,11 @@ where
                     }
 
                     GossipEvent::Proposal(from, proposal) => {
-                        state.store_proposal(proposal.clone());
-
-                        if let Some((full_proposal, validity)) = state.get_full_proposal(
-                            &proposal.height(),
-                            proposal.round(),
-                            proposal.value(),
-                        ) {
-                            if let Err(e) = self
-                                .process_msg(
-                                    &myself,
-                                    state,
-                                    InnerMsg::Proposal(full_proposal, validity),
-                                )
-                                .await
-                            {
-                                error!(%from, "Error when processing proposal: {e:?}");
-                            }
-                        } else {
-                            debug!(
-                                value.height = %proposal.height(),
-                                value.round = %proposal.round(),
-                                "No full proposal for this round yet, stored proposal for later");
+                        if let Err(e) = self
+                            .process_msg(&myself, state, InnerMsg::Proposal(proposal))
+                            .await
+                        {
+                            error!(%from, "Error when processing proposal: {e:?}");
                         }
 
                         Ok(())
@@ -418,21 +369,12 @@ where
             }
 
             Msg::ReceivedProposedValue(value) => {
-                state.store_value(value.clone());
-                if let Some((full_proposal, validity)) =
-                    state.get_full_proposal(&value.height, value.round, &value.value)
-                {
-                    if let Err(e) = self
-                        .process_msg(&myself, state, InnerMsg::Proposal(full_proposal, validity))
-                        .await
-                    {
-                        error!("Error when processing proposal: {e:?}");
-                    }
-                } else {
-                    debug!(
-                        value.height = %value.height,
-                        value.round = %value.round,
-                        "No full proposal for this round yet, stored proposed value for later");
+                let result = self
+                    .process_msg(&myself, state, InnerMsg::ReceivedProposedValue(value))
+                    .await;
+
+                if let Err(e) = result {
+                    error!("Error when processing GossipEvent message: {e:?}");
                 }
 
                 Ok(())
@@ -626,6 +568,7 @@ where
             ctx: self.ctx.clone(),
             driver,
             msg_queue: VecDeque::new(),
+            full_proposal_keeper: Default::default(),
             signed_precommits: Default::default(),
         };
 
@@ -634,7 +577,6 @@ where
             timeouts: Timeouts::new(self.timeout_config),
             consensus: consensus_state,
             connected_peers: BTreeSet::new(),
-            full_proposal_keeper: Default::default(),
         })
     }
 

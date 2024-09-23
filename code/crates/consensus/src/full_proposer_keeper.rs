@@ -1,5 +1,5 @@
+use crate::ProposedValue;
 use malachite_common::{Context, Proposal, Round, SignedProposal, Validity, Value};
-use malachite_consensus::ProposedValue;
 use std::collections::BTreeMap;
 use tracing::{debug, warn};
 

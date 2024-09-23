@@ -4,7 +4,9 @@ use malachite_common::*;
 use malachite_driver::Driver;
 
 use crate::error::Error;
+use crate::full_proposer_keeper::FullProposalKeeper;
 use crate::msg::Msg;
+use crate::ProposedValue;
 
 /// The state maintained by consensus for processing a [`Msg`][crate::msg::Msg].
 pub struct State<Ctx>
@@ -20,6 +22,9 @@ where
     /// A queue of gossip events that were received before the
     /// driver started the new height and was still at round Nil.
     pub msg_queue: VecDeque<Msg<Ctx>>,
+
+    /// The proposals to decide on.
+    pub full_proposal_keeper: FullProposalKeeper<Ctx>,
 
     /// Store Precommit votes to be sent along the decision to the host
     pub signed_precommits: BTreeMap<(Ctx::Height, Round), Vec<SignedVote<Ctx>>>,
@@ -82,5 +87,28 @@ where
         commits_for_height_and_round.retain(|c| c.value() == &NilOrVal::Val(value.id()));
 
         commits_for_height_and_round
+    }
+
+    pub fn get_full_proposal(
+        &self,
+        height: &Ctx::Height,
+        round: Round,
+        value: &Ctx::Value,
+    ) -> Option<(SignedProposal<Ctx>, Validity)> {
+        self.full_proposal_keeper
+            .get_full_proposal(height, round, value)
+    }
+
+    pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>) {
+        self.full_proposal_keeper.store_proposal(new_proposal)
+    }
+
+    pub fn store_value(&mut self, new_value: ProposedValue<Ctx>) {
+        self.full_proposal_keeper.store_value(new_value)
+    }
+
+    pub fn remove_full_proposals(&mut self, height: Ctx::Height, round: Round) {
+        self.full_proposal_keeper
+            .remove_full_proposals(height, round)
     }
 }
