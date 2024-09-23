@@ -594,7 +594,7 @@ where
             state
                 .driver
                 .proposal_keeper
-                .apply_proposal(signed_proposal.message.clone());
+                .apply_proposal(signed_proposal.message.clone(), Validity::Valid);
         }
     }
 
