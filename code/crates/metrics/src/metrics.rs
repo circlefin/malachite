@@ -72,6 +72,9 @@ pub struct Inner {
     /// Consensus rounds, ie. how many rounds did each block need to reach finalization
     pub rounds_per_block: Histogram,
 
+    /// The round at which the proposal was decided
+    pub decision_round: Histogram,
+
     /// Number of connected peers, ie. for each consensus node, how many peers is it connected to)
     pub connected_peers: Gauge,
 
@@ -103,6 +106,7 @@ impl Metrics {
             block_tx_count: Histogram::new(linear_buckets(0.0, 32.0, 128)),
             block_size_bytes: Histogram::new(linear_buckets(0.0, 64.0 * 1024.0, 128)),
             rounds_per_block: Histogram::new(linear_buckets(0.0, 1.0, 20)),
+            decision_round: Histogram::new(linear_buckets(0.0, 1.0, 20)),
             connected_peers: Gauge::default(),
             height: Gauge::default(),
             round: Gauge::default(),
@@ -156,6 +160,12 @@ impl Metrics {
                 "rounds_per_block",
                 "Consensus rounds, ie. how many rounds did each block need to reach finalization",
                 metrics.rounds_per_block.clone(),
+            );
+
+            registry.register(
+                "decision_round",
+                "The round at which the proposal was decided",
+                metrics.decision_round.clone(),
             );
 
             registry.register(

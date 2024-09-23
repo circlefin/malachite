@@ -368,7 +368,7 @@ async fn decided<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    _decision_round: Round,
+    decision_round: Round,
     proposal: Ctx::Proposal,
 ) -> Result<(), Error<Ctx>>
 where
@@ -405,10 +405,13 @@ where
     metrics.block_end();
     metrics.finalized_blocks.inc();
 
-    // TODO: Show also the decision_round in a different metric
     metrics
         .rounds_per_block
         .observe((round.as_i64() + 1) as f64);
+
+    metrics
+        .decision_round
+        .observe(decision_round.as_i64() as f64);
 
     Ok(())
 }
