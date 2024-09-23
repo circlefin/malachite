@@ -25,8 +25,9 @@ use tracing::{debug, warn};
 
 #[derive(Clone, Debug)]
 pub struct FullProposal<Ctx: Context> {
-    // Value as recevied from the builder and its validity view
+    // Value if received from the builder and its validity.
     builder_value: Option<(Ctx::Value, Validity)>,
+    // Proposal consensus message if received.
     proposal: Option<SignedProposal<Ctx>>,
 }
 
