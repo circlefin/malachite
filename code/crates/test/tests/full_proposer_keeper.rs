@@ -32,7 +32,7 @@ fn proposed_value(
 }
 
 #[test]
-fn get_full_proposal_multi_same_round_valid() {
+fn get_full_proposal_single_matching_same_round_valid() {
     let [(v, sk)] = make_validators([3]);
     let ctx = TestContext::new(sk);
     let mut keeper = FullProposalKeeper::<TestContext>::new();
@@ -51,18 +51,6 @@ fn get_full_proposal_multi_same_round_valid() {
     let full_proposal1 = stored1.unwrap();
     assert_eq!(full_proposal1.0, sp1);
     assert_eq!(full_proposal1.1, pv1.validity);
-
-    let v02 = Value::new(20);
-    let sp2 = signed_proposal(&ctx, h, r0, v02, v.address);
-    keeper.store_proposal(sp2.clone());
-    let pv2 = proposed_value(h, r0, v02, Validity::Valid, v.address);
-    keeper.store_value(pv2.clone());
-
-    let stored2 = keeper.get_full_proposal(&h, r0, &v02);
-    assert!(stored2.is_some());
-    let full_proposal2 = stored2.unwrap();
-    assert_eq!(full_proposal2.0, sp2);
-    assert_eq!(full_proposal2.1, pv2.validity);
 }
 
 #[test]
@@ -105,8 +93,75 @@ fn get_full_proposal_single_not_matching_same_round_invalid() {
     keeper.store_value(pv2.clone());
 
     let stored1 = keeper.get_full_proposal(&h, r0, &v01);
+    assert!(stored1.is_none());
+}
+
+#[test]
+fn get_full_proposal_multi_same_round() {
+    let [(v, sk)] = make_validators([3]);
+    let ctx = TestContext::new(sk);
+    let mut keeper = FullProposalKeeper::<TestContext>::new();
+
+    let h = Height::new(1);
+    let r0 = Round::new(0);
+
+    let v01 = Value::new(10);
+    let sp1 = signed_proposal(&ctx, h, r0, v01, v.address);
+    keeper.store_proposal(sp1.clone());
+    let pv1 = proposed_value(h, r0, v01, Validity::Valid, v.address);
+    keeper.store_value(pv1.clone());
+
+    let stored1 = keeper.get_full_proposal(&h, r0, &v01);
     assert!(stored1.is_some());
     let full_proposal1 = stored1.unwrap();
     assert_eq!(full_proposal1.0, sp1);
-    assert_eq!(full_proposal1.1, Validity::Invalid);
+    assert_eq!(full_proposal1.1, pv1.validity);
+
+    let v02 = Value::new(20);
+    let sp2 = signed_proposal(&ctx, h, r0, v02, v.address);
+    keeper.store_proposal(sp2.clone());
+    let pv2 = proposed_value(h, r0, v02, Validity::Invalid, v.address);
+    keeper.store_value(pv2.clone());
+
+    let stored2 = keeper.get_full_proposal(&h, r0, &v02);
+    assert!(stored2.is_some());
+    let full_proposal2 = stored2.unwrap();
+    assert_eq!(full_proposal2.0, sp2);
+    assert_eq!(full_proposal2.1, pv2.validity);
+}
+
+#[test]
+fn get_full_proposal_multi_interleaved_same_round() {
+    let [(v, sk)] = make_validators([3]);
+    let ctx = TestContext::new(sk);
+    let mut keeper = FullProposalKeeper::<TestContext>::new();
+
+    let h = Height::new(1);
+    let r0 = Round::new(0);
+
+    let v01 = Value::new(10);
+    let sp1 = signed_proposal(&ctx, h, r0, v01, v.address);
+    keeper.store_proposal(sp1.clone());
+
+    let v02 = Value::new(20);
+    let pv2 = proposed_value(h, r0, v02, Validity::Valid, v.address);
+    keeper.store_value(pv2.clone());
+
+    let pv1 = proposed_value(h, r0, v01, Validity::Valid, v.address);
+    keeper.store_value(pv1.clone());
+
+    let sp2 = signed_proposal(&ctx, h, r0, v02, v.address);
+    keeper.store_proposal(sp2.clone());
+
+    let stored1 = keeper.get_full_proposal(&h, r0, &v01);
+    assert!(stored1.is_some());
+    let full_proposal1 = stored1.unwrap();
+    assert_eq!(full_proposal1.0, sp1);
+    assert_eq!(full_proposal1.1, pv1.validity);
+
+    let stored2 = keeper.get_full_proposal(&h, r0, &v02);
+    assert!(stored2.is_some());
+    let full_proposal2 = stored2.unwrap();
+    assert_eq!(full_proposal2.0, sp2);
+    assert_eq!(full_proposal2.1, pv2.validity);
 }

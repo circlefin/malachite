@@ -3,25 +3,41 @@ use malachite_consensus::ProposedValue;
 use std::collections::BTreeMap;
 use tracing::{debug, warn};
 
+/// This module is responsible for collecting proposed values and consensus proposal messages for
+/// a given (height, round).
+/// When a new_value is received from the value builder the following entry is stored:
+/// `FullProposal { Some(new_value.value, new_value.validity), None }`
+///
+/// When a new_proposal is received from consensus gossip the following entry is stored:
+/// `FullProposal { None, Some(new_proposal) }`
+///
+/// When both proposal and values have been received, the entry for (height, round) should be:
+/// `FullProposal { Some(value.value, value.validity), Some(proposal) }`
+///
+/// It is possible that a proposer sends two (builder_value, proposal) pairs for same `(height, round)`.
+/// In this case, both are stored and we consider that the proposer is equivocating.
+/// Currently, the actual equivocation is caught deeper in the consensus crate, through consensus actor
+/// propagating both proposals.
+///
+/// Note: In the future when we support implicit proposal message:
+/// - store_proposal() will never be called
+/// - get_full_proposal() should only check the presence of `builder_value`
+
 #[derive(Clone, Debug)]
 pub struct FullProposal<Ctx: Context> {
     // Value as recevied from the builder and its validity view
     builder_value: Option<(Ctx::Value, Validity)>,
     proposal: Option<SignedProposal<Ctx>>,
-    // If builder_value is invalid then invalid, otherwise invalid if builder_value is different than the proposal one
-    validity: Option<Validity>,
 }
 
 impl<Ctx: Context> FullProposal<Ctx> {
     pub fn new(
         builder_value: Option<(Ctx::Value, Validity)>,
         proposal: Option<SignedProposal<Ctx>>,
-        validity: Option<Validity>,
     ) -> Self {
         Self {
             builder_value,
             proposal,
-            validity,
         }
     }
 }
@@ -49,16 +65,11 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
             Some(proposals) if proposals.is_empty() => None,
             Some(proposals) => {
                 for p in proposals.iter() {
-                    match (p.builder_value.clone(), p.proposal.clone(), p.validity) {
-                        (Some(_), Some(prop), Some(validity)) => {
+                    match (p.builder_value.clone(), p.proposal.clone()) {
+                        (Some((_, validity)), Some(prop)) => {
                             if prop.value().id() == value.id() {
                                 return Some((prop, validity));
-                            } else {
-                                continue;
                             }
-                        }
-                        (Some(_), Some(_), None) => {
-                            panic!("null validity when both value and proposal are present");
                         }
                         _ => {
                             return None;
@@ -81,7 +92,6 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 let full_proposal = FullProposal {
                     builder_value: None,
                     proposal: Some(new_proposal.clone()),
-                    validity: None,
                 };
                 self.full_proposal_keeper.insert(
                     (new_proposal.height(), new_proposal.round()),
@@ -92,9 +102,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 // We have seen values and/ or proposals for this height and round.
                 // Iterate over the vector of full proposals and determine if a new entry needs
                 // to be appended or an existing one has to be modified.
-                let mut append = false;
-                let mut some_value_index = 0;
-                for (i, p) in full_proposals.iter_mut().enumerate() {
+                for p in full_proposals.iter_mut() {
                     let FullProposal {
                         builder_value,
                         proposal: existing_proposal,
@@ -103,30 +111,15 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                     match (builder_value, existing_proposal) {
                         (Some((value, _)), None) => {
                             if value == new_proposal.value() {
-                                // Found a matching value. Change the entry at index i
-                                some_value_index = i;
-                                break;
-                            } else {
-                                // Continue to find a matching value
-                                continue;
+                                // Found a matching value. Add the proposal
+                                p.proposal = Some(new_proposal);
+                                return;
                             }
                         }
-                        (None, Some(proposal)) => {
+                        (_, Some(proposal)) => {
                             if proposal.value() == new_proposal.value() {
                                 // Redundant proposal
                                 return;
-                            } else {
-                                // Append equivocating proposal
-                                append = true;
-                                break;
-                            }
-                        }
-                        (Some((_value, _validity)), Some(proposal)) => {
-                            if proposal.value() == new_proposal.value() {
-                                // Redundant proposal
-                                return;
-                            } else {
-                                // TODO - figure out what to do here
                             }
                         }
                         (_, _) => {
@@ -134,25 +127,9 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                         }
                     }
                 }
-                if append {
-                    // Append new proposal
-                    full_proposals.push(FullProposal::new(None, Some(new_proposal.clone()), None));
-                    return;
-                }
-                // Replace proposal at some_value_index
-                let mut full_proposal = full_proposals[some_value_index].clone();
-                full_proposal.proposal = Some(new_proposal.clone());
-                full_proposal.validity =
-                    if let Some((ref value, validity)) = full_proposal.builder_value {
-                        if value.id() == new_proposal.value().id() {
-                            Some(validity)
-                        } else {
-                            Some(Validity::Invalid)
-                        }
-                    } else {
-                        None
-                    };
-                full_proposals[some_value_index] = full_proposal.clone();
+
+                // Append new proposal
+                full_proposals.push(FullProposal::new(None, Some(new_proposal.clone())));
             }
         }
     }
@@ -168,7 +145,6 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 let full_proposal = FullProposal {
                     builder_value: Some((new_value.value, new_value.validity)),
                     proposal: None,
-                    validity: Some(new_value.validity),
                 };
                 self.full_proposal_keeper
                     .insert((new_value.height, new_value.round), vec![full_proposal]);
@@ -177,9 +153,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 // We have seen proposals and/ or values for this height and round.
                 // Iterate over the vector of full proposals and determine if a new entry needs
                 // to be appended or an existing one has to be modified.
-                let mut append = false;
-                let mut some_value_index = 0;
-                for (i, p) in full_proposals.iter_mut().enumerate() {
+                for p in full_proposals.iter_mut() {
                     let FullProposal {
                         builder_value: existing_value,
                         proposal,
@@ -189,29 +163,14 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                         (None, Some(proposal)) => {
                             if proposal.value().id() == new_value.value.id() {
                                 // Found a matching proposal. Change the entry at index i
-                                some_value_index = i;
-                                break;
-                            } else {
-                                // Continue to find a matching value
-                                continue;
+                                p.builder_value = Some((new_value.value, new_value.validity));
+                                return;
                             }
                         }
-                        (Some((value, _)), None) => {
+                        (Some((value, _)), _) => {
                             if value.id() == new_value.value.id() {
                                 // Same value received before, nothing to do.
                                 return;
-                            } else {
-                                // Append equivocating value
-                                append = true;
-                                break;
-                            }
-                        }
-                        (Some((value, _)), Some(_)) => {
-                            if value.id() == new_value.value.id() {
-                                // Same value received before, nothing to do.
-                                return;
-                            } else {
-                                // TODO - figure out what to do here
                             }
                         }
                         (_, _) => {
@@ -219,35 +178,13 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                         }
                     }
                 }
-                if append {
-                    // Append new value
-                    full_proposals.push(FullProposal::new(
-                        Some((new_value.value, new_value.validity)),
-                        None,
-                        None,
-                    ));
-                    return;
-                }
-                // Replace value at some_value_index
-                let mut full_proposal = full_proposals[some_value_index].clone();
-                full_proposal.validity = if let Some(ref proposal) = full_proposal.proposal {
-                    if proposal.value().id() == new_value.value.id() {
-                        Some(new_value.validity)
-                    } else {
-                        Some(Validity::Invalid)
-                    }
-                } else {
-                    None
-                };
-                full_proposal.builder_value = Some((new_value.value, new_value.validity));
-                full_proposals[some_value_index] = full_proposal.clone();
+                // Append new value
+                full_proposals.push(FullProposal::new(
+                    Some((new_value.value, new_value.validity)),
+                    None,
+                ));
             }
         }
-    }
-
-    pub fn remove_proposal(&mut self, height: Ctx::Height, round: Round) {
-        // TODO - keep some heights back?
-        self.full_proposal_keeper.remove_entry(&(height, round));
     }
 
     pub fn remove_full_proposals(&mut self, height: Ctx::Height, round: Round) {
