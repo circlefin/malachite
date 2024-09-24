@@ -10,7 +10,7 @@ use tracing::{error, info, Instrument};
 
 use malachite_common::VotingPower;
 use malachite_node::config::{
-    Config as NodeConfig, Config, LoggingConfig, PubSubProtocol, TestConfig, TransportProtocol,
+    Config as NodeConfig, Config, LoggingConfig, PubSubProtocol, TransportProtocol,
 };
 use malachite_starknet_app::spawn::spawn_node_actor;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
@@ -100,42 +100,33 @@ impl<const N: usize> Test<N> {
         voting_powers
     }
 
-    pub fn generate_default_configs(&self, app: App) -> Vec<Config> {
+    pub fn generate_default_configs(&self, app: App) -> [Config; N] {
         let mut configs = vec![];
-        for i in 0..2 {
-            let default_config = make_node_config(self, i, app);
-            configs.push(default_config)
+
+        for i in 0..N {
+            let config = make_node_config(self, i, app);
+            configs.push(config)
         }
-        configs
+
+        configs.try_into().expect("N configs")
     }
 
-    pub fn generate_custom_configs(&self, app: App, test_params: TestParams) -> Vec<Config> {
+    pub fn generate_custom_configs(&self, app: App, test_params: TestParams) -> [Config; N] {
         let mut configs = vec![];
-        for i in 0..2 {
-            let node_config = make_node_config(self, i, app);
-            let modified_config = Config {
-                mempool: MempoolConfig {
-                    gossip_batch_size: 0,
-                    ..node_config.mempool
-                },
-                consensus: ConsensusConfig {
-                    max_block_size: test_params.block_size,
-                    p2p: P2pConfig {
-                        protocol: test_params.protocol,
-                        ..node_config.consensus.p2p
-                    },
-                    ..node_config.consensus
-                },
-                test: TestConfig {
-                    tx_size: test_params.tx_size,
-                    txs_per_part: 1,
-                    ..node_config.test
-                },
-                ..node_config
-            };
-            configs.push(modified_config)
+
+        for i in 0..N {
+            let mut config = make_node_config(self, i, app);
+
+            config.mempool.gossip_batch_size = 0;
+            config.consensus.max_block_size = test_params.block_size;
+            config.consensus.p2p.protocol = test_params.protocol;
+            config.test.tx_size = test_params.tx_size;
+            config.test.txs_per_part = 1;
+
+            configs.push(config);
         }
-        configs
+
+        configs.try_into().expect("N configs")
     }
 
     pub async fn run(self, app: App) {
@@ -148,7 +139,7 @@ impl<const N: usize> Test<N> {
         self.run_with_config(&node_configs).await
     }
 
-    pub async fn run_with_config(self, configs: &[Config]) {
+    pub async fn run_with_config(self, configs: &[Config; N]) {
         init_logging();
 
         let mut handles = Vec::with_capacity(N);
