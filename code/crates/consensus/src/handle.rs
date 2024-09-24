@@ -368,14 +368,14 @@ async fn decided<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    decision_round: Round,
+    round: Round,
     proposal: Ctx::Proposal,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
     let height = proposal.height();
-    let round = proposal.round();
+    let proposal_round = proposal.round();
     let value = proposal.value();
     // Remove the block information as it is not needed anymore
     let block_round = if proposal.pol_round().is_defined() {
@@ -386,13 +386,13 @@ where
     state.remove_received_block(proposal.height(), block_round);
 
     // Restore the commits. Note that they will be removed from `state`
-    let commits = state.restore_precommits(height, round, value);
+    let commits = state.restore_precommits(height, proposal_round, value);
 
     perform!(
         co,
         Effect::DecidedOnValue {
             height,
-            round,
+            round: proposal_round,
             value: value.clone(),
             commits
         }
@@ -411,7 +411,7 @@ where
 
     metrics
         .decision_round
-        .observe(decision_round.as_i64() as f64);
+        .observe(proposal_round.as_i64() as f64);
 
     Ok(())
 }

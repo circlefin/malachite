@@ -69,10 +69,10 @@ pub struct Inner {
     /// Size of each block in bytes
     pub block_size_bytes: Histogram,
 
-    /// Consensus rounds, ie. how many rounds did each block need to reach finalization
+    /// The number of rounds a node needed to finalize a block
     pub rounds_per_block: Histogram,
 
-    /// The round at which the proposal was decided
+    /// The round of the proposal that was decided on
     pub decision_round: Histogram,
 
     /// Number of connected peers, ie. for each consensus node, how many peers is it connected to)
@@ -158,13 +158,13 @@ impl Metrics {
 
             registry.register(
                 "rounds_per_block",
-                "Consensus rounds, ie. how many rounds did each block need to reach finalization",
+                "The number of rounds a node needed to finalize a block",
                 metrics.rounds_per_block.clone(),
             );
 
             registry.register(
                 "decision_round",
-                "The round at which the proposal was decided",
+                "The round of the proposal that was decided on",
                 metrics.decision_round.clone(),
             );
 
