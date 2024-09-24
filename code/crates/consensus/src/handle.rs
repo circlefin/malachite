@@ -39,7 +39,7 @@ where
     Ctx: Context,
 {
     match msg {
-        Msg::StartHeight(height) => start_height(co, state, metrics, height).await,
+        Msg::StartHeight(height) => reset_and_start_height(co, state, metrics, height).await,
         Msg::Vote(vote) => on_vote(co, state, metrics, vote).await,
         Msg::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
         Msg::ProposeValue(height, round, value) => {
@@ -52,7 +52,7 @@ where
     }
 }
 
-async fn start_height<Ctx>(
+async fn reset_and_start_height<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -61,9 +61,6 @@ async fn start_height<Ctx>(
 where
     Ctx: Context,
 {
-    let round = Round::new(0);
-    info!(%height, "Starting new height");
-
     perform!(co, Effect::CancelAllTimeouts);
     perform!(co, Effect::ResetTimeouts);
 
@@ -86,6 +83,21 @@ where
 
     debug_assert_eq!(state.driver.height(), height);
     debug_assert_eq!(state.driver.round(), Round::Nil);
+
+    start_height(co, state, metrics, height).await
+}
+
+async fn start_height<Ctx>(
+    co: &Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    height: Ctx::Height,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    let round = Round::new(0);
+    info!(%height, "Starting new height");
 
     let proposer = state.get_proposer(height, round).cloned()?;
 
