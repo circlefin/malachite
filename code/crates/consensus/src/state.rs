@@ -26,6 +26,9 @@ where
 
     /// Store Precommit votes to be sent along the decision to the host
     pub signed_precommits: BTreeMap<(Ctx::Height, Round), Vec<SignedVote<Ctx>>>,
+
+    /// Decision per height
+    pub decision: BTreeMap<(Ctx::Height, Round), Ctx::Value>,
 }
 
 impl<Ctx> State<Ctx>
