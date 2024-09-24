@@ -51,12 +51,12 @@ impl fmt::Display for Expected {
 
 pub struct TestParams {
     protocol: PubSubProtocol,
-    block_size: u64,
-    tx_size: u64,
+    block_size: ByteSize,
+    tx_size: ByteSize,
 }
 
 impl TestParams {
-    pub fn new(protocol: PubSubProtocol, block_size: u64, tx_size: u64) -> Self {
+    pub fn new(protocol: PubSubProtocol, block_size: ByteSize, tx_size: ByteSize) -> Self {
         Self {
             protocol,
             block_size,
@@ -119,7 +119,7 @@ impl<const N: usize> Test<N> {
                     ..node_config.mempool
                 },
                 consensus: ConsensusConfig {
-                    max_block_size: ByteSize::b(test_params.block_size),
+                    max_block_size: test_params.block_size,
                     p2p: P2pConfig {
                         protocol: test_params.protocol,
                         ..node_config.consensus.p2p
@@ -127,7 +127,7 @@ impl<const N: usize> Test<N> {
                     ..node_config.consensus
                 },
                 test: TestConfig {
-                    tx_size: ByteSize::b(test_params.tx_size),
+                    tx_size: test_params.tx_size,
                     txs_per_part: 1,
                     ..node_config.test
                 },
