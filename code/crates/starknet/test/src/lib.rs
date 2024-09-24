@@ -10,10 +10,9 @@ use tracing::{error, info, Instrument};
 
 use malachite_common::VotingPower;
 use malachite_node::config::{
-    Config as NodeConfig, LoggingConfig, PubSubProtocol, TransportProtocol,
+    Config as NodeConfig, Config, LoggingConfig, PubSubProtocol, TransportProtocol,
 };
 use malachite_starknet_app::spawn::spawn_node_actor;
-
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
 
 pub use malachite_node::config::App;
@@ -46,6 +45,22 @@ impl fmt::Display for Expected {
             Expected::AtMost(n) => write!(f, "at most {n}"),
             Expected::LessThan(n) => write!(f, "less than {n}"),
             Expected::GreaterThan(n) => write!(f, "greater than {n}"),
+        }
+    }
+}
+
+pub struct TestParams {
+    protocol: PubSubProtocol,
+    block_size: ByteSize,
+    tx_size: ByteSize,
+}
+
+impl TestParams {
+    pub fn new(protocol: PubSubProtocol, block_size: ByteSize, tx_size: ByteSize) -> Self {
+        Self {
+            protocol,
+            block_size,
+            tx_size,
         }
     }
 }
@@ -85,12 +100,51 @@ impl<const N: usize> Test<N> {
         voting_powers
     }
 
+    pub fn generate_default_configs(&self, app: App) -> [Config; N] {
+        let mut configs = vec![];
+
+        for i in 0..N {
+            let config = make_node_config(self, i, app);
+            configs.push(config)
+        }
+
+        configs.try_into().expect("N configs")
+    }
+
+    pub fn generate_custom_configs(&self, app: App, test_params: TestParams) -> [Config; N] {
+        let mut configs = vec![];
+
+        for i in 0..N {
+            let mut config = make_node_config(self, i, app);
+
+            config.mempool.gossip_batch_size = 0;
+            config.consensus.max_block_size = test_params.block_size;
+            config.consensus.p2p.protocol = test_params.protocol;
+            config.test.tx_size = test_params.tx_size;
+            config.test.txs_per_part = 1;
+
+            configs.push(config);
+        }
+
+        configs.try_into().expect("N configs")
+    }
+
     pub async fn run(self, app: App) {
+        let node_configs = self.generate_default_configs(app);
+        self.run_with_config(&node_configs).await
+    }
+
+    pub async fn run_with_custom_config(self, app: App, test_params: TestParams) {
+        let node_configs = self.generate_custom_configs(app, test_params);
+        self.run_with_config(&node_configs).await
+    }
+
+    pub async fn run_with_config(self, configs: &[Config; N]) {
         init_logging();
 
         let mut handles = Vec::with_capacity(N);
 
-        for i in 0..N {
+        for (i, config) in configs.iter().enumerate().take(N) {
             if self.nodes[i].faults.contains(&Fault::NoStart) {
                 continue;
             }
@@ -98,10 +152,8 @@ impl<const N: usize> Test<N> {
             let (_, private_key) = &self.vals_and_keys[i];
             let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
 
-            let node_config = make_node_config(&self, i, app);
-
             let node = tokio::spawn(spawn_node_actor(
-                node_config,
+                config.clone(),
                 self.validator_set.clone(),
                 *private_key,
                 Some(tx_decision),

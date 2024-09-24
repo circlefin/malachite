@@ -40,7 +40,7 @@ where
     Ctx: Context,
 {
     match msg {
-        Msg::StartHeight(height) => start_height(co, state, metrics, height).await,
+        Msg::StartHeight(height) => reset_and_start_height(co, state, metrics, height).await,
         Msg::Vote(vote) => on_vote(co, state, metrics, vote).await,
         Msg::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
         Msg::ProposeValue(height, round, value) => {
@@ -51,6 +51,41 @@ where
             on_received_proposed_value(co, state, metrics, block).await
         }
     }
+}
+
+async fn reset_and_start_height<Ctx>(
+    co: &Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    height: Ctx::Height,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    perform!(co, Effect::CancelAllTimeouts);
+    perform!(co, Effect::ResetTimeouts);
+
+    metrics.step_end(state.driver.step());
+
+    let validator_set = perform!(co, Effect::GetValidatorSet(height),
+        Resume::ValidatorSet(vs_height, validator_set) => {
+            if vs_height == height {
+                Ok(validator_set)
+            } else {
+                Err(Error::UnexpectedResume(
+                    Resume::ValidatorSet(vs_height, validator_set),
+                    "ValidatorSet for the current height"
+                ))
+            }
+        }
+    )?;
+
+    state.driver.move_to_height(height, validator_set);
+
+    debug_assert_eq!(state.driver.height(), height);
+    debug_assert_eq!(state.driver.round(), Round::Nil);
+
+    start_height(co, state, metrics, height).await
 }
 
 async fn start_height<Ctx>(
@@ -84,42 +119,6 @@ where
     replay_pending_msgs(co, state, metrics).await?;
 
     Ok(())
-}
-
-async fn move_to_height<Ctx>(
-    co: &Co<Ctx>,
-    state: &mut State<Ctx>,
-    metrics: &Metrics,
-    height: Ctx::Height,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    perform!(co, Effect::CancelAllTimeouts);
-    perform!(co, Effect::ResetTimeouts);
-
-    // End the current step (most likely Commit)
-    metrics.step_end(state.driver.step());
-
-    let validator_set = perform!(co, Effect::GetValidatorSet(height),
-        Resume::ValidatorSet(vs_height, validator_set) => {
-            if vs_height == height {
-                Ok(validator_set)
-            } else {
-                Err(Error::UnexpectedResume(
-                    Resume::ValidatorSet(vs_height, validator_set),
-                    "ValidatorSet for the current height"
-                ))
-            }
-        }
-    )?;
-
-    state.driver.move_to_height(height, validator_set);
-
-    debug_assert_eq!(state.driver.height(), height);
-    debug_assert_eq!(state.driver.round(), Round::Nil);
-
-    start_height(co, state, metrics, height).await
 }
 
 async fn replay_pending_msgs<Ctx>(
@@ -309,12 +308,17 @@ where
                 consensus_round, proposal
             );
 
+            // Store value decided on for retrieval when timeout commit elapses
+            state
+                .decision
+                .insert((state.driver.height(), consensus_round), proposal.clone());
+
             perform!(
                 co,
                 Effect::ScheduleTimeout(Timeout::commit(consensus_round))
             );
 
-            decided(co, state, metrics, consensus_round, proposal).await
+            Ok(())
         }
 
         DriverOutput::ScheduleTimeout(timeout) => {
@@ -367,7 +371,7 @@ where
     apply_driver_input(co, state, metrics, DriverInput::ProposeValue(round, value)).await
 }
 
-async fn decided<Ctx>(
+async fn decide<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -393,7 +397,7 @@ where
 
     perform!(
         co,
-        Effect::DecidedOnValue {
+        Effect::Decide {
             height,
             round: proposal_round,
             value: value.clone(),
@@ -611,7 +615,7 @@ where
             state
                 .driver
                 .proposal_keeper
-                .apply_proposal(signed_proposal.message.clone());
+                .apply_proposal(signed_proposal.message.clone(), Validity::Valid);
         }
     }
 
@@ -644,7 +648,12 @@ where
     apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
 
     if timeout.step == TimeoutStep::Commit {
-        move_to_height(co, state, metrics, height.increment()).await?;
+        let proposal = state
+            .decision
+            .remove(&(height, round))
+            .ok_or_else(|| Error::DecidedValueNotFound(height, round))?;
+
+        decide(co, state, metrics, round, proposal).await?;
     }
 
     Ok(())
