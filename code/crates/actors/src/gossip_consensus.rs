@@ -215,11 +215,11 @@ where
                 self.publish(GossipEvent::PeerDisconnected(peer_id), subscribers);
             }
 
-            Msg::NewEvent(Event::Message(Channel::Consensus, from, msg_id, data)) => {
+            Msg::NewEvent(Event::Message(Channel::Consensus, from, data)) => {
                 let msg = match Codec::decode_msg(data) {
                     Ok(msg) => msg,
                     Err(e) => {
-                        error!(%from, "Failed to decode gossip message {msg_id}: {e:?}");
+                        error!(%from, "Failed to decode gossip message: {e:?}");
                         return Ok(());
                     }
                 };
@@ -232,11 +232,11 @@ where
                 self.publish(event, subscribers);
             }
 
-            Msg::NewEvent(Event::Message(Channel::ProposalParts, from, msg_id, data)) => {
+            Msg::NewEvent(Event::Message(Channel::ProposalParts, from, data)) => {
                 let msg = match Codec::decode_stream_msg::<Ctx::ProposalPart>(data) {
                     Ok(stream_msg) => stream_msg,
                     Err(e) => {
-                        error!(%from, %msg_id, "Failed to decode stream message: {e:?}");
+                        error!(%from, "Failed to decode stream message: {e:?}");
                         return Ok(());
                     }
                 };

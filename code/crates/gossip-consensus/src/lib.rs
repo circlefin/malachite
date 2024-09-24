@@ -2,7 +2,6 @@
 #![allow(unexpected_cfgs)]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
-use core::fmt;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ops::ControlFlow;
@@ -12,6 +11,7 @@ use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
+use libp2p_broadcast as broadcast;
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
@@ -24,56 +24,30 @@ pub use libp2p::{Multiaddr, PeerId};
 
 pub mod behaviour;
 pub mod handle;
+pub mod pubsub;
+
+mod channel;
+pub use channel::Channel;
 
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
 
 const METRICS_PREFIX: &str = "malachite_gossip_consensus";
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Channel {
-    Consensus,
-    ProposalParts,
+#[derive(Copy, Clone, Debug, Default)]
+pub enum PubSubProtocol {
+    #[default]
+    GossipSub,
+    Broadcast,
 }
 
-impl Channel {
-    pub fn all() -> &'static [Channel] {
-        &[Channel::Consensus, Channel::ProposalParts]
+impl PubSubProtocol {
+    pub fn is_gossipsub(&self) -> bool {
+        matches!(self, Self::GossipSub)
     }
 
-    pub fn to_topic(self) -> gossipsub::IdentTopic {
-        gossipsub::IdentTopic::new(self.as_str())
-    }
-
-    pub fn topic_hash(&self) -> gossipsub::TopicHash {
-        self.to_topic().hash()
-    }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Channel::Consensus => "/consensus",
-            Channel::ProposalParts => "/proposal_parts",
-        }
-    }
-
-    pub fn has_topic(topic_hash: &gossipsub::TopicHash) -> bool {
-        Self::all()
-            .iter()
-            .any(|channel| &channel.topic_hash() == topic_hash)
-    }
-
-    pub fn from_topic_hash(topic: &gossipsub::TopicHash) -> Option<Self> {
-        match topic.as_str() {
-            "/consensus" => Some(Channel::Consensus),
-            "/proposal_parts" => Some(Channel::ProposalParts),
-            _ => None,
-        }
-    }
-}
-
-impl fmt::Display for Channel {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.as_str().fmt(f)
+    pub fn is_broadcast(&self) -> bool {
+        matches!(self, Self::Broadcast)
     }
 }
 
@@ -86,6 +60,8 @@ pub struct Config {
     pub listen_addr: Multiaddr,
     pub persistent_peers: Vec<Multiaddr>,
     pub idle_connection_timeout: Duration,
+    pub transport: TransportProtocol,
+    pub protocol: PubSubProtocol,
 }
 
 impl Config {
@@ -94,11 +70,17 @@ impl Config {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum TransportProtocol {
+    Tcp,
+    Quic,
+}
+
 /// An event that can be emitted by the gossip layer
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
     Listening(Multiaddr),
-    Message(Channel, PeerId, MessageId, Bytes),
+    Message(Channel, PeerId, Bytes),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
 }
@@ -119,23 +101,29 @@ pub async fn spawn(
     config: Config,
     registry: SharedRegistry,
 ) -> Result<Handle, BoxError> {
-    let mut swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, BoxError> {
-        Ok(SwarmBuilder::with_existing_identity(keypair)
-            .with_tokio()
-            .with_quic()
-            .with_dns()?
-            .with_bandwidth_metrics(registry)
-            .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
-            .with_swarm_config(|cfg| config.apply(cfg))
-            .build())
+    let swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, BoxError> {
+        let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
+        match config.transport {
+            TransportProtocol::Tcp => Ok(builder
+                .with_tcp(
+                    libp2p::tcp::Config::new().nodelay(true), // Disable Nagle's algorithm
+                    libp2p::noise::Config::new,
+                    libp2p::yamux::Config::default,
+                )?
+                .with_dns()?
+                .with_bandwidth_metrics(registry)
+                .with_behaviour(|kp| Behaviour::new_with_metrics(config.protocol, kp, registry))?
+                .with_swarm_config(|cfg| config.apply(cfg))
+                .build()),
+            TransportProtocol::Quic => Ok(builder
+                .with_quic()
+                .with_dns()?
+                .with_bandwidth_metrics(registry)
+                .with_behaviour(|kp| Behaviour::new_with_metrics(config.protocol, kp, registry))?
+                .with_swarm_config(|cfg| config.apply(cfg))
+                .build()),
+        }
     })?;
-
-    for channel in Channel::all() {
-        swarm
-            .behaviour_mut()
-            .gossipsub
-            .subscribe(&channel.to_topic())?;
-    }
 
     let metrics = registry.with_prefix(METRICS_PREFIX, Metrics::new);
 
@@ -143,7 +131,7 @@ pub async fn spawn(
     let (tx_ctrl, rx_ctrl) = mpsc::channel(32);
 
     let peer_id = swarm.local_peer_id();
-    let span = error_span!("gossip-consensus", peer = %peer_id);
+    let span = error_span!("gossip.consensus", peer = %peer_id);
     let task_handle =
         tokio::task::spawn(run(config, metrics, swarm, rx_ctrl, tx_event).instrument(span));
 
@@ -162,7 +150,7 @@ async fn run(
         return;
     };
 
-    for persistent_peer in config.persistent_peers {
+    for persistent_peer in &config.persistent_peers {
         trace!("Dialing persistent peer: {persistent_peer}");
 
         match swarm.dial(persistent_peer.clone()) {
@@ -170,6 +158,8 @@ async fn run(
             Err(e) => error!("Error dialing persistent peer {persistent_peer}: {e}"),
         }
     }
+
+    pubsub::subscribe(&mut swarm, Channel::all()).unwrap(); // FIXME: unwrap
 
     let mut state = State::default();
 
@@ -195,22 +185,11 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
     match msg {
         CtrlMsg::BroadcastMsg(channel, data) => {
             let msg_size = data.len();
-
-            let result = swarm
-                .behaviour_mut()
-                .gossipsub
-                .publish(channel.topic_hash(), data);
+            let result = pubsub::publish(swarm, channel, data);
 
             match result {
-                Ok(message_id) => {
-                    debug!(
-                        %channel,
-                        "Broadcasted message {message_id} of {msg_size} bytes"
-                    );
-                }
-                Err(e) => {
-                    error!(%channel, "Error broadcasting message: {e}");
-                }
+                Ok(()) => debug!(%channel, "Broadcasted message ({msg_size} bytes)"),
+                Err(e) => error!(%channel, "Error broadcasting message: {e}"),
             }
 
             ControlFlow::Continue(())
@@ -223,7 +202,7 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
 async fn handle_swarm_event(
     event: SwarmEvent<NetworkEvent>,
     metrics: &Metrics,
-    _swarm: &mut swarm::Swarm<Behaviour>,
+    swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,
     tx_event: &mpsc::Sender<Event>,
 ) -> ControlFlow<()> {
@@ -266,77 +245,13 @@ async fn handle_swarm_event(
                 );
 
                 state.peers.insert(peer_id, info);
+
+                // pubsub::add_peer(swarm, peer_id).unwrap(); // FIXME: unwrap
             } else {
                 trace!(
                     "Peer {peer_id} is using incompatible protocol version: {:?}",
                     info.protocol_version
                 );
-            }
-        }
-
-        SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Subscribed {
-            peer_id,
-            topic,
-        })) => {
-            if !Channel::has_topic(&topic) {
-                trace!("Peer {peer_id} tried to subscribe to unknown topic: {topic}");
-                return ControlFlow::Continue(());
-            }
-
-            trace!("Peer {peer_id} subscribed to {topic}");
-
-            if let Err(e) = tx_event.send(Event::PeerConnected(peer_id)).await {
-                error!("Error sending peer connected event to handle: {e}");
-                return ControlFlow::Break(());
-            }
-        }
-
-        SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Unsubscribed {
-            peer_id,
-            topic,
-        })) => {
-            if !Channel::has_topic(&topic) {
-                trace!("Peer {peer_id} tried to unsubscribe from unknown topic: {topic}");
-                return ControlFlow::Continue(());
-            }
-
-            trace!("Peer {peer_id} unsubscribed from {topic}");
-
-            if let Err(e) = tx_event.send(Event::PeerDisconnected(peer_id)).await {
-                error!("Error sending peer disconnected event to handle: {e}");
-                return ControlFlow::Break(());
-            }
-        }
-
-        SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Message {
-            message_id,
-            message,
-            ..
-        })) => {
-            let Some(peer_id) = message.source else {
-                return ControlFlow::Continue(());
-            };
-
-            let Some(channel) = Channel::from_topic_hash(&message.topic) else {
-                trace!(
-                    "Received message {message_id} from {peer_id} on different channel: {}",
-                    message.topic
-                );
-
-                return ControlFlow::Continue(());
-            };
-
-            trace!(
-                "Received message {message_id} from {peer_id} on channel {} of {} bytes",
-                channel,
-                message.data.len()
-            );
-
-            let event = Event::Message(channel, peer_id, message_id, Bytes::from(message.data));
-
-            if let Err(e) = tx_event.send(event).await {
-                error!("Error sending message to handle: {e}");
-                return ControlFlow::Break(());
             }
         }
 
@@ -354,8 +269,149 @@ async fn handle_swarm_event(
             metrics.record(&event);
         }
 
+        SwarmEvent::Behaviour(NetworkEvent::GossipSub(event)) => {
+            return handle_gossipsub_event(event, metrics, swarm, state, tx_event).await;
+        }
+
+        SwarmEvent::Behaviour(NetworkEvent::Broadcast(event)) => {
+            return handle_broadcast_event(event, metrics, swarm, state, tx_event).await;
+        }
+
         swarm_event => {
             metrics.record(&swarm_event);
+        }
+    }
+
+    ControlFlow::Continue(())
+}
+
+async fn handle_gossipsub_event(
+    event: gossipsub::Event,
+    _metrics: &Metrics,
+    _swarm: &mut swarm::Swarm<Behaviour>,
+    _state: &mut State,
+    tx_event: &mpsc::Sender<Event>,
+) -> ControlFlow<()> {
+    match event {
+        gossipsub::Event::Subscribed { peer_id, topic } => {
+            if !Channel::has_gossipsub_topic(&topic) {
+                trace!("Peer {peer_id} tried to subscribe to unknown topic: {topic}");
+                return ControlFlow::Continue(());
+            }
+
+            trace!("Peer {peer_id} subscribed to {topic}");
+
+            if let Err(e) = tx_event.send(Event::PeerConnected(peer_id)).await {
+                error!("Error sending peer connected event to handle: {e}");
+                return ControlFlow::Break(());
+            }
+        }
+
+        gossipsub::Event::Unsubscribed { peer_id, topic } => {
+            if !Channel::has_gossipsub_topic(&topic) {
+                trace!("Peer {peer_id} tried to unsubscribe from unknown topic: {topic}");
+                return ControlFlow::Continue(());
+            }
+
+            trace!("Peer {peer_id} unsubscribed from {topic}");
+
+            if let Err(e) = tx_event.send(Event::PeerDisconnected(peer_id)).await {
+                error!("Error sending peer disconnected event to handle: {e}");
+                return ControlFlow::Break(());
+            }
+        }
+
+        gossipsub::Event::Message {
+            message_id,
+            message,
+            ..
+        } => {
+            let Some(peer_id) = message.source else {
+                return ControlFlow::Continue(());
+            };
+
+            let Some(channel) = Channel::from_gossipsub_topic_hash(&message.topic) else {
+                trace!(
+                    "Received message {message_id} from {peer_id} on different channel: {}",
+                    message.topic
+                );
+
+                return ControlFlow::Continue(());
+            };
+
+            trace!(
+                "Received message {message_id} from {peer_id} on channel {channel} of {} bytes",
+                message.data.len()
+            );
+
+            let event = Event::Message(channel, peer_id, Bytes::from(message.data));
+
+            if let Err(e) = tx_event.send(event).await {
+                error!("Error sending message to handle: {e}");
+                return ControlFlow::Break(());
+            }
+        }
+        gossipsub::Event::GossipsubNotSupported { peer_id } => {
+            trace!("Peer {peer_id} does not support GossipSub");
+        }
+    }
+
+    ControlFlow::Continue(())
+}
+
+async fn handle_broadcast_event(
+    event: broadcast::Event,
+    _metrics: &Metrics,
+    _swarm: &mut swarm::Swarm<Behaviour>,
+    _state: &mut State,
+    tx_event: &mpsc::Sender<Event>,
+) -> ControlFlow<()> {
+    match event {
+        broadcast::Event::Subscribed(peer_id, topic) => {
+            if !Channel::has_broadcast_topic(&topic) {
+                trace!("Peer {peer_id} tried to subscribe to unknown topic: {topic:?}");
+                return ControlFlow::Continue(());
+            }
+
+            trace!("Peer {peer_id} subscribed to {topic:?}");
+
+            if let Err(e) = tx_event.send(Event::PeerConnected(peer_id)).await {
+                error!("Error sending peer connected event to handle: {e}");
+                return ControlFlow::Break(());
+            }
+        }
+
+        broadcast::Event::Unsubscribed(peer_id, topic) => {
+            if !Channel::has_broadcast_topic(&topic) {
+                trace!("Peer {peer_id} tried to unsubscribe from unknown topic: {topic:?}");
+                return ControlFlow::Continue(());
+            }
+
+            trace!("Peer {peer_id} unsubscribed from {topic:?}");
+
+            if let Err(e) = tx_event.send(Event::PeerDisconnected(peer_id)).await {
+                error!("Error sending peer disconnected event to handle: {e}");
+                return ControlFlow::Break(());
+            }
+        }
+
+        broadcast::Event::Received(peer_id, topic, message) => {
+            let Some(channel) = Channel::from_broadcast_topic(&topic) else {
+                trace!("Received message from {peer_id} on different channel: {topic:?}");
+                return ControlFlow::Continue(());
+            };
+
+            trace!(
+                "Received message from {peer_id} on channel {channel} of {} bytes",
+                message.len()
+            );
+
+            let event = Event::Message(channel, peer_id, Bytes::copy_from_slice(message.as_ref()));
+
+            if let Err(e) = tx_event.send(event).await {
+                error!("Error sending message to handle: {e}");
+                return ControlFlow::Break(());
+            }
         }
     }
 

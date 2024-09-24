@@ -340,11 +340,12 @@ impl Actor for StarknetHost {
                 }
             }
 
-            HostMsg::DecidedOnValue {
+            HostMsg::Decide {
                 height,
                 round,
                 value: block_hash,
                 commits,
+                consensus,
             } => {
                 let all_parts = state.part_store.all_parts(height, round);
 
@@ -376,6 +377,9 @@ impl Actor for StarknetHost {
 
                 // Notify Starknet Host of the decision
                 self.host.decision(block_hash, commits, height).await;
+
+                // Start the next height
+                consensus.cast(ConsensusMsg::StartHeight(state.height.increment()))?;
 
                 Ok(())
             }

@@ -48,6 +48,9 @@ where
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
 pub enum Msg<Ctx: Context> {
+    /// Start consensus for the given height
+    StartHeight(Ctx::Height),
+
     /// Received an event from the gossip layer
     GossipEvent(GossipEvent<Ctx>),
 
@@ -195,6 +198,18 @@ where
         msg: Msg<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
+            Msg::StartHeight(height) => {
+                let result = self
+                    .process_msg(&myself, state, InnerMsg::StartHeight(height))
+                    .await;
+
+                if let Err(e) = result {
+                    error!("Error when starting height {height}: {e:?}");
+                }
+
+                Ok(())
+            }
+
             Msg::ProposeValue(height, round, value) => {
                 let result = self
                     .process_msg(&myself, state, InnerMsg::ProposeValue(height, round, value))
@@ -507,7 +522,7 @@ where
                 Ok(Resume::ValidatorSet(height, validator_set))
             }
 
-            Effect::DecidedOnValue {
+            Effect::Decide {
                 height,
                 round,
                 value,
@@ -522,11 +537,12 @@ where
                 // state.remove_full_proposals(height, round)
 
                 self.host
-                    .cast(HostMsg::DecidedOnValue {
+                    .cast(HostMsg::Decide {
                         height,
                         round,
                         value,
                         commits,
+                        consensus: myself.clone(),
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
@@ -570,6 +586,7 @@ where
             msg_queue: VecDeque::new(),
             full_proposal_keeper: Default::default(),
             signed_precommits: Default::default(),
+            decision: Default::default(),
         };
 
         Ok(State {
