@@ -9,7 +9,9 @@ use tokio::time::{sleep, Duration};
 use tracing::{error, info, Instrument};
 
 use malachite_common::VotingPower;
-use malachite_node::config::{Config as NodeConfig, LoggingConfig};
+use malachite_node::config::{
+    Config as NodeConfig, LoggingConfig, PubSubProtocol, TransportProtocol,
+};
 use malachite_starknet_app::spawn::spawn_node_actor;
 
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
@@ -253,6 +255,8 @@ use malachite_node::config::{
 };
 
 pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> NodeConfig {
+    let transport = TransportProtocol::Tcp;
+
     NodeConfig {
         app,
         moniker: format!("node-{i}"),
@@ -261,37 +265,23 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
             max_block_size: ByteSize::mib(1),
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
-                listen_addr: format!(
-                    "/ip4/127.0.0.1/udp/{}/quic-v1",
-                    test.consensus_base_port + i
-                )
-                .parse()
-                .unwrap(),
+                transport,
+                protocol: PubSubProtocol::GossipSub,
+                listen_addr: transport.multiaddr("127.0.0.1", test.consensus_base_port + i),
                 persistent_peers: (0..N)
                     .filter(|j| i != *j)
-                    .map(|j| {
-                        format!(
-                            "/ip4/127.0.0.1/udp/{}/quic-v1",
-                            test.consensus_base_port + j
-                        )
-                        .parse()
-                        .unwrap()
-                    })
+                    .map(|j| transport.multiaddr("127.0.0.1", test.consensus_base_port + j))
                     .collect(),
             },
         },
         mempool: MempoolConfig {
             p2p: P2pConfig {
-                listen_addr: format!("/ip4/127.0.0.1/udp/{}/quic-v1", test.mempool_base_port + i)
-                    .parse()
-                    .unwrap(),
+                transport,
+                protocol: PubSubProtocol::GossipSub,
+                listen_addr: transport.multiaddr("127.0.0.1", test.mempool_base_port + i),
                 persistent_peers: (0..N)
                     .filter(|j| i != *j)
-                    .map(|j| {
-                        format!("/ip4/127.0.0.1/udp/{}/quic-v1", test.mempool_base_port + j)
-                            .parse()
-                            .unwrap()
-                    })
+                    .map(|j| transport.multiaddr("127.0.0.1", test.mempool_base_port + j))
                     .collect(),
             },
             max_tx_count: 10000,

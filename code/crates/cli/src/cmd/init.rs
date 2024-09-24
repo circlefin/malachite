@@ -7,7 +7,7 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Context, Result};
 use tracing::{info, warn};
 
-use malachite_node::config::{App, Config, LogFormat, LogLevel};
+use malachite_node::config::{App, Config, LogFormat, LogLevel, TransportProtocol};
 use malachite_node::Node;
 use malachite_starknet_app::node::StarknetNode;
 
@@ -55,6 +55,7 @@ impl InitCmd {
                     0,
                     1,
                     RuntimeFlavour::SingleThreaded,
+                    TransportProtocol::Tcp,
                     log_level,
                     log_format,
                 ),
