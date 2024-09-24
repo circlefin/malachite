@@ -302,16 +302,19 @@ where
             apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.message)).await
         }
 
-        DriverOutput::Decide(decision_round, proposal) => {
+        DriverOutput::Decide(consensus_round, proposal) => {
             // TODO: Remove proposal, votes, block for the round
             info!(
                 "Decided in round {} on proposal {:?}",
-                decision_round, proposal
+                consensus_round, proposal
             );
 
-            perform!(co, Effect::ScheduleTimeout(Timeout::commit(decision_round)));
+            perform!(
+                co,
+                Effect::ScheduleTimeout(Timeout::commit(consensus_round))
+            );
 
-            decided(co, state, metrics, decision_round, proposal).await
+            decided(co, state, metrics, consensus_round, proposal).await
         }
 
         DriverOutput::ScheduleTimeout(timeout) => {
@@ -405,12 +408,10 @@ where
     metrics.block_end();
     metrics.finalized_blocks.inc();
 
-    metrics
-        .rounds_per_block
-        .observe((round.as_i64() + 1) as f64);
+    metrics.consensus_round.observe(round.as_i64() as f64);
 
     metrics
-        .decision_round
+        .proposal_round
         .observe(proposal_round.as_i64() as f64);
 
     Ok(())

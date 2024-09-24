@@ -69,11 +69,11 @@ pub struct Inner {
     /// Size of each block in bytes
     pub block_size_bytes: Histogram,
 
-    /// The number of rounds a node needed to finalize a block
-    pub rounds_per_block: Histogram,
+    /// The consensus round in which the node was when it finalized a block
+    pub consensus_round: Histogram,
 
     /// The round of the proposal that was decided on
-    pub decision_round: Histogram,
+    pub proposal_round: Histogram,
 
     /// Number of connected peers, ie. for each consensus node, how many peers is it connected to)
     pub connected_peers: Gauge,
@@ -105,8 +105,8 @@ impl Metrics {
             }),
             block_tx_count: Histogram::new(linear_buckets(0.0, 32.0, 128)),
             block_size_bytes: Histogram::new(linear_buckets(0.0, 64.0 * 1024.0, 128)),
-            rounds_per_block: Histogram::new(linear_buckets(0.0, 1.0, 20)),
-            decision_round: Histogram::new(linear_buckets(0.0, 1.0, 20)),
+            consensus_round: Histogram::new(linear_buckets(0.0, 1.0, 20)),
+            proposal_round: Histogram::new(linear_buckets(0.0, 1.0, 20)),
             connected_peers: Gauge::default(),
             height: Gauge::default(),
             round: Gauge::default(),
@@ -157,15 +157,15 @@ impl Metrics {
             );
 
             registry.register(
-                "rounds_per_block",
-                "The number of rounds a node needed to finalize a block",
-                metrics.rounds_per_block.clone(),
+                "consensus_round",
+                "The consensus round in which the node was when it finalized a block",
+                metrics.consensus_round.clone(),
             );
 
             registry.register(
-                "decision_round",
+                "proposal_round",
                 "The round of the proposal that was decided on",
-                metrics.decision_round.clone(),
+                metrics.proposal_round.clone(),
             );
 
             registry.register(
