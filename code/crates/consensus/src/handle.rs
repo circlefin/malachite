@@ -40,7 +40,6 @@ where
 {
     match msg {
         Msg::StartHeight(height) => start_height(co, state, metrics, height).await,
-        Msg::StartNextHeight => start_next_height(co, state, metrics).await,
         Msg::Vote(vote) => on_vote(co, state, metrics, vote).await,
         Msg::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
         Msg::ProposeValue(height, round, value) => {
@@ -65,41 +64,10 @@ where
     let round = Round::new(0);
     info!(%height, "Starting new height");
 
-    let proposer = state.get_proposer(height, round).cloned()?;
-
-    apply_driver_input(
-        co,
-        state,
-        metrics,
-        DriverInput::NewRound(height, round, proposer.clone()),
-    )
-    .await?;
-
-    metrics.block_start();
-    metrics.height.set(height.as_u64() as i64);
-    metrics.round.set(round.as_i64());
-
-    perform!(co, Effect::StartRound(height, round, proposer));
-
-    replay_pending_msgs(co, state, metrics).await?;
-
-    Ok(())
-}
-
-async fn start_next_height<Ctx>(
-    co: &Co<Ctx>,
-    state: &mut State<Ctx>,
-    metrics: &Metrics,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
     perform!(co, Effect::CancelAllTimeouts);
     perform!(co, Effect::ResetTimeouts);
 
     metrics.step_end(state.driver.step());
-
-    let height = state.driver.height().increment();
 
     let validator_set = perform!(co, Effect::GetValidatorSet(height),
         Resume::ValidatorSet(vs_height, validator_set) => {
@@ -119,7 +87,25 @@ where
     debug_assert_eq!(state.driver.height(), height);
     debug_assert_eq!(state.driver.round(), Round::Nil);
 
-    start_height(co, state, metrics, height).await
+    let proposer = state.get_proposer(height, round).cloned()?;
+
+    apply_driver_input(
+        co,
+        state,
+        metrics,
+        DriverInput::NewRound(height, round, proposer.clone()),
+    )
+    .await?;
+
+    metrics.block_start();
+    metrics.height.set(height.as_u64() as i64);
+    metrics.round.set(round.as_i64());
+
+    perform!(co, Effect::StartRound(height, round, proposer));
+
+    replay_pending_msgs(co, state, metrics).await?;
+
+    Ok(())
 }
 
 async fn replay_pending_msgs<Ctx>(

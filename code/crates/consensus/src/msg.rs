@@ -12,9 +12,6 @@ where
     /// Start a new height
     StartHeight(Ctx::Height),
 
-    /// Start the next height
-    StartNextHeight,
-
     /// Process a vote
     Vote(SignedVote<Ctx>),
 

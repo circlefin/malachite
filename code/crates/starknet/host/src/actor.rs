@@ -379,7 +379,7 @@ impl Actor for StarknetHost {
                 self.host.decision(block_hash, commits, height).await;
 
                 // Start the next height
-                consensus.cast(ConsensusMsg::StartHeight(height.increment()))?;
+                consensus.cast(ConsensusMsg::StartHeight(state.height.increment()))?;
 
                 Ok(())
             }
