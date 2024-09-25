@@ -50,7 +50,7 @@ fn get_full_proposal_single_matching_same_round_valid() {
     let stored1 = keeper.get_full_proposal(&h, r0, &v01);
     assert!(stored1.is_some());
     let full_proposal1 = stored1.unwrap();
-    assert_eq!(full_proposal1.proposal, &sp1);
+    assert_eq!(full_proposal1.proposal, sp1);
     assert_eq!(full_proposal1.validity, pv1.validity);
 }
 
@@ -72,7 +72,7 @@ fn get_full_proposal_single_matching_same_round_invalid() {
     let stored1 = keeper.get_full_proposal(&h, r0, &v01);
     assert!(stored1.is_some());
     let full_proposal1 = stored1.unwrap();
-    assert_eq!(full_proposal1.proposal, &sp1);
+    assert_eq!(full_proposal1.proposal, sp1);
     assert_eq!(full_proposal1.validity, pv1.validity);
 }
 
@@ -115,7 +115,7 @@ fn get_full_proposal_multi_same_round() {
     let stored1 = keeper.get_full_proposal(&h, r0, &v01);
     assert!(stored1.is_some());
     let full_proposal1 = stored1.unwrap();
-    assert_eq!(full_proposal1.proposal, &sp1);
+    assert_eq!(full_proposal1.proposal, sp1);
     assert_eq!(full_proposal1.validity, pv1.validity);
 
     let v02 = Value::new(20);
@@ -127,7 +127,7 @@ fn get_full_proposal_multi_same_round() {
     let stored2 = keeper.get_full_proposal(&h, r0, &v02);
     assert!(stored2.is_some());
     let full_proposal2 = stored2.unwrap();
-    assert_eq!(full_proposal2.proposal, &sp2);
+    assert_eq!(full_proposal2.proposal, sp2);
     assert_eq!(full_proposal2.validity, pv2.validity);
 }
 
@@ -157,12 +157,12 @@ fn get_full_proposal_multi_interleaved_same_round() {
     let stored1 = keeper.get_full_proposal(&h, r0, &v01);
     assert!(stored1.is_some());
     let full_proposal1 = stored1.unwrap();
-    assert_eq!(full_proposal1.proposal, &sp1);
+    assert_eq!(full_proposal1.proposal, sp1);
     assert_eq!(full_proposal1.validity, pv1.validity);
 
     let stored2 = keeper.get_full_proposal(&h, r0, &v02);
     assert!(stored2.is_some());
     let full_proposal2 = stored2.unwrap();
-    assert_eq!(full_proposal2.proposal, &sp2);
+    assert_eq!(full_proposal2.proposal, sp2);
     assert_eq!(full_proposal2.validity, pv2.validity);
 }
