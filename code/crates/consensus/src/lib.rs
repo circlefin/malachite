@@ -20,5 +20,5 @@ pub use types::*;
 mod macros;
 mod util;
 
-mod full_proposer_keeper;
-pub use full_proposer_keeper::FullProposalKeeper;
+mod full_proposal_keeper;
+pub use full_proposal_keeper::FullProposalKeeper;

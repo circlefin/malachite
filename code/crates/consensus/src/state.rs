@@ -4,7 +4,7 @@ use malachite_common::*;
 use malachite_driver::Driver;
 
 use crate::error::Error;
-use crate::full_proposer_keeper::FullProposalKeeper;
+use crate::full_proposal_keeper::FullProposalKeeper;
 use crate::msg::Msg;
 use crate::ProposedValue;
 
