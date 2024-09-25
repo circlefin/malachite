@@ -214,10 +214,14 @@ pub fn generate_config(
                 protocol: PubSubProtocol::GossipSub,
                 listen_addr: transport.multiaddr("127.0.0.1", consensus_port),
                 persistent_peers: if enable_discovery {
-                    let available = (0..total).filter(|j| *j != index).collect_vec();
                     let mut rng = rand::thread_rng();
-                    (0..rng.gen_range(1..total))
-                        .map(|_| available.iter().choose(&mut rng).unwrap())
+                    let count = rng.gen_range(1..=(total / 2));
+                    let peers = (0..total)
+                        .filter(|j| *j != index)
+                        .choose_multiple(&mut rng, count);
+
+                    peers
+                        .iter()
                         .unique()
                         .map(|index| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + index))
                         .collect()
