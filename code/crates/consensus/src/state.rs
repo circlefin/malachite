@@ -4,7 +4,7 @@ use malachite_common::*;
 use malachite_driver::Driver;
 
 use crate::error::Error;
-use crate::full_proposal_keeper::FullProposalKeeper;
+use crate::full_proposal_keeper::{FullProposal, FullProposalKeeper};
 use crate::msg::Msg;
 use crate::ProposedValue;
 
@@ -97,7 +97,7 @@ where
         height: &Ctx::Height,
         round: Round,
         value: &Ctx::Value,
-    ) -> Option<(&SignedProposal<Ctx>, Validity)> {
+    ) -> Option<FullProposal<'_, Ctx>> {
         self.full_proposal_keeper
             .get_full_proposal(height, round, value)
     }

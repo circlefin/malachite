@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use derive_where::derive_where;
 use tracing::{debug, warn};
 
 use malachite_common::{Context, Proposal, Round, SignedProposal, Validity, Value};
@@ -26,15 +27,15 @@ use crate::ProposedValue;
 /// - store_proposal() will never be called
 /// - get_full_proposal() should only check the presence of `builder_value`
 
-#[derive(Clone, Debug)]
-pub struct FullProposal<Ctx: Context> {
+#[derive_where(Clone, Debug)]
+struct Entry<Ctx: Context> {
     // Value if received from the builder and its validity.
     builder_value: Option<(Ctx::Value, Validity)>,
     // Proposal consensus message if received.
     proposal: Option<SignedProposal<Ctx>>,
 }
 
-impl<Ctx: Context> FullProposal<Ctx> {
+impl<Ctx: Context> Entry<Ctx> {
     pub fn new(
         builder_value: Option<(Ctx::Value, Validity)>,
         proposal: Option<SignedProposal<Ctx>>,
@@ -46,9 +47,23 @@ impl<Ctx: Context> FullProposal<Ctx> {
     }
 }
 
+#[derive_where(Clone, Debug)]
+pub struct FullProposal<'a, Ctx: Context> {
+    // Proposal consensus message
+    pub proposal: &'a SignedProposal<Ctx>,
+    // Validity of the proposal
+    pub validity: Validity,
+}
+
+impl<'a, Ctx: Context> FullProposal<'a, Ctx> {
+    pub fn new(proposal: &'a SignedProposal<Ctx>, validity: Validity) -> Self {
+        Self { proposal, validity }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct FullProposalKeeper<Ctx: Context> {
-    keeper: BTreeMap<(Ctx::Height, Round), Vec<FullProposal<Ctx>>>,
+    keeper: BTreeMap<(Ctx::Height, Round), Vec<Entry<Ctx>>>,
 }
 
 impl<Ctx: Context> FullProposalKeeper<Ctx> {
@@ -63,7 +78,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         height: &Ctx::Height,
         round: Round,
         value: &Ctx::Value,
-    ) -> Option<(&SignedProposal<Ctx>, Validity)> {
+    ) -> Option<FullProposal<'_, Ctx>> {
         let proposals = self
             .keeper
             .get(&(*height, round))
@@ -73,7 +88,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
             match (&p.builder_value, &p.proposal) {
                 (Some((_, validity)), Some(prop)) => {
                     if prop.value().id() == value.id() {
-                        return Some((prop, *validity));
+                        return Some(FullProposal::new(prop, *validity));
                     }
                 }
                 _ => {
@@ -96,7 +111,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
 
                 // First time we see something (a proposal) for this height and round
                 // Create a full proposal with just the proposal
-                let full_proposal = FullProposal::new(None, Some(new_proposal));
+                let full_proposal = Entry::new(None, Some(new_proposal));
                 self.keeper.insert(key, vec![full_proposal]);
             }
             Some(full_proposals) => {
@@ -104,7 +119,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 // Iterate over the vector of full proposals and determine if a new entry needs
                 // to be appended or an existing one has to be modified.
                 for p in full_proposals.iter_mut() {
-                    let FullProposal {
+                    let Entry {
                         builder_value,
                         proposal: existing_proposal,
                         ..
@@ -131,7 +146,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 }
 
                 // Append new proposal
-                full_proposals.push(FullProposal::new(None, Some(new_proposal.clone())));
+                full_proposals.push(Entry::new(None, Some(new_proposal.clone())));
             }
         }
     }
@@ -143,8 +158,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
             None => {
                 // First time we see something (a proposed value) for this height and round
                 // Create a full proposal with just the proposal
-                let full_proposal =
-                    FullProposal::new(Some((new_value.value, new_value.validity)), None);
+                let full_proposal = Entry::new(Some((new_value.value, new_value.validity)), None);
                 self.keeper.insert(key, vec![full_proposal]);
             }
             Some(full_proposals) => {
@@ -152,7 +166,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 // Iterate over the vector of full proposals and determine if a new entry needs
                 // to be appended or an existing one has to be modified.
                 for p in full_proposals.iter_mut() {
-                    let FullProposal {
+                    let Entry {
                         builder_value: existing_value,
                         proposal,
                         ..
@@ -179,7 +193,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 }
 
                 // Append new value
-                full_proposals.push(FullProposal::new(
+                full_proposals.push(Entry::new(
                     Some((new_value.value, new_value.validity)),
                     None,
                 ));

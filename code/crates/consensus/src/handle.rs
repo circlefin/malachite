@@ -1,7 +1,6 @@
 use async_recursion::async_recursion;
 use tracing::{debug, error, info, warn};
 
-use malachite_common::Value;
 use malachite_common::*;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
@@ -588,14 +587,17 @@ where
 
     state.store_proposal(signed_proposal.clone());
 
-    if let Some((full_proposal, validity)) =
+    if let Some(full_proposal) =
         state.get_full_proposal(&proposal_height, proposal_round, signed_proposal.value())
     {
         apply_driver_input(
             co,
             state,
             metrics,
-            DriverInput::Proposal(full_proposal.message.clone(), validity),
+            DriverInput::Proposal(
+                full_proposal.proposal.message.clone(),
+                full_proposal.validity,
+            ),
         )
         .await?;
     } else {
@@ -672,7 +674,9 @@ where
         ..
     } = proposed_value;
 
-    if let Some((signed_proposal, _)) = state.get_full_proposal(&height, round, &value) {
+    if let Some(full_proposal) = state.get_full_proposal(&height, round, &value) {
+        let signed_proposal = full_proposal.proposal;
+
         debug!(
             proposal.height = %signed_proposal.height(),
             proposal.round = %signed_proposal.round(),
