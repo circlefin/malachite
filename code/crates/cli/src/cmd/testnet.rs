@@ -6,6 +6,7 @@ use std::str::FromStr;
 use bytesize::ByteSize;
 use clap::Parser;
 use color_eyre::eyre::Result;
+use itertools::Itertools;
 use rand::prelude::StdRng;
 use rand::rngs::OsRng;
 use rand::{seq::IteratorRandom, Rng, SeedableRng};
@@ -212,13 +213,13 @@ pub fn generate_config(
                 protocol: PubSubProtocol::GossipSub,
                 listen_addr: transport.multiaddr("127.0.0.1", consensus_port),
                 persistent_peers: if enable_discovery {
-                    vec![transport.multiaddr(
-                        "127.0.0.1",
-                        CONSENSUS_BASE_PORT + {
-                            let mut rng = rand::thread_rng();
-                            (0..total).filter(|j| *j != index).choose(&mut rng).unwrap()
-                        },
-                    )]
+                    let available = (0..total).filter(|j| *j != index).collect_vec();
+                    let mut rng = rand::thread_rng();
+                    (0..rng.gen_range(1..total))
+                        .map(|_| available.iter().choose(&mut rng).unwrap())
+                        .unique()
+                        .map(|index| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + index))
+                        .collect()
                 } else {
                     (0..total)
                         .filter(|j| *j != index)
