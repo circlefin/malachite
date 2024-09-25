@@ -1,4 +1,4 @@
-use malachite_common::{NilOrVal, Round, SignedVote, Timeout, Validity};
+use malachite_common::{NilOrVal, Round, SignedProposal, SignedVote, Timeout, Validity};
 use malachite_crypto::ed25519::Signature;
 use malachite_driver::{Input, Output};
 use malachite_round::state::{RoundValue, State, Step};
@@ -31,7 +31,7 @@ pub fn proposal_input(
     address: Address,
 ) -> Input<TestContext> {
     let proposal = Proposal::new(Height::new(1), round, value, locked_round, address);
-    Input::Proposal(proposal, validity)
+    Input::Proposal(SignedProposal::new(proposal, Signature::test()), validity)
 }
 
 pub fn prevote_output(round: Round, value: Value, addr: &Address) -> Output<TestContext> {

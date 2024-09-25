@@ -281,7 +281,7 @@ where
                 co,
                 state,
                 metrics,
-                DriverInput::Proposal(signed_proposal.message, Validity::Valid),
+                DriverInput::Proposal(signed_proposal, Validity::Valid),
             )
             .await
         }
@@ -599,7 +599,7 @@ where
                 co,
                 state,
                 metrics,
-                DriverInput::Proposal(signed_proposal.message.clone(), *valid),
+                DriverInput::Proposal(signed_proposal.clone(), *valid),
             )
             .await?;
         }
@@ -615,7 +615,7 @@ where
             state
                 .driver
                 .proposal_keeper
-                .apply_proposal(signed_proposal.message.clone(), Validity::Valid);
+                .apply_proposal(signed_proposal.clone(), Validity::Valid);
         }
     }
 

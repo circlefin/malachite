@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use malachite_common::{NilOrVal, Round, SignedVote, Timeout, TimeoutStep, Validity};
+use malachite_common::{
+    NilOrVal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep, Validity,
+};
 use malachite_driver::{Driver, Error, Input, Output};
 use malachite_round::state::{RoundValue, State, Step};
 use malachite_test::proposer_selector::{FixedProposer, ProposerSelector, RotateProposer};
@@ -15,6 +17,19 @@ pub struct TestStep {
     expected_outputs: Vec<Output<TestContext>>,
     expected_round: Round,
     new_state: State<TestContext>,
+}
+
+fn new_signed_proposal(
+    height: Height,
+    round: Round,
+    value: Value,
+    pol_round: Round,
+    address: Address,
+) -> SignedProposal<TestContext> {
+    SignedProposal::new(
+        Proposal::new(height, round, value, pol_round, address),
+        Signature::test(),
+    )
 }
 
 fn new_signed_prevote(
@@ -52,7 +67,10 @@ pub fn output_to_input(
             Some(Input::NewRound(height, round, proposer))
         }
         // Let's consider our own proposal to always be valid
-        Output::Propose(p) => Some(Input::Proposal(p, Validity::Valid)),
+        Output::Propose(p) => Some(Input::Proposal(
+            SignedProposal::new(p, Signature::test()),
+            Validity::Valid,
+        )),
         Output::Vote(v) => Some(Input::Vote(SignedVote::new(v, Signature::test()))),
         Output::Decide(_, _) => None,
         Output::ScheduleTimeout(_) => None,
@@ -74,7 +92,7 @@ fn driver_steps_proposer() {
 
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = Proposal::new(
+    let proposal = new_signed_proposal(
         Height::new(1),
         Round::new(0),
         value,
@@ -107,7 +125,7 @@ fn driver_steps_proposer() {
         TestStep {
             desc: "Feed a value to propose, propose that value",
             input: Some(Input::ProposeValue(Round::new(0), value)),
-            expected_outputs: vec![Output::Propose(proposal.clone())],
+            expected_outputs: vec![Output::Propose(proposal.message.clone())],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -253,7 +271,7 @@ fn driver_steps_proposer() {
                 NilOrVal::Val(value.id()),
                 v3.address,
             ))),
-            expected_outputs: vec![Output::Decide(Round::new(0), proposal)],
+            expected_outputs: vec![Output::Decide(Round::new(0), proposal.message)],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -349,7 +367,7 @@ fn driver_steps_not_proposer_valid() {
 
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = Proposal::new(
+    let proposal = new_signed_proposal(
         Height::new(1),
         Round::new(0),
         value,
@@ -511,7 +529,7 @@ fn driver_steps_not_proposer_valid() {
                 NilOrVal::Val(value.id()),
                 v3.address,
             ))),
-            expected_outputs: vec![Output::Decide(Round::new(0), proposal)],
+            expected_outputs: vec![Output::Decide(Round::new(0), proposal.message)],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -549,7 +567,7 @@ fn driver_steps_not_proposer_invalid() {
 
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = Proposal::new(
+    let proposal = new_signed_proposal(
         Height::new(1),
         Round::new(0),
         value,
@@ -672,7 +690,7 @@ fn driver_steps_not_proposer_other_height() {
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     // Proposal is for another height
-    let proposal = Proposal::new(
+    let proposal = new_signed_proposal(
         Height::new(2),
         Round::new(0),
         value,
@@ -740,7 +758,7 @@ fn driver_steps_not_proposer_other_round() {
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     // Proposal is for another round
-    let proposal = Proposal::new(
+    let proposal = new_signed_proposal(
         Height::new(1),
         Round::new(1),
         value,
