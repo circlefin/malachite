@@ -1,4 +1,5 @@
-use malachite_common::{NilOrVal, Round, Timeout, Validity};
+use malachite_common::{NilOrVal, Round, SignedVote, Timeout, Validity};
+use malachite_crypto::ed25519::Signature;
 use malachite_driver::{Input, Output};
 use malachite_round::state::{RoundValue, State, Step};
 
@@ -52,29 +53,28 @@ pub fn prevote_nil_output(round: Round, addr: &Address) -> Output<TestContext> {
 }
 
 pub fn prevote_input(value: Value, addr: &Address) -> Input<TestContext> {
-    Input::Vote(Vote::new_prevote(
-        Height::new(1),
-        Round::new(0),
-        NilOrVal::Val(value.id()),
-        *addr,
+    Input::Vote(SignedVote::new(
+        Vote::new_prevote(
+            Height::new(1),
+            Round::new(0),
+            NilOrVal::Val(value.id()),
+            *addr,
+        ),
+        Signature::test(),
     ))
 }
 
 pub fn prevote_nil_input(addr: &Address) -> Input<TestContext> {
-    Input::Vote(Vote::new_prevote(
-        Height::new(1),
-        Round::new(0),
-        NilOrVal::Nil,
-        *addr,
+    Input::Vote(SignedVote::new(
+        Vote::new_prevote(Height::new(1), Round::new(0), NilOrVal::Nil, *addr),
+        Signature::test(),
     ))
 }
 
 pub fn prevote_input_at(round: Round, value: Value, addr: &Address) -> Input<TestContext> {
-    Input::Vote(Vote::new_prevote(
-        Height::new(1),
-        round,
-        NilOrVal::Val(value.id()),
-        *addr,
+    Input::Vote(SignedVote::new(
+        Vote::new_prevote(Height::new(1), round, NilOrVal::Val(value.id()), *addr),
+        Signature::test(),
     ))
 }
 
@@ -97,11 +97,9 @@ pub fn precommit_nil_output(round: Round, addr: &Address) -> Output<TestContext>
 }
 
 pub fn precommit_input(round: Round, value: Value, addr: &Address) -> Input<TestContext> {
-    Input::Vote(Vote::new_precommit(
-        Height::new(1),
-        round,
-        NilOrVal::Val(value.id()),
-        *addr,
+    Input::Vote(SignedVote::new(
+        Vote::new_precommit(Height::new(1), round, NilOrVal::Val(value.id()), *addr),
+        Signature::test(),
     ))
 }
 

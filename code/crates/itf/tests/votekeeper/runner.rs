@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use malachite_common::{Context, NilOrVal, Round, Value};
+use malachite_common::{Context, NilOrVal, Round, SignedVote, Value};
 use malachite_itf::types::{Value as ModelValue, VoteType};
 use malachite_itf::votekeeper::VoteKeeperOutput::*;
 use malachite_itf::votekeeper::{State, WeightedVote};
-use malachite_test::{Address, Height, TestContext, Vote};
+use malachite_test::{Address, Height, Signature, TestContext, Vote};
 use malachite_vote::{
     keeper::{Output, VoteKeeper},
     ThresholdParams,
@@ -85,7 +85,10 @@ impl ItfRunner for VoteKeeperRunner {
                 debug_assert_eq!(*weight as u64, validator.voting_power);
 
                 // Execute step.
-                Ok(actual.apply_vote(vote, Round::new(*current_round)))
+                Ok(actual.apply_vote(
+                    SignedVote::new(vote, Signature::test()),
+                    Round::new(*current_round),
+                ))
             }
         }
     }
