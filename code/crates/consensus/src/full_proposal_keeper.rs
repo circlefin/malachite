@@ -28,42 +28,69 @@ use crate::ProposedValue;
 /// - get_full_proposal() should only check the presence of `builder_value`
 
 #[derive_where(Clone, Debug)]
-struct Entry<Ctx: Context> {
-    // Value if received from the builder and its validity.
-    builder_value: Option<(Ctx::Value, Validity)>,
-    // Proposal consensus message if received.
-    proposal: Option<SignedProposal<Ctx>>,
+pub struct FullProposal<Ctx: Context> {
+    // Value received from the builder and its validity.
+    pub builder_value: Ctx::Value,
+    pub validity: Validity,
+    // Proposal consensus message
+    pub proposal: SignedProposal<Ctx>,
 }
 
-impl<Ctx: Context> Entry<Ctx> {
+impl<Ctx: Context> FullProposal<Ctx> {
     pub fn new(
-        builder_value: Option<(Ctx::Value, Validity)>,
-        proposal: Option<SignedProposal<Ctx>>,
+        builder_value: Ctx::Value,
+        validity: Validity,
+        proposal: SignedProposal<Ctx>,
     ) -> Self {
         Self {
             builder_value,
+            validity,
             proposal,
         }
     }
 }
 
 #[derive_where(Clone, Debug)]
-pub struct FullProposal<'a, Ctx: Context> {
-    // Proposal consensus message
-    pub proposal: &'a SignedProposal<Ctx>,
-    // Validity of the proposal
-    pub validity: Validity,
+enum Entry<Ctx: Context> {
+    Full(FullProposal<Ctx>),
+    ProposalOnly(SignedProposal<Ctx>),
+    ValueOnly(Ctx::Value, Validity),
+    // This is a placeholder for converting a partial
+    // entry (`ProposalOnly` or `ValueOnly`) to a full entry (`Full`).
+    // It is never actually stored in the keeper.
+    Empty,
 }
 
-impl<'a, Ctx: Context> FullProposal<'a, Ctx> {
-    pub fn new(proposal: &'a SignedProposal<Ctx>, validity: Validity) -> Self {
-        Self { proposal, validity }
+impl<Ctx: Context> Entry<Ctx> {
+    fn full(value: Ctx::Value, validity: Validity, proposal: SignedProposal<Ctx>) -> Self {
+        Entry::Full(FullProposal::new(value, validity, proposal))
     }
 }
 
-#[derive_where(Clone, Debug)]
+#[allow(clippy::derivable_impls)]
+impl<Ctx: Context> Default for Entry<Ctx> {
+    fn default() -> Self {
+        Entry::Empty
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct FullProposalKeeper<Ctx: Context> {
     keeper: BTreeMap<(Ctx::Height, Round), Vec<Entry<Ctx>>>,
+}
+
+/// Replace a value in a mutable reference with a
+/// new value if the old one matches the given pattern.
+///
+/// In our case, it temporarily replaces the entry with `Entry::Empty`,
+/// and then replaces it with the new entry if the pattern matches.
+macro_rules! replace_with {
+    ($e:expr, $p:pat => $r:expr) => {
+        *$e = match ::std::mem::take($e) {
+            $p => $r,
+            e => e,
+        };
+    };
 }
 
 impl<Ctx: Context> FullProposalKeeper<Ctx> {
@@ -78,22 +105,20 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         height: &Ctx::Height,
         round: Round,
         value: &Ctx::Value,
-    ) -> Option<FullProposal<'_, Ctx>> {
+    ) -> Option<&FullProposal<Ctx>> {
         let entries = self
             .keeper
             .get(&(*height, round))
             .filter(|entries| !entries.is_empty())?;
 
         for entry in entries {
-            match (&entry.builder_value, &entry.proposal) {
-                (Some((_, validity)), Some(prop)) => {
-                    if prop.value().id() == value.id() {
-                        return Some(FullProposal::new(prop, *validity));
+            match entry {
+                Entry::Full(p) => {
+                    if p.proposal.value().id() == value.id() {
+                        return Some(p);
                     }
                 }
-                _ => {
-                    return None;
-                }
+                _ => return None,
             }
         }
 
@@ -107,43 +132,47 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         match entries {
             None => {
                 // First time we see something (a proposal) for this height and round
-                // Create a full proposal with just the proposal
-                let full_proposal = Entry::new(None, Some(new_proposal));
-                self.keeper.insert(key, vec![full_proposal]);
+                // Create a partial proposal with just the proposal
+                self.keeper
+                    .insert(key, vec![Entry::ProposalOnly(new_proposal)]);
             }
             Some(entries) => {
                 // We have seen values and/ or proposals for this height and round.
                 // Iterate over the vector of full proposals and determine if a new entry needs
                 // to be appended or an existing one has to be modified.
                 for entry in entries.iter_mut() {
-                    let Entry {
-                        builder_value,
-                        proposal: existing_proposal,
-                        ..
-                    } = entry;
-
-                    match (builder_value, existing_proposal) {
-                        (Some((value, _)), None) => {
-                            if value == new_proposal.value() {
-                                // Found a matching value. Add the proposal
-                                entry.proposal = Some(new_proposal);
+                    match entry {
+                        Entry::Full(full_proposal) => {
+                            if full_proposal.proposal.value() == new_proposal.value() {
+                                // Redundant proposal
                                 return;
                             }
                         }
-                        (_, Some(proposal)) => {
+                        Entry::ValueOnly(value, _) => {
+                            if value == new_proposal.value() {
+                                // Found a matching value. Add the proposal
+                                replace_with!(entry, Entry::ValueOnly(value, validity) => {
+                                    Entry::full(value, validity, new_proposal)
+                                });
+
+                                return;
+                            }
+                        }
+                        Entry::ProposalOnly(proposal) => {
                             if proposal.value() == new_proposal.value() {
                                 // Redundant proposal
                                 return;
                             }
                         }
-                        (_, _) => {
-                            panic!("Should never have empty entries")
+                        Entry::Empty => {
+                            // Should not happen
+                            panic!("Empty entry found");
                         }
                     }
                 }
 
-                // Append new proposal
-                entries.push(Entry::new(None, Some(new_proposal.clone())));
+                // Append new partial proposal
+                entries.push(Entry::ProposalOnly(new_proposal));
             }
         }
     }
@@ -156,45 +185,46 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
             None => {
                 // First time we see something (a proposed value) for this height and round
                 // Create a full proposal with just the proposal
-                let full_proposal = Entry::new(Some((new_value.value, new_value.validity)), None);
-                self.keeper.insert(key, vec![full_proposal]);
+                let entry = Entry::ValueOnly(new_value.value, new_value.validity);
+                self.keeper.insert(key, vec![entry]);
             }
             Some(entries) => {
                 // We have seen proposals and/ or values for this height and round.
                 // Iterate over the vector of full proposals and determine if a new entry needs
                 // to be appended or an existing one has to be modified.
-                for p in entries.iter_mut() {
-                    let Entry {
-                        builder_value: existing_value,
-                        proposal,
-                        ..
-                    } = p;
-
-                    match (existing_value, proposal) {
-                        (None, Some(proposal)) => {
+                for entry in entries.iter_mut() {
+                    match entry {
+                        Entry::ProposalOnly(proposal) => {
                             if proposal.value().id() == new_value.value.id() {
                                 // Found a matching proposal. Change the entry at index i
-                                p.builder_value = Some((new_value.value, new_value.validity));
+                                replace_with!(entry, Entry::ProposalOnly(proposal) => {
+                                    Entry::full(new_value.value, new_value.validity, proposal)
+                                });
+
                                 return;
                             }
                         }
-                        (Some((value, _)), _) => {
+                        Entry::ValueOnly(value, _) => {
                             if value.id() == new_value.value.id() {
                                 // Same value received before, nothing to do.
                                 return;
                             }
                         }
-                        (_, _) => {
-                            panic!("Should never have empty entries")
+                        Entry::Full(full_proposal) => {
+                            if full_proposal.proposal.value().id() == new_value.value.id() {
+                                // Same value received before, nothing to do.
+                                return;
+                            }
+                        }
+                        Entry::Empty => {
+                            // Should not happen
+                            panic!("Empty entry found");
                         }
                     }
                 }
 
                 // Append new value
-                entries.push(Entry::new(
-                    Some((new_value.value, new_value.validity)),
-                    None,
-                ));
+                entries.push(Entry::ValueOnly(new_value.value, new_value.validity));
             }
         }
     }

@@ -675,7 +675,7 @@ where
     } = proposed_value;
 
     if let Some(full_proposal) = state.get_full_proposal(&height, round, &value) {
-        let signed_proposal = full_proposal.proposal;
+        let signed_proposal = &full_proposal.proposal;
 
         debug!(
             proposal.height = %signed_proposal.height(),
