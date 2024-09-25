@@ -189,6 +189,7 @@ const MEMPOOL_BASE_PORT: usize = 28000;
 const METRICS_BASE_PORT: usize = 29000;
 
 /// Generate configuration for node "index" out of "total" number of nodes.
+#[allow(clippy::too_many_arguments)]
 pub fn generate_config(
     app: App,
     index: usize,
