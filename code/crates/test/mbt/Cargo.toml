@@ -1,6 +1,6 @@
 [package]
-name        = "malachite-itf"
-description = "Library for working with ITF traces for the Malachite consensus engine"
+name        = "malachite-test-mbt"
+description = "Library for model-based testing of the Malachite consensus engine"
 
 version.workspace      = true
 edition.workspace      = true
@@ -10,10 +10,10 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-common = { version = "0.1.0", path = "../common" }
-malachite-vote   = { version = "0.1.0", path = "../vote" }
-malachite-round  = { version = "0.1.0", path = "../round" }
-malachite-test   = { version = "0.1.0", path = "../test" }
+malachite-common = { workspace = true }
+malachite-vote   = { workspace = true }
+malachite-round  = { workspace = true }
+malachite-test   = { workspace = true }
 
 itf               = { workspace = true }
 rand              = { workspace = true }

@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
 use malachite_common::{Context, NilOrVal, Round, SignedVote, Value};
-use malachite_itf::types::{Value as ModelValue, VoteType};
-use malachite_itf::votekeeper::VoteKeeperOutput::*;
-use malachite_itf::votekeeper::{State, WeightedVote};
 use malachite_test::{Address, Height, Signature, TestContext, Vote};
-use malachite_vote::{
-    keeper::{Output, VoteKeeper},
-    ThresholdParams,
-};
+use malachite_test_mbt::types::{Value as ModelValue, VoteType};
+use malachite_test_mbt::votekeeper::VoteKeeperOutput::*;
+use malachite_test_mbt::votekeeper::{State, WeightedVote};
+use malachite_vote::keeper::{Output, VoteKeeper};
+use malachite_vote::ThresholdParams;
 
 use itf::Runner as ItfRunner;
 use rand::rngs::StdRng;
