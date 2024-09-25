@@ -532,10 +532,6 @@ where
                     let _ = tx_decision.send((height, round, value.clone())).await;
                 }
 
-                // Clean state
-                // TODO clean state
-                // state.remove_full_proposals(height, round)
-
                 self.host
                     .cast(HostMsg::Decide {
                         height,

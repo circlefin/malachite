@@ -283,13 +283,7 @@ where
                 Effect::Broadcast(GossipMsg::Proposal(signed_proposal.clone()))
             );
 
-            apply_driver_input(
-                co,
-                state,
-                metrics,
-                DriverInput::Proposal(signed_proposal.message, Validity::Valid),
-            )
-            .await
+            on_proposal(co, state, metrics, signed_proposal).await
         }
 
         DriverOutput::Vote(vote) => {
@@ -374,6 +368,14 @@ where
         return Ok(());
     }
 
+    state.store_value(ProposedValue {
+        height,
+        round,
+        validator_address: state.driver.address.clone(),
+        value: value.clone(),
+        validity: Validity::Valid,
+    });
+
     apply_driver_input(co, state, metrics, DriverInput::ProposeValue(round, value)).await
 }
 
@@ -393,6 +395,9 @@ where
 
     // Restore the commits. Note that they will be removed from `state`
     let commits = state.restore_precommits(height, proposal_round, value);
+
+    // Clean proposals and values
+    state.remove_full_proposals(height, proposal_round);
 
     perform!(
         co,
