@@ -132,6 +132,32 @@ fn get_full_proposal_multi_same_round() {
 }
 
 #[test]
+fn get_full_proposal_multi_one_incomplete() {
+    let [(v, sk)] = make_validators([3]);
+    let ctx = TestContext::new(sk);
+    let mut keeper = FullProposalKeeper::<TestContext>::new();
+
+    let h = Height::new(1);
+    let r0 = Round::new(0);
+
+    let v01 = Value::new(10);
+    let sp1 = signed_proposal(&ctx, h, r0, v01, v.address);
+    keeper.store_proposal(sp1.clone());
+
+    let v02 = Value::new(20);
+    let sp2 = signed_proposal(&ctx, h, r0, v02, v.address);
+    keeper.store_proposal(sp2.clone());
+    let pv2 = proposed_value(h, r0, v02, Validity::Invalid, v.address);
+    keeper.store_value(pv2.clone());
+
+    let stored2 = keeper.get_full_proposal(&h, r0, &v02);
+    assert!(stored2.is_some());
+    let full_proposal2 = stored2.unwrap();
+    assert_eq!(full_proposal2.proposal, sp2);
+    assert_eq!(full_proposal2.validity, pv2.validity);
+}
+
+#[test]
 fn get_full_proposal_multi_interleaved_same_round() {
     let [(v, sk)] = make_validators([3]);
     let ctx = TestContext::new(sk);

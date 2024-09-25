@@ -118,7 +118,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                         return Some(p);
                     }
                 }
-                _ => return None,
+                _ => continue,
             }
         }
 
