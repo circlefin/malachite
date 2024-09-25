@@ -2395,19 +2395,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-crypto"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "ed25519-consensus",
- "malachite-common",
- "rand",
- "serde",
- "sha3",
- "signature",
-]
-
-[[package]]
 name = "malachite-driver"
 version = "0.1.0"
 dependencies = [
@@ -2447,26 +2434,6 @@ dependencies = [
  "seahash",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "malachite-itf"
-version = "0.1.0"
-dependencies = [
- "glob",
- "itf",
- "malachite-common",
- "malachite-round",
- "malachite-test",
- "malachite-vote",
- "num-bigint",
- "num-traits",
- "pretty_assertions",
- "rand",
- "serde",
- "serde_json",
- "serde_with 3.9.0",
- "tempfile",
 ]
 
 [[package]]
@@ -2599,12 +2566,13 @@ name = "malachite-test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "bytesize",
+ "ed25519-consensus",
  "hex",
  "malachite-actors",
  "malachite-common",
  "malachite-consensus",
- "malachite-crypto",
  "malachite-driver",
  "malachite-node",
  "malachite-proto",
@@ -2620,6 +2588,26 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "malachite-test-mbt"
+version = "0.1.0"
+dependencies = [
+ "glob",
+ "itf",
+ "malachite-common",
+ "malachite-round",
+ "malachite-test",
+ "malachite-vote",
+ "num-bigint",
+ "num-traits",
+ "pretty_assertions",
+ "rand",
+ "serde",
+ "serde_json",
+ "serde_with 3.9.0",
+ "tempfile",
 ]
 
 [[package]]
@@ -3340,9 +3328,9 @@ dependencies = [
 
 [[package]]
 name = "ractor"
-version = "0.10.4"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f3b9858a5b229a0024dd528e268caf7ed0fc58e89a711bfab694a5ecba1375d"
+checksum = "61e6aec2fe1f8a8f2fe79897826a0ea18b41f97735ee3704a6dd29c989a65c65"
 dependencies = [
  "async-trait",
  "dashmap",

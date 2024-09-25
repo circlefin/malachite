@@ -4,8 +4,8 @@ pub mod runner;
 pub mod utils;
 
 use glob::glob;
-use malachite_itf::utils::generate_traces;
-use malachite_itf::votekeeper::State;
+use malachite_test_mbt::utils::generate_traces;
+use malachite_test_mbt::votekeeper::State;
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;

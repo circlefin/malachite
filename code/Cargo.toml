@@ -5,17 +5,16 @@ members = [
   "crates/actors",
   "crates/cli",
   "crates/common",
-  "crates/crypto",
   "crates/consensus",
   "crates/driver",
   "crates/gossip-consensus",
   "crates/gossip-mempool",
-  "crates/itf",
   "crates/metrics",
   "crates/node",
   "crates/proto",
   "crates/round",
   "crates/test",
+  "crates/test/mbt",
   "crates/vote",
   "crates/starknet/*"
 ]
@@ -43,11 +42,10 @@ malachite-actors           = { version = "0.1.0", path = "crates/actors" }
 malachite-cli              = { version = "0.1.0", path = "crates/cli" }
 malachite-common           = { version = "0.1.0", path = "crates/common" }
 malachite-consensus        = { version = "0.1.0", path = "crates/consensus" }
-malachite-crypto           = { version = "0.1.0", path = "crates/crypto" }
 malachite-driver           = { version = "0.1.0", path = "crates/driver" }
 malachite-gossip-consensus = { version = "0.1.0", path = "crates/gossip-consensus" }
 malachite-gossip-mempool   = { version = "0.1.0", path = "crates/gossip-mempool" }
-malachite-itf              = { version = "0.1.0", path = "crates/itf" }
+malachite-test-mbt         = { version = "0.1.0", path = "crates/test/mbt" }
 malachite-metrics          = { version = "0.1.0", path = "crates/metrics" }
 malachite-node             = { version = "0.1.0", path = "crates/node" }
 malachite-proto            = { version = "0.1.0", path = "crates/proto" }
@@ -98,8 +96,8 @@ prometheus-client  = "0.22"
 prost              = "0.13"
 prost-build        = "0.13"
 prost-types        = "0.13"
-ractor             = "0.10.0"
-ractor_actors      = { version = "0.4.0", default-features= false }
+ractor             = "0.11.2"
+ractor_actors      = { version = "0.4.2", default-features = false }
 rand               = { version = "0.8.5", features = ["std_rng"] }
 rand_chacha        = "0.3.1"
 seahash            = "4.1"

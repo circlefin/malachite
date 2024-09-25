@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use malachite_common::NilOrVal;
-use malachite_itf::types::Value;
 use malachite_test::{
     Address, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet, ValueId,
 };
+use malachite_test_mbt::types::Value;
 use rand::{CryptoRng, RngCore};
 
 pub const VALIDATORS: [&str; 3] = ["alice", "bob", "john"];
@@ -45,7 +45,7 @@ pub fn value_from_model(value: &Value) -> NilOrVal<ValueId> {
 }
 
 pub fn check_votes(
-    expected: &malachite_itf::votekeeper::VoteCount,
+    expected: &malachite_test_mbt::votekeeper::VoteCount,
     actual: &malachite_vote::count::VoteCount<TestContext>,
     address_map: &HashMap<String, Address>,
 ) {
