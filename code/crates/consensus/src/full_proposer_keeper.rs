@@ -1,7 +1,10 @@
-use crate::ProposedValue;
-use malachite_common::{Context, Proposal, Round, SignedProposal, Validity, Value};
 use std::collections::BTreeMap;
+
 use tracing::{debug, warn};
+
+use malachite_common::{Context, Proposal, Round, SignedProposal, Validity, Value};
+
+use crate::ProposedValue;
 
 /// This module is responsible for collecting proposed values and consensus proposal messages for
 /// a given (height, round).
@@ -45,59 +48,56 @@ impl<Ctx: Context> FullProposal<Ctx> {
 
 #[derive(Clone, Debug)]
 pub struct FullProposalKeeper<Ctx: Context> {
-    pub full_proposal_keeper: BTreeMap<(Ctx::Height, Round), Vec<FullProposal<Ctx>>>,
+    keeper: BTreeMap<(Ctx::Height, Round), Vec<FullProposal<Ctx>>>,
 }
 
 impl<Ctx: Context> FullProposalKeeper<Ctx> {
     pub fn new() -> Self {
         Self {
-            full_proposal_keeper: BTreeMap::new(),
+            keeper: BTreeMap::new(),
         }
     }
+
     pub fn get_full_proposal(
         &self,
         height: &Ctx::Height,
         round: Round,
         value: &Ctx::Value,
-    ) -> Option<(SignedProposal<Ctx>, Validity)> {
-        let proposals = self.full_proposal_keeper.get(&(*height, round));
-        match proposals {
-            None => None,
-            Some(proposals) if proposals.is_empty() => None,
-            Some(proposals) => {
-                for p in proposals.iter() {
-                    match (p.builder_value.clone(), p.proposal.clone()) {
-                        (Some((_, validity)), Some(prop)) => {
-                            if prop.value().id() == value.id() {
-                                return Some((prop, validity));
-                            }
-                        }
-                        _ => {
-                            return None;
-                        }
+    ) -> Option<(&SignedProposal<Ctx>, Validity)> {
+        let proposals = self
+            .keeper
+            .get(&(*height, round))
+            .filter(|proposals| !proposals.is_empty())?;
+
+        for p in proposals {
+            match (&p.builder_value, &p.proposal) {
+                (Some((_, validity)), Some(prop)) => {
+                    if prop.value().id() == value.id() {
+                        return Some((prop, *validity));
                     }
                 }
-                None
+                _ => {
+                    return None;
+                }
             }
         }
+
+        None
     }
 
     pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>) {
         let entry = self
-            .full_proposal_keeper
+            .keeper
             .get_mut(&(new_proposal.height(), new_proposal.round()));
+
         match entry {
             None => {
+                let key = (new_proposal.height(), new_proposal.round());
+
                 // First time we see something (a proposal) for this height and round
                 // Create a full proposal with just the proposal
-                let full_proposal = FullProposal {
-                    builder_value: None,
-                    proposal: Some(new_proposal.clone()),
-                };
-                self.full_proposal_keeper.insert(
-                    (new_proposal.height(), new_proposal.round()),
-                    vec![full_proposal],
-                );
+                let full_proposal = FullProposal::new(None, Some(new_proposal));
+                self.keeper.insert(key, vec![full_proposal]);
             }
             Some(full_proposals) => {
                 // We have seen values and/ or proposals for this height and round.
@@ -109,6 +109,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                         proposal: existing_proposal,
                         ..
                     } = p;
+
                     match (builder_value, existing_proposal) {
                         (Some((value, _)), None) => {
                             if value == new_proposal.value() {
@@ -136,19 +137,15 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
     }
 
     pub fn store_value(&mut self, new_value: ProposedValue<Ctx>) {
-        let entry = self
-            .full_proposal_keeper
-            .get_mut(&(new_value.height, new_value.round));
+        let key = (new_value.height, new_value.round);
+        let entry = self.keeper.get_mut(&key);
         match entry {
             None => {
                 // First time we see something (a proposed value) for this height and round
                 // Create a full proposal with just the proposal
-                let full_proposal = FullProposal {
-                    builder_value: Some((new_value.value, new_value.validity)),
-                    proposal: None,
-                };
-                self.full_proposal_keeper
-                    .insert((new_value.height, new_value.round), vec![full_proposal]);
+                let full_proposal =
+                    FullProposal::new(Some((new_value.value, new_value.validity)), None);
+                self.keeper.insert(key, vec![full_proposal]);
             }
             Some(full_proposals) => {
                 // We have seen proposals and/ or values for this height and round.
@@ -160,6 +157,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                         proposal,
                         ..
                     } = p;
+
                     match (existing_value, proposal) {
                         (None, Some(proposal)) => {
                             if proposal.value().id() == new_value.value.id() {
@@ -179,6 +177,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                         }
                     }
                 }
+
                 // Append new value
                 full_proposals.push(FullProposal::new(
                     Some((new_value.value, new_value.validity)),
@@ -190,17 +189,15 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
 
     pub fn remove_full_proposals(&mut self, height: Ctx::Height, round: Round) {
         // TODO - keep some heights back?
-        debug!("Removing full proposals {} {}", height, round);
-        let result = self.full_proposal_keeper.remove_entry(&(height, round));
+        debug!(%height, %round, "Removing full proposals");
+
+        let result = self.keeper.remove_entry(&(height, round));
         match result {
             None => {
-                warn!(
-                    "Full proposals absent for height {} and round {}",
-                    height, round
-                );
+                warn!(%height, %round, "Full proposals absent");
             }
             Some((_key, removed)) => {
-                debug!("Removed {} full proposals", removed.len());
+                debug!(%height, %round, "Removed {} full proposals", removed.len());
             }
         }
     }

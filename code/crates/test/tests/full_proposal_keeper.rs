@@ -4,6 +4,7 @@ use malachite_consensus::FullProposalKeeper;
 use malachite_test::utils::validators::make_validators;
 use malachite_test::{Address, Proposal, Value};
 use malachite_test::{Height, TestContext};
+
 fn signed_proposal(
     ctx: &TestContext,
     height: Height,
@@ -49,7 +50,7 @@ fn get_full_proposal_single_matching_same_round_valid() {
     let stored1 = keeper.get_full_proposal(&h, r0, &v01);
     assert!(stored1.is_some());
     let full_proposal1 = stored1.unwrap();
-    assert_eq!(full_proposal1.0, sp1);
+    assert_eq!(full_proposal1.0, &sp1);
     assert_eq!(full_proposal1.1, pv1.validity);
 }
 
@@ -71,7 +72,7 @@ fn get_full_proposal_single_matching_same_round_invalid() {
     let stored1 = keeper.get_full_proposal(&h, r0, &v01);
     assert!(stored1.is_some());
     let full_proposal1 = stored1.unwrap();
-    assert_eq!(full_proposal1.0, sp1);
+    assert_eq!(full_proposal1.0, &sp1);
     assert_eq!(full_proposal1.1, pv1.validity);
 }
 
@@ -114,7 +115,7 @@ fn get_full_proposal_multi_same_round() {
     let stored1 = keeper.get_full_proposal(&h, r0, &v01);
     assert!(stored1.is_some());
     let full_proposal1 = stored1.unwrap();
-    assert_eq!(full_proposal1.0, sp1);
+    assert_eq!(full_proposal1.0, &sp1);
     assert_eq!(full_proposal1.1, pv1.validity);
 
     let v02 = Value::new(20);
@@ -126,7 +127,7 @@ fn get_full_proposal_multi_same_round() {
     let stored2 = keeper.get_full_proposal(&h, r0, &v02);
     assert!(stored2.is_some());
     let full_proposal2 = stored2.unwrap();
-    assert_eq!(full_proposal2.0, sp2);
+    assert_eq!(full_proposal2.0, &sp2);
     assert_eq!(full_proposal2.1, pv2.validity);
 }
 
@@ -156,12 +157,12 @@ fn get_full_proposal_multi_interleaved_same_round() {
     let stored1 = keeper.get_full_proposal(&h, r0, &v01);
     assert!(stored1.is_some());
     let full_proposal1 = stored1.unwrap();
-    assert_eq!(full_proposal1.0, sp1);
+    assert_eq!(full_proposal1.0, &sp1);
     assert_eq!(full_proposal1.1, pv1.validity);
 
     let stored2 = keeper.get_full_proposal(&h, r0, &v02);
     assert!(stored2.is_some());
     let full_proposal2 = stored2.unwrap();
-    assert_eq!(full_proposal2.0, sp2);
+    assert_eq!(full_proposal2.0, &sp2);
     assert_eq!(full_proposal2.1, pv2.validity);
 }

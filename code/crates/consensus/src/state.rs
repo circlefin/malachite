@@ -97,7 +97,7 @@ where
         height: &Ctx::Height,
         round: Round,
         value: &Ctx::Value,
-    ) -> Option<(SignedProposal<Ctx>, Validity)> {
+    ) -> Option<(&SignedProposal<Ctx>, Validity)> {
         self.full_proposal_keeper
             .get_full_proposal(height, round, value)
     }
