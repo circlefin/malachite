@@ -18,7 +18,6 @@ use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
 
 pub async fn handle<Ctx>(
     co: Co<Ctx>,
-    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     msg: Msg<Ctx>,
@@ -26,13 +25,12 @@ pub async fn handle<Ctx>(
 where
     Ctx: Context,
 {
-    handle_msg(&co, ctx, state, metrics, msg).await
+    handle_msg(&co, state, metrics, msg).await
 }
 
 #[async_recursion]
 async fn handle_msg<Ctx>(
     co: &Co<Ctx>,
-    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     msg: Msg<Ctx>,
@@ -42,10 +40,10 @@ where
 {
     match msg {
         Msg::StartHeight(height, vs) => {
-            reset_and_start_height(co, ctx, state, metrics, height, vs).await
+            reset_and_start_height(co, state, metrics, height, vs).await
         }
-        Msg::Vote(vote) => on_vote(co, ctx, state, metrics, vote).await,
-        Msg::Proposal(proposal) => on_proposal(co, ctx, state, metrics, proposal).await,
+        Msg::Vote(vote) => on_vote(co, state, metrics, vote).await,
+        Msg::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
         Msg::ProposeValue(height, round, value) => {
             propose_value(co, state, metrics, height, round, value).await
         }
@@ -58,7 +56,6 @@ where
 
 async fn reset_and_start_height<Ctx>(
     co: &Co<Ctx>,
-    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     height: Ctx::Height,
@@ -77,12 +74,11 @@ where
     debug_assert_eq!(state.driver.height(), height);
     debug_assert_eq!(state.driver.round(), Round::Nil);
 
-    start_height(co, ctx, state, metrics, height).await
+    start_height(co, state, metrics, height).await
 }
 
 async fn start_height<Ctx>(
     co: &Co<Ctx>,
-    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     height: Ctx::Height,
@@ -109,14 +105,13 @@ where
 
     perform!(co, Effect::StartRound(height, round, proposer));
 
-    replay_pending_msgs(co, ctx, state, metrics).await?;
+    replay_pending_msgs(co, state, metrics).await?;
 
     Ok(())
 }
 
 async fn replay_pending_msgs<Ctx>(
     co: &Co<Ctx>,
-    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
 ) -> Result<(), Error<Ctx>>
@@ -127,7 +122,7 @@ where
     debug!("Replaying {} messages", pending_msgs.len());
 
     for pending_msg in pending_msgs {
-        handle_msg(co, ctx, state, metrics, pending_msg).await?;
+        handle_msg(co, state, metrics, pending_msg).await?;
     }
 
     Ok(())
@@ -417,7 +412,6 @@ where
 
 async fn on_vote<Ctx>(
     co: &Co<Ctx>,
-    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     signed_vote: SignedVote<Ctx>,
@@ -487,7 +481,7 @@ where
     };
 
     let valid = metrics.time_signature_verification(|| {
-        ctx.verify_signed_vote(&signed_vote, validator.public_key())
+        Ctx::verify_signed_vote(&signed_vote, validator.public_key())
     });
 
     if !valid {
@@ -511,7 +505,6 @@ where
 
 async fn on_proposal<Ctx>(
     co: &Co<Ctx>,
-    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     signed_proposal: SignedProposal<Ctx>,
@@ -568,7 +561,7 @@ where
     }
 
     let valid = metrics.time_signature_verification(|| {
-        ctx.verify_signed_proposal(&signed_proposal, proposer.public_key())
+        Ctx::verify_signed_proposal(&signed_proposal, proposer.public_key())
     });
 
     if !valid {

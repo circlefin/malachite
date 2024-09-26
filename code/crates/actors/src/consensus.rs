@@ -184,7 +184,6 @@ where
     ) -> Result<(), ActorProcessingErr> {
         malachite_consensus::process!(
             msg: msg,
-            ctx: &self.ctx,
             state: &mut state.consensus,
             metrics: &self.metrics,
             with: effect => {

@@ -10,14 +10,14 @@
 ///     // Consensus state and metrics
 ///     state: &mut state, metrics: &metrics,
 ///    // Effect handler
-///     on: effect => handle_effect(myself, &mut timers, &mut timeouts, effect).await
+///     on: effect => handle_effect(myself, &ctx, &mut timers, &mut timeouts, effect).await
 /// )
 /// ```
 #[macro_export]
 macro_rules! process {
-    (msg: $msg:expr, ctx: $ctx:expr, state: $state:expr, metrics: $metrics:expr, with: $effect:ident => $handle:expr) => {{
+    (msg: $msg:expr, state: $state:expr, metrics: $metrics:expr, with: $effect:ident => $handle:expr) => {{
         let mut gen =
-            $crate::gen::Gen::new(|co| $crate::handle::handle(co, $ctx, $state, $metrics, $msg));
+            $crate::gen::Gen::new(|co| $crate::handle::handle(co, $state, $metrics, $msg));
 
         let mut co_result = gen.resume_with(());
 
