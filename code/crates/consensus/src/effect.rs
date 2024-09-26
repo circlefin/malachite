@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use derive_where::derive_where;
 
 use malachite_common::*;
@@ -71,7 +73,7 @@ where
 {
     /// Internal effect to start processing a [`Msg`][crate::msg::Msg].
     #[doc(hidden)]
-    Start(std::marker::PhantomData<Ctx>),
+    Start(PhantomData<Ctx>),
 
     /// Resume execution
     Continue,
