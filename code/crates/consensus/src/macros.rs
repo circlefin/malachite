@@ -10,7 +10,7 @@
 ///     // Consensus state and metrics
 ///     state: &mut state, metrics: &metrics,
 ///    // Effect handler
-///     on: effect => handle_effect(myself, &ctx, &mut timers, &mut timeouts, effect).await
+///     on: effect => handle_effect(myself, &mut timers, &mut timeouts, effect).await
 /// )
 /// ```
 #[macro_export]
@@ -23,10 +23,10 @@ macro_rules! process {
         loop {
             match co_result {
                 $crate::gen::CoResult::Yielded($effect) => {
-                    let resume = match $handle {
-                        Ok(()) => (),
-                        Err(error) => error!("Error when processing effect: {error:?}"),
-                    };
+                    if let Err(e) = $handle {
+                        error!("Error when processing effect: {e:?}");
+                    }
+
                     co_result = gen.resume_with(())
                 }
                 $crate::gen::CoResult::Complete(result) => {
