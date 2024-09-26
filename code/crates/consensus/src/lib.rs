@@ -7,9 +7,9 @@ pub use state::State;
 mod error;
 pub use error::Error;
 
-pub mod handle;
-
-pub mod gen;
+mod handle;
+#[doc(hidden)]
+pub use handle::handle;
 
 mod effect;
 pub use effect::Effect;
@@ -19,3 +19,6 @@ pub use types::*;
 
 mod macros;
 mod util;
+
+#[doc(hidden)]
+pub mod gen;
