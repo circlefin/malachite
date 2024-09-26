@@ -12,7 +12,7 @@ forensics, etc.
 
 More formally, we are interested in the following property:
 
-#### **[Accountability]**
+**[Accountability]**
 - If there are less than `2f + 1` Byzantine faulty processes, out of a total of `3f + 1` processes 
 - And agreement is violated (two correct processes decide differently), 
 - Then a correct node should be able to collect sufficient data to identify at least `f + 1`
@@ -57,7 +57,7 @@ type Vote = {
     }
 ```
 
-The use of the additional field in the [pseudo code](./pseudo.md) of the
+The use of the additional field in the [pseudo code](./pseudo-code.md) of the
 algorithm is as follows:
 - line 22 and line 28: In these two rules, the prevote message that is sent now
   carries the valid round that is contained in the propose message that
