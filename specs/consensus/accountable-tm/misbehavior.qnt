@@ -47,7 +47,7 @@ pure def validCertificate (certificate: Set[Vote], valset: ValidatorSet) : bool 
         certificate.countVotes(v.valueId, valset) * 3 > 2 * valset.totalWeight(), 
     }
 
-// checks for conflicting votes for the same round and returns a set that contains sets
+// checks for conflicting prevotes for the same round and returns a set that contains sets
 // that contain prevotes from the same process for different values
 pure def doubleVotes (cert1: Certificate, cert2: Certificate, valset: ValidatorSet) : Set[Set[Vote]] =
     val c1 = match cert1 {

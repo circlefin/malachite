@@ -22,7 +22,7 @@ Byzantine processes.
 ## Why Tendermint does not have this property
 
 We discuss [here](../misbehavior.md#what-cannot-be-done) that there are cases in
-Tendermint where we cannot decide from the outside who misbehaved. The main
+Tendermint where we cannot decide who misbehaved. The main
 challenge is the following: If a process committed a value `v` in round `r`,
 there are cases where we cannot say whether a prevote for a different value `v'`
 in a larger round `r' > r` by the same process is according to the algorithm
@@ -100,10 +100,10 @@ In the following we will use the following abbreviations
           can prove that there are two certificates `Commit(v,r)` and
           `Polka(v'',r'',_)` (observe that the polka need to be the one of round
           `r'`) that have the property that the intersection of the senders of
-          the messages in the certificate 
+          the messages in the certificates 
             - contains only faulty processes
-            - contains at least `f + 1` processes 
-        - this intersection of  `f + 1` faulty processes is evidence of an amnesia 
+            - contains at least `f + 1` processes (by the size of the certificates)
+        - this intersection of  at least `f + 1` faulty processes is evidence of an amnesia 
           attack
 
 If we have the gossip assumption on certificates (if a correct process receives
@@ -123,10 +123,10 @@ case of conflicts.
 
 
 In the following, we discuss that in the case of disagreement,
-the system generates certificates that can be used to detect evidence. If we
+the system generates certificates that can be used to produce evidence. If we
 have the gossip property of certificates (if a correct process sees a
 certificate then eventually every correct processes sees the same certificate),
-this ensures that eventually all correct processes will detect evidence.
+this ensures that eventually all correct processes will produce evidence.
 
 
 - In order to decide on a value `commitValue` in a round `commitRound`, a 
@@ -141,7 +141,7 @@ of above, we also must have a
     - **Certificate 3:** `polka(r, v, conflictRound⟩)`
 - if  `commitRound = r`, then there are two conflicting polkas 
  `polka(commitRound, commitValue, vr)` and `polka(commitRound, v, conflictRound)` (Certificate 2 and Certificate 3), which is evidence according to [doubleVotes](./misbehavior.qnt).
-- otherwise, let's denote by `commitRound` the smaller round, that is `commitRound < r`
+- otherwise, assume `commitRound < r`
     - we have 
         - `commit(commitRound, commitValue)` (Certificate 1) and 
         - `polka(r, v, conflictRound⟩)` (Certificate 3),
