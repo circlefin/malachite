@@ -9,8 +9,8 @@ pub enum Msg<Ctx>
 where
     Ctx: Context,
 {
-    /// Start a new height
-    StartHeight(Ctx::Height),
+    /// Start a new height with the given validator set
+    StartHeight(Ctx::Height, Ctx::ValidatorSet),
 
     /// Process a vote
     Vote(SignedVote<Ctx>),
