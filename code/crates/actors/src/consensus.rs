@@ -6,7 +6,6 @@ use eyre::eyre;
 use libp2p::PeerId;
 use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
-use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
 use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType};
@@ -185,6 +184,7 @@ where
     ) -> Result<(), ActorProcessingErr> {
         malachite_consensus::process!(
             msg: msg,
+            ctx: &self.ctx,
             state: &mut state.consensus,
             metrics: &self.metrics,
             with: effect => {
@@ -486,23 +486,6 @@ where
                 })?;
 
                 Ok(Resume::Continue)
-            }
-
-            Effect::VerifySignature(msg, pk) => {
-                use malachite_consensus::ConsensusMsg as Msg;
-
-                let start = Instant::now();
-
-                let valid = match msg.message {
-                    Msg::Vote(v) => self.ctx.verify_signed_vote(&v, &msg.signature, &pk),
-                    Msg::Proposal(p) => self.ctx.verify_signed_proposal(&p, &msg.signature, &pk),
-                };
-
-                self.metrics
-                    .signature_verification_time
-                    .observe(start.elapsed().as_secs_f64());
-
-                Ok(Resume::SignatureValidity(valid))
             }
 
             Effect::Broadcast(gossip_msg) => {

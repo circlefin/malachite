@@ -5,7 +5,6 @@ use derive_where::derive_where;
 use malachite_common::*;
 
 use crate::types::GossipMsg;
-use crate::ConsensusMsg;
 
 /// An effect which may be yielded by a consensus process.
 ///
@@ -49,10 +48,6 @@ where
     /// Resume with: Resume::Continue
     GetValue(Ctx::Height, Round, Timeout),
 
-    /// Verify a signature
-    /// Resume with: Resume::SignatureValidity(valid)
-    VerifySignature(SignedMessage<Ctx, ConsensusMsg<Ctx>>, PublicKey<Ctx>),
-
     /// Consensus has decided on a value
     /// Resume with: Resume::Continue
     Decide {
@@ -77,7 +72,4 @@ where
 
     /// Resume execution
     Continue,
-
-    /// Resume execution with the validity of the signature just verified
-    SignatureValidity(bool),
 }

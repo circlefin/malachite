@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use async_recursion::async_recursion;
 use tracing::{debug, error, info, warn};
 
@@ -15,10 +17,10 @@ use crate::perform;
 use crate::state::State;
 use crate::types::{GossipMsg, ProposedValue};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
-use crate::ConsensusMsg;
 
 pub async fn handle<Ctx>(
     co: Co<Ctx>,
+    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     msg: Msg<Ctx>,
@@ -26,12 +28,13 @@ pub async fn handle<Ctx>(
 where
     Ctx: Context,
 {
-    handle_msg(&co, state, metrics, msg).await
+    handle_msg(&co, ctx, state, metrics, msg).await
 }
 
 #[async_recursion]
 async fn handle_msg<Ctx>(
     co: &Co<Ctx>,
+    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     msg: Msg<Ctx>,
@@ -41,10 +44,10 @@ where
 {
     match msg {
         Msg::StartHeight(height, vs) => {
-            reset_and_start_height(co, state, metrics, height, vs).await
+            reset_and_start_height(co, ctx, state, metrics, height, vs).await
         }
-        Msg::Vote(vote) => on_vote(co, state, metrics, vote).await,
-        Msg::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
+        Msg::Vote(vote) => on_vote(co, ctx, state, metrics, vote).await,
+        Msg::Proposal(proposal) => on_proposal(co, ctx, state, metrics, proposal).await,
         Msg::ProposeValue(height, round, value) => {
             propose_value(co, state, metrics, height, round, value).await
         }
@@ -57,6 +60,7 @@ where
 
 async fn reset_and_start_height<Ctx>(
     co: &Co<Ctx>,
+    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     height: Ctx::Height,
@@ -75,11 +79,12 @@ where
     debug_assert_eq!(state.driver.height(), height);
     debug_assert_eq!(state.driver.round(), Round::Nil);
 
-    start_height(co, state, metrics, height).await
+    start_height(co, ctx, state, metrics, height).await
 }
 
 async fn start_height<Ctx>(
     co: &Co<Ctx>,
+    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     height: Ctx::Height,
@@ -106,13 +111,14 @@ where
 
     perform!(co, Effect::StartRound(height, round, proposer));
 
-    replay_pending_msgs(co, state, metrics).await?;
+    replay_pending_msgs(co, ctx, state, metrics).await?;
 
     Ok(())
 }
 
 async fn replay_pending_msgs<Ctx>(
     co: &Co<Ctx>,
+    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
 ) -> Result<(), Error<Ctx>>
@@ -123,7 +129,7 @@ where
     debug!("Replaying {} messages", pending_msgs.len());
 
     for pending_msg in pending_msgs {
-        handle_msg(co, state, metrics, pending_msg).await?;
+        handle_msg(co, ctx, state, metrics, pending_msg).await?;
     }
 
     Ok(())
@@ -413,6 +419,7 @@ where
 
 async fn on_vote<Ctx>(
     co: &Co<Ctx>,
+    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     signed_vote: SignedVote<Ctx>,
@@ -481,9 +488,14 @@ where
         return Ok(());
     };
 
-    let signed_msg = signed_vote.clone().map(ConsensusMsg::Vote);
-    let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
-    if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
+    let start = Instant::now();
+    let valid = ctx.verify_signed_vote(&signed_vote, validator.public_key());
+
+    metrics
+        .signature_verification_time
+        .observe(start.elapsed().as_secs_f64());
+
+    if !valid {
         warn!(
             validator = %validator_address,
             "Received invalid vote: {}", PrettyVote::<Ctx>(&signed_vote.message)
@@ -504,6 +516,7 @@ where
 
 async fn on_proposal<Ctx>(
     co: &Co<Ctx>,
+    ctx: &Ctx,
     state: &mut State<Ctx>,
     metrics: &Metrics,
     signed_proposal: SignedProposal<Ctx>,
@@ -559,9 +572,14 @@ where
         return Ok(());
     }
 
-    let signed_msg = signed_proposal.clone().map(ConsensusMsg::Proposal);
-    let verify_sig = Effect::VerifySignature(signed_msg, proposer.public_key().clone());
-    if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
+    let start = Instant::now();
+    let valid = ctx.verify_signed_proposal(&signed_proposal, proposer.public_key());
+
+    metrics
+        .signature_verification_time
+        .observe(start.elapsed().as_secs_f64());
+
+    if !valid {
         error!(
             "Received invalid signature for proposal: {}",
             PrettyProposal::<Ctx>(&signed_proposal.message)
