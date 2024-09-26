@@ -125,16 +125,79 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         None
     }
 
+    pub fn get_value(
+        &self,
+        height: &Ctx::Height,
+        round: Round,
+        value: &Ctx::Value,
+    ) -> Option<(Ctx::Value, Validity)> {
+        match self
+            .keeper
+            .get(&(*height, round))
+            .filter(|entries| !entries.is_empty())
+        {
+            None => None,
+            Some(entries) => {
+                for entry in entries {
+                    match entry {
+                        Entry::Full(p) => {
+                            if p.proposal.value().id() == value.id() {
+                                return Some((value.clone(), p.validity));
+                            }
+                        }
+                        Entry::ValueOnly(v, validity) => {
+                            if v.id() == value.id() {
+                                return Some((value.clone(), *validity));
+                            }
+                        }
+                        _ => {
+                            continue;
+                        }
+                    }
+                }
+                None
+            }
+        }
+    }
+
+    // Determines a new entry for L28 vs L22, L36, L49.
+    // Called when a proposal is received, only if an entry for new_proposal's round and/ or value
+    // is not found.
+    fn new_entry(&mut self, new_proposal: &SignedProposal<Ctx>) -> Entry<Ctx> {
+        // L22, L36, L49
+        if new_proposal.pol_round().is_nil() {
+            return Entry::ProposalOnly(new_proposal.clone());
+        }
+
+        // L28 - check if we have received a value at pol_round
+        match self.get_value(
+            &new_proposal.height(),
+            new_proposal.pol_round(),
+            new_proposal.value(),
+        ) {
+            // No value, create a proposal only entry
+            None => Entry::ProposalOnly(new_proposal.clone()),
+
+            // There is a value, create a full entry
+            Some((v, validity)) => {
+                Entry::Full(FullProposal::new(v.clone(), validity, new_proposal.clone()))
+            }
+        }
+    }
+
     pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>) {
+        let new_entry = self.new_entry(&new_proposal);
+
         let key = (new_proposal.height(), new_proposal.round());
         let entries = self.keeper.get_mut(&key);
 
         match entries {
             None => {
-                // First time we see something (a proposal) for this height and round
-                // Create a partial proposal with just the proposal
-                self.keeper
-                    .insert(key, vec![Entry::ProposalOnly(new_proposal)]);
+                // First time we see something (a proposal) for this height and round:
+                // - if pol_round is Nil then create a partial proposal with just the proposal.
+                // - if pol_round is defined and if a value at pol_round is present, add full entry,
+                // - else just add the proposal.
+                self.keeper.insert(key, vec![new_entry]);
             }
             Some(entries) => {
                 // We have seen values and/ or proposals for this height and round.
@@ -143,8 +206,8 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 for entry in entries.iter_mut() {
                     match entry {
                         Entry::Full(full_proposal) => {
-                            if full_proposal.proposal.value() == new_proposal.value() {
-                                // Redundant proposal
+                            if full_proposal.proposal.value().id() == new_proposal.value().id() {
+                                // Redundant proposal, no need to check the pol_round if same value
                                 return;
                             }
                         }
@@ -159,8 +222,8 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                             }
                         }
                         Entry::ProposalOnly(proposal) => {
-                            if proposal.value() == new_proposal.value() {
-                                // Redundant proposal
+                            if proposal.value().id() == new_proposal.value().id() {
+                                // Redundant proposal, no need to check the pol_round if same value
                                 return;
                             }
                         }
@@ -172,7 +235,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 }
 
                 // Append new partial proposal
-                entries.push(Entry::ProposalOnly(new_proposal));
+                entries.push(new_entry);
             }
         }
     }

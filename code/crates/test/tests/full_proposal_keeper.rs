@@ -208,6 +208,44 @@ fn get_full_proposal_multi_interleaved_same_round() {
 }
 
 #[test]
+fn get_full_proposal_single_matching_pol_round() {
+    let [(v1, sk1), (v2, sk2)] = make_validators([1, 1]);
+    let a1 = v1.address;
+    let c1 = TestContext::new(sk1);
+    let a2 = v2.address;
+    let c2 = TestContext::new(sk2);
+    let mut keeper = FullProposalKeeper::<TestContext>::new();
+
+    // Store proposal and value 10 at round 0
+    keeper.store_proposal(prop!(&c1, a1, 0, 10, -1));
+    keeper.store_value(value!(a1, 0, 10, Validity::Valid));
+
+    // Store proposal for 10 at round 1 with pol_round=0
+    keeper.store_proposal(prop!(&c2, a2, 1, 10, 0));
+    // Should find a full value for 10 at round 1
+    assert!(keeper_prop!(keeper, 1, 10).is_some());
+}
+
+#[test]
+fn get_full_proposal_single_non_matching_pol_round() {
+    let [(v1, sk1), (v2, sk2)] = make_validators([1, 1]);
+    let a1 = v1.address;
+    let c1 = TestContext::new(sk1);
+    let a2 = v2.address;
+    let c2 = TestContext::new(sk2);
+    let mut keeper = FullProposalKeeper::<TestContext>::new();
+
+    // Store proposal and value 10 at round 0
+    keeper.store_proposal(prop!(&c1, a1, 0, 10, -1));
+    keeper.store_value(value!(a1, 0, 10, Validity::Valid));
+
+    // Store proposal for 20 at round 1 with pol_round=0
+    keeper.store_proposal(prop!(&c2, a2, 1, 20, 0));
+    // Should not have a full value for 20 at round 1
+    assert!(keeper_prop!(keeper, 1, 20).is_none());
+}
+
+#[test]
 fn get_full_proposal_multi_pol_round() {
     let [(v1, sk1), (v2, sk2)] = make_validators([1, 1]);
     let a1 = v1.address;
