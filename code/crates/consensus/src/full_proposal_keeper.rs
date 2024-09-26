@@ -154,10 +154,10 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
     // Determines a new entry for L28 vs L22, L36, L49.
     // Called when a proposal is received, only if an entry for new_proposal's round and/ or value
     // is not found.
-    fn new_entry(&mut self, new_proposal: &SignedProposal<Ctx>) -> Entry<Ctx> {
+    fn new_entry(&self, new_proposal: SignedProposal<Ctx>) -> Entry<Ctx> {
         // L22, L36, L49
         if new_proposal.pol_round().is_nil() {
-            return Entry::ProposalOnly(new_proposal.clone());
+            return Entry::ProposalOnly(new_proposal);
         }
 
         // L28 - check if we have received a value at pol_round
@@ -167,27 +167,25 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
             new_proposal.value(),
         ) {
             // No value, create a proposal only entry
-            None => Entry::ProposalOnly(new_proposal.clone()),
+            None => Entry::ProposalOnly(new_proposal),
 
             // There is a value, create a full entry
             Some((v, validity)) => {
-                Entry::Full(FullProposal::new(v.clone(), validity, new_proposal.clone()))
+                Entry::Full(FullProposal::new(v.clone(), validity, new_proposal))
             }
         }
     }
 
     pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>) {
-        let new_entry = self.new_entry(&new_proposal);
-
         let key = (new_proposal.height(), new_proposal.round());
-        let entries = self.keeper.get_mut(&key);
 
-        match entries {
+        match self.keeper.get_mut(&key) {
             None => {
                 // First time we see something (a proposal) for this height and round:
                 // - if pol_round is Nil then create a partial proposal with just the proposal.
                 // - if pol_round is defined and if a value at pol_round is present, add full entry,
                 // - else just add the proposal.
+                let new_entry = self.new_entry(new_proposal);
                 self.keeper.insert(key, vec![new_entry]);
             }
             Some(entries) => {
@@ -226,7 +224,8 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 }
 
                 // Append new partial proposal
-                entries.push(new_entry);
+                let new_entry = self.new_entry(new_proposal);
+                self.keeper.entry(key).or_default().push(new_entry);
             }
         }
     }
