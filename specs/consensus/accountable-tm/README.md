@@ -98,7 +98,7 @@ In the following we will use the following abbreviations
         - By careful case distinction (see below), one can show that from the
           existence of the two certificates `Commit(v,r)` and `Polka(v',r',_)` we
           can prove that there are two certificates `Commit(v,r)` and
-          `Polka(v'',r'',_)` (observe that the polka need to be the one of round
+          `Polka(v",r",_)` (observe that the polka need to be the one of round
           `r'`) that have the property that the intersection of the senders of
           the messages in the certificates 
             - contains only faulty processes
@@ -138,21 +138,21 @@ this ensures that eventually all correct processes will produce evidence.
 - If two processes decide differently, then in addition to `decide(commitRound,
   commitValue)` we have `decide(r, v)` for `commitValue != v`. By the reasoning
 of above, we also must have a 
-    - **Certificate 3:** `polka(r, v, conflictRound⟩)`
+    - **Certificate 3:** `polka(r, v, conflictRound)`
 - if  `commitRound = r`, then there are two conflicting polkas 
  `polka(commitRound, commitValue, vr)` and `polka(commitRound, v, conflictRound)` (Certificate 2 and Certificate 3), which is evidence according to [doubleVotes](./misbehavior.qnt).
 - otherwise, assume `commitRound < r`
     - we have 
         - `commit(commitRound, commitValue)` (Certificate 1) and 
-        - `polka(r, v, conflictRound⟩)` (Certificate 3),
+        - `polka(r, v, conflictRound)` (Certificate 3),
     - and the following case distinction
         - `conflictRound < commitRound`. Certificate 1 and Certificate 3 are amnesia evidence according to [amnesiaVotes](./misbehavior.qnt).
-        - `conflictRound = commitRound`. In order to have `polka(r, v, conflictRound⟩`, we need a 
+        - `conflictRound = commitRound`. In order to have `polka(r, v, conflictRound)`, we need a 
             - **Certificate 4:** `polka(conflictRound, v, _)` 
             - Certificate 4 together with `polka(commitRound, commitValue, vr)` (Certificate 2) is evidence according to [doublePrevotes](./misbehavior.qnt).
         - `conflictRound > commitRound`: We are in the case of the Proposition below, that is, we have
             - `commit(commitRound, commitValue)` (Certificate 1),  
-            - `polka(r, v, conflictRound⟩)` (Certificate 3),
+            - `polka(r, v, conflictRound)` (Certificate 3),
             - `r > commitRound`, and
             - `conflictRound > commitRound`.
 
