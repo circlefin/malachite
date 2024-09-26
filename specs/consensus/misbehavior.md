@@ -1,7 +1,7 @@
 # Misbehavior detection and handling
 
 This documents describes different kinds of misbehavior by faulty processes
-that over time can harm the system (lead to disagreement), and how this
+that over time can harm the system (lead to disagreement), and how each
 misbehavior is defined and can be detected.
 
 

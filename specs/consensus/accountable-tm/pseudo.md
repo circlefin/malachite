@@ -1,5 +1,6 @@
 # Pseudo Code Changes in Accountable Tendermint
 
+Changes from the [original pseudo-code](../pseudo-code.md) of Tendermint consensus algorithm.
 #### Line 22
 ``` go
 22: upon ⟨PROPOSAL, h_p, round_p, v, −1⟩ from proposer(h_p, round_p) while step_p = propose do

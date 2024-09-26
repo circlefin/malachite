@@ -3,7 +3,7 @@
 Accountable Tendermint is a slight variation of Tendermint that ensures the
 detection of amnesia attacks in runs in which agreement is violated. Note that
 this differs from double vote evidence. Double votes can be detected also in
-(more likely) cases, where agreement is not violated because only a few
+(more likely) cases where agreement is not violated because only a few
 individual processes misbehave. 
 
 Still, this algorithm ensures that in all cases where agreement is violated, the
@@ -14,9 +14,9 @@ More formally, we are interested in the following property:
 
 #### **[Accountability]**
 - If there are less than`2f + 1` Byzantine faulty processes, and 
-- if agreement is violated (two correct processes decide differently), 
-- then a correct node collects sufficient data to identify at least `f + 1`
-Byzantine nodes.
+- And agreement is violated (two correct processes decide differently), 
+- Then a correct node should be able to collect sufficient data to identify at least `f + 1`
+Byzantine processes.
 
 
 ## Why Tendermint does not have this property
@@ -48,27 +48,27 @@ type Vote = {
 Accountable Tendermint has the addition field `validRound` in Vote
 ```
 type Vote = {
-        voteType: VoteType,     // prevote
+        voteType: VoteType,
         srcAddress: Address, 
         height: Height,
         round: Round,
         valueId: ValueId,
-        validRound: Round,
+        validRound: Round, // only relevant if voteType == prevote
     }
 ```
 
 The use of the additional field in the [pseudo code](./pseudo.md) of the
 algorithm is as follows:
-- line 22 and line 28: In these two rules, the prevote message that is sent just
+- line 22 and line 28: In these two rules, the prevote message that is sent now
   carries the valid round that is contained in the propose message that
   triggered the sending of the prevote message.
-- line 36: it is just checked in the guard that the `validRound` field in the
-  `2f + 1` prevotes is matching `validRound` of the proposal.
+- line 36: an additional check is performed in the guard that the `validRound` field in the
+  `2f + 1` prevotes is matching `validRound` of the proposal (`vr` in the pseudo code).
 
 In the following we will use the following abbreviations
 - `decide(r, v)`: a process decides in round `r` on value `v`
-- `commit(r,v)`: a set of `2f + 1` precommit messages for round `r` on value `v`
-- `polka(r,v)`: a set of `2f + 1` prevote messages for round `r` on value `v`
+- `commit(r,v)`: a set of at least `2f + 1` precommit messages for round `r` on value `v`
+- `polka(r,v)`: a set of at least `2f + 1` prevote messages for round `r` on value `v`
 
 
 ## Why Accountable Tendermint works
@@ -89,9 +89,9 @@ In the following we will use the following abbreviations
     - Otherwise, there are two commits for different values and different
       rounds (the amnesia case).
         - Let `Commit(v,r)` be the commit for the smaller round. 
-        - Let `r'` be the larger rounds of these two. By Point 2, one of the
+        - Let `r'` be the larger round of these two. By Point 2, one of the
           precommit messages are sent by a correct process
-        - This process only sends the precommit in round `r'`, only if it has
+        - This process can only send the precommit in round `r'` if it has
           received a polka for this round. That is, when there is a `Polka(v',r',_)`
         - In the new algorithm, the prevote messages in the polka contain `validRound`
         - Again by Point 2, `Polka(v',r',_)` contains a message from a correct process
@@ -108,7 +108,7 @@ In the following we will use the following abbreviations
 
 If we have the gossip assumption on certificates (if a correct process receives
 a certificate `c` then every correct process will eventually deliver `c`), then
-eventually every correct process has received the involved certificates and can
+eventually every correct process receives the involved certificates and can
 generate evidence.
 
 ### Detailed correctness argument
