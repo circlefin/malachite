@@ -12,7 +12,7 @@ pub mod handle;
 pub mod gen;
 
 mod effect;
-pub use effect::{Effect, Resume};
+pub use effect::Effect;
 
 mod types;
 pub use types::*;

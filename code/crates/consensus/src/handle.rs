@@ -9,7 +9,7 @@ use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_metrics::Metrics;
 
-use crate::effect::{Effect, Resume};
+use crate::effect::Effect;
 use crate::error::Error;
 use crate::gen::Co;
 use crate::msg::Msg;

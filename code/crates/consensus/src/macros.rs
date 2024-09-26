@@ -15,23 +15,20 @@
 /// ```
 #[macro_export]
 macro_rules! process {
-    (msg: $msg:expr, state: $state:expr, metrics: $metrics:expr, with: $effect:ident => $handle:expr) => {{
+    (msg: $msg:expr, ctx: $ctx:expr, state: $state:expr, metrics: $metrics:expr, with: $effect:ident => $handle:expr) => {{
         let mut gen =
-            $crate::gen::Gen::new(|co| $crate::handle::handle(co, $state, $metrics, $msg));
+            $crate::gen::Gen::new(|co| $crate::handle::handle(co, $ctx, $state, $metrics, $msg));
 
-        let mut co_result = gen.resume_with(Resume::Start(::std::marker::PhantomData));
+        let mut co_result = gen.resume_with(());
 
         loop {
             match co_result {
                 $crate::gen::CoResult::Yielded($effect) => {
                     let resume = match $handle {
-                        Ok(resume) => resume,
-                        Err(error) => {
-                            error!("Error when processing effect: {error:?}");
-                            Resume::Continue
-                        }
+                        Ok(()) => (),
+                        Err(error) => error!("Error when processing effect: {error:?}"),
                     };
-                    co_result = gen.resume_with(resume)
+                    co_result = gen.resume_with(())
                 }
                 $crate::gen::CoResult::Complete(result) => {
                     return result.map_err(Into::into);
@@ -63,24 +60,6 @@ macro_rules! process {
 #[macro_export]
 macro_rules! perform {
     ($co:expr, $effect:expr) => {
-        perform!($co, $effect, $crate::effect::Resume::Continue)
-    };
-
-    ($co:expr, $effect:expr, $pat:pat) => {
-        perform!($co, $effect, $pat => ())
-    };
-
-    // TODO: Add support for multiple patterns + if guards
-    ($co:expr, $effect:expr, $pat:pat => $expr:expr $(,)?) => {
-        match $co.yield_($effect).await {
-            $pat => $expr,
-            resume => {
-                return Err($crate::error::Error::UnexpectedResume(
-                    resume,
-                    stringify!($pat)
-                )
-                .into())
-            }
-        }
+        $co.yield_($effect).await
     };
 }

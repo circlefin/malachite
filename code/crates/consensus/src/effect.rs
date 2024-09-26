@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use derive_where::derive_where;
 
 use malachite_common::*;
@@ -56,20 +54,4 @@ where
         value: Ctx::Value,
         commits: Vec<SignedMessage<Ctx, Ctx::Vote>>,
     },
-}
-
-/// A value with which the consensus process can be resumed after yielding an [`Effect`].
-#[must_use]
-#[allow(clippy::manual_non_exhaustive)]
-#[derive_where(Debug)]
-pub enum Resume<Ctx>
-where
-    Ctx: Context,
-{
-    /// Internal effect to start processing a [`Msg`][crate::msg::Msg].
-    #[doc(hidden)]
-    Start(PhantomData<Ctx>),
-
-    /// Resume execution
-    Continue,
 }

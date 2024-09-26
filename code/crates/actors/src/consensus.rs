@@ -9,7 +9,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType};
-use malachite_consensus::{Effect, Resume};
+use malachite_consensus::Effect;
 use malachite_driver::Driver;
 use malachite_metrics::Metrics;
 use malachite_node::config::TimeoutConfig;
@@ -454,28 +454,28 @@ where
         timers: &mut Timers<Ctx>,
         timeouts: &mut Timeouts,
         effect: Effect<Ctx>,
-    ) -> Result<Resume<Ctx>, ActorProcessingErr> {
+    ) -> Result<(), ActorProcessingErr> {
         match effect {
             Effect::ResetTimeouts => {
                 timeouts.reset(self.timeout_config);
-                Ok(Resume::Continue)
+                Ok(())
             }
 
             Effect::CancelAllTimeouts => {
                 timers.cancel_all();
-                Ok(Resume::Continue)
+                Ok(())
             }
 
             Effect::CancelTimeout(timeout) => {
                 timers.cancel(&timeout);
-                Ok(Resume::Continue)
+                Ok(())
             }
 
             Effect::ScheduleTimeout(timeout) => {
                 let duration = timeouts.duration_for(timeout.step);
                 timers.start_timer(timeout, duration);
 
-                Ok(Resume::Continue)
+                Ok(())
             }
 
             Effect::StartRound(height, round, proposer) => {
@@ -485,7 +485,7 @@ where
                     proposer,
                 })?;
 
-                Ok(Resume::Continue)
+                Ok(())
             }
 
             Effect::Broadcast(gossip_msg) => {
@@ -493,7 +493,7 @@ where
                     .cast(GossipConsensusMsg::BroadcastMsg(gossip_msg))
                     .map_err(|e| eyre!("Error when broadcasting gossip message: {e:?}"))?;
 
-                Ok(Resume::Continue)
+                Ok(())
             }
 
             Effect::GetValue(height, round, timeout) => {
@@ -502,7 +502,7 @@ where
                 self.get_value(myself, height, round, timeout_duration)
                     .map_err(|e| eyre!("Error when asking for value to be built: {e:?}"))?;
 
-                Ok(Resume::Continue)
+                Ok(())
             }
 
             Effect::Decide {
@@ -525,7 +525,7 @@ where
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
-                Ok(Resume::Continue)
+                Ok(())
             }
         }
     }
