@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use malachite_common::{Context, NilOrVal, Round, Value};
-use malachite_itf::types::{Value as ModelValue, VoteType};
-use malachite_itf::votekeeper::VoteKeeperOutput::*;
-use malachite_itf::votekeeper::{State, WeightedVote};
 use malachite_test::{Address, Height, TestContext, Vote};
+use malachite_test_mbt::types::{Value as ModelValue, VoteType};
+use malachite_test_mbt::votekeeper::VoteKeeperOutput::*;
+use malachite_test_mbt::votekeeper::{State, WeightedVote};
 use malachite_vote::{
     keeper::{Output, VoteKeeper},
     ThresholdParams,
