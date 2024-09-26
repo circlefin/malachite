@@ -39,6 +39,7 @@ macro_rules! process {
 
 /// Yield an effect, and resume the current computation after the effect has been handled.
 #[macro_export]
+#[doc(hidden)]
 macro_rules! perform {
     ($co:expr, $effect:expr) => {
         $co.yield_($effect).await
