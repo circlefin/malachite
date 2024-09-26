@@ -48,7 +48,7 @@ Changes from the [original pseudo-code](../pseudo-code.md) of Tendermint consens
 
 ```
 
-### Line 44
+#### Line 44
 
 ```go
 44: upon 2f + 1 ⟨PREVOTE, h_p, round_p, nil⟩ while step_p = prevote do
@@ -56,7 +56,7 @@ Changes from the [original pseudo-code](../pseudo-code.md) of Tendermint consens
 46:    step_p ← precommit
 ```
 
-### Line 57
+#### Line 57
 
 ```go
 57: Function OnTimeoutPropose(height, round):
