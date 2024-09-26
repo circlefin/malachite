@@ -1,6 +1,6 @@
 # Accountable Tendermint 
 
-Accountable Tendermint is a slight variant of Tendermint that ensures the
+Accountable Tendermint is a slight variation of Tendermint that ensures the
 detection of amnesia attacks in runs in which agreement is violated. Note that
 this differs from double vote evidence. Double votes can be detected also in
 (more likely) cases, where agreement is not violated because only a few
@@ -26,13 +26,14 @@ Tendermint where we cannot decide from the outside who misbehaved. The main
 challenge is the following: If a process committed a value `v` in round `r`,
 there are cases where we cannot say whether a prevote for a different value `v'`
 in a larger round `r' > r` by the same process is according to the algorithm
-(based on a proposal with a `validRound > r`) or not.
+(based on a proposal with a `validRound > r`) or not (which would be an amnesia 
+attack).
 
 
 ## The algorithm
 
 Accountable Tendermint consensus differs from the original Tendermint algorithm
-just in the propose message. In the original Tendermint, propose messages has
+just in the prevote message. In the original Tendermint, propose messages has
 the fields (in Quint)
 ```
 type Vote = {
@@ -86,7 +87,7 @@ In the following we will use the following abbreviations
     - If the two commits are from the same round, there is double vote evidence
     (the two commits contain double votes from at least `f + 1` faulty processes) 
     - Otherwise, there are two commits for different values and different
-      rounds.
+      rounds (the amnesia case).
         - Let `Commit(v,r)` be the commit for the smaller round. 
         - Let `r'` be the larger rounds of these two. By Point 2, one of the
           precommit messages are sent by a correct process
@@ -102,6 +103,8 @@ In the following we will use the following abbreviations
           the messages in the certificate 
             - contains only faulty processes
             - contains at least `f + 1` processes 
+        - this intersection of  `f + 1` faulty processes is evidence of an amnesia 
+          attack
 
 If we have the gossip assumption on certificates (if a correct process receives
 a certificate `c` then every correct process will eventually deliver `c`), then
