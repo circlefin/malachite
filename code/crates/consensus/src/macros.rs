@@ -38,25 +38,7 @@ macro_rules! process {
     }};
 }
 
-/// Yield an effect, expecting a specific type of resume value.
-///
-/// Effects yielded by this macro must resume with a value that matches the provided pattern.
-/// If not pattern is give, then the yielded effect must resume with [`Resume::Continue`][continue].
-///
-/// # Errors
-/// This macro will abort the current function with a [`Error::UnexpectedResume`][error] error
-/// if the effect does not resume with a value that matches the provided pattern.
-///
-/// # Example
-/// ```rust,ignore
-/// // If we do not need to extract the resume value
-/// let () = perform!(co, effect, Resume::ProposeValue(_, _));
-///
-/// /// If we need to extract the resume value
-/// let value: Ctx::Value = perform!(co, effect, Resume::ProposeValue(_, value) => value);
-/// ```
-///
-/// [error]: crate::error::Error::UnexpectedResume
+/// Yield an effect, and resume the current computation after the effect has been handled.
 #[macro_export]
 macro_rules! perform {
     ($co:expr, $effect:expr) => {

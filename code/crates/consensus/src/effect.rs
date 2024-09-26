@@ -6,9 +6,8 @@ use crate::types::GossipMsg;
 
 /// An effect which may be yielded by a consensus process.
 ///
-/// Effects are handled by the caller using [`process_sync`][sync] or [`process_async`][async],
-/// and the consensus process is then resumed with an appropriate [`Resume`] value, as per
-/// the documentation for each effect.
+/// Effects are handled by the caller using [`process_sync`][sync] or [`process_async`][async].
+/// After that the consensus computation is then resumed.
 ///
 /// [sync]: crate::process::process_sync
 /// [async]: crate::process::process_async
@@ -19,35 +18,27 @@ where
     Ctx: Context,
 {
     /// Reset all timeouts
-    /// Resume with: Resume::Continue
     ResetTimeouts,
 
     /// Cancel all timeouts
-    /// Resume with: Resume::Continue
     CancelAllTimeouts,
 
     /// Cancel a given timeout
-    /// Resume with: Resume::Continue
     CancelTimeout(Timeout),
 
     /// Schedule a timeout
-    /// Resume with: Resume::Continue
     ScheduleTimeout(Timeout),
 
     /// Consensus is starting a new round with the given proposer
-    /// Resume with: Resume::Continue
     StartRound(Ctx::Height, Round, Ctx::Address),
 
     /// Broadcast a message
-    /// Resume with: Resume::Continue
     Broadcast(GossipMsg<Ctx>),
 
     /// Get a value to propose at the given height and round, within the given timeout
-    /// Resume with: Resume::Continue
     GetValue(Ctx::Height, Round, Timeout),
 
     /// Consensus has decided on a value
-    /// Resume with: Resume::Continue
     Decide {
         height: Ctx::Height,
         round: Round,
