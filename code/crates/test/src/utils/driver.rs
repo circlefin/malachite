@@ -105,8 +105,8 @@ pub fn precommit_input(round: Round, value: Value, addr: &Address) -> Input<Test
     ))
 }
 
-pub fn decide_output(round: Round, value: Value) -> Output<TestContext> {
-    Output::Decide(round, value)
+pub fn decide_output(round: Round, proposal: Proposal) -> Output<TestContext> {
+    Output::Decide(round, proposal)
 }
 
 pub fn start_propose_timer_output(round: Round) -> Output<TestContext> {

@@ -51,18 +51,18 @@ where
     /// Resume with: Resume::ValidatorSet(height, validator_set)
     GetValidatorSet(Ctx::Height),
 
+    /// Verify a signature
+    /// Resume with: Resume::SignatureValidity(valid)
+    VerifySignature(SignedMessage<Ctx, ConsensusMsg<Ctx>>, PublicKey<Ctx>),
+
     /// Consensus has decided on a value
     /// Resume with: Resume::Continue
-    DecidedOnValue {
+    Decide {
         height: Ctx::Height,
         round: Round,
         value: Ctx::Value,
         commits: Vec<SignedMessage<Ctx, Ctx::Vote>>,
     },
-
-    /// Verify a signature
-    /// Resume with: Resume::SignatureValidity(valid)
-    VerifySignature(SignedMessage<Ctx, ConsensusMsg<Ctx>>, PublicKey<Ctx>),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].

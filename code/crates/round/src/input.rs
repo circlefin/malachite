@@ -10,6 +10,9 @@ pub enum Input<Ctx>
 where
     Ctx: Context,
 {
+    /// No input
+    NoInput,
+
     /// Start a new round, either as proposer or not.
     /// L14/L20
     NewRound(Round),

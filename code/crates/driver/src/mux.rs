@@ -81,9 +81,9 @@ where
         // Should only receive proposals for our height.
         assert_eq!(self.round_state.height, proposal.height());
 
-        // Store the proposal
-        // TODO - store validity as well
-        self.proposal_keeper.apply_proposal(proposal.clone());
+        // Store the proposal and its validity
+        self.proposal_keeper
+            .apply_proposal(proposal.clone(), validity);
 
         // Check that there is an ongoing round
         if self.round_state.round == Round::Nil {
@@ -162,13 +162,22 @@ where
         new_threshold: VKOutput<ValueId<Ctx>>,
         threshold_round: Round,
     ) -> RoundInput<Ctx> {
-        if let Some(proposal) = self.proposal_keeper.get_proposal_for_round(threshold_round) {
+        if let Some((proposal, validity)) = self
+            .proposal_keeper
+            .get_proposal_and_validity_for_round(threshold_round)
+        {
             match new_threshold {
                 VKOutput::PolkaAny => RoundInput::PolkaAny,
                 VKOutput::PolkaNil => RoundInput::PolkaNil,
                 VKOutput::PolkaValue(v) => {
                     if v == proposal.value().id() {
-                        RoundInput::ProposalAndPolkaCurrent(proposal.clone())
+                        // TODO - L28 is not properly covered when the last vote for polka previous
+                        // at `vr` arrives after `Proposal(h, r, v, vr)`
+                        if validity.is_valid() {
+                            RoundInput::ProposalAndPolkaCurrent(proposal.clone())
+                        } else {
+                            RoundInput::NoInput
+                        }
                     } else {
                         RoundInput::PolkaAny
                     }

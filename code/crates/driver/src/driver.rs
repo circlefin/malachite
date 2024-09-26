@@ -188,7 +188,7 @@ where
                 outputs.push(Output::GetValue(height, round, timeout));
             }
 
-            RoundOutput::Decision(value) => outputs.push(Output::Decide(value.round, value.value)),
+            RoundOutput::Decision(round, proposal) => outputs.push(Output::Decide(round, proposal)),
         }
     }
 
@@ -275,6 +275,11 @@ where
         };
 
         let round_input = self.multiplex_vote_threshold(output, vote_round);
+
+        if round_input == RoundInput::NoInput {
+            return Ok(None);
+        }
+
         self.apply_input(vote_round, round_input)
     }
 

@@ -12,10 +12,7 @@ use rand::{Rng, SeedableRng};
 use tracing::info;
 
 use malachite_common::{PrivateKey, PublicKey};
-use malachite_node::config::{
-    App, Config, ConsensusConfig, LogFormat, LogLevel, LoggingConfig, MempoolConfig, MetricsConfig,
-    P2pConfig, RuntimeConfig, TestConfig, TimeoutConfig,
-};
+use malachite_node::config::*;
 use malachite_node::Node;
 use malachite_starknet_app::node::StarknetNode;
 
@@ -74,6 +71,13 @@ pub struct TestnetCmd {
     ///   Use a value of 0 for N to use the number of cores available on the system.
     #[clap(short, long, default_value = "single-threaded", verbatim_doc_comment)]
     pub runtime: RuntimeFlavour,
+
+    /// The transport protocol to use for P2P communication
+    /// Possible values:
+    /// - "quic": QUIC (default)
+    /// - "tcp": TCP + Noise
+    #[clap(short, long, default_value = "quic", verbatim_doc_comment)]
+    pub transport: TransportProtocol,
 }
 
 impl TestnetCmd {
@@ -116,7 +120,15 @@ impl TestnetCmd {
             // Save config
             save_config(
                 &args.get_config_file_path()?,
-                &generate_config(self.app, i, self.nodes, self.runtime, log_level, log_format),
+                &generate_config(
+                    self.app,
+                    i,
+                    self.nodes,
+                    self.runtime,
+                    self.transport,
+                    log_level,
+                    log_format,
+                ),
             )?;
         }
         Ok(())
@@ -175,6 +187,7 @@ pub fn generate_config(
     index: usize,
     total: usize,
     runtime: RuntimeFlavour,
+    transport: TransportProtocol,
     log_level: LogLevel,
     log_format: LogFormat,
 ) -> Config {
@@ -189,32 +202,24 @@ pub fn generate_config(
             max_block_size: ByteSize::mib(1),
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
-                listen_addr: format!("/ip4/127.0.0.1/udp/{consensus_port}/quic-v1")
-                    .parse()
-                    .unwrap(),
+                protocol: PubSubProtocol::GossipSub,
+                listen_addr: transport.multiaddr("127.0.0.1", consensus_port),
                 persistent_peers: (0..total)
                     .filter(|j| *j != index)
-                    .map(|j| {
-                        format!("/ip4/127.0.0.1/udp/{}/quic-v1", CONSENSUS_BASE_PORT + j)
-                            .parse()
-                            .unwrap()
-                    })
+                    .map(|j| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j))
                     .collect(),
+                transport,
             },
         },
         mempool: MempoolConfig {
             p2p: P2pConfig {
-                listen_addr: format!("/ip4/127.0.0.1/udp/{mempool_port}/quic-v1")
-                    .parse()
-                    .unwrap(),
+                protocol: PubSubProtocol::GossipSub,
+                listen_addr: transport.multiaddr("127.0.0.1", mempool_port),
                 persistent_peers: (0..total)
                     .filter(|j| *j != index)
-                    .map(|j| {
-                        format!("/ip4/127.0.0.1/udp/{}/quic-v1", MEMPOOL_BASE_PORT + j)
-                            .parse()
-                            .unwrap()
-                    })
+                    .map(|j| transport.multiaddr("127.0.0.1", MEMPOOL_BASE_PORT + j))
                     .collect(),
+                transport,
             },
             max_tx_count: 10000,
             gossip_batch_size: 0,
