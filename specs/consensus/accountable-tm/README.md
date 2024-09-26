@@ -114,7 +114,7 @@ generate evidence.
 ### Detailed correctness argument
 
 In [misbehavior.qnt](./misbehavior.qnt), we have specified two functions
-  - `doubleVotes`
+  - `doublePrevotes`
   - `amnesiaVotes`
 
 These functions take as input two certificates (two polkas or a commit and a
@@ -149,7 +149,7 @@ of above, we also must have a
         - `conflictRound < commitRound`. Certificate 1 and Certificate 3 are amnesia evidence according to [amnesiaVotes](./misbehavior.qnt).
         - `conflictRound = commitRound`. In order to have `polka(r, v, conflictRound⟩`, we need a 
             - **Certificate 4:** `polka(conflictRound, v, _)` 
-            - Certificate 4 together with `polka(commitRound, commitValue, vr)` (Certificate 2) is evidence according to [doubleVotes](./misbehavior.qnt).
+            - Certificate 4 together with `polka(commitRound, commitValue, vr)` (Certificate 2) is evidence according to [doublePrevotes](./misbehavior.qnt).
         - `conflictRound > commitRound`: We are in the case of the Proposition below, that is, we have
             - `commit(commitRound, commitValue)` (Certificate 1),  
             - `polka(r, v, conflictRound⟩)` (Certificate 3),
