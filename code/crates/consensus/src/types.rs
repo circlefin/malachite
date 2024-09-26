@@ -21,13 +21,6 @@ impl<Ctx: Context> GossipMsg<Ctx> {
     }
 }
 
-/// A message that can be sent by the consensus layer
-#[derive_where(Clone, Debug, PartialEq, Eq)]
-pub enum ConsensusMsg<Ctx: Context> {
-    Vote(Ctx::Vote),
-    Proposal(Ctx::Proposal),
-}
-
 /// A value proposed by a validator
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct ProposedValue<Ctx: Context> {
