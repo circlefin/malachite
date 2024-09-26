@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use async_recursion::async_recursion;
 use tracing::{debug, error, info, warn};
 
@@ -488,12 +486,9 @@ where
         return Ok(());
     };
 
-    let start = Instant::now();
-    let valid = ctx.verify_signed_vote(&signed_vote, validator.public_key());
-
-    metrics
-        .signature_verification_time
-        .observe(start.elapsed().as_secs_f64());
+    let valid = metrics.time_signature_verification(|| {
+        ctx.verify_signed_vote(&signed_vote, validator.public_key())
+    });
 
     if !valid {
         warn!(
@@ -572,12 +567,9 @@ where
         return Ok(());
     }
 
-    let start = Instant::now();
-    let valid = ctx.verify_signed_proposal(&signed_proposal, proposer.public_key());
-
-    metrics
-        .signature_verification_time
-        .observe(start.elapsed().as_secs_f64());
+    let valid = metrics.time_signature_verification(|| {
+        ctx.verify_signed_proposal(&signed_proposal, proposer.public_key())
+    });
 
     if !valid {
         error!(
