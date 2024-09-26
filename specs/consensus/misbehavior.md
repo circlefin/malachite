@@ -201,4 +201,4 @@ detects at least `f + 1` faulty processes.
 The change to Tendermint is just that prevote messages have an additional field
 that carries the content of the `vr` field of the proposal that triggered
 the sending of the prevote. 
-See [Accountable Tendermint](./accountable-tm/acountable-tm.md) for more details.
+See [Accountable Tendermint](./accountable-tm/README.md) for more details.

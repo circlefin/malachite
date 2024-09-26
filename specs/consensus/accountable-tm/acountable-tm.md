@@ -13,7 +13,7 @@ forensics, etc.
 More formally, we are interested in the following property:
 
 #### **[Accountability]**
-- If there are less than`2f + 1` Byzantine faulty processes, and 
+- If there are less than `2f + 1` Byzantine faulty processes, out of a total of `3f + 1` processes 
 - And agreement is violated (two correct processes decide differently), 
 - Then a correct node should be able to collect sufficient data to identify at least `f + 1`
 Byzantine processes.
@@ -98,7 +98,7 @@ In the following we will use the following abbreviations
         - By careful case distinction (see below), one can show that from the
           existence of the two certificates `Commit(v,r)` and `Polka(v',r',_)` we
           can prove that there are two certificates `Commit(v,r)` and
-          `Polka(v_e,r_e,_)` (observe that the polka need to be the one of round
+          `Polka(v'',r'',_)` (observe that the polka need to be the one of round
           `r'`) that have the property that the intersection of the senders of
           the messages in the certificate 
             - contains only faulty processes
