@@ -49,7 +49,7 @@ pure def validCertificate (certificate: Set[Vote], valset: ValidatorSet) : bool 
 
 // checks for conflicting prevotes for the same round and returns a set that contains sets
 // that contain prevotes from the same process for different values
-pure def doubleVotes (cert1: Certificate, cert2: Certificate, valset: ValidatorSet) : Set[Set[Vote]] =
+pure def doublePrevotes (cert1: Certificate, cert2: Certificate, valset: ValidatorSet) : Set[Set[Vote]] =
     val c1 = match cert1 {
             | Polka(c) => c
             | _ => Set()
@@ -112,7 +112,7 @@ run detectableTest =
     ))
      
     all{
-        assert(doubleVotes(polkaBlue, polkaRed, validatorSet) == Set(
+        assert(doublePrevotes(polkaBlue, polkaRed, validatorSet) == Set(
             Set(
                 { height: 0, round: 10, srcAddress: "v2", valueId: Val("blue"), voteType: Prevote, validRound: 5 },
                 { height: 0, round: 10, srcAddress: "v2", valueId: Val("red"), voteType: Prevote, validRound: 5 }
