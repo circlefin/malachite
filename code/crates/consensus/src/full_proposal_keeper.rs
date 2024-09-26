@@ -125,39 +125,30 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         None
     }
 
-    pub fn get_value(
+    pub fn get_value<'a>(
         &self,
         height: &Ctx::Height,
         round: Round,
-        value: &Ctx::Value,
-    ) -> Option<(Ctx::Value, Validity)> {
-        match self
+        value: &'a Ctx::Value,
+    ) -> Option<(&'a Ctx::Value, Validity)> {
+        let entries = self
             .keeper
             .get(&(*height, round))
-            .filter(|entries| !entries.is_empty())
-        {
-            None => None,
-            Some(entries) => {
-                for entry in entries {
-                    match entry {
-                        Entry::Full(p) => {
-                            if p.proposal.value().id() == value.id() {
-                                return Some((value.clone(), p.validity));
-                            }
-                        }
-                        Entry::ValueOnly(v, validity) => {
-                            if v.id() == value.id() {
-                                return Some((value.clone(), *validity));
-                            }
-                        }
-                        _ => {
-                            continue;
-                        }
-                    }
+            .filter(|entries| !entries.is_empty())?;
+
+        for entry in entries {
+            match entry {
+                Entry::Full(p) if p.proposal.value().id() == value.id() => {
+                    return Some((value, p.validity));
                 }
-                None
+                Entry::ValueOnly(v, validity) if v.id() == value.id() => {
+                    return Some((value, *validity));
+                }
+                _ => continue,
             }
         }
+
+        None
     }
 
     // Determines a new entry for L28 vs L22, L36, L49.
