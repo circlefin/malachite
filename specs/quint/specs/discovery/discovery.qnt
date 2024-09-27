@@ -133,13 +133,17 @@ module discovery {
         }
     }
 
+    def sumSizeOf(peers: Set[PeerId], f: PeerId => Set[PeerId]): int = {
+        peers.fold(0, (acc, p) => acc + f(p).size())
+    }
+
     val isDone = peers.forall(p => peerStates.get(p).done)
     val inv = if (isDone) {
         peers.forall(p => peerStates.get(p).localPeers == peers.exclude(Set(p)))
     } else {
-        val pendingRequests = peers.fold(0, (acc, p) => acc + peerStates.get(p).pendingRequests.size())
-        val incomingRequests = peers.fold(0, (acc, p) => acc + peerStates.get(p).incomingRequests.size())
-        val incomingResponses = peers.fold(0, (acc, p) => acc + peerStates.get(p).incomingResponses.keys().size())
+        val pendingRequests = sumSizeOf(peers, p => peerStates.get(p).pendingRequests)
+        val incomingRequests = sumSizeOf(peers, p => peerStates.get(p).incomingRequests)
+        val incomingResponses = sumSizeOf(peers, p => peerStates.get(p).incomingResponses.keys())
 
         pendingRequests == incomingRequests + incomingResponses
     }
