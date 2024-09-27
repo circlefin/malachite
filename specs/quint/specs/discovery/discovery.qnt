@@ -35,8 +35,8 @@ module discovery {
     action step = {
         any {
             contact,
-            processRequests,
-            processResponses,
+            processOneRequest,
+            processOneResponse,
         }
     }
 
@@ -73,83 +73,87 @@ module discovery {
         }
     }
 
-    action processRequests = {
+    action processOneRequest = {
         val validPeers = filterPeers(p => p.incomingRequests != Map())
 
         all {
             validPeers != Set(),
 
             nondet peerId = validPeers.oneOf()
+            nondet requestPeerId = peerStates.get(peerId).incomingRequests.keys().oneOf()
 
-            val newState = peerStates.get(peerId).incomingRequests.keys().fold(peerStates, (s, p) => {
-                val localState = s.get(peerId)
-                val newPeersToContact = localState.incomingRequests.get(p)
-                    .exclude(localState.contacted)
-                    .exclude(Set(peerId))
-                val newState = s.set(peerId, {
-                    ...localState,
-                    localPeers: localState.localPeers.union(Set(p)),
-                    toContact: localState.toContact.union(newPeersToContact),
+            val state = peerStates.get(peerId)
+
+            val newLocalPeers = state.localPeers.union(Set(requestPeerId))
+            val newToContact = state.incomingRequests.get(requestPeerId)
+                .exclude(state.contacted)
+                .exclude(Set(peerId))
+                .union(state.toContact)
+            val newIncomingRequests = state.incomingRequests.keys()
+                .filter(p => p != requestPeerId)
+                .fold(Map(), (m, p) => {
+                    m.put(p, state.incomingRequests.get(p))
                 })
-
-                val ps = newState.get(p)
-                newState.set(p, {
-                    ...ps,
-                    incomingResponses: ps.incomingResponses.put(
-                        peerId,
-                        localState.localPeers.union(localState.bootstrapNodes)
-                    ),
-                })
-            })
-
-            val newPeerState = newState.get(peerId)
-
             val idle = all {
-                newPeerState.toContact == Set(),
-                newPeerState.pendingRequests == Set(),
-                newPeerState.incomingResponses == Map(),
+                newToContact == Set(),
+                state.pendingRequests == Set(),
+                state.incomingResponses == Map(),
             }
 
-            peerStates' = newState.set(peerId, {
-                ...newPeerState,
-                incomingRequests: Map(),
+            val newState = peerStates.set(peerId, {
+                ...state,
+                localPeers: newLocalPeers,
+                toContact: newToContact,
+                incomingRequests: newIncomingRequests,
                 idle: idle,
+            })
+
+            val ps = newState.get(requestPeerId)
+
+            peerStates' = newState.set(requestPeerId, {
+                ...ps,
+                incomingResponses: ps.incomingResponses.put(
+                    peerId,
+                    state.localPeers.union(state.bootstrapNodes)
+                ),
             })
         }
     }
 
-    action processResponses = {
+    action processOneResponse = {
         val validPeers = filterPeers(p => p.incomingResponses != Map())
 
         all {
             validPeers != Set(),
 
             nondet peerId = validPeers.oneOf()
+            nondet responsePeerId = peerStates.get(peerId).incomingResponses.keys().oneOf()
 
-            val newState = peerStates.get(peerId).incomingResponses.keys().fold(peerStates, (s, p) => {
-                val localState = s.get(peerId)
-                val newPeersToContact = localState.incomingResponses.get(p)
-                    .exclude(localState.contacted)
-                    .exclude(Set(peerId))
-                s.set(peerId, {
-                    ...localState,
-                    localPeers: localState.localPeers.union(Set(p)),
-                    toContact: localState.toContact.union(newPeersToContact),
-                    pendingRequests: localState.pendingRequests.exclude(Set(p)),
+            val state = peerStates.get(peerId)
+
+            val newLocalPeers = state.localPeers.union(Set(responsePeerId))
+            val newToContact = state.incomingResponses.get(responsePeerId)
+                .exclude(state.contacted)
+                .exclude(Set(peerId))
+                .union(state.toContact)
+            val newPendingRequests = state.pendingRequests.exclude(Set(responsePeerId))
+            val newIncomingResponses = state.incomingResponses.keys()
+                .filter(p => p != responsePeerId)
+                .fold(Map(), (m, p) => {
+                    m.put(p, state.incomingResponses.get(p))
                 })
-            })
-
-            val newPeerState = newState.get(peerId)
-
             val idle = all {
-                newPeerState.toContact == Set(),
-                newPeerState.pendingRequests == Set(),
-                newPeerState.incomingRequests == Map(),
+                newToContact == Set(),
+                newPendingRequests == Set(),
+                state.incomingRequests == Map(),
             }
 
-            peerStates' = newState.set(peerId, {
-                ...newPeerState,
-                incomingResponses: Map(),
+            peerStates' = peerStates.set(peerId, {
+                ...state,
+                localPeers: newLocalPeers,
+                toContact: newToContact,
+                pendingRequests: newPendingRequests,
+                incomingResponses: newIncomingResponses,
                 idle: idle,
             })
         }
