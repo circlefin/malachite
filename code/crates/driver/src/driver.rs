@@ -11,12 +11,12 @@ use malachite_round::state::Step::Propose;
 use malachite_round::state::{State as RoundState, Step};
 use malachite_round::state_machine::Info;
 use malachite_vote::keeper::VoteKeeper;
-use malachite_vote::ThresholdParams;
 
 use crate::input::Input;
 use crate::output::Output;
 use crate::proposal_keeper::ProposalKeeper;
 use crate::Error;
+use crate::ThresholdParams;
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
 pub struct Driver<Ctx>

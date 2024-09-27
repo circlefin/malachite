@@ -7,6 +7,9 @@ pub use state::State;
 mod error;
 pub use error::Error;
 
+mod params;
+pub use params::{Params, ThresholdParams};
+
 pub mod handle;
 
 pub mod gen;
