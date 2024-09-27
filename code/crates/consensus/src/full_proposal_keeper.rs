@@ -20,9 +20,17 @@ use crate::ProposedValue;
 /// `FullProposal { Some(value.value, value.validity), Some(proposal) }`
 ///
 /// It is possible that a proposer sends two (builder_value, proposal) pairs for same `(height, round)`.
-/// In this case, both are stored and we consider that the proposer is equivocating.
+/// In this case both are stored, and we consider that the proposer is equivocating.
 /// Currently, the actual equivocation is caught deeper in the consensus crate, through consensus actor
 /// propagating both proposals.
+///
+/// When a new_proposal is received at most one complete proposal can be created. If a value at
+/// proposal round is found, they are matched together. Otherwise, a value at the pol_round
+/// is looked up and matched to form a full proposal (L28).
+///
+/// When a new value is received it is matched against the proposal at value round, and any proposal
+/// at higher round with pol_round equal to the value round (L28). Therefore when a value is added
+/// multiple complete proposals may form.
 ///
 /// Note: In the future when we support implicit proposal message:
 /// - store_proposal() will never be called
