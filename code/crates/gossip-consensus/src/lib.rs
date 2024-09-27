@@ -99,9 +99,9 @@ pub struct State {
 }
 
 impl State {
-    fn new(enable_discovery: bool) -> Self {
+    fn new(enable_discovery: bool, bootstrap_nodes: Vec<Multiaddr>) -> Self {
         State {
-            discovery: discovery::Discovery::new(enable_discovery),
+            discovery: discovery::Discovery::new(enable_discovery, bootstrap_nodes),
         }
     }
 }
@@ -174,7 +174,7 @@ async fn run(
         return;
     };
 
-    let mut state = State::new(config.enable_discovery);
+    let mut state = State::new(config.enable_discovery, config.persistent_peers.clone());
 
     info!(
         "Discovery is {}",

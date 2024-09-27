@@ -18,7 +18,7 @@ pub enum Request {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Response {
-    Peers(HashSet<(PeerId, Multiaddr)>),
+    Peers(HashSet<(Option<PeerId>, Multiaddr)>),
 }
 
 pub type Event = request_response::Event<Request, Response>;
