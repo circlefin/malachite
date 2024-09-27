@@ -44,6 +44,12 @@ module discovery {
         peers.filter(id => p(peerStates.get(id)))
     }
 
+    def mapRemove(m: PeerId -> Set[PeerId], key: PeerId): PeerId -> Set[PeerId] = {
+        m.keys().filter(k => k != key).fold(Map(), (acc, k) => {
+            acc.put(k, m.get(k))
+        })
+    }
+
     action contact = {
         val validPeers = filterPeers(p => p.toContact != Set())
 
@@ -89,11 +95,7 @@ module discovery {
                 .exclude(state.contacted)
                 .exclude(Set(peerId))
                 .union(state.toContact)
-            val newIncomingRequests = state.incomingRequests.keys()
-                .filter(p => p != requestPeerId)
-                .fold(Map(), (m, p) => {
-                    m.put(p, state.incomingRequests.get(p))
-                })
+            val newIncomingRequests = mapRemove(state.incomingRequests, requestPeerId)
             val idle = all {
                 newToContact == Set(),
                 state.pendingRequests == Set(),
@@ -137,11 +139,7 @@ module discovery {
                 .exclude(Set(peerId))
                 .union(state.toContact)
             val newPendingRequests = state.pendingRequests.exclude(Set(responsePeerId))
-            val newIncomingResponses = state.incomingResponses.keys()
-                .filter(p => p != responsePeerId)
-                .fold(Map(), (m, p) => {
-                    m.put(p, state.incomingResponses.get(p))
-                })
+            val newIncomingResponses = mapRemove(state.incomingResponses, responsePeerId)
             val idle = all {
                 newToContact == Set(),
                 newPendingRequests == Set(),
