@@ -26,6 +26,7 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
 /// A value to propose that has just been received.
 pub use malachite_consensus::ProposedValue;
 
+use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
 
 /// A reference to the host actor.
@@ -62,11 +63,12 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<Ctx::ValidatorSet>,
     },
 
-    // Decided value
-    DecidedOnValue {
+    // Consensus has decided on a value
+    Decide {
         height: Ctx::Height,
         round: Round,
         value: Ctx::Value,
         commits: Vec<SignedVote<Ctx>>,
+        consensus: ConsensusRef<Ctx>,
     },
 }

@@ -68,6 +68,8 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
     let ctx = TestContext::new(my_sk.clone());
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
+    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address);
+
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
 
     let steps = vec![
@@ -101,7 +103,7 @@ fn driver_steps_decide_current_with_no_locked_no_valid() {
                 Validity::Valid,
                 v1.address,
             ),
-            expected_outputs: vec![decide_output(Round::new(0), value)],
+            expected_outputs: vec![decide_output(Round::new(0), proposal)],
             expected_round: Round::new(0),
             new_state: decided_state(Round::new(0), value),
         },
@@ -143,6 +145,8 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
     let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
 
     let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let proposal = Proposal::new(Height::new(1), Round::new(0), value, Round::Nil, v1.address);
 
     let steps = vec![
         TestStep {
@@ -203,7 +207,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
                 Validity::Valid,
                 v1.address,
             ),
-            expected_outputs: vec![decide_output(Round::new(0), value)],
+            expected_outputs: vec![decide_output(Round::new(0), proposal)],
             expected_round: Round::new(1),
             new_state: decided_state(Round::new(1), value),
         },
@@ -330,7 +334,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
         TestStep {
             desc: "v2 precommits for round 0 and same proposal, we get +2/3 precommit, decide",
             input: precommit_input(Round::new(0), value, &v2.address),
-            expected_outputs: vec![decide_output(Round::new(0), value)],
+            expected_outputs: vec![decide_output(Round::new(0), proposal.clone())],
             expected_round: Round::new(1),
             new_state: decided_state_with_proposal_and_locked_and_valid(
                 Round::new(1),

@@ -1,6 +1,9 @@
 # Misbehavior detection and handling
 
-This document is a work in progress. Refer to issue [#340](https://github.com/informalsystems/malachite/issues/340) for more information.
+This documents describes different kinds of misbehavior by faulty processes
+that over time can harm the system (lead to disagreement), and how each
+misbehavior is defined and can be detected.
+
 
 ## Background
 
@@ -184,7 +187,7 @@ So after sending `⟨precommit, h, 0, id(v))`, process `p`:
 So the pair (`⟨PRECOMMIT, h, 0, id(v))`, `(PREVOTE, h, 2, id(v'))`), or the pairs with a proposal or a precommit for `v'`, do not constitute misbehavior. 
 
 
- ## Misbehavior detection and verification in Accountable Tendermint
+## Misbehavior detection and verification in Accountable Tendermint
 
 The extended version of this
 [paper](https://infoscience.epfl.ch/server/api/core/bitstreams/bb494e9a-22aa-43a2-b995-69c7a2cc893e/content)
@@ -193,34 +196,9 @@ the following property
 
 **Accountability.** If there are at most `2f` Byzantine-faulty processes and (at least) two
 correct processes decide different values, then every correct process eventually
-detects at least `f+1` faulty processes.
+detects at least `f + 1` faulty processes.
 
 The change to Tendermint is just that prevote messages have an additional field
 that carries the content of the `vr` field of the proposal that triggered
-the sending of the prevote. Here are the most relevant changed pseudo code
-parts:
-
-``` go
-22: upon ⟨PROPOSAL, h_p, round_p, v, −1⟩ from proposer(h_p, round_p) while step_p = propose do
-23:    if valid(v) ∧ (lockedRound_p = −1 ∨ lockedValue_p = v) then
-24:       broadcast ⟨PREVOTE, h_p, round_p, id(v), -1⟩
-25:    else
-26:       broadcast ⟨PREVOTE, h_p, round_p, nil, -1⟩
-27:    step_p ← prevote
-
-28: upon ⟨PROPOSAL, h_p, round_p, v, vr⟩ from proposer(h_p, round_p) AND 2f + 1 ⟨PREVOTE, h_p, vr, id(v), vr'⟩
-    while step_p = propose ∧ (vr ≥ 0 ∧ vr < round_p) do
-29:    if valid(v) ∧ (lockedRound_p ≤ vr ∨ lockedValue_p = v) then
-30:       broadcast ⟨PREVOTE, h_p, round_p, id(v), vr⟩
-31:    else
-32:       broadcast ⟨PREVOTE, h_p, round_p, nil, vr⟩
-33:    step_p ← prevote
-```
-
-The analysis in the paper is written in the context of individual messages.
-
-TODO: I will open an issue to discuss this in the context of the
-[certificates](https://github.com/informalsystems/malachite/pull/364) that we
-introduced to deal with equivocation. It seems that we can do amnesia detection
-and verification solely based on certificates (polkas and commits).
-
+the sending of the prevote. 
+See [Accountable Tendermint](./accountable-tm/README.md) for more details.

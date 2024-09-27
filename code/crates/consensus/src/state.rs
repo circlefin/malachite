@@ -5,6 +5,7 @@ use malachite_driver::Driver;
 
 use crate::error::Error;
 use crate::msg::Msg;
+use crate::Params;
 
 /// The state maintained by consensus for processing a [`Msg`][crate::msg::Msg].
 pub struct State<Ctx>
@@ -26,12 +27,34 @@ where
 
     /// Store Precommit votes to be sent along the decision to the host
     pub signed_precommits: BTreeMap<(Ctx::Height, Round), Vec<SignedVote<Ctx>>>,
+
+    /// Decision per height
+    pub decision: BTreeMap<(Ctx::Height, Round), Ctx::Proposal>,
 }
 
 impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
+    pub fn new(ctx: Ctx, params: Params<Ctx>) -> Self {
+        let driver = Driver::new(
+            ctx.clone(),
+            params.start_height,
+            params.initial_validator_set,
+            params.address,
+            params.threshold_params,
+        );
+
+        Self {
+            ctx,
+            driver,
+            msg_queue: Default::default(),
+            received_blocks: Default::default(),
+            signed_precommits: Default::default(),
+            decision: Default::default(),
+        }
+    }
+
     pub fn get_proposer(
         &self,
         height: Ctx::Height,

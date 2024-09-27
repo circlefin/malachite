@@ -472,6 +472,6 @@ where
     let new_state = state
         .set_decision(proposal.value().clone())
         .with_step(Step::Commit);
-    let output = Output::decision(round, proposal.value().clone());
+    let output = Output::decision(round, proposal.clone());
     Transition::to(new_state).with_output(output)
 }

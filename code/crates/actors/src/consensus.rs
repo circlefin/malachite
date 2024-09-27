@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::BTreeSet;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -11,22 +11,16 @@ use tracing::{debug, error, info, warn};
 
 use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType};
 use malachite_consensus::{Effect, Resume};
-use malachite_driver::Driver;
 use malachite_metrics::Metrics;
 use malachite_node::config::TimeoutConfig;
-use malachite_vote::ThresholdParams;
 
 use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::forward::forward;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
-pub struct ConsensusParams<Ctx: Context> {
-    pub start_height: Ctx::Height,
-    pub initial_validator_set: Ctx::ValidatorSet,
-    pub address: Ctx::Address,
-    pub threshold_params: ThresholdParams,
-}
+pub use malachite_consensus::Params as ConsensusParams;
+pub use malachite_consensus::State as ConsensusState;
 
 pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
@@ -48,6 +42,9 @@ where
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
 pub enum Msg<Ctx: Context> {
+    /// Start consensus for the given height
+    StartHeight(Ctx::Height),
+
     /// Received an event from the gossip layer
     GossipEvent(GossipEvent<Ctx>),
 
@@ -112,7 +109,7 @@ pub struct State<Ctx: Context> {
     timeouts: Timeouts,
 
     /// The state of the consensus state machine
-    consensus: malachite_consensus::State<Ctx>,
+    consensus: ConsensusState<Ctx>,
 
     /// The set of peers we are connected to.
     connected_peers: BTreeSet<PeerId>,
@@ -197,6 +194,18 @@ where
         msg: Msg<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
+            Msg::StartHeight(height) => {
+                let result = self
+                    .process_msg(&myself, state, InnerMsg::StartHeight(height))
+                    .await;
+
+                if let Err(e) = result {
+                    error!("Error when starting height {height}: {e:?}");
+                }
+
+                Ok(())
+            }
+
             Msg::ProposeValue(height, round, value) => {
                 let result = self
                     .process_msg(&myself, state, InnerMsg::ProposeValue(height, round, value))
@@ -510,7 +519,7 @@ where
                 Ok(Resume::ValidatorSet(height, validator_set))
             }
 
-            Effect::DecidedOnValue {
+            Effect::Decide {
                 height,
                 round,
                 value,
@@ -521,11 +530,12 @@ where
                 }
 
                 self.host
-                    .cast(HostMsg::DecidedOnValue {
+                    .cast(HostMsg::Decide {
                         height,
                         round,
                         value,
                         commits,
+                        consensus: myself.clone(),
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
@@ -555,26 +565,10 @@ where
         self.gossip_consensus
             .cast(GossipConsensusMsg::Subscribe(forward))?;
 
-        let driver = Driver::new(
-            self.ctx.clone(),
-            self.params.start_height,
-            self.params.initial_validator_set.clone(),
-            self.params.address.clone(),
-            self.params.threshold_params,
-        );
-
-        let consensus_state = malachite_consensus::State {
-            ctx: self.ctx.clone(),
-            driver,
-            msg_queue: VecDeque::new(),
-            received_blocks: vec![],
-            signed_precommits: Default::default(),
-        };
-
         Ok(State {
             timers: Timers::new(myself),
             timeouts: Timeouts::new(self.timeout_config),
-            consensus: consensus_state,
+            consensus: ConsensusState::new(self.ctx.clone(), self.params.clone()),
             connected_peers: BTreeSet::new(),
         })
     }
