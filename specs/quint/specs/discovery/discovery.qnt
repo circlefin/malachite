@@ -1,5 +1,8 @@
+// -*- mode: Bluespec; -*-
+
 module discovery {
     const PEERS: int
+    const BOOTSTRAP_NODES: PeerId -> Set[PeerId]
 
     type PeerId = int
     type State = {
@@ -19,7 +22,7 @@ module discovery {
     action init = {
         peerStates' = peers.mapBy(id => {
             localPeers: Set(),
-            bootstrapNodes: Set((id + 1) % PEERS),
+            bootstrapNodes: BOOTSTRAP_NODES.get(id),
             toContact: Set((id + 1) % PEERS),
             contacted: Set(),
             pendingRequests: Set(),
@@ -38,10 +41,12 @@ module discovery {
         }
     }
 
+    def filterPeers(p: State => bool): Set[PeerId] = {
+        peers.filter(id => p(peerStates.get(id)))
+    }
+
     action contact = {
-        val validPeers = peerStates.keys().filter(p => {
-            peerStates.get(p).toContact != Set()
-        })
+        val validPeers = filterPeers(p => p.toContact != Set())
 
         all {
             validPeers != Set(),
@@ -51,7 +56,10 @@ module discovery {
 
             val newState = state.toContact.fold(peerStates, (s, p) => {
                 val ps = s.get(p)
-                s.set(p, {...ps, incomingRequests: ps.incomingRequests.union(Set(peerId))})
+                s.set(p, {
+                    ...ps,
+                    incomingRequests: ps.incomingRequests.union(Set(peerId))
+                })
             })
 
             peerStates' = newState.set(peerId, {
@@ -64,9 +72,7 @@ module discovery {
     }
 
     action processRequests = {
-        val validPeers = peerStates.keys().filter(p => {
-            peerStates.get(p).incomingRequests != Set()
-        })
+        val validPeers = filterPeers(p => p.incomingRequests != Set())
 
         all {
             validPeers != Set(),
@@ -91,9 +97,7 @@ module discovery {
     }
 
     action processResponses = {
-        val validPeers = peerStates.keys().filter(p => {
-            peerStates.get(p).incomingResponses != Map()
-        })
+        val validPeers = filterPeers(p => p.incomingResponses != Map())
 
         all {
             validPeers != Set(),
@@ -103,10 +107,13 @@ module discovery {
 
             val newState = state.incomingResponses.keys().fold(peerStates, (s, p) => {
                 val localState = s.get(peerId)
+                val newPeersToContact = state.incomingResponses.get(p)
+                    .exclude(state.contacted)
+                    .exclude(Set(peerId))
                 s.set(peerId, {
                     ...localState,
                     localPeers: localState.localPeers.union(Set(p)),
-                    toContact: localState.toContact.union(state.incomingResponses.get(p).exclude(state.contacted).exclude(Set(peerId))),
+                    toContact: localState.toContact.union(newPeersToContact),
                     pendingRequests: localState.pendingRequests.exclude(Set(p)),
                 })
             })
@@ -119,14 +126,14 @@ module discovery {
     }
 
     action noPendingRequest = {
-        val validPeers = peerStates.keys().filter(p => {
-            val peerState = peerStates.get(p)
-
-            peerState.localPeers != Set()
-                and peerState.toContact == Set()
-                and peerState.pendingRequests == Set()
-                and peerState.incomingResponses == Map()
-                and peerState.done == false
+        val validPeers = filterPeers(p => {
+            all {
+                p.localPeers != Set(),
+                p.toContact == Set(),
+                p.pendingRequests == Set(),
+                p.incomingResponses == Map(),
+                p.done == false
+            }
         })
 
         all {
@@ -143,8 +150,8 @@ module discovery {
     val inv = if (isDone) peers.forall(p => peerStates.get(p).localPeers == peers.exclude(Set(p))) else true
 }
 
-module disc5 {
-    import discovery(PEERS=5).*
+module disc5_not_strongly_connected {
+    import discovery(PEERS=5, BOOTSTRAP_NODES=Map(0 -> Set(1), 1 -> Set(0), 2 -> Set(1, 3), 3 -> Set(4), 4 -> Set(3))).*
 
     run run1 = init.then(100.reps(_ => step))
 }
