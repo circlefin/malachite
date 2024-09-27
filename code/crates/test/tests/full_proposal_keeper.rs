@@ -93,7 +93,7 @@ struct Test {
 }
 
 #[test]
-fn reproposing() {
+fn full_proposal_keeper_tests() {
     let [(v1, sk1), (v2, sk2)] = make_validators([1, 1]);
     let a1 = v1.address;
     let c1 = TestContext::new(sk1);
