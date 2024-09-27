@@ -92,14 +92,22 @@ where
         commits_for_height_and_round
     }
 
-    pub fn get_full_proposal(
+    pub fn full_proposal_at_round_and_value(
         &self,
         height: &Ctx::Height,
         round: Round,
         value: &Ctx::Value,
     ) -> Option<&FullProposal<Ctx>> {
         self.full_proposal_keeper
-            .get_full_proposal(height, round, value)
+            .full_proposal_at_round_and_value(height, round, value)
+    }
+
+    pub fn full_proposals_for_value(
+        &self,
+        proposed_value: &ProposedValue<Ctx>,
+    ) -> Vec<SignedProposal<Ctx>> {
+        self.full_proposal_keeper
+            .full_proposals_for_value(proposed_value)
     }
 
     pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>) {
@@ -107,11 +115,12 @@ where
     }
 
     pub fn store_value(&mut self, new_value: ProposedValue<Ctx>) {
+        // Values for higher height should have been cached for future processing
+        assert_eq!(new_value.height, self.driver.height());
         self.full_proposal_keeper.store_value(new_value)
     }
 
-    pub fn remove_full_proposals(&mut self, height: Ctx::Height, round: Round) {
-        self.full_proposal_keeper
-            .remove_full_proposals(height, round)
+    pub fn remove_full_proposals(&mut self, height: Ctx::Height) {
+        self.full_proposal_keeper.remove_full_proposals(height)
     }
 }

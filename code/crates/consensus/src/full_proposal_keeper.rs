@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
+use std::ops::Bound::Included;
 
 use derive_where::derive_where;
-use tracing::{debug, warn};
+use tracing::debug;
 
-use malachite_common::{Context, Proposal, Round, SignedProposal, Validity, Value};
+use malachite_common::{Context, Height, Proposal, Round, SignedProposal, Validity, Value};
 
 use crate::ProposedValue;
 
@@ -100,7 +101,35 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         }
     }
 
-    pub fn get_full_proposal(
+    pub fn full_proposals_for_value(
+        &self,
+        proposed_value: &ProposedValue<Ctx>,
+    ) -> Vec<SignedProposal<Ctx>> {
+        let mut results = vec![];
+
+        let first_key = &(proposed_value.height, proposed_value.round);
+        let last_key = match self.keeper.last_key_value() {
+            Some((key, ..)) => key,
+            None => return results,
+        };
+
+        let entries = self.keeper.range((Included(first_key), Included(last_key)));
+
+        for ((_, _), proposals) in entries {
+            for entry in proposals {
+                match entry {
+                    Entry::Full(p) if p.proposal.value().id() == proposed_value.value.id() => {
+                        results.push(p.proposal.clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        results
+    }
+
+    pub fn full_proposal_at_round_and_value(
         &self,
         height: &Ctx::Height,
         round: Round,
@@ -231,6 +260,11 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
     }
 
     pub fn store_value(&mut self, new_value: ProposedValue<Ctx>) {
+        self.store_value_at_value_round_maybe_full_proposal(new_value.clone());
+        self.maybe_store_value_at_some_pol_rounds(new_value);
+    }
+
+    fn store_value_at_value_round_maybe_full_proposal(&mut self, new_value: ProposedValue<Ctx>) {
         let key = (new_value.height, new_value.round);
         let entries = self.keeper.get_mut(&key);
 
@@ -282,19 +316,44 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         }
     }
 
-    pub fn remove_full_proposals(&mut self, height: Ctx::Height, round: Round) {
-        // TODO - keep some heights back?
-        debug!(%height, %round, "Removing full proposals");
+    pub fn maybe_store_value_at_some_pol_rounds(&mut self, new_value: ProposedValue<Ctx>) {
+        let first_key = (new_value.height, new_value.round);
+        let last_key = match self.keeper.last_key_value() {
+            Some((key, ..)) => *key,
+            None => return,
+        };
 
-        let result = self.keeper.remove_entry(&(height, round));
-        match result {
-            None => {
-                warn!(%height, %round, "Full proposals absent");
-            }
-            Some((_key, removed)) => {
-                debug!(%height, %round, "Removed {} full proposals", removed.len());
+        // Get all entries for rounds higher than the value round, in case
+        // there are proposals with pol_round equal to value round.
+        let entries = self
+            .keeper
+            .range_mut((Included(&first_key), Included(&last_key)));
+
+        for (_, proposals) in entries {
+            // We may have seen proposals and/ or values for this height and round.
+            // Iterate over the vector of full proposals and determine if a new entry needs
+            // to be appended or an existing one has to be modified.
+            for entry in proposals {
+                if let Entry::ProposalOnly(proposal) = entry {
+                    if proposal.value().id() == new_value.value.id()
+                        && (proposal.round() == new_value.round
+                            || proposal.pol_round() == new_value.round)
+                    {
+                        // Found a matching proposal. Change the entry at index i
+                        replace_with!(entry, Entry::ProposalOnly(proposal) => {
+                            Entry::full(new_value.value.clone(), new_value.validity, proposal)
+                        });
+                    }
+                }
             }
         }
+    }
+
+    pub fn remove_full_proposals(&mut self, last_height: Ctx::Height) {
+        // Keep last two decided heights
+        debug!(%last_height, "Removing proposals, keep the last two");
+        self.keeper
+            .retain(|(height, _), _| height.increment() >= last_height);
     }
 }
 

@@ -396,7 +396,7 @@ where
     let commits = state.restore_precommits(height, proposal_round, value);
 
     // Clean proposals and values
-    state.remove_full_proposals(height, proposal_round);
+    state.remove_full_proposals(height);
 
     perform!(
         co,
@@ -587,9 +587,11 @@ where
 
     state.store_proposal(signed_proposal.clone());
 
-    if let Some(full_proposal) =
-        state.get_full_proposal(&proposal_height, proposal_round, signed_proposal.value())
-    {
+    if let Some(full_proposal) = state.full_proposal_at_round_and_value(
+        &proposal_height,
+        proposal_round,
+        signed_proposal.value(),
+    ) {
         apply_driver_input(
             co,
             state,
@@ -664,19 +666,23 @@ async fn on_received_proposed_value<Ctx>(
 where
     Ctx: Context,
 {
+    if state.driver.height() > proposed_value.height {
+        debug!("Received value for lower height, dropping");
+        return Ok(());
+    }
+
+    if state.driver.height() < proposed_value.height {
+        debug!("Received value for higher height, queuing for later");
+        state
+            .msg_queue
+            .push_back(Msg::ReceivedProposedValue(proposed_value));
+        return Ok(());
+    }
+
     state.store_value(proposed_value.clone());
 
-    let ProposedValue {
-        height,
-        round,
-        value,
-        validity,
-        ..
-    } = proposed_value;
-
-    if let Some(full_proposal) = state.get_full_proposal(&height, round, &value) {
-        let signed_proposal = &full_proposal.proposal;
-
+    let proposals = state.full_proposals_for_value(&proposed_value);
+    for signed_proposal in proposals {
         debug!(
             proposal.height = %signed_proposal.height(),
             proposal.round = %signed_proposal.round(),
@@ -687,14 +693,9 @@ where
             co,
             state,
             metrics,
-            DriverInput::Proposal(signed_proposal.message.clone(), validity),
+            DriverInput::Proposal(signed_proposal.message.clone(), proposed_value.validity),
         )
         .await?;
-    } else {
-        debug!(
-            value.height = %height,
-            value.round = %round,
-            "No full proposal for this round yet, stored value for later");
     }
 
     Ok(())
