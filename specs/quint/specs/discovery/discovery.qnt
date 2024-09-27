@@ -37,7 +37,6 @@ module discovery {
             contact,
             processRequests,
             processResponses,
-            noPendingRequest
         }
     }
 
@@ -66,7 +65,7 @@ module discovery {
                 ...state,
                 toContact: Set(),
                 contacted: state.contacted.union(state.toContact),
-                pendingRequests: state.toContact,
+                pendingRequests: state.pendingRequests.union(state.toContact),
             })
         }
     }
@@ -118,36 +117,32 @@ module discovery {
                 })
             })
 
+            val newPeerState = newState.get(peerId)
+
+            val done = all {
+                newPeerState.localPeers != Set(),
+                newPeerState.toContact == Set(),
+                newPeerState.pendingRequests == Set(),
+            }
+
             peerStates' = newState.set(peerId, {
                 ...newState.get(peerId),
                 incomingResponses: Map(),
+                done: done,
             })
         }
     }
 
-    action noPendingRequest = {
-        val validPeers = filterPeers(p => {
-            all {
-                p.localPeers != Set(),
-                p.toContact == Set(),
-                p.pendingRequests == Set(),
-                p.incomingResponses == Map(),
-                p.done == false
-            }
-        })
-
-        all {
-            validPeers != Set(),
-
-            nondet peerId = validPeers.oneOf()
-            val state = peerStates.get(peerId)
-            
-            peerStates' = peerStates.set(peerId, {...state, done: true})
-        }
-    }
-
     val isDone = peers.forall(p => peerStates.get(p).done)
-    val inv = if (isDone) peers.forall(p => peerStates.get(p).localPeers == peers.exclude(Set(p))) else true
+    val inv = if (isDone) {
+        peers.forall(p => peerStates.get(p).localPeers == peers.exclude(Set(p)))
+    } else {
+        val pendingRequests = peers.fold(0, (acc, p) => acc + peerStates.get(p).pendingRequests.size())
+        val incomingRequests = peers.fold(0, (acc, p) => acc + peerStates.get(p).incomingRequests.size())
+        val incomingResponses = peers.fold(0, (acc, p) => acc + peerStates.get(p).incomingResponses.keys().size())
+
+        pendingRequests == incomingRequests + incomingResponses
+    }
 }
 
 module disc5_not_strongly_connected {
