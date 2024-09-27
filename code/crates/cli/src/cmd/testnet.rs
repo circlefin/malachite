@@ -6,6 +6,7 @@ use std::str::FromStr;
 use bytesize::ByteSize;
 use clap::Parser;
 use color_eyre::eyre::Result;
+use itertools::Itertools;
 use rand::prelude::StdRng;
 use rand::rngs::OsRng;
 use rand::{seq::IteratorRandom, Rng, SeedableRng};
@@ -188,6 +189,7 @@ const MEMPOOL_BASE_PORT: usize = 28000;
 const METRICS_BASE_PORT: usize = 29000;
 
 /// Generate configuration for node "index" out of "total" number of nodes.
+#[allow(clippy::too_many_arguments)]
 pub fn generate_config(
     app: App,
     index: usize,
@@ -212,13 +214,17 @@ pub fn generate_config(
                 protocol: PubSubProtocol::GossipSub,
                 listen_addr: transport.multiaddr("127.0.0.1", consensus_port),
                 persistent_peers: if enable_discovery {
-                    vec![transport.multiaddr(
-                        "127.0.0.1",
-                        CONSENSUS_BASE_PORT + {
-                            let mut rng = rand::thread_rng();
-                            (0..total).filter(|j| *j != index).choose(&mut rng).unwrap()
-                        },
-                    )]
+                    let mut rng = rand::thread_rng();
+                    let count = rng.gen_range(1..=(total / 2));
+                    let peers = (0..total)
+                        .filter(|j| *j != index)
+                        .choose_multiple(&mut rng, count);
+
+                    peers
+                        .iter()
+                        .unique()
+                        .map(|index| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + index))
+                        .collect()
                 } else {
                     (0..total)
                         .filter(|j| *j != index)
