@@ -536,7 +536,7 @@ where
         return Ok(());
     };
 
-    let expected_proposer = state.get_proposer(proposal_height, proposal_round).unwrap();
+    let expected_proposer = state.get_proposer(proposal_height, proposal_round)?;
 
     if expected_proposer != proposer_address {
         warn!(%proposer_address, % proposer_address, "Received proposal from a non-proposer");
