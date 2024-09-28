@@ -13,3 +13,7 @@ rust-version.workspace = true
 malachite-common = { version = "0.1.0", path = "../common" }
 
 derive-where.workspace = true
+
+[features]
+std = []
+debug = ["std"]

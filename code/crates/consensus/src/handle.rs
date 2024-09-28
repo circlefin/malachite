@@ -378,9 +378,10 @@ where
     let commits = state.restore_precommits(height, round, &value);
 
     debug!(
-        "Consensus traces {:?}",
-        state.driver.round_state.algorithm_traces
+        "Consensus traces: {:?}",
+        state.driver.round_state.get_traces()
     );
+
     perform!(
         co,
         Effect::DecidedOnValue {

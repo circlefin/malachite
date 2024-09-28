@@ -1,8 +1,5 @@
 //! The consensus state machine.
 
-use alloc::string::ToString;
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use malachite_common::{Context, NilOrVal, Proposal, Round, TimeoutStep, Value};
 
 use crate::input::Input;
@@ -12,17 +9,24 @@ use crate::transition::Transition;
 
 // debug_trace!(state, "Hello at round {test} with {:?}", state.round);
 macro_rules! debug_trace {
-
-    ($state:expr, $($arg:tt)*) => {
-        $state.algorithm_traces.push(format!("{}", $($arg)*));
+    ($state:expr, $arg:expr) => {
+        debug_trace!($state, "{}", $arg);
     };
 
-    ($state:expr, $msg:expr) => {
-        $state.algorithm_traces.push(format!($msg));
-    };
+    ($state:expr, $msg:expr, $($arg:expr)+) => {
+        #[cfg(feature = "debug")]
+        {
+            #[allow(unused_imports)]
+            use alloc::string::ToString;
+            #[allow(unused_imports)]
+            use std::time::{SystemTime, UNIX_EPOCH};
 
-    ($state:expr, $msg:expr, $($arg:tt)*) => {
-        $state.algorithm_traces.push(format!($msg, $($arg)*));
+            $state.traces.push(format!($msg, $($arg)+));
+        }
+        #[cfg(not(feature = "debug"))]
+        {
+            let _ = &mut $state;
+        }
     };
 }
 
@@ -107,7 +111,7 @@ where
                     .duration_since(UNIX_EPOCH)
                     .expect("failed to get time")
                     .as_millis()
-                    .to_string(),
+                    .to_string()
             );
             debug_trace!(state, "L11 - proposer");
 
@@ -128,7 +132,7 @@ where
                     .duration_since(UNIX_EPOCH)
                     .expect("failed to get time")
                     .as_millis()
-                    .to_string(),
+                    .to_string()
             );
             debug_trace!(state, "L11 - non-proposer: schedule proposeTimeout");
 
@@ -432,7 +436,7 @@ where
         Some(_) => {
             debug_trace!(
                 state,
-                "L32 - prevote nil: valid(v) and lockedRound > vr and lockedValue != v".to_string(),
+                "L32 - prevote nil: valid(v) and lockedRound > vr and lockedValue != v".to_string()
             );
             NilOrVal::Nil
         } // we're locked on a different value in a higher round, prevote nil

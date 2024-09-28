@@ -1,4 +1,6 @@
 //! The state maintained by the round state machine
+
+use alloc::borrow::Cow;
 use alloc::string::String;
 use alloc::vec::Vec;
 
@@ -71,8 +73,9 @@ where
     pub decision: Option<Ctx::Value>,
 
     /// Buffer with traces of tendermint algorithm lines,
+    #[cfg(feature = "debug")]
     #[derive_where(skip)]
-    pub algorithm_traces: Vec<String>,
+    pub traces: Vec<String>,
 }
 
 impl<Ctx> State<Ctx>
@@ -88,7 +91,8 @@ where
             locked: None,
             valid: None,
             decision: None,
-            algorithm_traces: Vec::default(),
+            #[cfg(feature = "debug")]
+            traces: Vec::default(),
         }
     }
 
@@ -129,6 +133,18 @@ where
     /// Apply the given input to the current state, triggering a transition.
     pub fn apply(self, data: &Info<Ctx>, input: Input<Ctx>) -> Transition<Ctx> {
         crate::state_machine::apply(self, data, input)
+    }
+
+    /// Return the traces logged during execution.
+    pub fn get_traces(&self) -> Cow<[String]> {
+        #[cfg(feature = "debug")]
+        {
+            Cow::Borrowed(&self.traces)
+        }
+        #[cfg(not(feature = "debug"))]
+        {
+            Cow::Owned(Vec::default())
+        }
     }
 }
 
