@@ -117,7 +117,7 @@ async fn replay_pending_msgs<Ctx>(
 where
     Ctx: Context,
 {
-    let pending_msgs = std::mem::take(&mut state.msg_queue);
+    let pending_msgs = std::mem::take(&mut state.input_queue);
     debug!("Replaying {} messages", pending_msgs.len());
 
     for pending_msg in pending_msgs {
@@ -483,7 +483,7 @@ where
             "Received vote at round -1, queuing for later"
         );
 
-        state.msg_queue.push_back(Input::Vote(signed_vote));
+        state.input_queue.push_back(Input::Vote(signed_vote));
         return Ok(());
     }
 
@@ -495,7 +495,7 @@ where
             "Received vote for higher height, queuing for later"
         );
 
-        state.msg_queue.push_back(Input::Vote(signed_vote));
+        state.input_queue.push_back(Input::Vote(signed_vote));
         return Ok(());
     }
 
@@ -558,13 +558,17 @@ where
     // Drop all others.
     if state.driver.round() == Round::Nil {
         debug!("Received proposal at round -1, queuing for later");
-        state.msg_queue.push_back(Input::Proposal(signed_proposal));
+        state
+            .input_queue
+            .push_back(Input::Proposal(signed_proposal));
         return Ok(());
     }
 
     if state.driver.height() < proposal_height {
         debug!("Received proposal for higher height, queuing for later");
-        state.msg_queue.push_back(Input::Proposal(signed_proposal));
+        state
+            .input_queue
+            .push_back(Input::Proposal(signed_proposal));
         return Ok(());
     }
 
@@ -665,7 +669,7 @@ where
     if state.driver.height() < proposed_value.height {
         debug!("Received value for higher height, queuing for later");
         state
-            .msg_queue
+            .input_queue
             .push_back(Input::ReceivedProposedValue(proposed_value));
         return Ok(());
     }

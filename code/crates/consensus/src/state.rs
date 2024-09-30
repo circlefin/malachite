@@ -20,9 +20,9 @@ where
     /// Driver for the per-round consensus state machine
     pub driver: Driver<Ctx>,
 
-    /// A queue of gossip events that were received before the
+    /// A queue of inputs that were received before the
     /// driver started the new height and was still at round Nil.
-    pub msg_queue: VecDeque<Input<Ctx>>,
+    pub input_queue: VecDeque<Input<Ctx>>,
 
     /// The proposals to decide on.
     pub full_proposal_keeper: FullProposalKeeper<Ctx>,
@@ -50,7 +50,7 @@ where
         Self {
             ctx,
             driver,
-            msg_queue: Default::default(),
+            input_queue: Default::default(),
             full_proposal_keeper: Default::default(),
             signed_precommits: Default::default(),
             decision: Default::default(),
