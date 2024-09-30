@@ -39,7 +39,9 @@ where
     Ctx: Context,
 {
     match msg {
-        Msg::StartHeight(height) => reset_and_start_height(co, state, metrics, height).await,
+        Msg::StartHeight(height, vs) => {
+            reset_and_start_height(co, state, metrics, height, vs).await
+        }
         Msg::Vote(vote) => on_vote(co, state, metrics, vote).await,
         Msg::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
         Msg::ProposeValue(height, round, value) => {
@@ -57,6 +59,7 @@ async fn reset_and_start_height<Ctx>(
     state: &mut State<Ctx>,
     metrics: &Metrics,
     height: Ctx::Height,
+    validator_set: Ctx::ValidatorSet,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -65,19 +68,6 @@ where
     perform!(co, Effect::ResetTimeouts);
 
     metrics.step_end(state.driver.step());
-
-    let validator_set = perform!(co, Effect::GetValidatorSet(height),
-        Resume::ValidatorSet(vs_height, validator_set) => {
-            if vs_height == height {
-                Ok(validator_set)
-            } else {
-                Err(Error::UnexpectedResume(
-                    Resume::ValidatorSet(vs_height, validator_set),
-                    "ValidatorSet for the current height"
-                ))
-            }
-        }
-    )?;
 
     state.driver.move_to_height(height, validator_set);
 
@@ -297,7 +287,7 @@ where
 
             perform!(co, Effect::Broadcast(GossipMsg::Vote(signed_vote.clone()),));
 
-            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.message)).await
+            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await
         }
 
         DriverOutput::Decide(consensus_round, proposal) => {
@@ -512,7 +502,7 @@ where
         state.store_signed_precommit(signed_vote.clone());
     }
 
-    apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.message)).await?;
+    apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
 
     Ok(())
 }
@@ -596,18 +586,17 @@ where
             co,
             state,
             metrics,
-            DriverInput::Proposal(
-                full_proposal.proposal.message.clone(),
-                full_proposal.validity,
-            ),
+            DriverInput::Proposal(full_proposal.proposal.clone(), full_proposal.validity),
         )
         .await?;
     } else {
         debug!(
             proposal.height = %proposal_height,
             proposal.round = %proposal_round,
-            "No full proposal for this round yet, stored proposal for later");
+            "No full proposal for this round yet, stored proposal for later"
+        );
     }
+
     Ok(())
 }
 
@@ -693,7 +682,7 @@ where
             co,
             state,
             metrics,
-            DriverInput::Proposal(signed_proposal.message.clone(), proposed_value.validity),
+            DriverInput::Proposal(signed_proposal, proposed_value.validity),
         )
         .await?;
     }

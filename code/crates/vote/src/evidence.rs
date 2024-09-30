@@ -1,12 +1,11 @@
 //! Evidence of equivocation.
 
 use alloc::collections::btree_map::BTreeMap;
-use alloc::vec;
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 use derive_where::derive_where;
 
-use malachite_common::{Context, Vote};
+use malachite_common::{Context, SignedVote, Vote};
 
 /// Keeps track of evidence of equivocation.
 #[derive_where(Clone, Debug, Default)]
@@ -15,7 +14,7 @@ where
     Ctx: Context,
 {
     #[allow(clippy::type_complexity)]
-    map: BTreeMap<Ctx::Address, Vec<(Ctx::Vote, Ctx::Vote)>>,
+    map: BTreeMap<Ctx::Address, Vec<(SignedVote<Ctx>, SignedVote<Ctx>)>>,
 }
 
 impl<Ctx> EvidenceMap<Ctx>
@@ -33,12 +32,12 @@ where
     }
 
     /// Return the evidence of equivocation for a given address, if any.
-    pub fn get(&self, address: &Ctx::Address) -> Option<&Vec<(Ctx::Vote, Ctx::Vote)>> {
+    pub fn get(&self, address: &Ctx::Address) -> Option<&Vec<(SignedVote<Ctx>, SignedVote<Ctx>)>> {
         self.map.get(address)
     }
 
     /// Add evidence of equivocation.
-    pub fn add(&mut self, existing: Ctx::Vote, vote: Ctx::Vote) {
+    pub fn add(&mut self, existing: SignedVote<Ctx>, vote: SignedVote<Ctx>) {
         debug_assert_eq!(existing.validator_address(), vote.validator_address());
 
         if let Some(evidence) = self.map.get_mut(vote.validator_address()) {

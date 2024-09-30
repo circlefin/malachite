@@ -3,7 +3,8 @@ use alloc::vec::Vec;
 use core::fmt;
 
 use malachite_common::{
-    Context, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Validity, Vote,
+    Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep, Validator,
+    ValidatorSet, Validity, Vote,
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
@@ -234,7 +235,7 @@ where
 
     fn apply_proposal(
         &mut self,
-        proposal: Ctx::Proposal,
+        proposal: SignedProposal<Ctx>,
         validity: Validity,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         if self.height() != proposal.height() {
@@ -252,7 +253,10 @@ where
         }
     }
 
-    fn apply_vote(&mut self, vote: Ctx::Vote) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+    fn apply_vote(
+        &mut self,
+        vote: SignedVote<Ctx>,
+    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         if self.height() != vote.height() {
             return Err(Error::InvalidVoteHeight {
                 vote_height: vote.height(),

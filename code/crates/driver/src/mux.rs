@@ -22,6 +22,7 @@
 //! | prevote         | PolkaAny              | \*              | PolkaAny                        | prevote         | L34            | prevote timer                      |
 //! | precommit       | PolkaValue(v)         | Proposal(v)     | ProposalAndPolkaCurrent         | precommit       | L36, L42       | (set valid)                        |
 
+use malachite_common::SignedProposal;
 use malachite_common::{Context, Proposal, Round, Validity, Value, ValueId, VoteType};
 use malachite_round::input::Input as RoundInput;
 use malachite_round::state::Step;
@@ -75,7 +76,7 @@ where
     ///    `RoundInput::Proposal` and return it.
     pub fn multiplex_proposal(
         &mut self,
-        proposal: Ctx::Proposal,
+        proposal: SignedProposal<Ctx>,
         validity: Validity,
     ) -> Option<RoundInput<Ctx>> {
         // Should only receive proposals for our height.
@@ -84,6 +85,8 @@ where
         // Store the proposal and its validity
         self.proposal_keeper
             .apply_proposal(proposal.clone(), validity);
+
+        let proposal = proposal.message;
 
         // Check that there is an ongoing round
         if self.round_state.round == Round::Nil {
@@ -166,6 +169,8 @@ where
             .proposal_keeper
             .get_proposal_and_validity_for_round(threshold_round)
         {
+            let proposal = &proposal.message;
+
             match new_threshold {
                 VKOutput::PolkaAny => RoundInput::PolkaAny,
                 VKOutput::PolkaNil => RoundInput::PolkaNil,
@@ -225,7 +230,9 @@ where
                 } else if let Some(proposal) = has_polka_value(
                     &self.vote_keeper,
                     round,
-                    self.proposal_keeper.get_proposal_for_round(round),
+                    self.proposal_keeper
+                        .get_proposal_for_round(round)
+                        .map(|p| &p.message),
                 ) {
                     Some(RoundInput::ProposalAndPolkaCurrent(proposal.clone()))
                 } else if has_polka_any(&self.vote_keeper, round) {
