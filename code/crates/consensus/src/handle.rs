@@ -13,7 +13,7 @@ use crate::gen::Co;
 use crate::msg::Msg;
 use crate::perform;
 use crate::state::State;
-use crate::types::{GossipMsg, ProposedValue};
+use crate::types::{ProposedValue, SignedConsensusMsg};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
 use crate::ConsensusMsg;
 
@@ -264,7 +264,7 @@ where
 
             perform!(
                 co,
-                Effect::Broadcast(GossipMsg::Proposal(signed_proposal.clone()))
+                Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal.clone()))
             );
 
             apply_driver_input(
@@ -286,7 +286,10 @@ where
 
             let signed_vote = state.ctx.sign_vote(vote);
 
-            perform!(co, Effect::Broadcast(GossipMsg::Vote(signed_vote.clone()),));
+            perform!(
+                co,
+                Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote.clone()))
+            );
 
             apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await
         }

@@ -4,7 +4,7 @@ use derive_where::derive_where;
 
 use malachite_common::*;
 
-use crate::types::GossipMsg;
+use crate::types::SignedConsensusMsg;
 use crate::ConsensusMsg;
 
 /// An effect which may be yielded by a consensus process.
@@ -43,7 +43,7 @@ where
 
     /// Broadcast a message
     /// Resume with: Resume::Continue
-    Broadcast(GossipMsg<Ctx>),
+    Broadcast(SignedConsensusMsg<Ctx>),
 
     /// Get a value to propose at the given height and round, within the given timeout
     /// Resume with: Resume::Continue
