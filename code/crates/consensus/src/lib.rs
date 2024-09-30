@@ -16,6 +16,7 @@ pub use effect::{Effect, Resume};
 mod types;
 pub use types::*;
 
+mod full_proposal;
 mod handle;
 mod macros;
 mod util;
@@ -27,3 +28,6 @@ pub mod gen;
 // Only used in macros
 #[doc(hidden)]
 pub use handle::handle;
+
+#[doc(hidden)]
+pub use full_proposal::{FullProposal, FullProposalKeeper};
