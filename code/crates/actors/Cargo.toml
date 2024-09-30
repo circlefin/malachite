@@ -12,13 +12,11 @@ workspace = true
 [dependencies]
 malachite-common.workspace           = true
 malachite-consensus.workspace        = true
-malachite-driver.workspace           = true
 malachite-gossip-consensus.workspace = true
 malachite-gossip-mempool.workspace   = true
 malachite-metrics.workspace          = true
 malachite-node.workspace             = true
 malachite-proto.workspace            = true
-malachite-vote.workspace             = true
 
 async-trait        = { workspace = true }
 derive-where       = { workspace = true }

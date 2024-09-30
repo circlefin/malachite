@@ -11,6 +11,9 @@ mod handle;
 #[doc(hidden)]
 pub use handle::handle;
 
+mod params;
+pub use params::{Params, ThresholdParams};
+
 mod effect;
 pub use effect::Effect;
 
