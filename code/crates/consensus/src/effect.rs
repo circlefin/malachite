@@ -9,12 +9,11 @@ use crate::ConsensusMsg;
 
 /// An effect which may be yielded by a consensus process.
 ///
-/// Effects are handled by the caller using [`process_sync`][sync] or [`process_async`][async],
+/// Effects are handled by the caller using [`process`][process],
 /// and the consensus process is then resumed with an appropriate [`Resume`] value, as per
 /// the documentation for each effect.
 ///
-/// [sync]: crate::process::process_sync
-/// [async]: crate::process::process_async
+/// [process]: crate::process
 #[must_use]
 #[derive_where(Debug)]
 pub enum Effect<Ctx>
