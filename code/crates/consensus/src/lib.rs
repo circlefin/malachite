@@ -11,7 +11,7 @@ mod params;
 pub use params::{Params, ThresholdParams};
 
 mod effect;
-pub use effect::{Effect, Resume};
+pub use effect::Effect;
 
 mod types;
 pub use types::*;
@@ -29,5 +29,6 @@ pub mod gen;
 #[doc(hidden)]
 pub use handle::handle;
 
+// Only used internally, but needs to be exposed for tests
 #[doc(hidden)]
 pub use full_proposal::{FullProposal, FullProposalKeeper};

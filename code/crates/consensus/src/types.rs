@@ -21,13 +21,6 @@ impl<Ctx: Context> SignedConsensusMsg<Ctx> {
     }
 }
 
-/// A non-signed consensus message, ie. a vote or a proposal that is not signed (yet).
-#[derive_where(Clone, Debug, PartialEq, Eq)]
-pub enum ConsensusMsg<Ctx: Context> {
-    Vote(Ctx::Vote),
-    Proposal(Ctx::Proposal),
-}
-
 /// A value proposed by a validator
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct ProposedValue<Ctx: Context> {

@@ -231,6 +231,17 @@ impl Metrics {
 
         *guard = (Step::Unstarted, Instant::now());
     }
+
+    pub fn time_signature_verification<A>(&self, f: impl FnOnce() -> A) -> A {
+        self.time(&self.signature_verification_time, f)
+    }
+
+    pub fn time<A>(&self, metric: &Histogram, f: impl FnOnce() -> A) -> A {
+        let start = Instant::now();
+        let result = f();
+        metric.observe(start.elapsed().as_secs_f64());
+        result
+    }
 }
 
 impl Default for Metrics {

@@ -38,14 +38,9 @@ impl Context for MockContext {
         SignedVote::new(vote, signature)
     }
 
-    fn verify_signed_vote(
-        &self,
-        vote: &Vote,
-        signature: &Signature,
-        public_key: &PublicKey,
-    ) -> bool {
-        let hash = starknet_keccak(&vote.to_sign_bytes());
-        public_key.verify(&hash, signature)
+    fn verify_signed_vote(signed_vote: &SignedVote<Self>, public_key: &PublicKey) -> bool {
+        let hash = starknet_keccak(&signed_vote.message.to_sign_bytes());
+        public_key.verify(&hash, &signed_vote.signature)
     }
 
     fn sign_proposal(&self, proposal: Self::Proposal) -> SignedProposal<Self> {
@@ -55,13 +50,11 @@ impl Context for MockContext {
     }
 
     fn verify_signed_proposal(
-        &self,
-        proposal: &Proposal,
-        signature: &Signature,
+        signed_proposal: &SignedProposal<Self>,
         public_key: &PublicKey,
     ) -> bool {
-        let hash = starknet_keccak(&proposal.to_sign_bytes());
-        public_key.verify(&hash, signature)
+        let hash = starknet_keccak(&signed_proposal.message.to_sign_bytes());
+        public_key.verify(&hash, &signed_proposal.signature)
     }
 
     fn sign_proposal_part(&self, proposal_part: Self::ProposalPart) -> SignedProposalPart<Self> {
@@ -71,7 +64,6 @@ impl Context for MockContext {
     }
 
     fn verify_signed_proposal_part(
-        &self,
         proposal_part: &ProposalPart,
         signature: &Signature,
         public_key: &PublicKey,
