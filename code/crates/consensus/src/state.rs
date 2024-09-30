@@ -4,10 +4,10 @@ use malachite_common::*;
 use malachite_driver::Driver;
 
 use crate::error::Error;
-use crate::msg::Msg;
+use crate::input::Input;
 use crate::Params;
 
-/// The state maintained by consensus for processing a [`Msg`][crate::msg::Msg].
+/// The state maintained by consensus for processing a [`Input`][crate::Input].
 pub struct State<Ctx>
 where
     Ctx: Context,
@@ -20,7 +20,7 @@ where
 
     /// A queue of gossip events that were received before the
     /// driver started the new height and was still at round Nil.
-    pub msg_queue: VecDeque<Msg<Ctx>>,
+    pub msg_queue: VecDeque<Input<Ctx>>,
 
     /// The value and validity of received blocks.
     pub received_blocks: Vec<(Ctx::Height, Round, Ctx::Value, Validity)>,

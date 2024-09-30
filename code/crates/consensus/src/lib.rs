@@ -1,5 +1,5 @@
-mod msg;
-pub use msg::Msg;
+mod input;
+pub use input::Input;
 
 mod state;
 pub use state::State;

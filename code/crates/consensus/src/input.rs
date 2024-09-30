@@ -3,9 +3,9 @@ use malachite_common::{Context, Round, SignedProposal, SignedVote, Timeout};
 
 use crate::types::ProposedValue;
 
-/// Messages that can be handled by the consensus process
+/// Inputs to be handled by the consensus process.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub enum Msg<Ctx>
+pub enum Input<Ctx>
 where
     Ctx: Context,
 {

@@ -3,20 +3,21 @@
 /// # Example
 ///
 /// ```rust,ignore
-///
 /// malachite_consensus::process!(
-///     // Message to process
-///     msg: msg,
-///     // Consensus state and metrics
-///     state: &mut state, metrics: &metrics,
+///     // Input to process
+///     input: input,
+///     // Consensus state
+///     state: &mut state,
+///     // Metrics
+///     metrics: &metrics,
 ///    // Effect handler
-///     on: effect => handle_effect(myself, &mut timers, &mut timeouts, effect).await
+///     on: effect => handle_effect(effect).await
 /// )
 /// ```
 #[macro_export]
 macro_rules! process {
-    (msg: $msg:expr, state: $state:expr, metrics: $metrics:expr, with: $effect:ident => $handle:expr) => {{
-        let mut gen = $crate::gen::Gen::new(|co| $crate::handle(co, $state, $metrics, $msg));
+    (msg: $input:expr, state: $state:expr, metrics: $metrics:expr, with: $effect:ident => $handle:expr) => {{
+        let mut gen = $crate::gen::Gen::new(|co| $crate::handle(co, $state, $metrics, $input));
 
         let mut co_result = gen.resume_with(Resume::Start(::std::marker::PhantomData));
 

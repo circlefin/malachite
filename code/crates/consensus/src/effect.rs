@@ -70,7 +70,7 @@ pub enum Resume<Ctx>
 where
     Ctx: Context,
 {
-    /// Internal effect to start processing a [`Msg`][crate::msg::Msg].
+    /// Internal effect to start processing an [`Input`][crate::Input].
     #[doc(hidden)]
     Start(PhantomData<Ctx>),
 

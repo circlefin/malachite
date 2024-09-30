@@ -58,7 +58,7 @@ pub enum Msg<Ctx: Context> {
     ReceivedProposedValue(ProposedValue<Ctx>),
 }
 
-type InnerMsg<Ctx> = malachite_consensus::Msg<Ctx>;
+type ConsensusInput<Ctx> = malachite_consensus::Input<Ctx>;
 
 impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
     fn from(msg: TimeoutElapsed<Timeout>) -> Self {
@@ -171,14 +171,14 @@ where
         Ok(actor_ref)
     }
 
-    async fn process_msg(
+    async fn process_input(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
-        msg: InnerMsg<Ctx>,
+        input: ConsensusInput<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         malachite_consensus::process!(
-            msg: msg,
+            msg: input,
             state: &mut state.consensus,
             metrics: &self.metrics,
             with: effect => {
@@ -197,7 +197,11 @@ where
             Msg::StartHeight(height) => {
                 let validator_set = self.get_validator_set(height).await?;
                 let result = self
-                    .process_msg(&myself, state, InnerMsg::StartHeight(height, validator_set))
+                    .process_input(
+                        &myself,
+                        state,
+                        ConsensusInput::StartHeight(height, validator_set),
+                    )
                     .await;
 
                 if let Err(e) = result {
@@ -209,7 +213,11 @@ where
 
             Msg::ProposeValue(height, round, value) => {
                 let result = self
-                    .process_msg(&myself, state, InnerMsg::ProposeValue(height, round, value))
+                    .process_input(
+                        &myself,
+                        state,
+                        ConsensusInput::ProposeValue(height, round, value),
+                    )
                     .await;
 
                 if let Err(e) = result {
@@ -248,10 +256,10 @@ where
                             let validator_set = self.get_validator_set(height).await?;
 
                             let result = self
-                                .process_msg(
+                                .process_input(
                                     &myself,
                                     state,
-                                    InnerMsg::StartHeight(height, validator_set),
+                                    ConsensusInput::StartHeight(height, validator_set),
                                 )
                                 .await;
 
@@ -276,7 +284,9 @@ where
                     }
 
                     GossipEvent::Vote(from, vote) => {
-                        if let Err(e) = self.process_msg(&myself, state, InnerMsg::Vote(vote)).await
+                        if let Err(e) = self
+                            .process_input(&myself, state, ConsensusInput::Vote(vote))
+                            .await
                         {
                             error!(%from, "Error when processing vote: {e:?}");
                         }
@@ -286,7 +296,7 @@ where
 
                     GossipEvent::Proposal(from, proposal) => {
                         if let Err(e) = self
-                            .process_msg(&myself, state, InnerMsg::Proposal(proposal))
+                            .process_input(&myself, state, ConsensusInput::Proposal(proposal))
                             .await
                         {
                             error!(%from, "Error when processing proposal: {e:?}");
@@ -375,7 +385,7 @@ where
                 }
 
                 let result = self
-                    .process_msg(&myself, state, InnerMsg::TimeoutElapsed(timeout))
+                    .process_input(&myself, state, ConsensusInput::TimeoutElapsed(timeout))
                     .await;
 
                 if let Err(e) = result {
@@ -387,7 +397,7 @@ where
 
             Msg::ReceivedProposedValue(block) => {
                 let result = self
-                    .process_msg(&myself, state, InnerMsg::ReceivedProposedValue(block))
+                    .process_input(&myself, state, ConsensusInput::ReceivedProposedValue(block))
                     .await;
 
                 if let Err(e) = result {
