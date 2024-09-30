@@ -60,6 +60,7 @@ macro_rules! process {
 ///
 /// [error]: crate::error::Error::UnexpectedResume
 #[macro_export]
+#[doc(hidden)]
 macro_rules! perform {
     ($co:expr, $effect:expr) => {
         perform!($co, $effect, $crate::effect::Resume::Continue)
