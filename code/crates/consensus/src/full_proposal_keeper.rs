@@ -91,7 +91,7 @@ impl<Ctx: Context> Default for Entry<Ctx> {
 /// Note: In the future when we support implicit proposal message:
 /// - [`FullProposalKeeper::store_proposal()`] will never be called
 /// - [`FullProposalKeeper::full_proposal_at_round_and_value()`] should only check the presence of `builder_value`
-#[derive(Clone, Debug)]
+#[derive_where(Clone, Debug, Default)]
 pub struct FullProposalKeeper<Ctx: Context> {
     keeper: BTreeMap<(Ctx::Height, Round), Vec<Entry<Ctx>>>,
 }
@@ -112,9 +112,7 @@ macro_rules! replace_with {
 
 impl<Ctx: Context> FullProposalKeeper<Ctx> {
     pub fn new() -> Self {
-        Self {
-            keeper: BTreeMap::new(),
-        }
+        Self::default()
     }
 
     pub fn full_proposals_for_value(
@@ -323,7 +321,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         }
     }
 
-    pub fn maybe_store_value_at_some_pol_rounds(&mut self, new_value: ProposedValue<Ctx>) {
+    fn maybe_store_value_at_some_pol_rounds(&mut self, new_value: ProposedValue<Ctx>) {
         let first_key = (new_value.height, new_value.round);
 
         // Get all entries for rounds higher than the value round, in case
@@ -355,11 +353,5 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         debug!(%last_height, "Removing proposals, keep the last two");
         self.keeper
             .retain(|(height, _), _| height.increment() >= last_height);
-    }
-}
-
-impl<Ctx: Context> Default for FullProposalKeeper<Ctx> {
-    fn default() -> Self {
-        Self::new()
     }
 }
