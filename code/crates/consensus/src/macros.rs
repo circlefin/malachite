@@ -16,8 +16,7 @@
 #[macro_export]
 macro_rules! process {
     (msg: $msg:expr, state: $state:expr, metrics: $metrics:expr, with: $effect:ident => $handle:expr) => {{
-        let mut gen =
-            $crate::gen::Gen::new(|co| $crate::handle::handle(co, $state, $metrics, $msg));
+        let mut gen = $crate::gen::Gen::new(|co| $crate::handle(co, $state, $metrics, $msg));
 
         let mut co_result = gen.resume_with(Resume::Start(::std::marker::PhantomData));
 
