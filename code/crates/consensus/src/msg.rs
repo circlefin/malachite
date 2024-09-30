@@ -1,7 +1,6 @@
+use crate::ProposedValue;
 use derive_where::derive_where;
 use malachite_common::{Context, Round, SignedProposal, SignedVote, Timeout};
-
-use crate::types::ProposedValue;
 
 /// Messages that can be handled by the consensus process
 #[derive_where(Clone, Debug, PartialEq, Eq)]
