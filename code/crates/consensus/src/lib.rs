@@ -19,9 +19,9 @@ pub use types::*;
 pub mod gen;
 pub mod handle;
 
-mod full_proposal_keeper;
+mod full_proposal;
 mod macros;
 mod util;
 
 #[doc(hidden)]
-pub use full_proposal_keeper::{FullProposal, FullProposalKeeper};
+pub use full_proposal::{FullProposal, FullProposalKeeper};

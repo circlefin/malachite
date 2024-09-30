@@ -4,10 +4,10 @@ use malachite_common::*;
 use malachite_driver::Driver;
 
 use crate::error::Error;
-use crate::full_proposal_keeper::{FullProposal, FullProposalKeeper};
 use crate::msg::Msg;
 use crate::Params;
 use crate::ProposedValue;
+use crate::{FullProposal, FullProposalKeeper};
 
 /// The state maintained by consensus for processing a [`Msg`][crate::msg::Msg].
 pub struct State<Ctx>
