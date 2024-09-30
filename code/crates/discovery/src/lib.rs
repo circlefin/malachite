@@ -156,20 +156,28 @@ impl Discovery {
         }
     }
 
-    /// Returns all known peers, including bootstrap nodes
-    fn get_all_peers(&self) -> HashSet<(Option<PeerId>, Multiaddr)> {
+    /// Returns all known peers, including bootstrap nodes, except the given peer.
+    fn get_all_peers_except(&self, peer: PeerId) -> HashSet<(Option<PeerId>, Multiaddr)> {
+        let mut remaining_bootstrap_nodes: Vec<_> = self.bootstrap_nodes.clone();
+
         let mut peers: HashSet<_> = self
             .peers
             .iter()
             .filter_map(|(peer_id, info)| {
-                info.listen_addrs
-                    .get(0)
-                    .map(|addr| (Some(peer_id.clone()), addr.clone()))
+                if peer_id == &peer {
+                    return None;
+                }
+
+                info.listen_addrs.get(0).map(|addr| {
+                    remaining_bootstrap_nodes.retain(|x| x != addr);
+                    (Some(peer_id.clone()), addr.clone())
+                })
             })
             .collect();
-        self.bootstrap_nodes.iter().for_each(|addr| {
-            peers.insert((None, addr.clone()));
-        });
+
+        for addr in remaining_bootstrap_nodes {
+            peers.insert((None, addr));
+        }
 
         peers
     }
@@ -186,9 +194,7 @@ impl Discovery {
                 behaviour::Request::Peers => {
                     debug!("Received request for peers from {peer}");
 
-                    let mut peers = self.get_all_peers();
-                    // Remove the requesting peer
-                    peers.retain(|(peer_id, _)| peer_id.as_ref().map_or(true, |id| id != &peer));
+                    let peers = self.get_all_peers_except(peer);
 
                     if swarm
                         .behaviour_mut()
