@@ -35,7 +35,7 @@ where
 /// A validator set is a collection of validators.
 pub trait ValidatorSet<Ctx>
 where
-    Self: Clone + Debug + Send + Sync,
+    Self: Clone + Debug + Eq + Send + Sync,
     Ctx: Context,
 {
     /// The number of validators in the set.

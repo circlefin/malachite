@@ -3,8 +3,6 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use signature::{Keypair, Signer, Verifier};
 
-pub use ed25519_consensus::Signature;
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Ed25519;
 
@@ -31,6 +29,57 @@ impl SigningScheme for Ed25519 {
 
     fn decode_signature(bytes: &[u8]) -> Result<Self::Signature, Self::DecodingError> {
         Signature::try_from(bytes)
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Signature(ed25519_consensus::Signature);
+
+impl Signature {
+    pub fn inner(&self) -> &ed25519_consensus::Signature {
+        &self.0
+    }
+
+    pub fn to_bytes(&self) -> [u8; 64] {
+        self.0.to_bytes()
+    }
+
+    pub fn from_bytes(bytes: [u8; 64]) -> Self {
+        Self(ed25519_consensus::Signature::from(bytes))
+    }
+
+    pub fn test() -> Signature {
+        Signature(ed25519_consensus::Signature::from([0; 64]))
+    }
+}
+
+impl From<ed25519_consensus::Signature> for Signature {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn from(signature: ed25519_consensus::Signature) -> Self {
+        Self(signature)
+    }
+}
+
+impl TryFrom<&[u8]> for Signature {
+    type Error = ed25519_consensus::Error;
+
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self(ed25519_consensus::Signature::try_from(bytes)?))
+    }
+}
+
+impl PartialOrd for Signature {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Signature {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.0.to_bytes().cmp(&other.0.to_bytes())
     }
 }
 
@@ -70,7 +119,7 @@ impl From<[u8; 32]> for PrivateKey {
 
 impl Signer<Signature> for PrivateKey {
     fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
-        Ok(self.0.sign(msg))
+        Ok(Signature(self.0.sign(msg)))
     }
 }
 
@@ -108,7 +157,7 @@ impl PublicKey {
 impl Verifier<Signature> for PublicKey {
     fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
         self.0
-            .verify(signature, msg)
+            .verify(signature.inner(), msg)
             .map_err(|_| signature::Error::new())
     }
 }

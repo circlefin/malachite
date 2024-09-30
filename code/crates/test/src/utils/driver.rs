@@ -1,8 +1,8 @@
-use malachite_common::{NilOrVal, Round, Timeout, Validity};
+use malachite_common::{NilOrVal, Round, SignedProposal, SignedVote, Timeout, Validity};
 use malachite_driver::{Input, Output};
 use malachite_round::state::{RoundValue, State, Step};
 
-use crate::{Address, Height, Proposal, TestContext, Value, Vote};
+use crate::{Address, Height, Proposal, Signature, TestContext, Value, Vote};
 
 pub fn new_round_input(round: Round, proposer: Address) -> Input<TestContext> {
     Input::NewRound(Height::new(1), round, proposer)
@@ -30,7 +30,7 @@ pub fn proposal_input(
     address: Address,
 ) -> Input<TestContext> {
     let proposal = Proposal::new(Height::new(1), round, value, locked_round, address);
-    Input::Proposal(proposal, validity)
+    Input::Proposal(SignedProposal::new(proposal, Signature::test()), validity)
 }
 
 pub fn prevote_output(round: Round, value: Value, addr: &Address) -> Output<TestContext> {
@@ -52,29 +52,28 @@ pub fn prevote_nil_output(round: Round, addr: &Address) -> Output<TestContext> {
 }
 
 pub fn prevote_input(value: Value, addr: &Address) -> Input<TestContext> {
-    Input::Vote(Vote::new_prevote(
-        Height::new(1),
-        Round::new(0),
-        NilOrVal::Val(value.id()),
-        *addr,
+    Input::Vote(SignedVote::new(
+        Vote::new_prevote(
+            Height::new(1),
+            Round::new(0),
+            NilOrVal::Val(value.id()),
+            *addr,
+        ),
+        Signature::test(),
     ))
 }
 
 pub fn prevote_nil_input(addr: &Address) -> Input<TestContext> {
-    Input::Vote(Vote::new_prevote(
-        Height::new(1),
-        Round::new(0),
-        NilOrVal::Nil,
-        *addr,
+    Input::Vote(SignedVote::new(
+        Vote::new_prevote(Height::new(1), Round::new(0), NilOrVal::Nil, *addr),
+        Signature::test(),
     ))
 }
 
 pub fn prevote_input_at(round: Round, value: Value, addr: &Address) -> Input<TestContext> {
-    Input::Vote(Vote::new_prevote(
-        Height::new(1),
-        round,
-        NilOrVal::Val(value.id()),
-        *addr,
+    Input::Vote(SignedVote::new(
+        Vote::new_prevote(Height::new(1), round, NilOrVal::Val(value.id()), *addr),
+        Signature::test(),
     ))
 }
 
@@ -97,11 +96,9 @@ pub fn precommit_nil_output(round: Round, addr: &Address) -> Output<TestContext>
 }
 
 pub fn precommit_input(round: Round, value: Value, addr: &Address) -> Input<TestContext> {
-    Input::Vote(Vote::new_precommit(
-        Height::new(1),
-        round,
-        NilOrVal::Val(value.id()),
-        *addr,
+    Input::Vote(SignedVote::new(
+        Vote::new_precommit(Height::new(1), round, NilOrVal::Val(value.id()), *addr),
+        Signature::test(),
     ))
 }
 

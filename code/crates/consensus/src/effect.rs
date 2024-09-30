@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use derive_where::derive_where;
 
 use malachite_common::*;
@@ -47,10 +49,6 @@ where
     /// Resume with: Resume::Continue
     GetValue(Ctx::Height, Round, Timeout),
 
-    /// Get the validator set at the given height
-    /// Resume with: Resume::ValidatorSet(height, validator_set)
-    GetValidatorSet(Ctx::Height),
-
     /// Verify a signature
     /// Resume with: Resume::SignatureValidity(valid)
     VerifySignature(SignedMessage<Ctx, ConsensusMsg<Ctx>>, PublicKey<Ctx>),
@@ -75,13 +73,10 @@ where
 {
     /// Internal effect to start processing a [`Msg`][crate::msg::Msg].
     #[doc(hidden)]
-    Start,
+    Start(PhantomData<Ctx>),
 
     /// Resume execution
     Continue,
-
-    /// Resume execution with a validator set at the given height
-    ValidatorSet(Ctx::Height, Ctx::ValidatorSet),
 
     /// Resume execution with the validity of the signature just verified
     SignatureValidity(bool),

@@ -19,7 +19,7 @@ macro_rules! process {
         let mut gen =
             $crate::gen::Gen::new(|co| $crate::handle::handle(co, $state, $metrics, $msg));
 
-        let mut co_result = gen.resume_with(Resume::Start);
+        let mut co_result = gen.resume_with(Resume::Start(::std::marker::PhantomData));
 
         loop {
             match co_result {

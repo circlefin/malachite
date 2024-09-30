@@ -195,8 +195,9 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::StartHeight(height) => {
+                let validator_set = self.get_validator_set(height).await?;
                 let result = self
-                    .process_msg(&myself, state, InnerMsg::StartHeight(height))
+                    .process_msg(&myself, state, InnerMsg::StartHeight(height, validator_set))
                     .await;
 
                 if let Err(e) = result {
@@ -245,9 +246,14 @@ where
                             info!("Enough peers ({connected_peers}) connected to start consensus");
 
                             let height = state.consensus.driver.height();
+                            let validator_set = self.get_validator_set(height).await?;
 
                             let result = self
-                                .process_msg(&myself, state, InnerMsg::StartHeight(height))
+                                .process_msg(
+                                    &myself,
+                                    state,
+                                    InnerMsg::StartHeight(height, validator_set),
+                                )
                                 .await;
 
                             if let Err(e) = result {
@@ -431,7 +437,7 @@ where
             height,
             reply_to
         })
-        .map_err(|e| eyre!("Error at height {height} when waiting for validator set: {e:?}"))?;
+        .map_err(|e| eyre!("Failed to query validator set at height {height}: {e:?}"))?;
 
         Ok(validator_set)
     }
@@ -509,14 +515,6 @@ where
                     .map_err(|e| eyre!("Error when asking for value to be built: {e:?}"))?;
 
                 Ok(Resume::Continue)
-            }
-
-            Effect::GetValidatorSet(height) => {
-                let validator_set = self.get_validator_set(height).await.map_err(|e| {
-                    eyre!("Error when getting validator set at height {height}: {e:?}")
-                })?;
-
-                Ok(Resume::ValidatorSet(height, validator_set))
             }
 
             Effect::Decide {
