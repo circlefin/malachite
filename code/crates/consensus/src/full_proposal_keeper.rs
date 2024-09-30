@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::ops::Bound::Included;
 
 use derive_where::derive_where;
 use tracing::debug;
@@ -116,20 +115,14 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         let mut results = vec![];
 
         let first_key = &(proposed_value.height, proposed_value.round);
-        let last_key = match self.keeper.last_key_value() {
-            Some((key, ..)) => key,
-            None => return results,
-        };
+        let entries = self.keeper.range(first_key..);
 
-        let entries = self.keeper.range((Included(first_key), Included(last_key)));
-
-        for ((_, _), proposals) in entries {
+        for (_, proposals) in entries {
             for entry in proposals {
-                match entry {
-                    Entry::Full(p) if p.proposal.value().id() == proposed_value.value.id() => {
+                if let Entry::Full(p) = entry {
+                    if p.proposal.value().id() == proposed_value.value.id() {
                         results.push(p.proposal.clone());
                     }
-                    _ => {}
                 }
             }
         }
@@ -149,13 +142,10 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
             .filter(|entries| !entries.is_empty())?;
 
         for entry in entries {
-            match entry {
-                Entry::Full(p) => {
-                    if p.proposal.value().id() == value.id() {
-                        return Some(p);
-                    }
+            if let Entry::Full(p) = entry {
+                if p.proposal.value().id() == value.id() {
+                    return Some(p);
                 }
-                _ => continue,
             }
         }
 
@@ -326,16 +316,10 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
 
     pub fn maybe_store_value_at_some_pol_rounds(&mut self, new_value: ProposedValue<Ctx>) {
         let first_key = (new_value.height, new_value.round);
-        let last_key = match self.keeper.last_key_value() {
-            Some((key, ..)) => *key,
-            None => return,
-        };
 
         // Get all entries for rounds higher than the value round, in case
         // there are proposals with pol_round equal to value round.
-        let entries = self
-            .keeper
-            .range_mut((Included(&first_key), Included(&last_key)));
+        let entries = self.keeper.range_mut(first_key..);
 
         for (_, proposals) in entries {
             // We may have seen proposals and/ or values for this height and round.
