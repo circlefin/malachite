@@ -107,6 +107,32 @@ impl Discovery {
         }
     }
 
+    /// Returns all known peers, including bootstrap nodes, except the given peer.
+    fn get_all_peers_except(&self, peer: PeerId) -> HashSet<(Option<PeerId>, Multiaddr)> {
+        let mut remaining_bootstrap_nodes: Vec<_> = self.bootstrap_nodes.clone();
+
+        let mut peers: HashSet<_> = self
+            .peers
+            .iter()
+            .filter_map(|(peer_id, info)| {
+                if peer_id == &peer {
+                    return None;
+                }
+
+                info.listen_addrs.get(0).map(|addr| {
+                    remaining_bootstrap_nodes.retain(|x| x != addr);
+                    (Some(peer_id.clone()), addr.clone())
+                })
+            })
+            .collect();
+
+        for addr in remaining_bootstrap_nodes {
+            peers.insert((None, addr));
+        }
+
+        peers
+    }
+
     pub fn handle_new_peer(
         &mut self,
         behaviour: Option<&mut behaviour::Behaviour>,
@@ -116,7 +142,11 @@ impl Discovery {
         if self.is_enabled && !self.is_done && !self.peers.contains_key(&peer_id) {
             if let Some(request_response) = behaviour {
                 debug!("Requesting peers from {peer_id}");
-                let request_id = request_response.send_request(&peer_id, behaviour::Request::Peers);
+
+                let request_id = request_response.send_request(
+                    &peer_id,
+                    behaviour::Request::Peers(self.get_all_peers_except(peer_id)),
+                );
                 self.requested_peer_ids.insert(peer_id.clone());
                 self.pending_requests.insert(request_id);
             } else {
@@ -156,30 +186,47 @@ impl Discovery {
         }
     }
 
-    /// Returns all known peers, including bootstrap nodes, except the given peer.
-    fn get_all_peers_except(&self, peer: PeerId) -> HashSet<(Option<PeerId>, Multiaddr)> {
-        let mut remaining_bootstrap_nodes: Vec<_> = self.bootstrap_nodes.clone();
+    fn process_received_peers(
+        &mut self,
+        swarm: &mut Swarm<impl SendResponse>,
+        peers: HashSet<(Option<PeerId>, Multiaddr)>,
+    ) {
+        // TODO check upper bound on number of peers
+        for (peer_id, listen_addr) in peers {
+            if peer_id.as_ref().map_or(false, |id| {
+                id == swarm.local_peer_id()
+                    || swarm.is_connected(id)
+                    || self.dialed_peer_ids.contains(id)
+            }) || self.dialed_multiaddrs.contains(&listen_addr)
+            {
+                continue;
+            }
 
-        let mut peers: HashSet<_> = self
-            .peers
-            .iter()
-            .filter_map(|(peer_id, info)| {
-                if peer_id == &peer {
-                    return None;
+            let create_dial_opts = |peer_id: Option<PeerId>, listen_addr: Multiaddr| {
+                if let Some(peer_id) = peer_id {
+                    DialOpts::peer_id(peer_id)
+                        .addresses(vec![listen_addr])
+                        .build()
+                } else {
+                    DialOpts::unknown_peer_id().address(listen_addr).build()
                 }
+            };
 
-                info.listen_addrs.get(0).map(|addr| {
-                    remaining_bootstrap_nodes.retain(|x| x != addr);
-                    (Some(peer_id.clone()), addr.clone())
-                })
-            })
-            .collect();
+            let dial_opts = create_dial_opts(peer_id, listen_addr.clone());
+            let connection_id = dial_opts.connection_id();
 
-        for addr in remaining_bootstrap_nodes {
-            peers.insert((None, addr));
+            self.add_pending_connection(connection_id, peer_id.as_ref(), Some(&listen_addr));
+
+            if let Err(e) = swarm.dial(dial_opts) {
+                if let Some(peer_id) = peer_id {
+                    error!("Error dialing peer {peer_id}: {e}");
+                } else {
+                    error!("Error dialing peer {listen_addr}: {e}");
+                }
+                self.pending_connections.remove(&connection_id);
+                self.total_interactions_failed += 1;
+            }
         }
-
-        peers
     }
 
     pub fn on_event(&mut self, event: behaviour::Event, swarm: &mut Swarm<impl SendResponse>) {
@@ -191,20 +238,28 @@ impl Discovery {
                         request, channel, ..
                     },
             } => match request {
-                behaviour::Request::Peers => {
+                behaviour::Request::Peers(peers) => {
                     debug!("Received request for peers from {peer}");
 
-                    let peers = self.get_all_peers_except(peer);
+                    // Compute the difference between the known peers and the requested peers
+                    // to avoid sending the requesting peer the peers it already knows.
+                    let peers_difference = self
+                        .get_all_peers_except(peer)
+                        .difference(&peers)
+                        .cloned()
+                        .collect();
 
                     if swarm
                         .behaviour_mut()
-                        .send_response(channel, behaviour::Response::Peers(peers))
+                        .send_response(channel, behaviour::Response::Peers(peers_difference))
                         .is_err()
                     {
                         error!("Error sending peers to {peer}");
                     } else {
                         trace!("Sent peers to {peer}");
                     }
+
+                    self.process_received_peers(swarm, peers);
                 }
             },
 
@@ -220,46 +275,8 @@ impl Discovery {
                 behaviour::Response::Peers(peers) => {
                     self.pending_requests.remove(&request_id);
                     debug!("Received {} peers from {peer}", peers.len());
-                    // TODO check upper bound on number of peers
-                    for (peer_id, listen_addr) in peers {
-                        if peer_id.as_ref().map_or(false, |id| {
-                            id == swarm.local_peer_id()
-                                || swarm.is_connected(id)
-                                || self.dialed_peer_ids.contains(id)
-                        }) || self.dialed_multiaddrs.contains(&listen_addr)
-                        {
-                            continue;
-                        }
 
-                        let create_dial_opts = |peer_id: Option<PeerId>, listen_addr: Multiaddr| {
-                            if let Some(peer_id) = peer_id {
-                                DialOpts::peer_id(peer_id)
-                                    .addresses(vec![listen_addr])
-                                    .build()
-                            } else {
-                                DialOpts::unknown_peer_id().address(listen_addr).build()
-                            }
-                        };
-
-                        let dial_opts = create_dial_opts(peer_id, listen_addr.clone());
-                        let connection_id = dial_opts.connection_id();
-
-                        self.add_pending_connection(
-                            connection_id,
-                            peer_id.as_ref(),
-                            Some(&listen_addr),
-                        );
-
-                        if let Err(e) = swarm.dial(dial_opts) {
-                            if let Some(peer_id) = peer_id {
-                                error!("Error dialing peer {peer_id}: {e}");
-                            } else {
-                                error!("Error dialing peer {listen_addr}: {e}");
-                            }
-                            self.pending_connections.remove(&connection_id);
-                            self.total_interactions_failed += 1;
-                        }
-                    }
+                    self.process_received_peers(swarm, peers);
                     self.check_if_done();
                 }
             },

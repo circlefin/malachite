@@ -13,7 +13,7 @@ use crate::DISCOVERY_PROTOCOL;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Request {
-    Peers,
+    Peers(HashSet<(Option<PeerId>, Multiaddr)>),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
