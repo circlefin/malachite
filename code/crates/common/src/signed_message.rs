@@ -5,7 +5,7 @@ use derive_where::derive_where;
 use crate::{Context, Signature};
 
 /// A signed message, ie. a message emitted by a validator and signed by its private key.
-#[derive_where(Clone, Debug, PartialEq, Eq; Msg)]
+#[derive_where(Clone, Debug, PartialEq, Eq, PartialOrd, Ord; Msg)]
 pub struct SignedMessage<Ctx, Msg>
 where
     Ctx: Context,

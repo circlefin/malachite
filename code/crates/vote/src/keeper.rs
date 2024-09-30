@@ -5,7 +5,7 @@ use derive_where::derive_where;
 use alloc::collections::{BTreeMap, BTreeSet};
 
 use malachite_common::{
-    Context, NilOrVal, Round, Validator, ValidatorSet, ValueId, Vote, VoteType,
+    Context, NilOrVal, Round, SignedVote, Validator, ValidatorSet, ValueId, Vote, VoteType,
 };
 
 use crate::evidence::EvidenceMap;
@@ -48,7 +48,7 @@ where
     addresses_weights: RoundWeights<Ctx::Address>,
 
     /// All the votes received for this round.
-    received_votes: BTreeSet<Ctx::Vote>,
+    received_votes: BTreeSet<SignedVote<Ctx>>,
 
     /// The emitted outputs for this round.
     emitted_outputs: BTreeSet<Output<ValueId<Ctx>>>,
@@ -62,9 +62,9 @@ where
     /// Attempted to record a conflicting vote.
     ConflictingVote {
         /// The vote already recorded.
-        existing: Ctx::Vote,
+        existing: SignedVote<Ctx>,
         /// The conflicting vote.
-        conflicting: Ctx::Vote,
+        conflicting: SignedVote<Ctx>,
     },
 }
 
@@ -78,7 +78,11 @@ where
     }
 
     /// Add a vote to the round, checking for conflicts.
-    pub fn add(&mut self, vote: Ctx::Vote, weight: Weight) -> Result<(), RecordVoteError<Ctx>> {
+    pub fn add(
+        &mut self,
+        vote: SignedVote<Ctx>,
+        weight: Weight,
+    ) -> Result<(), RecordVoteError<Ctx>> {
         if let Some(existing) = self.get_vote(vote.vote_type(), vote.validator_address()) {
             if existing.value() != vote.value() {
                 // This is an equivocating vote
@@ -107,7 +111,7 @@ where
         &'a self,
         vote_type: VoteType,
         address: &'a Ctx::Address,
-    ) -> Option<&'a Ctx::Vote> {
+    ) -> Option<&'a SignedVote<Ctx>> {
         self.received_votes
             .iter()
             .find(move |vote| vote.vote_type() == vote_type && vote.validator_address() == address)
@@ -184,7 +188,11 @@ where
     }
 
     /// Apply a vote with a given weight, potentially triggering an output.
-    pub fn apply_vote(&mut self, vote: Ctx::Vote, round: Round) -> Option<Output<ValueId<Ctx>>> {
+    pub fn apply_vote(
+        &mut self,
+        vote: SignedVote<Ctx>,
+        round: Round,
+    ) -> Option<Output<ValueId<Ctx>>> {
         let total_weight = self.total_weight();
         let per_round = self.per_round.entry(vote.round()).or_default();
 

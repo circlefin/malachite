@@ -270,7 +270,7 @@ where
                 co,
                 state,
                 metrics,
-                DriverInput::Proposal(signed_proposal.message, Validity::Valid),
+                DriverInput::Proposal(signed_proposal, Validity::Valid),
             )
             .await
         }
@@ -287,7 +287,7 @@ where
 
             perform!(co, Effect::Broadcast(GossipMsg::Vote(signed_vote.clone()),));
 
-            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.message)).await
+            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await
         }
 
         DriverOutput::Decide(consensus_round, proposal) => {
@@ -498,7 +498,7 @@ where
         state.store_signed_precommit(signed_vote.clone());
     }
 
-    apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.message)).await?;
+    apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
 
     Ok(())
 }
@@ -592,7 +592,7 @@ where
                 co,
                 state,
                 metrics,
-                DriverInput::Proposal(signed_proposal.message.clone(), *valid),
+                DriverInput::Proposal(signed_proposal.clone(), *valid),
             )
             .await?;
         }
@@ -608,7 +608,7 @@ where
             state
                 .driver
                 .proposal_keeper
-                .apply_proposal(signed_proposal.message.clone(), Validity::Valid);
+                .apply_proposal(signed_proposal.clone(), Validity::Valid);
         }
     }
 
