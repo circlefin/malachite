@@ -7,40 +7,14 @@ use malachite_common::{Context, Height, Proposal, Round, SignedProposal, Validit
 
 use crate::ProposedValue;
 
-/// This module is responsible for collecting proposed values and consensus proposal messages for
-/// a given (height, round).
-/// When a new_value is received from the value builder the following entry is stored:
-/// `FullProposal { Some(new_value.value, new_value.validity), None }`
-///
-/// When a new_proposal is received from consensus gossip the following entry is stored:
-/// `FullProposal { None, Some(new_proposal) }`
-///
-/// When both proposal and values have been received, the entry for (height, round) should be:
-/// `FullProposal { Some(value.value, value.validity), Some(proposal) }`
-///
-/// It is possible that a proposer sends two (builder_value, proposal) pairs for same `(height, round)`.
-/// In this case both are stored, and we consider that the proposer is equivocating.
-/// Currently, the actual equivocation is caught deeper in the consensus crate, through consensus actor
-/// propagating both proposals.
-///
-/// When a new_proposal is received at most one complete proposal can be created. If a value at
-/// proposal round is found, they are matched together. Otherwise, a value at the pol_round
-/// is looked up and matched to form a full proposal (L28).
-///
-/// When a new value is received it is matched against the proposal at value round, and any proposal
-/// at higher round with pol_round equal to the value round (L28). Therefore when a value is added
-/// multiple complete proposals may form.
-///
-/// Note: In the future when we support implicit proposal message:
-/// - store_proposal() will never be called
-/// - get_full_proposal() should only check the presence of `builder_value`
-
+/// A full proposal, ie. a proposal together with its value and validity.
 #[derive_where(Clone, Debug)]
 pub struct FullProposal<Ctx: Context> {
-    // Value received from the builder and its validity.
+    /// Value received from the builder
     pub builder_value: Ctx::Value,
+    /// Validity of the proposal
     pub validity: Validity,
-    // Proposal consensus message
+    /// Proposal consensus message
     pub proposal: SignedProposal<Ctx>,
 }
 
@@ -58,14 +32,22 @@ impl<Ctx: Context> FullProposal<Ctx> {
     }
 }
 
+/// An entry in the keeper.
 #[derive_where(Clone, Debug)]
 enum Entry<Ctx: Context> {
+    /// The full proposal has been received,i.e. both the value and the proposal.
     Full(FullProposal<Ctx>),
+
+    /// Only the proposal has been received.
     ProposalOnly(SignedProposal<Ctx>),
+
+    /// Only the value has been received.
     ValueOnly(Ctx::Value, Validity),
+
     // This is a placeholder for converting a partial
     // entry (`ProposalOnly` or `ValueOnly`) to a full entry (`Full`).
     // It is never actually stored in the keeper.
+    #[doc(hidden)]
     Empty,
 }
 
@@ -82,6 +64,33 @@ impl<Ctx: Context> Default for Entry<Ctx> {
     }
 }
 
+/// Keeper for collecting proposed values and consensus proposal messages for a given height and round.
+///
+/// When a new_value is received from the value builder the following entry is stored:
+/// `Entry::ValueOnly(new_value.value, new_value.validity)`
+///
+/// When a new_proposal is received from consensus gossip the following entry is stored:
+/// `Entry::ProposalOnly(new_proposal)`
+///
+/// When both proposal and values have been received, the entry for `(height, round)` should be:
+/// `Entry::Full(FullProposal(value.value, value.validity, proposal))`
+///
+/// It is possible that a proposer sends two (builder_value, proposal) pairs for same `(height, round)`.
+/// In this case both are stored, and we consider that the proposer is equivocating.
+/// Currently, the actual equivocation is caught deeper in the consensus crate, through consensus actor
+/// propagating both proposals.
+///
+/// When a new_proposal is received at most one complete proposal can be created. If a value at
+/// proposal round is found, they are matched together. Otherwise, a value at the pol_round
+/// is looked up and matched to form a full proposal (L28).
+///
+/// When a new value is received it is matched against the proposal at value round, and any proposal
+/// at higher round with pol_round equal to the value round (L28). Therefore when a value is added
+/// multiple complete proposals may form.
+///
+/// Note: In the future when we support implicit proposal message:
+/// - [`FullProposalKeeper::store_proposal()`] will never be called
+/// - [`FullProposalKeeper::full_proposal_at_round_and_value()`] should only check the presence of `builder_value`
 #[derive(Clone, Debug)]
 pub struct FullProposalKeeper<Ctx: Context> {
     keeper: BTreeMap<(Ctx::Height, Round), Vec<Entry<Ctx>>>,
