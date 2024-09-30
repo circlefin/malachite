@@ -1,4 +1,4 @@
-/// Process a message and handle the emitted effects.
+/// Process an input and handle the emitted effects.
 ///
 /// # Example
 ///

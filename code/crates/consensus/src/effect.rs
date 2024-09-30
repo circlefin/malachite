@@ -9,7 +9,7 @@ use crate::ConsensusMsg;
 
 /// An effect which may be yielded by a consensus process.
 ///
-/// Effects are handled by the caller using [`process`][process],
+/// Effects are handled by the caller using [`process!`][process],
 /// and the consensus process is then resumed with an appropriate [`Resume`] value, as per
 /// the documentation for each effect.
 ///
