@@ -202,17 +202,16 @@ impl Discovery {
                 continue;
             }
 
-            let create_dial_opts = |peer_id: Option<PeerId>, listen_addr: Multiaddr| {
-                if let Some(peer_id) = peer_id {
-                    DialOpts::peer_id(peer_id)
-                        .addresses(vec![listen_addr])
-                        .build()
-                } else {
-                    DialOpts::unknown_peer_id().address(listen_addr).build()
-                }
+            let dial_opts = if let Some(peer_id) = peer_id {
+                DialOpts::peer_id(peer_id)
+                    .addresses(vec![listen_addr.clone()])
+                    .build()
+            } else {
+                DialOpts::unknown_peer_id()
+                    .address(listen_addr.clone())
+                    .build()
             };
 
-            let dial_opts = create_dial_opts(peer_id, listen_addr.clone());
             let connection_id = dial_opts.connection_id();
 
             self.add_pending_connection(connection_id, peer_id.as_ref(), Some(&listen_addr));
