@@ -114,8 +114,6 @@ pub struct State<Ctx: Context> {
     connected_peers: BTreeSet<PeerId>,
 }
 
-impl<Ctx: Context> State<Ctx> {}
-
 impl<Ctx> Consensus<Ctx>
 where
     Ctx: Context,
@@ -384,9 +382,9 @@ where
                 Ok(())
             }
 
-            Msg::ReceivedProposedValue(block) => {
+            Msg::ReceivedProposedValue(value) => {
                 let result = self
-                    .process_msg(&myself, state, InnerMsg::ReceivedProposedValue(block))
+                    .process_msg(&myself, state, InnerMsg::ReceivedProposedValue(value))
                     .await;
 
                 if let Err(e) = result {
