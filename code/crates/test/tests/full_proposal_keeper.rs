@@ -262,7 +262,7 @@ fn full_proposal_keeper_tests() {
         for m in s.input {
             match m {
                 Msg::Proposal(p) => keeper.store_proposal(p),
-                Msg::ReceivedProposedValue(v) => keeper.store_value(v),
+                Msg::ReceivedProposedValue(v) => keeper.store_value(&v),
                 _ => continue,
             }
         }

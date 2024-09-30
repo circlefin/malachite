@@ -357,7 +357,7 @@ where
         return Ok(());
     }
 
-    state.store_value(ProposedValue {
+    state.store_value(&ProposedValue {
         height,
         round,
         validator_address: state.driver.address.clone(),
@@ -668,7 +668,7 @@ where
         return Ok(());
     }
 
-    state.store_value(proposed_value.clone());
+    state.store_value(&proposed_value);
 
     let proposals = state.full_proposals_for_value(&proposed_value);
     for signed_proposal in proposals {

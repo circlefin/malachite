@@ -264,12 +264,12 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         }
     }
 
-    pub fn store_value(&mut self, new_value: ProposedValue<Ctx>) {
-        self.store_value_at_value_round_maybe_full_proposal(new_value.clone());
-        self.maybe_store_value_at_some_pol_rounds(new_value);
+    pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) {
+        self.store_value_at_value_round(new_value);
+        self.store_value_at_pol_round(new_value);
     }
 
-    fn store_value_at_value_round_maybe_full_proposal(&mut self, new_value: ProposedValue<Ctx>) {
+    fn store_value_at_value_round(&mut self, new_value: &ProposedValue<Ctx>) {
         let key = (new_value.height, new_value.round);
         let entries = self.keeper.get_mut(&key);
 
@@ -277,7 +277,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
             None => {
                 // First time we see something (a proposed value) for this height and round
                 // Create a full proposal with just the proposal
-                let entry = Entry::ValueOnly(new_value.value, new_value.validity);
+                let entry = Entry::ValueOnly(new_value.value.clone(), new_value.validity);
                 self.keeper.insert(key, vec![entry]);
             }
             Some(entries) => {
@@ -290,7 +290,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                             if proposal.value().id() == new_value.value.id() {
                                 // Found a matching proposal. Change the entry at index i
                                 replace_with!(entry, Entry::ProposalOnly(proposal) => {
-                                    Entry::full(new_value.value, new_value.validity, proposal)
+                                    Entry::full(new_value.value.clone(), new_value.validity, proposal)
                                 });
 
                                 return;
@@ -316,12 +316,15 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 }
 
                 // Append new value
-                entries.push(Entry::ValueOnly(new_value.value, new_value.validity));
+                entries.push(Entry::ValueOnly(
+                    new_value.value.clone(),
+                    new_value.validity,
+                ));
             }
         }
     }
 
-    fn maybe_store_value_at_some_pol_rounds(&mut self, new_value: ProposedValue<Ctx>) {
+    fn store_value_at_pol_round(&mut self, new_value: &ProposedValue<Ctx>) {
         let first_key = (new_value.height, new_value.round);
 
         // Get all entries for rounds higher than the value round, in case

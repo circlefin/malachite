@@ -134,7 +134,7 @@ where
         self.full_proposal_keeper.store_proposal(new_proposal)
     }
 
-    pub fn store_value(&mut self, new_value: ProposedValue<Ctx>) {
+    pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) {
         // Values for higher height should have been cached for future processing
         assert_eq!(new_value.height, self.driver.height());
         self.full_proposal_keeper.store_value(new_value)
