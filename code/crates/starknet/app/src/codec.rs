@@ -4,7 +4,7 @@ use prost::Message;
 use malachite_actors::util::codec::NetworkCodec;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_common::{SignedProposal, SignedVote};
-use malachite_consensus::GossipMsg;
+use malachite_consensus::SignedConsensusMsg;
 use malachite_proto::{Error as ProtoError, Protobuf};
 use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::types::Vote;
@@ -17,7 +17,7 @@ pub struct ProtobufCodec;
 impl NetworkCodec<MockContext> for ProtobufCodec {
     type Error = ProtoError;
 
-    fn decode_msg(bytes: Bytes) -> Result<GossipMsg<MockContext>, Self::Error> {
+    fn decode_msg(bytes: Bytes) -> Result<SignedConsensusMsg<MockContext>, Self::Error> {
         let proto = ConsensusMessage::decode(bytes)?;
 
         let proto_signature = proto
@@ -32,20 +32,20 @@ impl NetworkCodec<MockContext> for ProtobufCodec {
 
         match message {
             Messages::Vote(v) => {
-                Vote::from_proto(v).map(|v| GossipMsg::Vote(SignedVote::new(v, signature)))
+                Vote::from_proto(v).map(|v| SignedConsensusMsg::Vote(SignedVote::new(v, signature)))
             }
             Messages::Proposal(p) => p2p::Proposal::from_proto(p)
-                .map(|p| GossipMsg::Proposal(SignedProposal::new(p, signature))),
+                .map(|p| SignedConsensusMsg::Proposal(SignedProposal::new(p, signature))),
         }
     }
 
-    fn encode_msg(msg: GossipMsg<MockContext>) -> Result<Bytes, Self::Error> {
+    fn encode_msg(msg: SignedConsensusMsg<MockContext>) -> Result<Bytes, Self::Error> {
         let message = match msg {
-            GossipMsg::Vote(v) => ConsensusMessage {
+            SignedConsensusMsg::Vote(v) => ConsensusMessage {
                 messages: Some(Messages::Vote(v.to_proto()?)),
                 signature: Some(v.signature.to_proto()?),
             },
-            GossipMsg::Proposal(p) => ConsensusMessage {
+            SignedConsensusMsg::Proposal(p) => ConsensusMessage {
                 messages: Some(Messages::Proposal(p.to_proto()?)),
                 signature: Some(p.signature.to_proto()?),
             },

@@ -43,14 +43,11 @@ impl Context for TestContext {
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn verify_signed_vote(
-        &self,
-        vote: &Vote,
-        signature: &Signature,
-        public_key: &PublicKey,
-    ) -> bool {
+    fn verify_signed_vote(signed_vote: &SignedVote<Self>, public_key: &PublicKey) -> bool {
         use signature::Verifier;
-        public_key.verify(&vote.to_bytes(), signature).is_ok()
+        public_key
+            .verify(&signed_vote.message.to_bytes(), &signed_vote.signature)
+            .is_ok()
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -62,13 +59,16 @@ impl Context for TestContext {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn verify_signed_proposal(
-        &self,
-        proposal: &Proposal,
-        signature: &Signature,
+        signed_proposal: &SignedProposal<Self>,
         public_key: &PublicKey,
     ) -> bool {
         use signature::Verifier;
-        public_key.verify(&proposal.to_bytes(), signature).is_ok()
+        public_key
+            .verify(
+                &signed_proposal.message.to_bytes(),
+                &signed_proposal.signature,
+            )
+            .is_ok()
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -80,7 +80,6 @@ impl Context for TestContext {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn verify_signed_proposal_part(
-        &self,
         proposal_part: &ProposalPart,
         signature: &Signature,
         public_key: &PublicKey,

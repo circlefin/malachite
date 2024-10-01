@@ -1,6 +1,6 @@
 use malachite_actors::host::ProposedValue;
 use malachite_common::{Context, Round, SignedProposal, Validity};
-use malachite_consensus::{FullProposalKeeper, Msg};
+use malachite_consensus::{FullProposalKeeper, Input};
 use malachite_test::utils::validators::make_validators;
 use malachite_test::{Address, Proposal, Value};
 use malachite_test::{Height, TestContext};
@@ -32,7 +32,7 @@ macro_rules! prop {
 
 macro_rules! prop_msg {
     ($co:expr, $a:expr, $r:expr, $v:expr, $vr: expr) => {
-        Msg::Proposal(signed_proposal_pol(
+        Input::Proposal(signed_proposal_pol(
             $co,
             Height::new(1),
             Round::new($r),
@@ -57,7 +57,7 @@ macro_rules! value {
 
 macro_rules! val_msg {
     ( $a:expr, $r:expr, $v:expr, $val: expr) => {
-        Msg::ReceivedProposedValue(ProposedValue {
+        Input::ReceivedProposedValue(ProposedValue {
             height: Height::new(1),
             round: Round::new($r),
             value: Value::new($v),
@@ -86,7 +86,7 @@ macro_rules! props_for_value {
 // - fps_for_value - full proposals expected for a given ProposedValue
 struct Test {
     desc: &'static str,
-    input: Vec<Msg<TestContext>>,
+    input: Vec<Input<TestContext>>,
     some_fp_for_rv: Vec<(i64, u64)>,
     none_fp_for_rv: Vec<(i64, u64)>,
     fps_for_value: (ProposedValue<TestContext>, Vec<SignedProposal<TestContext>>),
@@ -261,8 +261,8 @@ fn full_proposal_keeper_tests() {
 
         for m in s.input {
             match m {
-                Msg::Proposal(p) => keeper.store_proposal(p),
-                Msg::ReceivedProposedValue(v) => keeper.store_value(&v),
+                Input::Proposal(p) => keeper.store_proposal(p),
+                Input::ReceivedProposedValue(v) => keeper.store_value(&v),
                 _ => continue,
             }
         }

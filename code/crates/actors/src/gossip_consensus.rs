@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, error_span, Instrument};
 
 use malachite_common::{Context, SignedProposal, SignedVote};
-use malachite_consensus::GossipMsg;
+use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
 use malachite_metrics::SharedRegistry;
@@ -98,8 +98,8 @@ pub enum Msg<Ctx: Context> {
     /// Subscribe this actor to receive gossip events
     Subscribe(ActorRef<GossipEvent<Ctx>>),
 
-    /// Broadcast a gossip message
-    BroadcastMsg(GossipMsg<Ctx>),
+    /// Broadcast a signed consensus message
+    BroadcastMsg(SignedConsensusMsg<Ctx>),
 
     /// Broadcast a proposal part
     BroadcastProposalPart(StreamMessage<Ctx::ProposalPart>),
@@ -225,8 +225,8 @@ where
                 };
 
                 let event = match msg {
-                    GossipMsg::Vote(vote) => GossipEvent::Vote(from, vote),
-                    GossipMsg::Proposal(proposal) => GossipEvent::Proposal(from, proposal),
+                    SignedConsensusMsg::Vote(vote) => GossipEvent::Vote(from, vote),
+                    SignedConsensusMsg::Proposal(proposal) => GossipEvent::Proposal(from, proposal),
                 };
 
                 self.publish(event, subscribers);

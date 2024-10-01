@@ -1,10 +1,11 @@
-use crate::ProposedValue;
 use derive_where::derive_where;
 use malachite_common::{Context, Round, SignedProposal, SignedVote, Timeout};
 
-/// Messages that can be handled by the consensus process
+use crate::types::ProposedValue;
+
+/// Inputs to be handled by the consensus process.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub enum Msg<Ctx>
+pub enum Input<Ctx>
 where
     Ctx: Context,
 {

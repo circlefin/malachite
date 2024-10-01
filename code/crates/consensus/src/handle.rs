@@ -6,26 +6,25 @@ use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_metrics::Metrics;
 
-use crate::effect::{Effect, Resume};
+use crate::effect::Effect;
 use crate::error::Error;
 use crate::gen::Co;
-use crate::msg::Msg;
+use crate::input::Input;
+use crate::perform;
 use crate::state::State;
-use crate::types::GossipMsg;
+use crate::types::{ProposedValue, SignedConsensusMsg};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
-use crate::ConsensusMsg;
-use crate::{perform, ProposedValue};
 
 pub async fn handle<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    msg: Msg<Ctx>,
+    input: Input<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    handle_msg(&co, state, metrics, msg).await
+    handle_msg(&co, state, metrics, input).await
 }
 
 #[async_recursion]
@@ -33,22 +32,22 @@ async fn handle_msg<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    msg: Msg<Ctx>,
+    input: Input<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    match msg {
-        Msg::StartHeight(height, vs) => {
+    match input {
+        Input::StartHeight(height, vs) => {
             reset_and_start_height(co, state, metrics, height, vs).await
         }
-        Msg::Vote(vote) => on_vote(co, state, metrics, vote).await,
-        Msg::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
-        Msg::ProposeValue(height, round, value) => {
+        Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
+        Input::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
+        Input::ProposeValue(height, round, value) => {
             propose_value(co, state, metrics, height, round, value).await
         }
-        Msg::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
-        Msg::ReceivedProposedValue(block) => {
+        Input::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
+        Input::ReceivedProposedValue(block) => {
             on_received_proposed_value(co, state, metrics, block).await
         }
     }
@@ -118,7 +117,7 @@ async fn replay_pending_msgs<Ctx>(
 where
     Ctx: Context,
 {
-    let pending_msgs = std::mem::take(&mut state.msg_queue);
+    let pending_msgs = std::mem::take(&mut state.input_queue);
     debug!("Replaying {} messages", pending_msgs.len());
 
     for pending_msg in pending_msgs {
@@ -269,7 +268,7 @@ where
 
             perform!(
                 co,
-                Effect::Broadcast(GossipMsg::Proposal(signed_proposal.clone()))
+                Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal.clone()))
             );
 
             on_proposal(co, state, metrics, signed_proposal).await
@@ -285,7 +284,10 @@ where
 
             let signed_vote = state.ctx.sign_vote(vote);
 
-            perform!(co, Effect::Broadcast(GossipMsg::Vote(signed_vote.clone()),));
+            perform!(
+                co,
+                Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote.clone()))
+            );
 
             apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await
         }
@@ -459,9 +461,11 @@ where
         return Ok(());
     };
 
-    let signed_msg = signed_vote.clone().map(ConsensusMsg::Vote);
-    let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
-    if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
+    let valid = metrics.time_signature_verification(|| {
+        Ctx::verify_signed_vote(&signed_vote, validator.public_key())
+    });
+
+    if !valid {
         warn!(
             validator = %validator_address,
             "Received invalid vote: {}", PrettyVote::<Ctx>(&signed_vote.message)
@@ -481,7 +485,7 @@ where
             "Received vote at round -1, queuing for later"
         );
 
-        state.msg_queue.push_back(Msg::Vote(signed_vote));
+        state.input_queue.push_back(Input::Vote(signed_vote));
         return Ok(());
     }
 
@@ -493,7 +497,7 @@ where
             "Received vote for higher height, queuing for later"
         );
 
-        state.msg_queue.push_back(Msg::Vote(signed_vote));
+        state.input_queue.push_back(Input::Vote(signed_vote));
         return Ok(());
     }
 
@@ -540,9 +544,20 @@ where
         return Ok(());
     };
 
-    let signed_msg = signed_proposal.clone().map(ConsensusMsg::Proposal);
-    let verify_sig = Effect::VerifySignature(signed_msg, proposer.public_key().clone());
-    if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
+    if proposal_height != state.driver.height() {
+        warn!(
+            "Ignoring proposal for height {proposal_height}, current height: {}",
+            state.driver.height()
+        );
+
+        return Ok(());
+    }
+
+    let valid = metrics.time_signature_verification(|| {
+        Ctx::verify_signed_proposal(&signed_proposal, proposer.public_key())
+    });
+
+    if !valid {
         error!(
             "Received invalid signature for proposal: {}",
             PrettyProposal::<Ctx>(&signed_proposal.message)
@@ -556,13 +571,17 @@ where
     // Drop all others.
     if state.driver.round() == Round::Nil {
         debug!("Received proposal at round -1, queuing for later");
-        state.msg_queue.push_back(Msg::Proposal(signed_proposal));
+        state
+            .input_queue
+            .push_back(Input::Proposal(signed_proposal));
         return Ok(());
     }
 
     if state.driver.height() < proposal_height {
         debug!("Received proposal for higher height, queuing for later");
-        state.msg_queue.push_back(Msg::Proposal(signed_proposal));
+        state
+            .input_queue
+            .push_back(Input::Proposal(signed_proposal));
         return Ok(());
     }
 
@@ -663,8 +682,8 @@ where
     if state.driver.height() < proposed_value.height {
         debug!("Received value for higher height, queuing for later");
         state
-            .msg_queue
-            .push_back(Msg::ReceivedProposedValue(proposed_value));
+            .input_queue
+            .push_back(Input::ReceivedProposedValue(proposed_value));
         return Ok(());
     }
 
