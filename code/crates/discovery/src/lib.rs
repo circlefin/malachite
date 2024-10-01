@@ -22,8 +22,8 @@ const DISCOVERY_PROTOCOL: &str = "/malachite-discover/v1beta1";
 
 #[derive(Debug)]
 pub struct Discovery {
-    pub peers: HashMap<PeerId, identify::Info>,
-    pub is_enabled: bool,
+    peers: HashMap<PeerId, identify::Info>,
+    is_enabled: bool,
     is_done: bool,
     bootstrap_nodes: Vec<Multiaddr>,
     dialed_peer_ids: HashSet<PeerId>,
@@ -44,7 +44,7 @@ impl Discovery {
             peers: HashMap::new(),
             is_enabled: enable_discovery,
             is_done: false,
-            bootstrap_nodes: bootstrap_nodes,
+            bootstrap_nodes,
             dialed_peer_ids: HashSet::new(),
             dialed_multiaddrs: HashSet::new(),
             pending_connections: HashSet::new(),
@@ -55,6 +55,14 @@ impl Discovery {
             start_time: Instant::now(),
             duration: Duration::default(),
         }
+    }
+
+    pub fn remove_peer(&mut self, peer_id: &PeerId) {
+        self.peers.remove(peer_id);
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.is_enabled
     }
 
     pub fn add_pending_connection(

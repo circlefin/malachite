@@ -178,7 +178,7 @@ async fn run(
 
     info!(
         "Discovery is {}",
-        if state.discovery.is_enabled {
+        if state.discovery.is_enabled() {
             "enabled"
         } else {
             "disabled"
@@ -295,7 +295,7 @@ async fn handle_swarm_event(
 
         SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
             trace!("Connection closed with {peer_id}: {:?}", cause);
-            state.discovery.peers.remove(&peer_id);
+            state.discovery.remove_peer(&peer_id);
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent {
