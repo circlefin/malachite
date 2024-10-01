@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use libp2p::identity::Keypair;
-use ractor::ActorCell;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
 use ractor::{Actor, RpcReplyPort};
@@ -25,7 +24,6 @@ impl GossipMempool {
         keypair: Keypair,
         config: Config,
         metrics: SharedRegistry,
-        supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg>, ractor::SpawnErr> {
         let args = Args {
             keypair,
@@ -33,12 +31,7 @@ impl GossipMempool {
             metrics,
         };
 
-        let (actor_ref, _) = if let Some(supervisor) = supervisor {
-            Actor::spawn_linked(None, Self, args, supervisor).await?
-        } else {
-            Actor::spawn(None, Self, args).await?
-        };
-
+        let (actor_ref, _) = Actor::spawn(None, Self, args).await?;
         Ok(actor_ref)
     }
 }

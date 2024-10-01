@@ -4,7 +4,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use eyre::eyre;
 use libp2p::PeerId;
-use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef};
+use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
@@ -147,7 +147,6 @@ where
         host: HostRef<Ctx>,
         metrics: Metrics,
         tx_decision: Option<TxDecision<Ctx>>,
-        supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let node = Self::new(
             ctx,
@@ -159,12 +158,7 @@ where
             tx_decision,
         );
 
-        let (actor_ref, _) = if let Some(supervisor) = supervisor {
-            Actor::spawn_linked(None, node, (), supervisor).await?
-        } else {
-            Actor::spawn(None, node, ()).await?
-        };
-
+        let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
         Ok(actor_ref)
     }
 

@@ -114,7 +114,6 @@ async fn spawn_consensus_actor(
         host,
         metrics,
         tx_decision,
-        None,
     )
     .await
     .unwrap()
@@ -142,7 +141,7 @@ async fn spawn_gossip_consensus_actor(
     let keypair = make_keypair(private_key);
     let codec = ProtobufCodec;
 
-    GossipConsensus::spawn(keypair, config_gossip, registry.clone(), codec, None)
+    GossipConsensus::spawn(keypair, config_gossip, registry.clone(), codec)
         .await
         .unwrap()
 }
@@ -159,7 +158,7 @@ async fn spawn_mempool_actor(
     mempool_config: &MempoolConfig,
     test_config: &TestConfig,
 ) -> MempoolRef {
-    Mempool::spawn(gossip_mempool, mempool_config, test_config, None)
+    Mempool::spawn(gossip_mempool, mempool_config, test_config)
         .await
         .unwrap()
 }
@@ -180,7 +179,7 @@ async fn spawn_gossip_mempool_actor(
     };
 
     let keypair = make_keypair(private_key);
-    GossipMempool::spawn(keypair, config_gossip_mempool, registry.clone(), None)
+    GossipMempool::spawn(keypair, config_gossip_mempool, registry.clone())
         .await
         .unwrap()
 }
