@@ -1,4 +1,7 @@
-/// Process an [`Input`] and handle the emitted [`Effect]s.
+/// Process an [`Input`][input] and handle the emitted [`Effects`][effect].
+///
+/// [input]: crate::input::Input
+/// [effect]: crate::effect::Effect
 ///
 /// # Example
 ///
@@ -45,6 +48,8 @@ macro_rules! process {
 ///
 /// Effects yielded by this macro must resume with a value that matches the provided pattern.
 /// If not pattern is give, then the yielded effect must resume with [`Resume::Continue`][continue].
+///
+/// [continue]: crate::effect::Resume::Continue
 ///
 /// # Errors
 /// This macro will abort the current function with a [`Error::UnexpectedResume`][error] error
