@@ -1,5 +1,5 @@
 use async_recursion::async_recursion;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use malachite_common::*;
 use malachite_driver::Input as DriverInput;
@@ -439,6 +439,19 @@ where
     )
 }
 
+async fn verify_signature<Ctx>(
+    co: &Co<Ctx>,
+    signed_msg: SignedMessage<Ctx, ConsensusMsg<Ctx>>,
+    validator: &Ctx::Validator,
+) -> Result<bool, Error<Ctx>>
+where
+    Ctx: Context,
+{
+    let effect = Effect::VerifySignature(signed_msg, validator.public_key().clone());
+    let valid = perform!(co, effect, Resume::SignatureValidity(valid) => valid);
+    Ok(valid)
+}
+
 async fn on_vote<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
@@ -487,9 +500,10 @@ where
     };
 
     let signed_msg = signed_vote.clone().map(ConsensusMsg::Vote);
-    let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
-    if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
+    if !verify_signature(co, signed_msg, validator).await? {
         warn!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
             validator = %validator_address,
             "Received invalid vote: {}", PrettyVote::<Ctx>(&signed_vote.message)
         );
@@ -604,9 +618,8 @@ where
     };
 
     let signed_msg = signed_proposal.clone().map(ConsensusMsg::Proposal);
-    let verify_sig = Effect::VerifySignature(signed_msg, proposer.public_key().clone());
-    if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
-        error!(
+    if !verify_signature(co, signed_msg, proposer).await? {
+        warn!(
             consensus.height = %consensus_height,
             proposal.height = %proposal_height,
             proposer = %proposer_address,
