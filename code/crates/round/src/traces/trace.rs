@@ -9,7 +9,7 @@ use super::Line;
 
 #[derive_where(Clone, Debug, Eq, PartialEq)]
 #[derive(Display)]
-#[displaydoc("height: {height}, round: {round}, line: {line}")]
+/// height: {height}, round: {round}, line: {line}
 pub struct Trace<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,

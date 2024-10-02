@@ -384,10 +384,9 @@ where
 
     #[cfg(feature = "debug")]
     {
-        debug!(
-            "Consensus traces: {:?}",
-            state.driver.round_state.get_traces()
-        );
+        for trace in state.driver.round_state.get_traces() {
+            debug!("Consensus trace: {trace}");
+        }
     }
 
     perform!(
