@@ -22,7 +22,7 @@ macro_rules! process {
     (input: $input:expr, state: $state:expr, metrics: $metrics:expr, with: $effect:ident => $handle:expr) => {{
         let mut gen = $crate::gen::Gen::new(|co| $crate::handle(co, $state, $metrics, $input));
 
-        let mut co_result = gen.resume_with(Resume::Start);
+        let mut co_result = gen.resume_with($crate::Resume::Start);
 
         loop {
             match co_result {
@@ -30,8 +30,8 @@ macro_rules! process {
                     let resume = match $handle {
                         Ok(resume) => resume,
                         Err(error) => {
-                            error!("Error when processing effect: {error:?}");
-                            Resume::Continue
+                            $crate::tracing::error!("Error when processing effect: {error:?}");
+                            $crate::Resume::Continue
                         }
                     };
                     co_result = gen.resume_with(resume)
@@ -80,7 +80,7 @@ macro_rules! perform {
         match $co.yield_($effect).await {
             $pat => $expr,
             resume => {
-                return Err($crate::error::Error::UnexpectedResume(
+                return ::core::result::Result::Err($crate::error::Error::UnexpectedResume(
                     resume,
                     stringify!($pat)
                 )
