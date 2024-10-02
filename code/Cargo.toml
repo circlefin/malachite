@@ -75,6 +75,7 @@ clap               = "4.5.15"
 color-eyre         = "0.6"
 config             = { version = "0.14", features = ["toml"], default-features = false }
 derive-where       = "1.2.7"
+displaydoc         = { version = "0.2", default-features = false }
 directories        = "5.0.1"
 ed25519-consensus  = "2.1.0"
 eyre               = "0.6"

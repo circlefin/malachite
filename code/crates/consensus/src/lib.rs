@@ -7,11 +7,13 @@
     variant_size_differences
 )]
 // no_std compatibility
-#![cfg_attr(not(feature = "std"), no_std)]
+// #![cfg_attr(not(feature = "std"), no_std)]
 // For coverage on nightly
 #![allow(unexpected_cfgs)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+
+extern crate alloc;
 
 mod msg;
 pub use msg::Msg;

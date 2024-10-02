@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use derive_where::derive_where;
 
 use malachite_common::*;

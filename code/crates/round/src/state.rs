@@ -1,14 +1,13 @@
 //! The state maintained by the round state machine
 
-use alloc::borrow::Cow;
-use alloc::string::String;
-use alloc::vec::Vec;
-
 use derive_where::derive_where;
 
 use crate::input::Input;
 use crate::state_machine::Info;
 use crate::transition::Transition;
+
+#[cfg(feature = "debug")]
+use crate::traces::*;
 
 use malachite_common::{Context, Round};
 
@@ -75,7 +74,7 @@ where
     /// Buffer with traces of tendermint algorithm lines,
     #[cfg(feature = "debug")]
     #[derive_where(skip)]
-    pub traces: Vec<String>,
+    pub traces: alloc::vec::Vec<Trace<Ctx>>,
 }
 
 impl<Ctx> State<Ctx>
@@ -92,7 +91,7 @@ where
             valid: None,
             decision: None,
             #[cfg(feature = "debug")]
-            traces: Vec::default(),
+            traces: alloc::vec::Vec::default(),
         }
     }
 
@@ -136,15 +135,15 @@ where
     }
 
     /// Return the traces logged during execution.
-    pub fn get_traces(&self) -> Cow<[String]> {
-        #[cfg(feature = "debug")]
-        {
-            Cow::Borrowed(&self.traces)
-        }
-        #[cfg(not(feature = "debug"))]
-        {
-            Cow::Owned(Vec::default())
-        }
+    #[cfg(feature = "debug")]
+    pub fn add_trace(&mut self, line: Line) {
+        self.traces.push(Trace::new(self.height, self.round, line));
+    }
+
+    /// Return the traces logged during execution.
+    #[cfg(feature = "debug")]
+    pub fn get_traces(&self) -> &[Trace<Ctx>] {
+        &self.traces
     }
 }
 

@@ -1,3 +1,8 @@
+use core::mem;
+
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+
 use async_recursion::async_recursion;
 use tracing::{debug, error, info, warn};
 
@@ -129,7 +134,7 @@ async fn replay_pending_msgs<Ctx>(
 where
     Ctx: Context,
 {
-    let pending_msgs = std::mem::take(&mut state.msg_queue);
+    let pending_msgs = mem::take(&mut state.msg_queue);
     debug!("Replaying {} messages", pending_msgs.len());
 
     for pending_msg in pending_msgs {
@@ -377,10 +382,13 @@ where
     // Restore the commits. Note that they will be removed from `state`
     let commits = state.restore_precommits(height, round, &value);
 
-    debug!(
-        "Consensus traces: {:?}",
-        state.driver.round_state.get_traces()
-    );
+    #[cfg(feature = "debug")]
+    {
+        debug!(
+            "Consensus traces: {:?}",
+            state.driver.round_state.get_traces()
+        );
+    }
 
     perform!(
         co,
