@@ -79,8 +79,8 @@ where
     /// Resume execution
     Continue,
 
-    /// Resume execution with a validator set at the given height
-    ValidatorSet(Ctx::Height, Ctx::ValidatorSet),
+    /// Resume execution with an optional validator set at the given height
+    ValidatorSet(Ctx::Height, Option<Ctx::ValidatorSet>),
 
     /// Resume execution with the validity of the signature just verified
     SignatureValidity(bool),

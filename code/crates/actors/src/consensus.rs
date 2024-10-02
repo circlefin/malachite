@@ -520,9 +520,11 @@ where
             }
 
             Effect::GetValidatorSet(height) => {
-                let validator_set = self.get_validator_set(height).await.map_err(|e| {
-                    eyre!("Error when getting validator set at height {height}: {e:?}")
-                })?;
+                let validator_set = self
+                    .get_validator_set(height)
+                    .await
+                    .map_err(|e| warn!("No validator set found for height {height}: {e:?}"))
+                    .ok();
 
                 Ok(Resume::ValidatorSet(height, validator_set))
             }
