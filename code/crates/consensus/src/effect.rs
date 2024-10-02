@@ -19,43 +19,43 @@ where
     Ctx: Context,
 {
     /// Reset all timeouts
-    /// Resume with: Resume::Continue
+    /// Resume with: [`Resume::Continue`]
     ResetTimeouts,
 
     /// Cancel all timeouts
-    /// Resume with: Resume::Continue
+    /// Resume with: [`Resume::Continue`]
     CancelAllTimeouts,
 
     /// Cancel a given timeout
-    /// Resume with: Resume::Continue
+    /// Resume with: [`Resume::Continue`]
     CancelTimeout(Timeout),
 
     /// Schedule a timeout
-    /// Resume with: Resume::Continue
+    /// Resume with: [`Resume::Continue`]
     ScheduleTimeout(Timeout),
 
     /// Consensus is starting a new round with the given proposer
-    /// Resume with: Resume::Continue
+    /// Resume with: [`Resume::Continue`]
     StartRound(Ctx::Height, Round, Ctx::Address),
 
     /// Broadcast a message
-    /// Resume with: Resume::Continue
+    /// Resume with: [`Resume::Continue`]
     Broadcast(SignedConsensusMsg<Ctx>),
 
     /// Get a value to propose at the given height and round, within the given timeout
-    /// Resume with: Resume::Continue
+    /// Resume with: [`Resume::Continue`]
     GetValue(Ctx::Height, Round, Timeout),
 
     /// Get the validator set at the given height
-    /// Resume with: Resume::ValidatorSet(height, validator_set)
+    /// Resume with: [`Resume::ValidatorSet`]
     GetValidatorSet(Ctx::Height),
 
     /// Verify a signature
-    /// Resume with: Resume::SignatureValidity(valid)
+    /// Resume with: [`Resume::SignatureValidity`]
     VerifySignature(SignedMessage<Ctx, ConsensusMsg<Ctx>>, PublicKey<Ctx>),
 
     /// Consensus has decided on a value
-    /// Resume with: Resume::Continue
+    /// Resume with: [`Resume::Continue`]
     Decide {
         height: Ctx::Height,
         round: Round,
