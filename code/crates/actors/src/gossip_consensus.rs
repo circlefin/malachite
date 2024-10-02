@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use libp2p::identity::Keypair;
-use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
+use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, error_span, Instrument};
 
@@ -37,7 +37,6 @@ where
         config: Config,
         metrics: SharedRegistry,
         codec: Codec,
-        supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let args = Args {
             keypair,
@@ -46,12 +45,7 @@ where
             codec,
         };
 
-        let (actor_ref, _) = if let Some(supervisor) = supervisor {
-            Actor::spawn_linked(None, Self::default(), args, supervisor).await?
-        } else {
-            Actor::spawn(None, Self::default(), args).await?
-        };
-
+        let (actor_ref, _) = Actor::spawn(None, Self::default(), args).await?;
         Ok(actor_ref)
     }
 
