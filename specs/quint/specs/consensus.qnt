@@ -64,7 +64,7 @@ module consensus {
         // Receive +2/3 precommits from different validators, not for the same value or nil.
         | PrecommitAnyCInput
         // Proposal and 2/3+ commits for the proposal => decision
-        | ProposalAndCommitAndValidCInput(Value)
+        | ProposalAndCommitAndValidCInput((Round, NonNilValue))
         // Receive +1/3 messages from different validators for a higher round.
         | RoundSkipCInput(Round) 
         // Timeout waiting for proposal.
@@ -80,7 +80,7 @@ module consensus {
         | GetValueAndScheduleTimeoutOutput((Height, Round, Timeout))
         | VoteOutput(Vote)
         | TimeoutOutput((Round, Timeout))
-        | DecidedOutput(Value)
+        | DecidedOutput((Round, NonNilValue))
         | SkipRoundOutput(Round)
         | ErrorOutput(str)
 
@@ -96,8 +96,8 @@ module consensus {
         { cs: state, out: VoteOutput(mkVote(Precommit, src, height, round, valueId)) }
     pure def toTimeoutOutput(state, timeout) = 
         { cs: state, out: TimeoutOutput((state.round, timeout)) }
-    pure def toDecidedOutput(state, value) = 
-        { cs: state, out: DecidedOutput(value) }
+    pure def toDecidedOutput(state, value, round) = 
+        { cs: state, out: DecidedOutput((value, round)) }
     pure def toSkipRoundOutput(state, round) = 
         { cs: state, out: SkipRoundOutput(round) }
     pure def toErrorOutput(state, msg) = 
@@ -252,11 +252,13 @@ module consensus {
             state.toTimeoutOutput(PrecommitTimeout)
 
         // line 49
-        | ProposalAndCommitAndValidCInput(v) => 
-            if (state.step != CommitStep)
-                state
+        | ProposalAndCommitAndValidCInput(round_value) => 
+                val r = round_value._1
+                val v = round_value._2
+            if (state.step != CommitStep)   // "CommitStep" doesn't exist in the arXiv paper. This ensures
+                state                       // that we do not decide more than once in a round.
                     .with("step", CommitStep)
-                    .toDecidedOutput(v)
+                    .toDecidedOutput(r, v)
             else state.toErrorOutput("ProposalAndCommitAndValidCInput when in CommitStep")
 
         // line 55

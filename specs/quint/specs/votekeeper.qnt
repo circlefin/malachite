@@ -239,7 +239,7 @@ module votekeeper {
     //   of the current height; I wonder if we need to keep the totalWeight for every Height that we may receive a vote for.
     pure def applyVote(keeper: Bookkeeper, vote: Vote, currentRound: Round): { bookkeeper: Bookkeeper, output: VoteKeeperOutput } =
         val round = vote.round
-        val weight = keeper.validatorSet.get(vote.srcAddress)
+        val weight = keeper.validatorSet.getOrElse(vote.srcAddress, 0)
         val roundVotes = keeper.rounds.getOrElse(round, newRoundVotes(keeper.height, round, keeper.validatorSet.totalWeight()))
         
         val updatedVoteCount = 
@@ -327,57 +327,235 @@ module votekeeper {
             assert(o6.bookkeeper.evidence != Set())
         }
 
+pure def countVotes (votes: Set[Vote], v: ValueId, valset: ValidatorSet) : Weight =
+    votes.filter(vote => vote.valueId == v).fold(0, (s, x) => s + valset.getOrElse(x.srcAddress, 0))
 
-pure def validCommit (commit: Set[Vote], commitWeight: Weight, keeper: Bookkeeper) : bool =
-    val v = chooseSome(commit)
+pure def validCertificate (certificate: Set[Vote], valset: ValidatorSet) : bool = 
+    val v = certificate.fold(emptyVote, (sum, y) => y)    // certificate.chooseSome()
     all {
         v.valueId != Nil,
-        v.voteType == Precommit,
-        commit.forall(x => all {    x.height == v.height,
-                                    x.round == v.round,
-                                    x.valueId == v.valueId,
-                                    x.voteType == Precommit}),
-        commitWeight > 2 / 3 * keeper.validatorSet.totalWeight(),
+        certificate.forall(x => all {   x.voteType == v.voteType,
+                                        x.height == v.height,
+                                        x.round == v.round,
+                                        x.valueId == v.valueId,}),
+        certificate.countVotes(v.valueId, valset) * 3 > 2 * valset.totalWeight(), 
     }
 
-pure def commitRound (commit: Set[Vote]) : Round = chooseSome(commit).round
-pure def commitValue (commit: Set[Vote]) : Value = chooseSome(commit).valueId
-
-pure def voteCountFromCommit (commit: Set[Vote], commitWeight: Weight) : VoteCount =
-    {
-        totalWeight: commitWeight,
-        valuesWeights: Map(commitValue(commit) -> commitWeight),
-        votesAddresses: commit.map(x => x.srcAddress),
-        receivedVotes: commit,
+run countVotesvalidCertificateTest =
+    val invalidValue = Set(
+        { height: 0, round: 0, srcAddress: "v2", valueId: Val("blue"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v3", valueId: Val("red"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v4", valueId: Val("red"), voteType: Prevote }
+    )
+    val invalidValSet = Set(
+        { height: 0, round: 0, srcAddress: "v2", valueId: Val("red"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v3", valueId: Val("red"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v5", valueId: Val("red"), voteType: Prevote }
+    )  
+    val invalidWeight = Set(
+        { height: 0, round: 0, srcAddress: "v3", valueId: Val("red"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v4", valueId: Val("red"), voteType: Prevote }
+    )      
+    val valid = Set(
+        { height: 0, round: 0, srcAddress: "v2", valueId: Val("red"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v3", valueId: Val("red"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v4", valueId: Val("red"), voteType: Prevote }
+    )
+    val validatorSet = Set("v1", "v2", "v3", "v4").mapBy(x => 1)
+    all {
+    assert(validatorSet.totalWeight() == 4),
+    assert(countVotes(invalidValue, Val("red"), validatorSet) == 2),
+    assert(countVotes(invalidValue, Val("blue"), validatorSet) == 1),
+    assert(countVotes(invalidValSet, Val("red"), validatorSet) == 2),
+    assert(countVotes(invalidValSet, Val("blue"), validatorSet) == 0),
+    assert(countVotes(invalidWeight, Val("red"), validatorSet) == 2),
+    assert(countVotes(invalidWeight, Val("blue"), validatorSet) == 0),
+    assert(countVotes(valid, Val("red"), validatorSet) == 3),
+    assert(countVotes(valid, Val("blue"), validatorSet) == 0),
+    assert(validCertificate(invalidValue, validatorSet) == false),
+    assert(validCertificate(invalidValSet, validatorSet) == false),
+    assert(validCertificate(invalidWeight, validatorSet) == false),
+    assert(validCertificate(valid, validatorSet)),
     }
 
-// This takes a commit, checks for evidence, and overwrites the roundVotes with the new commit
-// TODO: add test for applyCommit with/without evidence
-pure def applyCommit(keeper: Bookkeeper, commit: Set[Vote], commitWeight: Weight, currentRound: Round): { bookkeeper: Bookkeeper, output: VoteKeeperOutput } =
-    if (not(validCommit(commit, commitWeight, keeper)))
+
+pure def certificateRound (certificate: Set[Vote]) : Round = 
+    // assumes certificate is valid (this also ensures that the fold is sound)
+    // chooseSome(certificate).round
+    certificate.fold(emptyVote, (sum, y) => y).round
+
+pure def certificateValue (certificate: Set[Vote]) : Value = 
+    // assumes certificate is valid (this also ensures that the fold is sound)
+    //chooseSome(certificate).valueId
+    certificate.fold(emptyVote, (sum, y) => y).valueId
+
+pure def certificateType (certificate: Set[Vote]) : VoteType = 
+    // assumes certificate is valid (this also ensures that the fold is sound)
+    // chooseSome(certificate).voteType
+    certificate.fold(emptyVote, (sum, y) => y).voteType
+
+pure def voteCountFromCertificate (certificate: Set[Vote], oldVotes: Set[Vote], valset: ValidatorSet) : VoteCount =
+    val newVotes = certificate.union(oldVotes)
+    val values = newVotes.map(x => x.valueId)
+    {   totalWeight: valset.totalWeight(),
+        valuesWeights: values.mapBy(x => newVotes.countVotes(x, valset)),
+        votesAddresses: newVotes.map(x => x.srcAddress),
+        receivedVotes: newVotes,
+    }
+
+run voteCountFromCertificateTest =
+    val old = Set(
+        { height: 0, round: 0, srcAddress: "v2", valueId: Val("blue"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v3", valueId: Val("red"), voteType: Prevote }
+    )
+    val cert = Set(
+        { height: 0, round: 0, srcAddress: "v2", valueId: Val("red"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v3", valueId: Val("red"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v4", valueId: Val("red"), voteType: Prevote }
+    )
+    val validatorSet = Set("v1", "v2", "v3", "v4").mapBy(x => 1)
+    val res = voteCountFromCertificate(cert, old, validatorSet)
+    assert(all{
+        res.totalWeight == 4, 
+        res.valuesWeights.get(Val("red")) == 3,
+        res.valuesWeights.get(Val("blue")) == 1,
+        res.votesAddresses == Set("v2", "v3", "v4"),
+        res.receivedVotes == old.union(cert),
+        res.hasQuorumOnValue(Val("red")),
+        res.receivedVotes.countVotes(Val("red"), validatorSet) == 3, //test for countVotes
+    })
+
+pure def roundVotesAndEvidenceFromCertificate (certificate: Set[Vote], roundVotes: RoundVotes, valset: ValidatorSet) : (RoundVotes, Set[Set[Vote]]) = 
+    // compute evidence
+    val oldVotes = match certificate.certificateType() {
+        | Prevote => roundVotes.prevotes.receivedVotes
+        | Precommit => roundVotes.precommits.receivedVotes
+    } 
+    val doubleVotes = certificate.filter(cv => oldVotes.exists(ov => cv.srcAddress == ov.srcAddress and cv.valueId != ov.valueId))
+    val newEvidence = doubleVotes.map(cv => Set(cv).union(oldVotes.filter(ov => cv.srcAddress == ov.srcAddress)))
+    //TODO merge oldVotes and certificate compute weight
+    match certificate.certificateType() {
+        | Prevote => (roundVotes.with("prevotes", voteCountFromCertificate(certificate, oldVotes, valset)), newEvidence)
+        | Precommit => (roundVotes.with("precommits", voteCountFromCertificate(certificate, oldVotes, valset)), newEvidence)
+    }
+
+
+// This takes a certificate, checks for evidence, and overwrites the roundVotes with the new certificate
+// TODO: add test for applyCertificate with/without evidence
+pure def applyCertificate(keeper: Bookkeeper, certificate: Set[Vote], currentRound: Round): { bookkeeper: Bookkeeper, output: VoteKeeperOutput } =
+    if (not(validCertificate(certificate, keeper.validatorSet)))
         { bookkeeper: keeper, output: NoVKOutput }
     else
-        // getting the roundVotes that are touched by the commit
-        val round = commit.commitRound()
+        // getting the roundVotes that are touched by the certificate
+        val round = certificate.certificateRound() 
         val roundVotes = keeper.rounds.getOrElse(round, newRoundVotes(keeper.height, round, keeper.validatorSet.totalWeight()))
-        // compute evidence
-        val oldPrecommits = roundVotes.precommits.receivedVotes
-        val doubleVotes = commit.filter(cv => oldPrecommits.exists(ov => cv.srcAddress == ov.srcAddress and cv.valueId != ov.valueId))
-        val newEvidence = doubleVotes.map(cv => Set(cv).union(oldPrecommits.filter(ov => cv.srcAddress == ov.srcAddress)))
-        // overwrite roundvotes with commit
-        val newRoundVotes = roundVotes.with("precommits", voteCountFromCommit(commit, commitWeight))
-        val newRounds = keeper.rounds.set(commit.commitRound(), newRoundVotes)
+        // overwrite roundvotes with certificate
+        val rvEv = roundVotesAndEvidenceFromCertificate(certificate, roundVotes, keeper.validatorSet)
+        val newRounds = keeper.rounds.set(certificate.certificateRound(), rvEv._1)
         // compute the new bookkeeper state with evidence and updated roundvotes
         val newkeeper = keeper
-                            .with("evidence", keeper.evidence.union(newEvidence))
+                            .with("evidence", keeper.evidence.union(rvEv._2))
                             .with("rounds", newRounds)
-        match commit.commitValue() {
-            | Val(v) => { bookkeeper: newkeeper, output: PrecommitValueVKOutput((round, v)) }
+        match certificate.certificateValue() {
+            | Val(v) => match certificate.certificateType() {
+                            | Prevote => { bookkeeper: newkeeper, output: PolkaValueVKOutput((round, v)) }
+                            | Precommit =>  { bookkeeper: newkeeper, output: PrecommitValueVKOutput((round, v)) }
+                        }
             | Nil => { bookkeeper: keeper, output: NoVKOutput } // already done in validity check in the top-level if, but 
                                                                 // currently needed to have the match complete
         }
+
+    run applyCertificateTest =
+        val bk : Bookkeeper =
+                    {
+          evidence: Set(),
+          height: 0,
+          rounds:
+            Map(
+              0 ->
+                {
+                  emittedOutputs: Set(PolkaAnyVKOutput(0), PrecommitAnyVKOutput(0)),
+                  height: 0,
+                  precommits:
+                    {
+                      receivedVotes:
+                        Set(
+                          { height: 0, round: 0, srcAddress: "v1", valueId: Nil, voteType: Precommit },
+                          { height: 0, round: 0, srcAddress: "v3", valueId: Val("blue"), voteType: Precommit },
+                          { height: 0, round: 0, srcAddress: "v4", valueId: Val("blue"), voteType: Precommit }
+                        ),
+                      totalWeight: 4,
+                      valuesWeights: Map(Nil -> 1, Val("blue") -> 2),
+                      votesAddresses: Set("v1", "v3", "v4")
+                    },
+                  prevotes:
+                    {
+                      receivedVotes:
+                        Set(
+                          { height: 0, round: 0, srcAddress: "v2", valueId: Nil, voteType: Prevote },
+                          { height: 0, round: 0, srcAddress: "v3", valueId: Val("blue"), voteType: Prevote },
+                          { height: 0, round: 0, srcAddress: "v4", valueId: Val("blue"), voteType: Prevote }
+                        ),
+                      totalWeight: 4,
+                      valuesWeights: Map(Nil -> 1, Val("blue") -> 2),
+                      votesAddresses: Set("v2", "v3", "v4")
+                    },
+                  round: 0,
+                  votesAddressesWeights: Map("v1" -> 1, "v2" -> 1, "v3" -> 1, "v4" -> 1)
+                }
+            ),
+          validatorSet: Map("v1" -> 1, "v2" -> 1, "v3" -> 1, "v4" -> 1)
+        }
+        val validCert = Set(
+        { height: 0, round: 0, srcAddress: "v2", valueId: Val("blue"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v3", valueId: Val("blue"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v4", valueId: Val("blue"), voteType: Prevote }
+        )
+        val invalidCertificate = Set(
+        { height: 0, round: 0, srcAddress: "v2", valueId: Val("red"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v3", valueId: Val("blue"), voteType: Prevote },
+        { height: 0, round: 0, srcAddress: "v4", valueId: Val("blue"), voteType: Prevote }
+        )
+        val resSuccess = applyCertificate(bk, validCert, 1)
+        val resFailed = applyCertificate(bk, invalidCertificate, 1)
+        val new = resSuccess.bookkeeper
+        all{
+            assert(resSuccess.output == PolkaValueVKOutput((0, "blue")) ),
+            assert(new.evidence == Set( Set(
+                { height: 0, round: 0, srcAddress: "v2", valueId: Nil, voteType: Prevote },
+                { height: 0, round: 0, srcAddress: "v2", valueId: Val("blue"), voteType: Prevote }
+            ))),
+            assert(new.rounds.get(0).prevotes.receivedVotes == bk.rounds.get(0).prevotes.receivedVotes.union(validCert)),
+            assert(new.rounds.get(0).prevotes.valuesWeights.get(Val("blue")) == 3),
+
+            assert(resFailed.output == NoVKOutput),
+            assert(resFailed.bookkeeper == bk), // nothing changed
+        }
         
-        
+
+
+
+
+
+
+pure def getCertificate(keeper: Bookkeeper, vkout: VoteKeeperOutput) : Certificate =
+    match vkout {
+        | PolkaValueVKOutput(rndVal) => 
+            val cert = keeper.rounds.get(rndVal._1).prevotes.receivedVotes.filter(v => v.valueId == Val(rndVal._2))
+            if (cert.validCertificate(keeper.validatorSet)) // check voting power
+                Polka(cert)
+            else 
+                NoCertificate
+        | PrecommitValueVKOutput(rndVal) => 
+            val cert = keeper.rounds.get(rndVal._1).precommits.receivedVotes.filter(v => v.valueId == Val(rndVal._2))
+            if (cert.validCertificate(keeper.validatorSet)) // check voting power
+                Commit(cert)
+            else 
+                NoCertificate
+        | _ => NoCertificate
+    }
+
+
 
 
     // Called by the driver to check if there is a specific threshold for a given round and voteType.

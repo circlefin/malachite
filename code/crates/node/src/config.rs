@@ -68,8 +68,55 @@ pub struct Config {
 pub struct P2pConfig {
     // Address to listen for incoming connections
     pub listen_addr: Multiaddr,
+
     /// List of nodes to keep persistent connections to
     pub persistent_peers: Vec<Multiaddr>,
+
+    /// Transport protocol to use
+    pub transport: TransportProtocol,
+
+    /// The type of pub-sub protocol to use for consensus
+    pub protocol: PubSubProtocol,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TransportProtocol {
+    #[default]
+    Tcp,
+    Quic,
+}
+
+impl TransportProtocol {
+    pub fn multiaddr(&self, host: &str, port: usize) -> Multiaddr {
+        match self {
+            Self::Tcp => format!("/ip4/{host}/tcp/{port}").parse().unwrap(),
+            Self::Quic => format!("/ip4/{host}/udp/{port}/quic-v1").parse().unwrap(),
+        }
+    }
+}
+
+impl FromStr for TransportProtocol {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "tcp" => Ok(Self::Tcp),
+            "quic" => Ok(Self::Quic),
+            e => Err(format!(
+                "unknown transport protocol: {e}, available: tcp, quic"
+            )),
+        }
+    }
+}
+
+/// The type of pub-sub protocol
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PubSubProtocol {
+    #[default]
+    GossipSub,
+    Broadcast,
 }
 
 /// Mempool configuration options
@@ -156,7 +203,7 @@ impl TimeoutConfig {
 impl Default for TimeoutConfig {
     fn default() -> Self {
         Self {
-            timeout_propose: Duration::from_secs(5),
+            timeout_propose: Duration::from_secs(3),
             timeout_propose_delta: Duration::from_millis(500),
             timeout_prevote: Duration::from_secs(1),
             timeout_prevote_delta: Duration::from_millis(500),
@@ -214,7 +261,7 @@ impl Default for TestConfig {
         Self {
             tx_size: ByteSize::kib(1),
             txs_per_part: 256,
-            time_allowance_factor: 0.3,
+            time_allowance_factor: 0.5,
             exec_time_per_tx: Duration::from_millis(1),
         }
     }

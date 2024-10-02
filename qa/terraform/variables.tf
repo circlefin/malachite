@@ -137,5 +137,5 @@ variable "instance_tags" {
 
 variable "ssh_timeout" {
   type = string
-  default = "120s"
+  default = "60s"
 }

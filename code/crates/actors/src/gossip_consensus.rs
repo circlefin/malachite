@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, error_span, Instrument};
 
 use malachite_common::{Context, SignedProposal, SignedVote};
-use malachite_consensus::GossipMsg;
+use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
 use malachite_metrics::SharedRegistry;
@@ -98,8 +98,8 @@ pub enum Msg<Ctx: Context> {
     /// Subscribe this actor to receive gossip events
     Subscribe(ActorRef<GossipEvent<Ctx>>),
 
-    /// Broadcast a gossip message
-    BroadcastMsg(GossipMsg<Ctx>),
+    /// Broadcast a signed consensus message
+    BroadcastMsg(SignedConsensusMsg<Ctx>),
 
     /// Broadcast a proposal part
     BroadcastProposalPart(StreamMessage<Ctx::ProposalPart>),
@@ -215,28 +215,28 @@ where
                 self.publish(GossipEvent::PeerDisconnected(peer_id), subscribers);
             }
 
-            Msg::NewEvent(Event::Message(Channel::Consensus, from, msg_id, data)) => {
+            Msg::NewEvent(Event::Message(Channel::Consensus, from, data)) => {
                 let msg = match Codec::decode_msg(data) {
                     Ok(msg) => msg,
                     Err(e) => {
-                        error!(%from, "Failed to decode gossip message {msg_id}: {e:?}");
+                        error!(%from, "Failed to decode gossip message: {e:?}");
                         return Ok(());
                     }
                 };
 
                 let event = match msg {
-                    GossipMsg::Vote(vote) => GossipEvent::Vote(from, vote),
-                    GossipMsg::Proposal(proposal) => GossipEvent::Proposal(from, proposal),
+                    SignedConsensusMsg::Vote(vote) => GossipEvent::Vote(from, vote),
+                    SignedConsensusMsg::Proposal(proposal) => GossipEvent::Proposal(from, proposal),
                 };
 
                 self.publish(event, subscribers);
             }
 
-            Msg::NewEvent(Event::Message(Channel::ProposalParts, from, msg_id, data)) => {
+            Msg::NewEvent(Event::Message(Channel::ProposalParts, from, data)) => {
                 let msg = match Codec::decode_stream_msg::<Ctx::ProposalPart>(data) {
                     Ok(stream_msg) => stream_msg,
                     Err(e) => {
-                        error!(%from, %msg_id, "Failed to decode stream message: {e:?}");
+                        error!(%from, "Failed to decode stream message: {e:?}");
                         return Ok(());
                     }
                 };

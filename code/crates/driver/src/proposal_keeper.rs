@@ -6,7 +6,7 @@ use alloc::collections::BTreeMap;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use malachite_common::{Context, Proposal, Round};
+use malachite_common::{Context, Proposal, Round, SignedProposal, Validity};
 
 /// Errors can that be yielded when recording a proposal.
 pub enum RecordProposalError<Ctx>
@@ -16,9 +16,9 @@ where
     /// Attempted to record a conflicting vote.
     ConflictingProposal {
         /// The proposal already recorded.
-        existing: Ctx::Proposal,
+        existing: SignedProposal<Ctx>,
         /// The conflicting proposal.
-        conflicting: Ctx::Proposal,
+        conflicting: SignedProposal<Ctx>,
     },
 }
 
@@ -28,7 +28,7 @@ where
     Ctx: Context,
 {
     /// The proposal received in a given round (proposal.round) if any.
-    proposal: Option<Ctx::Proposal>,
+    proposal: Option<(SignedProposal<Ctx>, Validity)>,
 }
 
 impl<Ctx> PerRound<Ctx>
@@ -36,8 +36,12 @@ where
     Ctx: Context,
 {
     /// Add a proposal to the round, checking for conflicts.
-    pub fn add(&mut self, proposal: Ctx::Proposal) -> Result<(), RecordProposalError<Ctx>> {
-        if let Some(existing) = self.get_proposal() {
+    pub fn add(
+        &mut self,
+        proposal: SignedProposal<Ctx>,
+        validity: Validity,
+    ) -> Result<(), RecordProposalError<Ctx>> {
+        if let Some((existing, _)) = self.get_proposal() {
             if existing.value() != proposal.value() {
                 // This is an equivocating proposal
                 return Err(RecordProposalError::ConflictingProposal {
@@ -48,13 +52,13 @@ where
         }
 
         // Add the proposal
-        self.proposal = Some(proposal);
+        self.proposal = Some((proposal, validity));
 
         Ok(())
     }
 
     /// Return the proposal received from the given validator.
-    pub fn get_proposal(&self) -> Option<&Ctx::Proposal> {
+    pub fn get_proposal(&self) -> Option<&(SignedProposal<Ctx>, Validity)> {
         self.proposal.as_ref()
     }
 }
@@ -93,11 +97,22 @@ where
         &self.validator_set
     }
 
-    /// Return the threshold parameters.
-    pub fn get_proposal_for_round(&self, round: Round) -> Option<&Ctx::Proposal> {
+    /// Return the proposal and validity for the round.
+    pub fn get_proposal_and_validity_for_round(
+        &self,
+        round: Round,
+    ) -> Option<&(SignedProposal<Ctx>, Validity)> {
         self.per_round
             .get(&round)
             .and_then(|round_info| round_info.proposal.as_ref())
+    }
+
+    /// Return the proposal and validity for the round.
+    pub fn get_proposal_for_round(&self, round: Round) -> Option<&SignedProposal<Ctx>> {
+        match self.get_proposal_and_validity_for_round(round) {
+            Some((proposal, _)) => Some(proposal),
+            None => None,
+        }
     }
 
     /// Return the evidence of equivocation.
@@ -106,10 +121,10 @@ where
     }
 
     /// Apply a proposal.
-    pub fn apply_proposal(&mut self, proposal: Ctx::Proposal) {
+    pub fn apply_proposal(&mut self, proposal: SignedProposal<Ctx>, validity: Validity) {
         let per_round = self.per_round.entry(proposal.round()).or_default();
 
-        match per_round.add(proposal) {
+        match per_round.add(proposal, validity) {
             Ok(()) => (),
             Err(RecordProposalError::ConflictingProposal {
                 existing,
@@ -129,7 +144,7 @@ where
     Ctx: Context,
 {
     #[allow(clippy::type_complexity)]
-    map: BTreeMap<Ctx::Address, Vec<(Ctx::Proposal, Ctx::Proposal)>>,
+    map: BTreeMap<Ctx::Address, Vec<(SignedProposal<Ctx>, SignedProposal<Ctx>)>>,
 }
 
 impl<Ctx> EvidenceMap<Ctx>
@@ -147,12 +162,15 @@ where
     }
 
     /// Return the evidence of equivocation for a given address, if any.
-    pub fn get(&self, address: &Ctx::Address) -> Option<&Vec<(Ctx::Proposal, Ctx::Proposal)>> {
+    pub fn get(
+        &self,
+        address: &Ctx::Address,
+    ) -> Option<&Vec<(SignedProposal<Ctx>, SignedProposal<Ctx>)>> {
         self.map.get(address)
     }
 
     /// Add evidence of equivocation.
-    pub fn add(&mut self, existing: Ctx::Proposal, proposal: Ctx::Proposal) {
+    pub fn add(&mut self, existing: SignedProposal<Ctx>, proposal: SignedProposal<Ctx>) {
         debug_assert_eq!(existing.validator_address(), proposal.validator_address());
 
         if let Some(evidence) = self.map.get_mut(proposal.validator_address()) {

@@ -11,26 +11,25 @@ use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_metrics::Metrics;
 
-use crate::effect::{Effect, Resume};
+use crate::effect::Effect;
 use crate::error::Error;
 use crate::gen::Co;
-use crate::msg::Msg;
+use crate::input::Input;
 use crate::perform;
 use crate::state::State;
-use crate::types::{GossipMsg, ProposedValue};
+use crate::types::{ProposedValue, SignedConsensusMsg};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
-use crate::ConsensusMsg;
 
 pub async fn handle<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    msg: Msg<Ctx>,
+    input: Input<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    handle_msg(&co, state, metrics, msg).await
+    handle_msg(&co, state, metrics, input).await
 }
 
 #[async_recursion]
@@ -38,23 +37,48 @@ async fn handle_msg<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    msg: Msg<Ctx>,
+    input: Input<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    match msg {
-        Msg::StartHeight(height) => start_height(co, state, metrics, height).await,
-        Msg::Vote(vote) => on_vote(co, state, metrics, vote).await,
-        Msg::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
-        Msg::ProposeValue(height, round, value) => {
+    match input {
+        Input::StartHeight(height, vs) => {
+            reset_and_start_height(co, state, metrics, height, vs).await
+        }
+        Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
+        Input::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
+        Input::ProposeValue(height, round, value) => {
             propose_value(co, state, metrics, height, round, value).await
         }
-        Msg::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
-        Msg::ReceivedProposedValue(block) => {
+        Input::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
+        Input::ReceivedProposedValue(block) => {
             on_received_proposed_value(co, state, metrics, block).await
         }
     }
+}
+
+async fn reset_and_start_height<Ctx>(
+    co: &Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    height: Ctx::Height,
+    validator_set: Ctx::ValidatorSet,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    perform!(co, Effect::CancelAllTimeouts);
+    perform!(co, Effect::ResetTimeouts);
+
+    metrics.step_end(state.driver.step());
+
+    state.driver.move_to_height(height, validator_set);
+
+    debug_assert_eq!(state.driver.height(), height);
+    debug_assert_eq!(state.driver.round(), Round::Nil);
+
+    start_height(co, state, metrics, height).await
 }
 
 async fn start_height<Ctx>(
@@ -90,42 +114,6 @@ where
     Ok(())
 }
 
-async fn move_to_height<Ctx>(
-    co: &Co<Ctx>,
-    state: &mut State<Ctx>,
-    metrics: &Metrics,
-    height: Ctx::Height,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    perform!(co, Effect::CancelAllTimeouts);
-    perform!(co, Effect::ResetTimeouts);
-
-    // End the current step (most likely Commit)
-    metrics.step_end(state.driver.step());
-
-    let validator_set = perform!(co, Effect::GetValidatorSet(height),
-        Resume::ValidatorSet(vs_height, validator_set) => {
-            if vs_height == height {
-                Ok(validator_set)
-            } else {
-                Err(Error::UnexpectedResume(
-                    Resume::ValidatorSet(vs_height, validator_set),
-                    "ValidatorSet for the current height"
-                ))
-            }
-        }
-    )?;
-
-    state.driver.move_to_height(height, validator_set);
-
-    debug_assert_eq!(state.driver.height(), height);
-    debug_assert_eq!(state.driver.round(), Round::Nil);
-
-    start_height(co, state, metrics, height).await
-}
-
 async fn replay_pending_msgs<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
@@ -134,7 +122,7 @@ async fn replay_pending_msgs<Ctx>(
 where
     Ctx: Context,
 {
-    let pending_msgs = mem::take(&mut state.msg_queue);
+    let pending_msgs = mem::take(&mut state.input_queue);
     debug!("Replaying {} messages", pending_msgs.len());
 
     for pending_msg in pending_msgs {
@@ -167,7 +155,7 @@ where
             perform!(co, Effect::CancelTimeout(Timeout::propose(*round)));
         }
 
-        DriverInput::Proposal(proposal, _) => {
+        DriverInput::Proposal(proposal, validity) => {
             if proposal.height() != state.driver.height() {
                 warn!(
                     "Ignoring proposal for height {}, current height: {}",
@@ -177,6 +165,12 @@ where
 
                 return Ok(());
             }
+
+            // Store the proposal
+            state
+                .driver
+                .proposal_keeper
+                .apply_proposal(proposal.clone(), *validity);
 
             perform!(
                 co,
@@ -279,16 +273,10 @@ where
 
             perform!(
                 co,
-                Effect::Broadcast(GossipMsg::Proposal(signed_proposal.clone()))
+                Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal.clone()))
             );
 
-            apply_driver_input(
-                co,
-                state,
-                metrics,
-                DriverInput::Proposal(signed_proposal.message, Validity::Valid),
-            )
-            .await
+            on_proposal(co, state, metrics, signed_proposal).await
         }
 
         DriverOutput::Vote(vote) => {
@@ -301,18 +289,32 @@ where
 
             let signed_vote = state.ctx.sign_vote(vote);
 
-            perform!(co, Effect::Broadcast(GossipMsg::Vote(signed_vote.clone()),));
+            perform!(
+                co,
+                Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote.clone()))
+            );
 
-            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.message)).await
+            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await
         }
 
-        DriverOutput::Decide(round, value) => {
+        DriverOutput::Decide(consensus_round, proposal) => {
             // TODO: Remove proposal, votes, block for the round
-            info!("Decided on value {}", value.id());
+            info!(
+                "Decided in round {} on proposal {:?}",
+                consensus_round, proposal
+            );
 
-            perform!(co, Effect::ScheduleTimeout(Timeout::commit(round)));
+            // Store value decided on for retrieval when timeout commit elapses
+            state
+                .decision
+                .insert((state.driver.height(), consensus_round), proposal.clone());
 
-            decided(co, state, metrics, state.driver.height(), round, value).await
+            perform!(
+                co,
+                Effect::ScheduleTimeout(Timeout::commit(consensus_round))
+            );
+
+            Ok(())
         }
 
         DriverOutput::ScheduleTimeout(timeout) => {
@@ -362,25 +364,36 @@ where
         return Ok(());
     }
 
+    state.store_value(&ProposedValue {
+        height,
+        round,
+        validator_address: state.driver.address.clone(),
+        value: value.clone(),
+        validity: Validity::Valid,
+    });
+
     apply_driver_input(co, state, metrics, DriverInput::ProposeValue(round, value)).await
 }
 
-async fn decided<Ctx>(
+async fn decide<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    height: Ctx::Height,
-    round: Round,
-    value: Ctx::Value,
+    consensus_round: Round,
+    proposal: Ctx::Proposal,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    // Remove the block information as it is not needed anymore
-    state.remove_received_block(height, round);
+    let height = proposal.height();
+    let proposal_round = proposal.round();
+    let value = proposal.value();
 
     // Restore the commits. Note that they will be removed from `state`
-    let commits = state.restore_precommits(height, round, &value);
+    let commits = state.restore_precommits(height, proposal_round, value);
+
+    // Clean proposals and values
+    state.remove_full_proposals(height);
 
     #[cfg(feature = "debug")]
     {
@@ -391,10 +404,10 @@ where
 
     perform!(
         co,
-        Effect::DecidedOnValue {
+        Effect::Decide {
             height,
-            round,
-            value,
+            round: proposal_round,
+            value: value.clone(),
             commits
         }
     );
@@ -405,9 +418,14 @@ where
 
     metrics.block_end();
     metrics.finalized_blocks.inc();
+
     metrics
-        .rounds_per_block
-        .observe((round.as_i64() + 1) as f64);
+        .consensus_round
+        .observe(consensus_round.as_i64() as f64);
+
+    metrics
+        .proposal_round
+        .observe(proposal_round.as_i64() as f64);
 
     Ok(())
 }
@@ -425,33 +443,6 @@ where
     let consensus_round = state.driver.round();
     let vote_height = signed_vote.height();
     let validator_address = signed_vote.validator_address();
-
-    // Queue messages if driver is not initialized, or if they are for higher height.
-    // Process messages received for the current height.
-    // Drop all others.
-    if consensus_round == Round::Nil {
-        debug!(
-            consensus.height = %consensus_height,
-            vote.height = %vote_height,
-            validator = %validator_address,
-            "Received vote at round -1, queuing for later"
-        );
-
-        state.msg_queue.push_back(Msg::Vote(signed_vote));
-        return Ok(());
-    }
-
-    if consensus_height < vote_height {
-        debug!(
-            consensus.height = %consensus_height,
-            vote.height = %vote_height,
-            validator = %validator_address,
-            "Received vote for higher height, queuing for later"
-        );
-
-        state.msg_queue.push_back(Msg::Vote(signed_vote));
-        return Ok(());
-    }
 
     if consensus_height > vote_height {
         debug!(
@@ -482,9 +473,11 @@ where
         return Ok(());
     };
 
-    let signed_msg = signed_vote.clone().map(ConsensusMsg::Vote);
-    let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
-    if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
+    let valid = metrics.time_signature_verification(|| {
+        Ctx::verify_signed_vote(&signed_vote, validator.public_key())
+    });
+
+    if !valid {
         warn!(
             validator = %validator_address,
             "Received invalid vote: {}", PrettyVote::<Ctx>(&signed_vote.message)
@@ -493,12 +486,39 @@ where
         return Ok(());
     }
 
+    // Queue messages if driver is not initialized, or if they are for higher height.
+    // Process messages received for the current height.
+    // Drop all others.
+    if consensus_round == Round::Nil {
+        debug!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
+            validator = %validator_address,
+            "Received vote at round -1, queuing for later"
+        );
+
+        state.input_queue.push_back(Input::Vote(signed_vote));
+        return Ok(());
+    }
+
+    if consensus_height < vote_height {
+        debug!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
+            validator = %validator_address,
+            "Received vote for higher height, queuing for later"
+        );
+
+        state.input_queue.push_back(Input::Vote(signed_vote));
+        return Ok(());
+    }
+
     // Store the non-nil Precommits.
     if signed_vote.vote_type() == VoteType::Precommit && signed_vote.value().is_val() {
         state.store_signed_precommit(signed_vote.clone());
     }
 
-    apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote.message)).await?;
+    apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
 
     Ok(())
 }
@@ -514,21 +534,6 @@ where
 {
     let proposal_height = signed_proposal.height();
     let proposal_round = signed_proposal.round();
-
-    // Queue messages if driver is not initialized, or if they are for higher height.
-    // Process messages received for the current height.
-    // Drop all others.
-    if state.driver.round() == Round::Nil {
-        debug!("Received proposal at round -1, queuing for later");
-        state.msg_queue.push_back(Msg::Proposal(signed_proposal));
-        return Ok(());
-    }
-
-    if state.driver.height() < proposal_height {
-        debug!("Received proposal for higher height, queuing for later");
-        state.msg_queue.push_back(Msg::Proposal(signed_proposal));
-        return Ok(());
-    }
 
     if state.driver.height() > proposal_height {
         debug!("Received proposal for lower height, dropping");
@@ -560,9 +565,11 @@ where
         return Ok(());
     }
 
-    let signed_msg = signed_proposal.clone().map(ConsensusMsg::Proposal);
-    let verify_sig = Effect::VerifySignature(signed_msg, proposer.public_key().clone());
-    if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
+    let valid = metrics.time_signature_verification(|| {
+        Ctx::verify_signed_proposal(&signed_proposal, proposer.public_key())
+    });
+
+    if !valid {
         error!(
             "Received invalid signature for proposal: {}",
             PrettyProposal::<Ctx>(&signed_proposal.message)
@@ -571,43 +578,54 @@ where
         return Ok(());
     }
 
-    // Check if a complete block was received for the proposal POL round if defined or proposal round otherwise.
-    let proposal_pol_round = signed_proposal.pol_round();
-    let block_round = if proposal_pol_round.is_nil() {
-        proposal_round
+    // Queue messages if driver is not initialized, or if they are for higher height.
+    // Process messages received for the current height.
+    // Drop all others.
+    if state.driver.round() == Round::Nil {
+        debug!("Received proposal at round -1, queuing for later");
+        state
+            .input_queue
+            .push_back(Input::Proposal(signed_proposal));
+        return Ok(());
+    }
+
+    if state.driver.height() < proposal_height {
+        debug!("Received proposal for higher height, queuing for later");
+        state
+            .input_queue
+            .push_back(Input::Proposal(signed_proposal));
+        return Ok(());
+    }
+
+    if proposal_height != state.driver.height() {
+        warn!(
+            "Ignoring proposal for height {proposal_height}, current height: {}",
+            state.driver.height()
+        );
+
+        return Ok(());
+    }
+
+    state.store_proposal(signed_proposal.clone());
+
+    if let Some(full_proposal) = state.full_proposal_at_round_and_value(
+        &proposal_height,
+        proposal_round,
+        signed_proposal.value(),
+    ) {
+        apply_driver_input(
+            co,
+            state,
+            metrics,
+            DriverInput::Proposal(full_proposal.proposal.clone(), full_proposal.validity),
+        )
+        .await?;
     } else {
-        proposal_pol_round
-    };
-
-    let received_block = state
-        .received_blocks
-        .iter()
-        .find(|(height, round, ..)| height == &proposal_height && round == &block_round);
-
-    match received_block {
-        Some((_height, _round, _value, valid)) => {
-            apply_driver_input(
-                co,
-                state,
-                metrics,
-                DriverInput::Proposal(signed_proposal.message.clone(), *valid),
-            )
-            .await?;
-        }
-        None => {
-            // Store the proposal and wait for all proposal parts
-            info!(
-                height = %signed_proposal.height(),
-                round = %signed_proposal.round(),
-                "Received proposal before all proposal parts, storing it"
-            );
-
-            // TODO - we should store the validity but we don't know it yet
-            state
-                .driver
-                .proposal_keeper
-                .apply_proposal(signed_proposal.message.clone());
-        }
+        debug!(
+            proposal.height = %proposal_height,
+            proposal.round = %proposal_round,
+            "No full proposal for this round yet, stored proposal for later"
+        );
     }
 
     Ok(())
@@ -639,7 +657,12 @@ where
     apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
 
     if timeout.step == TimeoutStep::Commit {
-        move_to_height(co, state, metrics, height.increment()).await?;
+        let proposal = state
+            .decision
+            .remove(&(height, round))
+            .ok_or_else(|| Error::DecidedValueNotFound(height, round))?;
+
+        decide(co, state, metrics, round, proposal).await?;
     }
 
     Ok(())
@@ -663,44 +686,36 @@ async fn on_received_proposed_value<Ctx>(
 where
     Ctx: Context,
 {
-    let ProposedValue {
-        height,
-        round,
-        value,
-        validity,
-        ..
-    } = proposed_value;
+    if state.driver.height() > proposed_value.height {
+        debug!("Received value for lower height, dropping");
+        return Ok(());
+    }
 
-    // Store the block and validity information. It will be removed when a decision is reached for that height.
-    state
-        .received_blocks
-        .push((height, round, value.clone(), validity));
+    if state.driver.height() < proposed_value.height {
+        debug!("Received value for higher height, queuing for later");
+        state
+            .input_queue
+            .push_back(Input::ReceivedProposedValue(proposed_value));
+        return Ok(());
+    }
 
-    if let Some(proposal) = state.driver.proposal_keeper.get_proposal_for_round(round) {
+    state.store_value(&proposed_value);
+
+    let proposals = state.full_proposals_for_value(&proposed_value);
+    for signed_proposal in proposals {
         debug!(
-            proposal.height = %proposal.height(),
-            proposal.round = %proposal.round(),
-            "We have a proposal for this round, checking..."
+            proposal.height = %signed_proposal.height(),
+            proposal.round = %signed_proposal.round(),
+            "We have a full proposal for this round, checking..."
         );
-
-        if height != proposal.height() {
-            // The value we received is not for the current proposal, ignoring
-            debug!("Proposed value is not for the current proposal, ignoring...");
-            return Ok(());
-        }
-
-        let validity = Validity::from_bool(proposal.value() == &value && validity.is_valid());
-        debug!("Applying proposal with validity {validity:?}");
 
         apply_driver_input(
             co,
             state,
             metrics,
-            DriverInput::Proposal(proposal.clone(), validity),
+            DriverInput::Proposal(signed_proposal, proposed_value.validity),
         )
         .await?;
-    } else {
-        debug!("No proposal for this round yet, stored proposed value for later");
     }
 
     Ok(())

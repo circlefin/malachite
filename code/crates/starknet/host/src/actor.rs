@@ -331,18 +331,6 @@ impl Actor for StarknetHost {
                 Ok(())
             }
 
-            HostMsg::GetReceivedValue {
-                height,
-                round,
-                reply_to,
-            } => {
-                let proposal_parts = state.part_store.all_parts(height, round);
-                let proposed_value = self.build_value_from_parts(&proposal_parts, height, round);
-                reply_to.send(proposed_value)?;
-
-                Ok(())
-            }
-
             HostMsg::GetValidatorSet { height, reply_to } => {
                 if let Some(validators) = self.host.validators(height).await {
                     reply_to.send(ValidatorSet::new(validators))?;
@@ -352,11 +340,12 @@ impl Actor for StarknetHost {
                 }
             }
 
-            HostMsg::DecidedOnValue {
+            HostMsg::Decide {
                 height,
                 round,
                 value: block_hash,
                 commits,
+                consensus,
             } => {
                 let all_parts = state.part_store.all_parts(height, round);
 
@@ -388,6 +377,9 @@ impl Actor for StarknetHost {
 
                 // Notify Starknet Host of the decision
                 self.host.decision(block_hash, commits, height).await;
+
+                // Start the next height
+                consensus.cast(ConsensusMsg::StartHeight(state.height.increment()))?;
 
                 Ok(())
             }

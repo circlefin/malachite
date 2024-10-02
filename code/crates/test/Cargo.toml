@@ -12,15 +12,17 @@ rust-version.workspace = true
 [dependencies]
 malachite-actors = { workspace = true }
 malachite-common = { workspace = true }
+malachite-consensus  = { workspace = true }
 malachite-driver = { workspace = true }
 malachite-node   = { workspace = true }
 malachite-round  = { workspace = true }
 malachite-vote   = { workspace = true }
 malachite-proto  = { workspace = true }
-malachite-crypto = { workspace = true, features = ["ed25519"] }
 
 async-trait        = { workspace = true }
+base64             = { workspace = true }
 bytesize           = { workspace = true }
+ed25519-consensus  = { workspace = true }
 hex                = { workspace = true }
 prost              = { workspace = true }
 prost-types        = { workspace = true }

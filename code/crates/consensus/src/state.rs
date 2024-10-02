@@ -5,9 +5,12 @@ use malachite_common::*;
 use malachite_driver::Driver;
 
 use crate::error::Error;
-use crate::msg::Msg;
+use crate::input::Input;
+use crate::Params;
+use crate::ProposedValue;
+use crate::{FullProposal, FullProposalKeeper};
 
-/// The state maintained by consensus for processing a [`Msg`][crate::msg::Msg].
+/// The state maintained by consensus for processing a [`Input`][crate::Input].
 pub struct State<Ctx>
 where
     Ctx: Context,
@@ -18,21 +21,43 @@ where
     /// Driver for the per-round consensus state machine
     pub driver: Driver<Ctx>,
 
-    /// A queue of gossip events that were received before the
+    /// A queue of inputs that were received before the
     /// driver started the new height and was still at round Nil.
-    pub msg_queue: VecDeque<Msg<Ctx>>,
+    pub input_queue: VecDeque<Input<Ctx>>,
 
-    /// The value and validity of received blocks.
-    pub received_blocks: Vec<(Ctx::Height, Round, Ctx::Value, Validity)>,
+    /// The proposals to decide on.
+    pub full_proposal_keeper: FullProposalKeeper<Ctx>,
 
     /// Store Precommit votes to be sent along the decision to the host
     pub signed_precommits: BTreeMap<(Ctx::Height, Round), Vec<SignedVote<Ctx>>>,
+
+    /// Decision per height
+    pub decision: BTreeMap<(Ctx::Height, Round), Ctx::Proposal>,
 }
 
 impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
+    pub fn new(ctx: Ctx, params: Params<Ctx>) -> Self {
+        let driver = Driver::new(
+            ctx.clone(),
+            params.start_height,
+            params.initial_validator_set,
+            params.address,
+            params.threshold_params,
+        );
+
+        Self {
+            ctx,
+            driver,
+            input_queue: Default::default(),
+            full_proposal_keeper: Default::default(),
+            signed_precommits: Default::default(),
+            decision: Default::default(),
+        }
+    }
+
     pub fn get_proposer(
         &self,
         height: Ctx::Height,
@@ -55,11 +80,6 @@ where
             .ok_or(Error::ProposerNotFound(height, round))?;
 
         Ok(proposer.address())
-    }
-
-    pub fn remove_received_block(&mut self, height: Ctx::Height, round: Round) {
-        self.received_blocks
-            .retain(|&(h, r, ..)| h != height && r != round);
     }
 
     pub fn store_signed_precommit(&mut self, precommit: SignedVote<Ctx>) {
@@ -91,5 +111,37 @@ where
         commits_for_height_and_round.retain(|c| c.value() == &NilOrVal::Val(value.id()));
 
         commits_for_height_and_round
+    }
+
+    pub fn full_proposal_at_round_and_value(
+        &self,
+        height: &Ctx::Height,
+        round: Round,
+        value: &Ctx::Value,
+    ) -> Option<&FullProposal<Ctx>> {
+        self.full_proposal_keeper
+            .full_proposal_at_round_and_value(height, round, value)
+    }
+
+    pub fn full_proposals_for_value(
+        &self,
+        proposed_value: &ProposedValue<Ctx>,
+    ) -> Vec<SignedProposal<Ctx>> {
+        self.full_proposal_keeper
+            .full_proposals_for_value(proposed_value)
+    }
+
+    pub fn store_proposal(&mut self, new_proposal: SignedProposal<Ctx>) {
+        self.full_proposal_keeper.store_proposal(new_proposal)
+    }
+
+    pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) {
+        // Values for higher height should have been cached for future processing
+        assert_eq!(new_value.height, self.driver.height());
+        self.full_proposal_keeper.store_value(new_value)
+    }
+
+    pub fn remove_full_proposals(&mut self, height: Ctx::Height) {
+        self.full_proposal_keeper.remove_full_proposals(height)
     }
 }

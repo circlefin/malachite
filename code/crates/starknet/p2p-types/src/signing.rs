@@ -94,6 +94,20 @@ impl PartialEq for Signature {
 
 impl Eq for Signature {}
 
+impl PartialOrd for Signature {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Signature {
+    #[cfg_attr(coverage_nightly, coverage(off))]
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.0.r.cmp(&other.0.r).then(self.0.s.cmp(&other.0.s))
+    }
+}
+
 impl Protobuf for Signature {
     type Proto = proto::ConsensusSignature;
 

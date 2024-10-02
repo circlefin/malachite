@@ -5,27 +5,20 @@ use malachite_common::{Context, Proposal, Round, SignedProposal, SignedVote, Val
 pub use libp2p_identity::PeerId;
 pub use multiaddr::Multiaddr;
 
-/// A message that can be broadcast by the gossip layer
+/// A signed consensus message, ie. a signed vote or a signed proposal.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub enum GossipMsg<Ctx: Context> {
+pub enum SignedConsensusMsg<Ctx: Context> {
     Vote(SignedVote<Ctx>),
     Proposal(SignedProposal<Ctx>),
 }
 
-impl<Ctx: Context> GossipMsg<Ctx> {
+impl<Ctx: Context> SignedConsensusMsg<Ctx> {
     pub fn msg_height(&self) -> Ctx::Height {
         match self {
-            GossipMsg::Vote(msg) => msg.height(),
-            GossipMsg::Proposal(msg) => msg.height(),
+            SignedConsensusMsg::Vote(msg) => msg.height(),
+            SignedConsensusMsg::Proposal(msg) => msg.height(),
         }
     }
-}
-
-/// A message that can be sent by the consensus layer
-#[derive_where(Clone, Debug, PartialEq, Eq)]
-pub enum ConsensusMsg<Ctx: Context> {
-    Vote(Ctx::Vote),
-    Proposal(Ctx::Proposal),
 }
 
 /// A value proposed by a validator

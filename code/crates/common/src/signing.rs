@@ -17,7 +17,7 @@ where
     type DecodingError: Display;
 
     /// The type of signatures produced by this signing scheme.
-    type Signature: Clone + Debug + Eq + Send + Sync;
+    type Signature: Clone + Debug + Eq + Ord + Send + Sync;
 
     /// The type of public keys produced by this signing scheme.
     type PublicKey: Clone + Debug + Eq + Send + Sync;
