@@ -188,6 +188,7 @@ where
         match msg {
             Msg::StartHeight(height) => {
                 let validator_set = self.get_validator_set(height).await?;
+
                 let result = self
                     .process_input(
                         &myself,
@@ -234,8 +235,9 @@ where
 
                         info!("Connected to peer {peer_id}");
 
+                        let validator_set = &state.consensus.driver.validator_set;
                         let connected_peers = state.connected_peers.len();
-                        let total_peers = state.consensus.driver.validator_set.count() - 1;
+                        let total_peers = validator_set.count() - 1;
 
                         debug!("Connected to {connected_peers}/{total_peers} peers");
 
@@ -245,13 +247,12 @@ where
                             info!("Enough peers ({connected_peers}) connected to start consensus");
 
                             let height = state.consensus.driver.height();
-                            let validator_set = self.get_validator_set(height).await?;
 
                             let result = self
                                 .process_input(
                                     &myself,
                                     state,
-                                    ConsensusInput::StartHeight(height, validator_set),
+                                    ConsensusInput::StartHeight(height, validator_set.clone()),
                                 )
                                 .await;
 
@@ -438,7 +439,7 @@ where
             height,
             reply_to
         })
-        .map_err(|e| eyre!("Failed to query validator set at height {height}: {e:?}"))?;
+        .map_err(|e| eyre!("Failed to get validator set at height {height}: {e:?}"))?;
 
         Ok(validator_set)
     }
@@ -516,6 +517,14 @@ where
                     .map_err(|e| eyre!("Error when asking for value to be built: {e:?}"))?;
 
                 Ok(Resume::Continue)
+            }
+
+            Effect::GetValidatorSet(height) => {
+                let validator_set = self.get_validator_set(height).await.map_err(|e| {
+                    eyre!("Error when getting validator set at height {height}: {e:?}")
+                })?;
+
+                Ok(Resume::ValidatorSet(height, validator_set))
             }
 
             Effect::Decide {

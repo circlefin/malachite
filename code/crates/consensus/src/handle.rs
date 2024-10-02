@@ -24,11 +24,11 @@ pub async fn handle<Ctx>(
 where
     Ctx: Context,
 {
-    handle_msg(&co, state, metrics, input).await
+    handle_input(&co, state, metrics, input).await
 }
 
 #[async_recursion]
-async fn handle_msg<Ctx>(
+async fn handle_input<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -38,8 +38,8 @@ where
     Ctx: Context,
 {
     match input {
-        Input::StartHeight(height, vs) => {
-            reset_and_start_height(co, state, metrics, height, vs).await
+        Input::StartHeight(height, validator_set) => {
+            reset_and_start_height(co, state, metrics, height, validator_set).await
         }
         Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
         Input::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
@@ -117,11 +117,11 @@ async fn replay_pending_msgs<Ctx>(
 where
     Ctx: Context,
 {
-    let pending_msgs = std::mem::take(&mut state.input_queue);
-    debug!("Replaying {} messages", pending_msgs.len());
+    let pending_inputs = std::mem::take(&mut state.input_queue);
+    debug!("Replaying {} inputs", pending_inputs.len());
 
-    for pending_msg in pending_msgs {
-        handle_msg(co, state, metrics, pending_msg).await?;
+    for pending_input in pending_inputs {
+        handle_input(co, state, metrics, pending_input).await?;
     }
 
     Ok(())
