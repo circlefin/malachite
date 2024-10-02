@@ -9,7 +9,7 @@ rust-version.workspace = true
 
 [features]
 std = []
-debug = ["std"]
+debug = ["std", "malachite-driver/debug"]
 
 [dependencies]
 malachite-common.workspace  = true
@@ -17,11 +17,11 @@ malachite-driver.workspace  = true
 malachite-metrics.workspace = true
 
 async-recursion = { workspace = true }
+displaydoc      = { workspace = true }
 genawaiter      = { workspace = true }
 derive-where    = { workspace = true }
 libp2p-identity = { workspace = true, features = ["peerid"] }
 multiaddr       = { workspace = true }
-thiserror       = { workspace = true }
 tracing         = { workspace = true }
 
 [lints]

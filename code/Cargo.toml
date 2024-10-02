@@ -42,7 +42,7 @@ unused_crate_dependencies = "warn"
 malachite-actors           = { version = "0.1.0", path = "crates/actors" }
 malachite-cli              = { version = "0.1.0", path = "crates/cli" }
 malachite-common           = { version = "0.1.0", path = "crates/common" }
-malachite-consensus        = { version = "0.1.0", path = "crates/consensus" }
+malachite-consensus        = { version = "0.1.0", path = "crates/consensus", features = ["debug"] }
 malachite-crypto           = { version = "0.1.0", path = "crates/crypto" }
 malachite-driver           = { version = "0.1.0", path = "crates/driver" }
 malachite-gossip-consensus = { version = "0.1.0", path = "crates/gossip-consensus" }
