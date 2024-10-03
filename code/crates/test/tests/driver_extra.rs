@@ -207,7 +207,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
                 Validity::Valid,
                 v1.address,
             ),
-            expected_outputs: vec![decide_output(Round::new(0), proposal)],
+            expected_outputs: vec![decide_output(Round::new(1), proposal)],
             expected_round: Round::new(1),
             new_state: decided_state(Round::new(1), value),
         },
