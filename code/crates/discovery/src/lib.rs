@@ -277,10 +277,10 @@ impl Discovery {
                     || swarm.is_connected(id)
                     || self.dialed_peer_ids.contains(id)
             }) || self.dialed_multiaddrs.contains(&listen_addr)
+                || swarm.listeners().any(|addr| *addr == listen_addr)
             {
                 continue;
             }
-
             self.dial_peer(swarm, peer_id, listen_addr, 1);
         }
     }
