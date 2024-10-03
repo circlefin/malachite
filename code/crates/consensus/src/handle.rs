@@ -501,6 +501,8 @@ where
         return Ok(());
     }
 
+    assert_eq!(consensus_height, vote_height);
+
     // Store the non-nil Precommits.
     if signed_vote.vote_type() == VoteType::Precommit && signed_vote.value().is_val() {
         state.store_signed_precommit(signed_vote.clone());
@@ -544,7 +546,7 @@ where
         return Ok(());
     };
 
-    if proposal_height != state.driver.height() {
+    if proposal_height < state.driver.height() {
         warn!(
             "Ignoring proposal for height {proposal_height}, current height: {}",
             state.driver.height()
@@ -585,14 +587,7 @@ where
         return Ok(());
     }
 
-    if proposal_height != state.driver.height() {
-        warn!(
-            "Ignoring proposal for height {proposal_height}, current height: {}",
-            state.driver.height()
-        );
-
-        return Ok(());
-    }
+    assert_eq!(proposal_height, state.driver.height());
 
     state.store_proposal(signed_proposal.clone());
 
