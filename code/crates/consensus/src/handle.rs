@@ -6,13 +6,13 @@ use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_metrics::Metrics;
 
-use crate::effect::Effect;
+use crate::effect::{Effect, Resume};
 use crate::error::Error;
 use crate::gen::Co;
 use crate::input::Input;
 use crate::perform;
 use crate::state::State;
-use crate::types::{ProposedValue, SignedConsensusMsg};
+use crate::types::{ConsensusMsg, ProposedValue, SignedConsensusMsg};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
 
 pub async fn handle<Ctx>(
@@ -24,11 +24,11 @@ pub async fn handle<Ctx>(
 where
     Ctx: Context,
 {
-    handle_msg(&co, state, metrics, input).await
+    handle_input(&co, state, metrics, input).await
 }
 
 #[async_recursion]
-async fn handle_msg<Ctx>(
+async fn handle_input<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -38,8 +38,8 @@ where
     Ctx: Context,
 {
     match input {
-        Input::StartHeight(height, vs) => {
-            reset_and_start_height(co, state, metrics, height, vs).await
+        Input::StartHeight(height, validator_set) => {
+            reset_and_start_height(co, state, metrics, height, validator_set).await
         }
         Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
         Input::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
@@ -117,11 +117,11 @@ async fn replay_pending_msgs<Ctx>(
 where
     Ctx: Context,
 {
-    let pending_msgs = std::mem::take(&mut state.input_queue);
-    debug!("Replaying {} messages", pending_msgs.len());
+    let pending_inputs = std::mem::take(&mut state.input_queue);
+    debug!("Replaying {} inputs", pending_inputs.len());
 
-    for pending_msg in pending_msgs {
-        handle_msg(co, state, metrics, pending_msg).await?;
+    for pending_input in pending_inputs {
+        handle_input(co, state, metrics, pending_input).await?;
     }
 
     Ok(())
@@ -461,11 +461,9 @@ where
         return Ok(());
     };
 
-    let valid = metrics.time_signature_verification(|| {
-        Ctx::verify_signed_vote(&signed_vote, validator.public_key())
-    });
-
-    if !valid {
+    let signed_msg = signed_vote.clone().map(ConsensusMsg::Vote);
+    let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
+    if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
         warn!(
             validator = %validator_address,
             "Received invalid vote: {}", PrettyVote::<Ctx>(&signed_vote.message)
@@ -555,11 +553,9 @@ where
         return Ok(());
     }
 
-    let valid = metrics.time_signature_verification(|| {
-        Ctx::verify_signed_proposal(&signed_proposal, proposer.public_key())
-    });
-
-    if !valid {
+    let signed_msg = signed_proposal.clone().map(ConsensusMsg::Proposal);
+    let verify_sig = Effect::VerifySignature(signed_msg, proposer.public_key().clone());
+    if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
         error!(
             "Received invalid signature for proposal: {}",
             PrettyProposal::<Ctx>(&signed_proposal.message)

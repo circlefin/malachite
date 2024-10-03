@@ -6,10 +6,11 @@ use eyre::eyre;
 use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
 use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType};
-use malachite_consensus::Effect;
+use malachite_consensus::{Effect, Resume};
 use malachite_metrics::Metrics;
 use malachite_node::config::TimeoutConfig;
 
@@ -187,6 +188,7 @@ where
         match msg {
             Msg::StartHeight(height) => {
                 let validator_set = self.get_validator_set(height).await?;
+
                 let result = self
                     .process_input(
                         &myself,
@@ -233,8 +235,9 @@ where
 
                         info!("Connected to peer {peer_id}");
 
+                        let validator_set = &state.consensus.driver.validator_set;
                         let connected_peers = state.connected_peers.len();
-                        let total_peers = state.consensus.driver.validator_set.count() - 1;
+                        let total_peers = validator_set.count() - 1;
 
                         debug!("Connected to {connected_peers}/{total_peers} peers");
 
@@ -244,13 +247,12 @@ where
                             info!("Enough peers ({connected_peers}) connected to start consensus");
 
                             let height = state.consensus.driver.height();
-                            let validator_set = self.get_validator_set(height).await?;
 
                             let result = self
                                 .process_input(
                                     &myself,
                                     state,
-                                    ConsensusInput::StartHeight(height, validator_set),
+                                    ConsensusInput::StartHeight(height, validator_set.clone()),
                                 )
                                 .await;
 
@@ -437,7 +439,7 @@ where
             height,
             reply_to
         })
-        .map_err(|e| eyre!("Failed to query validator set at height {height}: {e:?}"))?;
+        .map_err(|e| eyre!("Failed to get validator set at height {height}: {e:?}"))?;
 
         Ok(validator_set)
     }
@@ -449,28 +451,28 @@ where
         timers: &mut Timers<Ctx>,
         timeouts: &mut Timeouts,
         effect: Effect<Ctx>,
-    ) -> Result<(), ActorProcessingErr> {
+    ) -> Result<Resume<Ctx>, ActorProcessingErr> {
         match effect {
             Effect::ResetTimeouts => {
                 timeouts.reset(self.timeout_config);
-                Ok(())
+                Ok(Resume::Continue)
             }
 
             Effect::CancelAllTimeouts => {
                 timers.cancel_all();
-                Ok(())
+                Ok(Resume::Continue)
             }
 
             Effect::CancelTimeout(timeout) => {
                 timers.cancel(&timeout);
-                Ok(())
+                Ok(Resume::Continue)
             }
 
             Effect::ScheduleTimeout(timeout) => {
                 let duration = timeouts.duration_for(timeout.step);
                 timers.start_timer(timeout, duration);
 
-                Ok(())
+                Ok(Resume::Continue)
             }
 
             Effect::StartRound(height, round, proposer) => {
@@ -480,7 +482,24 @@ where
                     proposer,
                 })?;
 
-                Ok(())
+                Ok(Resume::Continue)
+            }
+
+            Effect::VerifySignature(msg, pk) => {
+                use malachite_consensus::ConsensusMsg as Msg;
+
+                let start = Instant::now();
+
+                let valid = match msg.message {
+                    Msg::Vote(v) => self.ctx.verify_signed_vote(&v, &msg.signature, &pk),
+                    Msg::Proposal(p) => self.ctx.verify_signed_proposal(&p, &msg.signature, &pk),
+                };
+
+                self.metrics
+                    .signature_verification_time
+                    .observe(start.elapsed().as_secs_f64());
+
+                Ok(Resume::SignatureValidity(valid))
             }
 
             Effect::Broadcast(gossip_msg) => {
@@ -488,7 +507,7 @@ where
                     .cast(GossipConsensusMsg::BroadcastMsg(gossip_msg))
                     .map_err(|e| eyre!("Error when broadcasting gossip message: {e:?}"))?;
 
-                Ok(())
+                Ok(Resume::Continue)
             }
 
             Effect::GetValue(height, round, timeout) => {
@@ -497,7 +516,15 @@ where
                 self.get_value(myself, height, round, timeout_duration)
                     .map_err(|e| eyre!("Error when asking for value to be built: {e:?}"))?;
 
-                Ok(())
+                Ok(Resume::Continue)
+            }
+
+            Effect::GetValidatorSet(height) => {
+                let validator_set = self.get_validator_set(height).await.map_err(|e| {
+                    eyre!("Error when getting validator set at height {height}: {e:?}")
+                })?;
+
+                Ok(Resume::ValidatorSet(height, validator_set))
             }
 
             Effect::Decide {
@@ -520,7 +547,7 @@ where
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
-                Ok(())
+                Ok(Resume::Continue)
             }
         }
     }
