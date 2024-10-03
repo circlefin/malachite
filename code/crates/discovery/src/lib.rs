@@ -152,21 +152,19 @@ impl Discovery {
         multiaddr: Multiaddr,
         trial: Trial,
     ) {
-        if self.is_enabled {
-            let dial_opts = self.build_dial_opts(peer_id.clone(), multiaddr.clone());
+        let dial_opts = self.build_dial_opts(peer_id.clone(), multiaddr.clone());
 
-            let connection_id = dial_opts.connection_id();
+        let connection_id = dial_opts.connection_id();
 
-            self.add_pending_connection(connection_id, peer_id.clone(), multiaddr.clone(), trial);
+        self.add_pending_connection(connection_id, peer_id.clone(), multiaddr.clone(), trial);
 
-            if let Err(e) = swarm.dial(dial_opts) {
-                if let Some(peer_id) = peer_id {
-                    error!("Error dialing peer {peer_id}: {e}");
-                } else {
-                    error!("Error dialing peer {multiaddr}: {e}");
-                }
-                self.register_failed_connection(connection_id);
+        if let Err(e) = swarm.dial(dial_opts) {
+            if let Some(peer_id) = peer_id {
+                error!("Error dialing peer {peer_id}: {e}");
+            } else {
+                error!("Error dialing peer {multiaddr}: {e}");
             }
+            self.register_failed_connection(connection_id);
         }
     }
 
