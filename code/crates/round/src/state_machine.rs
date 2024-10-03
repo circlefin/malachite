@@ -137,7 +137,7 @@ where
             if this_round && is_valid_pol_round(&state, proposal.pol_round()) =>
         {
             debug_trace!(state, Line::L28InvalidProposal);
-            debug_trace!(state, Line::L32InvalidValue); // "L32 - invalid v and polka prev: prevote nil");
+            debug_trace!(state, Line::L32InvalidValue);
 
             prevote_nil(state, info.address)
         }
@@ -145,10 +145,7 @@ where
         // L57
         // We are the proposer.
         (Step::Propose, Input::TimeoutPropose) if this_round && info.is_proposer() => {
-            debug_trace!(
-                state,
-                Line::L59Proposer // "L59 - proposeTimeout expired while waiting for v: prevote nil"
-            );
+            debug_trace!(state, Line::L59Proposer);
 
             prevote_nil(state, info.address)
         }
@@ -156,10 +153,7 @@ where
         // L57
         // We are not the proposer.
         (Step::Propose, Input::TimeoutPropose) if this_round => {
-            debug_trace!(
-                state,
-                Line::L59NonProposer // "L59 - proposeTimeout expired while waiting for proposal: prevote nil"
-            );
+            debug_trace!(state, Line::L59NonProposer);
 
             prevote_nil(state, info.address)
         }
@@ -171,14 +165,14 @@ where
         // L34
         (Step::Prevote, Input::PolkaAny) if this_round => {
             debug_trace!(state, Line::L34);
-            debug_trace!(state, Line::L35); // - prevoteTimeout scheduled");
-                                            //
+            debug_trace!(state, Line::L35);
+
             schedule_timeout_prevote(state)
         }
 
         // L45
         (Step::Prevote, Input::PolkaNil) if this_round => {
-            debug_trace!(state, Line::L45); // "L45 - polka nil: precommit nil");
+            debug_trace!(state, Line::L45);
 
             precommit_nil(state, info.address)
         }
@@ -220,26 +214,26 @@ where
 
         // L47
         (_, Input::PrecommitAny) if this_round => {
-            debug_trace!(state, Line::L48); // "L48 - precommit any: schedule precommitTimeout");
+            debug_trace!(state, Line::L48);
             schedule_timeout_precommit(state)
         }
 
         // L65
         (_, Input::TimeoutPrecommit) if this_round => {
-            debug_trace!(state, Line::L67); // "L67 - precommitTimeout expired: move to next round");
+            debug_trace!(state, Line::L67);
             round_skip(state, info.input_round.increment())
         }
 
         // L55
         (_, Input::SkipRound(round)) if state.round < round => {
-            debug_trace!(state, Line::L55); // "L55 - f+1 for higher round: move to that round");
+            debug_trace!(state, Line::L55);
             round_skip(state, round)
         }
 
         // L49
         (_, Input::ProposalAndPrecommitValue(proposal)) => {
             let round = state.round;
-            debug_trace!(state, Line::L49); // "L49 - valid v and precommit quorum: commit");
+            debug_trace!(state, Line::L49);
             commit(state, round, proposal)
         }
 
@@ -276,8 +270,8 @@ where
                 pol_round,
                 address.clone(),
             );
-            debug_trace!(state, Line::L16); //  "L16 - validValue".to_string());
-            debug_trace!(state, Line::L19); // "L19 - proposal".to_string());
+            debug_trace!(state, Line::L16);
+            debug_trace!(state, Line::L19);
 
             Transition::to(state.with_step(Step::Propose)).with_output(proposal)
         }
@@ -288,7 +282,7 @@ where
                 state.round,
                 TimeoutStep::Propose,
             );
-            debug_trace!(state, Line::L18); // "L18 - getValue()".to_string());
+            debug_trace!(state, Line::L18);
 
             Transition::to(state.with_step(Step::Propose)).with_output(output)
         }
@@ -315,7 +309,7 @@ where
         address.clone(),
     );
 
-    debug_trace!(state, Line::L19); // "L19 - proposal".to_string());
+    debug_trace!(state, Line::L19);
     Transition::to(state.with_step(Step::Propose)).with_output(proposal)
 }
 
