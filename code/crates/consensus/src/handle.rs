@@ -6,13 +6,13 @@ use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 use malachite_metrics::Metrics;
 
-use crate::effect::Effect;
+use crate::effect::{Effect, Resume};
 use crate::error::Error;
 use crate::gen::Co;
 use crate::input::Input;
 use crate::perform;
 use crate::state::State;
-use crate::types::{ProposedValue, SignedConsensusMsg};
+use crate::types::{ConsensusMsg, ProposedValue, SignedConsensusMsg};
 use crate::util::pretty::{PrettyProposal, PrettyVal, PrettyVote};
 
 pub async fn handle<Ctx>(
@@ -24,11 +24,11 @@ pub async fn handle<Ctx>(
 where
     Ctx: Context,
 {
-    handle_msg(&co, state, metrics, input).await
+    handle_input(&co, state, metrics, input).await
 }
 
 #[async_recursion]
-async fn handle_msg<Ctx>(
+async fn handle_input<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -38,8 +38,8 @@ where
     Ctx: Context,
 {
     match input {
-        Input::StartHeight(height, vs) => {
-            reset_and_start_height(co, state, metrics, height, vs).await
+        Input::StartHeight(height, validator_set) => {
+            reset_and_start_height(co, state, metrics, height, validator_set).await
         }
         Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
         Input::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
@@ -117,11 +117,11 @@ async fn replay_pending_msgs<Ctx>(
 where
     Ctx: Context,
 {
-    let pending_msgs = std::mem::take(&mut state.input_queue);
-    debug!("Replaying {} messages", pending_msgs.len());
+    let pending_inputs = std::mem::take(&mut state.input_queue);
+    debug!("Replaying {} inputs", pending_inputs.len());
 
-    for pending_msg in pending_msgs {
-        handle_msg(co, state, metrics, pending_msg).await?;
+    for pending_input in pending_inputs {
+        handle_input(co, state, metrics, pending_input).await?;
     }
 
     Ok(())
@@ -418,6 +418,27 @@ where
     Ok(())
 }
 
+async fn get_validator_set<Ctx>(
+    co: &Co<Ctx>,
+    height: Ctx::Height,
+) -> Result<Option<Ctx::ValidatorSet>, Error<Ctx>>
+where
+    Ctx: Context,
+{
+    perform!(co, Effect::GetValidatorSet(height),
+        Resume::ValidatorSet(vs_height, validator_set) => {
+            if vs_height == height {
+                Ok(validator_set)
+            } else {
+                Err(Error::UnexpectedResume(
+                    Resume::ValidatorSet(vs_height, validator_set),
+                    "ValidatorSet for the current height"
+                ))
+            }
+        }
+    )
+}
+
 async fn on_vote<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
@@ -443,14 +464,18 @@ where
         return Ok(());
     }
 
-    info!(
-        consensus.height = %consensus_height,
-        vote.height = %vote_height,
-        validator = %validator_address,
-        "Received vote: {}", PrettyVote::<Ctx>(&signed_vote.message)
-    );
+    let Some(validator_set) = get_validator_set(co, vote_height).await? else {
+        debug!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
+            validator = %validator_address,
+            "Received vote for height without known validator set, dropping"
+        );
 
-    let Some(validator) = state.driver.validator_set.get_by_address(validator_address) else {
+        return Ok(());
+    };
+
+    let Some(validator) = validator_set.get_by_address(validator_address) else {
         warn!(
             consensus.height = %consensus_height,
             vote.height = %vote_height,
@@ -461,11 +486,9 @@ where
         return Ok(());
     };
 
-    let valid = metrics.time_signature_verification(|| {
-        Ctx::verify_signed_vote(&signed_vote, validator.public_key())
-    });
-
-    if !valid {
+    let signed_msg = signed_vote.clone().map(ConsensusMsg::Vote);
+    let verify_sig = Effect::VerifySignature(signed_msg, validator.public_key().clone());
+    if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
         warn!(
             validator = %validator_address,
             "Received invalid vote: {}", PrettyVote::<Ctx>(&signed_vote.message)
@@ -473,6 +496,13 @@ where
 
         return Ok(());
     }
+
+    info!(
+        consensus.height = %consensus_height,
+        vote.height = %vote_height,
+        validator = %validator_address,
+        "Received vote: {}", PrettyVote::<Ctx>(&signed_vote.message)
+    );
 
     // Queue messages if driver is not initialized, or if they are for higher height.
     // Process messages received for the current height.
@@ -501,6 +531,8 @@ where
         return Ok(());
     }
 
+    assert_eq!(consensus_height, vote_height);
+
     // Store the non-nil Precommits.
     if signed_vote.vote_type() == VoteType::Precommit && signed_vote.value().is_val() {
         state.store_signed_precommit(signed_vote.clone());
@@ -520,31 +552,60 @@ async fn on_proposal<Ctx>(
 where
     Ctx: Context,
 {
+    let consensus_height = state.driver.height();
+
     let proposal_height = signed_proposal.height();
     let proposal_round = signed_proposal.round();
+    let proposer_address = signed_proposal.validator_address();
 
     if state.driver.height() > proposal_height {
-        debug!("Received proposal for lower height, dropping");
+        debug!(
+            consensus.height = %consensus_height,
+            proposal.height = %proposal_height,
+            proposer = %proposer_address,
+            "Received proposal for lower height, dropping"
+        );
+
         return Ok(());
     }
 
-    let proposer_address = signed_proposal.validator_address();
+    let Some(validator_set) = get_validator_set(co, proposal_height).await? else {
+        debug!(
+            consensus.height = %consensus_height,
+            proposal.height = %proposal_height,
+            proposer = %proposer_address,
+            "Received vote for height without known validator set, dropping"
+        );
 
-    info!(%proposer_address, "Received proposal: {}", PrettyProposal::<Ctx>(&signed_proposal.message));
+        return Ok(());
+    };
 
-    let Some(proposer) = state.driver.validator_set.get_by_address(proposer_address) else {
-        warn!(%proposer_address, "Received proposal from unknown validator");
+    let Some(proposer) = validator_set.get_by_address(proposer_address) else {
+        warn!(
+            consensus.height = %consensus_height,
+            proposal.height = %proposal_height,
+            proposer = %proposer_address,
+            "Received proposal from unknown validator"
+        );
+
         return Ok(());
     };
 
     let expected_proposer = state.get_proposer(proposal_height, proposal_round).unwrap();
 
     if expected_proposer != proposer_address {
-        warn!(%proposer_address, % proposer_address, "Received proposal from a non-proposer");
+        warn!(
+            consensus.height = %consensus_height,
+            proposal.height = %proposal_height,
+            proposer = %proposer_address,
+            expected_proposer = %expected_proposer,
+            "Received proposal from a non-proposer"
+        );
+
         return Ok(());
     };
 
-    if proposal_height != state.driver.height() {
+    if proposal_height < state.driver.height() {
         warn!(
             "Ignoring proposal for height {proposal_height}, current height: {}",
             state.driver.height()
@@ -553,18 +614,26 @@ where
         return Ok(());
     }
 
-    let valid = metrics.time_signature_verification(|| {
-        Ctx::verify_signed_proposal(&signed_proposal, proposer.public_key())
-    });
-
-    if !valid {
+    let signed_msg = signed_proposal.clone().map(ConsensusMsg::Proposal);
+    let verify_sig = Effect::VerifySignature(signed_msg, proposer.public_key().clone());
+    if !perform!(co, verify_sig, Resume::SignatureValidity(valid) => valid) {
         error!(
+            consensus.height = %consensus_height,
+            proposal.height = %proposal_height,
+            proposer = %proposer_address,
             "Received invalid signature for proposal: {}",
             PrettyProposal::<Ctx>(&signed_proposal.message)
         );
 
         return Ok(());
     }
+
+    info!(
+        consensus.height = %consensus_height,
+        proposal.height = %proposal_height,
+        proposer = %proposer_address,
+        "Received proposal: {}", PrettyProposal::<Ctx>(&signed_proposal.message)
+    );
 
     // Queue messages if driver is not initialized, or if they are for higher height.
     // Process messages received for the current height.
@@ -585,14 +654,7 @@ where
         return Ok(());
     }
 
-    if proposal_height != state.driver.height() {
-        warn!(
-            "Ignoring proposal for height {proposal_height}, current height: {}",
-            state.driver.height()
-        );
-
-        return Ok(());
-    }
+    assert_eq!(proposal_height, state.driver.height());
 
     state.store_proposal(signed_proposal.clone());
 

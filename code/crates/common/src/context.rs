@@ -1,6 +1,6 @@
 use crate::{
     Address, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, Signature, SignedMessage,
-    SignedProposal, SignedVote, SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
+    SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
 };
 
 /// This trait allows to abstract over the various datatypes
@@ -40,14 +40,21 @@ where
     fn sign_vote(&self, vote: Self::Vote) -> SignedMessage<Self, Self::Vote>;
 
     /// Verify the given vote's signature using the given public key.
-    fn verify_signed_vote(signed_vote: &SignedVote<Self>, public_key: &PublicKey<Self>) -> bool;
+    fn verify_signed_vote(
+        &self,
+        vote: &Self::Vote,
+        signature: &Signature<Self>,
+        public_key: &PublicKey<Self>,
+    ) -> bool;
 
     /// Sign the given proposal with our private key.
     fn sign_proposal(&self, proposal: Self::Proposal) -> SignedMessage<Self, Self::Proposal>;
 
     /// Verify the given proposal's signature using the given public key.
     fn verify_signed_proposal(
-        signed_proposal: &SignedProposal<Self>,
+        &self,
+        proposal: &Self::Proposal,
+        signature: &Signature<Self>,
         public_key: &PublicKey<Self>,
     ) -> bool;
 
@@ -59,6 +66,7 @@ where
 
     /// Verify the given proposal part signature using the given public key.
     fn verify_signed_proposal_part(
+        &self,
         proposal_part: &Self::ProposalPart,
         signature: &Signature<Self>,
         public_key: &PublicKey<Self>,

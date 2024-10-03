@@ -64,14 +64,11 @@ where
 }
 
 /// Keeps track of proposals.
-#[derive_where(Clone, Debug)]
+#[derive_where(Clone, Debug, Default)]
 pub struct ProposalKeeper<Ctx>
 where
     Ctx: Context,
 {
-    /// The validator set for this height.
-    validator_set: Ctx::ValidatorSet,
-
     /// The proposal for each round.
     per_round: BTreeMap<Round, PerRound<Ctx>>,
 
@@ -84,17 +81,8 @@ where
     Ctx: Context,
 {
     /// Create a new `ProposalKeeper` instance
-    pub fn new(validator_set: Ctx::ValidatorSet) -> Self {
-        Self {
-            validator_set,
-            per_round: BTreeMap::new(),
-            evidence: EvidenceMap::new(),
-        }
-    }
-
-    /// Return the current validator set
-    pub fn validator_set(&self) -> &Ctx::ValidatorSet {
-        &self.validator_set
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Return the proposal and validity for the round.
