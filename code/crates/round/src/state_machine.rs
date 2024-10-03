@@ -192,7 +192,7 @@ where
 
         // L49
         (_, Input::ProposalAndPrecommitValue(proposal)) => {
-            commit(state, info.input_round, proposal)
+            commit(state.clone(), state.round, proposal)
         }
 
         // Invalid transition.
