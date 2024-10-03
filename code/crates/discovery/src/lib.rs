@@ -152,6 +152,22 @@ impl Discovery {
         multiaddr: Multiaddr,
         trial: Trial,
     ) {
+        if peer_id.as_ref().map_or(false, |id| {
+            // Is itself
+            id == swarm.local_peer_id()
+            // Is already connected
+            || swarm.is_connected(id)
+            // Has already been dialed (but ok if retrying)
+            || (self.dialed_peer_ids.contains(id) && trial == 1)
+        }) 
+        // Has already been dialed (but ok if retrying)
+            || (self.dialed_multiaddrs.contains(&multiaddr) && trial == 1)
+        // Is itself
+            || swarm.listeners().any(|addr| *addr == multiaddr)
+        {
+            return;
+        }
+
         let dial_opts = self.build_dial_opts(peer_id.clone(), multiaddr.clone());
 
         let connection_id = dial_opts.connection_id();
@@ -272,15 +288,6 @@ impl Discovery {
     ) {
         // TODO check upper bound on number of peers
         for (peer_id, listen_addr) in peers {
-            if peer_id.as_ref().map_or(false, |id| {
-                id == swarm.local_peer_id()
-                    || swarm.is_connected(id)
-                    || self.dialed_peer_ids.contains(id)
-            }) || self.dialed_multiaddrs.contains(&listen_addr)
-                || swarm.listeners().any(|addr| *addr == listen_addr)
-            {
-                continue;
-            }
             self.dial_peer(swarm, peer_id, listen_addr, 1);
         }
     }
