@@ -2479,7 +2479,24 @@ version = "0.1.0"
 dependencies = [
  "libp2p",
  "serde",
+ "tokio",
  "tracing",
+]
+
+[[package]]
+name = "malachite-discovery-test"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "libp2p-identity",
+ "malachite-gossip-consensus",
+ "malachite-metrics",
+ "malachite-node",
+ "malachite-starknet-host",
+ "rand",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

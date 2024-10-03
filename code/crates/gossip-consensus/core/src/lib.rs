@@ -9,7 +9,7 @@ use std::time::Duration;
 use futures::StreamExt;
 use libp2p::core::ConnectedPoint;
 use libp2p::metrics::{Metrics, Recorder};
-use libp2p::swarm::{self, dial_opts::DialOpts, SwarmEvent};
+use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
 use libp2p_broadcast as broadcast;
 use tokio::sync::mpsc;
@@ -99,9 +99,13 @@ pub struct State {
 }
 
 impl State {
-    fn new(enable_discovery: bool, bootstrap_nodes: Vec<Multiaddr>) -> Self {
+    fn new(
+        enable_discovery: bool,
+        tx_dial: mpsc::Sender<(Option<PeerId>, Multiaddr, discovery::Trial)>,
+        bootstrap_nodes: Vec<Multiaddr>,
+    ) -> Self {
         State {
-            discovery: discovery::Discovery::new(enable_discovery, bootstrap_nodes),
+            discovery: discovery::Discovery::new(enable_discovery, tx_dial, bootstrap_nodes),
         }
     }
 }
@@ -174,7 +178,15 @@ async fn run(
         return;
     };
 
-    let mut state = State::new(config.enable_discovery, config.persistent_peers.clone());
+    // TODO: What size should this channel be?
+    let (tx_dial, mut rx_dial) =
+        mpsc::channel::<(Option<PeerId>, Multiaddr, discovery::Trial)>(100);
+
+    let mut state = State::new(
+        config.enable_discovery,
+        tx_dial,
+        config.persistent_peers.clone(),
+    );
 
     info!(
         "Discovery is {}",
@@ -187,20 +199,9 @@ async fn run(
 
     for persistent_peer in config.persistent_peers {
         trace!("Dialing persistent peer: {persistent_peer}");
-
-        let dial_opts = DialOpts::unknown_peer_id()
-            .address(persistent_peer.clone())
-            .build();
-        let connection_id = dial_opts.connection_id();
-
         state
             .discovery
-            .add_pending_connection(connection_id, None, Some(&persistent_peer));
-
-        if let Err(e) = swarm.dial(dial_opts) {
-            error!("Error dialing persistent peer {persistent_peer}: {e}");
-            state.discovery.register_failed_connection(&connection_id);
-        }
+            .dial_peer(&mut swarm, None, persistent_peer, 1);
 
         state.discovery.check_if_done(); // Done if all persistent peers failed
     }
@@ -211,6 +212,12 @@ async fn run(
         let result = tokio::select! {
             event = swarm.select_next_some() => {
                 handle_swarm_event(event, &metrics, &mut swarm, &mut state, &tx_event).await
+            }
+
+            Some((peer_id, multiaddr, trial)) = rx_dial.recv() => {
+                info!("Dialing peer at {multiaddr} (trial {trial})");
+                state.discovery.dial_peer(&mut swarm, peer_id, multiaddr, trial);
+                ControlFlow::Continue(())
             }
 
             Some(ctrl) = rx_ctrl.recv() => {
@@ -276,7 +283,7 @@ async fn handle_swarm_event(
                 debug!("Connected to {peer_id}");
                 state
                     .discovery
-                    .handle_dialer_connection(&peer_id, &connection_id);
+                    .handle_dialer_connection(peer_id, connection_id);
             }
             ConnectedPoint::Listener { .. } => {
                 debug!("Accepted incoming connection from {peer_id}");
@@ -289,13 +296,13 @@ async fn handle_swarm_event(
             ..
         } => {
             error!("Error dialing peer: {error}");
-            state.discovery.register_failed_connection(&connection_id);
+            state.discovery.register_failed_connection(connection_id);
             state.discovery.check_if_done();
         }
 
         SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
             trace!("Connection closed with {peer_id}: {:?}", cause);
-            state.discovery.remove_peer(&peer_id);
+            state.discovery.remove_peer(peer_id);
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent {

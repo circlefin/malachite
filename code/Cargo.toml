@@ -7,7 +7,7 @@ members = [
   "crates/common",
   "crates/consensus",
   "crates/driver",
-  "crates/gossip-consensus",
+  "crates/gossip-consensus/*",
   "crates/gossip-mempool",
   "crates/metrics",
   "crates/node",
@@ -44,7 +44,6 @@ malachite-common           = { version = "0.1.0", path = "crates/common" }
 malachite-consensus        = { version = "0.1.0", path = "crates/consensus" }
 malachite-discovery        = { version = "0.1.0", path = "crates/discovery" }
 malachite-driver           = { version = "0.1.0", path = "crates/driver" }
-malachite-gossip-consensus = { version = "0.1.0", path = "crates/gossip-consensus" }
 malachite-gossip-mempool   = { version = "0.1.0", path = "crates/gossip-mempool" }
 malachite-test-mbt         = { version = "0.1.0", path = "crates/test/mbt" }
 malachite-metrics          = { version = "0.1.0", path = "crates/metrics" }
@@ -53,6 +52,9 @@ malachite-proto            = { version = "0.1.0", path = "crates/proto" }
 malachite-round            = { version = "0.1.0", path = "crates/round" }
 malachite-test             = { version = "0.1.0", path = "crates/test" }
 malachite-vote             = { version = "0.1.0", path = "crates/vote" }
+
+# Gossip Consensus
+malachite-gossip-consensus = { version = "0.1.0", path = "crates/gossip-consensus/core" }
 
 # Starknet
 malachite-starknet-host      = { version = "0.1.0", path = "crates/starknet/host" }

@@ -6,6 +6,7 @@ use std::{
     collections::{HashMap, HashSet},
     time::{Duration, Instant},
 };
+use tokio::{sync::mpsc, time::sleep};
 use tracing::{self as _, debug, error, info, trace};
 
 use libp2p::{
@@ -20,15 +21,28 @@ pub use behaviour::*;
 
 const DISCOVERY_PROTOCOL: &str = "/malachite-discover/v1beta1";
 
+pub type Trial = usize;
+const DIAL_MAX_TRIALS: Trial = 5;
+
+fn fibonacci_delay(trial: Trial) -> Duration {
+    let mut a = 0;
+    let mut b = 1;
+    for _ in 0..trial {
+        (a, b) = (b, a + b);
+    }
+    Duration::from_secs(b)
+}
+
 #[derive(Debug)]
 pub struct Discovery {
     peers: HashMap<PeerId, identify::Info>,
     is_enabled: bool,
+    tx_dial: mpsc::Sender<(Option<PeerId>, Multiaddr, Trial)>,
     is_done: bool,
     bootstrap_nodes: Vec<Multiaddr>,
     dialed_peer_ids: HashSet<PeerId>,
     dialed_multiaddrs: HashSet<Multiaddr>,
-    pending_connections: HashSet<ConnectionId>,
+    pending_connections: HashMap<ConnectionId, (Option<PeerId>, Multiaddr, Trial)>,
     requested_peer_ids: HashSet<PeerId>,
     pending_requests: HashSet<OutboundRequestId>,
     /// Performance metrics
@@ -39,15 +53,20 @@ pub struct Discovery {
 }
 
 impl Discovery {
-    pub fn new(enable_discovery: bool, bootstrap_nodes: Vec<Multiaddr>) -> Self {
+    pub fn new(
+        enable_discovery: bool,
+        tx_dial: mpsc::Sender<(Option<PeerId>, Multiaddr, Trial)>,
+        bootstrap_nodes: Vec<Multiaddr>,
+    ) -> Self {
         Discovery {
             peers: HashMap::new(),
             is_enabled: enable_discovery,
+            tx_dial,
             is_done: false,
             bootstrap_nodes,
             dialed_peer_ids: HashSet::new(),
             dialed_multiaddrs: HashSet::new(),
-            pending_connections: HashSet::new(),
+            pending_connections: HashMap::new(),
             requested_peer_ids: HashSet::new(),
             pending_requests: HashSet::new(),
             total_interactions: 0,
@@ -57,8 +76,8 @@ impl Discovery {
         }
     }
 
-    pub fn remove_peer(&mut self, peer_id: &PeerId) {
-        self.peers.remove(peer_id);
+    pub fn remove_peer(&mut self, peer_id: PeerId) {
+        self.peers.remove(&peer_id);
     }
 
     pub fn is_enabled(&self) -> bool {
@@ -68,24 +87,41 @@ impl Discovery {
     pub fn add_pending_connection(
         &mut self,
         connection_id: ConnectionId,
-        peer_id: Option<&PeerId>,
-        multiaddr: Option<&Multiaddr>,
+        peer_id: Option<PeerId>,
+        multiaddr: Multiaddr,
+        trial: Trial,
     ) {
         if self.is_enabled {
             if let Some(peer_id) = peer_id {
                 self.dialed_peer_ids.insert(peer_id.clone());
             }
-            if let Some(multiaddr) = multiaddr {
-                self.dialed_multiaddrs.insert(multiaddr.clone());
-            }
-            self.pending_connections.insert(connection_id);
+            self.dialed_multiaddrs.insert(multiaddr.clone());
+            self.pending_connections
+                .insert(connection_id, (peer_id.clone(), multiaddr.clone(), trial));
             self.total_interactions += 1;
         }
     }
 
-    pub fn register_failed_connection(&mut self, connection_id: &ConnectionId) {
+    pub fn register_failed_connection(&mut self, connection_id: ConnectionId) {
         if self.is_enabled {
-            self.pending_connections.remove(connection_id);
+            if let Some((peer_id, multiaddr, trial)) =
+                self.pending_connections.get(&connection_id).cloned()
+            {
+                if trial < DIAL_MAX_TRIALS {
+                    let tx_dial = self.tx_dial.clone();
+                    tokio::spawn(async move {
+                        sleep(fibonacci_delay(trial)).await;
+                        tx_dial
+                            .try_send((peer_id, multiaddr, trial + 1))
+                            .unwrap_or_else(|e| {
+                                error!("Error sending dial request to channel: {e}");
+                            });
+                    });
+                } else {
+                    error!("Failed to dial peer at {multiaddr} after {trial} trials",);
+                }
+            }
+            self.pending_connections.remove(&connection_id);
             self.total_interactions_failed += 1;
         }
     }
@@ -97,7 +133,44 @@ impl Discovery {
         }
     }
 
-    pub fn handle_dialer_connection(&mut self, peer_id: &PeerId, connection_id: &ConnectionId) {
+    fn build_dial_opts(&self, peer_id: Option<PeerId>, multiaddr: Multiaddr) -> DialOpts {
+        if let Some(peer_id) = peer_id {
+            DialOpts::peer_id(peer_id)
+                .addresses(vec![multiaddr.clone()])
+                .build()
+        } else {
+            DialOpts::unknown_peer_id()
+                .address(multiaddr.clone())
+                .build()
+        }
+    }
+
+    pub fn dial_peer(
+        &mut self,
+        swarm: &mut Swarm<impl SendResponse>,
+        peer_id: Option<PeerId>,
+        multiaddr: Multiaddr,
+        trial: Trial,
+    ) {
+        if self.is_enabled {
+            let dial_opts = self.build_dial_opts(peer_id.clone(), multiaddr.clone());
+
+            let connection_id = dial_opts.connection_id();
+
+            self.add_pending_connection(connection_id, peer_id.clone(), multiaddr.clone(), trial);
+
+            if let Err(e) = swarm.dial(dial_opts) {
+                if let Some(peer_id) = peer_id {
+                    error!("Error dialing peer {peer_id}: {e}");
+                } else {
+                    error!("Error dialing peer {multiaddr}: {e}");
+                }
+                self.register_failed_connection(connection_id);
+            }
+        }
+    }
+
+    pub fn handle_dialer_connection(&mut self, peer_id: PeerId, connection_id: ConnectionId) {
         if self.is_enabled {
             self.pending_connections.remove(&connection_id);
             // This call is necessary to record the peer id of a
@@ -210,29 +283,7 @@ impl Discovery {
                 continue;
             }
 
-            let dial_opts = if let Some(peer_id) = peer_id {
-                DialOpts::peer_id(peer_id)
-                    .addresses(vec![listen_addr.clone()])
-                    .build()
-            } else {
-                DialOpts::unknown_peer_id()
-                    .address(listen_addr.clone())
-                    .build()
-            };
-
-            let connection_id = dial_opts.connection_id();
-
-            self.add_pending_connection(connection_id, peer_id.as_ref(), Some(&listen_addr));
-
-            if let Err(e) = swarm.dial(dial_opts) {
-                if let Some(peer_id) = peer_id {
-                    error!("Error dialing peer {peer_id}: {e}");
-                } else {
-                    error!("Error dialing peer {listen_addr}: {e}");
-                }
-                self.pending_connections.remove(&connection_id);
-                self.total_interactions_failed += 1;
-            }
+            self.dial_peer(swarm, peer_id, listen_addr, 1);
         }
     }
 
