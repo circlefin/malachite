@@ -22,8 +22,8 @@ where
     let proposal_round = signed_proposal.round();
     let proposer_address = signed_proposal.validator_address();
 
-    if state.driver.height() > proposal_height {
-        debug!(
+    if proposal_height < consensus_height {
+        warn!(
             consensus.height = %consensus_height,
             proposal.height = %proposal_height,
             proposer = %proposer_address,
@@ -32,6 +32,8 @@ where
 
         return Ok(());
     }
+
+    assert_eq!(proposal_height, consensus_height);
 
     if !verify_signed_proposal(co, state, &signed_proposal).await? {
         return Ok(());

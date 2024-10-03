@@ -70,6 +70,8 @@ where
         return Ok(());
     }
 
+    assert_eq!(consensus_height, vote_height);
+
     // Store the non-nil Precommits.
     if signed_vote.vote_type() == VoteType::Precommit && signed_vote.value().is_val() {
         state.store_signed_precommit(signed_vote.clone());

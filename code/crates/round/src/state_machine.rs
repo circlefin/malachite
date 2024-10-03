@@ -192,7 +192,8 @@ where
 
         // L49
         (_, Input::ProposalAndPrecommitValue(proposal)) => {
-            commit(state, info.input_round, proposal)
+            let round = state.round;
+            commit(state, round, proposal)
         }
 
         // Invalid transition.
