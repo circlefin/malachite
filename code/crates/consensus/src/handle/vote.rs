@@ -1,10 +1,8 @@
 use crate::prelude::*;
 
 use crate::handle::driver::apply_driver_input;
-use crate::handle::signature::verify_signature;
-use crate::handle::validator_set::get_validator_set;
+use crate::handle::signature::verify_signed_vote;
 use crate::input::Input;
-use crate::types::ConsensusMsg;
 use crate::util::pretty::PrettyVote;
 
 pub async fn on_vote<Ctx>(
@@ -32,37 +30,7 @@ where
         return Ok(());
     }
 
-    let Some(validator_set) = get_validator_set(co, vote_height).await? else {
-        debug!(
-            consensus.height = %consensus_height,
-            vote.height = %vote_height,
-            validator = %validator_address,
-            "Received vote for height without known validator set, dropping"
-        );
-
-        return Ok(());
-    };
-
-    let Some(validator) = validator_set.get_by_address(validator_address) else {
-        warn!(
-            consensus.height = %consensus_height,
-            vote.height = %vote_height,
-            validator = %validator_address,
-            "Received vote from unknown validator"
-        );
-
-        return Ok(());
-    };
-
-    let signed_msg = signed_vote.clone().map(ConsensusMsg::Vote);
-    if !verify_signature(co, signed_msg, validator).await? {
-        warn!(
-            consensus.height = %consensus_height,
-            vote.height = %vote_height,
-            validator = %validator_address,
-            "Received invalid vote: {}", PrettyVote::<Ctx>(&signed_vote.message)
-        );
-
+    if !verify_signed_vote(co, &state, &signed_vote).await? {
         return Ok(());
     }
 
