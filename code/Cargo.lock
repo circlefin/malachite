@@ -2382,13 +2382,13 @@ version = "0.1.0"
 dependencies = [
  "async-recursion",
  "derive-where",
- "displaydoc",
  "genawaiter",
  "libp2p-identity",
  "malachite-common",
  "malachite-driver",
  "malachite-metrics",
  "multiaddr",
+ "thiserror",
  "tracing",
 ]
 

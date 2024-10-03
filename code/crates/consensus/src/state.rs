@@ -1,5 +1,4 @@
-use alloc::collections::{BTreeMap, VecDeque};
-use alloc::vec::Vec;
+use std::collections::{BTreeMap, VecDeque};
 
 use malachite_common::*;
 use malachite_driver::Driver;

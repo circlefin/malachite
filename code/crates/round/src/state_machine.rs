@@ -238,8 +238,9 @@ where
 
         // L49
         (_, Input::ProposalAndPrecommitValue(proposal)) => {
+            let round = state.round;
             debug_trace!(state, Line::L49); // "L49 - valid v and precommit quorum: commit");
-            commit(state, info.input_round, proposal)
+            commit(state, round, proposal)
         }
 
         // Invalid transition.
