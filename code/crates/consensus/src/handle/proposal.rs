@@ -33,8 +33,6 @@ where
         return Ok(());
     }
 
-    assert_eq!(proposal_height, consensus_height);
-
     if !verify_signed_proposal(co, state, &signed_proposal).await? {
         return Ok(());
     }
@@ -57,22 +55,17 @@ where
         return Ok(());
     }
 
-    if state.driver.height() < proposal_height {
+    if proposal_height > consensus_height {
         debug!("Received proposal for higher height, queuing for later");
+
         state
             .input_queue
             .push_back(Input::Proposal(signed_proposal));
-        return Ok(());
-    }
-
-    if proposal_height != state.driver.height() {
-        warn!(
-            "Ignoring proposal for height {proposal_height}, current height: {}",
-            state.driver.height()
-        );
 
         return Ok(());
     }
+
+    assert_eq!(proposal_height, consensus_height);
 
     state.store_proposal(signed_proposal.clone());
 
