@@ -7,7 +7,6 @@ use std::ops::ControlFlow;
 use std::time::Duration;
 
 use futures::StreamExt;
-use libp2p::core::ConnectedPoint;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
@@ -101,7 +100,7 @@ pub struct State {
 impl State {
     fn new(
         enable_discovery: bool,
-        tx_dial: mpsc::Sender<(Option<PeerId>, Multiaddr, discovery::Trial)>,
+        tx_dial: mpsc::UnboundedSender<discovery::ConnectionData>,
         bootstrap_nodes: Vec<Multiaddr>,
     ) -> Self {
         State {
@@ -178,9 +177,7 @@ async fn run(
         return;
     };
 
-    // TODO: What size should this channel be?
-    let (tx_dial, mut rx_dial) =
-        mpsc::channel::<(Option<PeerId>, Multiaddr, discovery::Trial)>(100);
+    let (tx_dial, mut rx_dial) = mpsc::unbounded_channel::<discovery::ConnectionData>();
 
     let mut state = State::new(
         config.enable_discovery,
@@ -199,9 +196,10 @@ async fn run(
 
     for persistent_peer in config.persistent_peers {
         trace!("Dialing persistent peer: {persistent_peer}");
-        state
-            .discovery
-            .dial_peer(&mut swarm, None, persistent_peer, 1);
+        state.discovery.dial_peer(
+            &mut swarm,
+            discovery::ConnectionData::new(None, persistent_peer),
+        );
 
         state.discovery.check_if_done(); // Done if all persistent peers failed
     }
@@ -214,9 +212,9 @@ async fn run(
                 handle_swarm_event(event, &metrics, &mut swarm, &mut state, &tx_event).await
             }
 
-            Some((peer_id, multiaddr, trial)) = rx_dial.recv() => {
-                info!("Dialing peer at {multiaddr} (trial {trial})");
-                state.discovery.dial_peer(&mut swarm, peer_id, multiaddr, trial);
+            Some(connection_data) = rx_dial.recv() => {
+                info!("Dialing peer at {0} (trial {1})", connection_data.multiaddr, connection_data.get_trial());
+                state.discovery.dial_peer(&mut swarm, connection_data);
                 ControlFlow::Continue(())
             }
 
@@ -278,17 +276,11 @@ async fn handle_swarm_event(
             connection_id,
             endpoint,
             ..
-        } => match endpoint {
-            ConnectedPoint::Dialer { .. } => {
-                debug!("Connected to {peer_id}");
-                state
-                    .discovery
-                    .handle_dialer_connection(peer_id, connection_id);
-            }
-            ConnectedPoint::Listener { .. } => {
-                debug!("Accepted incoming connection from {peer_id}");
-            }
-        },
+        } => {
+            state
+                .discovery
+                .handle_connection(peer_id, connection_id, endpoint);
+        }
 
         SwarmEvent::OutgoingConnectionError {
             connection_id,
@@ -296,8 +288,7 @@ async fn handle_swarm_event(
             ..
         } => {
             error!("Error dialing peer: {error}");
-            state.discovery.register_failed_connection(connection_id);
-            state.discovery.check_if_done();
+            state.discovery.handle_failed_connection(connection_id);
         }
 
         SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
