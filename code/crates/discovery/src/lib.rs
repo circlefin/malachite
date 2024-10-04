@@ -2,12 +2,9 @@
 #![allow(unexpected_cfgs)]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
-use std::{
-    collections::{HashMap, HashSet},
-    time::{Duration, Instant},
-};
+use std::collections::{HashMap, HashSet};
 use tokio::{sync::mpsc, time::sleep};
-use tracing::{self as _, debug, error, info, trace};
+use tracing::{self as _, debug, error, info, trace, warn};
 
 use libp2p::{
     core::ConnectedPoint,
@@ -22,6 +19,9 @@ pub use behaviour::*;
 
 mod connection;
 pub use connection::*;
+
+mod metrics;
+use metrics::*;
 
 const DISCOVERY_PROTOCOL: &str = "/malachite-discover/v1beta1";
 
@@ -38,11 +38,7 @@ pub struct Discovery {
     connections_types: HashMap<PeerId, ConnectionType>,
     requested_peer_ids: HashSet<PeerId>,
     pending_requests: HashSet<OutboundRequestId>,
-    /// Performance metrics
-    total_interactions: usize,
-    total_interactions_failed: usize,
-    start_time: Instant,
-    duration: Duration,
+    metrics: Metrics,
 }
 
 impl Discovery {
@@ -63,14 +59,12 @@ impl Discovery {
             connections_types: HashMap::new(),
             requested_peer_ids: HashSet::new(),
             pending_requests: HashSet::new(),
-            total_interactions: 0,
-            total_interactions_failed: 0,
-            start_time: Instant::now(),
-            duration: Duration::default(),
+            metrics: Metrics::new(),
         }
     }
 
     pub fn remove_peer(&mut self, peer_id: PeerId) {
+        warn!("Removing peer {peer_id}, total peers: {}", self.peers.len());
         self.peers.remove(&peer_id);
     }
 
@@ -88,6 +82,7 @@ impl Discovery {
                     connection_data.increment_trial();
 
                     let tx_dial = self.tx_dial.clone();
+                    // Retry dialing after a delay
                     tokio::spawn(async move {
                         sleep(connection_data.next_delay()).await;
                         tx_dial.send(connection_data).unwrap_or_else(|e| {
@@ -100,7 +95,7 @@ impl Discovery {
                         connection_data.multiaddr,
                         connection_data.get_trial(),
                     );
-                    self.total_interactions_failed += 1;
+                    self.metrics.increment_failure();
                     self.check_if_done();
                 }
             }
@@ -110,7 +105,7 @@ impl Discovery {
     fn register_failed_request(&mut self, request_id: OutboundRequestId) {
         if self.is_enabled {
             self.pending_requests.remove(&request_id);
-            self.total_interactions_failed += 1;
+            self.metrics.increment_failure();
         }
     }
 
@@ -143,6 +138,7 @@ impl Discovery {
         let dial_opts = connection_data.build_dial_opts();
         let connection_id = dial_opts.connection_id();
 
+        // Record the dialed peer and multiaddr to avoid redialing
         if let Some(peer_id) = peer_id.as_ref() {
             self.dialed_peer_ids.insert(peer_id.clone());
         }
@@ -151,8 +147,9 @@ impl Discovery {
         self.pending_connections
             .insert(connection_id, connection_data);
 
+        // Do not count retries as new interactions
         if trial == 1 {
-            self.total_interactions += 1;
+            self.metrics.increment_dial();
         }
 
         if let Err(e) = swarm.dial(dial_opts) {
@@ -234,11 +231,15 @@ impl Discovery {
         peer_id: PeerId,
         info: identify::Info,
     ) {
-        if self.is_enabled
-            && !self.peers.contains_key(&peer_id)
-            // Only request when the peer initiated the connection
-            && self.connections_types.get(&peer_id) == Some(&ConnectionType::Dial)
-        {
+        // Ignore if discovery is disabled or the peer is already known
+        if !self.is_enabled || self.peers.contains_key(&peer_id) {
+            self.connections_types.remove(&peer_id);
+            self.check_if_done();
+            return;
+        }
+
+        // Only request peers from dialed peers
+        if self.connections_types.get(&peer_id) == Some(&ConnectionType::Dial) {
             if let Some(request_response) = behaviour {
                 debug!("Requesting peers from {peer_id}");
 
@@ -250,13 +251,20 @@ impl Discovery {
                 self.pending_requests.insert(request_id);
             } else {
                 // This should never happen
-                error!("Discovery is enabled but request-response is not available");
+                error!(
+                    "Discovery is enabled, but request-response behaviour is unavailable for peer {peer_id}"
+                );
             }
         }
 
-        self.connections_types.remove(&peer_id);
-
         self.peers.insert(peer_id, info);
+
+        info!(
+            "Discovered peer {peer_id}, total peers: {}",
+            self.peers.len()
+        );
+
+        self.connections_types.remove(&peer_id);
         self.check_if_done();
     }
 
@@ -270,14 +278,17 @@ impl Discovery {
 
         if self.pending_connections.is_empty() && self.pending_requests.is_empty() {
             self.is_done = true;
-            self.duration = self.start_time.elapsed();
+
+            let total_dialed = self.metrics.total_dialed();
+            let total_failed = self.metrics.total_failed();
+
             info!(
                 "Discovery finished in {}ms, found {} peers, dialed {} peers, {} successful, {} failed",
-                self.duration.as_millis(),
+                self.metrics.elapsed().as_millis(),
                 self.peers.len(),
-                self.total_interactions,
-                self.total_interactions - self.total_interactions_failed,
-                self.total_interactions_failed,
+                total_dialed,
+                total_dialed - total_failed,
+                total_failed,
             );
             return true;
         }

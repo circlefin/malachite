@@ -2,17 +2,17 @@ use std::time::Duration;
 
 use libp2p::{core::ConnectedPoint, swarm::dial_opts::DialOpts, Multiaddr, PeerId};
 
-pub type Trial = usize;
-pub const DIAL_MAX_TRIALS: Trial = 5;
+pub(crate) type Trial = usize;
+pub(crate) const DIAL_MAX_TRIALS: Trial = 5;
 
 #[derive(Debug, Clone)]
-pub struct FibonacciDelay {
+pub(crate) struct FibonacciDelay {
     current: Trial,
     next: Trial,
 }
 
 impl FibonacciDelay {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         // Start from 1 second
         FibonacciDelay {
             current: 1,
@@ -76,7 +76,7 @@ impl ConnectionData {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ConnectionType {
+pub(crate) enum ConnectionType {
     Dial,   // The node initiated the connection
     Listen, // The node received the connection
 }
