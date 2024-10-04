@@ -135,9 +135,7 @@ pub fn propose_state(round: Round) -> State<TestContext> {
         height: Height::new(1),
         round,
         step: Step::Propose,
-        locked: None,
-        valid: None,
-        decision: None,
+        ..Default::default()
     }
 }
 
@@ -154,8 +152,7 @@ pub fn propose_state_with_proposal_and_valid(
             value: proposal.value,
             round: valid_round,
         }),
-        locked: None,
-        decision: None,
+        ..Default::default()
     }
 }
 
@@ -175,7 +172,7 @@ pub fn propose_state_with_proposal_and_locked_and_valid(
             value: proposal.value,
             round: Round::new(0),
         }),
-        decision: None,
+        ..Default::default()
     }
 }
 
@@ -184,9 +181,7 @@ pub fn prevote_state(round: Round) -> State<TestContext> {
         height: Height::new(1),
         round,
         step: Step::Prevote,
-        locked: None,
-        valid: None,
-        decision: None,
+        ..Default::default()
     }
 }
 
@@ -203,8 +198,7 @@ pub fn prevote_state_with_proposal_and_valid(
             value: proposal.value,
             round: valid_round,
         }),
-        locked: None,
-        decision: None,
+        ..Default::default()
     }
 }
 
@@ -224,7 +218,7 @@ pub fn prevote_state_with_proposal_and_locked_and_valid(
             value: proposal.value,
             round: Round::new(0),
         }),
-        decision: None,
+        ..Default::default()
     }
 }
 
@@ -244,7 +238,7 @@ pub fn precommit_state_with_proposal_and_locked_and_valid(
             value: proposal.value,
             round: Round::new(0),
         }),
-        decision: None,
+        ..Default::default()
     }
 }
 
@@ -253,9 +247,7 @@ pub fn precommit_state(round: Round) -> State<TestContext> {
         height: Height::new(1),
         round,
         step: Step::Precommit,
-        locked: None,
-        valid: None,
-        decision: None,
+        ..Default::default()
     }
 }
 
@@ -272,20 +264,12 @@ pub fn precommit_state_with_proposal_and_valid(
             value: proposal.value,
             round: valid_round,
         }),
-        locked: None,
-        decision: None,
+        ..Default::default()
     }
 }
 
 pub fn new_round(round: Round) -> State<TestContext> {
-    State {
-        height: Height::new(1),
-        round,
-        step: Step::Unstarted,
-        valid: None,
-        locked: None,
-        decision: None,
-    }
+    State::new(Height::new(1), round)
 }
 
 pub fn new_round_with_proposal_and_valid(round: Round, proposal: Proposal) -> State<TestContext> {
@@ -297,8 +281,7 @@ pub fn new_round_with_proposal_and_valid(round: Round, proposal: Proposal) -> St
             value: proposal.value,
             round: Round::new(0),
         }),
-        locked: None,
-        decision: None,
+        ..Default::default()
     }
 }
 
@@ -318,7 +301,7 @@ pub fn new_round_with_proposal_and_locked_and_valid(
             value: proposal.value,
             round: Round::new(0),
         }),
-        decision: None,
+        ..Default::default()
     }
 }
 
@@ -327,9 +310,8 @@ pub fn decided_state(round: Round, value: Value) -> State<TestContext> {
         height: Height::new(1),
         round,
         step: Step::Commit,
-        valid: None,
-        locked: None,
         decision: Some(value),
+        ..Default::default()
     }
 }
 
@@ -350,5 +332,6 @@ pub fn decided_state_with_proposal_and_locked_and_valid(
             round: Round::new(0),
         }),
         decision: Some(proposal.value),
+        ..Default::default()
     }
 }

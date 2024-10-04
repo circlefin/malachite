@@ -9,6 +9,10 @@ publish.workspace    = true
 [lints]
 workspace = true
 
+[features]
+std = []
+debug = ["std"]
+
 [dependencies]
 malachite-common.workspace           = true
 malachite-consensus.workspace        = true
