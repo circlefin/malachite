@@ -34,8 +34,8 @@ impl Iterator for FibonacciDelay {
 
 #[derive(Debug, Clone)]
 pub struct ConnectionData {
-    pub peer_id: Option<PeerId>,
-    pub multiaddr: Multiaddr,
+    peer_id: Option<PeerId>,
+    multiaddr: Multiaddr,
     trial: Trial,
     fib_delay: FibonacciDelay,
 }
@@ -50,19 +50,27 @@ impl ConnectionData {
         }
     }
 
-    pub fn get_trial(&self) -> Trial {
+    pub(crate) fn get_peer_id(&self) -> Option<PeerId> {
+        self.peer_id.clone()
+    }
+
+    pub(crate) fn get_multiaddr(&self) -> Multiaddr {
+        self.multiaddr.clone()
+    }
+
+    pub(crate) fn get_trial(&self) -> Trial {
         self.trial
     }
 
-    pub fn increment_trial(&mut self) {
+    pub(crate) fn increment_trial(&mut self) {
         self.trial += 1;
     }
 
-    pub fn next_delay(&mut self) -> Duration {
+    pub(crate) fn next_delay(&mut self) -> Duration {
         self.fib_delay.next().unwrap()
     }
 
-    pub fn build_dial_opts(&self) -> DialOpts {
+    pub(crate) fn build_dial_opts(&self) -> DialOpts {
         if let Some(peer_id) = self.peer_id.clone() {
             DialOpts::peer_id(peer_id)
                 .addresses(vec![self.multiaddr.clone()])

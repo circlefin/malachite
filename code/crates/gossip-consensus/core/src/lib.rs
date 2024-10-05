@@ -12,7 +12,7 @@ use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
 use libp2p_broadcast as broadcast;
 use tokio::sync::mpsc;
-use tracing::{debug, error, error_span, info, trace, Instrument};
+use tracing::{debug, error, error_span, trace, Instrument};
 
 use malachite_discovery as discovery;
 use malachite_metrics::SharedRegistry;
@@ -185,23 +185,13 @@ async fn run(
         config.persistent_peers.clone(),
     );
 
-    info!(
-        "Discovery is {}",
-        if state.discovery.is_enabled() {
-            "enabled"
-        } else {
-            "disabled"
-        }
-    );
-
     for persistent_peer in config.persistent_peers {
-        trace!("Dialing persistent peer: {persistent_peer}");
         state.discovery.dial_peer(
             &mut swarm,
             discovery::ConnectionData::new(None, persistent_peer),
         );
 
-        state.discovery.check_if_done(); // Done if all persistent peers failed
+        state.discovery.check_if_idle(); // True if all persistent peers failed
     }
 
     pubsub::subscribe(&mut swarm, Channel::all()).unwrap(); // FIXME: unwrap
@@ -213,7 +203,6 @@ async fn run(
             }
 
             Some(connection_data) = rx_dial.recv() => {
-                info!("Dialing peer at {0} (trial {1})", connection_data.multiaddr, connection_data.get_trial());
                 state.discovery.dial_peer(&mut swarm, connection_data);
                 ControlFlow::Continue(())
             }
