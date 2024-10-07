@@ -22,7 +22,10 @@ where
 
     // Update metrics
     {
-        metrics.consensus_end();
+        // We are only interesting in consensus time for round 0, ie. in the happy path.
+        if consensus_round == Round::new(0) {
+            metrics.consensus_end();
+        }
 
         metrics.block_end();
         metrics.finalized_blocks.inc();
