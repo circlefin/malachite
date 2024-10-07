@@ -26,4 +26,10 @@ where
 
     /// A block to propose has been received
     ReceivedProposedValue(ProposedValue<Ctx>),
+    //
+    // TODO:
+    // BlockSync
+    //  - Certificates
+    //      - Vec<SignedVote>
+    //  - Proposal
 }

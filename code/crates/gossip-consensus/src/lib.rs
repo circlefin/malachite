@@ -14,6 +14,7 @@ use libp2p_broadcast as broadcast;
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
+// use malachite_blocksync as blocksync;
 use malachite_metrics::SharedRegistry;
 
 pub use bytes::Bytes;
@@ -52,7 +53,7 @@ impl PubSubProtocol {
     }
 }
 
-const PROTOCOL_VERSION: &str = "malachite-gossip-consensus/v1beta1";
+const PROTOCOL: &str = "/malachite-consensus/v1beta1";
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -237,7 +238,7 @@ async fn handle_swarm_event(
                 info.protocol_version
             );
 
-            if info.protocol_version == PROTOCOL_VERSION {
+            if info.protocol_version == PROTOCOL {
                 trace!(
                     "Peer {peer_id} is using compatible protocol version: {:?}",
                     info.protocol_version
@@ -276,6 +277,9 @@ async fn handle_swarm_event(
             return handle_broadcast_event(event, metrics, swarm, state, tx_event).await;
         }
 
+        // SwarmEvent::Behaviour(NetworkEvent::BlockSync(event)) => {
+        //     return handle_blocksync_event(event, metrics, swarm, state, tx_event).await;
+        // }
         swarm_event => {
             metrics.record(&swarm_event);
         }
@@ -416,3 +420,14 @@ async fn handle_broadcast_event(
 
     ControlFlow::Continue(())
 }
+
+// async fn handle_blocksync_event(
+//     event: blocksync::Event,
+//     _metrics: &Metrics,
+//     _swarm: &mut swarm::Swarm<Behaviour>,
+//     _state: &mut State,
+//     _tx_event: &mpsc::Sender<Event>,
+// ) -> ControlFlow<()> {
+//     dbg!(event);
+//     ControlFlow::Continue(())
+// }
