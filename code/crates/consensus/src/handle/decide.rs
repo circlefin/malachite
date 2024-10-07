@@ -37,6 +37,8 @@ where
         }
     );
 
+    metrics.consensus_end();
+
     // Reinitialize to remove any previous round or equivocating precommits.
     // TODO: Revise when evidence module is added.
     state.signed_precommits.clear();
