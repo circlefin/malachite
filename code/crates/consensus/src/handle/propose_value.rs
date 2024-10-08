@@ -40,6 +40,7 @@ where
         validator_address: state.driver.address.clone(),
         value: value.clone(),
         validity: Validity::Valid,
+        // extension: vec![],
     });
 
     apply_driver_input(co, state, metrics, DriverInput::ProposeValue(round, value)).await

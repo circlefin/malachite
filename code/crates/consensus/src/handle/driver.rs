@@ -162,6 +162,21 @@ where
                 vote.round()
             );
 
+            if let NilOrVal::Val(val) = vote.value() {
+                if vote.vote_type() == VoteType::Precommit {
+                    match state.full_proposal_keeper.full_proposal_at_round_and_value(&vote.height(), vote.round(), &val)
+                    {
+                       None => {}
+                       Some(v) => {
+                           let extension = v.proposal.extension();
+                           let value_id = NilOrVal::Val(vote.value());
+                           let vote = Ctx::extended_precommit(vote.height(), vote.round(), value_id.into(), vote.validator_address().clone(), extension);
+                       }
+                    }
+                }
+            }
+
+
             let signed_vote = state.ctx.sign_vote(vote);
 
             perform!(

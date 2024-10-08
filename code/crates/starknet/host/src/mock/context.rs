@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use malachite_common::{Context, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote};
+use malachite_common::{Context, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote, ValueId};
 use malachite_starknet_p2p_types::{PrivateKey, PublicKey, Signature, SigningScheme};
 use starknet_core::utils::starknet_keccak;
 
@@ -108,5 +108,16 @@ impl Context for MockContext {
     ) -> Vote {
         let fork_id = 1; // FIXME: p2p-types
         Vote::new_precommit(height, round, fork_id, value_id, address)
+    }
+
+    fn extended_precommit(
+        height: Self::Height,
+        round: Round,
+        value_id: NilOrVal<ValueId<Self>>,
+        address: Self::Address,
+        extension: Vec<u8>,
+    ) -> Self::Vote {
+        let fork_id = 1; // FIXME: p2p-types
+        Vote::new_precommit_with_extension(height, round, fork_id, value_id, address, extension)
     }
 }

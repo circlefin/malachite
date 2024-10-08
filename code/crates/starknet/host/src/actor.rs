@@ -97,12 +97,15 @@ impl StarknetHost {
         let (value, validator_address, validity) =
             self.build_proposal_content_from_parts(parts, height, round)?;
 
+        let extension = vec![];
+
         Some(ProposedValue {
             validator_address,
             height,
             round,
             value,
             validity,
+            extension,
         })
     }
 
@@ -273,11 +276,14 @@ impl Actor for StarknetHost {
 
                 let parts = state.part_store.all_parts(height, round);
 
+                let extension = vec![1,2,3];
+
                 if let Some(value) = self.build_value_from_parts(&parts, height, round) {
                     reply_to.send(LocallyProposedValue::new(
                         value.height,
                         value.round,
                         value.value,
+                        extension
                     ))?;
                 }
 

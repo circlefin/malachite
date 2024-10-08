@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use crate::{
     Address, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, Signature, SignedMessage,
     SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
@@ -98,4 +99,15 @@ where
         value_id: NilOrVal<ValueId<Self>>,
         address: Self::Address,
     ) -> Self::Vote;
+
+    /// Build a new precommit that includes an extension
+    fn extended_precommit(
+        height: Self::Height,
+        round: Round,
+        value_id: NilOrVal<ValueId<Self>>,
+        address: Self::Address,
+        _extension: Vec<u8>,
+    ) -> Self::Vote {
+        Self::new_precommit(height, round, value_id, address)
+    }
 }

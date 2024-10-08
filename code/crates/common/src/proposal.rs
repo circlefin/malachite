@@ -1,3 +1,5 @@
+use alloc::vec;
+use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use crate::{Context, Round};
@@ -25,6 +27,11 @@ where
 
     /// Address of the validator who issued this proposal
     fn validator_address(&self) -> &Ctx::Address;
+
+    /// Vote extension
+    fn extension(&self) -> Vec<u8> {
+        vec![]
+    }
 }
 
 /// Whether or not a proposal is valid.

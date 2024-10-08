@@ -40,6 +40,10 @@ impl common::Proposal<MockContext> for Proposal {
     fn validator_address(&self) -> &Address {
         &self.proposer
     }
+    
+    fn extension(&self) -> Vec<u8> {
+        self.
+    }
 }
 
 impl common::Vote<MockContext> for Vote {
