@@ -20,6 +20,25 @@ where
     // Clean proposals and values
     state.remove_full_proposals(height);
 
+    // Update metrics
+    {
+        // We are only interesting in consensus time for round 0, ie. in the happy path.
+        if consensus_round == Round::new(0) {
+            metrics.consensus_end();
+        }
+
+        metrics.block_end();
+        metrics.finalized_blocks.inc();
+
+        metrics
+            .consensus_round
+            .observe(consensus_round.as_i64() as f64);
+
+        metrics
+            .proposal_round
+            .observe(proposal_round.as_i64() as f64);
+    }
+
     #[cfg(feature = "debug")]
     {
         for trace in state.driver.round_state.get_traces() {
@@ -40,17 +59,6 @@ where
     // Reinitialize to remove any previous round or equivocating precommits.
     // TODO: Revise when evidence module is added.
     state.signed_precommits.clear();
-
-    metrics.block_end();
-    metrics.finalized_blocks.inc();
-
-    metrics
-        .consensus_round
-        .observe(consensus_round.as_i64() as f64);
-
-    metrics
-        .proposal_round
-        .observe(proposal_round.as_i64() as f64);
 
     Ok(())
 }

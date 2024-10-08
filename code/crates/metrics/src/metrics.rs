@@ -57,6 +57,9 @@ pub struct Inner {
     /// Number of transactions finalized
     pub finalized_txes: Counter,
 
+    /// Consensus time, in seconds
+    pub consensus_time: Histogram,
+
     /// Time taken to finalize a block, in seconds
     pub time_per_block: Histogram,
 
@@ -87,6 +90,9 @@ pub struct Inner {
     /// Time taken to verify a signature
     pub signature_verification_time: Histogram,
 
+    /// Internal state for measuring time taken for consensus
+    instant_consensus_started: Arc<AtomicInstant>,
+
     /// Internal state for measuring time taken to finalize a block
     instant_block_started: Arc<AtomicInstant>,
 
@@ -99,6 +105,7 @@ impl Metrics {
         Self(Arc::new(Inner {
             finalized_blocks: Counter::default(),
             finalized_txes: Counter::default(),
+            consensus_time: Histogram::new(linear_buckets(0.0, 0.1, 20)),
             time_per_block: Histogram::new(linear_buckets(0.0, 0.1, 20)),
             time_per_step: Family::new_with_constructor(|| {
                 Histogram::new(linear_buckets(0.0, 0.1, 20))
@@ -111,6 +118,7 @@ impl Metrics {
             height: Gauge::default(),
             round: Gauge::default(),
             signature_verification_time: Histogram::new(exponential_buckets(0.001, 2.0, 10)),
+            instant_consensus_started: Arc::new(AtomicInstant::empty()),
             instant_block_started: Arc::new(AtomicInstant::empty()),
             instant_step_started: Arc::new(Mutex::new((Step::Unstarted, Instant::now()))),
         }))
@@ -130,6 +138,12 @@ impl Metrics {
                 "finalized_txes",
                 "Number of transactions finalized",
                 metrics.finalized_txes.clone(),
+            );
+
+            registry.register(
+                "consensus_time",
+                "Consensus time, in seconds",
+                metrics.consensus_time.clone(),
             );
 
             registry.register(
@@ -194,6 +208,19 @@ impl Metrics {
         });
 
         metrics
+    }
+
+    pub fn consensus_start(&self) {
+        self.instant_consensus_started.set_now();
+    }
+
+    pub fn consensus_end(&self) {
+        if !self.instant_consensus_started.is_empty() {
+            let elapsed = self.instant_consensus_started.elapsed().as_secs_f64();
+            self.consensus_time.observe(elapsed);
+
+            self.instant_consensus_started.set_millis(0);
+        }
     }
 
     pub fn block_start(&self) {

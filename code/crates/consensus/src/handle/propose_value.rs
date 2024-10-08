@@ -32,6 +32,8 @@ where
         return Ok(());
     }
 
+    metrics.consensus_start();
+
     state.store_value(&ProposedValue {
         height,
         round,
