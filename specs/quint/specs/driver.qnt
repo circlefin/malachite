@@ -407,6 +407,7 @@ module driver {
         incomingVotes: Set[Vote],
         incomingProposals: Set[Proposal],
         incomingCertificates: Set[Set[Vote]],
+        // TODO: add buffers for sync
         getValueRequests: Set[(Height, Round)],
         nextValueToPropose: Value, 
     }

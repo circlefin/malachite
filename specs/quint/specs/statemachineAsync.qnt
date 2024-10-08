@@ -17,6 +17,7 @@
 module statemachineAsync {
 
 import types.* from "./types"
+export types.*
 import driver.* from "./driver"
 export driver.* 
 import consensus.* from "./consensus"
@@ -53,6 +54,8 @@ var propBuffer : Address -> Set[Proposal]
 var certBuffer : Address -> Set[Set[Vote]]
 var voteBuffer : Address -> Set[Vote]
 var _hist: { validator: Address, input: DriverInput, output: ConsensusOutput }
+
+
 
 action unchangedAll = all {
     system' = system,
@@ -212,7 +215,8 @@ action deliverCertificate(v: Address, c: Set[Vote]) : bool = all {
     voteBuffer' = voteBuffer, 
 }
 
-action deliverSomeCertificate(v: Address) : bool = any {
+action deliverSomeCertificate(v: Address) : bool = all {
+    certBuffer.keys().size() > 0,
     nondet c = oneOf(certBuffer.get(v))
     deliverCertificate(v, c)
 }
@@ -239,6 +243,7 @@ action step = {
         setNextValueToPropose(v, value),
     }
 }
+
 
 
 }
