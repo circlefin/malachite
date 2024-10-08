@@ -25,9 +25,9 @@ module driver {
         certificates: Set[Certificate], // we store Polkas and Commits we have seen
     }
 
-    pure def initDriver(v: Address, vs: ValidatorSet): DriverState = {
-        bk: initBookKeeper(0, vs),
-        cs: initConsensusState(v, 0),
+    pure def initDriver(v: Address, vs: ValidatorSet, h: Height): DriverState = {
+        bk: initBookKeeper(h, vs),
+        cs: initConsensusState(v, h),
         proposals: Set(),
         valset: vs,
         executedInputs: List(),
@@ -413,7 +413,7 @@ module driver {
     }
 
     pure def initNode(v: Address, vs: Address -> Weight): NodeState = {
-        es: initDriver(v,vs),
+        es: initDriver(v, vs, 0),
         timeouts: Set(),
         incomingVotes: Set(),
         incomingProposals: Set(),

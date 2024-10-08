@@ -49,6 +49,7 @@ type Synchronizer = {
     peerStatus: Address -> SyncStatus,
     openRequests: Set[RequestMsg],
     lastSyncedHeight: Height // done if greater than or equal to height
+    // we could add buffers for certificates and values
 }
 
 pure def initSynchronizer(peers: Set[Address]) : Synchronizer =
@@ -74,15 +75,29 @@ pure def syncStatus (s: NodeState) : SyncStatusMsg =
 
 // State machine
 
-var statusBuffer : Address -> Set[SyncStatusMsg]  
 var syncSystem: Address -> Synchronizer
 
+var statusBuffer : Address -> Set[SyncStatusMsg]  
+var syncValueBuffer : Address -> Set[Proposal]
+var syncCertBuffer : Address -> Set[Set[Vote]]
 
 pure def sendStatus(buffer: Address -> Set[SyncStatusMsg], sm: SyncStatusMsg): Address -> Set[SyncStatusMsg] =
     buffer.keys().mapBy(x => { ...buffer.get(x).union(Set(sm)) })
 
 
- 
+action newHeightAction(v, valset, h) = all {
+    val ns = system.get(v).with("es", initDriver(v, valset, h))
+    system' = system.put(v, ns), 
+    syncSystem' = syncSystem.put(v, syncNewHeight(syncSystem.get(v), h)),
+    // rest unchanged
+    statusBuffer' = statusBuffer,
+    syncValueBuffer' = syncValueBuffer,
+    syncCertBuffer' = syncCertBuffer,
+    _hist' = _hist,
+    propBuffer' = propBuffer,
+    voteBuffer' = voteBuffer,
+    certBuffer' = certBuffer,
+}
 
 action syncInit = all {
     init,
@@ -115,7 +130,8 @@ pure def syncServer (s: Synchronizer, ns: NodeState) :
     }
 
 action syncStepServer(v) = all {
-   unchangedAll,
+    val result = syncServer(syncSystem.get(v), system.get(v)) // this is where the chains is passed
+    unchangedAll,
     statusBuffer' = statusBuffer 
 
 }
