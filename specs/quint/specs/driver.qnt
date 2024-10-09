@@ -408,6 +408,8 @@ module driver {
         incomingProposals: Set[Proposal],
         incomingCertificates: Set[Set[Vote]],
         // TODO: add buffers for sync
+        incomingSyncValues: Set[NonNilValue],
+        incomingSyncCertificates: Set[Set[Vote]],
         getValueRequests: Set[(Height, Round)],
         nextValueToPropose: Value, 
     }
@@ -418,6 +420,8 @@ module driver {
         incomingVotes: Set(),
         incomingProposals: Set(),
         incomingCertificates: Set(),
+        incomingSyncProposals: Set(),
+        incomingSyncCertificates: Set(),
         getValueRequests: Set(),
         nextValueToPropose: Nil, 
     }
