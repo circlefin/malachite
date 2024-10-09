@@ -1,9 +1,11 @@
+use bytes::Bytes;
+use displaydoc::Display;
 use libp2p::metrics::Registry;
 use libp2p::request_response::{self as rpc, ProtocolSupport};
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::StreamProtocol;
 
-use crate::{RawRequest, RawResponse};
+use crate::{RawRequest, RawResponse, ResponseChannel};
 
 // use crate::Metrics;
 
@@ -36,7 +38,21 @@ impl Behaviour {
             // metrics: Some(Metrics::new(registry)),
         }
     }
+
+    pub fn send_response(&mut self, channel: ResponseChannel, data: Bytes) -> Result<(), Error> {
+        self.rpc
+            .send_response(channel, RawResponse(data))
+            .map_err(|_| Error::SendResponse)
+    }
 }
+
+#[derive(Clone, Debug, Display)]
+pub enum Error {
+    #[displaydoc("Failed to send response")]
+    SendResponse,
+}
+
+impl core::error::Error for Error {}
 
 impl Default for Behaviour {
     fn default() -> Self {

@@ -12,7 +12,7 @@ use malachite_blocksync as blocksync;
 use malachite_common::{Context, Round, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
-use malachite_gossip_consensus::{Bytes, Channel, Config, Event, Multiaddr, PeerId};
+use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
 use malachite_metrics::SharedRegistry;
 use malachite_proto::Protobuf;
 
@@ -221,11 +221,7 @@ where
 
                 let data = Codec::encode_status(status);
                 match data {
-                    Ok(data) => {
-                        ctrl_handle
-                            .publish(Channel::BlockSync, Bytes::from(data))
-                            .await?
-                    }
+                    Ok(data) => ctrl_handle.publish(Channel::BlockSync, data).await?,
                     Err(e) => error!("Failed to encode status message: {e:?}"),
                 }
             }
@@ -281,7 +277,7 @@ where
             }
 
             Msg::NewEvent(Event::Message(Channel::BlockSync, from, data)) => {
-                let status = match Codec::decode_status(data.to_vec()) {
+                let status = match Codec::decode_status(data) {
                     Ok(status) => status,
                     Err(e) => {
                         error!(%from, "Failed to decode status message: {e:?}");
@@ -301,6 +297,43 @@ where
                     subscribers,
                 );
             }
+
+            Msg::NewEvent(Event::BlockSync(raw_msg)) => match raw_msg {
+                blocksync::RawMessage::Request {
+                    request_id,
+                    peer,
+                    body,
+                } => {
+                    let request = Codec::decode_request(body).unwrap(); // FIXME: unwrap
+
+                    let commits = vec![];
+                    let block_bytes = vec![];
+
+                    let response = blocksync::Response {
+                        height: request.height,
+                        commits,
+                        block_bytes,
+                    };
+
+                    let data = Codec::encode_response(response);
+                    match data {
+                        Ok(data) => {
+                            if let Err(e) = ctrl_handle.blocksync_reply(request_id, data).await {
+                                error!(%peer, "Failed to send BlockSync response: {e:?}");
+                            }
+                        }
+                        Err(e) => error!(%peer, "Failed to encode BlockSync response: {e:?}"),
+                    }
+                }
+
+                blocksync::RawMessage::Response {
+                    request_id: _,
+                    body,
+                } => {
+                    let _data = Codec::decode_response(body).unwrap();
+                    // FIXME: unwrap
+                }
+            },
 
             Msg::GetState { reply } => {
                 let number_peers = match state {

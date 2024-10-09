@@ -1,6 +1,8 @@
+use bytes::Bytes;
 use derive_where::derive_where;
 use displaydoc::Display;
 use libp2p::identity::PeerId;
+use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use serde::{Deserialize, Serialize};
 
 use malachite_common::{Context, Round, SignedVote};
@@ -13,6 +15,8 @@ pub use codec::NetworkCodec;
 
 mod metrics;
 pub use metrics::Metrics;
+
+pub type ResponseChannel = libp2p::request_response::ResponseChannel<RawResponse>;
 
 #[derive(Display)]
 #[displaydoc("Status {{ peer_id: {peer_id}, height: {height}, round: {round} }}")]
@@ -35,8 +39,21 @@ pub struct Response<Ctx: Context> {
     pub block_bytes: Vec<u8>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RawRequest(Vec<u8>);
+#[derive(Clone, Debug)]
+pub enum RawMessage {
+    Request {
+        request_id: InboundRequestId,
+        peer: PeerId,
+        body: Bytes,
+    },
+    Response {
+        request_id: OutboundRequestId,
+        body: Bytes,
+    },
+}
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RawResponse(Vec<u8>);
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RawRequest(pub Bytes);
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RawResponse(pub Bytes);

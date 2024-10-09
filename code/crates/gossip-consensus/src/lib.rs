@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
+use libp2p::request_response::InboundRequestId;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
 use libp2p_broadcast as broadcast;
@@ -77,10 +78,11 @@ pub enum TransportProtocol {
 }
 
 /// An event that can be emitted by the gossip layer
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum Event {
     Listening(Multiaddr),
     Message(Channel, PeerId, Bytes),
+    BlockSync(blocksync::RawMessage),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
 }
@@ -88,12 +90,14 @@ pub enum Event {
 #[derive(Debug)]
 pub enum CtrlMsg {
     Publish(Channel, Bytes),
+    BlockSyncReply(InboundRequestId, Bytes),
     Shutdown,
 }
 
 #[derive(Debug, Default)]
 pub struct State {
     pub peers: HashMap<PeerId, identify::Info>,
+    pub blocksync_channels: HashMap<InboundRequestId, blocksync::ResponseChannel>,
 }
 
 pub async fn spawn(
@@ -170,7 +174,7 @@ async fn run(
             }
 
             Some(ctrl) = rx_ctrl.recv() => {
-                handle_ctrl_msg(ctrl, &mut swarm).await
+                handle_ctrl_msg(ctrl, &mut swarm, &mut state).await
             }
         };
 
@@ -181,7 +185,11 @@ async fn run(
     }
 }
 
-async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> ControlFlow<()> {
+async fn handle_ctrl_msg(
+    msg: CtrlMsg,
+    swarm: &mut swarm::Swarm<Behaviour>,
+    state: &mut State,
+) -> ControlFlow<()> {
     match msg {
         CtrlMsg::Publish(channel, data) => {
             let msg_size = data.len();
@@ -190,6 +198,18 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
             match result {
                 Ok(()) => debug!(%channel, "Published message ({msg_size} bytes)"),
                 Err(e) => error!(%channel, "Error broadcasting message: {e}"),
+            }
+
+            ControlFlow::Continue(())
+        }
+
+        CtrlMsg::BlockSyncReply(request_id, data) => {
+            let channel = state.blocksync_channels.remove(&request_id).unwrap(); // FIXME: unwrap
+            let result = swarm.behaviour_mut().blocksync.send_response(channel, data);
+
+            match result {
+                Ok(()) => trace!("Replied to BlockSync request"),
+                Err(e) => error!("Error replying to BlockSync request: {e}"),
             }
 
             ControlFlow::Continue(())
@@ -426,8 +446,66 @@ async fn handle_blocksync_event(
     event: blocksync::Event,
     _metrics: &Metrics,
     _swarm: &mut swarm::Swarm<Behaviour>,
-    _state: &mut State,
-    _tx_event: &mpsc::Sender<Event>,
+    state: &mut State,
+    tx_event: &mpsc::Sender<Event>,
 ) -> ControlFlow<()> {
-    ControlFlow::Continue(())
+    match event {
+        blocksync::Event::Message { peer, message } => {
+            match message {
+                libp2p::request_response::Message::Request {
+                    request_id,
+                    request,
+                    channel,
+                } => {
+                    state.blocksync_channels.insert(request_id, channel);
+
+                    tx_event
+                        .send(Event::BlockSync(blocksync::RawMessage::Request {
+                            request_id,
+                            peer,
+                            body: request.0,
+                        }))
+                        .await
+                        .unwrap() // FIXME: unwrap
+                }
+
+                libp2p::request_response::Message::Response {
+                    request_id,
+                    response,
+                } => {
+                    tx_event
+                        .send(Event::BlockSync(blocksync::RawMessage::Response {
+                            request_id,
+                            body: response.0,
+                        }))
+                        .await
+                        .unwrap() // FIXME: unwrap
+                }
+            }
+            ControlFlow::Continue(())
+        }
+
+        blocksync::Event::ResponseSent { peer, request_id } => {
+            let _ = (peer, request_id);
+            ControlFlow::Continue(())
+        }
+
+        blocksync::Event::OutboundFailure {
+            peer,
+            request_id,
+            error,
+        } => {
+            let _ = (peer, request_id, error);
+            ControlFlow::Continue(())
+        }
+
+        blocksync::Event::InboundFailure {
+            peer,
+            request_id,
+            error,
+        } => {
+            let _ = (peer, request_id, error);
+            ControlFlow::Continue(())
+        }
+    }
 }

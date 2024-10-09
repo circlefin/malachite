@@ -19,9 +19,9 @@ pub struct ProtobufCodec;
 impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
     type Error = ProtoError;
 
-    fn decode_status(bytes: Vec<u8>) -> Result<Status<MockContext>, Self::Error> {
+    fn decode_status(bytes: Bytes) -> Result<Status<MockContext>, Self::Error> {
         let status =
-            proto::blocksync::Status::decode(bytes.as_slice()).map_err(ProtoError::Decode)?;
+            proto::blocksync::Status::decode(bytes.as_ref()).map_err(ProtoError::Decode)?;
 
         let peer_id = status
             .peer_id
@@ -35,7 +35,7 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         })
     }
 
-    fn encode_status(status: Status<MockContext>) -> Result<Vec<u8>, Self::Error> {
+    fn encode_status(status: Status<MockContext>) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Status {
             peer_id: Some(proto::PeerId {
                 id: status.peer_id.to_bytes(),
@@ -44,14 +44,13 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
             round: status.round.as_i64(),
         };
 
-        Ok(proto.encode_to_vec())
+        Ok(Bytes::from(proto.encode_to_vec()))
     }
 
     fn decode_request(
-        bytes: Vec<u8>,
+        bytes: Bytes,
     ) -> Result<malachite_blocksync::Request<MockContext>, Self::Error> {
-        let request =
-            proto::blocksync::Request::decode(bytes.as_slice()).map_err(ProtoError::Decode)?;
+        let request = proto::blocksync::Request::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(malachite_blocksync::Request {
             height: Height::new(request.height),
@@ -60,19 +59,18 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
 
     fn encode_request(
         request: malachite_blocksync::Request<MockContext>,
-    ) -> Result<Vec<u8>, Self::Error> {
+    ) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Request {
             height: request.height.as_u64(),
         };
 
-        Ok(proto.encode_to_vec())
+        Ok(Bytes::from(proto.encode_to_vec()))
     }
 
     fn decode_response(
-        bytes: Vec<u8>,
+        bytes: Bytes,
     ) -> Result<malachite_blocksync::Response<MockContext>, Self::Error> {
-        let response =
-            proto::blocksync::Response::decode(bytes.as_slice()).map_err(ProtoError::Decode)?;
+        let response = proto::blocksync::Response::decode(bytes).map_err(ProtoError::Decode)?;
 
         fn decode_vote(msg: ConsensusMessage) -> Option<SignedVote<MockContext>> {
             let signature = msg.signature?;
@@ -101,7 +99,7 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
 
     fn encode_response(
         response: malachite_blocksync::Response<MockContext>,
-    ) -> Result<Vec<u8>, Self::Error> {
+    ) -> Result<Bytes, Self::Error> {
         fn encode_vote(vote: SignedVote<MockContext>) -> Result<ConsensusMessage, ProtoError> {
             Ok(ConsensusMessage {
                 messages: Some(Messages::Vote(vote.message.to_proto()?)),
@@ -121,7 +119,7 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
             block_bytes: response.block_bytes,
         };
 
-        Ok(proto.encode_to_vec())
+        Ok(Bytes::from(proto.encode_to_vec()))
     }
 }
 
