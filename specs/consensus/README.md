@@ -491,7 +491,9 @@ The only network primitive adopted in the pseudo-code is the `broadcast`
 primitive, which should send a given [consensus message](#messages) to all
 processes, thus implementing a 1-to-n communication primitive.
 
-> TODO: reliable broadcast properties
+> TODO: reliable broadcast properties needed for consensus messages, and the
+> more comprehensive and strong properties required for certificates (sets of
+> 2f + 1 identical votes), and certified proposals.
 
 #### Timeouts
 
