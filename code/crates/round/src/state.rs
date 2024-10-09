@@ -6,6 +6,9 @@ use crate::input::Input;
 use crate::state_machine::Info;
 use crate::transition::Transition;
 
+#[cfg(feature = "debug")]
+use crate::traces::*;
+
 use malachite_common::{Context, Round};
 
 /// A value and its associated round
@@ -67,6 +70,11 @@ where
 
     /// The value we have decided on, None if no decision has been made yet.
     pub decision: Option<Ctx::Value>,
+
+    /// Buffer with traces of tendermint algorithm lines,
+    #[cfg(feature = "debug")]
+    #[derive_where(skip)]
+    pub traces: alloc::vec::Vec<Trace<Ctx>>,
 }
 
 impl<Ctx> State<Ctx>
@@ -82,6 +90,8 @@ where
             locked: None,
             valid: None,
             decision: None,
+            #[cfg(feature = "debug")]
+            traces: alloc::vec::Vec::default(),
         }
     }
 
@@ -122,6 +132,18 @@ where
     /// Apply the given input to the current state, triggering a transition.
     pub fn apply(self, data: &Info<Ctx>, input: Input<Ctx>) -> Transition<Ctx> {
         crate::state_machine::apply(self, data, input)
+    }
+
+    /// Return the traces logged during execution.
+    #[cfg(feature = "debug")]
+    pub fn add_trace(&mut self, line: Line) {
+        self.traces.push(Trace::new(self.height, self.round, line));
+    }
+
+    /// Return the traces logged during execution.
+    #[cfg(feature = "debug")]
+    pub fn get_traces(&self) -> &[Trace<Ctx>] {
+        &self.traces
     }
 }
 

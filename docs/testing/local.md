@@ -26,7 +26,7 @@ $ docker run -it -v .:/app --cap-add=NET_ADMIN rust:1-slim /bin/bash
 
 ```
 # apt update
-# apt install -y wget unzip git iproute2 procps iputils-ping curl vim
+# apt install -y wget unzip git iproute2 procps iputils-ping curl vim make
 ```
 
 4. Install the Protobuf compiler

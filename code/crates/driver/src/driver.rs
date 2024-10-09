@@ -70,7 +70,7 @@ where
         address: Ctx::Address,
         threshold_params: ThresholdParams,
     ) -> Self {
-        let proposal_keeper = ProposalKeeper::new(validator_set.clone());
+        let proposal_keeper = ProposalKeeper::new();
         let vote_keeper = VoteKeeper::new(validator_set.clone(), threshold_params);
         let round_state = RoundState::new(height, Round::Nil);
 
@@ -91,7 +91,7 @@ where
     /// and move to new height with the given validator set.
     pub fn move_to_height(&mut self, height: Ctx::Height, validator_set: Ctx::ValidatorSet) {
         // Reset the proposal keeper
-        let proposal_keeper = ProposalKeeper::new(validator_set.clone());
+        let proposal_keeper = ProposalKeeper::new();
         // Reset the vote keeper
         let vote_keeper = VoteKeeper::new(validator_set.clone(), self.threshold_params);
 

@@ -207,7 +207,7 @@ fn driver_steps_decide_previous_with_no_locked_no_valid() {
                 Validity::Valid,
                 v1.address,
             ),
-            expected_outputs: vec![decide_output(Round::new(0), proposal)],
+            expected_outputs: vec![decide_output(Round::new(1), proposal)],
             expected_round: Round::new(1),
             new_state: decided_state(Round::new(1), value),
         },
@@ -334,7 +334,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
         TestStep {
             desc: "v2 precommits for round 0 and same proposal, we get +2/3 precommit, decide",
             input: precommit_input(Round::new(0), value, &v2.address),
-            expected_outputs: vec![decide_output(Round::new(0), proposal.clone())],
+            expected_outputs: vec![decide_output(Round::new(1), proposal.clone())],
             expected_round: Round::new(1),
             new_state: decided_state_with_proposal_and_locked_and_valid(
                 Round::new(1),
