@@ -72,3 +72,14 @@ pub enum HostMsg<Ctx: Context> {
         consensus: ConsensusRef<Ctx>,
     },
 }
+
+#[derive_where(Clone, Debug)]
+pub struct Certificate<Ctx: Context> {
+    pub commits: Vec<SignedVote<Ctx>>,
+}
+
+impl<Ctx: Context> Certificate<Ctx> {
+    pub fn new(commits: Vec<SignedVote<Ctx>>) -> Self {
+        Self { commits }
+    }
+}
