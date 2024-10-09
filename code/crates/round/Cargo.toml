@@ -13,3 +13,9 @@ rust-version.workspace = true
 malachite-common = { version = "0.1.0", path = "../common" }
 
 derive-where.workspace = true
+displaydoc.workspace   = true
+time                   = { workspace = true, optional = true }
+
+[features]
+std = []
+debug = ["std", "dep:time"]

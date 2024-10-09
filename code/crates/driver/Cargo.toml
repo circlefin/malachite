@@ -9,6 +9,10 @@ license.workspace      = true
 publish.workspace      = true
 rust-version.workspace = true
 
+[features]
+std = ["malachite-round/std"]
+debug = ["std", "malachite-round/debug"]
+
 [lints]
 workspace = true
 

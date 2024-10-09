@@ -17,7 +17,7 @@ where
 /// Defines the requirements for a validator.
 pub trait Validator<Ctx>
 where
-    Self: Clone + Debug + PartialEq + Eq + Send + Sync,
+    Self: Clone + Debug + Eq + Send + Sync,
     Ctx: Context,
 {
     /// The address of the validator, typically derived from its public key.

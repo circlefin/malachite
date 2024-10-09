@@ -47,7 +47,7 @@ malachite-actors           = { version = "0.1.0", path = "crates/actors" }
 malachite-blocksync        = { version = "0.1.0", path = "crates/blocksync" }
 malachite-cli              = { version = "0.1.0", path = "crates/cli" }
 malachite-common           = { version = "0.1.0", path = "crates/common" }
-malachite-consensus        = { version = "0.1.0", path = "crates/consensus" }
+malachite-consensus        = { version = "0.1.0", path = "crates/consensus", features = ["debug"] }
 malachite-driver           = { version = "0.1.0", path = "crates/driver" }
 malachite-gossip-consensus = { version = "0.1.0", path = "crates/gossip-consensus" }
 malachite-gossip-mempool   = { version = "0.1.0", path = "crates/gossip-mempool" }
@@ -79,8 +79,8 @@ clap               = "4.5"
 color-eyre         = "0.6"
 config             = { version = "0.14", features = ["toml"], default-features = false }
 derive-where       = "1.2.7"
+displaydoc         = { version = "0.2", default-features = false }
 directories        = "5.0.1"
-displaydoc         = "0.2"
 ed25519-consensus  = "2.1.0"
 either             = "1"
 eyre               = "0.6"
@@ -115,6 +115,7 @@ sha3               = "0.10"
 signature          = "2.2.0"
 tempfile           = "3.13.0"
 thiserror          = "1.0"
+time               = "0.3"
 tokio              = "1.40.0"
 tokio-stream       = "0.1"
 toml               = "0.8.19"
