@@ -244,7 +244,10 @@ rules. More precisely:
 3. `q` may broadcast a `⟨PROPOSAL, h, r, v, vr⟩` message while `-1 < vr != validRound_q`;
 4. `q` may broadcast multiple `⟨PROPOSAL, h, r, *, *⟩` messages, each proposing a different value.
 
-Attack 1. is simple to identify and deal as long as proposals contain **digital signatures**.
+Attack 1. is simple to identify and deal as long as proposals include the
+**digital signature** of their senders, given that the
+[proposers](#proposer-selection) for any given round of a height are assumed to
+be a priori known by all participants.
 
 Attacks 2. and 3. are constitute forms of the **amnesia attack** and are harder
 to identify.
