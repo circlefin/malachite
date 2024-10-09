@@ -321,6 +321,7 @@ active actors in the blockchain and to have a voting power that is proportional
 to the staked amount.
 In other words, when adopting the PoS framework, processes are assumed to have
 distinct voting powers.
+In Cosmos, the staking is managed at the application level, and via ABCI (application-blockchain interface), Tendermint consensus is informed about the next validator set.
 The failures assumptions are thus updated as follows:
 
 1. Each process `p` owns or has an associated voting power `p.power > 0`;
