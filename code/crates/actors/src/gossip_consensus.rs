@@ -8,11 +8,11 @@ use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, error_span, Instrument};
 
-// use malachite_blocksync as blocksync;
+use malachite_blocksync as blocksync;
 use malachite_common::{Context, Round, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
-use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
+use malachite_gossip_consensus::{Bytes, Channel, Config, Event, Multiaddr, PeerId};
 use malachite_metrics::SharedRegistry;
 use malachite_proto::Protobuf;
 
@@ -139,8 +139,12 @@ where
         myself: ActorRef<Msg<Ctx>>,
         args: Args<Codec>,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let handle =
-            malachite_gossip_consensus::spawn(args.keypair, args.config, args.metrics).await?;
+        let handle = malachite_gossip_consensus::spawn::<Ctx, Codec>(
+            args.keypair,
+            args.config,
+            args.metrics,
+        )
+        .await?;
 
         let (mut recv_handle, ctrl_handle) = handle.split();
 
@@ -212,19 +216,22 @@ where
                 }
             }
 
-            Msg::PublishStatus(_status) => {
-                // let status = blocksync::Status {
-                //     peer_id: ctrl_handle.peer_id(),
-                //     height: status.height,
-                //     round: status.round,
-                // };
-                //
-                //
-                // let data = Codec::encode_status(status);
-                // match data {
-                //     Ok(data) => ctrl_handle.publish(Channel::BlockSync, data).await?,
-                //     Err(e) => error!("Failed to encode status message: {e:?}"),
-                // }
+            Msg::PublishStatus(status) => {
+                let status = blocksync::Status {
+                    peer_id: ctrl_handle.peer_id(),
+                    height: status.height,
+                    round: status.round,
+                };
+
+                let data = Codec::encode_status(status);
+                match data {
+                    Ok(data) => {
+                        ctrl_handle
+                            .publish(Channel::BlockSync, Bytes::from(data))
+                            .await?
+                    }
+                    Err(e) => error!("Failed to encode status message: {e:?}"),
+                }
             }
 
             Msg::NewEvent(Event::Listening(addr)) => {
@@ -278,25 +285,25 @@ where
             }
 
             Msg::NewEvent(Event::Message(Channel::BlockSync, from, data)) => {
-                // let status = match Codec::decode_status(data) {
-                //     Ok(status) => status,
-                //     Err(e) => {
-                //         error!(%from, "Failed to decode status message: {e:?}");
-                //         return Ok(());
-                //     }
-                // };
-                //
-                // if from != status.peer_id {
-                //     error!(%from, %status.peer_id, "Mismatched peer ID in status message");
-                //     return Ok(());
-                // }
-                //
-                // // debug!(%from, height = %status.height, round = %status.round, "Received status");
-                //
-                // self.publish(
-                //     GossipEvent::Status(status.peer_id, Status::new(status.height, status.round)),
-                //     subscribers,
-                // );
+                let status = match Codec::decode_status(data.to_vec()) {
+                    Ok(status) => status,
+                    Err(e) => {
+                        error!(%from, "Failed to decode status message: {e:?}");
+                        return Ok(());
+                    }
+                };
+
+                if from != status.peer_id {
+                    error!(%from, %status.peer_id, "Mismatched peer ID in status message");
+                    return Ok(());
+                }
+
+                debug!(%from, height = %status.height, round = %status.round, "Received status");
+
+                self.publish(
+                    GossipEvent::Status(status.peer_id, Status::new(status.height, status.round)),
+                    subscribers,
+                );
             }
 
             Msg::GetState { reply } => {

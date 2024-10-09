@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package blocksync;
+
+import "p2p/proto/common.proto";
+import "p2p/proto/consensus.proto";
+
+message Status {
+  PeerID peer_id = 1;
+  uint64 height = 2;
+  int64 round = 3;
+}
+
+message Request {
+  uint64 height = 1;
+}
+
+message Response {
+  uint64 height = 1;
+  repeated ConsensusMessage commits = 2;
+  bytes block_bytes = 3;
+}

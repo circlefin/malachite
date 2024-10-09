@@ -11,10 +11,11 @@ use libp2p::metrics::{Metrics, Recorder};
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
 use libp2p_broadcast as broadcast;
+use malachite_common::Context;
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
-// use malachite_blocksync as blocksync;
+use malachite_blocksync as blocksync;
 use malachite_metrics::SharedRegistry;
 
 pub use bytes::Bytes;
@@ -24,6 +25,7 @@ pub use libp2p::{Multiaddr, PeerId};
 
 pub mod behaviour;
 pub mod handle;
+mod network_behaviour;
 pub mod pubsub;
 
 mod channel;
@@ -96,11 +98,15 @@ pub struct State {
     pub peers: HashMap<PeerId, identify::Info>,
 }
 
-pub async fn spawn(
+pub async fn spawn<Ctx, N>(
     keypair: Keypair,
     config: Config,
     registry: SharedRegistry,
-) -> Result<Handle, eyre::Report> {
+) -> Result<Handle, eyre::Report>
+where
+    Ctx: Context,
+    N: blocksync::NetworkCodec<Ctx>,
+{
     let swarm = registry.with_prefix(METRICS_PREFIX, |registry| -> Result<_, eyre::Report> {
         let builder = SwarmBuilder::with_existing_identity(keypair).with_tokio();
         match config.transport {
@@ -112,14 +118,18 @@ pub async fn spawn(
                 )?
                 .with_dns()?
                 .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| Behaviour::new_with_metrics(config.protocol, kp, registry))?
+                .with_behaviour(|kp| {
+                    Behaviour::<Ctx, N>::new_with_metrics(config.protocol, kp, registry)
+                })?
                 .with_swarm_config(|cfg| config.apply(cfg))
                 .build()),
             TransportProtocol::Quic => Ok(builder
                 .with_quic()
                 .with_dns()?
                 .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| Behaviour::new_with_metrics(config.protocol, kp, registry))?
+                .with_behaviour(|kp| {
+                    Behaviour::<Ctx, N>::new_with_metrics(config.protocol, kp, registry)
+                })?
                 .with_swarm_config(|cfg| config.apply(cfg))
                 .build()),
         }
@@ -138,13 +148,16 @@ pub async fn spawn(
     Ok(Handle::new(peer_id, tx_ctrl, rx_event, task_handle))
 }
 
-async fn run(
+async fn run<Ctx, N>(
     config: Config,
     metrics: Metrics,
-    mut swarm: swarm::Swarm<Behaviour>,
+    mut swarm: swarm::Swarm<Behaviour<Ctx, N>>,
     mut rx_ctrl: mpsc::Receiver<CtrlMsg>,
     tx_event: mpsc::Sender<Event>,
-) {
+) where
+    Ctx: Context,
+    N: blocksync::NetworkCodec<Ctx>,
+{
     if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
         error!("Error listening on {}: {e}", config.listen_addr);
         return;
@@ -181,7 +194,14 @@ async fn run(
     }
 }
 
-async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> ControlFlow<()> {
+async fn handle_ctrl_msg<Ctx, N>(
+    msg: CtrlMsg,
+    swarm: &mut swarm::Swarm<Behaviour<Ctx, N>>,
+) -> ControlFlow<()>
+where
+    Ctx: Context,
+    N: blocksync::NetworkCodec<Ctx>,
+{
     match msg {
         CtrlMsg::Publish(channel, data) => {
             let msg_size = data.len();
@@ -199,13 +219,17 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
     }
 }
 
-async fn handle_swarm_event(
-    event: SwarmEvent<NetworkEvent>,
+async fn handle_swarm_event<Ctx, N>(
+    event: SwarmEvent<NetworkEvent<Ctx>>,
     metrics: &Metrics,
-    swarm: &mut swarm::Swarm<Behaviour>,
+    swarm: &mut swarm::Swarm<Behaviour<Ctx, N>>,
     state: &mut State,
     tx_event: &mpsc::Sender<Event>,
-) -> ControlFlow<()> {
+) -> ControlFlow<()>
+where
+    Ctx: Context,
+    N: blocksync::NetworkCodec<Ctx>,
+{
     if let SwarmEvent::Behaviour(NetworkEvent::GossipSub(e)) = &event {
         metrics.record(e);
     } else if let SwarmEvent::Behaviour(NetworkEvent::Identify(e)) = &event {
@@ -277,9 +301,10 @@ async fn handle_swarm_event(
             return handle_broadcast_event(event, metrics, swarm, state, tx_event).await;
         }
 
-        // SwarmEvent::Behaviour(NetworkEvent::BlockSync(event)) => {
-        //     return handle_blocksync_event(event, metrics, swarm, state, tx_event).await;
-        // }
+        SwarmEvent::Behaviour(NetworkEvent::BlockSync(event)) => {
+            return handle_blocksync_event(event, metrics, swarm, state, tx_event).await;
+        }
+
         swarm_event => {
             metrics.record(&swarm_event);
         }
@@ -288,13 +313,17 @@ async fn handle_swarm_event(
     ControlFlow::Continue(())
 }
 
-async fn handle_gossipsub_event(
+async fn handle_gossipsub_event<Ctx, N>(
     event: gossipsub::Event,
     _metrics: &Metrics,
-    _swarm: &mut swarm::Swarm<Behaviour>,
+    _swarm: &mut swarm::Swarm<Behaviour<Ctx, N>>,
     _state: &mut State,
     tx_event: &mpsc::Sender<Event>,
-) -> ControlFlow<()> {
+) -> ControlFlow<()>
+where
+    Ctx: Context,
+    N: blocksync::NetworkCodec<Ctx>,
+{
     match event {
         gossipsub::Event::Subscribed { peer_id, topic } => {
             if !Channel::has_gossipsub_topic(&topic) {
@@ -362,13 +391,17 @@ async fn handle_gossipsub_event(
     ControlFlow::Continue(())
 }
 
-async fn handle_broadcast_event(
+async fn handle_broadcast_event<Ctx, N>(
     event: broadcast::Event,
     _metrics: &Metrics,
-    _swarm: &mut swarm::Swarm<Behaviour>,
+    _swarm: &mut swarm::Swarm<Behaviour<Ctx, N>>,
     _state: &mut State,
     tx_event: &mpsc::Sender<Event>,
-) -> ControlFlow<()> {
+) -> ControlFlow<()>
+where
+    Ctx: Context,
+    N: blocksync::NetworkCodec<Ctx>,
+{
     match event {
         broadcast::Event::Subscribed(peer_id, topic) => {
             if !Channel::has_broadcast_topic(&topic) {
@@ -421,13 +454,16 @@ async fn handle_broadcast_event(
     ControlFlow::Continue(())
 }
 
-// async fn handle_blocksync_event(
-//     event: blocksync::Event,
-//     _metrics: &Metrics,
-//     _swarm: &mut swarm::Swarm<Behaviour>,
-//     _state: &mut State,
-//     _tx_event: &mpsc::Sender<Event>,
-// ) -> ControlFlow<()> {
-//     dbg!(event);
-//     ControlFlow::Continue(())
-// }
+async fn handle_blocksync_event<Ctx, N>(
+    event: blocksync::Event<Ctx>,
+    _metrics: &Metrics,
+    _swarm: &mut swarm::Swarm<Behaviour<Ctx, N>>,
+    _state: &mut State,
+    _tx_event: &mpsc::Sender<Event>,
+) -> ControlFlow<()>
+where
+    Ctx: Context,
+    N: blocksync::NetworkCodec<Ctx>,
+{
+    ControlFlow::Continue(())
+}

@@ -9,7 +9,6 @@ rust-version.workspace = true
 
 [dependencies]
 malachite-common = { workspace = true }
-malachite-proto  = { workspace = true }
 
 async-trait      = { workspace = true }
 derive-where     = { workspace = true }

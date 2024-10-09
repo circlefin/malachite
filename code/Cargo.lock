@@ -2386,7 +2386,6 @@ dependencies = [
  "futures-util",
  "libp2p",
  "malachite-common",
- "malachite-proto",
 ]
 
 [[package]]
@@ -2459,6 +2458,7 @@ dependencies = [
  "libp2p",
  "libp2p-broadcast",
  "malachite-blocksync",
+ "malachite-common",
  "malachite-metrics",
  "seahash",
  "serde",

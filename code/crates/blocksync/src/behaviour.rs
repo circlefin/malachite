@@ -5,24 +5,12 @@ use libp2p::request_response::{self as rpc, ProtocolSupport};
 use libp2p::swarm::{self, NetworkBehaviour};
 use libp2p::StreamProtocol;
 
-use malachite_common::{Context, SignedVote};
+use malachite_common::Context;
 
 use crate::codec::RpcCodec;
-use crate::NetworkCodec;
+use crate::{NetworkCodec, Request, Response};
 
 // use crate::Metrics;
-
-#[derive(Debug)]
-pub struct Request<Ctx: Context> {
-    pub height: Ctx::Height,
-}
-
-#[derive(Debug)]
-pub struct Response<Ctx: Context> {
-    pub height: Ctx::Height,
-    pub commits: Vec<SignedVote<Ctx>>,
-    pub block_bytes: Vec<u8>,
-}
 
 pub struct Behaviour<Ctx: Context, N: NetworkCodec<Ctx>> {
     rpc: rpc::Behaviour<RpcCodec<Ctx, N>>,
@@ -51,7 +39,7 @@ where
     pub fn new_with_metrics(_registry: &mut Registry) -> Self {
         let config = rpc::Config::default();
         Self {
-            rpc: rpc::Behaviour::new(Self::PROTOCOL, config),
+            rpc: rpc::Behaviour::with_codec(RpcCodec::default(), Self::PROTOCOL, config),
             // metrics: Some(Metrics::new(registry)),
         }
     }

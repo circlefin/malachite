@@ -1,14 +1,14 @@
 use std::time::Duration;
 
 use either::Either;
-use libp2p::swarm::NetworkBehaviour;
 use libp2p::{gossipsub, identify, ping};
 use libp2p_broadcast as broadcast;
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
-// use malachite_blocksync as blocksync;
+use malachite_blocksync as blocksync;
+use malachite_common::Context;
 use malachite_metrics::Registry;
 
 use crate::{PubSubProtocol, PROTOCOL};
@@ -16,48 +16,49 @@ use crate::{PubSubProtocol, PROTOCOL};
 const MAX_TRANSMIT_SIZE: usize = 4 * 1024 * 1024; // 4 MiB
 
 #[derive(Debug)]
-pub enum NetworkEvent {
+pub enum NetworkEvent<Ctx: Context> {
     Identify(identify::Event),
     Ping(ping::Event),
     GossipSub(gossipsub::Event),
     Broadcast(broadcast::Event),
-    // BlockSync(blocksync::Event),
+    BlockSync(blocksync::Event<Ctx>),
 }
 
-impl From<identify::Event> for NetworkEvent {
+impl<Ctx: Context> From<identify::Event> for NetworkEvent<Ctx> {
     fn from(event: identify::Event) -> Self {
         Self::Identify(event)
     }
 }
 
-impl From<ping::Event> for NetworkEvent {
+impl<Ctx: Context> From<ping::Event> for NetworkEvent<Ctx> {
     fn from(event: ping::Event) -> Self {
         Self::Ping(event)
     }
 }
 
-impl From<gossipsub::Event> for NetworkEvent {
+impl<Ctx: Context> From<gossipsub::Event> for NetworkEvent<Ctx> {
     fn from(event: gossipsub::Event) -> Self {
         Self::GossipSub(event)
     }
 }
 
-impl From<broadcast::Event> for NetworkEvent {
+impl<Ctx: Context> From<broadcast::Event> for NetworkEvent<Ctx> {
     fn from(event: broadcast::Event) -> Self {
         Self::Broadcast(event)
     }
 }
 
-// impl From<blocksync::Event> for NetworkEvent {
-//     fn from(event: blocksync::Event) -> Self {
-//         Self::BlockSync(event)
-//     }
-// }
+impl<Ctx: Context> From<blocksync::Event<Ctx>> for NetworkEvent<Ctx> {
+    fn from(event: blocksync::Event<Ctx>) -> Self {
+        Self::BlockSync(event)
+    }
+}
 
-impl<A, B> From<Either<A, B>> for NetworkEvent
+impl<Ctx, A, B> From<Either<A, B>> for NetworkEvent<Ctx>
 where
-    A: Into<NetworkEvent>,
-    B: Into<NetworkEvent>,
+    Ctx: Context,
+    A: Into<NetworkEvent<Ctx>>,
+    B: Into<NetworkEvent<Ctx>>,
 {
     fn from(event: Either<A, B>) -> Self {
         match event {
@@ -67,13 +68,11 @@ where
     }
 }
 
-#[derive(NetworkBehaviour)]
-#[behaviour(to_swarm = "NetworkEvent")]
-pub struct Behaviour {
+pub struct Behaviour<Ctx: Context, C: blocksync::NetworkCodec<Ctx>> {
     pub identify: identify::Behaviour,
     pub ping: ping::Behaviour,
     pub pubsub: Either<gossipsub::Behaviour, broadcast::Behaviour>,
-    // pub blocksync: blocksync::Behaviour,
+    pub blocksync: blocksync::Behaviour<Ctx, C>,
 }
 
 fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
@@ -102,7 +101,11 @@ fn gossipsub_config() -> gossipsub::Config {
         .unwrap()
 }
 
-impl Behaviour {
+impl<Ctx, C> Behaviour<Ctx, C>
+where
+    Ctx: Context,
+    C: malachite_blocksync::NetworkCodec<Ctx>,
+{
     pub fn new_with_metrics(
         tpe: PubSubProtocol,
         keypair: &Keypair,
@@ -133,14 +136,14 @@ impl Behaviour {
             )),
         };
 
-        // let blocksync =
-        //     blocksync::Behaviour::new_with_metrics(registry.sub_registry_with_prefix("blocksync"));
+        let blocksync =
+            blocksync::Behaviour::new_with_metrics(registry.sub_registry_with_prefix("blocksync"));
 
         Self {
             identify,
             ping,
             pubsub,
-            // blocksync,
+            blocksync,
         }
     }
 }
