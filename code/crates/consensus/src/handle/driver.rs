@@ -1,7 +1,6 @@
+use crate::prelude::*;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
-
-use crate::prelude::*;
 
 use crate::handle::on_proposal;
 use crate::types::SignedConsensusMsg;
@@ -162,22 +161,35 @@ where
                 vote.round()
             );
 
-            if let NilOrVal::Val(val) = vote.value() {
-                if vote.vote_type() == VoteType::Precommit {
-                    match state.full_proposal_keeper.full_proposal_at_round_and_value(&vote.height(), vote.round(), &val)
-                    {
-                       None => {}
-                       Some(v) => {
-                           let extension = v.proposal.extension();
-                           let value_id = NilOrVal::Val(vote.value());
-                           let vote = Ctx::extended_precommit(vote.height(), vote.round(), value_id.into(), vote.validator_address().clone(), extension);
-                       }
+            let new_vote = if vote.vote_type() == VoteType::Precommit {
+                if let NilOrVal::Val(val_id) = vote.value() {
+                    let optional_state = state
+                        .full_proposal_keeper
+                        .full_proposal_at_round_and_value(&vote.height(), vote.round(), &val_id);
+                    match optional_state {
+                        None => vote,
+                        Some(full_proposal) => {
+                            let extension = full_proposal.proposal.extension();
+                            let value_id = vote.value().clone();
+                            let extended_vote = Ctx::extended_precommit(
+                                vote.height(),
+                                vote.round(),
+                                value_id,
+                                vote.validator_address().clone(),
+                                extension,
+                            );
+
+                            extended_vote
+                        }
                     }
+                } else {
+                    vote
                 }
-            }
+            } else {
+                vote
+            };
 
-
-            let signed_vote = state.ctx.sign_vote(vote);
+            let signed_vote = state.ctx.sign_vote(new_vote);
 
             perform!(
                 co,

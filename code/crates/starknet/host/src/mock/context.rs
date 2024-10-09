@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use malachite_common::{Context, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote, ValueId};
+use malachite_common::{
+    Context, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote, ValueId,
+};
 use malachite_starknet_p2p_types::{PrivateKey, PublicKey, Signature, SigningScheme};
 use starknet_core::utils::starknet_keccak;
 

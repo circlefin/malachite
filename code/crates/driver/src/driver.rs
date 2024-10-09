@@ -2,7 +2,10 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
 
-use malachite_common::{Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep, Validator, ValidatorSet, Validity, Vote};
+use malachite_common::{
+    Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep, Validator,
+    ValidatorSet, Validity, Vote,
+};
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
 use malachite_round::state::Step::Propose;

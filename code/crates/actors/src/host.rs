@@ -6,7 +6,6 @@ use ractor::{ActorRef, RpcReplyPort};
 
 use malachite_common::{Context, Round, SignedVote};
 
-
 /// This is the value that the application constructed
 /// and has finished streaming on gossip.
 ///
@@ -25,7 +24,7 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
             height,
             round,
             value,
-            extension
+            extension,
         }
     }
 }

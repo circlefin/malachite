@@ -42,6 +42,7 @@ impl<Value> NilOrVal<Value> {
 
     /// Consumes this and returns the value if it is not `nil`,
     /// otherwise returns the default `Value`.
+    // (note adi) Find what is this for? Could not find a way to use it.
     pub fn value_or_default(self) -> Value
     where
         Value: Default,
@@ -58,8 +59,8 @@ pub trait Value
 where
     Self: Clone + Debug + PartialEq + Eq + PartialOrd + Ord + Send + Sync,
 {
-    /// The type of the ID of the value.
-    /// Typically a representation of the value with a lower memory footprint.
+    /// The type of the ID for this value.
+    /// Typically, a representation of the value with a lower memory footprint.
     type Id: Clone + Debug + Display + PartialEq + Eq + PartialOrd + Ord + Send + Sync;
 
     /// The ID of the value.

@@ -1,8 +1,8 @@
-use alloc::vec::Vec;
 use crate::{
     Address, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, Signature, SignedMessage,
     SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
 };
+use alloc::vec::Vec;
 
 /// This trait allows to abstract over the various datatypes
 /// that are used in the consensus engine.

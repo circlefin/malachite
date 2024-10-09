@@ -119,7 +119,7 @@ where
         value: &Ctx::Value,
     ) -> Option<&FullProposal<Ctx>> {
         self.full_proposal_keeper
-            .full_proposal_at_round_and_value(height, round, value)
+            .full_proposal_at_round_and_value(height, round, &value.id())
     }
 
     pub fn full_proposals_for_value(

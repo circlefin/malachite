@@ -10,6 +10,7 @@ pub async fn propose_value<Ctx>(
     height: Ctx::Height,
     round: Round,
     value: Ctx::Value,
+    extension: Vec<u8>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -40,7 +41,7 @@ where
         validator_address: state.driver.address.clone(),
         value: value.clone(),
         validity: Validity::Valid,
-        // extension: vec![],
+        extension,
     });
 
     apply_driver_input(co, state, metrics, DriverInput::ProposeValue(round, value)).await

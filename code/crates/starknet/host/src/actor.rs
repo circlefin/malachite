@@ -276,14 +276,15 @@ impl Actor for StarknetHost {
 
                 let parts = state.part_store.all_parts(height, round);
 
-                let extension = vec![1,2,3];
+                // Hacky
+                let extension = vec![1, 2, 3];
 
                 if let Some(value) = self.build_value_from_parts(&parts, height, round) {
                     reply_to.send(LocallyProposedValue::new(
                         value.height,
                         value.round,
                         value.value,
-                        extension
+                        extension,
                     ))?;
                 }
 
