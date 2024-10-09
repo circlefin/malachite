@@ -97,7 +97,7 @@ impl StarknetHost {
         let (value, validator_address, validity) =
             self.build_proposal_content_from_parts(parts, height, round)?;
 
-        let extension = vec![];
+        let extension = vec![4, 5, 6];
 
         Some(ProposedValue {
             validator_address,

@@ -50,8 +50,8 @@ where
             propose_value(co, state, metrics, height, round, value, extension).await
         }
         Input::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
-        Input::ReceivedProposedValue(block) => {
-            on_received_proposed_value(co, state, metrics, block).await
+        Input::ReceivedProposedValue(value) => {
+            on_received_proposed_value(co, state, metrics, value).await
         }
     }
 }

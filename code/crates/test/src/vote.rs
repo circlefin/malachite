@@ -105,7 +105,7 @@ impl Protobuf for Vote {
                     .validator_address
                     .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("validator_address"))?,
             )?,
-            extension: proto.extension,
+            extension: Default::default(),
         })
     }
 

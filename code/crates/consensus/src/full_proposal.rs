@@ -16,6 +16,8 @@ pub struct FullProposal<Ctx: Context> {
     pub validity: Validity,
     /// Proposal consensus message
     pub proposal: SignedProposal<Ctx>,
+    /// Extension
+    pub extension: Vec<u8>,
 }
 
 impl<Ctx: Context> FullProposal<Ctx> {
@@ -23,11 +25,13 @@ impl<Ctx: Context> FullProposal<Ctx> {
         builder_value: Ctx::Value,
         validity: Validity,
         proposal: SignedProposal<Ctx>,
+        extension: Vec<u8>,
     ) -> Self {
         Self {
             builder_value,
             validity,
             proposal,
+            extension,
         }
     }
 }
@@ -42,7 +46,7 @@ enum Entry<Ctx: Context> {
     ProposalOnly(SignedProposal<Ctx>),
 
     /// Only the value has been received.
-    ValueOnly(Ctx::Value, Validity),
+    ValueOnly(Ctx::Value, Validity, Vec<u8>),
 
     // This is a placeholder for converting a partial
     // entry (`ProposalOnly` or `ValueOnly`) to a full entry (`Full`).
@@ -52,8 +56,13 @@ enum Entry<Ctx: Context> {
 }
 
 impl<Ctx: Context> Entry<Ctx> {
-    fn full(value: Ctx::Value, validity: Validity, proposal: SignedProposal<Ctx>) -> Self {
-        Entry::Full(FullProposal::new(value, validity, proposal))
+    fn full(
+        value: Ctx::Value,
+        validity: Validity,
+        proposal: SignedProposal<Ctx>,
+        extension: Vec<u8>,
+    ) -> Self {
+        Entry::Full(FullProposal::new(value, validity, proposal, extension))
     }
 }
 
@@ -164,7 +173,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         height: &Ctx::Height,
         round: Round,
         value: &'a Ctx::Value,
-    ) -> Option<(&'a Ctx::Value, Validity)> {
+    ) -> Option<(&'a Ctx::Value, Validity, Vec<u8>)> {
         let entries = self
             .keeper
             .get(&(*height, round))
@@ -173,10 +182,10 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         for entry in entries {
             match entry {
                 Entry::Full(p) if p.proposal.value().id() == value.id() => {
-                    return Some((value, p.validity));
+                    return Some((value, p.validity, p.extension.clone()));
                 }
-                Entry::ValueOnly(v, validity) if v.id() == value.id() => {
-                    return Some((value, *validity));
+                Entry::ValueOnly(v, validity, extension) if v.id() == value.id() => {
+                    return Some((value, *validity, extension.clone()));
                 }
                 _ => continue,
             }
@@ -204,9 +213,12 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
             None => Entry::ProposalOnly(new_proposal),
 
             // There is a value, create a full entry
-            Some((v, validity)) => {
-                Entry::Full(FullProposal::new(v.clone(), validity, new_proposal))
-            }
+            Some((v, validity, extension)) => Entry::Full(FullProposal::new(
+                v.clone(),
+                validity,
+                new_proposal,
+                extension,
+            )),
         }
     }
 
@@ -234,11 +246,11 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                                 return;
                             }
                         }
-                        Entry::ValueOnly(value, _) => {
+                        Entry::ValueOnly(value, validity, extension) => {
                             if value == new_proposal.value() {
                                 // Found a matching value. Add the proposal
-                                replace_with!(entry, Entry::ValueOnly(value, validity) => {
-                                    Entry::full(value, validity, new_proposal)
+                                replace_with!(entry, Entry::ValueOnly(value, validity, extension) => {
+                                    Entry::full(value, validity, new_proposal, extension.clone())
                                 });
 
                                 return;
@@ -277,7 +289,11 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
             None => {
                 // First time we see something (a proposed value) for this height and round
                 // Create a full proposal with just the proposal
-                let entry = Entry::ValueOnly(new_value.value.clone(), new_value.validity);
+                let entry = Entry::ValueOnly(
+                    new_value.value.clone(),
+                    new_value.validity,
+                    new_value.extension.clone(),
+                );
                 self.keeper.insert(key, vec![entry]);
             }
             Some(entries) => {
@@ -290,13 +306,13 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                             if proposal.value().id() == new_value.value.id() {
                                 // Found a matching proposal. Change the entry at index i
                                 replace_with!(entry, Entry::ProposalOnly(proposal) => {
-                                    Entry::full(new_value.value.clone(), new_value.validity, proposal)
+                                    Entry::full(new_value.value.clone(), new_value.validity, proposal, new_value.extension.clone())
                                 });
 
                                 return;
                             }
                         }
-                        Entry::ValueOnly(value, _) => {
+                        Entry::ValueOnly(value, ..) => {
                             if value.id() == new_value.value.id() {
                                 // Same value received before, nothing to do.
                                 return;
@@ -319,6 +335,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                 entries.push(Entry::ValueOnly(
                     new_value.value.clone(),
                     new_value.validity,
+                    new_value.extension.clone(),
                 ));
             }
         }
@@ -343,7 +360,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                     {
                         // Found a matching proposal. Change the entry at index i
                         replace_with!(entry, Entry::ProposalOnly(proposal) => {
-                            Entry::full(new_value.value.clone(), new_value.validity, proposal)
+                            Entry::full(new_value.value.clone(), new_value.validity, proposal, new_value.extension.clone())
                         });
                     }
                 }

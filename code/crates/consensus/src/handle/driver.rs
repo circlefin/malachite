@@ -169,7 +169,7 @@ where
                     match optional_state {
                         None => vote,
                         Some(full_proposal) => {
-                            let extension = full_proposal.proposal.extension();
+                            let extension = full_proposal.extension.clone();
                             let value_id = vote.value().clone();
                             let extended_vote = Ctx::extended_precommit(
                                 vote.height(),
