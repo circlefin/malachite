@@ -304,7 +304,13 @@ where
                     peer,
                     body,
                 } => {
-                    let request = Codec::decode_request(body).unwrap(); // FIXME: unwrap
+                    let request = match Codec::decode_request(body) {
+                        Ok(request) => request,
+                        Err(e) => {
+                            error!(%peer, "Failed to decode BlockSync request: {e:?}");
+                            return Ok(());
+                        }
+                    };
 
                     let commits = vec![];
                     let block_bytes = vec![];
@@ -330,8 +336,13 @@ where
                     request_id: _,
                     body,
                 } => {
-                    let _data = Codec::decode_response(body).unwrap();
-                    // FIXME: unwrap
+                    let _response = match Codec::decode_response(body) {
+                        Ok(response) => response,
+                        Err(e) => {
+                            error!("Failed to decode BlockSync response: {e:?}");
+                            return Ok(());
+                        }
+                    };
                 }
             },
 

@@ -163,7 +163,10 @@ async fn run(
         }
     }
 
-    pubsub::subscribe(&mut swarm, Channel::all()).unwrap(); // FIXME: unwrap
+    if let Err(e) = pubsub::subscribe(&mut swarm, Channel::all()) {
+        error!("Error subscribing to channels: {e}");
+        return;
+    };
 
     let mut state = State::default();
 
@@ -204,7 +207,11 @@ async fn handle_ctrl_msg(
         }
 
         CtrlMsg::BlockSyncReply(request_id, data) => {
-            let channel = state.blocksync_channels.remove(&request_id).unwrap(); // FIXME: unwrap
+            let Some(channel) = state.blocksync_channels.remove(&request_id) else {
+                error!(%request_id, "Received BlockSync reply for unknown request ID");
+                return ControlFlow::Continue(());
+            };
+
             let result = swarm.behaviour_mut().blocksync.send_response(channel, data);
 
             match result {
@@ -265,8 +272,6 @@ async fn handle_swarm_event(
                 );
 
                 state.peers.insert(peer_id, info);
-
-                // pubsub::add_peer(swarm, peer_id).unwrap(); // FIXME: unwrap
             } else {
                 trace!(
                     "Peer {peer_id} is using incompatible protocol version: {:?}",
@@ -459,27 +464,31 @@ async fn handle_blocksync_event(
                 } => {
                     state.blocksync_channels.insert(request_id, channel);
 
-                    tx_event
+                    let _ = tx_event
                         .send(Event::BlockSync(blocksync::RawMessage::Request {
                             request_id,
                             peer,
                             body: request.0,
                         }))
                         .await
-                        .unwrap() // FIXME: unwrap
+                        .map_err(|e| {
+                            error!("Error sending BlockSync request to handle: {e}");
+                        });
                 }
 
                 libp2p::request_response::Message::Response {
                     request_id,
                     response,
                 } => {
-                    tx_event
+                    let _ = tx_event
                         .send(Event::BlockSync(blocksync::RawMessage::Response {
                             request_id,
                             body: response.0,
                         }))
                         .await
-                        .unwrap() // FIXME: unwrap
+                        .map_err(|e| {
+                            error!("Error sending BlockSync response to handle: {e}");
+                        });
                 }
             }
             ControlFlow::Continue(())
