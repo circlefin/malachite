@@ -175,6 +175,21 @@ associated to a [round step](#round-steps):
   value `v` for which the process has received an enough number of
   `⟨PREVOTE, h, r, id(v)⟩` messages, or the special `nil` value otherwise.
 
+Before discussing in detail the role of each message in the protocol, it is
+worth highlighting the main aspects that differentiate the adopted messages.
+The `PROPOSAL` message is assumed to carry the proposed value, which may have
+an arbitrary size; we refer to it as the "full" value `v`.
+The propagation of large values, included in `PROPOSAL` messages, in practice
+requires specific and efficient data dissemination protocols.
+Implementations typically split the `PROPOSAL` message into multiple parts,
+independently propagated and reconstructed at the receiver side.
+The `PREVOTE` and `PRECOMMIT` messages are generally called [votes](#votes).
+They typically have a fixed size and are expected to be much smaller than
+`PROPOSAL` messages.
+The main reason for that is that they do not carry a "full" value `v`, but
+instead an unique identified `id(v)` of a proposed value `v` carried by an
+associated `PROPOSAL` message.
+
 ### Proposals
 
 Proposals are produced and broadcast by the `StartRound(round)` function of the
