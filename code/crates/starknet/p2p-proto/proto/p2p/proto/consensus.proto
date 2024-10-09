@@ -23,6 +23,7 @@ message Vote {
     optional Hash      block_hash   = 6;
     // Identifies the voter.
     Address            voter        = 7;
+    bytes              extension    = 8;
 }
 
 message ProposalInit {

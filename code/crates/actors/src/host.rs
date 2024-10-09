@@ -19,7 +19,7 @@ pub struct LocallyProposedValue<Ctx: Context> {
 }
 
 impl<Ctx: Context> LocallyProposedValue<Ctx> {
-    pub fn new(height: Ctx::Height, round: Round, value: Ctx::Value, extension: Vec<_>) -> Self {
+    pub fn new(height: Ctx::Height, round: Round, value: Ctx::Value, extension: Vec<u8>) -> Self {
         Self {
             height,
             round,

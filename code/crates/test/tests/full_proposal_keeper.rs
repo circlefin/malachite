@@ -51,6 +51,7 @@ macro_rules! value {
             validator_address: $a,
             value: Value::new($v),
             validity: $val,
+            extension: Default::default(),
         }
     };
 }
@@ -63,13 +64,14 @@ macro_rules! val_msg {
             value: Value::new($v),
             validity: $val,
             validator_address: $a,
+            extension: Default::default(),
         })
     };
 }
 
 macro_rules! prop_at_round_and_value {
     ( $k:expr, $r:expr, $v:expr) => {
-        $k.full_proposal_at_round_and_value(&Height::new(1), Round::new($r), &Value::new($v))
+        $k.full_proposal_at_round_and_value(&Height::new(1), Round::new($r), &Value::new($v).id())
     };
 }
 

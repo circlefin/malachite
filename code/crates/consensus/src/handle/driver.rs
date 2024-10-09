@@ -165,7 +165,7 @@ where
                 if let NilOrVal::Val(val_id) = vote.value() {
                     let optional_state = state
                         .full_proposal_keeper
-                        .full_proposal_at_round_and_value(&vote.height(), vote.round(), &val_id);
+                        .full_proposal_at_round_and_value(&vote.height(), vote.round(), val_id);
                     match optional_state {
                         None => vote,
                         Some(full_proposal) => {

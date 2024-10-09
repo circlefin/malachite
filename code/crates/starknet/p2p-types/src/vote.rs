@@ -12,6 +12,7 @@ pub struct Vote {
     pub round: Round,
     pub block_hash: NilOrVal<BlockHash>,
     pub voter: Address,
+    pub extension: Vec<u8>,
 }
 
 impl Vote {
@@ -29,6 +30,7 @@ impl Vote {
             fork_id,
             block_hash,
             voter,
+            extension: Default::default(),
         }
     }
 
@@ -46,6 +48,26 @@ impl Vote {
             fork_id,
             block_hash: value,
             voter: address,
+            extension: Default::default(),
+        }
+    }
+
+    pub fn new_precommit_with_extension(
+        height: Height,
+        round: Round,
+        fork_id: u64,
+        value: NilOrVal<BlockHash>,
+        address: Address,
+        extension: Vec<u8>,
+    ) -> Self {
+        Self {
+            vote_type: VoteType::Precommit,
+            block_number: height,
+            round,
+            fork_id,
+            block_hash: value,
+            voter: address,
+            extension,
         }
     }
 
@@ -73,6 +95,7 @@ impl proto::Protobuf for Vote {
                     .voter
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("voter"))?,
             )?,
+            extension: Default::default(),
         })
     }
 
@@ -88,6 +111,7 @@ impl proto::Protobuf for Vote {
                 NilOrVal::Val(v) => Some(v.to_proto()?),
             },
             voter: Some(self.voter.to_proto()?),
+            extension: self.extension.clone(),
         })
     }
 }
