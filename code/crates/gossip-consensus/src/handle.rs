@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use libp2p::request_response::InboundRequestId;
 use libp2p::PeerId;
 use tokio::sync::mpsc;
 use tokio::task;
@@ -33,6 +34,17 @@ impl CtrlHandle {
 
     pub async fn publish(&self, channel: Channel, data: Bytes) -> Result<(), eyre::Report> {
         self.tx_ctrl.send(CtrlMsg::Publish(channel, data)).await?;
+        Ok(())
+    }
+
+    pub async fn blocksync_reply(
+        &self,
+        request_id: InboundRequestId,
+        data: Bytes,
+    ) -> Result<(), eyre::Report> {
+        self.tx_ctrl
+            .send(CtrlMsg::BlockSyncReply(request_id, data))
+            .await?;
         Ok(())
     }
 
