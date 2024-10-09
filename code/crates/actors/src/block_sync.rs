@@ -6,10 +6,10 @@ use async_trait::async_trait;
 use derive_where::derive_where;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::task::JoinHandle;
-
-use malachite_common::{Context, Round};
-use malachite_gossip_consensus::PeerId;
 use tracing::{info, trace};
+
+use malachite_common::Context;
+use malachite_gossip_consensus::PeerId;
 
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
 use crate::util::forward::forward;
@@ -154,8 +154,8 @@ where
             Msg::Tick => {
                 let status = Status {
                     height: state.blocksync.current_height,
-                    round: Round::Nil,
                 };
+
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::PublishStatus(status))?;
             }

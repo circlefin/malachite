@@ -8,7 +8,6 @@ import "p2p/proto/consensus.proto";
 message Status {
   PeerID peer_id = 1;
   uint64 height = 2;
-  int64 round = 3;
 }
 
 message Request {

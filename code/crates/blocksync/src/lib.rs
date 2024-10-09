@@ -5,7 +5,7 @@ use libp2p::identity::PeerId;
 use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use serde::{Deserialize, Serialize};
 
-use malachite_common::{Context, Round, SignedVote};
+use malachite_common::{Context, SignedVote};
 
 mod behaviour;
 pub use behaviour::{Behaviour, Event};
@@ -19,12 +19,11 @@ pub use metrics::Metrics;
 pub type ResponseChannel = libp2p::request_response::ResponseChannel<RawResponse>;
 
 #[derive(Display)]
-#[displaydoc("Status {{ peer_id: {peer_id}, height: {height}, round: {round} }}")]
+#[displaydoc("Status {{ peer_id: {peer_id}, height: {height} }}")]
 #[derive_where(Debug, PartialEq, Eq)]
 pub struct Status<Ctx: Context> {
     pub peer_id: PeerId,
     pub height: Ctx::Height,
-    pub round: Round,
 }
 
 #[derive(Debug)]

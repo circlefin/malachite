@@ -412,10 +412,7 @@ where
             }
 
             Msg::GetStatus(reply_to) => {
-                let status = Status::new(
-                    state.consensus.driver.height(),
-                    state.consensus.driver.round(),
-                );
+                let status = Status::new(state.consensus.driver.height());
 
                 if let Err(e) = reply_to.send(status) {
                     error!("Error when replying to GetStatus message: {e:?}");

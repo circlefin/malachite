@@ -3,7 +3,7 @@ use prost::Message;
 use malachite_actors::util::codec::NetworkCodec;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_blocksync::Status;
-use malachite_common::{Round, SignedProposal, SignedVote};
+use malachite_common::{SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Bytes;
 use malachite_proto::{Error as ProtoError, Protobuf};
@@ -31,7 +31,6 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
             peer_id: libp2p_identity::PeerId::from_bytes(&peer_id.id)
                 .map_err(|e| ProtoError::Other(e.to_string()))?,
             height: Height::new(status.height),
-            round: Round::new(status.round),
         })
     }
 
@@ -41,7 +40,6 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
                 id: status.peer_id.to_bytes(),
             }),
             height: status.height.as_u64(),
-            round: status.round.as_i64(),
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))

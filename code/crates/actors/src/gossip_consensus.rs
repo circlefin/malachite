@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, error_span, Instrument};
 
 use malachite_blocksync as blocksync;
-use malachite_common::{Context, Round, SignedProposal, SignedVote};
+use malachite_common::{Context, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
@@ -93,12 +93,11 @@ pub enum State<Ctx: Context> {
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct Status<Ctx: Context> {
     pub height: Ctx::Height,
-    pub round: Round, // todo - remove
 }
 
 impl<Ctx: Context> Status<Ctx> {
-    pub fn new(height: Ctx::Height, round: Round) -> Self {
-        Self { height, round }
+    pub fn new(height: Ctx::Height) -> Self {
+        Self { height }
     }
 }
 
@@ -216,7 +215,6 @@ where
                 let status = blocksync::Status {
                     peer_id: ctrl_handle.peer_id(),
                     height: status.height,
-                    round: status.round,
                 };
 
                 let data = Codec::encode_status(status);
@@ -290,10 +288,10 @@ where
                     return Ok(());
                 }
 
-                debug!(%from, height = %status.height, round = %status.round, "Received status");
+                debug!(%from, height = %status.height, "Received status");
 
                 self.publish(
-                    GossipEvent::Status(status.peer_id, Status::new(status.height, status.round)),
+                    GossipEvent::Status(status.peer_id, Status::new(status.height)),
                     subscribers,
                 );
             }
