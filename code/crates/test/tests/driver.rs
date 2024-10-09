@@ -1,11 +1,15 @@
 use std::sync::Arc;
 
-use malachite_common::{NilOrVal, Round, Timeout, TimeoutStep, Validity};
+use malachite_common::{
+    NilOrVal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep, Validity,
+};
 use malachite_driver::{Driver, Error, Input, Output};
 use malachite_round::state::{RoundValue, State, Step};
 use malachite_test::proposer_selector::{FixedProposer, ProposerSelector, RotateProposer};
 use malachite_test::utils::validators::make_validators;
-use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value, Vote};
+use malachite_test::{
+    Address, Height, Proposal, Signature, TestContext, ValidatorSet, Value, ValueId, Vote,
+};
 
 pub struct TestStep {
     desc: &'static str,
@@ -13,6 +17,43 @@ pub struct TestStep {
     expected_outputs: Vec<Output<TestContext>>,
     expected_round: Round,
     new_state: State<TestContext>,
+}
+
+fn new_signed_proposal(
+    height: Height,
+    round: Round,
+    value: Value,
+    pol_round: Round,
+    address: Address,
+) -> SignedProposal<TestContext> {
+    SignedProposal::new(
+        Proposal::new(height, round, value, pol_round, address),
+        Signature::test(),
+    )
+}
+
+fn new_signed_prevote(
+    height: Height,
+    round: Round,
+    value: NilOrVal<ValueId>,
+    addr: Address,
+) -> SignedVote<TestContext> {
+    SignedVote::new(
+        Vote::new_prevote(height, round, value, addr),
+        Signature::test(),
+    )
+}
+
+fn new_signed_precommit(
+    height: Height,
+    round: Round,
+    value: NilOrVal<ValueId>,
+    addr: Address,
+) -> SignedVote<TestContext> {
+    SignedVote::new(
+        Vote::new_precommit(height, round, value, addr),
+        Signature::test(),
+    )
 }
 
 pub fn output_to_input(
@@ -26,8 +67,11 @@ pub fn output_to_input(
             Some(Input::NewRound(height, round, proposer))
         }
         // Let's consider our own proposal to always be valid
-        Output::Propose(p) => Some(Input::Proposal(p, Validity::Valid)),
-        Output::Vote(v) => Some(Input::Vote(v)),
+        Output::Propose(p) => Some(Input::Proposal(
+            SignedProposal::new(p, Signature::test()),
+            Validity::Valid,
+        )),
+        Output::Vote(v) => Some(Input::Vote(SignedVote::new(v, Signature::test()))),
         Output::Decide(_, _) => None,
         Output::ScheduleTimeout(_) => None,
         Output::GetValue(_, _, _) => None,
@@ -48,7 +92,7 @@ fn driver_steps_proposer() {
 
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = Proposal::new(
+    let proposal = new_signed_proposal(
         Height::new(1),
         Round::new(0),
         value,
@@ -73,23 +117,19 @@ fn driver_steps_proposer() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
             desc: "Feed a value to propose, propose that value",
             input: Some(Input::ProposeValue(Round::new(0), value)),
-            expected_outputs: vec![Output::Propose(proposal.clone())],
+            expected_outputs: vec![Output::Propose(proposal.message.clone())],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -106,9 +146,7 @@ fn driver_steps_proposer() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -120,14 +158,12 @@ fn driver_steps_proposer() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
             desc: "v2 prevotes for our proposal",
-            input: Some(Input::Vote(Vote::new_prevote(
+            input: Some(Input::Vote(new_signed_prevote(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
@@ -139,14 +175,12 @@ fn driver_steps_proposer() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
             desc: "v3 prevotes for our proposal, we get +2/3 prevotes, precommit for it (v1)",
-            input: Some(Input::Vote(Vote::new_prevote(
+            input: Some(Input::Vote(new_signed_prevote(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
@@ -171,7 +205,7 @@ fn driver_steps_proposer() {
                     value,
                     round: Round::new(0),
                 }),
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -191,12 +225,12 @@ fn driver_steps_proposer() {
                     value,
                     round: Round::new(0),
                 }),
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
             desc: "v2 precommits for our proposal",
-            input: Some(Input::Vote(Vote::new_precommit(
+            input: Some(Input::Vote(new_signed_precommit(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
@@ -216,18 +250,18 @@ fn driver_steps_proposer() {
                     value,
                     round: Round::new(0),
                 }),
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
             desc: "v3 precommits for our proposal, we get +2/3 precommits, decide it (v1)",
-            input: Some(Input::Vote(Vote::new_precommit(
+            input: Some(Input::Vote(new_signed_precommit(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
                 v3.address,
             ))),
-            expected_outputs: vec![Output::Decide(Round::new(0), value)],
+            expected_outputs: vec![Output::Decide(Round::new(0), proposal.message)],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -242,6 +276,7 @@ fn driver_steps_proposer() {
                     round: Round::new(0),
                 }),
                 decision: Some(value),
+                ..Default::default()
             },
         },
     ];
@@ -278,9 +313,7 @@ fn driver_steps_proposer_timeout_get_value() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -297,9 +330,7 @@ fn driver_steps_proposer_timeout_get_value() {
                 round: Round::new(0),
                 height: Height::new(1),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
     ];
@@ -323,7 +354,7 @@ fn driver_steps_not_proposer_valid() {
 
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = Proposal::new(
+    let proposal = new_signed_proposal(
         Height::new(1),
         Round::new(0),
         value,
@@ -345,9 +376,7 @@ fn driver_steps_not_proposer_valid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -364,9 +393,7 @@ fn driver_steps_not_proposer_valid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -378,14 +405,12 @@ fn driver_steps_not_proposer_valid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
             desc: "v1 prevotes for its own proposal",
-            input: Some(Input::Vote(Vote::new_prevote(
+            input: Some(Input::Vote(new_signed_prevote(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
@@ -397,14 +422,12 @@ fn driver_steps_not_proposer_valid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
-            desc: "v3 prevotes for v1's proposal, it gets +2/3 prevotes, precommit for it (v2)",
-            input: Some(Input::Vote(Vote::new_prevote(
+            desc: "v3 prevotes for v1's proposal, v2 gets +2/3 prevotes, precommits for it",
+            input: Some(Input::Vote(new_signed_prevote(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
@@ -429,7 +452,7 @@ fn driver_steps_not_proposer_valid() {
                     value,
                     round: Round::new(0),
                 }),
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -449,12 +472,12 @@ fn driver_steps_not_proposer_valid() {
                     value,
                     round: Round::new(0),
                 }),
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
             desc: "v1 precommits its proposal",
-            input: Some(Input::Vote(Vote::new_precommit(
+            input: Some(Input::Vote(new_signed_precommit(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
@@ -474,18 +497,18 @@ fn driver_steps_not_proposer_valid() {
                     value,
                     round: Round::new(0),
                 }),
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
             desc: "v3 precommits for v1's proposal, it gets +2/3 precommits, decide it",
-            input: Some(Input::Vote(Vote::new_precommit(
+            input: Some(Input::Vote(new_signed_precommit(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
                 v3.address,
             ))),
-            expected_outputs: vec![Output::Decide(Round::new(0), value)],
+            expected_outputs: vec![Output::Decide(Round::new(0), proposal.message)],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -500,6 +523,7 @@ fn driver_steps_not_proposer_valid() {
                     round: Round::new(0),
                 }),
                 decision: Some(value),
+                ..Default::default()
             },
         },
     ];
@@ -523,7 +547,7 @@ fn driver_steps_not_proposer_invalid() {
 
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = Proposal::new(
+    let proposal = new_signed_proposal(
         Height::new(1),
         Round::new(0),
         value,
@@ -541,9 +565,7 @@ fn driver_steps_not_proposer_invalid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -557,9 +579,7 @@ fn driver_steps_not_proposer_invalid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -571,15 +591,13 @@ fn driver_steps_not_proposer_invalid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
             desc: "v1 prevotes for its own proposal",
             input: Some(Input::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), NilOrVal::Val(value.id()), v1.address)
+                new_signed_prevote(Height::new(1), Round::new(0), NilOrVal::Val(value.id()), v1.address)
             )),
             expected_outputs: vec![],
             expected_round: Round::new(0),
@@ -587,15 +605,13 @@ fn driver_steps_not_proposer_invalid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
             desc: "v3 prevotes for v1's proposal, we have polka for any, schedule prevote timeout (v2)",
             input: Some(Input::Vote(
-                Vote::new_prevote(Height::new(1), Round::new(0), NilOrVal::Val(value.id()), v3.address)
+                new_signed_prevote(Height::new(1), Round::new(0), NilOrVal::Val(value.id()), v3.address)
             )),
             expected_outputs: vec![Output::ScheduleTimeout(Timeout::prevote(Round::new(0)))],
             expected_round: Round::new(0),
@@ -603,9 +619,7 @@ fn driver_steps_not_proposer_invalid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -619,9 +633,7 @@ fn driver_steps_not_proposer_invalid() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
     ];
@@ -646,7 +658,7 @@ fn driver_steps_not_proposer_other_height() {
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     // Proposal is for another height
-    let proposal = Proposal::new(
+    let proposal = new_signed_proposal(
         Height::new(2),
         Round::new(0),
         value,
@@ -668,9 +680,7 @@ fn driver_steps_not_proposer_other_height() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -682,9 +692,7 @@ fn driver_steps_not_proposer_other_height() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
     ];
@@ -714,7 +722,7 @@ fn driver_steps_not_proposer_other_round() {
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     // Proposal is for another round
-    let proposal = Proposal::new(
+    let proposal = new_signed_proposal(
         Height::new(1),
         Round::new(1),
         value,
@@ -732,9 +740,7 @@ fn driver_steps_not_proposer_other_round() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -746,9 +752,7 @@ fn driver_steps_not_proposer_other_round() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
     ];
@@ -783,9 +787,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // Receive a propose timeout, prevote for nil (from v3)
@@ -803,9 +805,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 round: Round::new(0),
                 height: Height::new(1),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // Receive our own prevote v3
@@ -818,15 +818,13 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // v1 prevotes for its own proposal
         TestStep {
             desc: "v1 prevotes for its own proposal",
-            input: Some(Input::Vote(Vote::new_prevote(
+            input: Some(Input::Vote(new_signed_prevote(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
@@ -838,15 +836,13 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // v2 prevotes for nil, we get +2/3 nil prevotes and precommit for nil
         TestStep {
             desc: "v2 prevotes for nil, we get +2/3 prevotes, precommit for nil",
-            input: Some(Input::Vote(Vote::new_prevote(
+            input: Some(Input::Vote(new_signed_prevote(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Nil,
@@ -863,9 +859,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // v3 receives its own precommit
@@ -878,15 +872,13 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // v1 precommits its proposal
         TestStep {
             desc: "v1 precommits its proposal",
-            input: Some(Input::Vote(Vote::new_precommit(
+            input: Some(Input::Vote(new_signed_precommit(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Val(value.id()),
@@ -898,15 +890,13 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // v2 precommits for nil
         TestStep {
             desc: "v2 precommits for nil",
-            input: Some(Input::Vote(Vote::new_precommit(
+            input: Some(Input::Vote(new_signed_precommit(
                 Height::new(1),
                 Round::new(0),
                 NilOrVal::Nil,
@@ -918,9 +908,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 height: Height::new(1),
                 round: Round::new(0),
                 step: Step::Precommit,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // we receive a precommit timeout, start a new round
@@ -933,9 +921,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 height: Height::new(1),
                 round: Round::new(1),
                 step: Step::Unstarted,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         TestStep {
@@ -947,9 +933,7 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 height: Height::new(1),
                 round: Round::new(1),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
     ];
@@ -1029,7 +1013,7 @@ fn driver_steps_validator_not_found() {
         .expect("execute succeeded");
 
     // v2 prevotes for some proposal, we cannot find it in the validator set => error
-    let output = driver.process(Input::Vote(Vote::new_prevote(
+    let output = driver.process(Input::Vote(new_signed_prevote(
         Height::new(1),
         Round::new(0),
         NilOrVal::Val(value.id()),
@@ -1067,9 +1051,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 height,
                 round: Round::new(0),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // Receive a propose timeout, prevote for nil (from v3)
@@ -1087,9 +1069,7 @@ fn driver_steps_skip_round_skip_threshold() {
                 height,
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // Receive our own prevote v3
@@ -1102,15 +1082,13 @@ fn driver_steps_skip_round_skip_threshold() {
                 height,
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // v1 prevotes for its own proposal
         TestStep {
             desc: "v1 prevotes for its own proposal in round 1",
-            input: Some(Input::Vote(Vote::new_prevote(
+            input: Some(Input::Vote(new_signed_prevote(
                 height,
                 Round::new(1),
                 NilOrVal::Val(value.id()),
@@ -1122,15 +1100,13 @@ fn driver_steps_skip_round_skip_threshold() {
                 height,
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // v2 prevotes for v1 proposal in round 1, expected output is to move to next round
         TestStep {
             desc: "v2 prevotes for v1 proposal, we get +1/3 messages from future round",
-            input: Some(Input::Vote(Vote::new_prevote(
+            input: Some(Input::Vote(new_signed_prevote(
                 height,
                 Round::new(1),
                 NilOrVal::Val(value.id()),
@@ -1141,10 +1117,7 @@ fn driver_steps_skip_round_skip_threshold() {
             new_state: State {
                 height,
                 round: Round::new(1),
-                step: Step::Unstarted,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
     ];
@@ -1180,9 +1153,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 height,
                 round: Round::new(0),
                 step: Step::Propose,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // Receive a propose timeout, prevote for nil (from v3)
@@ -1200,9 +1171,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 height,
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // Receive our own prevote v3
@@ -1215,15 +1184,13 @@ fn driver_steps_skip_round_quorum_threshold() {
                 height,
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // v1 prevotes for its own proposal
         TestStep {
             desc: "v1 prevotes for its own proposal in round 1",
-            input: Some(Input::Vote(Vote::new_prevote(
+            input: Some(Input::Vote(new_signed_prevote(
                 height,
                 Round::new(1),
                 NilOrVal::Val(value.id()),
@@ -1235,15 +1202,13 @@ fn driver_steps_skip_round_quorum_threshold() {
                 height,
                 round: Round::new(0),
                 step: Step::Prevote,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
         // v2 prevotes for v1 proposal in round 1, expected output is to move to next round
         TestStep {
             desc: "v2 prevotes for v1 proposal, we get +1/3 messages from future round",
-            input: Some(Input::Vote(Vote::new_prevote(
+            input: Some(Input::Vote(new_signed_prevote(
                 height,
                 Round::new(1),
                 NilOrVal::Val(value.id()),
@@ -1255,9 +1220,7 @@ fn driver_steps_skip_round_quorum_threshold() {
                 height,
                 round: Round::new(1),
                 step: Step::Unstarted,
-                locked: None,
-                valid: None,
-                decision: None,
+                ..Default::default()
             },
         },
     ];

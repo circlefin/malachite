@@ -4,12 +4,12 @@ use std::marker::PhantomData;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use libp2p::identity::Keypair;
-use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
+use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, error_span, Instrument};
 
 use malachite_common::{Context, SignedProposal, SignedVote};
-use malachite_consensus::GossipMsg;
+use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
 use malachite_metrics::SharedRegistry;
@@ -37,7 +37,6 @@ where
         config: Config,
         metrics: SharedRegistry,
         codec: Codec,
-        supervisor: Option<ActorCell>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let args = Args {
             keypair,
@@ -46,12 +45,7 @@ where
             codec,
         };
 
-        let (actor_ref, _) = if let Some(supervisor) = supervisor {
-            Actor::spawn_linked(None, Self::default(), args, supervisor).await?
-        } else {
-            Actor::spawn(None, Self::default(), args).await?
-        };
-
+        let (actor_ref, _) = Actor::spawn(None, Self::default(), args).await?;
         Ok(actor_ref)
     }
 
@@ -98,8 +92,8 @@ pub enum Msg<Ctx: Context> {
     /// Subscribe this actor to receive gossip events
     Subscribe(ActorRef<GossipEvent<Ctx>>),
 
-    /// Broadcast a gossip message
-    BroadcastMsg(GossipMsg<Ctx>),
+    /// Broadcast a signed consensus message
+    BroadcastMsg(SignedConsensusMsg<Ctx>),
 
     /// Broadcast a proposal part
     BroadcastProposalPart(StreamMessage<Ctx::ProposalPart>),
@@ -215,28 +209,28 @@ where
                 self.publish(GossipEvent::PeerDisconnected(peer_id), subscribers);
             }
 
-            Msg::NewEvent(Event::Message(Channel::Consensus, from, msg_id, data)) => {
+            Msg::NewEvent(Event::Message(Channel::Consensus, from, data)) => {
                 let msg = match Codec::decode_msg(data) {
                     Ok(msg) => msg,
                     Err(e) => {
-                        error!(%from, "Failed to decode gossip message {msg_id}: {e:?}");
+                        error!(%from, "Failed to decode gossip message: {e:?}");
                         return Ok(());
                     }
                 };
 
                 let event = match msg {
-                    GossipMsg::Vote(vote) => GossipEvent::Vote(from, vote),
-                    GossipMsg::Proposal(proposal) => GossipEvent::Proposal(from, proposal),
+                    SignedConsensusMsg::Vote(vote) => GossipEvent::Vote(from, vote),
+                    SignedConsensusMsg::Proposal(proposal) => GossipEvent::Proposal(from, proposal),
                 };
 
                 self.publish(event, subscribers);
             }
 
-            Msg::NewEvent(Event::Message(Channel::ProposalParts, from, msg_id, data)) => {
+            Msg::NewEvent(Event::Message(Channel::ProposalParts, from, data)) => {
                 let msg = match Codec::decode_stream_msg::<Ctx::ProposalPart>(data) {
                     Ok(stream_msg) => stream_msg,
                     Err(e) => {
-                        error!(%from, %msg_id, "Failed to decode stream message: {e:?}");
+                        error!(%from, "Failed to decode stream message: {e:?}");
                         return Ok(());
                     }
                 };

@@ -3,14 +3,14 @@ use malachite_common::{Context, Round, SignedProposal, SignedVote, Timeout};
 
 use crate::types::ProposedValue;
 
-/// Messages that can be handled by the consensus process
+/// Inputs to be handled by the consensus process.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub enum Msg<Ctx>
+pub enum Input<Ctx>
 where
     Ctx: Context,
 {
-    /// Start a new height
-    StartHeight(Ctx::Height),
+    /// Start a new height with the given validator set
+    StartHeight(Ctx::Height, Ctx::ValidatorSet),
 
     /// Process a vote
     Vote(SignedVote<Ctx>),
@@ -24,6 +24,6 @@ where
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),
 
-    /// A block to propose has been received
+    /// The value corresponding to a proposal has been received
     ReceivedProposedValue(ProposedValue<Ctx>),
 }

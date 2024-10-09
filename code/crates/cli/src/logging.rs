@@ -11,8 +11,6 @@ pub fn init(log_level: LogLevel, log_format: LogFormat) {
         log_level.to_string()
     };
 
-    dbg!(&log_level);
-
     let filter = build_tracing_filter(&log_level);
 
     // Construct a tracing subscriber with the supplied filter and enable reloading.

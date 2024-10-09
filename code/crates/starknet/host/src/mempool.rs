@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, RpcReplyPort};
+use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::RngCore;
 use tracing::{debug, info, trace};
 
@@ -82,16 +82,10 @@ impl Mempool {
         gossip_mempool: GossipMempoolRef,
         mempool_config: &MempoolConfig,
         test_config: &TestConfig,
-        supervisor: Option<ActorCell>,
     ) -> Result<MempoolRef, ractor::SpawnErr> {
         let node = Self::new(gossip_mempool, mempool_config.clone(), *test_config);
 
-        let (actor_ref, _) = if let Some(supervisor) = supervisor {
-            Actor::spawn_linked(None, node, (), supervisor).await?
-        } else {
-            Actor::spawn(None, node, ()).await?
-        };
-
+        let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
         Ok(actor_ref)
     }
 

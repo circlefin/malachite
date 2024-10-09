@@ -18,7 +18,7 @@ where
     Vote(Ctx::Vote),
 
     /// Decide on a value
-    Decide(Round, Ctx::Value),
+    Decide(Round, Ctx::Proposal),
 
     /// Schedule a timeout
     ScheduleTimeout(Timeout),

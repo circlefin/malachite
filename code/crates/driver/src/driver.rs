@@ -3,7 +3,8 @@ use alloc::vec::Vec;
 use core::fmt;
 
 use malachite_common::{
-    Context, Proposal, Round, Timeout, TimeoutStep, Validator, ValidatorSet, Validity, Vote,
+    Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep, Validator,
+    ValidatorSet, Validity, Vote,
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
@@ -11,12 +12,12 @@ use malachite_round::state::Step::Propose;
 use malachite_round::state::{State as RoundState, Step};
 use malachite_round::state_machine::Info;
 use malachite_vote::keeper::VoteKeeper;
-use malachite_vote::ThresholdParams;
 
 use crate::input::Input;
 use crate::output::Output;
 use crate::proposal_keeper::ProposalKeeper;
 use crate::Error;
+use crate::ThresholdParams;
 
 /// Driver for the state machine of the Malachite consensus engine at a given height.
 pub struct Driver<Ctx>
@@ -69,7 +70,7 @@ where
         address: Ctx::Address,
         threshold_params: ThresholdParams,
     ) -> Self {
-        let proposal_keeper = ProposalKeeper::new(validator_set.clone());
+        let proposal_keeper = ProposalKeeper::new();
         let vote_keeper = VoteKeeper::new(validator_set.clone(), threshold_params);
         let round_state = RoundState::new(height, Round::Nil);
 
@@ -90,7 +91,7 @@ where
     /// and move to new height with the given validator set.
     pub fn move_to_height(&mut self, height: Ctx::Height, validator_set: Ctx::ValidatorSet) {
         // Reset the proposal keeper
-        let proposal_keeper = ProposalKeeper::new(validator_set.clone());
+        let proposal_keeper = ProposalKeeper::new();
         // Reset the vote keeper
         let vote_keeper = VoteKeeper::new(validator_set.clone(), self.threshold_params);
 
@@ -188,7 +189,7 @@ where
                 outputs.push(Output::GetValue(height, round, timeout));
             }
 
-            RoundOutput::Decision(value) => outputs.push(Output::Decide(value.round, value.value)),
+            RoundOutput::Decision(round, proposal) => outputs.push(Output::Decide(round, proposal)),
         }
     }
 
@@ -234,7 +235,7 @@ where
 
     fn apply_proposal(
         &mut self,
-        proposal: Ctx::Proposal,
+        proposal: SignedProposal<Ctx>,
         validity: Validity,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         if self.height() != proposal.height() {
@@ -252,7 +253,10 @@ where
         }
     }
 
-    fn apply_vote(&mut self, vote: Ctx::Vote) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+    fn apply_vote(
+        &mut self,
+        vote: SignedVote<Ctx>,
+    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         if self.height() != vote.height() {
             return Err(Error::InvalidVoteHeight {
                 vote_height: vote.height(),
@@ -275,6 +279,11 @@ where
         };
 
         let round_input = self.multiplex_vote_threshold(output, vote_round);
+
+        if round_input == RoundInput::NoInput {
+            return Ok(None);
+        }
+
         self.apply_input(vote_round, round_input)
     }
 

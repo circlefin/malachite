@@ -1,4 +1,4 @@
-use malachite_common::{Context, Round, Timeout, Validity};
+use malachite_common::{Context, Round, SignedProposal, SignedVote, Timeout, Validity};
 
 use derive_where::derive_where;
 
@@ -15,10 +15,10 @@ where
     ProposeValue(Round, Ctx::Value),
 
     /// Receive a proposal, of the given validity
-    Proposal(Ctx::Proposal, Validity),
+    Proposal(SignedProposal<Ctx>, Validity),
 
     /// Receive a vote
-    Vote(Ctx::Vote),
+    Vote(SignedVote<Ctx>),
 
     /// Receive a timeout
     TimeoutElapsed(Timeout),
