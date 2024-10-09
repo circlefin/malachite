@@ -27,12 +27,13 @@ where
 
         write!(
             f,
-            "{:?}(height: {}, round: {}, value: {}, from: {})",
+            "{:?}(height: {}, round: {}, value: {}, from: {}, with extensions {:?})",
             self.0.vote_type(),
             self.0.height(),
             self.0.round(),
             PrettyVal(self.0.value().as_ref()),
-            self.0.validator_address()
+            self.0.validator_address(),
+            self.0.extension(),
         )
     }
 }

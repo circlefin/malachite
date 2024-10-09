@@ -66,6 +66,10 @@ impl common::Vote<MockContext> for Vote {
     fn validator_address(&self) -> &Address {
         &self.voter
     }
+
+    fn extension(&self) -> Vec<u8> {
+        self.extension.clone()
+    }
 }
 
 impl common::ValidatorSet<MockContext> for ValidatorSet {

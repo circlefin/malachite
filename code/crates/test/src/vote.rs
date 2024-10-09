@@ -12,6 +12,7 @@ pub struct Vote {
     pub round: Round,
     pub value: NilOrVal<ValueId>,
     pub validator_address: Address,
+    pub extension: Vec<u8>,
 }
 
 impl Vote {
@@ -27,6 +28,7 @@ impl Vote {
             round,
             value,
             validator_address,
+            extension: Default::default(),
         }
     }
 
@@ -42,6 +44,7 @@ impl Vote {
             round,
             value,
             validator_address: address,
+            extension: Default::default(),
         }
     }
 
@@ -74,6 +77,10 @@ impl malachite_common::Vote<TestContext> for Vote {
     fn validator_address(&self) -> &Address {
         &self.validator_address
     }
+
+    fn extension(&self) -> Vec<u8> {
+        self.extension.clone()
+    }
 }
 
 impl Protobuf for Vote {
@@ -98,6 +105,7 @@ impl Protobuf for Vote {
                     .validator_address
                     .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("validator_address"))?,
             )?,
+            extension: proto.extension,
         })
     }
 

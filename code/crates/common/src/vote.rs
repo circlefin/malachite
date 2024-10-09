@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use crate::{Context, NilOrVal, Round, Value};
@@ -38,4 +39,7 @@ where
 
     /// Address of the validator who issued this vote
     fn validator_address(&self) -> &Ctx::Address;
+
+    /// Votes extensions
+    fn extension(&self) -> Vec<u8>;
 }
