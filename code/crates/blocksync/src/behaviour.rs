@@ -1,28 +1,21 @@
-use std::task::Poll;
-
 use libp2p::metrics::Registry;
 use libp2p::request_response::{self as rpc, ProtocolSupport};
-use libp2p::swarm::{self, NetworkBehaviour};
+use libp2p::swarm::NetworkBehaviour;
 use libp2p::StreamProtocol;
 
-use malachite_common::Context;
-
-use crate::codec::RpcCodec;
-use crate::{NetworkCodec, Request, Response};
+use crate::{RawRequest, RawResponse};
 
 // use crate::Metrics;
 
-pub struct Behaviour<Ctx: Context, N: NetworkCodec<Ctx>> {
-    rpc: rpc::Behaviour<RpcCodec<Ctx, N>>,
+#[derive(NetworkBehaviour)]
+#[behaviour(to_swarm = "Event")]
+pub struct Behaviour {
+    rpc: rpc::cbor::Behaviour<RawRequest, RawResponse>,
 }
 
-pub type Event<Ctx> = rpc::Event<Request<Ctx>, Response<Ctx>>;
+pub type Event = rpc::Event<RawRequest, RawResponse>;
 
-impl<Ctx, N> Behaviour<Ctx, N>
-where
-    Ctx: Context,
-    N: NetworkCodec<Ctx>,
-{
+impl Behaviour {
     pub const PROTOCOL: [(StreamProtocol, ProtocolSupport); 1] = [(
         StreamProtocol::new("/malachite-blocksync/v1beta1"),
         ProtocolSupport::Full,
@@ -31,7 +24,7 @@ where
     pub fn new() -> Self {
         let config = rpc::Config::default();
         Self {
-            rpc: rpc::Behaviour::with_codec(RpcCodec::default(), Self::PROTOCOL, config),
+            rpc: rpc::cbor::Behaviour::new(Self::PROTOCOL, config),
             // metrics: None,
         }
     }
@@ -39,82 +32,14 @@ where
     pub fn new_with_metrics(_registry: &mut Registry) -> Self {
         let config = rpc::Config::default();
         Self {
-            rpc: rpc::Behaviour::with_codec(RpcCodec::default(), Self::PROTOCOL, config),
+            rpc: rpc::cbor::Behaviour::new(Self::PROTOCOL, config),
             // metrics: Some(Metrics::new(registry)),
         }
     }
 }
 
-impl<Ctx, N> Default for Behaviour<Ctx, N>
-where
-    Ctx: Context,
-    N: NetworkCodec<Ctx>,
-{
+impl Default for Behaviour {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl<Ctx, N> NetworkBehaviour for Behaviour<Ctx, N>
-where
-    Ctx: Context,
-    N: NetworkCodec<Ctx>,
-{
-    type ConnectionHandler =
-        <rpc::Behaviour<RpcCodec<Ctx, N>> as NetworkBehaviour>::ConnectionHandler;
-
-    type ToSwarm = <rpc::Behaviour<RpcCodec<Ctx, N>> as NetworkBehaviour>::ToSwarm;
-
-    fn handle_established_inbound_connection(
-        &mut self,
-        _connection_id: swarm::ConnectionId,
-        peer: libp2p::PeerId,
-        local_addr: &libp2p::Multiaddr,
-        remote_addr: &libp2p::Multiaddr,
-    ) -> Result<swarm::THandler<Self>, swarm::ConnectionDenied> {
-        self.rpc.handle_established_inbound_connection(
-            _connection_id,
-            peer,
-            local_addr,
-            remote_addr,
-        )
-    }
-
-    fn handle_established_outbound_connection(
-        &mut self,
-        connection_id: swarm::ConnectionId,
-        peer: libp2p::PeerId,
-        addr: &libp2p::Multiaddr,
-        role_override: libp2p::core::Endpoint,
-        port_use: libp2p::core::transport::PortUse,
-    ) -> Result<swarm::THandler<Self>, swarm::ConnectionDenied> {
-        self.rpc.handle_established_outbound_connection(
-            connection_id,
-            peer,
-            addr,
-            role_override,
-            port_use,
-        )
-    }
-
-    fn on_swarm_event(&mut self, event: swarm::FromSwarm) {
-        self.rpc.on_swarm_event(event)
-    }
-
-    fn on_connection_handler_event(
-        &mut self,
-        peer_id: libp2p::PeerId,
-        connection_id: swarm::ConnectionId,
-        event: swarm::THandlerOutEvent<Self>,
-    ) {
-        self.rpc
-            .on_connection_handler_event(peer_id, connection_id, event)
-    }
-
-    fn poll(
-        &mut self,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<swarm::ToSwarm<Self::ToSwarm, swarm::THandlerInEvent<Self>>> {
-        self.rpc.poll(cx)
     }
 }

@@ -139,12 +139,8 @@ where
         myself: ActorRef<Msg<Ctx>>,
         args: Args<Codec>,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let handle = malachite_gossip_consensus::spawn::<Ctx, Codec>(
-            args.keypair,
-            args.config,
-            args.metrics,
-        )
-        .await?;
+        let handle =
+            malachite_gossip_consensus::spawn(args.keypair, args.config, args.metrics).await?;
 
         let (mut recv_handle, ctrl_handle) = handle.split();
 

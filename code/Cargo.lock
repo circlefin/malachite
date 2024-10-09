@@ -2380,12 +2380,11 @@ dependencies = [
 name = "malachite-blocksync"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "derive-where",
  "displaydoc",
- "futures-util",
  "libp2p",
  "malachite-common",
+ "serde",
 ]
 
 [[package]]
@@ -2458,7 +2457,6 @@ dependencies = [
  "libp2p",
  "libp2p-broadcast",
  "malachite-blocksync",
- "malachite-common",
  "malachite-metrics",
  "seahash",
  "serde",

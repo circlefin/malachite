@@ -1,6 +1,7 @@
 use derive_where::derive_where;
 use displaydoc::Display;
 use libp2p::identity::PeerId;
+use serde::{Deserialize, Serialize};
 
 use malachite_common::{Context, Round, SignedVote};
 
@@ -33,3 +34,9 @@ pub struct Response<Ctx: Context> {
     pub commits: Vec<SignedVote<Ctx>>,
     pub block_bytes: Vec<u8>,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RawRequest(Vec<u8>);
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RawResponse(Vec<u8>);

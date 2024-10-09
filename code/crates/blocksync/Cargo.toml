@@ -10,11 +10,10 @@ rust-version.workspace = true
 [dependencies]
 malachite-common = { workspace = true }
 
-async-trait      = { workspace = true }
 derive-where     = { workspace = true }
 displaydoc       = { workspace = true }
 libp2p           = { workspace = true, features = ["request-response", "cbor"] }
-futures-util     = { workspace = true }
+serde            = { workspace = true }
 
 [lints]
 workspace = true
