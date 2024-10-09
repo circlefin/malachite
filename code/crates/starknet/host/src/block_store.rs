@@ -21,11 +21,11 @@ pub struct DecidedBlock<Ctx: Context> {
 }
 
 // This is a temporary store implementation for blocks
-type Store<Ctx> = BTreeMap<<Ctx as Context>::Height, Option<DecidedBlock<Ctx>>>;
+type Store<Ctx> = BTreeMap<<Ctx as Context>::Height, DecidedBlock<Ctx>>;
 
 #[derive(Clone, Debug)]
 pub struct BlockStore<Ctx: Context> {
-    store: Store<Ctx>,
+    pub(crate) store: Store<Ctx>,
 }
 
 impl<Ctx: Context> Default for BlockStore<Ctx> {
@@ -63,7 +63,7 @@ impl<Ctx: Context> BlockStore<Ctx> {
             certificate,
         };
 
-        let _ = self.store.insert(height, Some(decided_block));
+        let _ = self.store.insert(height, decided_block);
     }
 
     pub fn blocks_stored(&self) -> usize {

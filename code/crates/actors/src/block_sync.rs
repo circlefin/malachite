@@ -12,9 +12,16 @@ use malachite_gossip_consensus::PeerId;
 use tracing::{info, trace};
 
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
+use crate::host::{Certificate, HostMsg, HostRef};
 use crate::util::forward::forward;
 
 pub type BlockSyncRef<Ctx> = ActorRef<Msg<Ctx>>;
+
+#[derive_where(Clone, Debug)]
+pub struct RawDecidedBlock<Ctx: Context> {
+    pub certificate: Certificate<Ctx>,
+    pub block_bytes: Vec<u8>,
+}
 
 #[derive_where(Clone, Debug)]
 pub enum Msg<Ctx: Context> {
@@ -23,6 +30,8 @@ pub enum Msg<Ctx: Context> {
 
     // Consensus has decided on a value
     Decided { height: Ctx::Height },
+
+    DecidedBlock(Option<RawDecidedBlock<Ctx>>),
 }
 
 #[derive_where(Clone, Debug, Default)]
@@ -71,16 +80,18 @@ pub struct State<Ctx: Context> {
 pub struct BlockSync<Ctx: Context> {
     ctx: Ctx,
     gossip_consensus: GossipConsensusRef<Ctx>,
+    host: HostRef<Ctx>,
 }
 
 impl<Ctx> BlockSync<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(ctx: Ctx, gossip_consensus: GossipConsensusRef<Ctx>) -> Self {
+    pub fn new(ctx: Ctx, gossip_consensus: GossipConsensusRef<Ctx>, host: HostRef<Ctx>) -> Self {
         Self {
             ctx,
             gossip_consensus,
+            host,
         }
     }
 
@@ -128,7 +139,7 @@ where
     #[tracing::instrument(name = "blocksync", skip_all)]
     async fn handle(
         &self,
-        _myself: ActorRef<Self::Msg>,
+        myself: ActorRef<Self::Msg>,
         msg: Self::Msg,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
@@ -143,6 +154,19 @@ where
                             "SYNC REQUIRED peer falling behind {p} at {}, my height {}",
                             status.height, state.blocksync.current_height
                         );
+
+                        // Retrieve the block for status.height
+                        self.host.call_and_forward(
+                            |reply| HostMsg::DecidedBlock {
+                                height: status.height,
+                                reply_to: reply,
+                            },
+                            &myself,
+                            |decided_block: Option<RawDecidedBlock<Ctx>>| {
+                                crate::block_sync::Msg::<Ctx>::DecidedBlock(decided_block)
+                            },
+                            None,
+                        )?;
                     }
                 }
             }
@@ -158,6 +182,10 @@ where
                 };
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::PublishStatus(status))?;
+            }
+
+            Msg::DecidedBlock(_decided_block) => {
+                // TODO - send this as a response in the blocksync request response
             }
         }
 

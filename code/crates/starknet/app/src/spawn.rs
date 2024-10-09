@@ -56,7 +56,8 @@ pub async fn spawn_node_actor(
     )
     .await;
 
-    let block_sync = spawn_block_sync_actor(ctx.clone(), gossip_consensus.clone()).await;
+    let block_sync =
+        spawn_block_sync_actor(ctx.clone(), gossip_consensus.clone(), host.clone()).await;
 
     let start_height = Height::new(1);
 
@@ -95,8 +96,9 @@ pub async fn spawn_node_actor(
 async fn spawn_block_sync_actor(
     ctx: MockContext,
     gossip_consensus: GossipConsensusRef<MockContext>,
+    host: HostRef<MockContext>,
 ) -> BlockSyncRef<MockContext> {
-    let block_sync = BlockSync::new(ctx, gossip_consensus);
+    let block_sync = BlockSync::new(ctx, gossip_consensus, host);
     block_sync.spawn().await.unwrap().0
 }
 

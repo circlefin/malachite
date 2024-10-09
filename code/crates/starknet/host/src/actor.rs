@@ -4,6 +4,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use eyre::eyre;
+use malachite_actors::block_sync::RawDecidedBlock;
 use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
 use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
@@ -11,7 +12,7 @@ use sha3::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, trace};
 
-use crate::block_store::{BlockStore, DecidedBlock};
+use crate::block_store::BlockStore;
 use malachite_actors::consensus::ConsensusMsg;
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_common::{Round, Validity};
@@ -393,6 +394,20 @@ impl Actor for StarknetHost {
                 // Start the next height
                 consensus.cast(ConsensusMsg::StartHeight(state.height.increment()))?;
 
+                Ok(())
+            }
+            HostMsg::DecidedBlock { height, reply_to } => {
+                let maybe_raw_block =
+                    state
+                        .block_store
+                        .store
+                        .get(&height)
+                        .map(|decided_block| RawDecidedBlock {
+                            certificate: decided_block.clone().certificate,
+                            block_bytes: vec![], // TODO - get bytes for Block
+                        });
+
+                reply_to.send(maybe_raw_block)?;
                 Ok(())
             }
         }
