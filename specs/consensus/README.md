@@ -321,7 +321,6 @@ active actors in the blockchain and to have a voting power that is proportional
 to the staked amount.
 In other words, when adopting the PoS framework, processes are assumed to have
 distinct voting powers.
-In Cosmos, the staking is managed at the application level, and via ABCI (application-blockchain interface), Tendermint consensus is informed about the next validator set.
 The failures assumptions are thus updated as follows:
 
 1. Each process `p` owns or has an associated voting power `p.power > 0`;
@@ -329,6 +328,12 @@ The failures assumptions are thus updated as follows:
    power is `n`;
 3. The maximum voting power owned by or associated to Byzantine validators is
    assumed to be `f < n/3`.
+
+> The staking is typically managed at the application level and Tendermint
+> is informed or configured about the next validator set.
+> This is how the process works in Cosmos, where Tendermint and application
+> interacts via ABCI (application-blockchain interface), a standard,
+> language-agnostic communication protocol.
 
 This means, in particular, that when `f + 1` is used in the pseudo-code, it
 must be considered a set of processes whose aggregated voting power is strictly
