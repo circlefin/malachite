@@ -477,7 +477,9 @@ the "client" of the consensus protocol, i.e., the application that uses
 consensus to agree on proposed values.
 
 > TODO: relevant observation:
-> - Validation typically depends on `h` as well. Should not ordinarily depend on `r`.
+> - Validation typically depends on `h` as well, in particular on the
+>   application state at blockchain height `h`. It should not ordinarily
+>   depend on `r`, since the application state should not change over rounds.
 > - Determinism: is `valid(v)` a function?
 > - Needed because of validity property of consensus, defined in the paper
 
