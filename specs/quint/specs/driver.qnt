@@ -414,13 +414,13 @@ module driver {
         nextValueToPropose: Value, 
     }
 
-    pure def initNode(v: Address, vs: Address -> Weight): NodeState = {
-        es: initDriver(v, vs, 0),
+    pure def initNode(v: Address, vs: Address -> Weight, height: Height): NodeState = {
+        es: initDriver(v, vs, height),
         timeouts: Set(),
         incomingVotes: Set(),
         incomingProposals: Set(),
         incomingCertificates: Set(),
-        incomingSyncProposals: Set(),
+        incomingSyncValues: Set(),
         incomingSyncCertificates: Set(),
         getValueRequests: Set(),
         nextValueToPropose: Nil, 
@@ -481,6 +481,7 @@ module driver {
         else if (state.incomingVotes != Set())
             // pick vote, remove it from incoming
             // val vote = state.incomingVotes.chooseSome()
+            // TODO: only take votes for the current round.
             val vote = state.incomingVotes.fold(emptyVote, (sum, y) => y)
             val newstate = { ...state, incomingVotes: state.incomingVotes.exclude(Set(vote))}
             (newstate, VoteDInput(vote))

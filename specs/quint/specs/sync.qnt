@@ -33,6 +33,12 @@ type RequestMsg = {
     height: Height
 }
 
+pure def emptyReqMsg = {
+    client: "",
+    server: "",
+    rtype: SyncCertificate,
+    height: -1
+}
 
 type Response = 
     | RespBlock(NonNilValue)
@@ -45,7 +51,12 @@ type ResponseMsg = {
     response: Response,
 }
 
-
+pure def emptyResponseMsg = {
+    client: "",
+    server: "",
+    height: -1,
+    response: RespBlock("none"),
+}
 
 type SynchronizerOutput = 
     | SOCertificate(Set[Vote])
@@ -125,6 +136,13 @@ pure def sendResponse(buffer: Address -> Set[ResponseMsg], m: ResponseMsg): Addr
     buffer.put(m.client, { ...buffer.get(m.client).union(Set(m)) })
 
 
+action syncInit = all {
+    statusBuffer' = Correct.mapBy(v => Set()),
+    syncResponseBuffer' = Correct.mapBy(v => Set()),
+    syncRequestBuffer' = Correct.mapBy(v => Set()),
+    syncSystem' = Correct.mapBy(v => initSynchronizer(v, validators)),
+    serverSystem' = Correct.mapBy(v => initServer),    
+}
 
 action newHeightAction(v, valset, h) = all {
     val ns = system.get(v).with("es", initDriver(v, valset, h))
@@ -133,19 +151,19 @@ action newHeightAction(v, valset, h) = all {
     // rest unchanged
     statusBuffer' = statusBuffer,
     syncResponseBuffer' = syncResponseBuffer,
+    serverSystem' = serverSystem,
+    syncRequestBuffer' = syncRequestBuffer,
     _hist' = _hist,
     propBuffer' = propBuffer,
     voteBuffer' = voteBuffer,
     certBuffer' = certBuffer,
 }
 
-action syncInit = all {
+
+
+action initAll = all {
     init,
-    statusBuffer' = Correct.mapBy(v => Set()),
-    syncResponseBuffer' = Correct.mapBy(v => Set()),
-    syncRequestBuffer' = Correct.mapBy(v => Set()),
-    syncSystem' = Correct.mapBy(v => initSynchronizer(v, validators)),
-    serverSystem' = Correct.mapBy(v => initServer),    
+    syncInit
 }
 
 action syncUnchangedAll = all {
@@ -190,13 +208,13 @@ pure def syncClient (s: Synchronizer) : ClientResult =
       //                              -> give the certificate to consensus
       //  if i receive a block -> (check block) give the block to consensus
         //                        ->  nothing (newheight comes from outside)
-        val goodPeers = s.peers.filter(p => s.peerStatus.get(p).base <= s.height   
-                                            and s.height < s.peerStatus.get(p).top )
+        val goodPeers = s.peers.filter(p => newPeerStates.get(p).base <= s.height   
+                                            and s.height <= newPeerStates.get(p).top )
         if (goodPeers.size() > 0)
             if (s.openRequests.size() == 0) 
                 // we start the sync "round" by asking for a certificate
                 val req = { client: s.id,
-                            server: goodPeers.chooseSome(),
+                            server: goodPeers.fold("", (acc, i) => i), //chooseSome(),
                             rtype: SyncCertificate,
                             height: s.height}
                 {   sync: {...s,    
@@ -208,7 +226,7 @@ pure def syncClient (s: Synchronizer) : ClientResult =
             else
                 // we issued a request before, let's see whether there is a response
                 if (s. responses.size()> 0)
-                    val resp = s.responses.chooseSome() // in the future there might be parallelization
+                    val resp = s.responses.fold(emptyResponseMsg, (acc, i) => i) //chooseSome() // in the future there might be parallelization
                     val output = match resp.response {
                         // to be given to the context // TODO: checks for heights, validity
                         | RespBlock(value) => SOBlock(value)
@@ -219,7 +237,7 @@ pure def syncClient (s: Synchronizer) : ClientResult =
                         // if we received a certificate, we need to ask for a block
                         | RespCertificate(cert) => 
                             val blockreq =  {   client: s.id,
-                                                server: goodPeers.chooseSome(),
+                                                server: goodPeers.fold("", (acc, i) => i), // chooseSome(),
                                                 rtype: SyncBlock,
                                                 height: s.height}
                             Some(blockreq)
@@ -268,7 +286,7 @@ type ServerOutput = {
 
 pure def syncServer (s: Server, ns: NodeState) : ServerOutput =
     if (s.inbuffer.size() > 0) 
-        val m = s.inbuffer.chooseSome() // TODO: fix
+        val m = s.inbuffer.fold(emptyReqMsg, (acc, i) => i) // chooseSome() // TODO: fix
         val result =
             if (m.height < ns.es.chain.length())
                 match m.rtype {
@@ -313,22 +331,7 @@ action syncStepServer(v) = all {
 action syncStepClient(v) = all {
     val result = syncClient(syncSystem.get(v))
     all {
-        system' = match result.so {
-            // Put the sync output into the consensus engine
-            | SOCertificate(cert) => 
-                system.put(v, {... system.get(v), 
-                    incomingSyncCertificates:   
-                    system.get(v).incomingCertificates.union(Set(cert))})
-            | SOBlock(value) =>  
-                system.put(v, 
-                    {... system.get(v), 
-                    incomingSyncValues: system.get(v).incomingSyncValues.union(Set(value))})
-            | SONoOutput => system
-        },
-        propBuffer' = propBuffer,
-        voteBuffer' = voteBuffer,
-        certBuffer' = certBuffer,
-        _hist' = _hist,
+        workaround(v, result),
         statusBuffer' = statusBuffer, 
         syncResponseBuffer' = syncResponseBuffer,
         syncSystem' = syncSystem.put(v, result.sync),
@@ -340,6 +343,30 @@ action syncStepClient(v) = all {
     }
 }
 
+pure def setChain(s: DriverState, c: List[{decision: NonNilValue, commit: Set[Vote]}]): DriverState =
+    {... s, chain: c}
+
+action initHeight(h) = all {
+    val special = "v4" // TODO proper selection from correct set
+    val initsystem = Correct.mapBy(v => 
+        // hack
+            if (v == special) initNode(v, validatorSet, 0)
+            else initNode(v, validatorSet, h))
+    nondet decisionMap = 0.to(h-1).setOfMaps(Values).oneOf()
+    val list = range(0, h).foldl(List(), (acc, i) => acc.append(decisionMap.get(i)))
+    val chain = list.foldl(List(), (acc, i) =>  acc.append({decision: i, commit: Set()}))
+    all {
+        system' = initsystem.keys().mapBy(x => 
+        // hack
+            if (x == special) initsystem.get(x)
+            else {... initsystem.get(x), es: setChain(initsystem.get(x).es, chain) }),
+    propBuffer' = Correct.mapBy(v => Set()),
+    voteBuffer' = Correct.mapBy(v => Set()),
+    certBuffer' = Correct.mapBy(v => Set()),
+    _hist' = { validator: "INIT", input: NoDInput, output: NoConsensusOutput },
+    syncInit
+    }
+}
 
 action syncStatusStep(v) = all {
     val newStatus = system.get(v).syncStatus()
@@ -351,6 +378,47 @@ action syncStatusStep(v) = all {
     unchangedAll
 }
 
+action syncDeliverReq(v) =  all {
+    syncRequestBuffer.get(v).size() > 0,
+    nondet req = syncRequestBuffer.get(v).oneOf()
+    all {
+    syncRequestBuffer' = syncRequestBuffer.put(v, syncRequestBuffer.get(v).exclude(Set(req))),
+    serverSystem' = serverSystem.put(v, {... serverSystem.get(v), 
+                                inbuffer: serverSystem.get(v).inbuffer.union(Set(req))}),
+    statusBuffer' = statusBuffer,
+    syncResponseBuffer' = syncResponseBuffer,
+    syncSystem' = syncSystem,
+    unchangedAll
+    }
+}
+
+action syncDeliverResp(v) =  all {
+    syncResponseBuffer.get(v).size() > 0,
+    nondet resp = syncResponseBuffer.get(v).oneOf()
+    all {
+        syncSystem' = syncSystem.put(v, {... syncSystem.get(v), 
+                                responses: syncSystem.get(v).responses.union(Set(resp))}),
+        syncRequestBuffer' = syncRequestBuffer,
+        serverSystem' = serverSystem,
+        statusBuffer' = statusBuffer,
+        syncResponseBuffer' = syncResponseBuffer.put(v, syncResponseBuffer.get(v).exclude(Set(resp))),
+        unchangedAll
+    }
+}
+
+action syncDeliverStatus(v) =  all {
+    statusBuffer.get(v).size() > 0,
+    nondet status = statusBuffer.get(v).oneOf()
+    all {
+        syncSystem' = syncSystem.put(v, {... syncSystem.get(v), 
+                                statusMsgs: syncSystem.get(v).statusMsgs.union(Set(status))}),
+        syncRequestBuffer' = syncRequestBuffer,
+        serverSystem' = serverSystem,
+        statusBuffer' = statusBuffer.put(v, statusBuffer.get(v).exclude(Set(status))),
+        syncResponseBuffer' = syncResponseBuffer,
+        unchangedAll
+    }
+}
 
 action stepWithBlockSync = any {
     all {
@@ -359,13 +427,30 @@ action stepWithBlockSync = any {
     },
     nondet v = oneOf(Correct)
     any {
-        //syncDeliverReq(v),
-        //syncDeliverResp(v),
+        syncDeliverReq(v),
+        syncDeliverResp(v),
+        syncDeliverStatus(v),
         syncStepServer(v),   //looking for a request and sends responses
-       // syncStepClient(v), //   is checking if there are responses and check whether it need to requ
+        syncStepClient(v), //   is checking if there are responses and check whether it need to requ
         syncStatusStep(v),
         //syncTimeout(v)
     }
 }
+
+run retreat = 
+    initHeight(4)
+    .then(newHeightAction("v4", validatorSet, 0))
+    .then( syncStatusStep("v2"))
+    .then(syncDeliverStatus("v4"))
+    .then(syncStepClient("v4")) // ask for certificate
+    .then(syncDeliverReq("v2"))
+    .then(syncStepServer("v2"))
+    .then(syncDeliverResp("v4"))
+    .then(syncStepClient("v4")) // ask for block
+    .then(syncDeliverReq("v2"))
+    .then(syncStepServer("v2"))
+    .then(syncDeliverResp("v4"))
+    .then(syncStepClient("v4"))    
+
 
 }

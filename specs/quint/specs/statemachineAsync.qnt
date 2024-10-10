@@ -72,12 +72,14 @@ val AgreementInv = tuples(Correct, Correct).forall(p =>
 
 // Actions
 action init = all {
-    system' = Correct.mapBy(v => initNode(v, validatorSet)),
+    system' = Correct.mapBy(v => initNode(v, validatorSet, 0)),
     propBuffer' = Correct.mapBy(v => Set()),
     voteBuffer' = Correct.mapBy(v => Set()),
     certBuffer' = Correct.mapBy(v => Set()),
     _hist' = { validator: "INIT", input: NoDInput, output: NoConsensusOutput }
 }
+
+
 
 // Put the proposal into the buffers of all validators
 pure def sendProposal(buffer: Address -> Set[Proposal], prop: Proposal): Address -> Set[Proposal] =
@@ -216,7 +218,7 @@ action deliverCertificate(v: Address, c: Set[Vote]) : bool = all {
 }
 
 action deliverSomeCertificate(v: Address) : bool = all {
-    certBuffer.keys().size() > 0,
+    certBuffer.get(v).size() > 0,
     nondet c = oneOf(certBuffer.get(v))
     deliverCertificate(v, c)
 }
@@ -245,5 +247,26 @@ action step = {
 }
 
 
+
+// retreat workaround
+
+action workaround(v, result) = all{
+        system' = match result.so {
+            // Put the sync output into the consensus engine
+            | SOCertificate(cert) => 
+                system.put(v, {... system.get(v), 
+                    incomingSyncCertificates:   
+                    system.get(v).incomingCertificates.union(Set(cert))})
+            | SOBlock(value) =>  
+                system.put(v, 
+                    {... system.get(v), 
+                    incomingSyncValues: system.get(v).incomingSyncValues.union(Set(value))})
+            | SONoOutput => system
+        },
+        propBuffer' = propBuffer,
+        voteBuffer' = voteBuffer,
+        certBuffer' = certBuffer,
+        _hist' = _hist,
+}
 
 }
