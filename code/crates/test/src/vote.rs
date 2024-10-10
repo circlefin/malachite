@@ -82,6 +82,10 @@ impl malachite_common::Vote<TestContext> for Vote {
     fn extension(&self) -> Bytes {
         self.extension.clone()
     }
+
+    fn extend(self, extension: Bytes) -> Self {
+        Self { extension, ..self }
+    }
 }
 
 impl Protobuf for Vote {

@@ -43,4 +43,7 @@ where
 
     /// Votes extensions
     fn extension(&self) -> Bytes;
+
+    /// Extend this vote
+    fn extend(self, extension: Bytes) -> Self;
 }

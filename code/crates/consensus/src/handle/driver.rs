@@ -161,35 +161,8 @@ where
                 vote.round()
             );
 
-            let new_vote = if vote.vote_type() == VoteType::Precommit {
-                if let NilOrVal::Val(val_id) = vote.value() {
-                    let optional_state = state
-                        .full_proposal_keeper
-                        .full_proposal_at_round_and_value(&vote.height(), vote.round(), val_id);
-                    match optional_state {
-                        None => vote,
-                        Some(full_proposal) => {
-                            let extension = full_proposal.extension.clone();
-                            let value_id = vote.value().clone();
-                            let extended_vote = Ctx::extended_precommit(
-                                vote.height(),
-                                vote.round(),
-                                value_id,
-                                vote.validator_address().clone(),
-                                extension,
-                            );
-
-                            extended_vote
-                        }
-                    }
-                } else {
-                    vote
-                }
-            } else {
-                vote
-            };
-
-            let signed_vote = state.ctx.sign_vote(new_vote);
+            let extended_vote = extend_vote(vote, state);
+            let signed_vote = state.ctx.sign_vote(extended_vote);
 
             perform!(
                 co,
@@ -235,4 +208,25 @@ where
             Ok(())
         }
     }
+}
+
+fn extend_vote<Ctx: Context>(vote: Ctx::Vote, state: &mut State<Ctx>) -> Ctx::Vote {
+    let VoteType::Precommit = vote.vote_type() else {
+        return vote;
+    };
+
+    let NilOrVal::Val(val_id) = vote.value() else {
+        return vote;
+    };
+
+    let Some(full_proposal) = state.full_proposal_keeper.full_proposal_at_round_and_value(
+        &vote.height(),
+        vote.round(),
+        val_id,
+    ) else {
+        return vote;
+    };
+
+    let extension = full_proposal.extension.clone();
+    vote.extend(extension)
 }

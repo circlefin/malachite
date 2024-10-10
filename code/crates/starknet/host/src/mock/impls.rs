@@ -72,6 +72,10 @@ impl common::Vote<MockContext> for Vote {
     fn extension(&self) -> Bytes {
         self.extension.clone()
     }
+
+    fn extend(self, extension: Bytes) -> Self {
+        Self { extension, ..self }
+    }
 }
 
 impl common::ValidatorSet<MockContext> for ValidatorSet {
