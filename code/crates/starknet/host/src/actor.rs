@@ -381,6 +381,10 @@ impl Actor for StarknetHost {
                 // Prune the PartStore of all parts for heights lower than `state.height`
                 state.part_store.prune(state.height);
 
+                // TODO - add config flag
+                let retain_height = std::cmp::min(Height::new(100), state.height);
+                state.block_store.prune(retain_height);
+
                 // Notify the mempool to remove corresponding txs
                 self.mempool.cast(MempoolMsg::Update { tx_hashes })?;
 
