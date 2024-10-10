@@ -6,6 +6,8 @@ mod host;
 pub use host::Host;
 
 pub mod actor;
+
+pub mod block_store;
 pub mod mempool;
 pub mod mock;
 pub mod part_store;

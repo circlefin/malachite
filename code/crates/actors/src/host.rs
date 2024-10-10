@@ -23,6 +23,7 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
     }
 }
 
+use crate::block_sync::RawDecidedBlock;
 /// A value to propose that has just been received.
 pub use malachite_consensus::ProposedValue;
 
@@ -71,4 +72,21 @@ pub enum HostMsg<Ctx: Context> {
         commits: Vec<SignedVote<Ctx>>,
         consensus: ConsensusRef<Ctx>,
     },
+
+    // Decided block
+    DecidedBlock {
+        height: Ctx::Height,
+        reply_to: RpcReplyPort<Option<RawDecidedBlock<Ctx>>>,
+    },
+}
+
+#[derive_where(Clone, Debug)]
+pub struct Certificate<Ctx: Context> {
+    pub commits: Vec<SignedVote<Ctx>>,
+}
+
+impl<Ctx: Context> Certificate<Ctx> {
+    pub fn new(commits: Vec<SignedVote<Ctx>>) -> Self {
+        Self { commits }
+    }
 }

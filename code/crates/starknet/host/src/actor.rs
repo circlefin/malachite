@@ -4,6 +4,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use eyre::eyre;
+use malachite_actors::block_sync::RawDecidedBlock;
 use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
 use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
@@ -11,6 +12,7 @@ use sha3::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, trace};
 
+use crate::block_store::BlockStore;
 use malachite_actors::consensus::ConsensusMsg;
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_common::{Round, Validity};
@@ -35,6 +37,7 @@ pub struct HostState {
     height: Height,
     round: Round,
     proposer: Option<Address>,
+    block_store: BlockStore<MockContext>,
     part_store: PartStore<MockContext>,
     part_streams_map: PartStreamsMap,
     next_stream_id: StreamId,
@@ -46,6 +49,7 @@ impl Default for HostState {
             height: Height::new(0),
             round: Round::Nil,
             proposer: None,
+            block_store: BlockStore::default(),
             part_store: PartStore::default(),
             part_streams_map: PartStreamsMap::default(),
             next_stream_id: StreamId::default(),
@@ -345,9 +349,18 @@ impl Actor for StarknetHost {
                 commits,
                 consensus,
             } => {
-                let all_parts = state.part_store.all_parts(height, round);
+                let mut all_parts = state.part_store.all_parts(height, round);
 
-                // TODO: Build the block from proposal parts and commits and store it
+                let mut all_txes = vec![];
+                for arc in all_parts.iter_mut() {
+                    let part = Arc::unwrap_or_clone((*arc).clone());
+                    if let ProposalPart::Transactions(transactions) = part {
+                        let mut txes = transactions.into_vec();
+                        all_txes.append(&mut txes);
+                    }
+                }
+                // Build the block from proposal parts and commits and store it
+                state.block_store.store(height, &all_txes, &commits);
 
                 // Update metrics
                 let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
@@ -368,6 +381,10 @@ impl Actor for StarknetHost {
                 // Prune the PartStore of all parts for heights lower than `state.height`
                 state.part_store.prune(state.height);
 
+                // TODO - add config flag
+                let retain_height = std::cmp::min(Height::new(100), state.height);
+                state.block_store.prune(retain_height);
+
                 // Notify the mempool to remove corresponding txs
                 self.mempool.cast(MempoolMsg::Update { tx_hashes })?;
 
@@ -377,6 +394,20 @@ impl Actor for StarknetHost {
                 // Start the next height
                 consensus.cast(ConsensusMsg::StartHeight(state.height.increment()))?;
 
+                Ok(())
+            }
+            HostMsg::DecidedBlock { height, reply_to } => {
+                let maybe_raw_block =
+                    state
+                        .block_store
+                        .store
+                        .get(&height)
+                        .map(|decided_block| RawDecidedBlock {
+                            certificate: decided_block.clone().certificate,
+                            block_bytes: vec![], // TODO - get bytes for Block
+                        });
+
+                reply_to.send(maybe_raw_block)?;
                 Ok(())
             }
         }
