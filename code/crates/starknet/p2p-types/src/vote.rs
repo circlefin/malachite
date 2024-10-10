@@ -95,7 +95,7 @@ impl proto::Protobuf for Vote {
                     .voter
                     .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("voter"))?,
             )?,
-            extension: Default::default(),
+            extension: proto.extension,
         })
     }
 
