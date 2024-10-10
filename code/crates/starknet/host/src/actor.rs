@@ -261,15 +261,14 @@ impl Actor for StarknetHost {
                 state.next_stream_id += 1;
 
                 let mut sequence = 0;
-                let mut extension_part = ProposalPart::Transactions(Default::default());
-                let mut have_ext = false;
+                let mut extension_part = None;
+
                 while let Some(part) = rx_part.recv().await {
                     state.part_store.store(height, round, part.clone());
 
-                    if let ProposalPart::Transactions(ref txes) = part {
-                        if !have_ext {
-                            extension_part = part.clone();
-                            have_ext = true;
+                    if let ProposalPart::Transactions(_) = &part {
+                        if extension_part.is_none() {
+                            extension_part = Some(part.clone());
                         }
                     }
 
@@ -297,19 +296,16 @@ impl Actor for StarknetHost {
 
                 let parts = state.part_store.all_parts(height, round);
 
-                // Hacky
-                let transactions = match extension_part.as_transactions() {
-                    None => Transactions::default(),
-                    Some(txes) => txes.clone(),
-                };
-                let raw_extension = transactions.to_bytes().unwrap();
+                let extension = extension_part
+                    .and_then(|part| part.as_transactions().map(|txs| txs.to_bytes().unwrap()))
+                    .unwrap_or_default();
 
                 if let Some(value) = self.build_value_from_parts(&parts, height, round) {
                     reply_to.send(LocallyProposedValue::new(
                         value.height,
                         value.round,
                         value.value,
-                        Bytes::from(raw_extension),
+                        Bytes::from(extension),
                     ))?;
                 }
 
