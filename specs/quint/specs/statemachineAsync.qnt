@@ -260,7 +260,8 @@ action workaround(v, result) = all{
             | SOBlock(value) =>  
                 system.put(v, 
                     {... system.get(v), 
-                    incomingSyncValues: system.get(v).incomingSyncValues.union(Set(value))})
+                    incomingSyncProposals: system.get(v).incomingSyncProposals.union(Set(value))})
+
             | SONoOutput => system
         },
         propBuffer' = propBuffer,

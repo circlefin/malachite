@@ -21,7 +21,7 @@ module driver {
         pendingStepChange: Step, // NoStep if last consensus call did not change the step
         started: bool,
         voteKeeperOutput: VoteKeeperOutput,
-        chain: List[{decision: NonNilValue, commit: Set[Vote]}],
+        chain: List[{decision: Proposal, commit: Set[Vote]}],
         certificates: Set[Certificate], // we store Polkas and Commits we have seen
     }
 
@@ -312,7 +312,12 @@ module driver {
             | _ => Set() // This cannot happen
         }
         val v = rv._2
-        val dc = {decision: v, commit: commit}
+        val prop = es.proposals.filter(p => and {   p.height == es.cs.height,
+                                                    p.round == rv._1,
+                                                    p.proposal == rv._2}
+        ).fold(emptyProposal, (acc, i) => i) //chooseSome(),
+        val dc = {decision: prop, commit: commit}
+        // TODO: store proposal in chain instead of value
         toDriverOutput({ ...es, chain: es.chain.append(dc) }, res, c)
 
     // take input out of pending inputs and then call consensus with that input
@@ -408,7 +413,7 @@ module driver {
         incomingProposals: Set[Proposal],
         incomingCertificates: Set[Set[Vote]],
         // TODO: add buffers for sync
-        incomingSyncValues: Set[NonNilValue],
+        incomingSyncProposals: Set[Proposal],
         incomingSyncCertificates: Set[Set[Vote]],
         getValueRequests: Set[(Height, Round)],
         nextValueToPropose: Value, 
@@ -420,7 +425,7 @@ module driver {
         incomingVotes: Set(),
         incomingProposals: Set(),
         incomingCertificates: Set(),
-        incomingSyncValues: Set(),
+        incomingSyncProposals: Set(),
         incomingSyncCertificates: Set(),
         getValueRequests: Set(),
         nextValueToPropose: Nil, 
@@ -447,6 +452,19 @@ module driver {
     pure def nextAction(state: NodeState): (NodeState, DriverInput) =
         if (not(state.es.started))
             (state, StartDInput)
+
+        else if (state.incomingSyncCertificates != Set())
+            // val cert = state.incomingCertificates.chooseSome()
+            val cert = state.incomingSyncCertificates.fold (Set(), (sum, y) => y)
+            val newstate = { ...state, incomingSyncCertificates: state.incomingSyncCertificates.exclude(Set(cert))}
+            (newstate, CertificateDInput(cert))
+
+        else if (state.incomingSyncProposals != Set())
+            // pick proposal, remove it from incoming
+            // val prop = state.incomingProposals.chooseSome()
+            val prop = state.incomingSyncProposals.fold (emptyProposal, (sum, y) => y)
+            val newstate = { ...state, incomingSyncProposals: state.incomingSyncProposals.exclude(Set(prop))}
+            (newstate, ProposalDInput(prop))
 
         // This is hard-coded right now. I remove the request when served
         // also this prevents the StepChangeDInput for the proposer of a new round

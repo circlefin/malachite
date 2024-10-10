@@ -41,7 +41,7 @@ pure def emptyReqMsg = {
 }
 
 type Response = 
-    | RespBlock(NonNilValue)
+    | RespBlock(Proposal)
     | RespCertificate(Set[Vote])
 
 type ResponseMsg = {
@@ -55,12 +55,12 @@ pure def emptyResponseMsg = {
     client: "",
     server: "",
     height: -1,
-    response: RespBlock("none"),
+    response: RespBlock(emptyProposal),
 }
 
 type SynchronizerOutput = 
     | SOCertificate(Set[Vote])
-    | SOBlock(NonNilValue)
+    | SOBlock(Proposal)
     | SONoOutput
 
 type Option[a] =
@@ -343,8 +343,14 @@ action syncStepClient(v) = all {
     }
 }
 
-pure def setChain(s: DriverState, c: List[{decision: NonNilValue, commit: Set[Vote]}]): DriverState =
+pure def setChain(s: DriverState, c: List[{decision: Proposal, commit: Set[Vote]}]): DriverState =
     {... s, chain: c}
+
+pure def commitSet (h: Height, v: Value) : Set[Vote] =
+    Set("v1", "v2", "v3").map(n => mkVote(Precommit, n, h, 0, v))
+
+
+
 
 action initHeight(h) = all {
     val special = "v4" // TODO proper selection from correct set
@@ -352,9 +358,10 @@ action initHeight(h) = all {
         // hack
             if (v == special) initNode(v, validatorSet, 0)
             else initNode(v, validatorSet, h))
-    nondet decisionMap = 0.to(h-1).setOfMaps(Values).oneOf()
-    val list = range(0, h).foldl(List(), (acc, i) => acc.append(decisionMap.get(i)))
-    val chain = list.foldl(List(), (acc, i) =>  acc.append({decision: i, commit: Set()}))
+    nondet decisionValMap = 0.to(h-1).setOfMaps(Values).oneOf()
+    val propMap =  decisionValMap.keys().mapBy(i => mkProposal(noAddress, 0, 0, decisionValMap.get(i), 0))
+    val list = range(0, h).foldl(List(), (acc, i) => acc.append(propMap.get(i)))
+    val chain = list.foldl(List(), (acc, i) =>  acc.append({decision: i, commit: commitSet(i.height, Val(i.proposal))}))
     all {
         system' = initsystem.keys().mapBy(x => 
         // hack
@@ -420,6 +427,11 @@ action syncDeliverStatus(v) =  all {
     }
 }
 
+action syncValStep(v) = all {
+    valStep(v),
+    syncUnchangedAll
+}
+
 action stepWithBlockSync = any {
     all {
         step,
@@ -440,17 +452,18 @@ action stepWithBlockSync = any {
 run retreat = 
     initHeight(4)
     .then(newHeightAction("v4", validatorSet, 0))
-    .then( syncStatusStep("v2"))
+    .then(syncStatusStep("v2"))
     .then(syncDeliverStatus("v4"))
     .then(syncStepClient("v4")) // ask for certificate
     .then(syncDeliverReq("v2"))
     .then(syncStepServer("v2"))
     .then(syncDeliverResp("v4"))
-    .then(syncStepClient("v4")) // ask for block
+    .then(syncStepClient("v4")) // ask for block and give certificate to node
+    .expect(system.get("v4").incomingSyncCertificates.size() > 0)
     .then(syncDeliverReq("v2"))
     .then(syncStepServer("v2"))
     .then(syncDeliverResp("v4"))
     .then(syncStepClient("v4"))    
-
+    .expect(system.get("v4").incomingSyncProposals.size() > 0)
 
 }
