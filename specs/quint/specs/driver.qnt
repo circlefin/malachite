@@ -11,6 +11,11 @@ module driver {
     // State
     // *************************************************************************
 
+    type BlockStoreEntry = {
+        decision: Proposal, 
+        commit: Set[Vote]
+    }
+
     type DriverState = {
         bk: Bookkeeper,
         cs: ConsensusState,
@@ -21,11 +26,11 @@ module driver {
         pendingStepChange: Step, // NoStep if last consensus call did not change the step
         started: bool,
         voteKeeperOutput: VoteKeeperOutput,
-        chain: List[{decision: Proposal, commit: Set[Vote]}],
+        chain: List[BlockStoreEntry],
         certificates: Set[Certificate], // we store Polkas and Commits we have seen
     }
 
-    pure def initDriver(v: Address, vs: ValidatorSet, h: Height): DriverState = {
+    pure def initDriver(v: Address, vs: ValidatorSet, h: Height, chain: List[BlockStoreEntry]): DriverState = {
         bk: initBookKeeper(h, vs),
         cs: initConsensusState(v, h),
         proposals: Set(),
@@ -35,7 +40,7 @@ module driver {
         pendingStepChange: NoStep,
         started: false,
         voteKeeperOutput: NoVKOutput,
-        chain: List(),
+        chain: chain,
         certificates: Set(),
     }
 
@@ -420,7 +425,7 @@ module driver {
     }
 
     pure def initNode(v: Address, vs: Address -> Weight, height: Height): NodeState = {
-        es: initDriver(v, vs, height),
+        es: initDriver(v, vs, height, List()),
         timeouts: Set(),
         incomingVotes: Set(),
         incomingProposals: Set(),

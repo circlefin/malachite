@@ -11,6 +11,10 @@ import statemachineAsync(
     Heights = Set(0) // , 1, 2, 3)
     ).* from "./statemachineAsync"
 
+type Option[a] =
+    | Some(a)
+    | None
+
 type SyncStatusMsg = {
     peer: Address,
     base: Height,    
@@ -63,10 +67,7 @@ type SynchronizerOutput =
     | SOBlock(Proposal)
     | SONoOutput
 
-type Option[a] =
-    | Some(a)
-    | None
-
+/// The state of the synchronizer
 type Synchronizer = {
     id: Address,
     height: Height,
@@ -74,19 +75,15 @@ type Synchronizer = {
                             // so we use addresses. We might use peerID in the future
     peerStatus: Address -> SyncStatus,
     openRequests: Set[RequestMsg],
-    lastSyncedHeight: Height, // done if greater than or equal to height
-    // we could add buffers for certificates and values
+    lastSyncedHeight: Height,   // "done" if greater than or equal to height
+                                // TODO: we could add buffers for certificates and values
+    // inbuffers
     statusMsgs: Set[SyncStatusMsg],
     responses: Set[ResponseMsg],
 }
 
-type Server = {
-    inbuffer : Set[RequestMsg]
-}
-
 pure def initSynchronizer(id: Address, peers: Set[Address]) : Synchronizer =
-    {
-        id: id,
+    {   id: id,
         height: -1,
         peers: peers,
         peerStatus: peers.mapBy(x => {base:-1, top:-1}),
@@ -96,6 +93,15 @@ pure def initSynchronizer(id: Address, peers: Set[Address]) : Synchronizer =
         responses: Set(),
     }
 
+/// The server state are just incoming requests. The actual data used to respond
+/// is from the NodeState
+type Server = {
+    inbuffer : Set[RequestMsg]
+}
+
+pure def initServer = {inbuffer : Set()}
+
+/// auxiliary function to iterate over the received status messages
 pure def updatePeerStatus (ps: Address -> SyncStatus, msgs: Set[SyncStatusMsg]) : Address -> SyncStatus =
     msgs.fold(ps, (newStatus , msg) => 
         if (newStatus.get(msg.peer).top < msg.top) // TODO: think about base?
@@ -104,29 +110,19 @@ pure def updatePeerStatus (ps: Address -> SyncStatus, msgs: Set[SyncStatusMsg]) 
             newStatus
     )
 
-pure def initServer = {inbuffer : Set()}
-
+/// inform the synchronizer that consensus has entered height h
 pure def syncNewHeight (s: Synchronizer, h: Height) : Synchronizer =
     if (h <= s.height) s
     else
         s.with("height", h)
 
-
+/// look into the node state and generate a status message
 pure def syncStatus (s: NodeState) : SyncStatusMsg =
-//TODO: Logic
 // TODO: perhaps we should add to height to the chain entries to capture non-zero bases
     { peer: s.es.cs.p , base: 0, top: s.es.chain.length() - 1  }
 
 
 
-// State machine
-
-var syncSystem: Address -> Synchronizer
-var serverSystem: Address -> Server
-
-var statusBuffer : Address -> Set[SyncStatusMsg]  
-var syncResponseBuffer : Address -> Set[ResponseMsg]
-var syncRequestBuffer : Address -> Set[RequestMsg]
 
 pure def broadcastStatus(buffer: Address -> Set[SyncStatusMsg], sm: SyncStatusMsg): Address -> Set[SyncStatusMsg] =
     buffer.keys().mapBy(x => { ...buffer.get(x).union(Set(sm)) })
@@ -136,6 +132,17 @@ pure def sendResponse(buffer: Address -> Set[ResponseMsg], m: ResponseMsg): Addr
     buffer.put(m.client, { ...buffer.get(m.client).union(Set(m)) })
 
 
+//
+// State machine
+//
+
+var syncSystem: Address -> Synchronizer
+var serverSystem: Address -> Server
+
+var statusBuffer : Address -> Set[SyncStatusMsg]  
+var syncResponseBuffer : Address -> Set[ResponseMsg]
+var syncRequestBuffer : Address -> Set[RequestMsg]
+
 action syncInit = all {
     statusBuffer' = Correct.mapBy(v => Set()),
     syncResponseBuffer' = Correct.mapBy(v => Set()),
@@ -144,8 +151,11 @@ action syncInit = all {
     serverSystem' = Correct.mapBy(v => initServer),    
 }
 
+/// environment sends the node to the next height.
+/// checks that we have all the previous blocks in the store.
 action newHeightAction(v, valset, h) = all {
-    val ns = system.get(v).with("es", initDriver(v, valset, h))
+    system.get(v).es.chain.length() >= system.get(v).es.cs.height,
+    val ns = system.get(v).with("es", initDriver(v, valset, h, system.get(v).es.chain))
     system' = system.put(v, ns), 
     syncSystem' = syncSystem.put(v, syncNewHeight(syncSystem.get(v), h)),
     // rest unchanged
@@ -159,8 +169,7 @@ action newHeightAction(v, valset, h) = all {
     certBuffer' = certBuffer,
 }
 
-
-
+/// initialize consensus and synchronizer
 action initAll = all {
     init,
     syncInit
@@ -453,13 +462,12 @@ action stepWithBlockSync = any {
         syncStepServer(v),   //looking for a request and sends responses
         syncStepClient(v), //   is checking if there are responses and check whether it need to requ
         syncStatusStep(v),
-        //syncTimeout(v)
+        //syncTimeout(v) // TODO:
     }
 }
 
-run retreat = 
-    initHeight(4)
-    .then(newHeightAction("v4", validatorSet, 0))
+run syncCycle(h) = 
+    newHeightAction("v4", validatorSet, h)
     .then(syncStatusStep("v2"))
     .then(syncDeliverStatus("v4"))
     .then(syncStepClient("v4")) // ask for certificate
@@ -467,11 +475,21 @@ run retreat =
     .then(syncStepServer("v2"))
     .then(syncDeliverResp("v4"))
     .then(syncStepClient("v4")) // ask for block and give certificate to node
-    .expect(system.get("v4").incomingSyncCertificates.size() > 0)
+    .expect(system.get("v4").incomingSyncCertificates.size() > h)
     .then(syncDeliverReq("v2"))
     .then(syncStepServer("v2"))
     .then(syncDeliverResp("v4"))
     .then(syncStepClient("v4"))    
-    .expect(system.get("v4").incomingSyncProposals.size() > 0)
+    .expect(system.get("v4").incomingSyncProposals.size() > h)
+    .then(3.reps(_ => syncValStep("v4")))
+    .expect(system.get("v4").es.chain.length() > 0)
+
+run retreat = 
+    initHeight(4)
+    .then(syncCycle(0)) // TODO figure out iteration
+    // and now v4 has synced block 1!
+
+    
+
 
 }
