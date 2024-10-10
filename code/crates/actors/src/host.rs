@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use bytes::Bytes;
 use derive_where::derive_where;
 use libp2p::PeerId;
 use ractor::{ActorRef, RpcReplyPort};
@@ -15,11 +16,11 @@ pub struct LocallyProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
     pub value: Ctx::Value,
-    pub extension: Vec<u8>,
+    pub extension: Bytes,
 }
 
 impl<Ctx: Context> LocallyProposedValue<Ctx> {
-    pub fn new(height: Ctx::Height, round: Round, value: Ctx::Value, extension: Vec<u8>) -> Self {
+    pub fn new(height: Ctx::Height, round: Round, value: Ctx::Value, extension: Bytes) -> Self {
         Self {
             height,
             round,

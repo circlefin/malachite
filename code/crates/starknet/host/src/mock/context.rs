@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use bytes::Bytes;
 use malachite_common::{
     Context, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote, ValueId,
 };
@@ -117,7 +118,7 @@ impl Context for MockContext {
         round: Round,
         value_id: NilOrVal<ValueId<Self>>,
         address: Self::Address,
-        extension: Vec<u8>,
+        extension: Bytes,
     ) -> Self::Vote {
         let fork_id = 1; // FIXME: p2p-types
         Vote::new_precommit_with_extension(height, round, fork_id, value_id, address, extension)

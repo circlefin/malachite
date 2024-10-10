@@ -1,8 +1,9 @@
+use bytes::Bytes;
+
 use crate::{
     Address, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, Signature, SignedMessage,
     SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
 };
-use alloc::vec::Vec;
 
 /// This trait allows to abstract over the various datatypes
 /// that are used in the consensus engine.
@@ -106,7 +107,7 @@ where
         round: Round,
         value_id: NilOrVal<ValueId<Self>>,
         address: Self::Address,
-        _extension: Vec<u8>,
+        _extension: Bytes,
     ) -> Self::Vote {
         Self::new_precommit(height, round, value_id, address)
     }

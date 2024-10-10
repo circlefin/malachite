@@ -1,5 +1,6 @@
-use alloc::vec::Vec;
 use core::fmt::Debug;
+
+use bytes::Bytes;
 
 use crate::{Context, NilOrVal, Round, Value};
 
@@ -41,5 +42,5 @@ where
     fn validator_address(&self) -> &Ctx::Address;
 
     /// Votes extensions
-    fn extension(&self) -> Vec<u8>;
+    fn extension(&self) -> Bytes;
 }

@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use derive_where::derive_where;
 
 use malachite_common::{Context, Proposal, Round, SignedProposal, SignedVote, Validity, Vote};
@@ -37,5 +38,5 @@ pub struct ProposedValue<Ctx: Context> {
     pub validator_address: Ctx::Address,
     pub value: Ctx::Value,
     pub validity: Validity,
-    pub extension: Vec<u8>,
+    pub extension: Bytes,
 }

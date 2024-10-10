@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use bytes::Bytes;
 use derive_where::derive_where;
 use tracing::debug;
 
@@ -17,7 +18,7 @@ pub struct FullProposal<Ctx: Context> {
     /// Proposal consensus message
     pub proposal: SignedProposal<Ctx>,
     /// Extension
-    pub extension: Vec<u8>,
+    pub extension: Bytes,
 }
 
 impl<Ctx: Context> FullProposal<Ctx> {
@@ -25,7 +26,7 @@ impl<Ctx: Context> FullProposal<Ctx> {
         builder_value: Ctx::Value,
         validity: Validity,
         proposal: SignedProposal<Ctx>,
-        extension: Vec<u8>,
+        extension: Bytes,
     ) -> Self {
         Self {
             builder_value,
@@ -46,7 +47,7 @@ enum Entry<Ctx: Context> {
     ProposalOnly(SignedProposal<Ctx>),
 
     /// Only the value has been received.
-    ValueOnly(Ctx::Value, Validity, Vec<u8>),
+    ValueOnly(Ctx::Value, Validity, Bytes),
 
     // This is a placeholder for converting a partial
     // entry (`ProposalOnly` or `ValueOnly`) to a full entry (`Full`).
@@ -60,7 +61,7 @@ impl<Ctx: Context> Entry<Ctx> {
         value: Ctx::Value,
         validity: Validity,
         proposal: SignedProposal<Ctx>,
-        extension: Vec<u8>,
+        extension: Bytes,
     ) -> Self {
         Entry::Full(FullProposal::new(value, validity, proposal, extension))
     }
@@ -173,7 +174,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         height: &Ctx::Height,
         round: Round,
         value: &'a Ctx::Value,
-    ) -> Option<(&'a Ctx::Value, Validity, Vec<u8>)> {
+    ) -> Option<(&'a Ctx::Value, Validity, Bytes)> {
         let entries = self
             .keeper
             .get(&(*height, round))

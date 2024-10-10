@@ -3,6 +3,7 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use eyre::eyre;
 use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
 use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
@@ -100,13 +101,14 @@ impl StarknetHost {
             self.build_proposal_content_from_parts(parts, height, round)?;
 
         let raw_extension = extension.to_bytes().unwrap();
+
         Some(ProposedValue {
             validator_address,
             height,
             round,
             value,
             validity,
-            extension: raw_extension,
+            extension: Bytes::from(raw_extension),
         })
     }
 
@@ -307,7 +309,7 @@ impl Actor for StarknetHost {
                         value.height,
                         value.round,
                         value.value,
-                        raw_extension,
+                        Bytes::from(raw_extension),
                     ))?;
                 }
 
