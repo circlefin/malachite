@@ -10,10 +10,11 @@ rust-version.workspace = true
 [dependencies]
 malachite-common = { workspace = true }
 
+bytes            = { workspace = true, features = ["serde"] }
 derive-where     = { workspace = true }
 displaydoc       = { workspace = true }
-libp2p-identity  = { workspace = true, features = ["peerid"] }
-
+libp2p           = { workspace = true, features = ["request-response", "cbor"] }
+serde            = { workspace = true }
 
 [lints]
 workspace = true

@@ -7,6 +7,10 @@ license.workspace      = true
 publish.workspace      = true
 rust-version.workspace = true
 
+[features]
+std = []
+debug = ["std", "malachite-driver/debug"]
+
 [dependencies]
 malachite-common.workspace  = true
 malachite-driver.workspace  = true

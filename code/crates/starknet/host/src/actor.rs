@@ -161,8 +161,6 @@ impl StarknetHost {
         round: Round,
         part: ProposalPart,
     ) -> Option<ProposedValue<MockContext>> {
-        // Prune all proposal parts for heights lower than `height - 1`
-        state.part_store.prune(height.decrement().unwrap_or(height));
         state.part_store.store(height, round, part.clone());
 
         if let ProposalPart::Transactions(txes) = &part {
@@ -380,13 +378,11 @@ impl Actor for StarknetHost {
                     }
                 }
 
+                // Prune the PartStore of all parts for heights lower than `state.height`
+                state.part_store.prune(state.height);
+
                 // Notify the mempool to remove corresponding txs
                 self.mempool.cast(MempoolMsg::Update { tx_hashes })?;
-
-                // Prune the PartStore of all parts for heights lower than `state.height - 1`
-                state
-                    .part_store
-                    .prune(state.height.decrement().unwrap_or(state.height));
 
                 // Notify Starknet Host of the decision
                 self.host.decision(block_hash, commits, height).await;

@@ -24,6 +24,12 @@ where
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),
 
-    /// A block to propose has been received
+    /// The value corresponding to a proposal has been received
     ReceivedProposedValue(ProposedValue<Ctx>),
+    //
+    // TODO:
+    // BlockSync
+    //  - Certificates
+    //      - Vec<SignedVote>
+    //  - Proposal
 }

@@ -8,9 +8,10 @@ use libp2p_broadcast as broadcast;
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
+use malachite_blocksync as blocksync;
 use malachite_metrics::Registry;
 
-use crate::{PubSubProtocol, PROTOCOL_VERSION};
+use crate::{PubSubProtocol, PROTOCOL};
 
 const MAX_TRANSMIT_SIZE: usize = 4 * 1024 * 1024; // 4 MiB
 
@@ -20,6 +21,7 @@ pub enum NetworkEvent {
     Ping(ping::Event),
     GossipSub(gossipsub::Event),
     Broadcast(broadcast::Event),
+    BlockSync(blocksync::Event),
 }
 
 impl From<identify::Event> for NetworkEvent {
@@ -46,6 +48,12 @@ impl From<broadcast::Event> for NetworkEvent {
     }
 }
 
+impl From<blocksync::Event> for NetworkEvent {
+    fn from(event: blocksync::Event) -> Self {
+        Self::BlockSync(event)
+    }
+}
+
 impl<A, B> From<Either<A, B>> for NetworkEvent
 where
     A: Into<NetworkEvent>,
@@ -65,6 +73,7 @@ pub struct Behaviour {
     pub identify: identify::Behaviour,
     pub ping: ping::Behaviour,
     pub pubsub: Either<gossipsub::Behaviour, broadcast::Behaviour>,
+    pub blocksync: blocksync::Behaviour,
 }
 
 fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
@@ -100,7 +109,7 @@ impl Behaviour {
         registry: &mut Registry,
     ) -> Self {
         let identify = identify::Behaviour::new(identify::Config::new(
-            PROTOCOL_VERSION.to_string(),
+            PROTOCOL.to_string(),
             keypair.public(),
         ));
 
@@ -124,10 +133,14 @@ impl Behaviour {
             )),
         };
 
+        let blocksync =
+            blocksync::Behaviour::new_with_metrics(registry.sub_registry_with_prefix("blocksync"));
+
         Self {
             identify,
             ping,
             pubsub,
+            blocksync,
         }
     }
 }
