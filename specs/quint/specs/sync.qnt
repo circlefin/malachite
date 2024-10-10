@@ -346,12 +346,15 @@ action syncStepClient(v) = all {
 pure def setChain(s: DriverState, c: List[{decision: Proposal, commit: Set[Vote]}]): DriverState =
     {... s, chain: c}
 
+
+
+
 pure def commitSet (h: Height, v: Value) : Set[Vote] =
     Set("v1", "v2", "v3").map(n => mkVote(Precommit, n, h, 0, v))
 
 
-
-
+/// this sets up an initial state where v4 starts late, and v2 and v3 have reached
+/// height h
 action initHeight(h) = all {
     val special = "v4" // TODO proper selection from correct set
     val initsystem = Correct.mapBy(v => 
@@ -359,7 +362,12 @@ action initHeight(h) = all {
             if (v == special) initNode(v, validatorSet, 0)
             else initNode(v, validatorSet, h))
     nondet decisionValMap = 0.to(h-1).setOfMaps(Values).oneOf()
-    val propMap =  decisionValMap.keys().mapBy(i => mkProposal(noAddress, 0, 0, decisionValMap.get(i), 0))
+    val propMap =  decisionValMap.keys().mapBy(i => 
+                    mkProposal( proposer(validatorSet, i,0), 
+                                i, 
+                                0, 
+                                decisionValMap.get(i), 
+                                0))
     val list = range(0, h).foldl(List(), (acc, i) => acc.append(propMap.get(i)))
     val chain = list.foldl(List(), (acc, i) =>  acc.append({decision: i, commit: commitSet(i.height, Val(i.proposal))}))
     all {
