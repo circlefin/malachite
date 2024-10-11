@@ -383,10 +383,14 @@ impl Actor for StarknetHost {
 
                 // Update metrics
                 let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
+                let extension_size: usize = commits.iter().map(|c| c.extension.len()).sum();
+                let block_and_commits_size = block_size + extension_size;
                 let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
 
                 self.metrics.block_tx_count.observe(tx_count as f64);
-                self.metrics.block_size_bytes.observe(block_size as f64);
+                self.metrics
+                    .block_size_bytes
+                    .observe(block_and_commits_size as f64);
                 self.metrics.finalized_txes.inc_by(tx_count as u64);
 
                 // Send Update to mempool to remove all the tx-es included in the block.
