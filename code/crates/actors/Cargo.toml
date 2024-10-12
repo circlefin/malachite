@@ -16,6 +16,7 @@ debug = ["std"]
 [dependencies]
 malachite-common.workspace           = true
 malachite-blocksync.workspace        = true
+bytes            = { workspace = true, features = ["serde"] }
 malachite-consensus.workspace        = true
 malachite-gossip-consensus.workspace = true
 malachite-gossip-mempool.workspace   = true

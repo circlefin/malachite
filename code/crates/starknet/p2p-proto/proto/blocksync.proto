@@ -15,7 +15,7 @@ message Request {
 }
 
 message Response {
-  uint64 height = 1;
+  ConsensusMessage proposal = 1;
   repeated ConsensusMessage commits = 2;
   bytes block_bytes = 3;
 }

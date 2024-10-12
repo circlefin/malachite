@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, VecDeque};
+use tracing::debug;
 
 use malachite_common::*;
 use malachite_driver::Driver;
@@ -21,7 +22,7 @@ where
     pub driver: Driver<Ctx>,
 
     /// A queue of inputs that were received before the
-    /// driver started the new height and was still at round Nil.
+    /// driver started the new height.
     pub input_queue: VecDeque<Input<Ctx>>,
 
     /// The proposals to decide on.
@@ -31,7 +32,7 @@ where
     pub signed_precommits: BTreeMap<(Ctx::Height, Round), Vec<SignedVote<Ctx>>>,
 
     /// Decision per height
-    pub decision: BTreeMap<(Ctx::Height, Round), Ctx::Proposal>,
+    pub decision: BTreeMap<(Ctx::Height, Round), SignedProposal<Ctx>>,
 }
 
 impl<Ctx> State<Ctx>
@@ -93,6 +94,19 @@ where
             .push(precommit);
     }
 
+    pub fn store_decision(&mut self, height: Ctx::Height, round: Round, proposal: Ctx::Proposal) {
+        if let Some(full_proposal) = self.full_proposal_keeper.full_proposal_at_round_and_value(
+            &height,
+            round,
+            proposal.value(),
+        ) {
+            self.decision.insert(
+                (self.driver.height(), round),
+                full_proposal.proposal.clone(),
+            );
+        }
+    }
+
     pub fn restore_precommits(
         &mut self,
         height: Ctx::Height,
@@ -141,6 +155,7 @@ where
     }
 
     pub fn remove_full_proposals(&mut self, height: Ctx::Height) {
+        debug!("Removing proposals for {height}");
         self.full_proposal_keeper.remove_full_proposals(height)
     }
 }

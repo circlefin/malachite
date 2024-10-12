@@ -9,7 +9,10 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
-use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType};
+use malachite_common::{
+    Context, NilOrVal, Proposal, Round, SignedProposal, Timeout, TimeoutStep, ValidatorSet,
+    VoteType,
+};
 use malachite_consensus::{Effect, Resume};
 use malachite_metrics::Metrics;
 use malachite_node::config::TimeoutConfig;
@@ -26,7 +29,7 @@ pub use malachite_consensus::State as ConsensusState;
 
 pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
-pub type TxDecision<Ctx> = mpsc::Sender<(<Ctx as Context>::Height, Round, <Ctx as Context>::Value)>;
+pub type TxDecision<Ctx> = mpsc::Sender<SignedProposal<Ctx>>;
 
 pub struct Consensus<Ctx>
 where
@@ -180,6 +183,12 @@ where
         state: &mut State<Ctx>,
         input: ConsensusInput<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
+        if let ConsensusInput::StartHeight(height, _) = input {
+            self.block_sync
+                .cast(BlockSyncMsg::StartHeight { height })
+                .map_err(|e| eyre!("Error when sending start height to blocksync: {e:?}"))?;
+        }
+
         malachite_consensus::process!(
             input: input,
             state: &mut state.consensus,
@@ -235,7 +244,6 @@ where
                 match event {
                     GossipEvent::Listening(addr) => {
                         info!("Listening on {addr}");
-                        Ok(())
                     }
 
                     GossipEvent::PeerConnected(peer_id) => {
@@ -248,7 +256,7 @@ where
 
                         let validator_set = &state.consensus.driver.validator_set;
                         let connected_peers = state.connected_peers.len();
-                        let total_peers = validator_set.count() - 1;
+                        let total_peers = (validator_set.count() - 1) * 2 / 3;
 
                         debug!("Connected to {connected_peers}/{total_peers} peers");
 
@@ -271,8 +279,6 @@ where
                                 error!("Error when starting height {height}: {e:?}");
                             }
                         }
-
-                        Ok(())
                     }
 
                     GossipEvent::PeerDisconnected(peer_id) => {
@@ -283,11 +289,26 @@ where
 
                             // TODO: pause/stop consensus, if necessary
                         }
-
-                        Ok(())
                     }
 
-                    GossipEvent::Status(_, _) => Ok(()),
+                    GossipEvent::Status(_, _) => {}
+
+                    GossipEvent::BlockSyncResponse(request_id, synced_block) => {
+                        if let Err(e) = self
+                            .process_input(
+                                &myself,
+                                state,
+                                ConsensusInput::ReceivedSyncedBlock(
+                                    synced_block.proposal,
+                                    synced_block.certificate,
+                                    synced_block.block_bytes,
+                                ),
+                            )
+                            .await
+                        {
+                            error!(%request_id, "Error when processing received synced block: {e:?}");
+                        }
+                    }
 
                     GossipEvent::Vote(from, vote) => {
                         if let Err(e) = self
@@ -296,8 +317,6 @@ where
                         {
                             error!(%from, "Error when processing vote: {e:?}");
                         }
-
-                        Ok(())
                     }
 
                     GossipEvent::Proposal(from, proposal) => {
@@ -307,8 +326,6 @@ where
                         {
                             error!(%from, "Error when processing proposal: {e:?}");
                         }
-
-                        Ok(())
                     }
 
                     GossipEvent::ProposalPart(from, part) => {
@@ -326,10 +343,12 @@ where
                             .map_err(|e| {
                                 eyre!("Error when forwarding proposal parts to host: {e:?}")
                             })?;
-
-                        Ok(())
                     }
+
+                    _ => {}
                 }
+
+                Ok(())
             }
 
             Msg::TimeoutElapsed(elapsed) => {
@@ -552,29 +571,49 @@ where
                 Ok(Resume::ValidatorSet(height, validator_set))
             }
 
-            Effect::Decide {
-                height,
-                round,
-                value,
-                commits,
-            } => {
+            Effect::Decide { proposal, commits } => {
                 if let Some(tx_decision) = &self.tx_decision {
-                    let _ = tx_decision.send((height, round, value.clone())).await;
+                    let _ = tx_decision.send(proposal.clone()).await;
                 }
 
                 self.host
                     .cast(HostMsg::Decide {
-                        height,
-                        round,
-                        value,
+                        proposal: proposal.clone(),
                         commits,
                         consensus: myself.clone(),
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
                 self.block_sync
-                    .cast(BlockSyncMsg::Decided { height })
+                    .cast(BlockSyncMsg::Decided {
+                        height: proposal.clone().height(),
+                    })
                     .map_err(|e| eyre!("Error when sending decided height to blocksync: {e:?}"))?;
+
+                Ok(Resume::Continue)
+            }
+
+            Effect::SyncedBlock {
+                proposal,
+                block_bytes,
+            } => {
+                // TODO - add timeout?
+                debug!(
+                    "Consensus received synced block for {}, sending to host",
+                    proposal.height()
+                );
+                self.host.call_and_forward(
+                    |reply| HostMsg::ProcessSyncedBlockBytes {
+                        proposal,
+                        block_bytes,
+                        reply_to: reply,
+                    },
+                    myself,
+                    |proposed: ProposedValue<Ctx>| {
+                        Msg::<Ctx>::ProposeValue(proposed.height, proposed.round, proposed.value)
+                    },
+                    None,
+                )?;
 
                 Ok(Resume::Continue)
             }

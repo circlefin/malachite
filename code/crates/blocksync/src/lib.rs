@@ -5,7 +5,7 @@ use libp2p::identity::PeerId;
 use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use serde::{Deserialize, Serialize};
 
-use malachite_common::{Context, SignedVote};
+use malachite_common::{Certificate, Context, SignedProposal};
 
 mod behaviour;
 pub use behaviour::{Behaviour, Event};
@@ -26,16 +26,16 @@ pub struct Status<Ctx: Context> {
     pub height: Ctx::Height,
 }
 
-#[derive(Debug)]
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct Request<Ctx: Context> {
     pub height: Ctx::Height,
 }
 
-#[derive(Debug)]
-pub struct Response<Ctx: Context> {
-    pub height: Ctx::Height,
-    pub commits: Vec<SignedVote<Ctx>>,
-    pub block_bytes: Vec<u8>,
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct SyncedBlock<Ctx: Context> {
+    pub proposal: SignedProposal<Ctx>,
+    pub certificate: Certificate<Ctx>,
+    pub block_bytes: Bytes,
 }
 
 #[derive(Clone, Debug)]

@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use derive_where::derive_where;
 
 use malachite_common::*;
@@ -57,10 +58,15 @@ where
     /// Consensus has decided on a value
     /// Resume with: [`Resume::Continue`]
     Decide {
-        height: Ctx::Height,
-        round: Round,
-        value: Ctx::Value,
+        proposal: SignedProposal<Ctx>,
         commits: Vec<SignedMessage<Ctx, Ctx::Vote>>,
+    },
+
+    /// Consensus has received a synced decided block
+    /// Resume with: [`Resume::Continue`]
+    SyncedBlock {
+        proposal: SignedProposal<Ctx>,
+        block_bytes: Bytes,
     },
 }
 

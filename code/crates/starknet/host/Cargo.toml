@@ -8,7 +8,10 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
+bytes            = { workspace = true, features = ["serde"] }
+
 malachite-actors.workspace             = true
+malachite-blocksync.workspace          = true
 malachite-common.workspace             = true
 malachite-metrics.workspace            = true
 malachite-node.workspace               = true

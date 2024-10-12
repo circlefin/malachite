@@ -77,6 +77,13 @@ pub enum TransportProtocol {
     Quic,
 }
 
+/// Blocksync event details:
+///
+/// peer1: blocksync              peer2: gossip_consensus        peer2: blocksync                peer1: gossip_consensus
+/// CtrlMsg::BlockSyncRequest --> Event::BlockSync  -----------> CtrlMsg::BlockSyncReply ------> Event::BlockSync
+/// (peer_id, height)             (RawMessage::Request           (request_id, height)            RawMessage::Response
+///                             {request_id, peer_id, height}                                    {request_id, block}
+///
 /// An event that can be emitted by the gossip layer
 #[derive(Clone, Debug)]
 pub enum Event {
@@ -90,6 +97,7 @@ pub enum Event {
 #[derive(Debug)]
 pub enum CtrlMsg {
     Publish(Channel, Bytes),
+    BlockSyncRequest(PeerId, Bytes),
     BlockSyncReply(InboundRequestId, Bytes),
     Shutdown,
 }
@@ -203,6 +211,15 @@ async fn handle_ctrl_msg(
                 Err(e) => error!(%channel, "Error broadcasting message: {e}"),
             }
 
+            ControlFlow::Continue(())
+        }
+
+        CtrlMsg::BlockSyncRequest(peer_id, request) => {
+            // TODO - check if we need to store the outbound request id
+            let _request_id = swarm
+                .behaviour_mut()
+                .blocksync
+                .send_request(peer_id, request);
             ControlFlow::Continue(())
         }
 
@@ -495,6 +512,7 @@ async fn handle_blocksync_event(
         }
 
         blocksync::Event::ResponseSent { peer, request_id } => {
+            // TODO
             let _ = (peer, request_id);
             ControlFlow::Continue(())
         }

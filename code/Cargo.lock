@@ -2363,6 +2363,7 @@ name = "malachite-actors"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "derive-where",
  "eyre",
  "libp2p",
@@ -2429,6 +2430,7 @@ name = "malachite-consensus"
 version = "0.1.0"
 dependencies = [
  "async-recursion",
+ "bytes",
  "derive-where",
  "genawaiter",
  "libp2p-identity",
@@ -2558,10 +2560,12 @@ name = "malachite-starknet-host"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "bytesize",
  "derive-where",
  "eyre",
  "malachite-actors",
+ "malachite-blocksync",
  "malachite-common",
  "malachite-gossip-mempool",
  "malachite-metrics",

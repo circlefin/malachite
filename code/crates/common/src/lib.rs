@@ -49,7 +49,24 @@ pub type SignedProposal<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Proposal>;
 /// A signed proposal part
 pub type SignedProposalPart<Ctx> = SignedMessage<Ctx, <Ctx as Context>::ProposalPart>;
 
+/// A certificate is a collection of commits
+/// TODO - will optimize later
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct Certificate<Ctx: Context> {
+    /// The commits
+    pub commits: Vec<SignedVote<Ctx>>,
+}
+
+impl<Ctx: Context> Certificate<Ctx> {
+    /// Creates a certificate
+    pub fn new(commits: Vec<SignedVote<Ctx>>) -> Self {
+        Self { commits }
+    }
+}
+
+use alloc::vec::Vec;
 pub use context::Context;
+use derive_where::derive_where;
 pub use height::Height;
 pub use proposal::{Proposal, Validity};
 pub use proposal_part::ProposalPart;

@@ -4,11 +4,14 @@ use std::marker::PhantomData;
 use async_trait::async_trait;
 use derive_where::derive_where;
 use libp2p::identity::Keypair;
+use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, error_span, Instrument};
 
+use crate::gossip_consensus::GossipEvent::{BlockSyncRequest, BlockSyncResponse};
 use malachite_blocksync as blocksync;
+use malachite_blocksync::{RawMessage, Request, SyncedBlock};
 use malachite_common::{Context, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
@@ -77,6 +80,8 @@ pub enum GossipEvent<Ctx: Context> {
     Proposal(PeerId, SignedProposal<Ctx>),
     ProposalPart(PeerId, StreamMessage<Ctx::ProposalPart>),
     Status(PeerId, Status<Ctx>),
+    BlockSyncRequest(InboundRequestId, Request<Ctx>), // received a block request
+    BlockSyncResponse(OutboundRequestId, SyncedBlock<Ctx>), // received a block response
 }
 
 pub enum State<Ctx: Context> {
@@ -114,10 +119,16 @@ pub enum Msg<Ctx: Context> {
     /// Publish status
     PublishStatus(Status<Ctx>),
 
+    /// Send a request to a peer
+    OutgoingBlockSyncRequest(PeerId, Request<Ctx>),
+
+    /// Send a response for a block request to a peer
+    OutgoingBlockSyncResponse(InboundRequestId, SyncedBlock<Ctx>),
+
     /// Request for number of peers from gossip
     GetState { reply: RpcReplyPort<usize> },
 
-    // Internal message
+    // Event emitted by the gossip layer
     #[doc(hidden)]
     NewEvent(Event),
 }
@@ -224,6 +235,25 @@ where
                 }
             }
 
+            Msg::OutgoingBlockSyncRequest(peer_id, request) => {
+                let request = Codec::encode_request(request);
+                match request {
+                    Ok(data) => ctrl_handle.blocksync_request(peer_id, data).await?,
+                    Err(e) => error!("Failed to encode request message: {e:?}"),
+                }
+            }
+
+            Msg::OutgoingBlockSyncResponse(request_id, decided_block) => {
+                let msg = match Codec::encode_response(decided_block) {
+                    Ok(msg) => msg,
+                    Err(e) => {
+                        error!(%request_id, "Failed to encode block response message: {e:?}");
+                        return Ok(());
+                    }
+                };
+                ctrl_handle.blocksync_reply(request_id, msg).await?
+            }
+
             Msg::NewEvent(Event::Listening(addr)) => {
                 self.publish(GossipEvent::Listening(addr), subscribers);
             }
@@ -297,7 +327,7 @@ where
             }
 
             Msg::NewEvent(Event::BlockSync(raw_msg)) => match raw_msg {
-                blocksync::RawMessage::Request {
+                RawMessage::Request {
                     request_id,
                     peer,
                     body,
@@ -309,38 +339,18 @@ where
                             return Ok(());
                         }
                     };
-
-                    let commits = vec![];
-                    let block_bytes = vec![];
-
-                    let response = blocksync::Response {
-                        height: request.height,
-                        commits,
-                        block_bytes,
-                    };
-
-                    let data = Codec::encode_response(response);
-                    match data {
-                        Ok(data) => {
-                            if let Err(e) = ctrl_handle.blocksync_reply(request_id, data).await {
-                                error!(%peer, "Failed to send BlockSync response: {e:?}");
-                            }
-                        }
-                        Err(e) => error!(%peer, "Failed to encode BlockSync response: {e:?}"),
-                    }
+                    self.publish(BlockSyncRequest(request_id, request), subscribers);
                 }
 
-                blocksync::RawMessage::Response {
-                    request_id: _,
-                    body,
-                } => {
-                    let _response = match Codec::decode_response(body) {
+                RawMessage::Response { request_id, body } => {
+                    let response = match Codec::decode_response(body) {
                         Ok(response) => response,
                         Err(e) => {
                             error!("Failed to decode BlockSync response: {e:?}");
                             return Ok(());
                         }
                     };
+                    self.publish(BlockSyncResponse(request_id, response), subscribers);
                 }
             },
 

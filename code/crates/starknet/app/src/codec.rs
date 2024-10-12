@@ -3,12 +3,12 @@ use prost::Message;
 use malachite_actors::util::codec::NetworkCodec;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_blocksync::Status;
-use malachite_common::{SignedProposal, SignedVote};
+use malachite_common::{Certificate, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Bytes;
 use malachite_proto::{Error as ProtoError, Protobuf};
 use malachite_starknet_host::mock::context::MockContext;
-use malachite_starknet_host::types::Vote;
+use malachite_starknet_host::types::{Proposal, Vote};
 use malachite_starknet_p2p_proto::consensus_message::Messages;
 use malachite_starknet_p2p_proto::ConsensusMessage;
 use malachite_starknet_p2p_proto::{self as proto};
@@ -67,8 +67,20 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
 
     fn decode_response(
         bytes: Bytes,
-    ) -> Result<malachite_blocksync::Response<MockContext>, Self::Error> {
+    ) -> Result<malachite_blocksync::SyncedBlock<MockContext>, Self::Error> {
         let response = proto::blocksync::Response::decode(bytes).map_err(ProtoError::Decode)?;
+
+        fn decode_proposal(msg: ConsensusMessage) -> Option<SignedProposal<MockContext>> {
+            let signature = msg.signature?;
+            let proposal = match msg.messages {
+                Some(Messages::Proposal(p)) => Some(p),
+                _ => None,
+            }?;
+
+            let signature = p2p::Signature::from_proto(signature).ok()?;
+            let proposal = Proposal::from_proto(proposal).ok()?;
+            Some(SignedProposal::new(proposal, signature))
+        }
 
         fn decode_vote(msg: ConsensusMessage) -> Option<SignedVote<MockContext>> {
             let signature = msg.signature?;
@@ -88,16 +100,27 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
             .filter_map(decode_vote)
             .collect();
 
-        Ok(malachite_blocksync::Response {
-            height: Height::new(response.height),
-            commits,
-            block_bytes: response.block_bytes,
+        let certificate = Certificate::new(commits);
+
+        Ok(malachite_blocksync::SyncedBlock {
+            proposal: decode_proposal(response.proposal.unwrap())
+                .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("proposal"))?,
+            certificate,
+            block_bytes: Bytes::from(response.block_bytes),
         })
     }
 
     fn encode_response(
-        response: malachite_blocksync::Response<MockContext>,
+        response: malachite_blocksync::SyncedBlock<MockContext>,
     ) -> Result<Bytes, Self::Error> {
+        fn encode_proposal(
+            proposal: SignedProposal<MockContext>,
+        ) -> Result<ConsensusMessage, ProtoError> {
+            Ok(ConsensusMessage {
+                messages: Some(Messages::Proposal(proposal.message.to_proto()?)),
+                signature: Some(proposal.signature.to_proto()?),
+            })
+        }
         fn encode_vote(vote: SignedVote<MockContext>) -> Result<ConsensusMessage, ProtoError> {
             Ok(ConsensusMessage {
                 messages: Some(Messages::Vote(vote.message.to_proto()?)),
@@ -106,15 +129,16 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         }
 
         let commits = response
+            .certificate
             .commits
             .into_iter()
             .map(encode_vote)
             .collect::<Result<Vec<_>, _>>()?;
 
         let proto = proto::blocksync::Response {
-            height: response.height.as_u64(),
+            proposal: Some(encode_proposal(response.proposal)?),
             commits,
-            block_bytes: response.block_bytes,
+            block_bytes: response.block_bytes.to_vec(),
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))

@@ -1,10 +1,18 @@
+use bytes::Bytes;
 use std::time::Duration;
 
 use derive_where::derive_where;
 use libp2p::PeerId;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachite_common::{Context, Round, SignedVote};
+use malachite_common::{Context, Round, SignedProposal, SignedVote};
+
+use malachite_blocksync::SyncedBlock;
+/// A value to propose that has just been received.
+pub use malachite_consensus::ProposedValue;
+
+use crate::consensus::ConsensusRef;
+use crate::util::streaming::StreamMessage;
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct LocallyProposedValue<Ctx: Context> {
@@ -22,13 +30,6 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
         }
     }
 }
-
-use crate::block_sync::RawDecidedBlock;
-/// A value to propose that has just been received.
-pub use malachite_consensus::ProposedValue;
-
-use crate::consensus::ConsensusRef;
-use crate::util::streaming::StreamMessage;
 
 /// A reference to the host actor.
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
@@ -66,9 +67,7 @@ pub enum HostMsg<Ctx: Context> {
 
     // Consensus has decided on a value
     Decide {
-        height: Ctx::Height,
-        round: Round,
-        value: Ctx::Value,
+        proposal: SignedProposal<Ctx>,
         commits: Vec<SignedVote<Ctx>>,
         consensus: ConsensusRef<Ctx>,
     },
@@ -76,17 +75,13 @@ pub enum HostMsg<Ctx: Context> {
     // Decided block
     DecidedBlock {
         height: Ctx::Height,
-        reply_to: RpcReplyPort<Option<RawDecidedBlock<Ctx>>>,
+        reply_to: RpcReplyPort<Option<SyncedBlock<Ctx>>>,
     },
-}
 
-#[derive_where(Clone, Debug)]
-pub struct Certificate<Ctx: Context> {
-    pub commits: Vec<SignedVote<Ctx>>,
-}
-
-impl<Ctx: Context> Certificate<Ctx> {
-    pub fn new(commits: Vec<SignedVote<Ctx>>) -> Self {
-        Self { commits }
-    }
+    // Synced block
+    ProcessSyncedBlockBytes {
+        proposal: SignedProposal<Ctx>,
+        block_bytes: Bytes,
+        reply_to: RpcReplyPort<ProposedValue<Ctx>>,
+    },
 }

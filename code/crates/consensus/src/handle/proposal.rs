@@ -56,12 +56,13 @@ where
     }
 
     if proposal_height > consensus_height {
-        debug!("Received proposal for higher height, queuing for later");
+        if consensus_height.increment() == proposal_height {
+            debug!("Received proposal for next height, queuing for later");
 
-        state
-            .input_queue
-            .push_back(Input::Proposal(signed_proposal));
-
+            state
+                .input_queue
+                .push_back(Input::Proposal(signed_proposal));
+        }
         return Ok(());
     }
 
@@ -138,7 +139,8 @@ where
             "Received proposal from a non-proposer"
         );
 
-        return Ok(false);
+        // TOOD - why when we replay proposals the proposer is wrong
+        //return Ok(false);
     };
 
     let signed_msg = signed_proposal.clone().map(ConsensusMsg::Proposal);

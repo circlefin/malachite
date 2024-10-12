@@ -1,22 +1,21 @@
 use std::collections::BTreeMap;
 
-use malachite_actors::host::Certificate;
-
 use malachite_common::NilOrVal::Val;
-use malachite_common::{Context, SignedVote, ValueId, Vote};
+use malachite_common::{Certificate, Context, Proposal, SignedProposal, SignedVote, ValueId, Vote};
 use malachite_starknet_p2p_types::{Transaction, Transactions};
 
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct Block<Ctx: Context> {
-    height: Ctx::Height,
-    transactions: Transactions,
-    block_id: ValueId<Ctx>,
+    pub height: Ctx::Height,
+    pub transactions: Transactions,
+    pub block_id: ValueId<Ctx>,
 }
 
 #[derive(Clone, Debug)]
 pub struct DecidedBlock<Ctx: Context> {
     pub block: Block<Ctx>,
+    pub proposal: SignedProposal<Ctx>,
     pub certificate: Certificate<Ctx>,
 }
 
@@ -41,9 +40,13 @@ impl<Ctx: Context> BlockStore<Ctx> {
         }
     }
 
+    pub fn store_keys(&self) -> Vec<Ctx::Height> {
+        self.store.keys().copied().collect()
+    }
+
     pub fn store(
         &mut self,
-        height: Ctx::Height,
+        proposal: &SignedProposal<Ctx>,
         txes: &[Transaction],
         commits: &Vec<SignedVote<Ctx>>,
     ) {
@@ -56,21 +59,18 @@ impl<Ctx: Context> BlockStore<Ctx> {
         };
         let decided_block = DecidedBlock {
             block: Block {
-                height,
+                height: proposal.height(),
                 block_id: block_id.clone(),
                 transactions: Transactions::new(txes.to_vec()),
             },
+            proposal: proposal.clone(),
             certificate,
         };
 
-        let _ = self.store.insert(height, decided_block);
+        let _ = self.store.insert(proposal.height(), decided_block);
     }
 
-    pub fn blocks_stored(&self) -> usize {
-        self.store.len()
-    }
-
-    pub fn prune(&mut self, min_height: Ctx::Height) {
-        self.store.retain(|height, _| *height >= min_height);
+    pub fn prune(&mut self, retain_height: Ctx::Height) {
+        self.store.retain(|height, _| *height >= retain_height);
     }
 }

@@ -180,9 +180,7 @@ where
             );
 
             // Store value decided on for retrieval when timeout commit elapses
-            state
-                .decision
-                .insert((state.driver.height(), consensus_round), proposal.clone());
+            state.store_decision(state.driver.height(), consensus_round, proposal.clone());
 
             perform!(
                 co,

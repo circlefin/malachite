@@ -37,6 +37,17 @@ impl CtrlHandle {
         Ok(())
     }
 
+    pub async fn blocksync_request(
+        &self,
+        peer_id: PeerId,
+        data: Bytes,
+    ) -> Result<(), eyre::Report> {
+        self.tx_ctrl
+            .send(CtrlMsg::BlockSyncRequest(peer_id, data))
+            .await?;
+        Ok(())
+    }
+
     pub async fn blocksync_reply(
         &self,
         request_id: InboundRequestId,

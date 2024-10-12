@@ -10,7 +10,7 @@ use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
-use malachite_common::Round;
+use malachite_common::SignedProposal;
 use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
@@ -22,7 +22,7 @@ use malachite_starknet_host::actor::StarknetHost;
 use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::mock::host::{MockHost, MockParams};
-use malachite_starknet_host::types::{Address, BlockHash, Height, PrivateKey, ValidatorSet};
+use malachite_starknet_host::types::{Address, Height, PrivateKey, ValidatorSet};
 
 use crate::codec::ProtobufCodec;
 
@@ -30,7 +30,7 @@ pub async fn spawn_node_actor(
     cfg: NodeConfig,
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
-    tx_decision: Option<mpsc::Sender<(Height, Round, BlockHash)>>,
+    tx_decision: Option<mpsc::Sender<SignedProposal<MockContext>>>,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(private_key);
 
@@ -113,7 +113,7 @@ async fn spawn_consensus_actor(
     host: HostRef<MockContext>,
     block_sync: BlockSyncRef<MockContext>,
     metrics: Metrics,
-    tx_decision: Option<mpsc::Sender<(Height, Round, BlockHash)>>,
+    tx_decision: Option<mpsc::Sender<SignedProposal<MockContext>>>,
 ) -> ConsensusRef<MockContext> {
     let consensus_params = ConsensusParams {
         start_height,
