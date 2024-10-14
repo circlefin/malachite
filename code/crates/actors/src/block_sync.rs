@@ -181,14 +181,16 @@ where
                         "SYNC REQUIRED: falling behind {peer} at {}, my height {}",
                         status.height, state.blocksync.tip_height
                     );
-                }
-                let height = state.blocksync.sync_height;
-                // If there are no pending requests then ask for block from peer
-                if !state.blocksync.pending_requests.contains_key(&height) {
-                    debug!("Requesting block {height} from {peer:?} that is at {peer_height:?}");
-                    self.gossip_consensus
-                        .cast(OutgoingBlockSyncRequest(peer, Request { height }))?;
-                    state.blocksync.store_pending_request(height, peer);
+                    let height = state.blocksync.sync_height;
+                    // If there are no pending requests then ask for block from peer
+                    if !state.blocksync.pending_requests.contains_key(&height) {
+                        debug!(
+                            "Requesting block {height} from {peer:?} that is at {peer_height:?}"
+                        );
+                        self.gossip_consensus
+                            .cast(OutgoingBlockSyncRequest(peer, Request { height }))?;
+                        state.blocksync.store_pending_request(height, peer);
+                    }
                 }
             }
 
