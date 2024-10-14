@@ -609,9 +609,7 @@ where
                         reply_to: reply,
                     },
                     myself,
-                    |proposed: ProposedValue<Ctx>| {
-                        Msg::<Ctx>::ProposeValue(proposed.height, proposed.round, proposed.value)
-                    },
+                    |proposed: ProposedValue<Ctx>| Msg::<Ctx>::ReceivedProposedValue(proposed),
                     None,
                 )?;
 
