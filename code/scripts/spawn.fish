@@ -59,6 +59,8 @@ set -x MALACHITE__TEST__TXS_PER_PART 128
 set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.5
 set -x MALACHITE__TEST__EXEC_TIME_PER_TX "1ms"
 set -x MALACHITE__CONSENSUS__P2P__PROTOCOL "gossipsub"
+set -x MALACHITE__TEST__MAX_RETAIN_BLOCKS 0
+
 
 echo "Compiling Malachite..."
 cargo build --profile $build_profile

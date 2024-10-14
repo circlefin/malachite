@@ -215,6 +215,7 @@ async fn spawn_host_actor(
         txs_per_part: cfg.test.txs_per_part,
         time_allowance_factor: cfg.test.time_allowance_factor,
         exec_time_per_tx: cfg.test.exec_time_per_tx,
+        max_retain_blocks: cfg.test.max_retain_blocks,
     };
 
     let mock_host = MockHost::new(

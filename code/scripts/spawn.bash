@@ -44,6 +44,7 @@ export MALACHITE__TEST__TX_SIZE="1Kib"
 export MALACHITE__TEST__TXS_PER_PART=256
 export MALACHITE__TEST__TIME_ALLOWANCE_FACTOR=0.3
 export MALACHITE__TEST__EXEC_TIME_PER_TX="0ms"
+export MALACHITE__TEST__MAX_RETAIN_BLOCKS=10000
 
 echo "Compiling Malachite..."
 cargo build --release

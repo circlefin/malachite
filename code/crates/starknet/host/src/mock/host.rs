@@ -26,6 +26,7 @@ pub struct MockParams {
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,
     pub exec_time_per_tx: Duration,
+    pub max_retain_blocks: usize,
 }
 
 pub struct MockHost {

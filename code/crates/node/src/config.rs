@@ -254,6 +254,7 @@ pub struct TestConfig {
     pub time_allowance_factor: f32,
     #[serde(with = "humantime_serde")]
     pub exec_time_per_tx: Duration,
+    pub max_retain_blocks: usize,
 }
 
 impl Default for TestConfig {
@@ -263,6 +264,7 @@ impl Default for TestConfig {
             txs_per_part: 256,
             time_allowance_factor: 0.5,
             exec_time_per_tx: Duration::from_millis(1),
+            max_retain_blocks: 100,
         }
     }
 }

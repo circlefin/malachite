@@ -179,8 +179,6 @@ impl StarknetHost {
 
         let all_parts = state.part_store.all_parts(height, round);
 
-        // debug!("The store has {} blocks", state.part_store.blocks_stored());
-
         // TODO: Do more validations, e.g. there is no higher tx proposal part,
         //       check that we have received the proof, etc.
         let Some(fin) = all_parts.iter().find_map(|part| part.as_fin()) else {
@@ -197,6 +195,20 @@ impl StarknetHost {
         );
 
         self.build_value_from_parts(&all_parts, height, round)
+    }
+
+    fn store_block(&self, state: &mut HostState) {
+        let max_height = state
+            .block_store
+            .store_keys()
+            .last()
+            .unwrap_or(&Height::default())
+            .as_u64();
+
+        let min_number_blocks: u64 =
+            std::cmp::min(self.host.params().max_retain_blocks as u64, max_height);
+        let retain_height = Height::new(max_height - min_number_blocks);
+        state.block_store.prune(retain_height);
     }
 }
 
@@ -383,18 +395,8 @@ impl Actor for StarknetHost {
                 // Prune the PartStore of all parts for heights lower than `state.height`
                 state.part_store.prune(state.height);
 
-                let max_height = state
-                    .block_store
-                    .store_keys()
-                    .last()
-                    .unwrap_or(&Height::default())
-                    .as_u64();
-                // TODO - add config flag
-                // Keep last 10k blocks
-                let min_number_blocks = std::cmp::min(10000, max_height);
-                let retain_height = max_height - min_number_blocks;
-                let retain_height = Height::new(retain_height);
-                state.block_store.prune(retain_height);
+                // Store the block
+                self.store_block(state);
 
                 // Notify the mempool to remove corresponding txs
                 self.mempool.cast(MempoolMsg::Update { tx_hashes })?;
