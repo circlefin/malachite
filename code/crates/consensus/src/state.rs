@@ -97,7 +97,7 @@ where
     pub fn store_decision(&mut self, height: Ctx::Height, round: Round, proposal: Ctx::Proposal) {
         if let Some(full_proposal) = self.full_proposal_keeper.full_proposal_at_round_and_value(
             &height,
-            round,
+            proposal.round(),
             proposal.value(),
         ) {
             self.decision.insert(
