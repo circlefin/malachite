@@ -4,6 +4,7 @@ use malachite_driver::Output as DriverOutput;
 use crate::prelude::*;
 
 use crate::handle::on_proposal;
+use crate::handle::vote::on_vote;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
 
@@ -169,11 +170,10 @@ where
                 Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote.clone()))
             );
 
-            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await
+            on_vote(co, state, metrics, signed_vote).await
         }
 
         DriverOutput::Decide(consensus_round, proposal) => {
-            // TODO: Remove proposal, votes, block for the round
             info!(
                 "Decided in round {} on proposal {:?}",
                 consensus_round, proposal

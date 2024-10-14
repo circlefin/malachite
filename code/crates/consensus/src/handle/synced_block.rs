@@ -21,9 +21,6 @@ where
 
     on_proposal(co, state, metrics, proposal.clone()).await?;
 
-    // TODO - debug issue with blocks that don't include commits from validators that were stopped
-    // 4 vals, creates some blocks, stop val4, create blocks with 3 vals, bring val4 up, some blocks
-    // that were built while away have only 2 commits (??), val4 cannot decide.
     debug!(
         "Received a certificate for {} with {} votes",
         proposal.height(),
