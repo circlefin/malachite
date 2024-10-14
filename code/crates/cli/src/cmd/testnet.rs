@@ -19,8 +19,8 @@ use malachite_starknet_app::node::StarknetNode;
 use crate::args::Args;
 use crate::cmd::init::{save_config, save_genesis, save_priv_validator_key};
 
-const MIN_VOTING_POWER: u64 = 8;
-const MAX_VOTING_POWER: u64 = 15;
+const MIN_VOTING_POWER: u64 = 1;
+const MAX_VOTING_POWER: u64 = 1;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum RuntimeFlavour {
