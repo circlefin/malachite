@@ -1,4 +1,5 @@
-use crate::handle::driver::apply_driver_input;
+use crate::handle::proposal::on_proposal;
+use crate::handle::vote::on_vote;
 use crate::prelude::*;
 use bytes::Bytes;
 
@@ -18,15 +19,16 @@ where
         proposal.height()
     );
 
-    apply_driver_input(
-        co,
-        state,
-        metrics,
-        DriverInput::Proposal(proposal.clone(), Validity::Valid),
-    )
-    .await?;
+    on_proposal(co, state, metrics, proposal.clone()).await?;
+
+    debug!(
+        "Received a certificate for {} with {} votes",
+        proposal.height(),
+        certificate.commits.len()
+    );
     for commit in certificate.commits {
-        apply_driver_input(co, state, metrics, DriverInput::Vote(commit)).await?;
+        on_vote(co, state, metrics, commit).await?;
+        //apply_driver_input(co, state, metrics, DriverInput::Vote(commit)).await?;
     }
 
     perform!(
