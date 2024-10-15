@@ -96,17 +96,17 @@ impl Mempool {
         state: &mut State,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match event {
-            GossipEvent::Listening(addr) => {
-                info!("Listening on {addr}");
+            GossipEvent::Listening(address) => {
+                info!(%address, "Listening");
             }
             GossipEvent::PeerConnected(peer_id) => {
-                info!("Connected to peer {peer_id}");
+                info!(%peer_id, "Connected to peer");
             }
             GossipEvent::PeerDisconnected(peer_id) => {
-                info!("Disconnected from peer {peer_id}");
+                info!(%peer_id, "Disconnected from peer");
             }
             GossipEvent::Message(_channel, from, _msg_id, msg) => {
-                trace!(%from, "Received message of size {} bytes", msg.size_bytes());
+                trace!(%from, size = msg.size_bytes(), "Received message");
 
                 trace!(%from, "Received message");
                 self.handle_network_msg(from, msg.clone(), myself, state) // FIXME: Clone

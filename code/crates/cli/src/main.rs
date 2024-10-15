@@ -38,8 +38,8 @@ pub fn main() -> Result<()> {
             })?;
 
             info!(
-                "Loaded configuration from {:?}",
-                args.get_config_file_path().unwrap_or_default().display()
+                file = %args.get_config_file_path().unwrap_or_default().display(),
+                "Loaded configuration",
             );
 
             start(&args, config, cmd)

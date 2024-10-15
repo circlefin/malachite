@@ -10,7 +10,7 @@ pub async fn serve(config: MetricsConfig) {
     let app = Router::new().route("/metrics", get(get_metrics));
     let listener = TcpListener::bind(config.listen_addr).await.unwrap();
 
-    info!("Serving metrics at http://{}", config.listen_addr);
+    info!(address = %config.listen_addr, "Serving metrics");
     axum::serve(listener, app).await.unwrap();
 }
 

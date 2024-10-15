@@ -201,7 +201,7 @@ impl<const N: usize> Test<N> {
                         // TODO: Heights can go to higher rounds, therefore removing the round and value check for now.
                         match decision {
                             Some((h, _r, _)) if h.as_u64() == height /* && r == Round::new(0) */ => {
-                                info!("{height}/{HEIGHTS} correct decision");
+                                info!(%height, heights = HEIGHTS, "Correct decision");
                                 correct_decisions.fetch_add(1, Ordering::Relaxed);
                             }
                             _ => {
