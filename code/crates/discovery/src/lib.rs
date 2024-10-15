@@ -128,7 +128,7 @@ impl Discovery {
             && !swarm.is_connected(id)
         })
             // Has not already dialed
-            && !self.handler.has_already_dialed(&connection_data)
+            && !self.handler.has_already_dialed(connection_data)
             // Is not itself (multiaddr)
             && !swarm.listeners().any(|addr| *addr == connection_data.get_multiaddr())
     }
@@ -192,13 +192,13 @@ impl Discovery {
         }
 
         self.handler
-            .register_connection_type(peer_id.clone(), endpoint.into());
+            .register_connection_type(peer_id, endpoint.into());
 
         self.handler.remove_pending_connection(&connection_id);
 
         // This call is necessary to record the peer id of a
         // bootstrap node (which was unknown before)
-        self.handler.register_dialed_peer_id(peer_id.clone());
+        self.handler.register_dialed_peer_id(peer_id);
 
         // This check is necessary to handle the case where two
         // nodes dial each other at the same time, which can lead
@@ -223,9 +223,9 @@ impl Discovery {
                     return None;
                 }
 
-                info.listen_addrs.get(0).map(|addr| {
+                info.listen_addrs.first().map(|addr| {
                     remaining_bootstrap_nodes.retain(|x| x != addr);
-                    (Some(peer_id.clone()), addr.clone())
+                    (Some(*peer_id), addr.clone())
                 })
             })
             .collect();
@@ -264,7 +264,7 @@ impl Discovery {
                     behaviour::Request::Peers(self.get_all_peers_except(peer_id)),
                 );
 
-                self.handler.register_requested_peer_id(peer_id.clone());
+                self.handler.register_requested_peer_id(peer_id);
                 self.handler.register_pending_request(request_id);
             } else {
                 // This should never happen

@@ -51,7 +51,7 @@ impl ConnectionData {
     }
 
     pub(crate) fn get_peer_id(&self) -> Option<PeerId> {
-        self.peer_id.clone()
+        self.peer_id
     }
 
     pub(crate) fn get_multiaddr(&self) -> Multiaddr {
@@ -71,7 +71,7 @@ impl ConnectionData {
     }
 
     pub(crate) fn build_dial_opts(&self) -> DialOpts {
-        if let Some(peer_id) = self.peer_id.clone() {
+        if let Some(peer_id) = self.peer_id {
             DialOpts::peer_id(peer_id)
                 .addresses(vec![self.multiaddr.clone()])
                 .build()

@@ -33,7 +33,7 @@ impl Handler {
 
     pub(crate) fn register_dialed_peer(&mut self, connection_data: &ConnectionData) {
         if let Some(peer_id) = connection_data.get_peer_id() {
-            self.dialed_peer_ids.insert(peer_id.clone());
+            self.dialed_peer_ids.insert(peer_id);
         }
         self.dialed_multiaddrs
             .insert(connection_data.get_multiaddr().clone());

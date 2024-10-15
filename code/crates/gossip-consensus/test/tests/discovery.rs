@@ -40,9 +40,8 @@ pub async fn circular_graph_n() {
     let mut nodes = Vec::with_capacity(N);
     let mut expected = Vec::with_capacity(N);
     for i in 0..N {
-        let mut bootstrap = Vec::with_capacity(1);
-        bootstrap.push((i + 1) % N);
-        nodes.push(TestNode::correct(i, bootstrap.clone()));
+        let bootstrap = vec![(i + 1) % N];
+        nodes.push(TestNode::correct(i, bootstrap));
         expected.push(Expected::Exactly(
             (0..N).filter(|&j| j != i).collect::<Vec<_>>(),
         ));

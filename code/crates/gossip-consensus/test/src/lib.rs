@@ -138,7 +138,7 @@ impl<const N: usize> Test<N> {
         std::array::from_fn(|_| {
             let privkey = PrivateKey::generate(&mut rng);
             let pk_bytes = privkey.inner().to_bytes_be();
-            let secret_key = ecdsa::SecretKey::try_from_bytes(&pk_bytes).unwrap();
+            let secret_key = ecdsa::SecretKey::try_from_bytes(pk_bytes).unwrap();
             let ecdsa_keypair = ecdsa::Keypair::from(secret_key);
             Keypair::from(ecdsa_keypair)
         })
