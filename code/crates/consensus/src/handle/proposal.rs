@@ -140,7 +140,7 @@ where
         );
 
         // TODO - why when we replay proposals the proposer is wrong
-        //return Ok(false);
+        return Ok(false);
     };
 
     let signed_msg = signed_proposal.clone().map(ConsensusMsg::Proposal);
