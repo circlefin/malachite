@@ -172,4 +172,4 @@ exec_time_per_tx = "1ms"
 # Override with MALACHITE__TEST__MAX_RETAIN_BLOCKS
 # max_retain_blocks defines the maximum number of blocks, relative to the current block,
 # that can be kept in the block store. A value of 0 indicates that no blocks are pruned.
-max_retain_blocks = 100
+max_retain_blocks = 1000

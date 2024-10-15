@@ -264,7 +264,7 @@ impl Default for TestConfig {
             txs_per_part: 256,
             time_allowance_factor: 0.5,
             exec_time_per_tx: Duration::from_millis(1),
-            max_retain_blocks: 100,
+            max_retain_blocks: 1000,
         }
     }
 }
