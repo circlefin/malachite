@@ -2,7 +2,7 @@ use core::fmt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use libp2p_identity::{ecdsa, PeerId};
-use malachite_gossip_consensus::{spawn, Config, Keypair};
+use malachite_gossip_consensus::{spawn, Config, DiscoveryConfig, Keypair};
 use malachite_metrics::SharedRegistry;
 use malachite_node::config::TransportProtocol;
 use malachite_starknet_host::types::PrivateKey;
@@ -155,7 +155,7 @@ impl<const N: usize> Test<N> {
                     TransportProtocol::Quic.multiaddr("127.0.0.1", self.consensus_base_port + *j)
                 })
                 .collect(),
-            enable_discovery: true,
+            discovery: DiscoveryConfig { enabled: true },
             idle_connection_timeout: Duration::from_secs(60),
             transport: malachite_gossip_consensus::TransportProtocol::Quic,
             protocol: malachite_gossip_consensus::PubSubProtocol::GossipSub,

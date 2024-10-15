@@ -75,9 +75,6 @@ listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
 # List of nodes to keep persistent connections to
 persistent_peers = []
 
-# Enable the discovery protocol to find more peers
-enable_discovery = true
-
 # Transport protocol to use for P2P communication
 # Valid values:
 # - "tcp": TCP + Noise
@@ -90,6 +87,9 @@ transport = "quic"
 # - "broadcast": Use the Broadcast protocol (no gossip, experimental)
 # Override with MALACHITE__CONSENSUS__P2P__PROTOCOL env variable
 protocol = "gossipsub"
+
+# Enable the discovery protocol to find more peers
+discovery = { enabled = true }
 
 #######################################################
 ###          Mempool Configuration Options          ###

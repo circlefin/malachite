@@ -121,7 +121,7 @@ impl Behaviour {
     pub fn new_with_metrics(
         tpe: PubSubProtocol,
         keypair: &Keypair,
-        enable_discovery: bool,
+        discovery: discovery::Config,
         registry: &mut Registry,
     ) -> Self {
         let identify = identify::Behaviour::new(identify::Config::new(
@@ -149,7 +149,7 @@ impl Behaviour {
             )),
         };
 
-        let request_response = Toggle::from(enable_discovery.then(discovery::new_behaviour));
+        let request_response = Toggle::from(discovery.enabled.then(discovery::new_behaviour));
 
         Self {
             identify,

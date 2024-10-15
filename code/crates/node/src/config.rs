@@ -72,14 +72,21 @@ pub struct P2pConfig {
     /// List of nodes to keep persistent connections to
     pub persistent_peers: Vec<Multiaddr>,
 
-    /// Enable peer discovery
-    pub enable_discovery: bool,
+    /// Peer discovery
+    pub discovery: DiscoveryConfig,
 
     /// Transport protocol to use
     pub transport: TransportProtocol,
 
     /// The type of pub-sub protocol to use for consensus
     pub protocol: PubSubProtocol,
+}
+
+/// Peer Discovery configuration options
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DiscoveryConfig {
+    /// Enable peer discovery
+    pub enabled: bool,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]

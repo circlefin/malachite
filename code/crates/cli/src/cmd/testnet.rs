@@ -231,7 +231,9 @@ pub fn generate_config(
                         .map(|j| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j))
                         .collect()
                 },
-                enable_discovery,
+                discovery: DiscoveryConfig {
+                    enabled: enable_discovery,
+                },
                 transport,
             },
         },
@@ -243,8 +245,7 @@ pub fn generate_config(
                     .filter(|j| *j != index)
                     .map(|j| transport.multiaddr("127.0.0.1", MEMPOOL_BASE_PORT + j))
                     .collect(),
-                // TODO: Enable discovery for mempool
-                enable_discovery: false,
+                discovery: DiscoveryConfig { enabled: true },
                 transport,
             },
             max_tx_count: 10000,

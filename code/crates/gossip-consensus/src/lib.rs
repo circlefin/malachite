@@ -55,11 +55,13 @@ const PROTOCOL_VERSION: &str = "/malachite-gossip-consensus/v1beta1";
 
 pub type BoxError = Box<dyn Error + Send + Sync + 'static>;
 
+pub type DiscoveryConfig = discovery::Config;
+
 #[derive(Clone, Debug)]
 pub struct Config {
     pub listen_addr: Multiaddr,
     pub persistent_peers: Vec<Multiaddr>,
-    pub enable_discovery: bool,
+    pub discovery: DiscoveryConfig,
     pub idle_connection_timeout: Duration,
     pub transport: TransportProtocol,
     pub protocol: PubSubProtocol,
@@ -104,7 +106,13 @@ impl State {
         bootstrap_nodes: Vec<Multiaddr>,
     ) -> Self {
         State {
-            discovery: discovery::Discovery::new(enable_discovery, tx_dial, bootstrap_nodes),
+            discovery: discovery::Discovery::new(
+                discovery::Config {
+                    enabled: enable_discovery,
+                },
+                tx_dial,
+                bootstrap_nodes,
+            ),
         }
     }
 }
@@ -126,12 +134,7 @@ pub async fn spawn(
                 .with_dns()?
                 .with_bandwidth_metrics(registry)
                 .with_behaviour(|kp| {
-                    Behaviour::new_with_metrics(
-                        config.protocol,
-                        kp,
-                        config.enable_discovery,
-                        registry,
-                    )
+                    Behaviour::new_with_metrics(config.protocol, kp, config.discovery, registry)
                 })?
                 .with_swarm_config(|cfg| config.apply(cfg))
                 .build()),
@@ -140,12 +143,7 @@ pub async fn spawn(
                 .with_dns()?
                 .with_bandwidth_metrics(registry)
                 .with_behaviour(|kp| {
-                    Behaviour::new_with_metrics(
-                        config.protocol,
-                        kp,
-                        config.enable_discovery,
-                        registry,
-                    )
+                    Behaviour::new_with_metrics(config.protocol, kp, config.discovery, registry)
                 })?
                 .with_swarm_config(|cfg| config.apply(cfg))
                 .build()),
@@ -180,7 +178,7 @@ async fn run(
     let (tx_dial, mut rx_dial) = mpsc::unbounded_channel::<discovery::ConnectionData>();
 
     let mut state = State::new(
-        config.enable_discovery,
+        config.discovery.enabled,
         tx_dial,
         config.persistent_peers.clone(),
     );

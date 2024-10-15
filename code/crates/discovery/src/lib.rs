@@ -20,6 +20,9 @@ pub use behaviour::*;
 mod connection;
 pub use connection::*;
 
+mod config;
+pub use config::*;
+
 mod handler;
 use handler::*;
 
@@ -30,9 +33,9 @@ const DISCOVERY_PROTOCOL: &str = "/malachite-discover/v1beta1";
 
 #[derive(Debug)]
 pub struct Discovery {
+    config: Config,
     peers: HashMap<PeerId, identify::Info>,
     bootstrap_nodes: Vec<Multiaddr>,
-    is_enabled: bool,
     tx_dial: mpsc::UnboundedSender<ConnectionData>,
     handler: Handler,
     metrics: Metrics,
@@ -40,13 +43,13 @@ pub struct Discovery {
 
 impl Discovery {
     pub fn new(
-        enable_discovery: bool,
+        config: Config,
         tx_dial: mpsc::UnboundedSender<ConnectionData>,
         bootstrap_nodes: Vec<Multiaddr>,
     ) -> Self {
         info!(
             "Discovery is {}",
-            if enable_discovery {
+            if config.enabled {
                 "enabled"
             } else {
                 "disabled"
@@ -54,13 +57,17 @@ impl Discovery {
         );
 
         Discovery {
+            config,
             peers: HashMap::new(),
             bootstrap_nodes,
-            is_enabled: enable_discovery,
             tx_dial,
             handler: Handler::new(),
             metrics: Metrics::new(),
         }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.config.enabled
     }
 
     pub fn remove_peer(&mut self, peer_id: PeerId) {
@@ -70,7 +77,7 @@ impl Discovery {
     }
 
     pub fn handle_failed_connection(&mut self, connection_id: ConnectionId) {
-        if !self.is_enabled {
+        if !self.is_enabled() {
             return;
         }
 
@@ -101,7 +108,7 @@ impl Discovery {
     }
 
     fn register_failed_request(&mut self, request_id: OutboundRequestId) {
-        if !self.is_enabled {
+        if !self.is_enabled() {
             return;
         }
 
@@ -180,7 +187,7 @@ impl Discovery {
         connection_id: ConnectionId,
         endpoint: ConnectedPoint,
     ) {
-        if !self.is_enabled {
+        if !self.is_enabled() {
             return;
         }
 
@@ -238,7 +245,7 @@ impl Discovery {
     ) {
         // Ignore if discovery is disabled or the peer is already known or
         // the peer has already been requested
-        if !self.is_enabled
+        if !self.is_enabled()
             || self.peers.contains_key(&peer_id)
             || self.handler.has_already_requested(&peer_id)
         {
@@ -278,7 +285,7 @@ impl Discovery {
     }
 
     pub fn check_if_idle(&mut self) -> bool {
-        if !self.is_enabled {
+        if !self.is_enabled() {
             return false;
         }
 
