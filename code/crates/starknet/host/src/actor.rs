@@ -417,6 +417,9 @@ impl Actor for StarknetHost {
                 let maybe_block = state.block_store.store.get(&height).cloned();
                 match maybe_block {
                     None => {
+                        // TODO - it is possible that a peer asks for a block that we don't have
+                        // if it has been pruned. In the Status we currently do not mention the
+                        // minimum height of the block that we do have.
                         error!(
                             "No block for {height}, keys are: {:?}",
                             state.block_store.store_keys()
