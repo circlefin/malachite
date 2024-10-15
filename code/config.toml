@@ -131,6 +131,9 @@ transport = "quic"
 # Override with MALACHITE__CONSENSUS__MEMPOOL__PROTOCOL env variable
 protocol = "gossipsub"
 
+# Enable the discovery protocol to find more peers
+discovery = { enabled = true }
+
 #######################################################
 ###          Metrics Configuration Options          ###
 #######################################################
