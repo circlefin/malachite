@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use tracing::debug;
 
 use malachite_common::*;
@@ -29,7 +29,7 @@ where
     pub full_proposal_keeper: FullProposalKeeper<Ctx>,
 
     /// Store Precommit votes to be sent along the decision to the host
-    pub signed_precommits: BTreeMap<(Ctx::Height, Round), Vec<SignedVote<Ctx>>>,
+    pub signed_precommits: BTreeMap<(Ctx::Height, Round), BTreeSet<SignedVote<Ctx>>>,
 
     /// Decision per height
     pub decision: BTreeMap<(Ctx::Height, Round), SignedProposal<Ctx>>,
@@ -91,7 +91,7 @@ where
         self.signed_precommits
             .entry((height, round))
             .or_default()
-            .push(precommit);
+            .insert(precommit);
     }
 
     pub fn store_decision(&mut self, height: Ctx::Height, round: Round, proposal: Ctx::Proposal) {
@@ -114,16 +114,17 @@ where
         value: &Ctx::Value,
     ) -> Vec<SignedVote<Ctx>> {
         // Get the commits for the height and round.
-        let mut commits_for_height_and_round = self
+        let commits_for_height_and_round = self
             .signed_precommits
             .remove(&(height, round))
             .unwrap_or_default();
 
         // Keep the commits for the specified value.
-        // For now we ignore equivocating votes if present.
-        commits_for_height_and_round.retain(|c| c.value() == &NilOrVal::Val(value.id()));
-
+        // For now, we ignore equivocating votes if present.
         commits_for_height_and_round
+            .into_iter()
+            .filter(|c| c.value() == &NilOrVal::Val(value.id()))
+            .collect()
     }
 
     pub fn full_proposal_at_round_and_value(
