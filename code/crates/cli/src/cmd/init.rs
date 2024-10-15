@@ -27,7 +27,7 @@ pub struct InitCmd {
 
     /// Enable peer discovery.
     /// If enabled, the node will attempt to discover other nodes in the network
-    #[clap(long, default_value = "false")]
+    #[clap(long, default_value = "true")]
     pub enable_discovery: bool,
 }
 
