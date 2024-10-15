@@ -256,7 +256,7 @@ where
 
                         let validator_set = &state.consensus.driver.validator_set;
                         let connected_peers = state.connected_peers.len();
-                        let total_peers = (validator_set.count() - 1) * 2 / 3;
+                        let total_peers = validator_set.count() - 1;
 
                         debug!("Connected to {connected_peers}/{total_peers} peers");
 
