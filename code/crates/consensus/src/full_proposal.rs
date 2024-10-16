@@ -247,7 +247,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
                                 return;
                             }
                         }
-                        Entry::ValueOnly(value, validity, extension) => {
+                        Entry::ValueOnly(value, _validity, _extension) => {
                             if value == new_proposal.value() {
                                 // Found a matching value. Add the proposal
                                 replace_with!(entry, Entry::ValueOnly(value, validity, extension) => {
