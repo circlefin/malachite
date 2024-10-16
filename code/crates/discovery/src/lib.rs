@@ -159,12 +159,12 @@ impl Discovery {
             .register_pending_connection(connection_id, connection_data.clone());
 
         // Do not count retries as new interactions
-        if connection_data.retries() == 1 {
+        if connection_data.retries() == 0 {
             self.metrics.increment_dial();
         }
 
         info!(
-            "Dialing peer at {}, trial {}",
+            "Dialing peer at {}, retry #{}",
             connection_data.multiaddr(),
             connection_data.retries()
         );
