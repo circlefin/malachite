@@ -58,7 +58,7 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
     fn encode_request(request: blocksync::Request<MockContext>) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Request {
             start: request.heights.start.as_u64(),
-            end: request.heights.start.as_u64(),
+            end: request.heights.end.as_u64(),
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))
