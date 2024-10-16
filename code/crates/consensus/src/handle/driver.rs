@@ -126,7 +126,7 @@ where
 {
     match output {
         DriverOutput::NewRound(height, round) => {
-            let proposer = state.get_proposer(height, round)?;
+            let proposer = state.get_proposer(height, round);
 
             apply_driver_input(
                 co,

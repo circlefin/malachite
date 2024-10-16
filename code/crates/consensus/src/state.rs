@@ -3,7 +3,6 @@ use std::collections::{BTreeMap, VecDeque};
 use malachite_common::*;
 use malachite_driver::Driver;
 
-use crate::error::Error;
 use crate::input::Input;
 use crate::Params;
 use crate::ProposedValue;
@@ -57,28 +56,10 @@ where
         }
     }
 
-    pub fn get_proposer(
-        &self,
-        height: Ctx::Height,
-        round: Round,
-    ) -> Result<&Ctx::Address, Error<Ctx>> {
-        assert!(self.driver.validator_set.count() > 0);
-        assert!(round != Round::Nil && round.as_i64() >= 0);
-
-        let proposer_index = {
-            let height = height.as_u64() as usize;
-            let round = round.as_i64() as usize;
-
-            (height - 1 + round) % self.driver.validator_set.count()
-        };
-
-        let proposer = self
-            .driver
-            .validator_set
-            .get_by_index(proposer_index)
-            .ok_or(Error::ProposerNotFound(height, round))?;
-
-        Ok(proposer.address())
+    pub fn get_proposer(&self, height: Ctx::Height, round: Round) -> &Ctx::Address {
+        self.ctx
+            .select_proposer(&self.driver.validator_set, height, round)
+            .address()
     }
 
     pub fn store_signed_precommit(&mut self, precommit: SignedVote<Ctx>) {

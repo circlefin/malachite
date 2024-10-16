@@ -36,6 +36,14 @@ where
     /// The signing scheme used to sign votes.
     type SigningScheme: SigningScheme;
 
+    /// Select a proposer in the validator set for the given height and round.
+    fn select_proposer<'a>(
+        &self,
+        validator_set: &'a Self::ValidatorSet,
+        height: Self::Height,
+        round: Round,
+    ) -> &'a Self::Validator;
+
     /// Sign the given vote with our private key.
     fn sign_vote(&self, vote: Self::Vote) -> SignedMessage<Self, Self::Vote>;
 
