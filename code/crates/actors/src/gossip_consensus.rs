@@ -10,7 +10,7 @@ use tokio::task::JoinHandle;
 use tracing::{error, error_span, trace, Instrument};
 
 use crate::gossip_consensus::GossipEvent::{BlockSyncRequest, BlockSyncResponse};
-use malachite_blocksync as blocksync;
+use malachite_blocksync::{self as blocksync, Response};
 use malachite_blocksync::{RawMessage, Request, SyncedBlock};
 use malachite_common::{Context, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
@@ -81,7 +81,7 @@ pub enum GossipEvent<Ctx: Context> {
     ProposalPart(PeerId, StreamMessage<Ctx::ProposalPart>),
     Status(PeerId, Status<Ctx>),
     BlockSyncRequest(InboundRequestId, Request<Ctx>), // received a block request
-    BlockSyncResponse(OutboundRequestId, SyncedBlock<Ctx>), // received a block response
+    BlockSyncResponse(OutboundRequestId, Response<Ctx>), // received a block response
 }
 
 pub enum State<Ctx: Context> {
@@ -122,8 +122,8 @@ pub enum Msg<Ctx: Context> {
     /// Send a request to a peer
     OutgoingBlockSyncRequest(PeerId, Request<Ctx>),
 
-    /// Send a response for a block request to a peer
-    OutgoingBlockSyncResponse(InboundRequestId, SyncedBlock<Ctx>),
+    /// Send a response for a blocks request to a peer
+    OutgoingBlockSyncResponse(InboundRequestId, Vec<SyncedBlock<Ctx>>),
 
     /// Request for number of peers from gossip
     GetState { reply: RpcReplyPort<usize> },
@@ -243,14 +243,15 @@ where
                 }
             }
 
-            Msg::OutgoingBlockSyncResponse(request_id, decided_block) => {
-                let msg = match Codec::encode_response(decided_block) {
+            Msg::OutgoingBlockSyncResponse(request_id, blocks) => {
+                let msg = match Codec::encode_response(blocksync::Response { blocks }) {
                     Ok(msg) => msg,
                     Err(e) => {
                         error!(%request_id, "Failed to encode block response message: {e:?}");
                         return Ok(());
                     }
                 };
+
                 ctrl_handle.blocksync_reply(request_id, msg).await?
             }
 

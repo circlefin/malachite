@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use derive_where::derive_where;
 use libp2p::PeerId;
-use malachite_common::Context;
+
+use malachite_common::{Context, InclusiveRange};
 
 #[derive_where(Clone, Debug, Default)]
 pub struct State<Ctx>
@@ -15,6 +16,7 @@ where
     /// Height currently syncing.
     pub sync_height: Ctx::Height,
 
+    // TODO: Use interval map from rangemap or iset crates
     /// Requests for these heights have been sent out to peers.
     pub pending_requests: BTreeMap<Ctx::Height, PeerId>,
 
@@ -30,8 +32,10 @@ where
         self.peers.insert(peer, height);
     }
 
-    pub fn store_pending_request(&mut self, height: Ctx::Height, peer: PeerId) {
-        self.pending_requests.insert(height, peer);
+    pub fn store_pending_request(&mut self, heights: InclusiveRange<Ctx::Height>, peer: PeerId) {
+        for height in heights {
+            self.pending_requests.insert(height, peer);
+        }
     }
 
     pub fn remove_pending_request(&mut self, height: Ctx::Height) {

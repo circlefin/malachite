@@ -10,7 +10,7 @@ use tracing::{debug, error_span, info};
 
 use malachite_blocksync as blocksync;
 use malachite_blocksync::{Request, SyncedBlock};
-use malachite_common::{Certificate, Context, Proposal};
+use malachite_common::{Certificate, Context, Height, InclusiveRange, Proposal};
 
 use crate::gossip_consensus::Msg::OutgoingBlockSyncRequest;
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
@@ -40,21 +40,21 @@ pub enum Msg<Ctx: Context> {
     /// Consensus has started a new height
     StartHeight { height: Ctx::Height },
 
-    /// Host has a response for the block request
-    DecidedBlock(InboundRequestId, Option<SyncedBlock<Ctx>>),
+    /// Host has a response for the blocks request
+    DecidedBlocks(InboundRequestId, Vec<SyncedBlock<Ctx>>),
 }
-
-pub const DEFAULT_STATUS_UPDATE_INTERVAL: Duration = Duration::from_secs(10);
 
 #[derive(Debug)]
 pub struct Args {
+    pub max_batch_size: u64,
     pub status_update_interval: Duration,
 }
 
 impl Default for Args {
     fn default() -> Self {
         Self {
-            status_update_interval: DEFAULT_STATUS_UPDATE_INTERVAL,
+            max_batch_size: 10,
+            status_update_interval: Duration::from_secs(10),
         }
     }
 }
@@ -63,6 +63,9 @@ impl Default for Args {
 pub struct State<Ctx: Context> {
     /// The state of the blocksync state machine
     blocksync: blocksync::State<Ctx>,
+    /// Maximum number of blocks to request at once from a peer
+    max_batch_size: u64,
+    /// Task for sending status updates
     ticker: JoinHandle<()>,
 }
 
@@ -116,6 +119,7 @@ where
 
         Ok(State {
             blocksync: blocksync::State::default(),
+            max_batch_size: args.max_batch_size,
             ticker,
         })
     }
@@ -148,39 +152,43 @@ where
                 let sync_height = state.blocksync.sync_height;
                 let tip_height = state.blocksync.tip_height;
 
-                let _span =
-                    error_span!("status", %peer, %peer_height, %sync_height, %tip_height).entered();
+                let _span = error_span!("status", %sync_height, %tip_height).entered();
 
-                debug!("Received peer status");
+                debug!(%peer_height, %peer, "Received peer status");
 
                 state.blocksync.store_peer_height(peer, peer_height);
 
                 if peer_height > tip_height {
-                    info!("SYNC REQUIRED: Falling behind {peer} at {peer_height}");
+                    info!(%peer_height, %peer, "SYNC REQUIRED: Falling behind");
 
                     // If there are no pending requests then ask for block from peer
                     if !state.blocksync.pending_requests.contains_key(&sync_height) {
-                        debug!("Requesting block {sync_height} from {peer} at {peer_height}");
+                        let max_height =
+                            peer_height.min(sync_height.increment_by(state.max_batch_size - 1));
+
+                        let heights = InclusiveRange::from(sync_height..=max_height);
+
+                        debug!(%heights, %peer, "Requesting blocks from peer");
 
                         self.gossip
-                            .cast(OutgoingBlockSyncRequest(peer, Request::new(sync_height)))?;
+                            .cast(OutgoingBlockSyncRequest(peer, Request::new(heights)))?;
 
-                        state.blocksync.store_pending_request(sync_height, peer);
+                        state.blocksync.store_pending_request(heights, peer);
                     }
                 }
             }
 
             Msg::GossipEvent(GossipEvent::BlockSyncRequest(
                 request_id,
-                blocksync::Request { height },
+                blocksync::Request { heights },
             )) => {
-                debug!(%height, "Received request for block");
+                debug!(%heights, "Received request for blocks");
 
-                // Retrieve the block for request.height
+                // Retrieve the blocks for the requested heights
                 self.host.call_and_forward(
-                    |reply_to| HostMsg::GetDecidedBlock { height, reply_to },
+                    |reply_to| HostMsg::GetDecidedBlocks { heights, reply_to },
                     &myself,
-                    move |decided_block| Msg::<Ctx>::DecidedBlock(request_id, decided_block),
+                    move |blocks| Msg::<Ctx>::DecidedBlocks(request_id, blocks),
                     None,
                 )?;
             }
@@ -199,30 +207,40 @@ where
 
                 for (peer, &peer_height) in &state.blocksync.peers {
                     if peer_height > height {
+                        let max_height =
+                            peer_height.min(height.increment_by(state.max_batch_size - 1));
+
+                        let heights = InclusiveRange::from(height..=max_height);
+
                         debug!(
-                            "Starting new height {height}, requesting the block from {peer:?} that is at {peer_height:?}"
+                            %heights,
+                            %peer_height,
+                            %peer,
+                            "Starting new height, requesting blocks"
                         );
 
                         self.gossip
-                            .cast(OutgoingBlockSyncRequest(*peer, Request { height }))?;
+                            .cast(OutgoingBlockSyncRequest(*peer, Request { heights }))?;
 
-                        state.blocksync.store_pending_request(height, *peer);
+                        state.blocksync.store_pending_request(heights, *peer);
 
                         break;
                     }
                 }
             }
 
-            Msg::DecidedBlock(request_id, Some(decided_block)) => {
-                debug!(
-                    height = %decided_block.proposal.height(),
-                    "Received decided block",
+            Msg::DecidedBlocks(request_id, decided_blocks) if !decided_blocks.is_empty() => {
+                let heights = InclusiveRange::new(
+                    decided_blocks.first().as_ref().unwrap().proposal.height(),
+                    decided_blocks.last().as_ref().unwrap().proposal.height(),
                 );
+
+                debug!(%heights, "Received decided blocks");
 
                 self.gossip
                     .cast(GossipConsensusMsg::OutgoingBlockSyncResponse(
                         request_id,
-                        decided_block,
+                        decided_blocks,
                     ))?;
             }
 

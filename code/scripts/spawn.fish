@@ -98,15 +98,15 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
         set cmd_prefix "cargo instruments --profile $build_profile --template $profile_template --time-limit 60000 --output '$NODE_HOME/traces/' --"
 
         tmux send -t "$pane" "sleep $NODE" Enter
-        tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 | tee '$NODE_HOME/logs/node.log' &" Enter
-        tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
-        tmux send -t "$pane" "fg" Enter
+        tmux send -t "$pane" "unbuffer $cmd_prefix start --home '$NODE_HOME' 2>&1 | tee '$NODE_HOME/logs/node.log'" Enter
+        # tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
+        # tmux send -t "$pane" "fg" Enter
     else
         set cmd_prefix "./target/$build_folder/malachite-cli"
 
-        tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 | tee '$NODE_HOME/logs/node.log' &" Enter
-        tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
-        tmux send -t "$pane" "fg" Enter
+        tmux send -t "$pane" "unbuffer $cmd_prefix start --home '$NODE_HOME' 2>&1 | tee '$NODE_HOME/logs/node.log'" Enter
+        # tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
+        # tmux send -t "$pane" "fg" Enter
     end
 end
 
@@ -117,15 +117,14 @@ tmux attach -t $session
 
 echo
 
-read -l -P "Press Enter to stop the nodes... " done
+# read -l -P "Press Enter to stop the nodes... " done
+# echo "Stopping all nodes..."
+# for NODE in (seq 0 $(math $NODES_COUNT - 1))
+#     set NODE_PID (cat "$NODES_HOME/$NODE/node.pid")
+#     echo "[Node $NODE] Stopping node (PID: $NODE_PID)..."
+#     kill $NODE_PID
+# end
+# echo
 
-echo "Stopping all nodes..."
-for NODE in (seq 0 $(math $NODES_COUNT - 1))
-    set NODE_PID (cat "$NODES_HOME/$NODE/node.pid")
-    echo "[Node $NODE] Stopping node (PID: $NODE_PID)..."
-    kill $NODE_PID
-end
-echo
 read -l -P "Press Enter to kill the tmux session... " done
-
 tmux kill-session -t $session

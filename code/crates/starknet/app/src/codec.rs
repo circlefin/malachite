@@ -1,8 +1,8 @@
 use prost::Message;
 
+use blocksync::Status;
 use malachite_actors::util::codec::NetworkCodec;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_blocksync::Status;
 use malachite_common::{Certificate, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Bytes;
@@ -14,9 +14,11 @@ use malachite_starknet_p2p_proto::ConsensusMessage;
 use malachite_starknet_p2p_proto::{self as proto};
 use malachite_starknet_p2p_types::{self as p2p, Height};
 
+use malachite_blocksync as blocksync;
+
 pub struct ProtobufCodec;
 
-impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
+impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode_status(bytes: Bytes) -> Result<Status<MockContext>, Self::Error> {
@@ -45,31 +47,24 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         Ok(Bytes::from(proto.encode_to_vec()))
     }
 
-    fn decode_request(
-        bytes: Bytes,
-    ) -> Result<malachite_blocksync::Request<MockContext>, Self::Error> {
+    fn decode_request(bytes: Bytes) -> Result<blocksync::Request<MockContext>, Self::Error> {
         let request = proto::blocksync::Request::decode(bytes).map_err(ProtoError::Decode)?;
 
-        Ok(malachite_blocksync::Request {
-            height: Height::new(request.height),
+        Ok(blocksync::Request {
+            heights: (Height::new(request.start)..=Height::new(request.end)).into(),
         })
     }
 
-    fn encode_request(
-        request: malachite_blocksync::Request<MockContext>,
-    ) -> Result<Bytes, Self::Error> {
+    fn encode_request(request: blocksync::Request<MockContext>) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Request {
-            height: request.height.as_u64(),
+            start: request.heights.start.as_u64(),
+            end: request.heights.start.as_u64(),
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))
     }
 
-    fn decode_response(
-        bytes: Bytes,
-    ) -> Result<malachite_blocksync::SyncedBlock<MockContext>, Self::Error> {
-        let response = proto::blocksync::Response::decode(bytes).map_err(ProtoError::Decode)?;
-
+    fn decode_response(bytes: Bytes) -> Result<blocksync::Response<MockContext>, Self::Error> {
         fn decode_proposal(msg: ConsensusMessage) -> Option<SignedProposal<MockContext>> {
             let signature = msg.signature?;
             let proposal = match msg.messages {
@@ -94,25 +89,37 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
             Some(SignedVote::new(vote, signature))
         }
 
-        let commits = response
-            .commits
-            .into_iter()
-            .filter_map(decode_vote)
-            .collect();
+        fn decode_sync_block(
+            synced_block: proto::blocksync::SyncedBlock,
+        ) -> Result<blocksync::SyncedBlock<MockContext>, ProtoError> {
+            let commits = synced_block
+                .commits
+                .into_iter()
+                .filter_map(decode_vote)
+                .collect();
 
-        let certificate = Certificate::new(commits);
+            let certificate = Certificate::new(commits);
 
-        Ok(malachite_blocksync::SyncedBlock {
-            proposal: decode_proposal(response.proposal.unwrap())
-                .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("proposal"))?,
-            certificate,
-            block_bytes: Bytes::from(response.block_bytes),
+            Ok(blocksync::SyncedBlock {
+                proposal: decode_proposal(synced_block.proposal.unwrap())
+                    .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("proposal"))?,
+                certificate,
+                block_bytes: Bytes::from(synced_block.block_bytes),
+            })
+        }
+
+        let response = proto::blocksync::Response::decode(bytes).map_err(ProtoError::Decode)?;
+
+        Ok(blocksync::Response {
+            blocks: response
+                .blocks
+                .into_iter()
+                .map(decode_sync_block)
+                .collect::<Result<Vec<_>, _>>()?,
         })
     }
 
-    fn encode_response(
-        response: malachite_blocksync::SyncedBlock<MockContext>,
-    ) -> Result<Bytes, Self::Error> {
+    fn encode_response(response: blocksync::Response<MockContext>) -> Result<Bytes, Self::Error> {
         fn encode_proposal(
             proposal: SignedProposal<MockContext>,
         ) -> Result<ConsensusMessage, ProtoError> {
@@ -121,6 +128,7 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
                 signature: Some(proposal.signature.to_proto()?),
             })
         }
+
         fn encode_vote(vote: SignedVote<MockContext>) -> Result<ConsensusMessage, ProtoError> {
             Ok(ConsensusMessage {
                 messages: Some(Messages::Vote(vote.message.to_proto()?)),
@@ -128,17 +136,29 @@ impl malachite_blocksync::NetworkCodec<MockContext> for ProtobufCodec {
             })
         }
 
-        let commits = response
-            .certificate
-            .commits
-            .into_iter()
-            .map(encode_vote)
-            .collect::<Result<Vec<_>, _>>()?;
+        fn encode_synced_block(
+            synced_block: blocksync::SyncedBlock<MockContext>,
+        ) -> Result<proto::blocksync::SyncedBlock, ProtoError> {
+            let commits = synced_block
+                .certificate
+                .commits
+                .into_iter()
+                .map(encode_vote)
+                .collect::<Result<Vec<_>, _>>()?;
+
+            Ok(proto::blocksync::SyncedBlock {
+                proposal: Some(encode_proposal(synced_block.proposal)?),
+                commits,
+                block_bytes: synced_block.block_bytes.to_vec(),
+            })
+        }
 
         let proto = proto::blocksync::Response {
-            proposal: Some(encode_proposal(response.proposal)?),
-            commits,
-            block_bytes: response.block_bytes.to_vec(),
+            blocks: response
+                .blocks
+                .into_iter()
+                .map(encode_synced_block)
+                .collect::<Result<Vec<_>, _>>()?,
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))

@@ -5,7 +5,7 @@ use derive_where::derive_where;
 use libp2p::PeerId;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachite_common::{Context, Round, SignedProposal, SignedVote};
+use malachite_common::{Context, InclusiveRange, Round, SignedProposal, SignedVote};
 
 use malachite_blocksync::SyncedBlock;
 /// A value to propose that has just been received.
@@ -72,10 +72,10 @@ pub enum HostMsg<Ctx: Context> {
         consensus: ConsensusRef<Ctx>,
     },
 
-    // Decided block
-    GetDecidedBlock {
-        height: Ctx::Height,
-        reply_to: RpcReplyPort<Option<SyncedBlock<Ctx>>>,
+    // Retrieve decided blocks from the block store
+    GetDecidedBlocks {
+        heights: InclusiveRange<Ctx::Height>,
+        reply_to: RpcReplyPort<Vec<SyncedBlock<Ctx>>>,
     },
 
     // Synced block

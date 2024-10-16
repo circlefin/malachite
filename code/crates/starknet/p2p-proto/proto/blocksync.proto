@@ -11,10 +11,15 @@ message Status {
 }
 
 message Request {
-  uint64 height = 1;
+  uint64 start = 1;
+  uint64 end = 2;
 }
 
 message Response {
+  repeated SyncedBlock blocks = 1;
+}
+
+message SyncedBlock {
   ConsensusMessage proposal = 1;
   repeated ConsensusMessage commits = 2;
   bytes block_bytes = 3;

@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
+use malachite_blocksync as blocksync;
 use malachite_common::{
     Context, NilOrVal, Proposal, Round, SignedProposal, Timeout, TimeoutStep, ValidatorSet,
     VoteType,
@@ -294,20 +295,23 @@ where
 
                     GossipEvent::Status(_, _) => {}
 
-                    GossipEvent::BlockSyncResponse(request_id, synced_block) => {
-                        if let Err(e) = self
-                            .process_input(
-                                &myself,
-                                state,
-                                ConsensusInput::ReceivedSyncedBlock(
-                                    synced_block.proposal,
-                                    synced_block.certificate,
-                                    synced_block.block_bytes,
-                                ),
-                            )
-                            .await
-                        {
-                            error!(%request_id, "Error when processing received synced block: {e:?}");
+                    GossipEvent::BlockSyncResponse(request_id, blocksync::Response { blocks }) => {
+                        for synced_block in blocks {
+                            if let Err(e) = self
+                                .process_input(
+                                    &myself,
+                                    state,
+                                    ConsensusInput::ReceivedSyncedBlock(
+                                        synced_block.proposal,
+                                        synced_block.certificate,
+                                        synced_block.block_bytes,
+                                    ),
+                                )
+                                .await
+                            {
+                                error!(%request_id, "Error when processing received synced block: {e:?}");
+                                break;
+                            }
                         }
                     }
 
