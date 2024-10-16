@@ -34,11 +34,11 @@ pub enum Msg<Ctx: Context> {
     /// Receive an even from gossip layer
     GossipEvent(GossipEvent<Ctx>),
 
-    /// Consensus has decided on a value
-    Decided { height: Ctx::Height },
+    /// Consensus has decided on a value at the given height
+    Decided(Ctx::Height),
 
     /// Consensus has started a new height
-    StartHeight { height: Ctx::Height },
+    StartHeight(Ctx::Height),
 
     /// Host has a response for the blocks request
     DecidedBlock(InboundRequestId, Option<SyncedBlock<Ctx>>),
@@ -183,14 +183,14 @@ where
                 )?;
             }
 
-            Msg::Decided { height, .. } => {
+            Msg::Decided(height) => {
                 debug!(%height, "Decided height");
 
                 state.blocksync.tip_height = height;
                 state.blocksync.remove_pending_request(height);
             }
 
-            Msg::StartHeight { height } => {
+            Msg::StartHeight(height) => {
                 debug!(%height, "Starting new height");
 
                 state.blocksync.sync_height = height;

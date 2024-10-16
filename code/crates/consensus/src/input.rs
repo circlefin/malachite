@@ -28,6 +28,6 @@ where
     /// The value corresponding to a proposal has been received
     ReceivedProposedValue(ProposedValue<Ctx>),
 
-    /// A block received via Blocksync
+    /// A block received via BlockSync
     ReceivedSyncedBlock(SignedProposal<Ctx>, Certificate<Ctx>, Bytes),
 }

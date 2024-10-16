@@ -186,7 +186,7 @@ where
     ) -> Result<(), ActorProcessingErr> {
         if let ConsensusInput::StartHeight(height, _) = input {
             self.block_sync
-                .cast(BlockSyncMsg::StartHeight { height })
+                .cast(BlockSyncMsg::StartHeight(height))
                 .map_err(|e| eyre!("Error when sending start height to blocksync: {e:?}"))?;
         }
 
@@ -586,18 +586,18 @@ where
                     let _ = tx_decision.send(proposal.clone()).await;
                 }
 
+                let proposal_height = proposal.height();
+
                 self.host
                     .cast(HostMsg::Decide {
-                        proposal: proposal.clone(),
+                        proposal,
                         commits,
                         consensus: myself.clone(),
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
                 self.block_sync
-                    .cast(BlockSyncMsg::Decided {
-                        height: proposal.clone().height(),
-                    })
+                    .cast(BlockSyncMsg::Decided(proposal_height))
                     .map_err(|e| eyre!("Error when sending decided height to blocksync: {e:?}"))?;
 
                 Ok(Resume::Continue)
@@ -612,14 +612,15 @@ where
                     "Consensus received synced block for {}, sending to host",
                     proposal.height()
                 );
+
                 self.host.call_and_forward(
-                    |reply| HostMsg::ProcessSyncedBlockBytes {
+                    |reply_to| HostMsg::ProcessSyncedBlockBytes {
                         proposal,
                         block_bytes,
-                        reply_to: reply,
+                        reply_to,
                     },
                     myself,
-                    |proposed: ProposedValue<Ctx>| Msg::<Ctx>::ReceivedProposedValue(proposed),
+                    |proposed| Msg::<Ctx>::ReceivedProposedValue(proposed),
                     None,
                 )?;
 

@@ -15,20 +15,15 @@ where
     Ctx: Context,
 {
     debug!(
-        "Consensus processing the certificates for {}",
-        proposal.height()
+        proposal.height = %proposal.height(),
+        commits = certificate.commits.len(),
+        "Processing certificate"
     );
 
     on_proposal(co, state, metrics, proposal.clone()).await?;
 
-    debug!(
-        "Received a certificate for {} with {} votes",
-        proposal.height(),
-        certificate.commits.len()
-    );
     for commit in certificate.commits {
         on_vote(co, state, metrics, commit).await?;
-        //apply_driver_input(co, state, metrics, DriverInput::Vote(commit)).await?;
     }
 
     perform!(
