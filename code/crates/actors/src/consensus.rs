@@ -223,8 +223,8 @@ where
 
             Msg::GossipEvent(event) => {
                 match event {
-                    GossipEvent::Listening(addr) => {
-                        info!("Listening on {addr}");
+                    GossipEvent::Listening(address) => {
+                        info!(%address, "Listening");
                         Ok(())
                     }
 
@@ -234,7 +234,7 @@ where
                             return Ok(());
                         }
 
-                        info!("Connected to peer {peer_id}");
+                        info!(%peer_id, "Connected to peer");
 
                         let validator_set = &state.consensus.driver.validator_set;
                         let connected_peers = state.connected_peers.len();
@@ -244,8 +244,9 @@ where
 
                         self.metrics.connected_peers.inc();
 
+                        // TODO: change logic
                         if connected_peers == total_peers {
-                            info!("Enough peers ({connected_peers}) connected to start consensus");
+                            info!(count = %connected_peers, "Enough peers connected to start consensus");
 
                             let height = state.consensus.driver.height();
 
@@ -266,7 +267,7 @@ where
                     }
 
                     GossipEvent::PeerDisconnected(peer_id) => {
-                        info!("Disconnected from peer {peer_id}");
+                        info!(%peer_id, "Disconnected from peer");
 
                         if state.connected_peers.remove(&peer_id) {
                             self.metrics.connected_peers.dec();

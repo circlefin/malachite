@@ -88,6 +88,9 @@ transport = "quic"
 # Override with MALACHITE__CONSENSUS__P2P__PROTOCOL env variable
 protocol = "gossipsub"
 
+# Enable the discovery protocol to find more peers
+discovery = { enabled = true }
+
 #######################################################
 ###          Mempool Configuration Options          ###
 #######################################################

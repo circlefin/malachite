@@ -11,6 +11,7 @@ workspace = true
 
 [dependencies]
 malachite-metrics   = { workspace = true }
+malachite-discovery = { workspace = true }
 
 bytes              = { workspace = true }
 either             = { workspace = true }
@@ -19,5 +20,5 @@ libp2p             = { workspace = true }
 libp2p-broadcast   = { workspace = true }
 seahash            = { workspace = true }
 serde              = { workspace = true }
-tokio              = { workspace = true }
+tokio              = { workspace = true, features = ["macros"] }
 tracing            = { workspace = true }

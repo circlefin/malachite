@@ -96,7 +96,7 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match evt {
             SupervisionEvent::ActorStarted(cell) => {
-                info!("Actor {} has started", cell.get_id());
+                info!(actor = %cell.get_id(), "Actor has started");
             }
             SupervisionEvent::ActorTerminated(cell, _state, reason) => {
                 warn!(

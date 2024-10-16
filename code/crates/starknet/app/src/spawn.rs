@@ -10,7 +10,7 @@ use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
 use malachite_common::Round;
-use malachite_gossip_consensus::{Config as GossipConsensusConfig, Keypair};
+use malachite_gossip_consensus::{Config as GossipConsensusConfig, DiscoveryConfig, Keypair};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
@@ -127,6 +127,10 @@ async fn spawn_gossip_consensus_actor(
     let config_gossip = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
+        discovery: DiscoveryConfig {
+            enabled: cfg.consensus.p2p.discovery.enabled,
+            ..Default::default()
+        },
         idle_connection_timeout: Duration::from_secs(60),
         transport: match cfg.consensus.p2p.transport {
             TransportProtocol::Tcp => malachite_gossip_consensus::TransportProtocol::Tcp,
