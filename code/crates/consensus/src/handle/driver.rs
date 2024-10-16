@@ -86,7 +86,7 @@ where
             if state.driver.step_is_propose() {
                 info!(
                     round = %valid.round,
-                    "We enter Propose with a valid value"
+                    "Entering Propose step with a valid value"
                 );
             }
         }
