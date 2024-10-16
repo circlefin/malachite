@@ -1,5 +1,3 @@
-use bytes::Bytes;
-
 use crate::prelude::*;
 
 use crate::handle::driver::apply_driver_input;
@@ -12,7 +10,7 @@ pub async fn propose_value<Ctx>(
     height: Ctx::Height,
     round: Round,
     value: Ctx::Value,
-    extension: Bytes,
+    extension: Extension,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,

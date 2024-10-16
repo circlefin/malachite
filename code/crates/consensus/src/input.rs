@@ -1,6 +1,5 @@
-use bytes::Bytes;
 use derive_where::derive_where;
-use malachite_common::{Context, Round, SignedProposal, SignedVote, Timeout};
+use malachite_common::{Context, Extension, Round, SignedProposal, SignedVote, Timeout};
 
 use crate::types::ProposedValue;
 
@@ -20,7 +19,7 @@ where
     Proposal(SignedProposal<Ctx>),
 
     /// Propose a value
-    ProposeValue(Ctx::Height, Round, Ctx::Value, Bytes),
+    ProposeValue(Ctx::Height, Round, Ctx::Value, Extension),
 
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),

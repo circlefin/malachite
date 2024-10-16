@@ -14,7 +14,7 @@ use tracing::{debug, error, trace};
 
 use malachite_actors::consensus::ConsensusMsg;
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
-use malachite_common::{Round, Validity};
+use malachite_common::{Extension, Round, Validity};
 use malachite_metrics::Metrics;
 use malachite_proto::Protobuf;
 use malachite_starknet_p2p_types::Transactions;
@@ -108,7 +108,7 @@ impl StarknetHost {
             round,
             value,
             validity,
-            extension: Bytes::from(raw_extension),
+            extension: Extension::from(raw_extension),
         })
     }
 
@@ -305,7 +305,7 @@ impl Actor for StarknetHost {
                         value.height,
                         value.round,
                         value.value,
-                        Bytes::from(extension),
+                        Extension::from(extension),
                     ))?;
                 }
 
@@ -379,7 +379,7 @@ impl Actor for StarknetHost {
 
                 // Update metrics
                 let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
-                let extension_size: usize = commits.iter().map(|c| c.extension.len()).sum();
+                let extension_size: usize = commits.iter().map(|c| c.extension.size_bytes()).sum();
                 let block_and_commits_size = block_size + extension_size;
                 let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
 

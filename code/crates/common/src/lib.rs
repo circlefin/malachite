@@ -59,4 +59,4 @@ pub use signing::SigningScheme;
 pub use timeout::{Timeout, TimeoutStep};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::{NilOrVal, Value};
-pub use vote::{Vote, VoteType};
+pub use vote::{Extension, Vote, VoteType};

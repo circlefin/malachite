@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use eyre::eyre;
 use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
@@ -10,7 +9,9 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
-use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType};
+use malachite_common::{
+    Context, Extension, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType,
+};
 use malachite_consensus::{Effect, Resume};
 use malachite_metrics::Metrics;
 use malachite_node::config::TimeoutConfig;
@@ -53,7 +54,7 @@ pub enum Msg<Ctx: Context> {
     TimeoutElapsed(TimeoutElapsed<Timeout>),
 
     /// The proposal builder has built a value and can be used in a new proposal consensus message
-    ProposeValue(Ctx::Height, Round, Ctx::Value, Bytes),
+    ProposeValue(Ctx::Height, Round, Ctx::Value, Extension),
 
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>),

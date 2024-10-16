@@ -1,8 +1,6 @@
-use bytes::Bytes;
-
 use crate::{
-    Address, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, Signature, SignedMessage,
-    SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
+    Address, Extension, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, Signature,
+    SignedMessage, SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
 };
 
 /// This trait allows to abstract over the various datatypes
@@ -107,7 +105,7 @@ where
         round: Round,
         value_id: NilOrVal<ValueId<Self>>,
         address: Self::Address,
-        _extension: Bytes,
+        _extension: Extension,
     ) -> Self::Vote {
         Self::new_precommit(height, round, value_id, address)
     }

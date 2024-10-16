@@ -1,6 +1,4 @@
-use bytes::Bytes;
-
-use malachite_common::{self as common, NilOrVal, Round, VoteType, VotingPower};
+use malachite_common::{self as common, Extension, NilOrVal, Round, VoteType, VotingPower};
 use malachite_starknet_p2p_types::{
     Address, BlockHash, Height, PartType, Proposal, ProposalPart, PublicKey, Validator,
     ValidatorSet, Vote,
@@ -69,11 +67,11 @@ impl common::Vote<MockContext> for Vote {
         &self.voter
     }
 
-    fn extension(&self) -> Bytes {
-        self.extension.clone()
+    fn extension(&self) -> &Extension {
+        &self.extension
     }
 
-    fn extend(self, extension: Bytes) -> Self {
+    fn extend(self, extension: Extension) -> Self {
         Self { extension, ..self }
     }
 }

@@ -1,11 +1,10 @@
 use std::time::Duration;
 
-use bytes::Bytes;
 use derive_where::derive_where;
 use libp2p::PeerId;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachite_common::{Context, Round, SignedVote};
+use malachite_common::{Context, Extension, Round, SignedVote};
 
 /// This is the value that the application constructed
 /// and has finished streaming on gossip.
@@ -16,11 +15,11 @@ pub struct LocallyProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
     pub value: Ctx::Value,
-    pub extension: Bytes,
+    pub extension: Extension,
 }
 
 impl<Ctx: Context> LocallyProposedValue<Ctx> {
-    pub fn new(height: Ctx::Height, round: Round, value: Ctx::Value, extension: Bytes) -> Self {
+    pub fn new(height: Ctx::Height, round: Round, value: Ctx::Value, extension: Extension) -> Self {
         Self {
             height,
             round,

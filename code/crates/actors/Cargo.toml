@@ -23,7 +23,6 @@ malachite-node.workspace             = true
 malachite-proto.workspace            = true
 
 async-trait        = { workspace = true }
-bytes              = { workspace = true }
 derive-where       = { workspace = true }
 eyre               = { workspace = true }
 libp2p             = { workspace = true }
