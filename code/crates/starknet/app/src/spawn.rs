@@ -129,6 +129,7 @@ async fn spawn_gossip_consensus_actor(
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
         discovery: DiscoveryConfig {
             enabled: cfg.consensus.p2p.discovery.enabled,
+            ..Default::default()
         },
         idle_connection_timeout: Duration::from_secs(60),
         transport: match cfg.consensus.p2p.transport {

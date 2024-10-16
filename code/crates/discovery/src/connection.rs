@@ -2,42 +2,14 @@ use std::time::Duration;
 
 use libp2p::{core::ConnectedPoint, swarm::dial_opts::DialOpts, Multiaddr, PeerId};
 
-pub(crate) type Trial = usize;
-pub(crate) const DIAL_MAX_TRIALS: Trial = 5;
-
-#[derive(Debug, Clone)]
-pub(crate) struct FibonacciDelay {
-    current: Trial,
-    next: Trial,
-}
-
-impl FibonacciDelay {
-    pub(crate) fn new() -> Self {
-        // Start from 1 second
-        FibonacciDelay {
-            current: 1,
-            next: 1,
-        }
-    }
-}
-
-impl Iterator for FibonacciDelay {
-    type Item = Duration;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let new_next = self.current + self.next;
-        self.current = self.next;
-        self.next = new_next;
-        Some(Duration::from_secs(self.current as u64))
-    }
-}
+use crate::util::FibonacciBackoff;
 
 #[derive(Debug, Clone)]
 pub struct ConnectionData {
     peer_id: Option<PeerId>,
     multiaddr: Multiaddr,
-    trial: Trial,
-    fib_delay: FibonacciDelay,
+    retries: usize,
+    backoff: FibonacciBackoff,
 }
 
 impl ConnectionData {
@@ -45,8 +17,8 @@ impl ConnectionData {
         ConnectionData {
             peer_id,
             multiaddr,
-            trial: 1,
-            fib_delay: FibonacciDelay::new(),
+            retries: 0,
+            backoff: FibonacciBackoff::new(),
         }
     }
 
@@ -58,16 +30,18 @@ impl ConnectionData {
         self.multiaddr.clone()
     }
 
-    pub(crate) fn get_trial(&self) -> Trial {
-        self.trial
+    pub fn retries(&self) -> usize {
+        self.retries
     }
 
-    pub(crate) fn increment_trial(&mut self) {
-        self.trial += 1;
+    pub fn inc_retries(&mut self) {
+        self.retries += 1;
     }
 
-    pub(crate) fn next_delay(&mut self) -> Duration {
-        self.fib_delay.next().unwrap()
+    pub fn next_delay(&mut self) -> Duration {
+        self.backoff
+            .next()
+            .expect("FibonacciBackoff is an infinite iterator")
     }
 
     pub(crate) fn build_dial_opts(&self) -> DialOpts {

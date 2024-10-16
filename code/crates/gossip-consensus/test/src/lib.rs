@@ -155,7 +155,10 @@ impl<const N: usize> Test<N> {
                     TransportProtocol::Quic.multiaddr("127.0.0.1", self.consensus_base_port + *j)
                 })
                 .collect(),
-            discovery: DiscoveryConfig { enabled: true },
+            discovery: DiscoveryConfig {
+                enabled: true,
+                ..Default::default()
+            },
             idle_connection_timeout: Duration::from_secs(60),
             transport: malachite_gossip_consensus::TransportProtocol::Quic,
             protocol: malachite_gossip_consensus::PubSubProtocol::GossipSub,

@@ -18,12 +18,14 @@ use libp2p::{
     Multiaddr, PeerId, Swarm,
 };
 
+mod util;
+
 mod behaviour;
 pub use behaviour::*;
 
 mod connection;
 pub use connection::ConnectionData;
-use connection::{ConnectionType, DIAL_MAX_TRIALS};
+use connection::ConnectionType;
 
 mod config;
 pub use config::Config;
@@ -88,11 +90,11 @@ impl Discovery {
         }
 
         if let Some(mut connection_data) = self.handler.remove_pending_connection(&connection_id) {
-            if connection_data.get_trial() < DIAL_MAX_TRIALS {
+            if connection_data.retries() < self.config.dial_max_retries {
                 // Retry dialing after a delay
-                connection_data.increment_trial();
-                let tx_dial = self.tx_dial.clone();
+                connection_data.inc_retries();
 
+                let tx_dial = self.tx_dial.clone();
                 tokio::spawn(async move {
                     sleep(connection_data.next_delay()).await;
                     tx_dial.send(connection_data).unwrap_or_else(|e| {
@@ -103,8 +105,8 @@ impl Discovery {
                 // No more trials left
                 error!(
                     "Failed to dial peer at {0} after {1} trials",
-                    connection_data.get_multiaddr(),
-                    connection_data.get_trial(),
+                    connection_data.multiaddr(),
+                    connection_data.retries(),
                 );
 
                 self.metrics.increment_failure();
@@ -157,14 +159,14 @@ impl Discovery {
             .register_pending_connection(connection_id, connection_data.clone());
 
         // Do not count retries as new interactions
-        if connection_data.get_trial() == 1 {
+        if connection_data.retries() == 1 {
             self.metrics.increment_dial();
         }
 
         info!(
             "Dialing peer at {}, trial {}",
-            connection_data.get_multiaddr(),
-            connection_data.get_trial()
+            connection_data.multiaddr(),
+            connection_data.retries()
         );
 
         if let Err(e) = swarm.dial(dial_opts) {
