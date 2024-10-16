@@ -10,7 +10,7 @@ use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::request_response::InboundRequestId;
 use libp2p::swarm::{self, SwarmEvent};
-use libp2p::{gossipsub, identify, SwarmBuilder};
+use libp2p::{gossipsub, identify, quic, SwarmBuilder};
 use libp2p_broadcast as broadcast;
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
@@ -66,8 +66,17 @@ pub struct Config {
 }
 
 impl Config {
-    fn apply(&self, cfg: swarm::Config) -> swarm::Config {
+    fn apply_to_swarm(&self, cfg: swarm::Config) -> swarm::Config {
         cfg.with_idle_connection_timeout(self.idle_connection_timeout)
+    }
+
+    fn apply_to_quic(&self, mut cfg: quic::Config) -> quic::Config {
+        // NOTE: This is set low due to quic transport not properly resetting
+        // connection state when reconnecting before connection timeout.
+        // See https://github.com/libp2p/rust-libp2p/issues/5097
+        cfg.max_idle_timeout = 300;
+        cfg.keep_alive_interval = Duration::from_millis(100);
+        cfg
     }
 }
 
@@ -125,14 +134,14 @@ pub async fn spawn(
                 .with_dns()?
                 .with_bandwidth_metrics(registry)
                 .with_behaviour(|kp| Behaviour::new_with_metrics(config.protocol, kp, registry))?
-                .with_swarm_config(|cfg| config.apply(cfg))
+                .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
                 .build()),
             TransportProtocol::Quic => Ok(builder
-                .with_quic()
+                .with_quic_config(|cfg| config.apply_to_quic(cfg))
                 .with_dns()?
                 .with_bandwidth_metrics(registry)
                 .with_behaviour(|kp| Behaviour::new_with_metrics(config.protocol, kp, registry))?
-                .with_swarm_config(|cfg| config.apply(cfg))
+                .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
                 .build()),
         }
     })?;
