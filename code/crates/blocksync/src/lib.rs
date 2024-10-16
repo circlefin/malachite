@@ -16,6 +16,9 @@ pub use codec::NetworkCodec;
 mod metrics;
 pub use metrics::Metrics;
 
+mod state;
+pub use state::State;
+
 pub type ResponseChannel = libp2p::request_response::ResponseChannel<RawResponse>;
 
 #[derive(Display)]

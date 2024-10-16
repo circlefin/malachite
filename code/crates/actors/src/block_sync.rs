@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -9,9 +8,9 @@ use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::task::JoinHandle;
 use tracing::{debug, error_span, info};
 
+use malachite_blocksync as blocksync;
 use malachite_blocksync::{Request, SyncedBlock};
 use malachite_common::{Certificate, Context, Proposal};
-use malachite_gossip_consensus::PeerId;
 
 use crate::gossip_consensus::Msg::OutgoingBlockSyncRequest;
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
@@ -45,42 +44,6 @@ pub enum Msg<Ctx: Context> {
     DecidedBlock(InboundRequestId, Option<SyncedBlock<Ctx>>),
 }
 
-// TODO: Move to blocksync crate
-#[derive_where(Clone, Debug, Default)]
-struct BlockSyncState<Ctx>
-where
-    Ctx: Context,
-{
-    /// Height of last decided block
-    tip_height: Ctx::Height,
-
-    /// Height currently syncing.
-    sync_height: Ctx::Height,
-
-    /// Requests for these heights have been sent out to peers.
-    pending_requests: BTreeMap<Ctx::Height, PeerId>,
-
-    /// The set of peers we are connected to in order to get blocks and certificates.
-    peers: BTreeMap<PeerId, Ctx::Height>,
-}
-
-impl<Ctx> BlockSyncState<Ctx>
-where
-    Ctx: Context,
-{
-    pub fn store_peer_height(&mut self, peer: PeerId, height: Ctx::Height) {
-        self.peers.insert(peer, height);
-    }
-
-    pub fn store_pending_request(&mut self, height: Ctx::Height, peer: PeerId) {
-        self.pending_requests.insert(height, peer);
-    }
-
-    pub fn remove_pending_request(&mut self, height: Ctx::Height) {
-        self.pending_requests.remove(&height);
-    }
-}
-
 pub const DEFAULT_STATUS_UPDATE_INTERVAL: Duration = Duration::from_secs(10);
 
 #[derive(Debug)]
@@ -99,7 +62,7 @@ impl Default for Args {
 #[derive_where(Debug)]
 pub struct State<Ctx: Context> {
     /// The state of the blocksync state machine
-    blocksync: BlockSyncState<Ctx>,
+    blocksync: blocksync::State<Ctx>,
     ticker: JoinHandle<()>,
 }
 
@@ -152,7 +115,7 @@ where
         });
 
         Ok(State {
-            blocksync: BlockSyncState::default(),
+            blocksync: blocksync::State::default(),
             ticker,
         })
     }
@@ -207,32 +170,30 @@ where
                 }
             }
 
-            Msg::GossipEvent(GossipEvent::BlockSyncRequest(request_id, request)) => {
-                debug!("Received request for block height {}", request.height);
+            Msg::GossipEvent(GossipEvent::BlockSyncRequest(
+                request_id,
+                blocksync::Request { height },
+            )) => {
+                debug!(%height, "Received request for block");
 
                 // Retrieve the block for request.height
                 self.host.call_and_forward(
-                    |reply| HostMsg::DecidedBlock {
-                        height: request.height,
-                        reply_to: reply,
-                    },
+                    |reply_to| HostMsg::GetDecidedBlock { height, reply_to },
                     &myself,
-                    move |decided_block: Option<SyncedBlock<Ctx>>| {
-                        Msg::<Ctx>::DecidedBlock(request_id, decided_block)
-                    },
+                    move |decided_block| Msg::<Ctx>::DecidedBlock(request_id, decided_block),
                     None,
                 )?;
             }
 
             Msg::Decided { height, .. } => {
-                debug!("Decided height {height}");
+                debug!(%height, "Decided height");
 
                 state.blocksync.tip_height = height;
                 state.blocksync.remove_pending_request(height);
             }
 
             Msg::StartHeight { height } => {
-                debug!("Starting new height {height}");
+                debug!(%height, "Starting new height");
 
                 state.blocksync.sync_height = height;
 
@@ -254,8 +215,8 @@ where
 
             Msg::DecidedBlock(request_id, Some(decided_block)) => {
                 debug!(
-                    "Received decided block for {}",
-                    decided_block.proposal.height()
+                    height = %decided_block.proposal.height(),
+                    "Received decided block",
                 );
 
                 self.gossip

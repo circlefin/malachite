@@ -412,7 +412,7 @@ impl Actor for StarknetHost {
                 Ok(())
             }
 
-            HostMsg::DecidedBlock { height, reply_to } => {
+            HostMsg::GetDecidedBlock { height, reply_to } => {
                 debug!("Received request for block at {height}");
 
                 let maybe_block = state.block_store.store.get(&height).cloned();

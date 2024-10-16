@@ -73,7 +73,7 @@ pub enum HostMsg<Ctx: Context> {
     },
 
     // Decided block
-    DecidedBlock {
+    GetDecidedBlock {
         height: Ctx::Height,
         reply_to: RpcReplyPort<Option<SyncedBlock<Ctx>>>,
     },
