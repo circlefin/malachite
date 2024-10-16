@@ -7,8 +7,7 @@ use crate::{Address, BlockHash, Height};
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Vote {
     pub vote_type: VoteType,
-    pub block_number: Height,
-    pub fork_id: u64,
+    pub height: Height,
     pub round: Round,
     pub block_hash: NilOrVal<BlockHash>,
     pub voter: Address,
@@ -16,17 +15,15 @@ pub struct Vote {
 
 impl Vote {
     pub fn new_prevote(
-        block_number: Height,
+        height: Height,
         round: Round,
-        fork_id: u64,
         block_hash: NilOrVal<BlockHash>,
         voter: Address,
     ) -> Self {
         Self {
             vote_type: VoteType::Prevote,
-            block_number,
+            height,
             round,
-            fork_id,
             block_hash,
             voter,
         }
@@ -35,15 +32,13 @@ impl Vote {
     pub fn new_precommit(
         height: Height,
         round: Round,
-        fork_id: u64,
         value: NilOrVal<BlockHash>,
         address: Address,
     ) -> Self {
         Self {
             vote_type: VoteType::Precommit,
-            block_number: height,
+            height,
             round,
-            fork_id,
             block_hash: value,
             voter: address,
         }
@@ -61,9 +56,8 @@ impl proto::Protobuf for Vote {
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self {
             vote_type: proto_to_common_vote_type(proto.vote_type()),
-            block_number: Height::new(proto.block_number),
+            height: Height::new(proto.block_number, proto.fork_id),
             round: Round::new(i64::from(proto.round)),
-            fork_id: proto.fork_id,
             block_hash: match proto.block_hash {
                 Some(block_hash) => NilOrVal::Val(BlockHash::from_proto(block_hash)?),
                 None => NilOrVal::Nil,
@@ -80,9 +74,9 @@ impl proto::Protobuf for Vote {
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(Self::Proto {
             vote_type: common_to_proto_vote_type(self.vote_type).into(),
-            block_number: self.block_number.as_u64(),
+            block_number: self.height.block_number,
+            fork_id: self.height.fork_id,
             round: self.round.as_i64() as u32, // FIXME: This is a hack
-            fork_id: self.fork_id,
             block_hash: match &self.block_hash {
                 NilOrVal::Nil => None,
                 NilOrVal::Val(v) => Some(v.to_proto()?),

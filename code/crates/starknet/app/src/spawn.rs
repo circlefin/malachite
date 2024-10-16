@@ -55,7 +55,7 @@ pub async fn spawn_node_actor(
     )
     .await;
 
-    let start_height = Height::new(1);
+    let start_height = Height::new(1, 1);
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(

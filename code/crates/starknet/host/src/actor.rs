@@ -43,7 +43,7 @@ pub struct HostState {
 impl Default for HostState {
     fn default() -> Self {
         Self {
-            height: Height::new(0),
+            height: Height::new(0, 0),
             round: Round::Nil,
             proposer: None,
             part_store: PartStore::default(),
