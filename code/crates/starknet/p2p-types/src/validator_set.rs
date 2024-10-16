@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{Address, PublicKey, Validator};
 
 /// A validator set contains a list of validators sorted by address.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidatorSet {
     pub validators: Vec<Validator>,
 }
@@ -63,20 +63,48 @@ impl ValidatorSet {
     /// In place sort and deduplication of a list of validators
     fn sort_validators(vals: &mut Vec<Validator>) {
         // Sort the validators according to the current Tendermint requirements
-        //
-        // use core::cmp::Reverse;
-        //
-        // (v. 0.34 -> first by validator power, descending, then by address, ascending)
-        // vals.sort_unstable_by(|v1, v2| {
-        //     let a = (Reverse(v1.voting_power), &v1.address);
-        //     let b = (Reverse(v2.voting_power), &v2.address);
-        //     a.cmp(&b)
-        // });
+        use core::cmp::Reverse;
+
+        // first by validator power descending, then by address ascending
+        vals.sort_unstable_by(|v1, v2| {
+            let a = (Reverse(v1.voting_power), &v1.address);
+            let b = (Reverse(v2.voting_power), &v2.address);
+            a.cmp(&b)
+        });
 
         vals.dedup();
     }
 
     pub fn get_keys(&self) -> Vec<PublicKey> {
         self.validators.iter().map(|v| v.public_key).collect()
+    }
+}
+
+impl Serialize for ValidatorSet {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(Serialize)]
+        struct ValidatorSet<'a> {
+            validators: &'a [Validator],
+        }
+
+        let vs = ValidatorSet {
+            validators: &self.validators,
+        };
+
+        vs.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ValidatorSet {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct ValidatorSet {
+            validators: Vec<Validator>,
+        }
+
+        ValidatorSet::deserialize(deserializer).map(|vs| Self::new(vs.validators))
     }
 }
