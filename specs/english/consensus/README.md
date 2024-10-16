@@ -555,7 +555,7 @@ There are however exceptions that have to be handled properly:
 * ["The latest gossip on BFT consensus"][arxiv], by _Buchman, Kwon, Milosevic_. 2018.
 
 [arxiv]: https://arxiv.org/pdf/1807.04938.pdf
-[quint-spec]: ../quint/README.md
-[quint-votekeeper]: ../quint/specs/votekeeper.qnt
-[quint-driver]: ../quint/specs/driver.qnt
-[quint-sm]: ../quint/specs/consensus.qnt
+[quint-spec]: ../../quint/README.md
+[quint-votekeeper]: ../../quint/specs/votekeeper.qnt
+[quint-driver]: ../../quint/specs/driver.qnt
+[quint-sm]: ../../quint/specs/consensus.qnt

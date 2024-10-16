@@ -10,7 +10,7 @@ use tracing::{error, info, Instrument};
 
 use malachite_common::VotingPower;
 use malachite_node::config::{
-    Config as NodeConfig, Config, LoggingConfig, PubSubProtocol, TransportProtocol,
+    Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol, TransportProtocol,
 };
 use malachite_starknet_app::spawn::spawn_node_actor;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
@@ -324,6 +324,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                     .filter(|j| i != *j)
                     .map(|j| transport.multiaddr("127.0.0.1", test.consensus_base_port + j))
                     .collect(),
+                discovery: DiscoveryConfig { enabled: false },
             },
         },
         mempool: MempoolConfig {
@@ -335,6 +336,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                     .filter(|j| i != *j)
                     .map(|j| transport.multiaddr("127.0.0.1", test.mempool_base_port + j))
                     .collect(),
+                discovery: DiscoveryConfig { enabled: false },
             },
             max_tx_count: 10000,
             gossip_batch_size: 100,

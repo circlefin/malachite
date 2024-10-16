@@ -24,6 +24,11 @@ pub struct InitCmd {
     /// Overwrite existing configuration files
     #[clap(long)]
     pub overwrite: bool,
+
+    /// Enable peer discovery.
+    /// If enabled, the node will attempt to discover other nodes in the network
+    #[clap(long, default_value = "true")]
+    pub enable_discovery: bool,
 }
 
 impl InitCmd {
@@ -55,6 +60,7 @@ impl InitCmd {
                     0,
                     1,
                     RuntimeFlavour::SingleThreaded,
+                    self.enable_discovery,
                     TransportProtocol::Tcp,
                     log_level,
                     log_format,

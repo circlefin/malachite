@@ -6,9 +6,10 @@ use std::str::FromStr;
 use bytesize::ByteSize;
 use clap::Parser;
 use color_eyre::eyre::Result;
+use itertools::Itertools;
 use rand::prelude::StdRng;
 use rand::rngs::OsRng;
-use rand::{Rng, SeedableRng};
+use rand::{seq::IteratorRandom, Rng, SeedableRng};
 use tracing::info;
 
 use malachite_common::{PrivateKey, PublicKey};
@@ -72,6 +73,11 @@ pub struct TestnetCmd {
     #[clap(short, long, default_value = "single-threaded", verbatim_doc_comment)]
     pub runtime: RuntimeFlavour,
 
+    /// Enable peer discovery.
+    /// If enabled, the node will attempt to discover other nodes in the network
+    #[clap(long, default_value = "true")]
+    pub enable_discovery: bool,
+
     /// The transport protocol to use for P2P communication
     /// Possible values:
     /// - "quic": QUIC (default)
@@ -125,6 +131,7 @@ impl TestnetCmd {
                     i,
                     self.nodes,
                     self.runtime,
+                    self.enable_discovery,
                     self.transport,
                     log_level,
                     log_format,
@@ -182,11 +189,13 @@ const MEMPOOL_BASE_PORT: usize = 28000;
 const METRICS_BASE_PORT: usize = 29000;
 
 /// Generate configuration for node "index" out of "total" number of nodes.
+#[allow(clippy::too_many_arguments)]
 pub fn generate_config(
     app: App,
     index: usize,
     total: usize,
     runtime: RuntimeFlavour,
+    enable_discovery: bool,
     transport: TransportProtocol,
     log_level: LogLevel,
     log_format: LogFormat,
@@ -204,10 +213,27 @@ pub fn generate_config(
             p2p: P2pConfig {
                 protocol: PubSubProtocol::GossipSub,
                 listen_addr: transport.multiaddr("127.0.0.1", consensus_port),
-                persistent_peers: (0..total)
-                    .filter(|j| *j != index)
-                    .map(|j| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j))
-                    .collect(),
+                persistent_peers: if enable_discovery {
+                    let mut rng = rand::thread_rng();
+                    let count = rng.gen_range(1..=(total / 2));
+                    let peers = (0..total)
+                        .filter(|j| *j != index)
+                        .choose_multiple(&mut rng, count);
+
+                    peers
+                        .iter()
+                        .unique()
+                        .map(|index| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + index))
+                        .collect()
+                } else {
+                    (0..total)
+                        .filter(|j| *j != index)
+                        .map(|j| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j))
+                        .collect()
+                },
+                discovery: DiscoveryConfig {
+                    enabled: enable_discovery,
+                },
                 transport,
             },
         },
@@ -219,6 +245,7 @@ pub fn generate_config(
                     .filter(|j| *j != index)
                     .map(|j| transport.multiaddr("127.0.0.1", MEMPOOL_BASE_PORT + j))
                     .collect(),
+                discovery: DiscoveryConfig { enabled: true },
                 transport,
             },
             max_tx_count: 10000,

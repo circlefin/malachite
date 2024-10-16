@@ -78,7 +78,7 @@ impl fmt::Display for Channel {
     }
 }
 
-const PROTOCOL_VERSION: &str = "malachite-gossip-mempool/v1beta1";
+const PROTOCOL: &str = "/malachite-gossip-mempool/v1beta1";
 
 pub type BoxError = Box<dyn Error + Send + Sync + 'static>;
 
@@ -280,7 +280,7 @@ async fn handle_swarm_event(
                 info.protocol_version
             );
 
-            if info.protocol_version == PROTOCOL_VERSION {
+            if info.protocol_version == PROTOCOL {
                 trace!(
                     "Peer {peer_id} is using compatible protocol version: {:?}",
                     info.protocol_version

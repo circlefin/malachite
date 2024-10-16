@@ -9,6 +9,12 @@ network:
     search:
       - testnet
 apt:
+  conf: |
+    Acquire::Retries "3";
+    Acquire::https::Timeout "5";
+    Acquire::http::Timeout "5";
+    APT::Get::Fix-Broken "true";
+    DPkg::Lock::Timeout "60";
   sources:
     source1:
       source: "deb https://download.docker.com/linux/debian $RELEASE stable"

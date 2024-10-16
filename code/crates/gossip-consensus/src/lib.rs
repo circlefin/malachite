@@ -3,6 +3,7 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 use std::collections::HashMap;
+use std::error::Error;
 use std::ops::ControlFlow;
 use std::time::Duration;
 
@@ -16,6 +17,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
 use malachite_blocksync as blocksync;
+use malachite_discovery as discovery;
 use malachite_metrics::SharedRegistry;
 
 pub use bytes::Bytes;
@@ -33,7 +35,9 @@ pub use channel::Channel;
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
 
+const PROTOCOL: &str = "/malachite-consensus/v1beta1";
 const METRICS_PREFIX: &str = "malachite_gossip_consensus";
+const DISCOVERY_METRICS_PREFIX: &str = "malachite_discovery";
 
 #[derive(Copy, Clone, Debug, Default)]
 pub enum PubSubProtocol {
@@ -54,12 +58,15 @@ impl PubSubProtocol {
     }
 }
 
-const PROTOCOL: &str = "/malachite-consensus/v1beta1";
+pub type BoxError = Box<dyn Error + Send + Sync + 'static>;
+
+pub type DiscoveryConfig = discovery::Config;
 
 #[derive(Clone, Debug)]
 pub struct Config {
     pub listen_addr: Multiaddr,
     pub persistent_peers: Vec<Multiaddr>,
+    pub discovery: DiscoveryConfig,
     pub idle_connection_timeout: Duration,
     pub transport: TransportProtocol,
     pub protocol: PubSubProtocol,
@@ -111,10 +118,19 @@ pub enum CtrlMsg {
     Shutdown,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct State {
-    pub peers: HashMap<PeerId, identify::Info>,
     pub blocksync_channels: HashMap<InboundRequestId, blocksync::ResponseChannel>,
+    pub discovery: discovery::Discovery,
+}
+
+impl State {
+    fn new(discovery: discovery::Discovery) -> Self {
+        Self {
+            blocksync_channels: Default::default(),
+            discovery,
+        }
+    }
 }
 
 pub async fn spawn(
@@ -133,14 +149,18 @@ pub async fn spawn(
                 )?
                 .with_dns()?
                 .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| Behaviour::new_with_metrics(config.protocol, kp, registry))?
+                .with_behaviour(|kp| {
+                    Behaviour::new_with_metrics(config.protocol, kp, config.discovery, registry)
+                })?
                 .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
                 .build()),
             TransportProtocol::Quic => Ok(builder
                 .with_quic_config(|cfg| config.apply_to_quic(cfg))
                 .with_dns()?
                 .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| Behaviour::new_with_metrics(config.protocol, kp, registry))?
+                .with_behaviour(|kp| {
+                    Behaviour::new_with_metrics(config.protocol, kp, config.discovery, registry)
+                })?
                 .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
                 .build()),
         }
@@ -150,11 +170,24 @@ pub async fn spawn(
 
     let (tx_event, rx_event) = mpsc::channel(32);
     let (tx_ctrl, rx_ctrl) = mpsc::channel(32);
+    let (tx_dial, rx_dial) = mpsc::unbounded_channel();
+
+    let discovery = registry.with_prefix(DISCOVERY_METRICS_PREFIX, |reg| {
+        discovery::Discovery::new(
+            config.discovery,
+            tx_dial,
+            config.persistent_peers.clone(),
+            reg,
+        )
+    });
+
+    let state = State::new(discovery);
 
     let peer_id = *swarm.local_peer_id();
     let span = error_span!("gossip.consensus", peer = %peer_id);
-    let task_handle =
-        tokio::task::spawn(run(config, metrics, swarm, rx_ctrl, tx_event).instrument(span));
+    let task_handle = tokio::task::spawn(
+        run(config, metrics, state, swarm, rx_ctrl, rx_dial, tx_event).instrument(span),
+    );
 
     Ok(Handle::new(peer_id, tx_ctrl, rx_event, task_handle))
 }
@@ -162,8 +195,10 @@ pub async fn spawn(
 async fn run(
     config: Config,
     metrics: Metrics,
+    mut state: State,
     mut swarm: swarm::Swarm<Behaviour>,
     mut rx_ctrl: mpsc::Receiver<CtrlMsg>,
+    mut rx_dial: mpsc::UnboundedReceiver<discovery::ConnectionData>,
     tx_event: mpsc::Sender<Event>,
 ) {
     if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
@@ -171,13 +206,13 @@ async fn run(
         return;
     };
 
-    for persistent_peer in &config.persistent_peers {
-        trace!("Dialing persistent peer: {persistent_peer}");
+    for persistent_peer in config.persistent_peers {
+        state.discovery.dial_peer(
+            &mut swarm,
+            discovery::ConnectionData::new(None, persistent_peer),
+        );
 
-        match swarm.dial(persistent_peer.clone()) {
-            Ok(()) => (),
-            Err(e) => error!("Error dialing persistent peer {persistent_peer}: {e}"),
-        }
+        state.discovery.check_if_idle(); // True if all persistent peers failed
     }
 
     if let Err(e) = pubsub::subscribe(&mut swarm, Channel::all()) {
@@ -185,12 +220,15 @@ async fn run(
         return;
     };
 
-    let mut state = State::default();
-
     loop {
         let result = tokio::select! {
             event = swarm.select_next_some() => {
                 handle_swarm_event(event, &metrics, &mut swarm, &mut state, &tx_event).await
+            }
+
+            Some(connection_data) = rx_dial.recv() => {
+                state.discovery.dial_peer(&mut swarm, connection_data);
+                ControlFlow::Continue(())
             }
 
             Some(ctrl) = rx_ctrl.recv() => {
@@ -275,6 +313,31 @@ async fn handle_swarm_event(
             }
         }
 
+        SwarmEvent::ConnectionEstablished {
+            peer_id,
+            connection_id,
+            endpoint,
+            ..
+        } => {
+            state
+                .discovery
+                .handle_connection(peer_id, connection_id, endpoint);
+        }
+
+        SwarmEvent::OutgoingConnectionError {
+            connection_id,
+            error,
+            ..
+        } => {
+            error!("Error dialing peer: {error}");
+            state.discovery.handle_failed_connection(connection_id);
+        }
+
+        SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
+            trace!("Connection closed with {peer_id}: {:?}", cause);
+            state.discovery.remove_peer(peer_id);
+        }
+
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent {
             peer_id, ..
         })) => {
@@ -297,7 +360,11 @@ async fn handle_swarm_event(
                     info.protocol_version
                 );
 
-                state.peers.insert(peer_id, info);
+                state.discovery.handle_new_peer(
+                    swarm.behaviour_mut().request_response.as_mut(),
+                    peer_id,
+                    info,
+                )
             } else {
                 trace!(
                     "Peer {peer_id} is using incompatible protocol version: {:?}",
@@ -330,6 +397,10 @@ async fn handle_swarm_event(
 
         SwarmEvent::Behaviour(NetworkEvent::BlockSync(event)) => {
             return handle_blocksync_event(event, metrics, swarm, state, tx_event).await;
+        }
+
+        SwarmEvent::Behaviour(NetworkEvent::RequestResponse(event)) => {
+            state.discovery.on_event(event, swarm);
         }
 
         swarm_event => {

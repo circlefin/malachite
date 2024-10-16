@@ -262,6 +262,7 @@ where
 
                         self.metrics.connected_peers.inc();
 
+                        // TODO: change logic
                         if connected_peers == total_peers {
                             info!("Enough peers ({connected_peers}) connected to start consensus");
 

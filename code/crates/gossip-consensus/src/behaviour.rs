@@ -1,6 +1,8 @@
 use std::time::Duration;
 
 use either::Either;
+use libp2p::request_response::ResponseChannel;
+use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{gossipsub, identify, ping};
 use libp2p_broadcast as broadcast;
@@ -9,6 +11,7 @@ pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
 use malachite_blocksync as blocksync;
+use malachite_discovery as discovery;
 use malachite_metrics::Registry;
 
 use crate::{PubSubProtocol, PROTOCOL};
@@ -22,6 +25,7 @@ pub enum NetworkEvent {
     GossipSub(gossipsub::Event),
     Broadcast(broadcast::Event),
     BlockSync(blocksync::Event),
+    RequestResponse(discovery::Event),
 }
 
 impl From<identify::Event> for NetworkEvent {
@@ -54,6 +58,12 @@ impl From<blocksync::Event> for NetworkEvent {
     }
 }
 
+impl From<discovery::Event> for NetworkEvent {
+    fn from(event: discovery::Event) -> Self {
+        Self::RequestResponse(event)
+    }
+}
+
 impl<A, B> From<Either<A, B>> for NetworkEvent
 where
     A: Into<NetworkEvent>,
@@ -74,6 +84,20 @@ pub struct Behaviour {
     pub ping: ping::Behaviour,
     pub pubsub: Either<gossipsub::Behaviour, broadcast::Behaviour>,
     pub blocksync: blocksync::Behaviour,
+    pub request_response: Toggle<discovery::Behaviour>,
+}
+
+impl discovery::SendResponse for Behaviour {
+    fn send_response(
+        &mut self,
+        ch: ResponseChannel<discovery::Response>,
+        rs: discovery::Response,
+    ) -> Result<(), discovery::Response> {
+        self.request_response
+            .as_mut()
+            .expect("Request-response behaviour is not available")
+            .send_response(ch, rs)
+    }
 }
 
 fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
@@ -106,6 +130,7 @@ impl Behaviour {
     pub fn new_with_metrics(
         tpe: PubSubProtocol,
         keypair: &Keypair,
+        discovery: discovery::Config,
         registry: &mut Registry,
     ) -> Self {
         let identify = identify::Behaviour::new(identify::Config::new(
@@ -136,11 +161,14 @@ impl Behaviour {
         let blocksync =
             blocksync::Behaviour::new_with_metrics(registry.sub_registry_with_prefix("blocksync"));
 
+        let request_response = Toggle::from(discovery.enabled.then(discovery::new_behaviour));
+
         Self {
             identify,
             ping,
             pubsub,
             blocksync,
+            request_response,
         }
     }
 }
