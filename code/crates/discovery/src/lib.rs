@@ -22,18 +22,19 @@ mod behaviour;
 pub use behaviour::*;
 
 mod connection;
-pub use connection::*;
+pub use connection::ConnectionData;
+use connection::{ConnectionType, DIAL_MAX_TRIALS};
 
 mod config;
-pub use config::*;
+pub use config::Config;
 
 mod handler;
-use handler::*;
+use handler::Handler;
 
 mod metrics;
-use metrics::*;
+use metrics::Metrics;
 
-const DISCOVERY_PROTOCOL: &str = "/malachite-discover/v1beta1";
+const DISCOVERY_PROTOCOL: &str = "/malachite-discovery/v1beta1";
 
 #[derive(Debug)]
 pub struct Discovery {
