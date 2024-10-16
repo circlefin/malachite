@@ -21,7 +21,7 @@ where
         DriverInput::NewRound(height, round, proposer) => {
             metrics.round.set(round.as_i64());
 
-            info!(%height, %round, address = %proposer, "Starting new round");
+            info!(%height, %round, %proposer, "Starting new round");
             perform!(co, Effect::CancelAllTimeouts);
             perform!(co, Effect::StartRound(*height, *round, proposer.clone()));
         }
