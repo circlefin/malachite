@@ -28,6 +28,7 @@ publish      = false
 rust-version = "1.77"
 
 [profile.release]
+lto = "thin"
 overflow-checks = true
 
 [profile.profiling]
