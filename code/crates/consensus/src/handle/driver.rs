@@ -176,7 +176,7 @@ where
             // TODO: Remove proposal, votes, block for the round
             info!(
                 round = %consensus_round,
-                id = ?proposal,
+                ?proposal,
                 "Decided",
             );
 
