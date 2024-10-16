@@ -4,6 +4,12 @@ variable "ssh_keys" {
   type = list(string)
 }
 
+# The project name in Digital Ocean.
+variable project_name {
+  type = string
+  default = "malachite-testnet"
+}
+
 # Regions and number of servers to deploy there
 # Regions list: https://docs.digitalocean.com/platform/regional-availability/
 # ams3 - Amsterdam
