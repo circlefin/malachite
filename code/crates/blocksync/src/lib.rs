@@ -31,6 +31,12 @@ pub struct Request<Ctx: Context> {
     pub height: Ctx::Height,
 }
 
+impl<Ctx: Context> Request<Ctx> {
+    pub fn new(height: Ctx::Height) -> Self {
+        Self { height }
+    }
+}
+
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct SyncedBlock<Ctx: Context> {
     pub proposal: SignedProposal<Ctx>,

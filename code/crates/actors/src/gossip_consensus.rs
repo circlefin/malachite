@@ -7,7 +7,7 @@ use libp2p::identity::Keypair;
 use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
-use tracing::{debug, error, error_span, Instrument};
+use tracing::{error, error_span, trace, Instrument};
 
 use crate::gossip_consensus::GossipEvent::{BlockSyncRequest, BlockSyncResponse};
 use malachite_blocksync as blocksync;
@@ -209,7 +209,7 @@ where
             },
 
             Msg::PublishProposalPart(msg) => {
-                debug!(
+                trace!(
                     stream_id = %msg.stream_id,
                     sequence = %msg.sequence,
                     "Broadcasting proposal part"
@@ -294,12 +294,12 @@ where
                     }
                 };
 
-                // debug!(
-                //     %from,
-                //     stream_id = %msg.stream_id,
-                //     sequence = %msg.sequence,
-                //     "Received proposal part"
-                // );
+                trace!(
+                    %from,
+                    stream_id = %msg.stream_id,
+                    sequence = %msg.sequence,
+                    "Received proposal part"
+                );
 
                 self.publish(GossipEvent::ProposalPart(from, msg), subscribers);
             }
@@ -318,7 +318,7 @@ where
                     return Ok(());
                 }
 
-                debug!(%from, height = %status.height, "Received status");
+                trace!(%from, height = %status.height, "Received status");
 
                 self.publish(
                     GossipEvent::Status(status.peer_id, Status::new(status.height)),
