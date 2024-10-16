@@ -32,7 +32,9 @@ pub use channel::Channel;
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
 
+const PROTOCOL_VERSION: &str = "/malachite-gossip-consensus/v1beta1";
 const METRICS_PREFIX: &str = "malachite_gossip_consensus";
+const DISCOVERY_METRICS_PREFIX: &str = "malachite_discovery";
 
 #[derive(Copy, Clone, Debug, Default)]
 pub enum PubSubProtocol {
@@ -50,8 +52,6 @@ impl PubSubProtocol {
         matches!(self, Self::Broadcast)
     }
 }
-
-const PROTOCOL_VERSION: &str = "/malachite-gossip-consensus/v1beta1";
 
 pub type BoxError = Box<dyn Error + Send + Sync + 'static>;
 
@@ -99,24 +99,6 @@ pub struct State {
     pub discovery: discovery::Discovery,
 }
 
-impl State {
-    fn new(
-        enable_discovery: bool,
-        tx_dial: mpsc::UnboundedSender<discovery::ConnectionData>,
-        bootstrap_nodes: Vec<Multiaddr>,
-    ) -> Self {
-        State {
-            discovery: discovery::Discovery::new(
-                discovery::Config {
-                    enabled: enable_discovery,
-                },
-                tx_dial,
-                bootstrap_nodes,
-            ),
-        }
-    }
-}
-
 pub async fn spawn(
     keypair: Keypair,
     config: Config,
@@ -154,11 +136,22 @@ pub async fn spawn(
 
     let (tx_event, rx_event) = mpsc::channel(32);
     let (tx_ctrl, rx_ctrl) = mpsc::channel(32);
+    let (tx_dial, rx_dial) = mpsc::unbounded_channel();
+
+    let state = registry.with_prefix(DISCOVERY_METRICS_PREFIX, |reg| State {
+        discovery: discovery::Discovery::new(
+            config.discovery,
+            tx_dial,
+            config.persistent_peers.clone(),
+            reg,
+        ),
+    });
 
     let peer_id = swarm.local_peer_id();
     let span = error_span!("gossip.consensus", peer = %peer_id);
-    let task_handle =
-        tokio::task::spawn(run(config, metrics, swarm, rx_ctrl, tx_event).instrument(span));
+    let task_handle = tokio::task::spawn(
+        run(config, metrics, state, swarm, rx_ctrl, rx_dial, tx_event).instrument(span),
+    );
 
     Ok(Handle::new(tx_ctrl, rx_event, task_handle))
 }
@@ -166,22 +159,16 @@ pub async fn spawn(
 async fn run(
     config: Config,
     metrics: Metrics,
+    mut state: State,
     mut swarm: swarm::Swarm<Behaviour>,
     mut rx_ctrl: mpsc::Receiver<CtrlMsg>,
+    mut rx_dial: mpsc::UnboundedReceiver<discovery::ConnectionData>,
     tx_event: mpsc::Sender<Event>,
 ) {
     if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
         error!("Error listening on {}: {e}", config.listen_addr);
         return;
     };
-
-    let (tx_dial, mut rx_dial) = mpsc::unbounded_channel::<discovery::ConnectionData>();
-
-    let mut state = State::new(
-        config.discovery.enabled,
-        tx_dial,
-        config.persistent_peers.clone(),
-    );
 
     for persistent_peer in config.persistent_peers {
         state.discovery.dial_peer(

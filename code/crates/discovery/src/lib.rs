@@ -3,8 +3,12 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 use std::collections::{HashMap, HashSet};
-use tokio::{sync::mpsc, time::sleep};
-use tracing::{self as _, debug, error, info, trace, warn};
+
+use tokio::sync::mpsc;
+use tokio::time::sleep;
+use tracing::{debug, error, info, trace, warn};
+
+use malachite_metrics::Registry;
 
 use libp2p::{
     core::ConnectedPoint,
@@ -46,6 +50,7 @@ impl Discovery {
         config: Config,
         tx_dial: mpsc::UnboundedSender<ConnectionData>,
         bootstrap_nodes: Vec<Multiaddr>,
+        registry: &mut Registry,
     ) -> Self {
         info!(
             "Discovery is {}",
@@ -56,13 +61,13 @@ impl Discovery {
             }
         );
 
-        Discovery {
+        Self {
             config,
             peers: HashMap::new(),
             bootstrap_nodes,
             tx_dial,
             handler: Handler::new(),
-            metrics: Metrics::new(),
+            metrics: Metrics::new(registry),
         }
     }
 

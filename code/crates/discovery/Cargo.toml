@@ -10,6 +10,7 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
+malachite-metrics  = { workspace = true }
 libp2p             = { workspace = true }
 serde              = { workspace = true }
 tracing            = { workspace = true }

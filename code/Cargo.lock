@@ -2478,6 +2478,7 @@ name = "malachite-discovery"
 version = "0.1.0"
 dependencies = [
  "libp2p",
+ "malachite-metrics",
  "serde",
  "tokio",
  "tracing",
