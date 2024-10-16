@@ -293,25 +293,30 @@ where
                         }
                     }
 
-                    GossipEvent::Status(_, _) => {}
+                    GossipEvent::BlockSyncResponse(
+                        request_id,
+                        blocksync::Response {
+                            block: Some(synced_block),
+                        },
+                    ) => {
+                        debug!(
+                            height = %synced_block.proposal.height(),
+                            "Received blocksync response"
+                        );
 
-                    GossipEvent::BlockSyncResponse(request_id, blocksync::Response { blocks }) => {
-                        for synced_block in blocks {
-                            if let Err(e) = self
-                                .process_input(
-                                    &myself,
-                                    state,
-                                    ConsensusInput::ReceivedSyncedBlock(
-                                        synced_block.proposal,
-                                        synced_block.certificate,
-                                        synced_block.block_bytes,
-                                    ),
-                                )
-                                .await
-                            {
-                                error!(%request_id, "Error when processing received synced block: {e:?}");
-                                break;
-                            }
+                        if let Err(e) = self
+                            .process_input(
+                                &myself,
+                                state,
+                                ConsensusInput::ReceivedSyncedBlock(
+                                    synced_block.proposal,
+                                    synced_block.certificate,
+                                    synced_block.block_bytes,
+                                ),
+                            )
+                            .await
+                        {
+                            error!(%request_id, "Error when processing received synced block: {e:?}");
                         }
                     }
 

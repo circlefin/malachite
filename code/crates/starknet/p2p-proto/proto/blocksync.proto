@@ -11,12 +11,11 @@ message Status {
 }
 
 message Request {
-  uint64 start = 1;
-  uint64 end = 2;
+  uint64 height = 1;
 }
 
 message Response {
-  repeated SyncedBlock blocks = 1;
+  SyncedBlock block = 1;
 }
 
 message SyncedBlock {

@@ -67,7 +67,7 @@ impl<Ctx: Context> Certificate<Ctx> {
 use alloc::vec::Vec;
 pub use context::Context;
 use derive_where::derive_where;
-pub use height::{Height, InclusiveRange};
+pub use height::Height;
 pub use proposal::{Proposal, Validity};
 pub use proposal_part::ProposalPart;
 pub use round::Round;

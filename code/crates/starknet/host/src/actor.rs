@@ -12,7 +12,7 @@ use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use sha3::Digest;
 use tokio::time::Instant;
-use tracing::{debug, error, trace};
+use tracing::{debug, error, trace, warn};
 
 use crate::block_store::{BlockStore, DecidedBlock};
 use malachite_actors::consensus::ConsensusMsg;
@@ -412,40 +412,33 @@ impl Actor for StarknetHost {
                 Ok(())
             }
 
-            HostMsg::GetDecidedBlocks { heights, reply_to } => {
-                debug!("Received request for blocks at {heights}");
+            HostMsg::GetDecidedBlock { height, reply_to } => {
+                debug!(%height, "Received request for block");
 
-                let mut blocks = Vec::with_capacity(heights.len());
+                match state.block_store.store.get(&height).cloned() {
+                    None => {
+                        // TODO - it is possible that a peer asks for a block that we don't have
+                        // if it has been pruned. In the Status we currently do not mention the
+                        // minimum height of the block that we do have.
+                        warn!(
+                            "No block for {height}, available blocks: {:?}",
+                            state.block_store.store_keys()
+                        );
 
-                for height in heights {
-                    match state.block_store.store.get(&height).cloned() {
-                        None => {
-                            // TODO - it is possible that a peer asks for a block that we don't have
-                            // if it has been pruned. In the Status we currently do not mention the
-                            // minimum height of the block that we do have.
-                            error!(
-                                "No block for {height}, available blocks: {:?}",
-                                state.block_store.store_keys()
-                            );
+                        reply_to.send(None)?;
+                    }
+                    Some(block) => {
+                        let block_id = block.block.block_id;
+                        let block = SyncedBlock {
+                            proposal: block.proposal,
+                            block_bytes: Bytes::copy_from_slice(block_id.as_bytes()), // TODO - get bytes for Block
+                            certificate: block.certificate,
+                        };
 
-                            reply_to.send(blocks)?;
-                            return Ok(());
-                        }
-                        Some(block) => {
-                            let block_id = block.block.block_id;
-                            let block = SyncedBlock {
-                                proposal: block.proposal,
-                                block_bytes: Bytes::copy_from_slice(block_id.as_bytes()), // TODO - get bytes for Block
-                                certificate: block.certificate,
-                            };
-
-                            debug!("Got block at {height}");
-                            blocks.push(block);
-                        }
+                        debug!("Got block at {height}");
+                        reply_to.send(Some(block))?;
                     }
                 }
-
-                reply_to.send(blocks)?;
 
                 Ok(())
             }

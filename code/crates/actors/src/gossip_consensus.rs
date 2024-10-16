@@ -9,9 +9,8 @@ use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, error_span, trace, Instrument};
 
-use crate::gossip_consensus::GossipEvent::{BlockSyncRequest, BlockSyncResponse};
 use malachite_blocksync::{self as blocksync, Response};
-use malachite_blocksync::{RawMessage, Request, SyncedBlock};
+use malachite_blocksync::{RawMessage, Request};
 use malachite_common::{Context, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
@@ -123,7 +122,7 @@ pub enum Msg<Ctx: Context> {
     OutgoingBlockSyncRequest(PeerId, Request<Ctx>),
 
     /// Send a response for a blocks request to a peer
-    OutgoingBlockSyncResponse(InboundRequestId, Vec<SyncedBlock<Ctx>>),
+    OutgoingBlockSyncResponse(InboundRequestId, Response<Ctx>),
 
     /// Request for number of peers from gossip
     GetState { reply: RpcReplyPort<usize> },
@@ -243,8 +242,8 @@ where
                 }
             }
 
-            Msg::OutgoingBlockSyncResponse(request_id, blocks) => {
-                let msg = match Codec::encode_response(blocksync::Response { blocks }) {
+            Msg::OutgoingBlockSyncResponse(request_id, response) => {
+                let msg = match Codec::encode_response(response) {
                     Ok(msg) => msg,
                     Err(e) => {
                         error!(%request_id, "Failed to encode block response message: {e:?}");
@@ -340,7 +339,10 @@ where
                             return Ok(());
                         }
                     };
-                    self.publish(BlockSyncRequest(request_id, request), subscribers);
+                    self.publish(
+                        GossipEvent::BlockSyncRequest(request_id, request),
+                        subscribers,
+                    );
                 }
 
                 RawMessage::Response { request_id, body } => {
@@ -351,7 +353,10 @@ where
                             return Ok(());
                         }
                     };
-                    self.publish(BlockSyncResponse(request_id, response), subscribers);
+                    self.publish(
+                        GossipEvent::BlockSyncResponse(request_id, response),
+                        subscribers,
+                    );
                 }
             },
 

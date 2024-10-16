@@ -51,14 +51,13 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         let request = proto::blocksync::Request::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(blocksync::Request {
-            heights: (Height::new(request.start)..=Height::new(request.end)).into(),
+            height: Height::new(request.height),
         })
     }
 
     fn encode_request(request: blocksync::Request<MockContext>) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Request {
-            start: request.heights.start.as_u64(),
-            end: request.heights.end.as_u64(),
+            height: request.height.as_u64(),
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))
@@ -111,11 +110,10 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         let response = proto::blocksync::Response::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(blocksync::Response {
-            blocks: response
-                .blocks
-                .into_iter()
-                .map(decode_sync_block)
-                .collect::<Result<Vec<_>, _>>()?,
+            block: response
+                .block
+                .map(|block| decode_sync_block(block))
+                .transpose()?,
         })
     }
 
@@ -154,11 +152,7 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         }
 
         let proto = proto::blocksync::Response {
-            blocks: response
-                .blocks
-                .into_iter()
-                .map(encode_synced_block)
-                .collect::<Result<Vec<_>, _>>()?,
+            block: response.block.map(encode_synced_block).transpose()?,
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))
