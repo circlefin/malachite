@@ -23,7 +23,12 @@ where
         return Ok(());
     }
 
-    info!("{timeout} elapsed at height {height} and round {round}");
+    info!(
+        step = ?timeout.step,
+        timeout_round = %timeout.round,
+        %height,
+        %round,
+        "Timeout elapsed");
 
     apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
 

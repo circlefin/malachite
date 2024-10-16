@@ -52,7 +52,7 @@ impl InitCmd {
                 config_file.display()
             )
         } else {
-            info!("Saving configuration to {:?}", config_file);
+            info!(file = ?config_file, "Saving configuration");
             save_config(
                 config_file,
                 &generate_config(
@@ -78,7 +78,7 @@ impl InitCmd {
             let private_keys = generate_private_keys(&node, 1, true);
             let public_keys = private_keys.iter().map(|pk| pk.public_key()).collect();
             let genesis = generate_genesis(&node, public_keys, true);
-            info!("Saving test genesis to {:?}.", genesis_file);
+            info!(file = ?genesis_file, "Saving test genesis");
             save_genesis(&node, genesis_file, &genesis)?;
         }
 
@@ -89,7 +89,7 @@ impl InitCmd {
                 priv_validator_key_file.display()
             )
         } else {
-            info!("Saving private key to {:?}", priv_validator_key_file);
+            info!(file = ?priv_validator_key_file, "Saving private key");
             let private_keys = generate_private_keys(&node, 1, false);
             let priv_validator_key = node.make_private_key_file(private_keys[0]);
             save_priv_validator_key(&node, priv_validator_key_file, &priv_validator_key)?;

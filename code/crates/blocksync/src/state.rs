@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use derive_where::derive_where;
 use libp2p::PeerId;
 
-use malachite_common::{Context, Height};
+use malachite_common::Context;
 
 #[derive_where(Clone, Debug, Default)]
 pub struct State<Ctx>

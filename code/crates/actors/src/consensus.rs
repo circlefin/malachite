@@ -243,8 +243,8 @@ where
 
             Msg::GossipEvent(event) => {
                 match event {
-                    GossipEvent::Listening(addr) => {
-                        info!("Listening on {addr}");
+                    GossipEvent::Listening(address) => {
+                        info!(%address, "Listening");
                     }
 
                     GossipEvent::PeerConnected(peer_id) => {
@@ -265,7 +265,7 @@ where
 
                         // TODO: change logic
                         if connected_peers == total_peers {
-                            info!("Enough peers ({connected_peers}) connected to start consensus");
+                            info!(count = %connected_peers, "Enough peers connected to start consensus");
 
                             let height = state.consensus.driver.height();
 

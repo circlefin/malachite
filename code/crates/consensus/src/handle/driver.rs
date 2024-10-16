@@ -86,8 +86,8 @@ where
         if let Some(valid) = &state.driver.round_state.valid {
             if state.driver.step_is_propose() {
                 info!(
-                    "We enter Propose with a valid value from round {}",
-                    valid.round
+                    round = %valid.round,
+                    "Entering Propose step with a valid value"
                 );
             }
         }
@@ -140,9 +140,9 @@ where
 
         DriverOutput::Propose(proposal) => {
             info!(
-                "Proposing value with id: {}, at round {}",
-                proposal.value().id(),
-                proposal.round()
+                id = %proposal.value().id(),
+                round = %proposal.round(),
+                "Proposing value"
             );
 
             let signed_proposal = state.ctx.sign_proposal(proposal);
@@ -157,10 +157,10 @@ where
 
         DriverOutput::Vote(vote) => {
             info!(
-                "Voting {:?} for value {} at round {}",
-                vote.vote_type(),
-                PrettyVal(vote.value().as_ref()),
-                vote.round()
+                vote_type = ?vote.vote_type(),
+                value = %PrettyVal(vote.value().as_ref()),
+                round = %vote.round(),
+                "Voting",
             );
 
             let signed_vote = state.ctx.sign_vote(vote);
@@ -175,8 +175,9 @@ where
 
         DriverOutput::Decide(consensus_round, proposal) => {
             info!(
-                "Decided in round {} on proposal {:?}",
-                consensus_round, proposal
+                round = %consensus_round,
+                ?proposal,
+                "Decided",
             );
 
             // Store value decided on for retrieval when timeout commit elapses
@@ -191,7 +192,7 @@ where
         }
 
         DriverOutput::ScheduleTimeout(timeout) => {
-            info!("Scheduling {timeout}");
+            info!(round = %timeout.round, step = ?timeout.step, "Scheduling timeout");
 
             perform!(co, Effect::ScheduleTimeout(timeout));
 
@@ -199,7 +200,7 @@ where
         }
 
         DriverOutput::GetValue(height, round, timeout) => {
-            info!("Requesting value at height {height} and round {round}");
+            info!(%height, %round, "Requesting value");
 
             perform!(co, Effect::GetValue(height, round, timeout));
 

@@ -110,10 +110,7 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         let response = proto::blocksync::Response::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(blocksync::Response {
-            block: response
-                .block
-                .map(|block| decode_sync_block(block))
-                .transpose()?,
+            block: response.block.map(decode_sync_block).transpose()?,
         })
     }
 
