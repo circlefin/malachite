@@ -73,6 +73,7 @@ pub struct P2pConfig {
     pub persistent_peers: Vec<Multiaddr>,
 
     /// Peer discovery
+    #[serde(default)]
     pub discovery: DiscoveryConfig,
 
     /// Transport protocol to use
@@ -83,9 +84,10 @@ pub struct P2pConfig {
 }
 
 /// Peer Discovery configuration options
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct DiscoveryConfig {
     /// Enable peer discovery
+    #[serde(default)]
     pub enabled: bool,
 }
 
