@@ -265,7 +265,7 @@ impl Discovery {
         // Only request peers from dialed peers
         if self.handler.remove_connection_type(&peer_id) == Some(ConnectionType::Dial) {
             if let Some(request_response) = behaviour {
-                debug!("Requesting peers from {peer_id}");
+                debug!(%peer_id, "Requesting peers from peer");
 
                 let request_id = request_response.send_request(
                     &peer_id,
@@ -336,7 +336,7 @@ impl Discovery {
                     },
             } => match request {
                 behaviour::Request::Peers(peers) => {
-                    debug!("Received request for peers from {peer}");
+                    debug!(peer_id = %peer, "Received request for peers from peer");
 
                     // Compute the difference between the known peers and the requested peers
                     // to avoid sending the requesting peer the peers it already knows.
@@ -370,7 +370,7 @@ impl Discovery {
                     },
             } => match response {
                 behaviour::Response::Peers(peers) => {
-                    debug!("Received {} peers from {peer}", peers.len());
+                    debug!(count = peers.len(), peer_id = %peer, "Received peers from peer");
 
                     self.handler.remove_pending_request(&request_id);
 

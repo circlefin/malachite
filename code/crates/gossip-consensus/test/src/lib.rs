@@ -185,7 +185,7 @@ impl<const N: usize> Test<N> {
                 .unwrap();
 
                 handles.push(handle);
-                debug!("Spawned node {}", i);
+                debug!(id = %i, "Spawned node");
                 sleep(self.spawn_delay).await;
             }
         }

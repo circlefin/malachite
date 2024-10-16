@@ -69,10 +69,10 @@ impl Handler {
     pub fn register_connection_type(&mut self, peer_id: PeerId, connection_type: ConnectionType) {
         match connection_type {
             ConnectionType::Dial => {
-                debug!("Connected to {peer_id}");
+                debug!(%peer_id, "Connected to peer");
             }
             ConnectionType::Listen => {
-                debug!("Accepted incoming connection from {peer_id}");
+                debug!(%peer_id, "Accepted incoming connection from peer");
             }
         }
 

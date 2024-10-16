@@ -42,7 +42,7 @@ where
     #[cfg(feature = "debug")]
     {
         for trace in state.driver.round_state.get_traces() {
-            debug!("Consensus trace: {trace}");
+            debug!(%trace, "Consensus trace");
         }
     }
 

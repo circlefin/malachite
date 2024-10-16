@@ -173,7 +173,10 @@ impl StarknetHost {
 
         let all_parts = state.part_store.all_parts(height, round);
 
-        debug!("The store has {} blocks", state.part_store.blocks_stored());
+        debug!(
+            count = state.part_store.blocks_stored(),
+            "The store has blocks"
+        );
 
         // TODO: Do more validations, e.g. there is no higher tx proposal part,
         //       check that we have received the proof, etc.
@@ -269,7 +272,7 @@ impl Actor for StarknetHost {
                     .cast(GossipConsensusMsg::BroadcastProposalPart(msg))?;
 
                 let block_hash = rx_hash.await?;
-                debug!("Got block with hash: {block_hash}");
+                debug!(%block_hash, "Got block");
 
                 let parts = state.part_store.all_parts(height, round);
 

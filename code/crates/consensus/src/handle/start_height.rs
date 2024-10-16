@@ -68,7 +68,7 @@ where
     Ctx: Context,
 {
     let pending_inputs = std::mem::take(&mut state.input_queue);
-    debug!("Replaying {} inputs", pending_inputs.len());
+    debug!(count = pending_inputs.len(), "Replaying inputs");
 
     for pending_input in pending_inputs {
         handle_input(co, state, metrics, pending_input).await?;

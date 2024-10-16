@@ -226,7 +226,9 @@ async fn handle_ctrl_msg(msg: CtrlMsg, swarm: &mut swarm::Swarm<Behaviour>) -> C
                 Ok(message_id) => {
                     debug!(
                         %channel,
-                        "Broadcasted message {message_id} of {msg_size} bytes"
+                        id = %message_id,
+                        size = %msg_size,
+                        "Broadcasted message"
                     );
                 }
                 Err(e) => {
@@ -256,7 +258,7 @@ async fn handle_swarm_event(
 
     match event {
         SwarmEvent::NewListenAddr { address, .. } => {
-            debug!("Node is listening on {address}");
+            debug!(%address, "Node is listening");
 
             if let Err(e) = tx_event.send(Event::Listening(address)).await {
                 error!("Error sending listening event to handle: {e}");

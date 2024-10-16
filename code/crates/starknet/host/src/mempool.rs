@@ -229,7 +229,7 @@ fn generate_and_broadcast_txes(
     state: &mut State,
     gossip_mempool: &GossipMempoolRef,
 ) -> Result<Vec<Transaction>, ActorProcessingErr> {
-    debug!("Generating {} transactions of size {} bytes", count, size);
+    debug!(%count, %size, "Generating transactions");
 
     let batch_size = std::cmp::min(config.gossip_batch_size, count);
 
