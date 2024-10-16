@@ -14,7 +14,7 @@ pub struct ConnectionData {
 
 impl ConnectionData {
     pub fn new(peer_id: Option<PeerId>, multiaddr: Multiaddr) -> Self {
-        ConnectionData {
+        Self {
             peer_id,
             multiaddr,
             retries: 0,
@@ -22,11 +22,11 @@ impl ConnectionData {
         }
     }
 
-    pub(crate) fn get_peer_id(&self) -> Option<PeerId> {
+    pub fn peer_id(&self) -> Option<PeerId> {
         self.peer_id
     }
 
-    pub(crate) fn get_multiaddr(&self) -> Multiaddr {
+    pub fn multiaddr(&self) -> Multiaddr {
         self.multiaddr.clone()
     }
 
@@ -44,7 +44,7 @@ impl ConnectionData {
             .expect("FibonacciBackoff is an infinite iterator")
     }
 
-    pub(crate) fn build_dial_opts(&self) -> DialOpts {
+    pub fn build_dial_opts(&self) -> DialOpts {
         if let Some(peer_id) = self.peer_id {
             DialOpts::peer_id(peer_id)
                 .addresses(vec![self.multiaddr.clone()])

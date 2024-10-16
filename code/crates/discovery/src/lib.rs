@@ -129,7 +129,7 @@ impl Discovery {
         swarm: &Swarm<impl SendResponse>,
         connection_data: &ConnectionData,
     ) -> bool {
-        connection_data.get_peer_id().as_ref().map_or(true, |id| {
+        connection_data.peer_id().as_ref().map_or(true, |id| {
             // Is not itself (peer id)
             id != swarm.local_peer_id()
             // Is not already connected
@@ -138,7 +138,7 @@ impl Discovery {
             // Has not already dialed
             && !self.handler.has_already_dialed(connection_data)
             // Is not itself (multiaddr)
-            && !swarm.listeners().any(|addr| *addr == connection_data.get_multiaddr())
+            && !swarm.listeners().any(|addr| *addr == connection_data.multiaddr())
     }
 
     pub fn dial_peer(
@@ -170,17 +170,17 @@ impl Discovery {
         );
 
         if let Err(e) = swarm.dial(dial_opts) {
-            if let Some(peer_id) = connection_data.get_peer_id() {
+            if let Some(peer_id) = connection_data.peer_id() {
                 error!(
                     "Error dialing peer {} at {}: {}",
                     peer_id,
-                    connection_data.get_multiaddr(),
+                    connection_data.multiaddr(),
                     e
                 );
             } else {
                 error!(
                     "Error dialing peer at {}: {}",
-                    connection_data.get_multiaddr(),
+                    connection_data.multiaddr(),
                     e
                 );
             }

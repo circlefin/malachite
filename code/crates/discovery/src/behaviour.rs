@@ -1,12 +1,10 @@
+use std::collections::HashSet;
 use std::iter;
-use std::{collections::HashSet, time::Duration};
+use std::time::Duration;
 
-use libp2p::request_response::ResponseChannel;
+use libp2p::request_response::{self, ProtocolSupport, ResponseChannel};
 use libp2p::swarm::NetworkBehaviour;
-use libp2p::{
-    request_response::{self, ProtocolSupport},
-    Multiaddr, PeerId, StreamProtocol,
-};
+use libp2p::{Multiaddr, PeerId, StreamProtocol};
 use serde::{Deserialize, Serialize};
 
 use crate::DISCOVERY_PROTOCOL;
