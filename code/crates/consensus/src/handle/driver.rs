@@ -157,7 +157,7 @@ where
         DriverOutput::Vote(vote) => {
             info!(
                 vote_type = ?vote.vote_type(),
-                id = %PrettyVal(vote.value().as_ref()),
+                value = %PrettyVal(vote.value().as_ref()),
                 round = %vote.round(),
                 "Voting",
             );
