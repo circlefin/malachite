@@ -102,8 +102,8 @@ impl TestnetCmd {
             let node_home_dir = home_dir.join(i.to_string());
 
             info!(
-                number = %i,
-                file = %node_home_dir.display(),
+                id = %i,
+                home = %node_home_dir.display(),
                 "Generating configuration for node..."
             );
 
