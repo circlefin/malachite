@@ -59,7 +59,7 @@ set -x MALACHITE__TEST__TXS_PER_PART 128
 set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.5
 set -x MALACHITE__TEST__EXEC_TIME_PER_TX "1ms"
 set -x MALACHITE__CONSENSUS__P2P__PROTOCOL "gossipsub"
-set -x MALACHITE__TEST__MAX_RETAIN_BLOCKS 0
+set -x MALACHITE__TEST__MAX_RETAIN_BLOCKS 1000
 
 
 echo "Compiling Malachite..."
@@ -98,29 +98,22 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
         set cmd_prefix "cargo instruments --profile $build_profile --template $profile_template --time-limit 60000 --output '$NODE_HOME/traces/' --"
 
         tmux send -t "$pane" "sleep $NODE" Enter
-        tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 > '$NODE_HOME/logs/node.log' &" Enter
+        tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 | tee '$NODE_HOME/logs/node.log' &" Enter
         tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
-        tmux send -t "$pane" "tail -f '$NODE_HOME/logs/node.log'" Enter
+        tmux send -t "$pane" "fg" Enter
     else
         set cmd_prefix "./target/$build_folder/malachite-cli"
 
-        tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 > '$NODE_HOME/logs/node.log' &" Enter
+        tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 | tee '$NODE_HOME/logs/node.log' &" Enter
         tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
-        tmux send -t "$pane" "tail -f '$NODE_HOME/logs/node.log'" Enter
+        tmux send -t "$pane" "fg" Enter
     end
 end
 
 echo "Spawned $NODES_COUNT nodes."
 echo
 
-read -l -P "Launch tmux? [Y/n] " launch_tmux
-switch $launch_tmux
-    case N n
-        echo "To attach to the tmux session, run:"
-        echo "  tmux attach -t $session"
-    case '*'
-        tmux attach -t $session
-end
+tmux attach -t $session
 
 echo
 
