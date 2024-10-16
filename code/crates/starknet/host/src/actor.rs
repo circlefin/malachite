@@ -414,7 +414,9 @@ impl Actor for StarknetHost {
 
             HostMsg::DecidedBlock { height, reply_to } => {
                 debug!("Received request for block at {height}");
+
                 let maybe_block = state.block_store.store.get(&height).cloned();
+
                 match maybe_block {
                     None => {
                         // TODO - it is possible that a peer asks for a block that we don't have
@@ -424,20 +426,23 @@ impl Actor for StarknetHost {
                             "No block for {height}, keys are: {:?}",
                             state.block_store.store_keys()
                         );
+
                         reply_to.send(None)?;
                     }
-                    Some(ref block) => {
-                        let block_id = block.clone().block.block_id;
+                    Some(block) => {
+                        let block_id = block.block.block_id;
                         let vb = Vec::from(block_id.as_bytes());
                         let response = SyncedBlock {
-                            proposal: block.clone().proposal,
+                            proposal: block.proposal,
                             block_bytes: Bytes::from(vb), // TODO - get bytes for Block
-                            certificate: block.clone().certificate,
+                            certificate: block.certificate,
                         };
+
                         debug!("Got block at {height}");
                         reply_to.send(Some(response))?;
                     }
                 }
+
                 Ok(())
             }
 
@@ -452,6 +457,7 @@ impl Actor for StarknetHost {
                     block_hasher.update(block_bytes);
                     BlockHash::new(block_hasher.finalize().into())
                 };
+
                 let proposal = ProposedValue {
                     height: proposal.height(),
                     round: proposal.round(),
@@ -459,7 +465,9 @@ impl Actor for StarknetHost {
                     value: proposal.value().id(),
                     validity: Validity::Valid,
                 };
+
                 reply_to.send(proposal)?;
+
                 Ok(())
             }
         }
