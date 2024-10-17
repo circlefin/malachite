@@ -2647,6 +2647,7 @@ dependencies = [
 name = "malachite-starknet-p2p-types"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "malachite-common",
  "malachite-proto",
  "malachite-starknet-p2p-proto",

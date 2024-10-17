@@ -67,12 +67,15 @@ impl common::Vote<MockContext> for Vote {
         &self.voter
     }
 
-    fn extension(&self) -> &Extension {
-        &self.extension
+    fn extension(&self) -> Option<&Extension> {
+        self.extension.as_ref()
     }
 
     fn extend(self, extension: Extension) -> Self {
-        Self { extension, ..self }
+        Self {
+            extension: Some(extension),
+            ..self
+        }
     }
 }
 

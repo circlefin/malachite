@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use malachite_common::{NilOrVal, Round, VoteType};
 use malachite_proto::{Error as ProtoError, Protobuf};
 
@@ -14,7 +15,7 @@ pub struct Vote {
     pub round: Round,
     pub value: NilOrVal<ValueId>,
     pub validator_address: Address,
-    pub extension: Extension,
+    pub extension: Option<Extension>,
 }
 
 impl Vote {
@@ -30,7 +31,7 @@ impl Vote {
             round,
             value,
             validator_address,
-            extension: Extension::default(),
+            extension: None,
         }
     }
 
@@ -46,11 +47,11 @@ impl Vote {
             round,
             value,
             validator_address: address,
-            extension: Default::default(),
+            extension: None,
         }
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Bytes {
         Protobuf::to_bytes(self).unwrap()
     }
 }
@@ -80,12 +81,15 @@ impl malachite_common::Vote<TestContext> for Vote {
         &self.validator_address
     }
 
-    fn extension(&self) -> &Extension {
-        &self.extension
+    fn extension(&self) -> Option<&Extension> {
+        self.extension.as_ref()
     }
 
     fn extend(self, extension: Extension) -> Self {
-        Self { extension, ..self }
+        Self {
+            extension: Some(extension),
+            ..self
+        }
     }
 }
 

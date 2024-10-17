@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
+use bytes::Bytes;
 use bytesize::ByteSize;
 use eyre::eyre;
 use rand::RngCore;
@@ -144,10 +145,10 @@ async fn run_build_proposal_task(
     {
         // TODO: Compute actual "proof"
         let mut rng = rand::rngs::OsRng;
-        let mut proof = Vec::with_capacity(32);
+        let mut proof = vec![0; 32];
         rng.fill_bytes(&mut proof);
 
-        let part = ProposalPart::BlockProof(BlockProof::new(vec![proof]));
+        let part = ProposalPart::BlockProof(BlockProof::new(vec![Bytes::from(proof)]));
 
         block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;

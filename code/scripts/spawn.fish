@@ -59,7 +59,7 @@ set -x MALACHITE__TEST__TX_SIZE "1KB"
 set -x MALACHITE__TEST__TXS_PER_PART 128
 set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.5
 set -x MALACHITE__TEST__EXEC_TIME_PER_TX "1ms"
-set -x MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED false
+set -x MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED true
 set -x MALACHITE__TEST__VOTE_EXTENSIONS__SIZE "1KiB"
 
 echo "Compiling Malachite..."
@@ -83,7 +83,7 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
 
     echo "[Node $NODE] Spawning node..."
 
-    if $debug
+    if $debug; and false
         set lldb_script "
             b malachite_cli::main
             run

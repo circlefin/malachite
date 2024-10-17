@@ -71,7 +71,7 @@ where
     fn validator_address(&self) -> &Ctx::Address;
 
     /// Votes extensions
-    fn extension(&self) -> &Extension;
+    fn extension(&self) -> Option<&Extension>;
 
     /// Extend this vote with an extension, overriding any existing extension.
     fn extend(self, extension: Extension) -> Self;

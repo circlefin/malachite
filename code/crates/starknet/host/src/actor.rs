@@ -384,7 +384,11 @@ impl Actor for StarknetHost {
 
                 // Update metrics
                 let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
-                let extension_size: usize = commits.iter().map(|c| c.extension.size_bytes()).sum();
+                let extension_size: usize = commits
+                    .iter()
+                    .map(|c| c.extension.as_ref().map(|e| e.size_bytes()).unwrap_or(0))
+                    .sum();
+
                 let block_and_commits_size = block_size + extension_size;
                 let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
 
