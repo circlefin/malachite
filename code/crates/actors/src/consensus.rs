@@ -239,7 +239,7 @@ where
                         let connected_peers = state.connected_peers.len();
                         let total_peers = validator_set.count() - 1;
 
-                        debug!(%connected_peers, %total_peers, "Connected to another peer");
+                        debug!(%connected = connected_peers, %total = total_peers, "Connected to another peer");
 
                         self.metrics.connected_peers.inc();
 
