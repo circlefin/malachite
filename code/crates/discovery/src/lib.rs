@@ -370,7 +370,7 @@ impl Discovery {
                     },
             } => match response {
                 behaviour::Response::Peers(peers) => {
-                    debug!(count = peers.len(), peer_id = %peer, "Received peers from peer");
+                    debug!(count = peers.len(), peer_id = %peer, "Received peers");
 
                     self.handler.remove_pending_request(&request_id);
 
