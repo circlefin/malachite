@@ -1,7 +1,7 @@
 #![allow(unused_crate_dependencies)]
 
 use bytesize::ByteSize;
-use malachite_node::config::PubSubProtocol;
+use malachite_node::config::{GossipSubConfig, PubSubProtocol};
 use malachite_starknet_test::{App, Expected, Test, TestNode, TestParams};
 
 async fn run_n2f0_tests(test_params: TestParams) {
@@ -49,7 +49,7 @@ pub async fn broadcast_custom_config_2ktx() {
 #[tokio::test]
 pub async fn gossip_custom_config_1ktx() {
     let test_params = TestParams::new(
-        PubSubProtocol::GossipSub,
+        PubSubProtocol::GossipSub(GossipSubConfig::default()),
         ByteSize::kib(1),
         ByteSize::kib(1),
     );
@@ -59,7 +59,7 @@ pub async fn gossip_custom_config_1ktx() {
 #[tokio::test]
 pub async fn gossip_custom_config_2ktx() {
     let test_params = TestParams::new(
-        PubSubProtocol::GossipSub,
+        PubSubProtocol::GossipSub(GossipSubConfig::default()),
         ByteSize::kib(2),
         ByteSize::kib(2),
     );
