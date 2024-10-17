@@ -16,7 +16,6 @@ where
     /// Height currently syncing.
     pub sync_height: Ctx::Height,
 
-    // TODO: Use interval map from rangemap or iset crates
     /// Requests for these heights have been sent out to peers.
     pub pending_requests: BTreeMap<Ctx::Height, PeerId>,
 
