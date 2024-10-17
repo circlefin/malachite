@@ -222,6 +222,9 @@ fn extend_vote<Ctx: Context>(vote: Ctx::Vote, state: &mut State<Ctx>) -> Ctx::Vo
         return vote;
     };
 
-    let extension = full_proposal.extension.clone();
-    vote.extend(extension)
+    if let Some(extension) = &full_proposal.extension {
+        vote.extend(extension.clone())
+    } else {
+        vote
+    }
 }

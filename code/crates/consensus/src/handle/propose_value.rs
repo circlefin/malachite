@@ -10,7 +10,7 @@ pub async fn propose_value<Ctx>(
     height: Ctx::Height,
     round: Round,
     value: Ctx::Value,
-    extension: Extension,
+    extension: Option<Extension>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,

@@ -19,7 +19,7 @@ where
     Proposal(SignedProposal<Ctx>),
 
     /// Propose a value
-    ProposeValue(Ctx::Height, Round, Ctx::Value, Extension),
+    ProposeValue(Ctx::Height, Round, Ctx::Value, Option<Extension>),
 
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),

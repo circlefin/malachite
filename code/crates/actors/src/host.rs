@@ -15,11 +15,16 @@ pub struct LocallyProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
     pub value: Ctx::Value,
-    pub extension: Extension,
+    pub extension: Option<Extension>,
 }
 
 impl<Ctx: Context> LocallyProposedValue<Ctx> {
-    pub fn new(height: Ctx::Height, round: Round, value: Ctx::Value, extension: Extension) -> Self {
+    pub fn new(
+        height: Ctx::Height,
+        round: Round,
+        value: Ctx::Value,
+        extension: Option<Extension>,
+    ) -> Self {
         Self {
             height,
             round,

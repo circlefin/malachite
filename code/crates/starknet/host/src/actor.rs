@@ -117,7 +117,7 @@ impl StarknetHost {
         parts: &[Arc<ProposalPart>],
         height: Height,
         round: Round,
-    ) -> Option<(BlockHash, Address, Validity, Extension)> {
+    ) -> Option<(BlockHash, Address, Validity, Option<Extension>)> {
         if parts.is_empty() {
             return None;
         }
@@ -134,7 +134,7 @@ impl StarknetHost {
 
         trace!(parts.len = %parts.len(), "Building proposal content from parts");
 
-        let extension = if self.host.params().vote_extensions.enabled {
+        let extension = self.host.params().vote_extensions.enabled.then(|| {
             debug!(
                 size = %self.host.params().vote_extensions.size,
                 "Vote extensions are enabled"
@@ -145,9 +145,7 @@ impl StarknetHost {
             rand::thread_rng().fill_bytes(&mut bytes);
 
             Extension::from(bytes)
-        } else {
-            Extension::default()
-        };
+        });
 
         let block_hash = {
             let mut block_hasher = sha3::Keccak256::new();
@@ -305,15 +303,15 @@ impl Actor for StarknetHost {
                 let parts = state.part_store.all_parts(height, round);
 
                 let extension = extension_part
-                    .and_then(|part| part.as_transactions().map(|txs| txs.to_bytes().unwrap()))
-                    .unwrap_or_default();
+                    .and_then(|part| part.as_transactions().and_then(|txs| txs.to_bytes().ok()))
+                    .map(Extension::from);
 
                 if let Some(value) = self.build_value_from_parts(&parts, height, round) {
                     reply_to.send(LocallyProposedValue::new(
                         value.height,
                         value.round,
                         value.value,
-                        Extension::from(extension),
+                        extension,
                     ))?;
                 }
 

@@ -39,5 +39,5 @@ pub struct ProposedValue<Ctx: Context> {
     pub validator_address: Ctx::Address,
     pub value: Ctx::Value,
     pub validity: Validity,
-    pub extension: Extension,
+    pub extension: Option<Extension>,
 }
