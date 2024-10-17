@@ -5,15 +5,16 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use eyre::eyre;
-use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
-use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
+use rand::RngCore;
 use sha3::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, trace};
 
 use malachite_actors::consensus::ConsensusMsg;
+use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
+use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachite_common::{Extension, Round, Validity};
 use malachite_metrics::Metrics;
 use malachite_proto::Protobuf;
@@ -100,15 +101,13 @@ impl StarknetHost {
         let (value, validator_address, validity, extension) =
             self.build_proposal_content_from_parts(parts, height, round)?;
 
-        let raw_extension = extension.to_bytes().unwrap();
-
         Some(ProposedValue {
             validator_address,
             height,
             round,
             value,
             validity,
-            extension: Extension::from(raw_extension),
+            extension,
         })
     }
 
@@ -118,7 +117,7 @@ impl StarknetHost {
         parts: &[Arc<ProposalPart>],
         height: Height,
         round: Round,
-    ) -> Option<(BlockHash, Address, Validity, Transactions)> {
+    ) -> Option<(BlockHash, Address, Validity, Extension)> {
         if parts.is_empty() {
             return None;
         }
@@ -135,18 +134,24 @@ impl StarknetHost {
 
         trace!(parts.len = %parts.len(), "Building proposal content from parts");
 
-        let mut extension = Default::default();
-        let mut have_ext = false;
+        let extension = if self.host.params().vote_extensions.enabled {
+            debug!(
+                size = %self.host.params().vote_extensions.size,
+                "Vote extensions are enabled"
+            );
+
+            let size = self.host.params().vote_extensions.size.as_u64() as usize;
+            let mut bytes = vec![0u8; size];
+            rand::thread_rng().fill_bytes(&mut bytes);
+
+            Extension::from(bytes)
+        } else {
+            Extension::default()
+        };
+
         let block_hash = {
             let mut block_hasher = sha3::Keccak256::new();
             for part in parts {
-                if let ProposalPart::Transactions(txes) = Arc::unwrap_or_clone(part.clone()) {
-                    if !have_ext {
-                        extension = txes;
-                        have_ext = true;
-                    }
-                }
-
                 block_hasher.update(part.to_sign_bytes());
             }
             BlockHash::new(block_hasher.finalize().into())

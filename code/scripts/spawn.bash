@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This script takes:
-# - a number of nodes to run as an argument, 
+# - a number of nodes to run as an argument,
 # - the home directory for the nodes configuration folders
 
 function help {
@@ -43,6 +43,8 @@ export MALACHITE__TEST__TX_SIZE="1KiB"
 export MALACHITE__TEST__TXS_PER_PART=50
 export MALACHITE__TEST__TIME_ALLOWANCE_FACTOR=0.5
 export MALACHITE__TEST__EXEC_TIME_PER_TX="1ms"
+export MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED="true"
+export MALACHITE__TEST__VOTE_EXTENSIONS__SIZE="1KiB"
 
 echo "Compiling Malachite..."
 cargo build --release
