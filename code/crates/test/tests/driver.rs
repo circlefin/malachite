@@ -1247,7 +1247,7 @@ fn run_steps(
 
         assert_eq!(outputs, step.expected_outputs, "expected outputs");
         assert_eq!(driver.round(), step.expected_round, "expected round");
-        assert_eq!(driver.round_state, step.new_state, "new state");
+        assert_eq!(driver.round_state(), &step.new_state, "new state");
 
         input_from_prev_output = outputs
             .pop()
@@ -1275,7 +1275,7 @@ fn run_steps_failing(
             Ok(mut outputs) => {
                 assert_eq!(outputs, step.expected_outputs, "expected outputs");
                 assert_eq!(driver.round(), step.expected_round, "expected round");
-                assert_eq!(driver.round_state, step.new_state, "new state");
+                assert_eq!(driver.round_state(), &step.new_state, "new state");
 
                 input_from_prev_output = outputs
                     .pop()

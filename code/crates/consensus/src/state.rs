@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use malachite_common::*;
 use malachite_driver::Driver;
+use tracing::warn;
 
 use crate::input::Input;
 use crate::Params;
@@ -58,7 +59,7 @@ where
 
     pub fn get_proposer(&self, height: Ctx::Height, round: Round) -> &Ctx::Address {
         self.ctx
-            .select_proposer(&self.driver.validator_set, height, round)
+            .select_proposer(self.driver.validator_set(), height, round)
             .address()
     }
 
@@ -123,5 +124,47 @@ where
 
     pub fn remove_full_proposals(&mut self, height: Ctx::Height) {
         self.full_proposal_keeper.remove_full_proposals(height)
+    }
+
+    pub fn print_state(&self) {
+        if let Some(per_round) = self.driver.votes().per_round(self.driver.round()) {
+            warn!(
+                "Number of validators having voted: {} / {}",
+                per_round.addresses_weights().get_inner().len(),
+                self.driver.validator_set().count()
+            );
+            warn!(
+                "Total voting power of validators: {}",
+                self.driver.validator_set().total_voting_power()
+            );
+            warn!(
+                "Voting power required: {}",
+                self.driver.validator_set().total_voting_power() * 2 / 3
+            );
+            warn!(
+                "Total voting power of validators having voted: {}",
+                per_round.addresses_weights().sum()
+            );
+            warn!(
+                "Total voting power of validators having prevoted nil: {}",
+                per_round
+                    .votes()
+                    .get_weight(VoteType::Prevote, &NilOrVal::Nil)
+            );
+            warn!(
+                "Total voting power of validators having precommited nil: {}",
+                per_round
+                    .votes()
+                    .get_weight(VoteType::Precommit, &NilOrVal::Nil)
+            );
+            warn!(
+                "Total weight of prevotes: {}",
+                per_round.votes().weight_sum(VoteType::Prevote)
+            );
+            warn!(
+                "Total weight of precommits: {}",
+                per_round.votes().weight_sum(VoteType::Precommit)
+            );
+        }
     }
 }

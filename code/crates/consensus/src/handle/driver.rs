@@ -76,7 +76,7 @@ where
     // If the step has changed, update the metrics
     if prev_step != new_step {
         debug!("Transitioned from {prev_step:?} to {new_step:?}");
-        if let Some(valid) = &state.driver.round_state.valid {
+        if let Some(valid) = &state.driver.valid_value() {
             if state.driver.step_is_propose() {
                 info!(
                     round = %valid.round,

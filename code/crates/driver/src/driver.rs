@@ -9,13 +9,13 @@ use malachite_common::{
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
 use malachite_round::state::Step::Propose;
-use malachite_round::state::{State as RoundState, Step};
+use malachite_round::state::{RoundValue, State as RoundState, Step};
 use malachite_round::state_machine::Info;
 use malachite_vote::keeper::VoteKeeper;
 
 use crate::input::Input;
 use crate::output::Output;
-use crate::proposal_keeper::ProposalKeeper;
+use crate::proposal_keeper::{EvidenceMap, ProposalKeeper};
 use crate::Error;
 use crate::ThresholdParams;
 
@@ -26,31 +26,32 @@ where
 {
     /// The context of the consensus engine,
     /// for defining the concrete data types and signature scheme.
-    pub ctx: Ctx,
+    #[allow(dead_code)]
+    ctx: Ctx,
 
     /// The address of the node.
-    pub address: Ctx::Address,
+    address: Ctx::Address,
 
     /// Quorum thresholds
-    pub threshold_params: ThresholdParams,
+    threshold_params: ThresholdParams,
 
     /// The validator set at the current height
-    pub validator_set: Ctx::ValidatorSet,
+    validator_set: Ctx::ValidatorSet,
 
     /// The proposals to decide on.
-    pub proposal_keeper: ProposalKeeper<Ctx>,
+    pub(crate) proposal_keeper: ProposalKeeper<Ctx>,
 
     /// The vote keeper.
-    pub vote_keeper: VoteKeeper<Ctx>,
+    pub(crate) vote_keeper: VoteKeeper<Ctx>,
 
     /// The state of the round state machine.
-    pub round_state: RoundState<Ctx>,
+    pub(crate) round_state: RoundState<Ctx>,
 
     /// The proposer for the current round, None for round nil.
-    pub proposer: Option<Ctx::Address>,
+    proposer: Option<Ctx::Address>,
 
     /// The pending input to be processed next, if any.
-    pub pending_input: Option<(Round, RoundInput<Ctx>)>,
+    pending_input: Option<(Round, RoundInput<Ctx>)>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -125,9 +126,34 @@ where
         self.round_state.step == Propose
     }
 
+    /// Return the valid value (the value for which we saw a polka) for the current round, if any.
+    pub fn valid_value(&self) -> Option<&RoundValue<Ctx::Value>> {
+        self.round_state.valid.as_ref()
+    }
+
     /// Return a reference to the votekeper
     pub fn votes(&self) -> &VoteKeeper<Ctx> {
         &self.vote_keeper
+    }
+
+    /// Return the state for the current round.
+    pub fn round_state(&self) -> &RoundState<Ctx> {
+        &self.round_state
+    }
+
+    /// Return the address of the node.
+    pub fn address(&self) -> &Ctx::Address {
+        &self.address
+    }
+
+    /// Return the validator set for this height.
+    pub fn validator_set(&self) -> &Ctx::ValidatorSet {
+        &self.validator_set
+    }
+
+    /// Return recorded evidence of equivocation for this height.
+    pub fn evidence(&self) -> &EvidenceMap<Ctx> {
+        self.proposal_keeper.evidence()
     }
 
     /// Return the proposer for the current round.
@@ -328,6 +354,12 @@ where
 
         // Return output, if any
         Ok(transition.output)
+    }
+
+    /// Return the traces logged during execution.
+    #[cfg(feature = "debug")]
+    pub fn get_traces(&self) -> &[malachite_round::traces::Trace<Ctx>] {
+        self.round_state.get_traces()
     }
 }
 
