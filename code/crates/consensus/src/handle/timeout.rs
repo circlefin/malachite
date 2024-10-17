@@ -27,7 +27,7 @@ where
 
     info!(
         step = ?timeout.step,
-        timeout.round = %timeout.round,
+        %timeout.round,
         %height,
         %round,
         "Timeout elapsed");
