@@ -308,6 +308,7 @@ use malachite_node::config::{
 
 pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> NodeConfig {
     let transport = TransportProtocol::Tcp;
+    let protocol = PubSubProtocol::default();
 
     NodeConfig {
         app,
@@ -318,7 +319,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 transport,
-                protocol: PubSubProtocol::GossipSub,
+                protocol,
                 listen_addr: transport.multiaddr("127.0.0.1", test.consensus_base_port + i),
                 persistent_peers: (0..N)
                     .filter(|j| i != *j)
@@ -330,7 +331,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
         mempool: MempoolConfig {
             p2p: P2pConfig {
                 transport,
-                protocol: PubSubProtocol::GossipSub,
+                protocol,
                 listen_addr: transport.multiaddr("127.0.0.1", test.mempool_base_port + i),
                 persistent_peers: (0..N)
                     .filter(|j| i != *j)

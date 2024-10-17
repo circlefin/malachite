@@ -10,7 +10,9 @@ use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
 use malachite_common::Round;
-use malachite_gossip_consensus::{Config as GossipConsensusConfig, DiscoveryConfig, Keypair};
+use malachite_gossip_consensus::{
+    Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
+};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
@@ -137,7 +139,14 @@ async fn spawn_gossip_consensus_actor(
             TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
         },
         protocol: match cfg.consensus.p2p.protocol {
-            PubSubProtocol::GossipSub => malachite_gossip_consensus::PubSubProtocol::GossipSub,
+            PubSubProtocol::GossipSub(config) => {
+                malachite_gossip_consensus::PubSubProtocol::GossipSub(GossipSubConfig {
+                    mesh_n: config.mesh_n,
+                    mesh_n_high: config.mesh_n_high,
+                    mesh_n_low: config.mesh_n_low,
+                    mesh_outbound_min: config.mesh_outbound_min,
+                })
+            }
             PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
         },
     };

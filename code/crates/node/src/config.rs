@@ -80,6 +80,7 @@ pub struct P2pConfig {
     pub transport: TransportProtocol,
 
     /// The type of pub-sub protocol to use for consensus
+    #[serde(flatten)]
     pub protocol: PubSubProtocol,
 }
 
@@ -123,12 +124,47 @@ impl FromStr for TransportProtocol {
 }
 
 /// The type of pub-sub protocol
-#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PubSubProtocol {
-    #[default]
-    GossipSub,
+    GossipSub(GossipSubConfig),
     Broadcast,
+}
+
+impl Default for PubSubProtocol {
+    fn default() -> Self {
+        Self::GossipSub(GossipSubConfig::default())
+    }
+}
+
+/// GossipSub configuration
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GossipSubConfig {
+    /// Target number of peers for the mesh network (D in the GossipSub spec)
+    pub mesh_n: usize,
+
+    /// Maximum number of peers in mesh network before removing some (D_high in the GossipSub spec)
+    pub mesh_n_high: usize,
+
+    /// Minimum number of peers in mesh network before adding more (D_low in the spec)
+    pub mesh_n_low: usize,
+
+    /// Minimum number of outbound peers in the mesh network before adding more (D_out in the spec).
+    /// This value must be smaller or equal than `mesh_n / 2` and smaller than `mesh_n_low`.
+    /// When this value is set to 0 or does not meet the above constraints,
+    /// it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
+    pub mesh_outbound_min: usize,
+}
+
+impl Default for GossipSubConfig {
+    fn default() -> Self {
+        Self {
+            mesh_n: 6,
+            mesh_n_high: 12,
+            mesh_n_low: 4,
+            mesh_outbound_min: 2,
+        }
+    }
 }
 
 /// Mempool configuration options

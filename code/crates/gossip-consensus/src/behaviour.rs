@@ -9,11 +9,10 @@ use libp2p_broadcast as broadcast;
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
-
 use malachite_discovery as discovery;
 use malachite_metrics::Registry;
 
-use crate::{PubSubProtocol, PROTOCOL_VERSION};
+use crate::{GossipSubConfig, PubSubProtocol, PROTOCOL_VERSION};
 
 const MAX_TRANSMIT_SIZE: usize = 4 * 1024 * 1024; // 4 MiB
 
@@ -100,7 +99,7 @@ fn message_id(message: &gossipsub::Message) -> gossipsub::MessageId {
     gossipsub::MessageId::new(hasher.finish().to_be_bytes().as_slice())
 }
 
-fn gossipsub_config() -> gossipsub::Config {
+fn gossipsub_config(config: GossipSubConfig) -> gossipsub::Config {
     gossipsub::ConfigBuilder::default()
         .max_transmit_size(MAX_TRANSMIT_SIZE)
         .opportunistic_graft_ticks(3)
@@ -108,10 +107,10 @@ fn gossipsub_config() -> gossipsub::Config {
         .validation_mode(gossipsub::ValidationMode::Strict)
         .history_gossip(3)
         .history_length(5)
-        .mesh_n_high(4)
-        .mesh_n_low(1)
-        .mesh_outbound_min(1)
-        .mesh_n(3)
+        .mesh_n_high(config.mesh_n_high)
+        .mesh_n_low(config.mesh_n_low)
+        .mesh_outbound_min(config.mesh_outbound_min)
+        .mesh_n(config.mesh_n)
         .message_id_fn(message_id)
         .build()
         .unwrap()
@@ -132,10 +131,10 @@ impl Behaviour {
         let ping = ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5)));
 
         let pubsub = match tpe {
-            PubSubProtocol::GossipSub => Either::Left(
+            PubSubProtocol::GossipSub(config) => Either::Left(
                 gossipsub::Behaviour::new_with_metrics(
                     gossipsub::MessageAuthenticity::Signed(keypair.clone()),
-                    gossipsub_config(),
+                    gossipsub_config(config),
                     registry.sub_registry_with_prefix("gossipsub"),
                     Default::default(),
                 )

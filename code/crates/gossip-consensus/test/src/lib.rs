@@ -161,7 +161,7 @@ impl<const N: usize> Test<N> {
             },
             idle_connection_timeout: Duration::from_secs(60),
             transport: malachite_gossip_consensus::TransportProtocol::Quic,
-            protocol: malachite_gossip_consensus::PubSubProtocol::GossipSub,
+            protocol: malachite_gossip_consensus::PubSubProtocol::default(),
         })
     }
 

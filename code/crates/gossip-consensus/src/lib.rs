@@ -36,21 +36,34 @@ const PROTOCOL_VERSION: &str = "/malachite-gossip-consensus/v1beta1";
 const METRICS_PREFIX: &str = "malachite_gossip_consensus";
 const DISCOVERY_METRICS_PREFIX: &str = "malachite_discovery";
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug)]
 pub enum PubSubProtocol {
-    #[default]
-    GossipSub,
+    GossipSub(GossipSubConfig),
     Broadcast,
 }
 
 impl PubSubProtocol {
     pub fn is_gossipsub(&self) -> bool {
-        matches!(self, Self::GossipSub)
+        matches!(self, Self::GossipSub(_))
     }
 
     pub fn is_broadcast(&self) -> bool {
         matches!(self, Self::Broadcast)
     }
+}
+
+impl Default for PubSubProtocol {
+    fn default() -> Self {
+        Self::GossipSub(GossipSubConfig::default())
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+pub struct GossipSubConfig {
+    pub mesh_n: usize,
+    pub mesh_n_high: usize,
+    pub mesh_n_low: usize,
+    pub mesh_outbound_min: usize,
 }
 
 pub type BoxError = Box<dyn Error + Send + Sync + 'static>;

@@ -12,7 +12,7 @@ use clap::{Parser, Subcommand};
 use color_eyre::eyre::{eyre, Result};
 use directories::BaseDirs;
 
-use malachite_node::config::{Config, LogFormat, LogLevel};
+use malachite_node::config::{Config, LogFormat, LogLevel, PubSubProtocol};
 
 use crate::cmd::init::InitCmd;
 use crate::cmd::keys::KeysCmd;
@@ -127,6 +127,22 @@ impl Args {
 
         if let Some(log_format) = self.log_format {
             config.logging.log_format = log_format;
+        }
+
+        // Validate configuration
+        if let PubSubProtocol::GossipSub(mut gscfg) = config.consensus.p2p.protocol {
+            // From the configuration on mesh_outbound_min:
+            // This value must be smaller or equal than `mesh_n / 2` and smaller than `mesh_n_low`.
+            // When this value is set to 0 or does not meet the above constraints,
+            // it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
+            if gscfg.mesh_outbound_min == 0
+                || gscfg.mesh_outbound_min > gscfg.mesh_n / 2
+                || gscfg.mesh_outbound_min >= gscfg.mesh_n_low
+            {
+                gscfg.mesh_outbound_min =
+                    std::cmp::max(1, std::cmp::min(gscfg.mesh_n / 2, gscfg.mesh_n_low - 1));
+                config.consensus.p2p.protocol = PubSubProtocol::GossipSub(gscfg);
+            };
         }
 
         Ok(config)
