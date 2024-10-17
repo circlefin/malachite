@@ -29,7 +29,7 @@ where
             perform!(co, Effect::CancelTimeout(Timeout::propose(*round)));
         }
 
-        DriverInput::Proposal(proposal, validity) => {
+        DriverInput::Proposal(proposal, _validity) => {
             if proposal.height() != state.driver.height() {
                 warn!(
                     "Ignoring proposal for height {}, current height: {}",
@@ -39,12 +39,6 @@ where
 
                 return Ok(());
             }
-
-            // Store the proposal
-            state
-                .driver
-                .proposal_keeper
-                .apply_proposal(proposal.clone(), *validity);
 
             perform!(
                 co,
@@ -81,7 +75,7 @@ where
     // If the step has changed, update the metrics
     if prev_step != new_step {
         debug!("Transitioned from {prev_step:?} to {new_step:?}");
-        if let Some(valid) = &state.driver.round_state.valid {
+        if let Some(valid) = &state.driver.valid_value() {
             if state.driver.step_is_propose() {
                 info!(
                     round = %valid.round,
@@ -125,7 +119,7 @@ where
 {
     match output {
         DriverOutput::NewRound(height, round) => {
-            let proposer = state.get_proposer(height, round)?;
+            let proposer = state.get_proposer(height, round);
 
             apply_driver_input(
                 co,

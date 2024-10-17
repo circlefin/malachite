@@ -128,7 +128,7 @@ where
         return Ok(false);
     };
 
-    let expected_proposer = state.get_proposer(proposal_height, proposal_round).unwrap(); // FIXME: Unwrap
+    let expected_proposer = state.get_proposer(proposal_height, proposal_round);
 
     if expected_proposer != proposer_address {
         warn!(

@@ -1182,12 +1182,7 @@ fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
         let outputs = driver.process(step.input).expect("execute succeeded");
 
         assert_eq!(outputs, step.expected_outputs, "expected outputs");
-
-        assert_eq!(
-            driver.round_state.round, step.expected_round,
-            "expected round"
-        );
-
-        assert_eq!(driver.round_state, step.new_state, "expected state");
+        assert_eq!(driver.round(), step.expected_round, "expected round");
+        assert_eq!(driver.round_state(), &step.new_state, "expected state");
     }
 }

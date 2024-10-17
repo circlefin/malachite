@@ -38,7 +38,7 @@ where
     state.store_value(&ProposedValue {
         height,
         round,
-        validator_address: state.driver.address.clone(),
+        validator_address: state.driver.address().clone(),
         value: value.clone(),
         validity: Validity::Valid,
         extension,

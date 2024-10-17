@@ -44,7 +44,7 @@ impl common::Proposal<MockContext> for Proposal {
 
 impl common::Vote<MockContext> for Vote {
     fn height(&self) -> Height {
-        self.block_number
+        self.height
     }
 
     fn round(&self) -> Round {

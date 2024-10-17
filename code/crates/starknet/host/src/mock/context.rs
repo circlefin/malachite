@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use malachite_common::{
-    Context, Extension, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote, ValueId,
+    Context, Extension, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote,
+    ValidatorSet as _, ValueId,
 };
 use malachite_starknet_p2p_types::{PrivateKey, PublicKey, Signature, SigningScheme};
 use starknet_core::utils::starknet_keccak;
@@ -33,6 +34,27 @@ impl Context for MockContext {
     type Value = BlockHash;
     type Vote = Vote;
     type SigningScheme = SigningScheme;
+
+    fn select_proposer<'a>(
+        &self,
+        validator_set: &'a Self::ValidatorSet,
+        height: Self::Height,
+        round: Round,
+    ) -> &'a Self::Validator {
+        assert!(validator_set.count() > 0);
+        assert!(round != Round::Nil && round.as_i64() >= 0);
+
+        let proposer_index = {
+            let height = height.as_u64() as usize;
+            let round = round.as_i64() as usize;
+
+            (height - 1 + round) % validator_set.count()
+        };
+
+        validator_set
+            .get_by_index(proposer_index)
+            .expect("proposer_index is valid")
+    }
 
     fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self> {
         let hash = starknet_keccak(&vote.to_sign_bytes());
@@ -98,8 +120,7 @@ impl Context for MockContext {
         value_id: NilOrVal<BlockHash>,
         address: Address,
     ) -> Vote {
-        let fork_id = 1; // FIXME: p2p-types
-        Vote::new_prevote(height, round, fork_id, value_id, address)
+        Vote::new_prevote(height, round, value_id, address)
     }
 
     fn new_precommit(
@@ -108,8 +129,7 @@ impl Context for MockContext {
         value_id: NilOrVal<BlockHash>,
         address: Address,
     ) -> Vote {
-        let fork_id = 1; // FIXME: p2p-types
-        Vote::new_precommit(height, round, fork_id, value_id, address)
+        Vote::new_precommit(height, round, value_id, address)
     }
 
     fn extended_precommit(
@@ -119,7 +139,6 @@ impl Context for MockContext {
         address: Self::Address,
         extension: Extension,
     ) -> Self::Vote {
-        let fork_id = 1; // FIXME: p2p-types
-        Vote::new_precommit_with_extension(height, round, fork_id, value_id, address, extension)
+        Vote::new_precommit_with_extension(height, round, value_id, address, extension)
     }
 }

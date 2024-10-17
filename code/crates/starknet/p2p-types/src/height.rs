@@ -1,60 +1,55 @@
 use core::fmt;
 
-// use malachite_proto::{Error as ProtoError, Protobuf};
-// use malachite_starknet_p2p_proto as p2p_proto;
-
 /// A blockchain height
-#[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Height(u64);
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Height {
+    pub block_number: u64,
+    pub fork_id: u64,
+}
 
 impl Height {
-    pub const fn new(height: u64) -> Self {
-        Self(height)
+    pub const fn new(block_number: u64, fork_id: u64) -> Self {
+        Self {
+            block_number,
+            fork_id,
+        }
     }
 
     pub const fn as_u64(&self) -> u64 {
-        self.0
+        self.block_number
     }
 
-    pub fn increment(&self) -> Self {
-        Self(self.0 + 1)
+    pub const fn increment(&self) -> Self {
+        self.increment_by(1)
+    }
+
+    pub const fn increment_by(&self, n: u64) -> Self {
+        Self {
+            block_number: self.block_number + n,
+            fork_id: self.fork_id,
+        }
     }
 
     pub fn decrement(&self) -> Option<Self> {
-        self.0.checked_sub(1).map(Self)
+        self.block_number.checked_sub(1).map(|block_number| Self {
+            block_number,
+            fork_id: self.fork_id,
+        })
     }
 }
 
 impl fmt::Display for Height {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl fmt::Debug for Height {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Height({})", self.0)
+        self.block_number.fmt(f)
     }
 }
 
 impl malachite_common::Height for Height {
     fn increment(&self) -> Self {
-        Self(self.0 + 1)
+        self.increment()
     }
 
     fn as_u64(&self) -> u64 {
-        self.0
+        self.block_number
     }
 }
-
-// impl Protobuf for Height {
-//     type Proto = u64;
-//
-//     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
-//         Ok(Self(proto.value))
-//     }
-//
-//     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
-//         Ok(p2p_proto::Height { value: self.0 })
-//     }
-// }

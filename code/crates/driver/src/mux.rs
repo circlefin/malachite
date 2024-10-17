@@ -74,7 +74,7 @@ where
     ///
     /// 9. If none of the above conditions are met, simply wrap the proposal in
     ///    `RoundInput::Proposal` and return it.
-    pub fn multiplex_proposal(
+    pub(crate) fn multiplex_proposal(
         &mut self,
         proposal: SignedProposal<Ctx>,
         validity: Validity,
@@ -160,7 +160,7 @@ where
 
     /// After a vote threshold change for a given round, check if we have a polka for nil, some value or any,
     /// based on the type of threshold and the current proposal.
-    pub fn multiplex_vote_threshold(
+    pub(crate) fn multiplex_vote_threshold(
         &self,
         new_threshold: VKOutput<ValueId<Ctx>>,
         threshold_round: Round,
@@ -211,7 +211,7 @@ where
 
     /// After a step change, see if there is an input to be
     /// sent implicitly to the round state machine.
-    pub fn multiplex_step_change(
+    pub(crate) fn multiplex_step_change(
         &self,
         pending_step: Step,
         round: Round,

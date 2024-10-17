@@ -6,8 +6,7 @@ use crate::{Address, BlockProof, Height, Transactions};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalInit {
-    pub block_number: Height,
-    pub fork_id: u64,
+    pub height: Height,
     pub proposal_round: Round,
     pub proposer: Address,
 }
@@ -103,8 +102,7 @@ impl proto::Protobuf for ProposalPart {
 
         Ok(match message {
             Messages::Init(init) => ProposalPart::Init(ProposalInit {
-                block_number: Height::new(init.block_number),
-                fork_id: init.fork_id,
+                height: Height::new(init.block_number, init.fork_id),
                 proposal_round: Round::new(i64::from(init.proposal_round)),
                 proposer: Address::from_proto(
                     init.proposer
@@ -132,8 +130,8 @@ impl proto::Protobuf for ProposalPart {
 
         let message = match self {
             ProposalPart::Init(init) => Messages::Init(p2p_proto::ProposalInit {
-                block_number: init.block_number.as_u64(),
-                fork_id: init.fork_id,
+                block_number: init.height.block_number,
+                fork_id: init.height.fork_id,
                 proposal_round: init.proposal_round.as_i64() as u32, // FIXME: p2p-types
                 proposer: Some(init.proposer.to_proto()?),
             }),

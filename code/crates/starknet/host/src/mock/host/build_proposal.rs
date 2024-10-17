@@ -62,8 +62,7 @@ async fn run_build_proposal_task(
     // Init
     {
         let part = ProposalPart::Init(ProposalInit {
-            block_number: height,
-            fork_id: 1, // TODO: Add fork id
+            height,
             proposal_round: round,
             proposer: proposer.clone(),
         });

@@ -146,12 +146,12 @@ impl ItfRunner for VoteKeeperRunner {
             "total_weight for the current height"
         );
 
-        assert_eq!(actual_state.per_round().len(), expected_state.rounds.len());
+        assert_eq!(actual_state.rounds(), expected_state.rounds.len());
 
         for (&round, expected_round) in &expected_state.rounds {
             // doesn't check for current Height and Round
 
-            let actual_round = actual_state.per_round().get(&Round::new(round)).unwrap();
+            let actual_round = actual_state.per_round(Round::new(round)).unwrap();
 
             let expected_outputs = &expected_round.emitted_outputs;
             let actual_outputs = actual_round.emitted_outputs();
