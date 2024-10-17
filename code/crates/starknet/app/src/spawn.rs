@@ -55,7 +55,7 @@ pub async fn spawn_node_actor(
     )
     .await;
 
-    let start_height = Height::new(1);
+    let start_height = Height::new(1, 1);
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(
@@ -202,6 +202,7 @@ async fn spawn_host_actor(
         txs_per_part: cfg.test.txs_per_part,
         time_allowance_factor: cfg.test.time_allowance_factor,
         exec_time_per_tx: cfg.test.exec_time_per_tx,
+        vote_extensions: cfg.test.vote_extensions,
     };
 
     let mock_host = MockHost::new(

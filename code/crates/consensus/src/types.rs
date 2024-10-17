@@ -1,6 +1,8 @@
 use derive_where::derive_where;
 
-use malachite_common::{Context, Proposal, Round, SignedProposal, SignedVote, Validity, Vote};
+use malachite_common::{
+    Context, Extension, Proposal, Round, SignedProposal, SignedVote, Validity, Vote,
+};
 
 pub use libp2p_identity::PeerId;
 pub use multiaddr::Multiaddr;
@@ -29,6 +31,7 @@ pub enum ConsensusMsg<Ctx: Context> {
 }
 
 /// A value proposed by a validator
+/// Called at non-proposer only.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct ProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
@@ -36,4 +39,5 @@ pub struct ProposedValue<Ctx: Context> {
     pub validator_address: Ctx::Address,
     pub value: Ctx::Value,
     pub validity: Validity,
+    pub extension: Extension,
 }

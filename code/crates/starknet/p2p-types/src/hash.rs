@@ -1,5 +1,6 @@
 use core::{fmt, str};
 
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 use malachite_proto as proto;
@@ -55,15 +56,15 @@ impl proto::Protobuf for Hash {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
-        Ok(Self::new(proto.elements.try_into().map_err(|_| {
-            proto::Error::Other("Invalid hash length".to_string())
-        })?))
+        Ok(Self::new(proto.elements.as_ref().try_into().map_err(
+            |_| proto::Error::Other("Invalid hash length".to_string()),
+        )?))
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(p2p_proto::Hash {
-            elements: self.as_bytes().to_vec(),
+            elements: Bytes::copy_from_slice(self.as_bytes().as_ref()),
         })
     }
 }

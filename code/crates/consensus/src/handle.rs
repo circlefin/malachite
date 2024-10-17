@@ -46,12 +46,12 @@ where
         }
         Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
         Input::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
-        Input::ProposeValue(height, round, value) => {
-            propose_value(co, state, metrics, height, round, value).await
+        Input::ProposeValue(height, round, value, extension) => {
+            propose_value(co, state, metrics, height, round, value, extension).await
         }
         Input::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
-        Input::ReceivedProposedValue(block) => {
-            on_received_proposed_value(co, state, metrics, block).await
+        Input::ReceivedProposedValue(value) => {
+            on_received_proposed_value(co, state, metrics, value).await
         }
     }
 }

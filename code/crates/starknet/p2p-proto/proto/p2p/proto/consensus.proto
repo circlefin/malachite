@@ -23,6 +23,9 @@ message Vote {
     optional Hash      block_hash   = 6;
     // Identifies the voter.
     Address            voter        = 7;
+
+    /// ADDED
+    optional bytes     extension    = 8;
 }
 
 message ProposalInit {
@@ -51,11 +54,6 @@ message ProposalFin {
 // lower bound should be "greater than the previous timestamp". Upper bounds don't suffer from this
 // problem.
 message ProposalPart {
-    // uint64 height = 5;
-    // uint32 round  = 6;
-    // uint64 sequence = 7;
-    // Address proposer = 8;
-
     oneof messages {
         ProposalInit init         = 1;
         ProposalFin  fin          = 2;
@@ -68,13 +66,15 @@ message ProposalPart {
     }
 }
 
-/// ADDED
+// ADDED
+// TODO: Remove this message
 message Proposal {
-    uint64 height = 1;
-    uint32 round = 2;
-    Hash block_hash = 3;
-    int64 pol_round = 4;
-    Address proposer = 5;
+    uint64 fork_id = 1;
+    uint64 block_number = 2;
+    uint32 round = 3;
+    Hash block_hash = 4;
+    int64 pol_round = 5;
+    Address proposer = 6;
 }
 
 message ConsensusMessage {

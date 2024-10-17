@@ -172,3 +172,5 @@ txs_per_part = 256
 time_allowance_factor = 0.5
 # Override with MALACHITE__TEST__EXEC_TIME_PER_TX env variable
 exec_time_per_tx = "1ms"
+# Override with MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED and MALACHITE__TEST__VOTE_EXTENSIONS__SIZE env variables
+vote_extensions = { enabled = false, size = "0 KB" }

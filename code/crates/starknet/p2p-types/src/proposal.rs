@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use malachite_common::Round;
 use malachite_proto as proto;
 use malachite_starknet_p2p_proto as p2p_proto;
@@ -31,7 +32,7 @@ impl Proposal {
         }
     }
 
-    pub fn to_sign_bytes(&self) -> Vec<u8> {
+    pub fn to_sign_bytes(&self) -> Bytes {
         proto::Protobuf::to_bytes(self).unwrap()
     }
 }
@@ -42,7 +43,8 @@ impl proto::Protobuf for Proposal {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
         Ok(Self::Proto {
-            height: self.height.as_u64(),
+            block_number: self.height.block_number,
+            fork_id: self.height.fork_id,
             round: self.round.as_i64() as u32, // FIXME: p2p-types
             block_hash: Some(self.block_hash.to_proto()?),
             pol_round: self.pol_round.as_i64(),
@@ -53,7 +55,7 @@ impl proto::Protobuf for Proposal {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
         Ok(Self {
-            height: Height::new(proto.height),
+            height: Height::new(proto.block_number, proto.fork_id),
             round: Round::new(i64::from(proto.round)),
             block_hash: BlockHash::from_proto(
                 proto

@@ -15,6 +15,7 @@ malachite-starknet-p2p-proto.workspace = true
 starknet-core.workspace   = true
 starknet-crypto.workspace = true
 
+bytes.workspace = true
 rand.workspace  = true
 serde.workspace = true
 sha3.workspace  = true

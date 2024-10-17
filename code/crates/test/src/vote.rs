@@ -1,8 +1,11 @@
+use bytes::Bytes;
 use malachite_common::{NilOrVal, Round, VoteType};
 use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::proto;
 use crate::{Address, Height, TestContext, ValueId};
+
+pub use malachite_common::Extension;
 
 /// A vote for a value in a round
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -12,6 +15,7 @@ pub struct Vote {
     pub round: Round,
     pub value: NilOrVal<ValueId>,
     pub validator_address: Address,
+    pub extension: Option<Extension>,
 }
 
 impl Vote {
@@ -27,6 +31,7 @@ impl Vote {
             round,
             value,
             validator_address,
+            extension: None,
         }
     }
 
@@ -42,10 +47,11 @@ impl Vote {
             round,
             value,
             validator_address: address,
+            extension: None,
         }
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Bytes {
         Protobuf::to_bytes(self).unwrap()
     }
 }
@@ -74,6 +80,17 @@ impl malachite_common::Vote<TestContext> for Vote {
     fn validator_address(&self) -> &Address {
         &self.validator_address
     }
+
+    fn extension(&self) -> Option<&Extension> {
+        self.extension.as_ref()
+    }
+
+    fn extend(self, extension: Extension) -> Self {
+        Self {
+            extension: Some(extension),
+            ..self
+        }
+    }
 }
 
 impl Protobuf for Vote {
@@ -98,6 +115,7 @@ impl Protobuf for Vote {
                     .validator_address
                     .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("validator_address"))?,
             )?,
+            extension: Default::default(),
         })
     }
 

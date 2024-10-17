@@ -2454,6 +2454,7 @@ dependencies = [
 name = "malachite-common"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "derive-where",
 ]
 
@@ -2615,6 +2616,7 @@ name = "malachite-starknet-host"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "bytesize",
  "derive-where",
  "eyre",
@@ -2645,6 +2647,7 @@ dependencies = [
 name = "malachite-starknet-p2p-types"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "malachite-common",
  "malachite-proto",
  "malachite-starknet-p2p-proto",
@@ -2676,6 +2679,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
+ "bytes",
  "bytesize",
  "ed25519-consensus",
  "hex",
@@ -3438,9 +3442,9 @@ dependencies = [
 
 [[package]]
 name = "ractor"
-version = "0.11.2"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61e6aec2fe1f8a8f2fe79897826a0ea18b41f97735ee3704a6dd29c989a65c65"
+checksum = "5e780e8876d6207aeed3c7a16f3022d290fc42f509ee413151196c6b66f577bc"
 dependencies = [
  "async-trait",
  "dashmap",

@@ -1,3 +1,4 @@
+use prost::bytes::Bytes;
 use prost::{Message, Name};
 use prost_types::Any;
 
@@ -20,7 +21,7 @@ impl NetworkMsg {
         Protobuf::from_bytes(bytes).map(NetworkMsg::TransactionBatch)
     }
 
-    pub fn to_network_bytes(&self) -> Result<Vec<u8>, ProtoError> {
+    pub fn to_network_bytes(&self) -> Result<Bytes, ProtoError> {
         match self {
             NetworkMsg::TransactionBatch(batch) => batch.to_bytes(),
         }

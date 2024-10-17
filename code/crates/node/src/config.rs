@@ -259,6 +259,12 @@ impl RuntimeConfig {
     }
 }
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct VoteExtensionsConfig {
+    pub enabled: bool,
+    pub size: ByteSize,
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestConfig {
     pub tx_size: ByteSize,
@@ -266,6 +272,8 @@ pub struct TestConfig {
     pub time_allowance_factor: f32,
     #[serde(with = "humantime_serde")]
     pub exec_time_per_tx: Duration,
+    #[serde(default)]
+    pub vote_extensions: VoteExtensionsConfig,
 }
 
 impl Default for TestConfig {
@@ -275,6 +283,7 @@ impl Default for TestConfig {
             txs_per_part: 256,
             time_allowance_factor: 0.5,
             exec_time_per_tx: Duration::from_millis(1),
+            vote_extensions: VoteExtensionsConfig::default(),
         }
     }
 }

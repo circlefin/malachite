@@ -10,6 +10,7 @@ pub async fn propose_value<Ctx>(
     height: Ctx::Height,
     round: Round,
     value: Ctx::Value,
+    extension: Extension,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -37,9 +38,10 @@ where
     state.store_value(&ProposedValue {
         height,
         round,
-        validator_address: state.driver.address.clone(),
+        validator_address: state.driver.address().clone(),
         value: value.clone(),
         validity: Validity::Valid,
+        extension,
     });
 
     apply_driver_input(co, state, metrics, DriverInput::ProposeValue(round, value)).await

@@ -38,7 +38,7 @@ where
     let round = Round::new(0);
     info!(%height, "Starting new height");
 
-    let proposer = state.get_proposer(height, round).cloned()?;
+    let proposer = state.get_proposer(height, round).clone();
 
     apply_driver_input(
         co,

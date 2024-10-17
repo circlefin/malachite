@@ -23,4 +23,5 @@ pub mod state;
 pub mod state_machine;
 pub mod transition;
 
-mod traces;
+#[doc(hidden)]
+pub mod traces;

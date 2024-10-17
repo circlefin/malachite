@@ -12,6 +12,7 @@ use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, SwarmBuilder};
+use prost::bytes::Bytes;
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
@@ -113,7 +114,7 @@ pub enum Event {
 
 #[derive(Debug)]
 pub enum CtrlMsg {
-    BroadcastMsg(Channel, Vec<u8>),
+    BroadcastMsg(Channel, Bytes),
     Shutdown,
 }
 
