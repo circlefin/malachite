@@ -30,7 +30,7 @@ where
             perform!(co, Effect::CancelTimeout(Timeout::propose(*round)));
         }
 
-        DriverInput::Proposal(proposal, validity) => {
+        DriverInput::Proposal(proposal, _validity) => {
             if proposal.height() != state.driver.height() {
                 warn!(
                     "Ignoring proposal for height {}, current height: {}",
@@ -40,12 +40,6 @@ where
 
                 return Ok(());
             }
-
-            // Store the proposal
-            state
-                .driver
-                .proposal_keeper
-                .apply_proposal(proposal.clone(), *validity);
 
             perform!(
                 co,
