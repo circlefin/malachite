@@ -82,6 +82,6 @@ impl NetworkCodec<MockContext> for ProtobufCodec {
             },
         };
 
-        Ok(Bytes::from(p2p_msg.to_bytes()?))
+        p2p_msg.to_bytes()
     }
 }
