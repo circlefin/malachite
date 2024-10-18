@@ -81,19 +81,14 @@ persistent_peers = []
 # - "quic": QUIC
 transport = "quic"
 
-# The type of pub-sub protocol to use for consensus
-# Possible values:
-# - "gossipsub": Use the GossipSub v1.1 protocol (gossip, recommended)
-# - "broadcast": Use the Broadcast protocol (no gossip, experimental)
-# Override with MALACHITE__CONSENSUS__P2P__PROTOCOL env variable
-protocol = "gossipsub"
-
 # Enable the discovery protocol to find more peers
 discovery = { enabled = true }
 
 #######################################################
 ###    Consensus GossipSub Configuration Options    ###
 #######################################################
+# GossipSub v1.1 is the default and recommended protocol for Consensus P2P.
+# If you want to use a different protocol, remove this section.
 [consensus.p2p.gossipsub]
 
 # Target number of peers for the mesh network (D in the GossipSub spec)
@@ -110,6 +105,13 @@ mesh_n_low = 4
 # When this value is set to 0 or does not meet the above constraints,
 # it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
 mesh_outbound_min = 2
+
+#######################################################
+###    Consensus Broadcast Configuration Options    ###
+#######################################################
+# If you want to use this protocol instead of GossipSub, remove the `consensus.p2p.gossipsub` section.
+#[consensus.p2p.broadcast]
+# No configuration options exist for the broadcast protocol yet. It is an experimental protocol.
 
 #######################################################
 ###          Mempool Configuration Options          ###
@@ -142,14 +144,35 @@ persistent_peers = []
 # - "quic": QUIC
 transport = "quic"
 
-# The type of pub-sub protocol to use for the mempool
+#######################################################
+###     Mempool GossipSub Configuration Options     ###
+#######################################################
 # /!\ This setting has no effect on the mempool yet /!\
-#
-# Possible values:
-# - "gossipsub": Use the GossipSub v1.1 protocol (gossip, recommended)
-# - "broadcast": Use the Broadcast protocol (no gossip, experimental)
-# Override with MALACHITE__CONSENSUS__MEMPOOL__PROTOCOL env variable
-protocol = "gossipsub"
+# GossipSub v1.1 is the default and recommended protocol for Mempool P2P.
+# If you want to use a different protocol, remove this section.
+[mempool.p2p.gossipsub]
+
+# Target number of peers for the mesh network (D in the GossipSub spec)
+mesh_n = 6
+
+# Maximum number of peers in mesh network before removing some (D_high in the GossipSub spec)
+mesh_n_high = 12
+
+# Minimum number of peers in mesh network before adding more (D_low in the spec)
+mesh_n_low = 4
+
+# Minimum number of outbound peers in the mesh network before adding more (D_out in the spec).
+# This value must be smaller or equal than `mesh_n / 2` and smaller than `mesh_n_low`.
+# When this value is set to 0 or does not meet the above constraints,
+# it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
+mesh_outbound_min = 2
+
+#######################################################
+###     Mempool Broadcast Configuration Options     ###
+#######################################################
+# If you want to use this protocol instead of GossipSub, remove the `mempool.p2p.gossipsub` section.
+#[mempool.p2p.broadcast]
+# No configuration options exist for the broadcast protocol yet. It is an experimental protocol.
 
 #######################################################
 ###          Metrics Configuration Options          ###

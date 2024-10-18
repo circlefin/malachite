@@ -41,6 +41,7 @@ pub fn main() -> Result<()> {
                 file = %args.get_config_file_path().unwrap_or_default().display(),
                 "Loaded configuration",
             );
+            trace!(?config, "Configuration");
 
             start(&args, config, cmd)
         }

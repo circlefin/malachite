@@ -123,7 +123,9 @@ impl FromStr for TransportProtocol {
     }
 }
 
-/// The type of pub-sub protocol
+/// The type of pub-sub protocol.
+/// If multiple protocols are configured in the configuration file, the first one from this list
+/// will be used.
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PubSubProtocol {
