@@ -14,7 +14,7 @@ use malachite_gossip_consensus::{Config as GossipConsensusConfig, DiscoveryConfi
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
-use malachite_node::config::{
+use malachite_config::{
     Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig, TransportProtocol,
 };
 use malachite_starknet_host::actor::StarknetHost;

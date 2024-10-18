@@ -1,7 +1,7 @@
 use color_eyre::eyre::Result;
 use tracing::{error, info, trace};
 
-use malachite_node::config::{Config, RuntimeConfig};
+use malachite_config::{Config, RuntimeConfig};
 
 use crate::args::{Args, Commands};
 use crate::cmd::init::InitCmd;

@@ -9,13 +9,13 @@ use tokio::time::{sleep, Duration};
 use tracing::{error, info, Instrument};
 
 use malachite_common::VotingPower;
-use malachite_node::config::{
+use malachite_config::{
     Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol, TransportProtocol,
 };
 use malachite_starknet_app::spawn::spawn_node_actor;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
 
-pub use malachite_node::config::App;
+pub use malachite_config::App;
 
 pub enum Expected {
     Exactly(usize),
@@ -302,7 +302,7 @@ fn init_logging() {
 
 use bytesize::ByteSize;
 
-use malachite_node::config::{
+use malachite_config::{
     ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
 };
 

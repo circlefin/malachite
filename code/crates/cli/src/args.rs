@@ -12,7 +12,7 @@ use clap::{Parser, Subcommand};
 use color_eyre::eyre::{eyre, Result};
 use directories::BaseDirs;
 
-use malachite_node::config::{Config, LogFormat, LogLevel};
+use malachite_config::{Config, LogFormat, LogLevel};
 
 use crate::cmd::init::InitCmd;
 use crate::cmd::keys::KeysCmd;
@@ -135,7 +135,7 @@ impl Args {
 
 #[cfg(test)]
 mod tests {
-    use malachite_node::config::LogLevel;
+    use malachite_config::LogLevel;
 
     use super::*;
 

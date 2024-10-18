@@ -7,7 +7,7 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Context, Result};
 use tracing::{info, warn};
 
-use malachite_node::config::{App, Config, LogFormat, LogLevel, TransportProtocol};
+use malachite_config::{App, Config, LogFormat, LogLevel, TransportProtocol};
 use malachite_node::Node;
 use malachite_starknet_app::node::StarknetNode;
 

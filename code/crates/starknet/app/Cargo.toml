@@ -14,6 +14,7 @@ malachite-consensus.workspace          = true
 malachite-gossip-consensus.workspace   = true
 malachite-gossip-mempool.workspace     = true
 malachite-metrics.workspace            = true
+malachite-config.workspace             = true
 malachite-node.workspace               = true
 malachite-proto.workspace              = true
 malachite-starknet-host.workspace      = true

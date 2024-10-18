@@ -5,6 +5,7 @@ members = [
   "crates/actors",
   "crates/cli",
   "crates/common",
+  "crates/config",
   "crates/consensus",
   "crates/driver",
   "crates/gossip-consensus",
@@ -14,10 +15,10 @@ members = [
   "crates/node",
   "crates/proto",
   "crates/round",
+  "crates/starknet/*",
   "crates/test",
   "crates/test/mbt",
   "crates/vote",
-  "crates/starknet/*"
 ]
 
 [workspace.package]
@@ -43,17 +44,18 @@ unused_crate_dependencies = "warn"
 malachite-actors           = { version = "0.1.0", path = "crates/actors" }
 malachite-cli              = { version = "0.1.0", path = "crates/cli" }
 malachite-common           = { version = "0.1.0", path = "crates/common" }
-malachite-discovery        = { version = "0.1.0", path = "crates/discovery" }
+malachite-config           = { version = "0.1.0", path = "crates/config" }
 malachite-consensus        = { version = "0.1.0", path = "crates/consensus", features = ["debug"] }
+malachite-discovery        = { version = "0.1.0", path = "crates/discovery" }
 malachite-driver           = { version = "0.1.0", path = "crates/driver" }
 malachite-gossip-consensus = { version = "0.1.0", path = "crates/gossip-consensus" }
 malachite-gossip-mempool   = { version = "0.1.0", path = "crates/gossip-mempool" }
-malachite-test-mbt         = { version = "0.1.0", path = "crates/test/mbt" }
 malachite-metrics          = { version = "0.1.0", path = "crates/metrics" }
 malachite-node             = { version = "0.1.0", path = "crates/node" }
 malachite-proto            = { version = "0.1.0", path = "crates/proto" }
 malachite-round            = { version = "0.1.0", path = "crates/round" }
 malachite-test             = { version = "0.1.0", path = "crates/test" }
+malachite-test-mbt         = { version = "0.1.0", path = "crates/test/mbt" }
 malachite-vote             = { version = "0.1.0", path = "crates/vote" }
 
 # Starknet

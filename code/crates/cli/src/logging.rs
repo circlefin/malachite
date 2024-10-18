@@ -2,7 +2,7 @@ use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::FmtSubscriber;
 
-use malachite_node::config::{LogFormat, LogLevel};
+use malachite_config::{LogFormat, LogLevel};
 
 pub fn init(log_level: LogLevel, log_format: LogFormat) {
     let log_level = if let Ok(rust_log) = std::env::var("RUST_LOG") {

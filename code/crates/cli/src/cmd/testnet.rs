@@ -13,7 +13,7 @@ use rand::{seq::IteratorRandom, Rng, SeedableRng};
 use tracing::info;
 
 use malachite_common::{PrivateKey, PublicKey};
-use malachite_node::config::*;
+use malachite_config::*;
 use malachite_node::Node;
 use malachite_starknet_app::node::StarknetNode;
 

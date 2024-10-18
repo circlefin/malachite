@@ -1,7 +1,7 @@
 #![allow(unused_crate_dependencies)]
 
 use bytesize::ByteSize;
-use malachite_node::config::PubSubProtocol;
+use malachite_config::PubSubProtocol;
 use malachite_starknet_test::{App, Expected, Test, TestNode, TestParams};
 
 async fn run_n2f0_tests(test_params: TestParams) {

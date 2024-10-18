@@ -10,7 +10,7 @@ use malachite_actors::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg
 use malachite_actors::util::forward::forward;
 use malachite_gossip_mempool::types::MempoolTransactionBatch;
 use malachite_gossip_mempool::{Event as GossipEvent, NetworkMsg, PeerId};
-use malachite_node::config::{MempoolConfig, TestConfig};
+use malachite_config::{MempoolConfig, TestConfig};
 use malachite_proto::Protobuf;
 
 use crate::types::{Hash, Transaction, Transactions};

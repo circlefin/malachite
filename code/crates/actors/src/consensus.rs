@@ -12,7 +12,7 @@ use tracing::{debug, error, info, warn};
 use malachite_common::{Context, Extension, Round, Timeout, TimeoutStep, ValidatorSet};
 use malachite_consensus::{Effect, Resume};
 use malachite_metrics::Metrics;
-use malachite_node::config::TimeoutConfig;
+use malachite_config::TimeoutConfig;
 
 use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};

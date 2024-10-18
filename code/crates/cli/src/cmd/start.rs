@@ -4,7 +4,7 @@ use clap::Parser;
 use color_eyre::eyre::Result;
 use tracing::{info, Instrument};
 
-use malachite_node::config::{App, Config};
+use malachite_config::{App, Config};
 use malachite_node::Node;
 use malachite_starknet_app::node::StarknetNode;
 

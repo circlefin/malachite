@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytesize::ByteSize;
-use malachite_node::config::VoteExtensionsConfig;
+use malachite_config::VoteExtensionsConfig;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::Instrument;

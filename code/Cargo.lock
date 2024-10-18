@@ -2413,11 +2413,11 @@ dependencies = [
  "eyre",
  "libp2p",
  "malachite-common",
+ "malachite-config",
  "malachite-consensus",
  "malachite-gossip-consensus",
  "malachite-gossip-mempool",
  "malachite-metrics",
- "malachite-node",
  "malachite-proto",
  "ractor",
  "tokio",
@@ -2436,6 +2436,7 @@ dependencies = [
  "directories",
  "itertools",
  "malachite-common",
+ "malachite-config",
  "malachite-metrics",
  "malachite-node",
  "malachite-starknet-app",
@@ -2456,6 +2457,18 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "derive-where",
+]
+
+[[package]]
+name = "malachite-config"
+version = "0.1.0"
+dependencies = [
+ "bytesize",
+ "humantime-serde",
+ "malachite-common",
+ "multiaddr",
+ "serde",
+ "toml",
 ]
 
 [[package]]
@@ -2491,9 +2504,9 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "libp2p-identity",
+ "malachite-config",
  "malachite-gossip-consensus",
  "malachite-metrics",
- "malachite-node",
  "malachite-starknet-host",
  "rand",
  "tokio",
@@ -2556,13 +2569,9 @@ dependencies = [
 name = "malachite-node"
 version = "0.1.0"
 dependencies = [
- "bytesize",
- "humantime-serde",
  "malachite-common",
- "multiaddr",
  "rand",
  "serde",
- "toml",
 ]
 
 [[package]]
@@ -2593,6 +2602,7 @@ dependencies = [
  "libp2p-identity",
  "malachite-actors",
  "malachite-common",
+ "malachite-config",
  "malachite-consensus",
  "malachite-gossip-consensus",
  "malachite-gossip-mempool",
@@ -2622,9 +2632,9 @@ dependencies = [
  "eyre",
  "malachite-actors",
  "malachite-common",
+ "malachite-config",
  "malachite-gossip-mempool",
  "malachite-metrics",
- "malachite-node",
  "malachite-proto",
  "malachite-starknet-p2p-types",
  "ractor",
@@ -2664,7 +2674,7 @@ version = "0.1.0"
 dependencies = [
  "bytesize",
  "malachite-common",
- "malachite-node",
+ "malachite-config",
  "malachite-starknet-app",
  "malachite-starknet-host",
  "rand",
@@ -2685,9 +2695,9 @@ dependencies = [
  "hex",
  "malachite-actors",
  "malachite-common",
+ "malachite-config",
  "malachite-consensus",
  "malachite-driver",
- "malachite-node",
  "malachite-proto",
  "malachite-round",
  "malachite-vote",

@@ -1,15 +1,9 @@
-// For coverage on nightly
-#![allow(unexpected_cfgs)]
-#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
-
 use std::path::Path;
 
 use malachite_common::{Context, PrivateKey, PublicKey, VotingPower};
 use rand::{CryptoRng, RngCore};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-
-pub mod config;
 
 pub trait Node {
     type Context: Context;
