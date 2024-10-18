@@ -130,19 +130,9 @@ impl Args {
         }
 
         // Validate configuration
-        if let PubSubProtocol::GossipSub(mut gscfg) = config.consensus.p2p.protocol {
-            // From the configuration on mesh_outbound_min:
-            // This value must be smaller or equal than `mesh_n / 2` and smaller than `mesh_n_low`.
-            // When this value is set to 0 or does not meet the above constraints,
-            // it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
-            if gscfg.mesh_outbound_min == 0
-                || gscfg.mesh_outbound_min > gscfg.mesh_n / 2
-                || gscfg.mesh_outbound_min >= gscfg.mesh_n_low
-            {
-                gscfg.mesh_outbound_min =
-                    std::cmp::max(1, std::cmp::min(gscfg.mesh_n / 2, gscfg.mesh_n_low - 1));
-                config.consensus.p2p.protocol = PubSubProtocol::GossipSub(gscfg);
-            };
+        if let PubSubProtocol::GossipSub(gscfg) = config.consensus.p2p.protocol {
+            gscfg.normalize();
+            config.consensus.p2p.protocol = PubSubProtocol::GossipSub(gscfg);
         }
 
         Ok(config)

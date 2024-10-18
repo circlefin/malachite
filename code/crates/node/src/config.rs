@@ -80,7 +80,6 @@ pub struct P2pConfig {
     pub transport: TransportProtocol,
 
     /// The type of pub-sub protocol to use for consensus
-    #[serde(flatten)]
     pub protocol: PubSubProtocol,
 }
 
@@ -127,7 +126,7 @@ impl FromStr for TransportProtocol {
 /// If multiple protocols are configured in the configuration file, the first one from this list
 /// will be used.
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum PubSubProtocol {
     GossipSub(GossipSubConfig),
     Broadcast,
@@ -160,12 +159,37 @@ pub struct GossipSubConfig {
 
 impl Default for GossipSubConfig {
     fn default() -> Self {
-        Self {
-            mesh_n: 6,
-            mesh_n_high: 12,
-            mesh_n_low: 4,
-            mesh_outbound_min: 2,
-        }
+        Self::new(6, 12, 4, 2)
+    }
+}
+
+impl GossipSubConfig {
+    /// Create a new, valid GossipSub configuration.
+    pub fn new(
+        mesh_n: usize,
+        mesh_n_high: usize,
+        mesh_n_low: usize,
+        mesh_outbound_min: usize,
+    ) -> Self {
+        let result = Self {
+            mesh_n,
+            mesh_n_high,
+            mesh_n_low,
+            mesh_outbound_min,
+        };
+        result.normalize();
+        result
+    }
+
+    /// Normalize (validate and adjust) the configuration values.
+    pub fn normalize(mut self) {
+        use std::cmp::{max, min};
+        if self.mesh_outbound_min == 0
+            || self.mesh_outbound_min > self.mesh_n / 2
+            || self.mesh_outbound_min >= self.mesh_n_low
+        {
+            self.mesh_outbound_min = max(1, min(self.mesh_n / 2, self.mesh_n_low - 1))
+        };
     }
 }
 
