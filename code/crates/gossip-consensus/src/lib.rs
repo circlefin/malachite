@@ -58,12 +58,24 @@ impl Default for PubSubProtocol {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug)]
 pub struct GossipSubConfig {
     pub mesh_n: usize,
     pub mesh_n_high: usize,
     pub mesh_n_low: usize,
     pub mesh_outbound_min: usize,
+}
+
+impl Default for GossipSubConfig {
+    fn default() -> Self {
+        // Tests use these defaults.
+        Self {
+            mesh_n: 6,
+            mesh_n_high: 12,
+            mesh_n_low: 4,
+            mesh_outbound_min: 2,
+        }
+    }
 }
 
 pub type BoxError = Box<dyn Error + Send + Sync + 'static>;
