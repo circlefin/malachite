@@ -92,15 +92,45 @@ jobs:
   msrv:
     name: MSRV
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: code
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
           cache-workspaces: "code"
-      - name: Install cargo-binstall
-        uses: taiki-e/install-action@cargo-binstall
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install cargo-msrv
-        run: cargo binstall --no-confirm --force cargo-msrv@0.16.0-beta.20
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-msrv
       - name: Check MSRV
-        run: cargo msrv verify --output-format minimal --manifest-path code/crates/driver/Cargo.toml -- 'cargo check --all-features'
+        run: cargo msrv verify --manifest-path crates/consensus/Cargo.toml --output-format minimal -- cargo check --all-features
+
+  standalone:
+    name: Standalone
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: code
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache-workspaces: "code"
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
+      - name: Check each crate with and without default features
+        run: cargo hack check --workspace --each-feature --no-dev-deps
