@@ -85,7 +85,7 @@ transport = "quic"
 discovery = { enabled = true }
 
 #######################################################
-###  Consensus P2P Procotol Configuration Options   ###
+###  Consensus P2P Protocol Configuration Options   ###
 #######################################################
 # GossipSub v1.1 is the default and recommended protocol for Consensus P2P.
 [consensus.p2p.protocol]
