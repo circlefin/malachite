@@ -85,10 +85,9 @@ transport = "quic"
 discovery = { enabled = true }
 
 #######################################################
-###  Consensus P2P procotol Configuration Options   ###
+###  Consensus P2P Procotol Configuration Options   ###
 #######################################################
 # GossipSub v1.1 is the default and recommended protocol for Consensus P2P.
-# If you want to use a different protocol, remove this section.
 [consensus.p2p.protocol]
 # Valid options are "gossipsub" and "broadcast".
 # Broadcast is an experimental protocol with no additional configuration options.
@@ -141,12 +140,14 @@ persistent_peers = []
 transport = "quic"
 
 #######################################################
-###     Mempool GossipSub Configuration Options     ###
+###   Mempool P2P Protocol Configuration Options    ###
 #######################################################
 # /!\ This setting has no effect on the mempool yet /!\
 # GossipSub v1.1 is the default and recommended protocol for Mempool P2P.
-# If you want to use a different protocol, remove this section.
-[mempool.p2p.gossipsub]
+[mempool.p2p.protocol]
+# Valid options are "gossipsub" and "broadcast".
+# Broadcast is an experimental protocol with no additional configuration options.
+type = "gossipsub"
 
 # Target number of peers for the mesh network (D in the GossipSub spec)
 mesh_n = 6
@@ -162,13 +163,6 @@ mesh_n_low = 4
 # When this value is set to 0 or does not meet the above constraints,
 # it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
 mesh_outbound_min = 2
-
-#######################################################
-###     Mempool Broadcast Configuration Options     ###
-#######################################################
-# If you want to use this protocol instead of GossipSub, remove the `mempool.p2p.gossipsub` section.
-#[mempool.p2p.broadcast]
-# No configuration options exist for the broadcast protocol yet. It is an experimental protocol.
 
 #######################################################
 ###          Metrics Configuration Options          ###
