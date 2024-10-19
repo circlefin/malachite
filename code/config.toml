@@ -142,27 +142,13 @@ transport = "quic"
 #######################################################
 ###   Mempool P2P Protocol Configuration Options    ###
 #######################################################
+
 # /!\ This setting has no effect on the mempool yet /!\
 # GossipSub v1.1 is the default and recommended protocol for Mempool P2P.
 [mempool.p2p.protocol]
 # Valid options are "gossipsub" and "broadcast".
 # Broadcast is an experimental protocol with no additional configuration options.
 type = "gossipsub"
-
-# Target number of peers for the mesh network (D in the GossipSub spec)
-mesh_n = 6
-
-# Maximum number of peers in mesh network before removing some (D_high in the GossipSub spec)
-mesh_n_high = 12
-
-# Minimum number of peers in mesh network before adding more (D_low in the spec)
-mesh_n_low = 4
-
-# Minimum number of outbound peers in the mesh network before adding more (D_out in the spec).
-# This value must be smaller or equal than `mesh_n / 2` and smaller than `mesh_n_low`.
-# When this value is set to 0 or does not meet the above constraints,
-# it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
-mesh_outbound_min = 2
 
 #######################################################
 ###          Metrics Configuration Options          ###
