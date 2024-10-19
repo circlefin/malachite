@@ -22,6 +22,10 @@ impl ConnectionData {
         }
     }
 
+    pub fn set_peer_id(&mut self, peer_id: PeerId) {
+        self.peer_id = Some(peer_id);
+    }
+
     pub fn peer_id(&self) -> Option<PeerId> {
         self.peer_id
     }

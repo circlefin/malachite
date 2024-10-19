@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::iter;
 use std::time::Duration;
 
-use libp2p::request_response::{self, ProtocolSupport, ResponseChannel};
+use libp2p::request_response::{self, OutboundRequestId, ProtocolSupport, ResponseChannel};
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{Multiaddr, PeerId, StreamProtocol};
 use serde::{Deserialize, Serialize};
@@ -37,7 +37,9 @@ pub fn new_behaviour() -> Behaviour {
     Behaviour::new(request_response_protocol(), request_response_config())
 }
 
-pub trait SendResponse: NetworkBehaviour {
+pub trait SendRequestResponse: NetworkBehaviour {
+    fn send_request(&mut self, peer_id: &PeerId, req: Request) -> OutboundRequestId;
+
     fn send_response(
         &mut self,
         ch: ResponseChannel<Response>,

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use either::Either;
-use libp2p::request_response::ResponseChannel;
+use libp2p::request_response::{OutboundRequestId, ResponseChannel};
 use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{gossipsub, identify, ping};
@@ -78,7 +78,14 @@ pub struct Behaviour {
     pub request_response: Toggle<discovery::Behaviour>,
 }
 
-impl discovery::SendResponse for Behaviour {
+impl discovery::SendRequestResponse for Behaviour {
+    fn send_request(&mut self, peer_id: &PeerId, req: discovery::Request) -> OutboundRequestId {
+        self.request_response
+            .as_mut()
+            .expect("Request-response behaviour is not available")
+            .send_request(peer_id, req)
+    }
+
     fn send_response(
         &mut self,
         ch: ResponseChannel<discovery::Response>,

@@ -137,11 +137,13 @@ pub async fn spawn(
     let (tx_event, rx_event) = mpsc::channel(32);
     let (tx_ctrl, rx_ctrl) = mpsc::channel(32);
     let (tx_dial, rx_dial) = mpsc::unbounded_channel();
+    let (tx_request, rx_request) = mpsc::unbounded_channel();
 
     let state = registry.with_prefix(DISCOVERY_METRICS_PREFIX, |reg| State {
         discovery: discovery::Discovery::new(
             config.discovery,
             tx_dial,
+            tx_request,
             config.persistent_peers.clone(),
             reg,
         ),
@@ -150,7 +152,10 @@ pub async fn spawn(
     let peer_id = swarm.local_peer_id();
     let span = error_span!("gossip.consensus", peer = %peer_id);
     let task_handle = tokio::task::spawn(
-        run(config, metrics, state, swarm, rx_ctrl, rx_dial, tx_event).instrument(span),
+        run(
+            config, metrics, state, swarm, rx_ctrl, rx_dial, rx_request, tx_event,
+        )
+        .instrument(span),
     );
 
     Ok(Handle::new(tx_ctrl, rx_event, task_handle))
@@ -163,6 +168,7 @@ async fn run(
     mut swarm: swarm::Swarm<Behaviour>,
     mut rx_ctrl: mpsc::Receiver<CtrlMsg>,
     mut rx_dial: mpsc::UnboundedReceiver<discovery::ConnectionData>,
+    mut rx_request: mpsc::UnboundedReceiver<discovery::RequestData>,
     tx_event: mpsc::Sender<Event>,
 ) {
     if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
@@ -175,9 +181,9 @@ async fn run(
             &mut swarm,
             discovery::ConnectionData::new(None, persistent_peer),
         );
-
-        state.discovery.check_if_idle(); // True if all persistent peers failed
     }
+    // True if no persistent peers are configured or all failed to connect
+    state.discovery.check_if_idle();
 
     pubsub::subscribe(&mut swarm, Channel::all()).unwrap(); // FIXME: unwrap
 
@@ -189,6 +195,11 @@ async fn run(
 
             Some(connection_data) = rx_dial.recv() => {
                 state.discovery.dial_peer(&mut swarm, connection_data);
+                ControlFlow::Continue(())
+            }
+
+            Some(request_data) = rx_request.recv() => {
+                state.discovery.request_peer(&mut swarm, request_data);
                 ControlFlow::Continue(())
             }
 
@@ -265,9 +276,14 @@ async fn handle_swarm_event(
             state.discovery.handle_failed_connection(connection_id);
         }
 
-        SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
-            trace!("Connection closed with {peer_id}: {:?}", cause);
-            state.discovery.remove_peer(peer_id);
+        SwarmEvent::ConnectionClosed {
+            peer_id,
+            connection_id,
+            cause,
+            ..
+        } => {
+            error!("Connection closed with {peer_id}: {:?}", cause);
+            state.discovery.remove_peer(peer_id, connection_id);
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent {
@@ -277,9 +293,9 @@ async fn handle_swarm_event(
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Received {
+            connection_id,
             peer_id,
             info,
-            ..
         })) => {
             trace!(
                 "Received identity from {peer_id}: protocol={:?}",
@@ -292,11 +308,9 @@ async fn handle_swarm_event(
                     info.protocol_version
                 );
 
-                state.discovery.handle_new_peer(
-                    swarm.behaviour_mut().request_response.as_mut(),
-                    peer_id,
-                    info,
-                )
+                state
+                    .discovery
+                    .handle_new_peer(swarm, connection_id, peer_id, info)
             } else {
                 trace!(
                     "Peer {peer_id} is using incompatible protocol version: {:?}",
