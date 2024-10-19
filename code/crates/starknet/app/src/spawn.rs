@@ -10,13 +10,13 @@ use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
 use malachite_common::Round;
+use malachite_config::{
+    Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig, TransportProtocol,
+};
 use malachite_gossip_consensus::{Config as GossipConsensusConfig, DiscoveryConfig, Keypair};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
-use malachite_config::{
-    Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig, TransportProtocol,
-};
 use malachite_starknet_host::actor::StarknetHost;
 use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use malachite_starknet_host::mock::context::MockContext;
