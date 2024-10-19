@@ -141,10 +141,10 @@ async fn spawn_gossip_consensus_actor(
         protocol: match cfg.consensus.p2p.protocol {
             PubSubProtocol::GossipSub(config) => {
                 malachite_gossip_consensus::PubSubProtocol::GossipSub(GossipSubConfig {
-                    mesh_n: config.mesh_n,
-                    mesh_n_high: config.mesh_n_high,
-                    mesh_n_low: config.mesh_n_low,
-                    mesh_outbound_min: config.mesh_outbound_min,
+                    mesh_n: config.mesh_n(),
+                    mesh_n_high: config.mesh_n_high(),
+                    mesh_n_low: config.mesh_n_low(),
+                    mesh_outbound_min: config.mesh_outbound_min(),
                 })
             }
             PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,

@@ -140,21 +140,22 @@ impl Default for PubSubProtocol {
 
 /// GossipSub configuration
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(from = "gossipsub::RawConfig", default)]
 pub struct GossipSubConfig {
     /// Target number of peers for the mesh network (D in the GossipSub spec)
-    pub mesh_n: usize,
+    mesh_n: usize,
 
     /// Maximum number of peers in mesh network before removing some (D_high in the GossipSub spec)
-    pub mesh_n_high: usize,
+    mesh_n_high: usize,
 
     /// Minimum number of peers in mesh network before adding more (D_low in the spec)
-    pub mesh_n_low: usize,
+    mesh_n_low: usize,
 
     /// Minimum number of outbound peers in the mesh network before adding more (D_out in the spec).
     /// This value must be smaller or equal than `mesh_n / 2` and smaller than `mesh_n_low`.
     /// When this value is set to 0 or does not meet the above constraints,
     /// it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
-    pub mesh_outbound_min: usize,
+    mesh_outbound_min: usize,
 }
 
 impl Default for GossipSubConfig {
@@ -171,25 +172,80 @@ impl GossipSubConfig {
         mesh_n_low: usize,
         mesh_outbound_min: usize,
     ) -> Self {
-        let result = Self {
+        let mut result = Self {
             mesh_n,
             mesh_n_high,
             mesh_n_low,
             mesh_outbound_min,
         };
-        result.normalize();
+
+        result.adjust();
         result
     }
 
-    /// Normalize (validate and adjust) the configuration values.
-    pub fn normalize(mut self) {
+    /// Adjust the configuration values.
+    pub fn adjust(&mut self) {
         use std::cmp::{max, min};
+
+        if self.mesh_n == 0 {
+            self.mesh_n = 6;
+        }
+
+        if self.mesh_n_high == 0 || self.mesh_n_high < self.mesh_n {
+            self.mesh_n_high = self.mesh_n * 2;
+        }
+
+        if self.mesh_n_low == 0 || self.mesh_n_low > self.mesh_n {
+            self.mesh_n_low = self.mesh_n * 2 / 3;
+        }
+
         if self.mesh_outbound_min == 0
             || self.mesh_outbound_min > self.mesh_n / 2
             || self.mesh_outbound_min >= self.mesh_n_low
         {
-            self.mesh_outbound_min = max(1, min(self.mesh_n / 2, self.mesh_n_low - 1))
-        };
+            self.mesh_outbound_min = max(1, min(self.mesh_n / 2, self.mesh_n_low - 1));
+        }
+    }
+
+    pub fn mesh_n(&self) -> usize {
+        self.mesh_n
+    }
+
+    pub fn mesh_n_high(&self) -> usize {
+        self.mesh_n_high
+    }
+
+    pub fn mesh_n_low(&self) -> usize {
+        self.mesh_n_low
+    }
+
+    pub fn mesh_outbound_min(&self) -> usize {
+        self.mesh_outbound_min
+    }
+}
+
+mod gossipsub {
+    #[derive(serde::Deserialize)]
+    pub struct RawConfig {
+        #[serde(default)]
+        mesh_n: usize,
+        #[serde(default)]
+        mesh_n_high: usize,
+        #[serde(default)]
+        mesh_n_low: usize,
+        #[serde(default)]
+        mesh_outbound_min: usize,
+    }
+
+    impl From<RawConfig> for super::GossipSubConfig {
+        fn from(raw: RawConfig) -> Self {
+            super::GossipSubConfig::new(
+                raw.mesh_n,
+                raw.mesh_n_high,
+                raw.mesh_n_low,
+                raw.mesh_outbound_min,
+            )
+        }
     }
 }
 

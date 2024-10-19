@@ -12,7 +12,7 @@ use clap::{Parser, Subcommand};
 use color_eyre::eyre::{eyre, Result};
 use directories::BaseDirs;
 
-use malachite_node::config::{Config, LogFormat, LogLevel, PubSubProtocol};
+use malachite_node::config::{Config, LogFormat, LogLevel};
 
 use crate::cmd::init::InitCmd;
 use crate::cmd::keys::KeysCmd;
@@ -127,12 +127,6 @@ impl Args {
 
         if let Some(log_format) = self.log_format {
             config.logging.log_format = log_format;
-        }
-
-        // Validate configuration
-        if let PubSubProtocol::GossipSub(gscfg) = config.consensus.p2p.protocol {
-            gscfg.normalize();
-            config.consensus.p2p.protocol = PubSubProtocol::GossipSub(gscfg);
         }
 
         Ok(config)
