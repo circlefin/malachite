@@ -5,13 +5,18 @@ use tracing::debug;
 
 use crate::{request::RequestData, ConnectionData, ConnectionType};
 
+const DEFAULT_MAX_CONCURRENT_DIALS: usize = 2;
+const DEFAULT_MAX_CONCURRENT_REQUESTS: usize = 2;
+
 #[derive(Debug)]
 pub struct Handler {
     dialed_peer_ids: HashSet<PeerId>,
     dialed_multiaddrs: HashSet<Multiaddr>,
+    max_concurrent_dials: usize,
     pending_connections: HashMap<ConnectionId, ConnectionData>,
     connections_types: HashMap<PeerId, ConnectionType>,
     requested_peer_ids: HashSet<PeerId>,
+    max_concurrent_requests: usize,
     pending_requests: HashMap<OutboundRequestId, RequestData>,
 }
 
@@ -20,9 +25,11 @@ impl Handler {
         Handler {
             dialed_peer_ids: HashSet::new(),
             dialed_multiaddrs: HashSet::new(),
+            max_concurrent_dials: DEFAULT_MAX_CONCURRENT_DIALS,
             pending_connections: HashMap::new(),
             connections_types: HashMap::new(),
             requested_peer_ids: HashSet::new(),
+            max_concurrent_requests: DEFAULT_MAX_CONCURRENT_REQUESTS,
             pending_requests: HashMap::new(),
         }
     }
@@ -54,6 +61,10 @@ impl Handler {
             || self
                 .dialed_multiaddrs
                 .contains(&connection_data.multiaddr())
+    }
+
+    pub fn can_dial(&self) -> bool {
+        self.pending_connections.len() < self.max_concurrent_dials
     }
 
     pub fn register_pending_connection(
@@ -117,6 +128,10 @@ impl Handler {
 
     pub fn has_already_requested(&self, peer_id: &PeerId) -> bool {
         self.requested_peer_ids.contains(peer_id)
+    }
+
+    pub fn can_request(&self) -> bool {
+        self.pending_requests.len() < self.max_concurrent_requests
     }
 
     pub fn register_pending_request(

@@ -47,19 +47,15 @@ pub struct Discovery {
     peers: HashMap<PeerId, identify::Info>,
     bootstrap_nodes: Vec<Multiaddr>,
     tx_dial: mpsc::UnboundedSender<ConnectionData>,
+    pub rx_dial: mpsc::UnboundedReceiver<ConnectionData>,
     tx_request: mpsc::UnboundedSender<RequestData>,
+    pub rx_request: mpsc::UnboundedReceiver<RequestData>,
     handler: Handler,
     metrics: Metrics,
 }
 
 impl Discovery {
-    pub fn new(
-        config: Config,
-        tx_dial: mpsc::UnboundedSender<ConnectionData>,
-        tx_request: mpsc::UnboundedSender<RequestData>,
-        bootstrap_nodes: Vec<Multiaddr>,
-        registry: &mut Registry,
-    ) -> Self {
+    pub fn new(config: Config, bootstrap_nodes: Vec<Multiaddr>, registry: &mut Registry) -> Self {
         info!(
             "Discovery is {}",
             if config.enabled {
@@ -69,12 +65,17 @@ impl Discovery {
             }
         );
 
+        let (tx_dial, rx_dial) = mpsc::unbounded_channel();
+        let (tx_request, rx_request) = mpsc::unbounded_channel();
+
         Self {
             config,
             peers: HashMap::new(),
             bootstrap_nodes,
             tx_dial,
+            rx_dial,
             tx_request,
+            rx_request,
             handler: Handler::new(),
             metrics: Metrics::new(registry),
         }
@@ -123,10 +124,15 @@ impl Discovery {
         }
     }
 
+    pub fn can_dial(&self) -> bool {
+        self.handler.can_dial()
+    }
+
     fn should_dial(
         &self,
         swarm: &Swarm<impl SendRequestResponse>,
         connection_data: &ConnectionData,
+        check_already_dialed: bool,
     ) -> bool {
         connection_data.peer_id().as_ref().map_or(true, |id| {
             // Is not itself (peer id)
@@ -135,7 +141,7 @@ impl Discovery {
             && !swarm.is_connected(id)
         })
             // Has not already dialed, or has dialed but retries are allowed
-            && (!self.handler.has_already_dialed(connection_data) || connection_data.retries() != 0)
+            && (!check_already_dialed || (!self.handler.has_already_dialed(connection_data) || connection_data.retries() != 0))
             // Is not itself (multiaddr)
             && !swarm.listeners().any(|addr| *addr == connection_data.multiaddr())
     }
@@ -145,7 +151,9 @@ impl Discovery {
         swarm: &mut Swarm<impl SendRequestResponse>,
         connection_data: ConnectionData,
     ) {
-        if !self.should_dial(swarm, &connection_data) {
+        // Not checking if the peer was already dialed because it is done when
+        // adding to the dial queue
+        if !self.should_dial(swarm, &connection_data, false) {
             return;
         }
 
@@ -190,6 +198,22 @@ impl Discovery {
         }
     }
 
+    pub fn add_to_dial_queue(
+        &mut self,
+        swarm: &Swarm<impl SendRequestResponse>,
+        connection_data: ConnectionData,
+    ) {
+        if self.should_dial(swarm, &connection_data, true) {
+            // Already register as dialed address to avoid flooding the dial queue
+            // with the same dial attempts.
+            self.handler.register_dialed_peer(&connection_data);
+
+            self.tx_dial.send(connection_data).unwrap_or_else(|e| {
+                error!("Error sending dial request to channel: {e}");
+            });
+        }
+    }
+
     pub fn handle_connection(
         &mut self,
         peer_id: PeerId,
@@ -203,8 +227,7 @@ impl Discovery {
         self.handler
             .register_connection_type(peer_id, endpoint.into());
 
-        // This call is necessary to record the peer id of a
-        // bootstrap node (which was unknown before)
+        // Needed in case the peer was dialed without knowing the peer id
         self.handler.register_dialed_peer_id(peer_id);
 
         // This check is necessary to handle the case where two
@@ -277,6 +300,10 @@ impl Discovery {
         }
     }
 
+    pub fn can_request(&self) -> bool {
+        self.handler.can_request()
+    }
+
     fn should_request(
         &self,
         swarm: &Swarm<impl SendRequestResponse>,
@@ -298,6 +325,9 @@ impl Discovery {
             return;
         }
 
+        self.handler
+            .register_requested_peer_id(request_data.peer_id());
+
         info!(
             "Requesting peers from peer {}, retry #{}",
             request_data.peer_id(),
@@ -315,7 +345,6 @@ impl Discovery {
 
     pub fn handle_new_peer(
         &mut self,
-        swarm: &mut Swarm<impl SendRequestResponse>,
         connection_id: ConnectionId,
         peer_id: PeerId,
         info: identify::Info,
@@ -341,22 +370,25 @@ impl Discovery {
         self.peers.insert(peer_id, info);
 
         info!(
-            "Discovered peer {peer_id}, total peers: {}",
-            self.peers.len()
+            "Discovered peer {peer_id}, total peers: {}, after {}ms",
+            self.peers.len(),
+            self.metrics.elapsed().as_millis(),
         );
 
         // Only request peers from dialed peers
         let connection_type = self.handler.remove_connection_type(&peer_id);
         if connection_type == Some(ConnectionType::Dial) {
-            self.request_peer(swarm, RequestData::new(peer_id));
+            self.tx_request
+                .send(RequestData::new(peer_id))
+                .unwrap_or_else(|e| {
+                    error!("Error sending request to channel: {e}");
+                });
+        } else {
+            // The dialer is supposed to request the peers, no need to request them
+            self.handler.register_requested_peer_id(peer_id);
         }
-        // Still register the peer id even if it is not a dialed peer
-        self.handler.register_requested_peer_id(peer_id);
 
-        // Only check with dial connections
-        if connection_type == Some(ConnectionType::Dial) {
-            self.check_if_idle();
-        }
+        self.check_if_idle();
     }
 
     pub fn check_if_idle(&mut self) -> bool {
@@ -365,18 +397,22 @@ impl Discovery {
         }
 
         let (is_idle, pending_connections_len, pending_requests_len) = self.handler.is_idle();
+        let rx_dial_len = self.rx_dial.len();
+        let rx_request_len = self.rx_request.len();
 
-        if is_idle {
+        if is_idle && rx_dial_len == 0 && rx_request_len == 0 {
             self.metrics.register_idle(self.peers.len());
 
             return true;
         }
 
         info!(
-            "Discovery in progress ({}ms), {} pending connections, {} pending requests",
+            "Discovery in progress ({}ms), {} pending connections ({} in channel), {} pending requests ({} in channel)",
             self.metrics.elapsed().as_millis(),
             pending_connections_len,
-            pending_requests_len
+            rx_dial_len,
+            pending_requests_len,
+            rx_request_len,
         );
 
         false
@@ -389,7 +425,7 @@ impl Discovery {
     ) {
         // TODO check upper bound on number of peers
         for (peer_id, listen_addr) in peers {
-            self.dial_peer(swarm, ConnectionData::new(peer_id, listen_addr));
+            self.add_to_dial_queue(swarm, ConnectionData::new(peer_id, listen_addr));
         }
     }
 
