@@ -1,3 +1,7 @@
+// For coverage on nightly
+#![allow(unexpected_cfgs)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+
 use std::path::Path;
 
 use malachite_common::{Context, PrivateKey, PublicKey, VotingPower};
