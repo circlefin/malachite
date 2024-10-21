@@ -84,22 +84,18 @@ impl Handler {
     }
 
     pub fn remove_matching_pending_connections(&mut self, peer_id: &PeerId) -> Vec<ConnectionData> {
-        let matching_connection_ids: Vec<ConnectionId> = self
-            .pending_connections
-            .iter()
-            .filter_map(|(connection_id, connection_data)| {
-                if connection_data.peer_id() == Some(*peer_id) {
-                    Some(*connection_id)
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let mut matching_connections = Vec::new();
 
-        matching_connection_ids
-            .into_iter()
-            .filter_map(|connection_id| self.pending_connections.remove(&connection_id))
-            .collect()
+        self.pending_connections.retain(|_, connection_data| {
+            if connection_data.peer_id() == Some(*peer_id) {
+                matching_connections.push(connection_data.clone());
+                false
+            } else {
+                true
+            }
+        });
+
+        matching_connections
     }
 
     pub fn register_connection_type(&mut self, peer_id: PeerId, connection_type: ConnectionType) {

@@ -86,11 +86,8 @@ impl Discovery {
     }
 
     pub fn remove_peer(&mut self, peer_id: PeerId, connection_id: ConnectionId) {
-        match self.peers.remove(&peer_id) {
-            Some(_) => {
-                warn!("Removing peer {peer_id}, total peers: {}", self.peers.len());
-            }
-            None => {}
+        if self.peers.remove(&peer_id).is_some() {
+            warn!("Removing peer {peer_id}, total peers: {}", self.peers.len());
         }
 
         // In case the connection was closed before identifying the peer
@@ -141,7 +138,7 @@ impl Discovery {
             && !swarm.is_connected(id)
         })
             // Has not already dialed, or has dialed but retries are allowed
-            && (!check_already_dialed || (!self.handler.has_already_dialed(connection_data) || connection_data.retries() != 0))
+            && (!check_already_dialed || !self.handler.has_already_dialed(connection_data) || connection_data.retries() != 0)
             // Is not itself (multiaddr)
             && !swarm.listeners().any(|addr| *addr == connection_data.multiaddr())
     }
@@ -349,11 +346,12 @@ impl Discovery {
         peer_id: PeerId,
         info: identify::Info,
     ) {
-        match self.handler.remove_pending_connection(&connection_id) {
-            None => {
-                self.handler.remove_matching_pending_connections(&peer_id);
-            }
-            _ => {}
+        if self
+            .handler
+            .remove_pending_connection(&connection_id)
+            .is_none()
+        {
+            self.handler.remove_matching_pending_connections(&peer_id);
         }
 
         // Ignore if discovery is disabled or the peer is already known or

@@ -82,7 +82,7 @@ impl discovery::SendRequestResponse for Behaviour {
     fn send_request(&mut self, peer_id: &PeerId, req: discovery::Request) -> OutboundRequestId {
         self.request_response
             .as_mut()
-            .expect("Request-response behaviour is not available")
+            .expect("Request-response behaviour should be available")
             .send_request(peer_id, req)
     }
 
@@ -93,7 +93,7 @@ impl discovery::SendRequestResponse for Behaviour {
     ) -> Result<(), discovery::Response> {
         self.request_response
             .as_mut()
-            .expect("Request-response behaviour is not available")
+            .expect("Request-response behaviour should be available")
             .send_response(ch, rs)
     }
 }
