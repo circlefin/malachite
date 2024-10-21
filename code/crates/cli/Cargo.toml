@@ -27,6 +27,7 @@ directories        = { workspace = true }
 itertools          = { workspace = true }
 tokio              = { workspace = true, features = ["full"] }
 tracing            = { workspace = true }
+tracing-appender   = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "json"] }
 serde_json         = { workspace = true }
 rand               = { workspace = true }

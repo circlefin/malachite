@@ -26,7 +26,9 @@ pub fn main() -> Result<()> {
     let config = args.load_config();
     let logging = config.as_ref().map(|c| c.logging).unwrap_or_default();
 
-    logging::init(logging.log_level, logging.log_format);
+    // This is a drop guard responsible for flushing any remaining logs when the program terminates.
+    // It must be assigned to a binding that is not _, as _ will result in the guard being dropped immediately.
+    let _guard = logging::init(logging.log_level, logging.log_format);
 
     trace!("Command-line parameters: {args:?}");
 

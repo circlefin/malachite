@@ -1,10 +1,15 @@
+use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::FmtSubscriber;
 
 use malachite_node::config::{LogFormat, LogLevel};
 
-pub fn init(log_level: LogLevel, log_format: LogFormat) {
+/// Initialize logging.
+///
+/// Returns a drop guard responsible for flushing any remaining logs when the program terminates.
+/// The guard must be assigned to a binding that is not _, as _ will result in the guard being dropped immediately.
+pub fn init(log_level: LogLevel, log_format: LogFormat) -> WorkerGuard {
     let log_level = if let Ok(rust_log) = std::env::var("RUST_LOG") {
         rust_log
     } else {
@@ -13,11 +18,13 @@ pub fn init(log_level: LogLevel, log_format: LogFormat) {
 
     let filter = build_tracing_filter(&log_level);
 
+    let (non_blocking, guard) = tracing_appender::non_blocking(std::io::stdout());
+
     // Construct a tracing subscriber with the supplied filter and enable reloading.
     let builder = FmtSubscriber::builder()
         .with_target(false)
         .with_env_filter(filter)
-        .with_writer(std::io::stdout)
+        .with_writer(non_blocking)
         .with_ansi(enable_ansi())
         .with_thread_ids(false);
 
@@ -32,6 +39,8 @@ pub fn init(log_level: LogLevel, log_format: LogFormat) {
             subscriber.init();
         }
     };
+
+    guard
 }
 
 /// Check if both stdout and stderr are proper terminal (tty),
