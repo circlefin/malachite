@@ -134,6 +134,7 @@ impl TestnetCmd {
                     self.runtime,
                     self.enable_discovery,
                     self.transport,
+                    PubSubProtocol::default(),
                     log_level,
                     log_format,
                 ),
@@ -198,6 +199,7 @@ pub fn generate_config(
     runtime: RuntimeFlavour,
     enable_discovery: bool,
     transport: TransportProtocol,
+    consensus_p2p_protocol: PubSubProtocol,
     log_level: LogLevel,
     log_format: LogFormat,
 ) -> Config {
@@ -212,11 +214,15 @@ pub fn generate_config(
             max_block_size: ByteSize::mib(1),
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
-                protocol: PubSubProtocol::GossipSub,
+                protocol: consensus_p2p_protocol,
                 listen_addr: transport.multiaddr("127.0.0.1", consensus_port),
                 persistent_peers: if enable_discovery {
                     let mut rng = rand::thread_rng();
-                    let count = rng.gen_range(1..=(total / 2));
+                    let count = if total > 1 {
+                        rng.gen_range(1..=(total / 2))
+                    } else {
+                        0
+                    };
                     let peers = (0..total)
                         .filter(|j| *j != index)
                         .choose_multiple(&mut rng, count);
@@ -240,7 +246,7 @@ pub fn generate_config(
         },
         mempool: MempoolConfig {
             p2p: P2pConfig {
-                protocol: PubSubProtocol::GossipSub,
+                protocol: PubSubProtocol::default(),
                 listen_addr: transport.multiaddr("127.0.0.1", mempool_port),
                 persistent_peers: (0..total)
                     .filter(|j| *j != index)

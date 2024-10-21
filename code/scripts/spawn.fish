@@ -5,7 +5,7 @@
 # - the home directory for the nodes configuration folders
 
 function help
-    echo "Usage: spawn.fish [--help] --nodes NODES_COUNT --home NODES_HOME [--profile=PROFILE|--debug]"
+    echo "Usage: spawn.fish [--help] --nodes NODES_COUNT --home NODES_HOME [--profile=PROFILE|--debug] [--lldb]"
 end
 
 argparse -n spawn.fish help 'nodes=' 'home=' 'profile=?' debug -- $argv
@@ -28,23 +28,27 @@ end
 
 set profile_template (string replace -r '^$' 'time' -- $_flag_profile)
 
+set profile false
+set debug false
+set lldb false
+set build_profile release
+set build_folder release
+
 if set -q _flag_profile
     echo "Profiling enabled."
     set profile true
-    set debug false
     set build_profile profiling
     set build_folder profiling
-else if set -q _flag_debug
+else if set -q _flag_debug; or set -q _flag_lldb
     echo "Debugging enabled."
-    set profile false
     set debug true
     set build_profile dev
     set build_folder debug
-else
-    set profile false
-    set debug false
-    set build_profile release
-    set build_folder release
+end
+
+if set -q _flag_lldb
+    echo "LLDB enabled."
+    set lldb true
 end
 
 set -x MALACHITE__CONSENSUS__P2P__PROTOCOL "gossipsub"
@@ -83,7 +87,7 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
 
     echo "[Node $NODE] Spawning node..."
 
-    if $debug; and false
+    if $lldb
         set lldb_script "
             b malachite_cli::main
             run
