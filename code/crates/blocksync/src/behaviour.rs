@@ -5,7 +5,7 @@ use libp2p::request_response::{self as rpc, OutboundRequestId, ProtocolSupport};
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{PeerId, StreamProtocol};
 
-use crate::{RawRequest, RawResponse, ResponseChannel};
+use crate::types::{RawRequest, RawResponse, ResponseChannel};
 
 // use crate::Metrics;
 
