@@ -84,7 +84,7 @@ where
 
         // Store the proposal and its validity
         self.proposal_keeper
-            .apply_proposal(proposal.clone(), validity);
+            .store_proposal(proposal.clone(), validity);
 
         let proposal = proposal.message;
 
