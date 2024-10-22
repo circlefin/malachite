@@ -4,6 +4,7 @@
 
 use std::convert::Infallible;
 
+use prost::bytes::Bytes;
 use prost_types::Any;
 use thiserror::Error;
 
@@ -73,9 +74,9 @@ pub trait Protobuf: Sized {
         Ok(result)
     }
 
-    fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+    fn to_bytes(&self) -> Result<Bytes, Error> {
         let proto = self.to_proto()?;
-        Ok(proto.encode_to_vec())
+        Ok(Bytes::from(proto.encode_to_vec()))
     }
 
     fn from_any(any: &Any) -> Result<Self, Error> {

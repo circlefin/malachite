@@ -10,7 +10,7 @@ rust-version.workspace = true
 
 [dependencies]
 malachite-common.workspace           = true
-malachite-node.workspace             = true
+malachite-config.workspace             = true
 malachite-starknet-host.workspace    = true
 malachite-starknet-app.workspace     = true
 

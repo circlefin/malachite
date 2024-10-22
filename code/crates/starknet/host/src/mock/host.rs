@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytesize::ByteSize;
+use malachite_config::VoteExtensionsConfig;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::Instrument;
@@ -27,6 +28,7 @@ pub struct MockParams {
     pub time_allowance_factor: f32,
     pub exec_time_per_tx: Duration,
     pub max_retain_blocks: usize,
+    pub vote_extensions: VoteExtensionsConfig,
 }
 
 pub struct MockHost {

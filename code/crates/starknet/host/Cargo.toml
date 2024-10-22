@@ -8,16 +8,16 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
-bytes            = { workspace = true, features = ["serde"] }
-
 malachite-actors.workspace             = true
 malachite-blocksync.workspace          = true
 malachite-common.workspace             = true
 malachite-metrics.workspace            = true
-malachite-node.workspace               = true
+malachite-config.workspace             = true
 malachite-gossip-mempool.workspace     = true
 malachite-proto.workspace              = true
 malachite-starknet-p2p-types.workspace = true
+
+bytes = { workspace = true, features = ["serde"] }
 
 starknet-core.workspace   = true
 async-trait.workspace     = true

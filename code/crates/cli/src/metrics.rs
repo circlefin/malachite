@@ -3,7 +3,7 @@ use axum::Router;
 use tokio::net::TcpListener;
 use tracing::info;
 
-use malachite_node::config::MetricsConfig;
+use malachite_config::MetricsConfig;
 
 #[tracing::instrument(name = "metrics", skip_all)]
 pub async fn serve(config: MetricsConfig) {

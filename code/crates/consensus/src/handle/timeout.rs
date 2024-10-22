@@ -16,8 +16,10 @@ where
 
     if timeout.round != round && timeout.step != TimeoutStep::Commit {
         debug!(
-            "Ignoring timeout for round {} at height {}, current round: {round}",
-            timeout.round, height
+            %height,
+            %round,
+            timeout.round = %timeout.round,
+            "Ignoring timeout for different round",
         );
 
         return Ok(());
@@ -25,7 +27,7 @@ where
 
     info!(
         step = ?timeout.step,
-        timeout_round = %timeout.round,
+        %timeout.round,
         %height,
         %round,
         "Timeout elapsed");

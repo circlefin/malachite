@@ -11,13 +11,15 @@ use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
 use malachite_common::SignedProposal;
-use malachite_gossip_consensus::{Config as GossipConsensusConfig, DiscoveryConfig, Keypair};
+use malachite_config::{
+    Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig, TransportProtocol,
+};
+use malachite_gossip_consensus::{
+    Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
+};
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
-use malachite_node::config::{
-    Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig, TransportProtocol,
-};
 use malachite_starknet_host::actor::StarknetHost;
 use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use malachite_starknet_host::mock::context::MockContext;
@@ -59,7 +61,7 @@ pub async fn spawn_node_actor(
     let block_sync =
         spawn_block_sync_actor(ctx.clone(), gossip_consensus.clone(), host.clone()).await;
 
-    let start_height = Height::new(1);
+    let start_height = Height::new(1, 1);
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(
@@ -154,7 +156,14 @@ async fn spawn_gossip_consensus_actor(
             TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
         },
         protocol: match cfg.consensus.p2p.protocol {
-            PubSubProtocol::GossipSub => malachite_gossip_consensus::PubSubProtocol::GossipSub,
+            PubSubProtocol::GossipSub(config) => {
+                malachite_gossip_consensus::PubSubProtocol::GossipSub(GossipSubConfig {
+                    mesh_n: config.mesh_n(),
+                    mesh_n_high: config.mesh_n_high(),
+                    mesh_n_low: config.mesh_n_low(),
+                    mesh_outbound_min: config.mesh_outbound_min(),
+                })
+            }
             PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
         },
     };
@@ -220,6 +229,7 @@ async fn spawn_host_actor(
         time_allowance_factor: cfg.test.time_allowance_factor,
         exec_time_per_tx: cfg.test.exec_time_per_tx,
         max_retain_blocks: cfg.test.max_retain_blocks,
+        vote_extensions: cfg.test.vote_extensions,
     };
 
     let mock_host = MockHost::new(

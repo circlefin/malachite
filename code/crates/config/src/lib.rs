@@ -1,3 +1,7 @@
+// For coverage on nightly
+#![allow(unexpected_cfgs)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+
 use core::fmt;
 use std::net::SocketAddr;
 use std::str::FromStr;
@@ -122,13 +126,131 @@ impl FromStr for TransportProtocol {
     }
 }
 
-/// The type of pub-sub protocol
-#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+/// The type of pub-sub protocol.
+/// If multiple protocols are configured in the configuration file, the first one from this list
+/// will be used.
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum PubSubProtocol {
-    #[default]
-    GossipSub,
+    GossipSub(GossipSubConfig),
     Broadcast,
+}
+
+impl Default for PubSubProtocol {
+    fn default() -> Self {
+        Self::GossipSub(GossipSubConfig::default())
+    }
+}
+
+/// GossipSub configuration
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(from = "gossipsub::RawConfig", default)]
+pub struct GossipSubConfig {
+    /// Target number of peers for the mesh network (D in the GossipSub spec)
+    mesh_n: usize,
+
+    /// Maximum number of peers in mesh network before removing some (D_high in the GossipSub spec)
+    mesh_n_high: usize,
+
+    /// Minimum number of peers in mesh network before adding more (D_low in the spec)
+    mesh_n_low: usize,
+
+    /// Minimum number of outbound peers in the mesh network before adding more (D_out in the spec).
+    /// This value must be smaller or equal than `mesh_n / 2` and smaller than `mesh_n_low`.
+    /// When this value is set to 0 or does not meet the above constraints,
+    /// it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
+    mesh_outbound_min: usize,
+}
+
+impl Default for GossipSubConfig {
+    fn default() -> Self {
+        Self::new(6, 12, 4, 2)
+    }
+}
+
+impl GossipSubConfig {
+    /// Create a new, valid GossipSub configuration.
+    pub fn new(
+        mesh_n: usize,
+        mesh_n_high: usize,
+        mesh_n_low: usize,
+        mesh_outbound_min: usize,
+    ) -> Self {
+        let mut result = Self {
+            mesh_n,
+            mesh_n_high,
+            mesh_n_low,
+            mesh_outbound_min,
+        };
+
+        result.adjust();
+        result
+    }
+
+    /// Adjust the configuration values.
+    pub fn adjust(&mut self) {
+        use std::cmp::{max, min};
+
+        if self.mesh_n == 0 {
+            self.mesh_n = 6;
+        }
+
+        if self.mesh_n_high == 0 || self.mesh_n_high < self.mesh_n {
+            self.mesh_n_high = self.mesh_n * 2;
+        }
+
+        if self.mesh_n_low == 0 || self.mesh_n_low > self.mesh_n {
+            self.mesh_n_low = self.mesh_n * 2 / 3;
+        }
+
+        if self.mesh_outbound_min == 0
+            || self.mesh_outbound_min > self.mesh_n / 2
+            || self.mesh_outbound_min >= self.mesh_n_low
+        {
+            self.mesh_outbound_min = max(1, min(self.mesh_n / 2, self.mesh_n_low - 1));
+        }
+    }
+
+    pub fn mesh_n(&self) -> usize {
+        self.mesh_n
+    }
+
+    pub fn mesh_n_high(&self) -> usize {
+        self.mesh_n_high
+    }
+
+    pub fn mesh_n_low(&self) -> usize {
+        self.mesh_n_low
+    }
+
+    pub fn mesh_outbound_min(&self) -> usize {
+        self.mesh_outbound_min
+    }
+}
+
+mod gossipsub {
+    #[derive(serde::Deserialize)]
+    pub struct RawConfig {
+        #[serde(default)]
+        mesh_n: usize,
+        #[serde(default)]
+        mesh_n_high: usize,
+        #[serde(default)]
+        mesh_n_low: usize,
+        #[serde(default)]
+        mesh_outbound_min: usize,
+    }
+
+    impl From<RawConfig> for super::GossipSubConfig {
+        fn from(raw: RawConfig) -> Self {
+            super::GossipSubConfig::new(
+                raw.mesh_n,
+                raw.mesh_n_high,
+                raw.mesh_n_low,
+                raw.mesh_outbound_min,
+            )
+        }
+    }
 }
 
 /// Mempool configuration options
@@ -259,6 +381,12 @@ impl RuntimeConfig {
     }
 }
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct VoteExtensionsConfig {
+    pub enabled: bool,
+    pub size: ByteSize,
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestConfig {
     pub tx_size: ByteSize,
@@ -267,6 +395,8 @@ pub struct TestConfig {
     #[serde(with = "humantime_serde")]
     pub exec_time_per_tx: Duration,
     pub max_retain_blocks: usize,
+    #[serde(default)]
+    pub vote_extensions: VoteExtensionsConfig,
 }
 
 impl Default for TestConfig {
@@ -277,6 +407,7 @@ impl Default for TestConfig {
             time_allowance_factor: 0.5,
             exec_time_per_tx: Duration::from_millis(1),
             max_retain_blocks: 1000,
+            vote_extensions: VoteExtensionsConfig::default(),
         }
     }
 }

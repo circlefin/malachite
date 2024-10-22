@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use bytes::Bytes;
 use malachite_common::Round;
 use malachite_proto::{Error as ProtoError, Protobuf};
 
@@ -20,7 +21,7 @@ impl BlockMetadata {
         self.value
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Bytes {
         Protobuf::to_bytes(self).unwrap()
     }
 
@@ -116,7 +117,7 @@ impl ProposalPart {
         }
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Bytes {
         Protobuf::to_bytes(self).unwrap()
     }
 

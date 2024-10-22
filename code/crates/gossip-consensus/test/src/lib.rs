@@ -2,9 +2,9 @@ use core::fmt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use libp2p_identity::{ecdsa, PeerId};
+use malachite_config::TransportProtocol;
 use malachite_gossip_consensus::{spawn, Config, DiscoveryConfig, Keypair};
 use malachite_metrics::SharedRegistry;
-use malachite_node::config::TransportProtocol;
 use malachite_starknet_host::types::PrivateKey;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::time::sleep;
@@ -161,7 +161,7 @@ impl<const N: usize> Test<N> {
             },
             idle_connection_timeout: Duration::from_secs(60),
             transport: malachite_gossip_consensus::TransportProtocol::Quic,
-            protocol: malachite_gossip_consensus::PubSubProtocol::GossipSub,
+            protocol: malachite_gossip_consensus::PubSubProtocol::default(),
         })
     }
 
@@ -185,7 +185,7 @@ impl<const N: usize> Test<N> {
                 .unwrap();
 
                 handles.push(handle);
-                debug!("Spawned node {}", i);
+                debug!(id = %i, "Spawned node");
                 sleep(self.spawn_delay).await;
             }
         }

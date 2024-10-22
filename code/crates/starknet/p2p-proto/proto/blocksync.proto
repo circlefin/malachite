@@ -7,11 +7,14 @@ import "p2p/proto/consensus.proto";
 
 message Status {
   PeerID peer_id = 1;
-  uint64 height = 2;
+  uint64 block_number = 2;
+  uint64 fork_id = 3;
 }
 
 message Request {
-  uint64 height = 1;
+  uint64 block_number = 1;
+  uint64 fork_id = 2;
+
 }
 
 message Response {

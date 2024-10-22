@@ -36,6 +36,9 @@ use handler::Handler;
 mod metrics;
 use metrics::Metrics;
 
+mod request;
+pub use request::RequestData;
+
 const DISCOVERY_PROTOCOL: &str = "/malachite-discovery/v1beta1";
 
 #[derive(Debug)]
@@ -44,17 +47,15 @@ pub struct Discovery {
     peers: HashMap<PeerId, identify::Info>,
     bootstrap_nodes: Vec<Multiaddr>,
     tx_dial: mpsc::UnboundedSender<ConnectionData>,
+    pub rx_dial: mpsc::UnboundedReceiver<ConnectionData>,
+    tx_request: mpsc::UnboundedSender<RequestData>,
+    pub rx_request: mpsc::UnboundedReceiver<RequestData>,
     handler: Handler,
     metrics: Metrics,
 }
 
 impl Discovery {
-    pub fn new(
-        config: Config,
-        tx_dial: mpsc::UnboundedSender<ConnectionData>,
-        bootstrap_nodes: Vec<Multiaddr>,
-        registry: &mut Registry,
-    ) -> Self {
+    pub fn new(config: Config, bootstrap_nodes: Vec<Multiaddr>, registry: &mut Registry) -> Self {
         info!(
             "Discovery is {}",
             if config.enabled {
@@ -64,11 +65,17 @@ impl Discovery {
             }
         );
 
+        let (tx_dial, rx_dial) = mpsc::unbounded_channel();
+        let (tx_request, rx_request) = mpsc::unbounded_channel();
+
         Self {
             config,
             peers: HashMap::new(),
             bootstrap_nodes,
             tx_dial,
+            rx_dial,
+            tx_request,
+            rx_request,
             handler: Handler::new(),
             metrics: Metrics::new(registry),
         }
@@ -78,17 +85,16 @@ impl Discovery {
         self.config.enabled
     }
 
-    pub fn remove_peer(&mut self, peer_id: PeerId) {
-        warn!("Removing peer {peer_id}, total peers: {}", self.peers.len());
+    pub fn remove_peer(&mut self, peer_id: PeerId, connection_id: ConnectionId) {
+        if self.peers.remove(&peer_id).is_some() {
+            warn!("Removing peer {peer_id}, total peers: {}", self.peers.len());
+        }
 
-        self.peers.remove(&peer_id);
+        // In case the connection was closed before identifying the peer
+        self.handler.remove_pending_connection(&connection_id);
     }
 
     pub fn handle_failed_connection(&mut self, connection_id: ConnectionId) {
-        if !self.is_enabled() {
-            return;
-        }
-
         if let Some(mut connection_data) = self.handler.remove_pending_connection(&connection_id) {
             if connection_data.retries() < self.config.dial_max_retries {
                 // Retry dialing after a delay
@@ -115,19 +121,15 @@ impl Discovery {
         }
     }
 
-    fn register_failed_request(&mut self, request_id: OutboundRequestId) {
-        if !self.is_enabled() {
-            return;
-        }
-
-        self.handler.remove_pending_request(&request_id);
-        self.metrics.increment_failure();
+    pub fn can_dial(&self) -> bool {
+        self.handler.can_dial()
     }
 
     fn should_dial(
         &self,
-        swarm: &Swarm<impl SendResponse>,
+        swarm: &Swarm<impl SendRequestResponse>,
         connection_data: &ConnectionData,
+        check_already_dialed: bool,
     ) -> bool {
         connection_data.peer_id().as_ref().map_or(true, |id| {
             // Is not itself (peer id)
@@ -135,25 +137,29 @@ impl Discovery {
             // Is not already connected
             && !swarm.is_connected(id)
         })
-            // Has not already dialed
-            && !self.handler.has_already_dialed(connection_data)
+            // Has not already dialed, or has dialed but retries are allowed
+            && (!check_already_dialed || !self.handler.has_already_dialed(connection_data) || connection_data.retries() != 0)
             // Is not itself (multiaddr)
             && !swarm.listeners().any(|addr| *addr == connection_data.multiaddr())
     }
 
     pub fn dial_peer(
         &mut self,
-        swarm: &mut Swarm<impl SendResponse>,
+        swarm: &mut Swarm<impl SendRequestResponse>,
         connection_data: ConnectionData,
     ) {
-        if !self.should_dial(swarm, &connection_data) {
+        // Not checking if the peer was already dialed because it is done when
+        // adding to the dial queue
+        if !self.should_dial(swarm, &connection_data, false) {
             return;
         }
 
         let dial_opts = connection_data.build_dial_opts();
         let connection_id = dial_opts.connection_id();
 
-        self.handler.register_dialed_peer(&connection_data);
+        if self.is_enabled() {
+            self.handler.register_dialed_peer(&connection_data);
+        }
 
         self.handler
             .register_pending_connection(connection_id, connection_data.clone());
@@ -189,6 +195,22 @@ impl Discovery {
         }
     }
 
+    pub fn add_to_dial_queue(
+        &mut self,
+        swarm: &Swarm<impl SendRequestResponse>,
+        connection_data: ConnectionData,
+    ) {
+        if self.should_dial(swarm, &connection_data, true) {
+            // Already register as dialed address to avoid flooding the dial queue
+            // with the same dial attempts.
+            self.handler.register_dialed_peer(&connection_data);
+
+            self.tx_dial.send(connection_data).unwrap_or_else(|e| {
+                error!("Error sending dial request to channel: {e}");
+            });
+        }
+    }
+
     pub fn handle_connection(
         &mut self,
         peer_id: PeerId,
@@ -202,10 +224,7 @@ impl Discovery {
         self.handler
             .register_connection_type(peer_id, endpoint.into());
 
-        self.handler.remove_pending_connection(&connection_id);
-
-        // This call is necessary to record the peer id of a
-        // bootstrap node (which was unknown before)
+        // Needed in case the peer was dialed without knowing the peer id
         self.handler.register_dialed_peer_id(peer_id);
 
         // This check is necessary to handle the case where two
@@ -215,8 +234,14 @@ impl Discovery {
         // same node. Hence it is possible that the request for
         // peers was already sent before this event.
         if self.handler.has_already_requested(&peer_id) {
+            self.handler.remove_pending_connection(&connection_id);
             self.check_if_idle();
+            return;
         }
+
+        // Needed in case the peer was dialed without knowing the peer id
+        self.handler
+            .add_peer_id_to_connection_data(connection_id, peer_id);
     }
 
     /// Returns all known peers, including bootstrap nodes, except the given peer.
@@ -245,12 +270,90 @@ impl Discovery {
         peers
     }
 
+    fn handle_failed_request(&mut self, request_id: OutboundRequestId) {
+        if let Some(mut request_data) = self.handler.remove_pending_request(&request_id) {
+            if request_data.retries() < self.config.request_max_retries {
+                // Retry request after a delay
+                request_data.inc_retries();
+
+                let tx_request = self.tx_request.clone();
+                tokio::spawn(async move {
+                    sleep(request_data.next_delay()).await;
+                    tx_request.send(request_data).unwrap_or_else(|e| {
+                        error!("Error sending request to channel: {e}");
+                    });
+                });
+            } else {
+                // No more trials left
+                error!(
+                    "Failed to send request to {0} after {1} trials",
+                    request_data.peer_id(),
+                    request_data.retries(),
+                );
+
+                self.metrics.increment_failure();
+                self.check_if_idle();
+            }
+        }
+    }
+
+    pub fn can_request(&self) -> bool {
+        self.handler.can_request()
+    }
+
+    fn should_request(
+        &self,
+        swarm: &Swarm<impl SendRequestResponse>,
+        request_data: &RequestData,
+    ) -> bool {
+        // Is connected
+        swarm.is_connected(&request_data.peer_id())
+            // Has not already requested, or has requested but retries are allowed
+            && (!self.handler.has_already_requested(&request_data.peer_id())
+                || request_data.retries() != 0)
+    }
+
+    pub fn request_peer(
+        &mut self,
+        swarm: &mut Swarm<impl SendRequestResponse>,
+        request_data: RequestData,
+    ) {
+        if !self.should_request(swarm, &request_data) {
+            return;
+        }
+
+        self.handler
+            .register_requested_peer_id(request_data.peer_id());
+
+        info!(
+            "Requesting peers from peer {}, retry #{}",
+            request_data.peer_id(),
+            request_data.retries()
+        );
+
+        let request_id = swarm.behaviour_mut().send_request(
+            &request_data.peer_id(),
+            behaviour::Request::Peers(self.get_all_peers_except(request_data.peer_id())),
+        );
+
+        self.handler
+            .register_pending_request(request_id, request_data);
+    }
+
     pub fn handle_new_peer(
         &mut self,
-        behaviour: Option<&mut behaviour::Behaviour>,
+        connection_id: ConnectionId,
         peer_id: PeerId,
         info: identify::Info,
     ) {
+        if self
+            .handler
+            .remove_pending_connection(&connection_id)
+            .is_none()
+        {
+            self.handler.remove_matching_pending_connections(&peer_id);
+        }
+
         // Ignore if discovery is disabled or the peer is already known or
         // the peer has already been requested
         if !self.is_enabled()
@@ -262,32 +365,26 @@ impl Discovery {
             return;
         }
 
-        // Only request peers from dialed peers
-        if self.handler.remove_connection_type(&peer_id) == Some(ConnectionType::Dial) {
-            if let Some(request_response) = behaviour {
-                debug!("Requesting peers from {peer_id}");
-
-                let request_id = request_response.send_request(
-                    &peer_id,
-                    behaviour::Request::Peers(self.get_all_peers_except(peer_id)),
-                );
-
-                self.handler.register_requested_peer_id(peer_id);
-                self.handler.register_pending_request(request_id);
-            } else {
-                // This should never happen
-                error!(
-                    "Discovery is enabled, but request-response behaviour is unavailable for peer {peer_id}"
-                );
-            }
-        }
-
         self.peers.insert(peer_id, info);
 
         info!(
-            "Discovered peer {peer_id}, total peers: {}",
-            self.peers.len()
+            "Discovered peer {peer_id}, total peers: {}, after {}ms",
+            self.peers.len(),
+            self.metrics.elapsed().as_millis(),
         );
+
+        // Only request peers from dialed peers
+        let connection_type = self.handler.remove_connection_type(&peer_id);
+        if connection_type == Some(ConnectionType::Dial) {
+            self.tx_request
+                .send(RequestData::new(peer_id))
+                .unwrap_or_else(|e| {
+                    error!("Error sending request to channel: {e}");
+                });
+        } else {
+            // The dialer is supposed to request the peers, no need to request them
+            self.handler.register_requested_peer_id(peer_id);
+        }
 
         self.check_if_idle();
     }
@@ -298,18 +395,22 @@ impl Discovery {
         }
 
         let (is_idle, pending_connections_len, pending_requests_len) = self.handler.is_idle();
+        let rx_dial_len = self.rx_dial.len();
+        let rx_request_len = self.rx_request.len();
 
-        if is_idle {
+        if is_idle && rx_dial_len == 0 && rx_request_len == 0 {
             self.metrics.register_idle(self.peers.len());
 
             return true;
         }
 
         info!(
-            "Discovery in progress ({}ms), {} pending connections, {} pending requests",
+            "Discovery in progress ({}ms), {} pending connections ({} in channel), {} pending requests ({} in channel)",
             self.metrics.elapsed().as_millis(),
             pending_connections_len,
-            pending_requests_len
+            rx_dial_len,
+            pending_requests_len,
+            rx_request_len,
         );
 
         false
@@ -317,16 +418,20 @@ impl Discovery {
 
     fn process_received_peers(
         &mut self,
-        swarm: &mut Swarm<impl SendResponse>,
+        swarm: &mut Swarm<impl SendRequestResponse>,
         peers: HashSet<(Option<PeerId>, Multiaddr)>,
     ) {
         // TODO check upper bound on number of peers
         for (peer_id, listen_addr) in peers {
-            self.dial_peer(swarm, ConnectionData::new(peer_id, listen_addr));
+            self.add_to_dial_queue(swarm, ConnectionData::new(peer_id, listen_addr));
         }
     }
 
-    pub fn on_event(&mut self, event: behaviour::Event, swarm: &mut Swarm<impl SendResponse>) {
+    pub fn on_event(
+        &mut self,
+        event: behaviour::Event,
+        swarm: &mut Swarm<impl SendRequestResponse>,
+    ) {
         match event {
             behaviour::Event::Message {
                 peer,
@@ -336,7 +441,7 @@ impl Discovery {
                     },
             } => match request {
                 behaviour::Request::Peers(peers) => {
-                    debug!("Received request for peers from {peer}");
+                    debug!(peer_id = %peer, "Received request for peers from peer");
 
                     // Compute the difference between the known peers and the requested peers
                     // to avoid sending the requesting peer the peers it already knows.
@@ -370,7 +475,7 @@ impl Discovery {
                     },
             } => match response {
                 behaviour::Response::Peers(peers) => {
-                    debug!("Received {} peers from {peer}", peers.len());
+                    debug!(count = peers.len(), peer_id = %peer, "Received peers");
 
                     self.handler.remove_pending_request(&request_id);
 
@@ -385,9 +490,7 @@ impl Discovery {
                 error,
             } => {
                 error!("Outbound request to {peer} failed: {error}");
-
-                self.register_failed_request(request_id);
-                self.check_if_idle();
+                self.handle_failed_request(request_id);
             }
 
             _ => {}

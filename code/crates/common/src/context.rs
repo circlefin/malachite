@@ -1,6 +1,6 @@
 use crate::{
-    Address, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, Signature, SignedMessage,
-    SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
+    Address, Extension, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, Signature,
+    SignedMessage, SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
 };
 
 /// This trait allows to abstract over the various datatypes
@@ -35,6 +35,14 @@ where
 
     /// The signing scheme used to sign votes.
     type SigningScheme: SigningScheme;
+
+    /// Select a proposer in the validator set for the given height and round.
+    fn select_proposer<'a>(
+        &self,
+        validator_set: &'a Self::ValidatorSet,
+        height: Self::Height,
+        round: Round,
+    ) -> &'a Self::Validator;
 
     /// Sign the given vote with our private key.
     fn sign_vote(&self, vote: Self::Vote) -> SignedMessage<Self, Self::Vote>;
@@ -98,4 +106,15 @@ where
         value_id: NilOrVal<ValueId<Self>>,
         address: Self::Address,
     ) -> Self::Vote;
+
+    /// Build a new precommit that includes an extension
+    fn extended_precommit(
+        height: Self::Height,
+        round: Round,
+        value_id: NilOrVal<ValueId<Self>>,
+        address: Self::Address,
+        _extension: Extension,
+    ) -> Self::Vote {
+        Self::new_precommit(height, round, value_id, address)
+    }
 }

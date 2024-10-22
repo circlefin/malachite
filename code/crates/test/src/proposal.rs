@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use malachite_common::Round;
 use malachite_proto::{Error as ProtoError, Protobuf};
 
@@ -30,7 +31,7 @@ impl Proposal {
         }
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Bytes {
         Protobuf::to_bytes(self).unwrap()
     }
 }

@@ -32,16 +32,17 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         Ok(Status {
             peer_id: libp2p_identity::PeerId::from_bytes(&peer_id.id)
                 .map_err(|e| ProtoError::Other(e.to_string()))?,
-            height: Height::new(status.height),
+            height: Height::new(status.block_number, status.fork_id),
         })
     }
 
     fn encode_status(status: Status<MockContext>) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Status {
             peer_id: Some(proto::PeerId {
-                id: status.peer_id.to_bytes(),
+                id: Bytes::from(status.peer_id.to_bytes()),
             }),
-            height: status.height.as_u64(),
+            block_number: status.height.block_number,
+            fork_id: status.height.fork_id,
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))
@@ -51,13 +52,14 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         let request = proto::blocksync::Request::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(blocksync::Request {
-            height: Height::new(request.height),
+            height: Height::new(request.block_number, request.fork_id),
         })
     }
 
     fn encode_request(request: blocksync::Request<MockContext>) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Request {
-            height: request.height.as_u64(),
+            block_number: request.height.block_number,
+            fork_id: request.height.fork_id,
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))
@@ -144,7 +146,7 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
             Ok(proto::blocksync::SyncedBlock {
                 proposal: Some(encode_proposal(synced_block.proposal)?),
                 commits,
-                block_bytes: synced_block.block_bytes.to_vec(),
+                block_bytes: synced_block.block_bytes,
             })
         }
 
@@ -222,6 +224,6 @@ impl NetworkCodec<MockContext> for ProtobufCodec {
             },
         };
 
-        Ok(Bytes::from(p2p_msg.to_bytes()?))
+        p2p_msg.to_bytes()
     }
 }

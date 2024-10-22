@@ -5,7 +5,7 @@
 # - the home directory for the nodes configuration folders
 
 function help
-    echo "Usage: spawn.fish [--help] --nodes NODES_COUNT --home NODES_HOME [--profile=PROFILE|--debug]"
+    echo "Usage: spawn.fish [--help] --nodes NODES_COUNT --home NODES_HOME [--profile=PROFILE|--debug] [--lldb]"
 end
 
 argparse -n spawn.fish help 'nodes=' 'home=' 'profile=?' debug -- $argv
@@ -28,25 +28,30 @@ end
 
 set profile_template (string replace -r '^$' 'time' -- $_flag_profile)
 
+set profile false
+set debug false
+set lldb false
+set build_profile release
+set build_folder release
+
 if set -q _flag_profile
     echo "Profiling enabled."
     set profile true
-    set debug false
     set build_profile profiling
     set build_folder profiling
-else if set -q _flag_debug
+else if set -q _flag_debug; or set -q _flag_lldb
     echo "Debugging enabled."
-    set profile false
     set debug true
     set build_profile dev
     set build_folder debug
-else
-    set profile false
-    set debug false
-    set build_profile release
-    set build_folder release
 end
 
+if set -q _flag_lldb
+    echo "LLDB enabled."
+    set lldb true
+end
+
+set -x MALACHITE__CONSENSUS__P2P__PROTOCOL "gossipsub"
 set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "1MiB"
 set -x MALACHITE__CONSENSUS__TIMEOUT_PROPOSE "5s"
 set -x MALACHITE__CONSENSUS__TIMEOUT_PREVOTE "3s"
@@ -60,7 +65,8 @@ set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.5
 set -x MALACHITE__TEST__EXEC_TIME_PER_TX "500us"
 set -x MALACHITE__CONSENSUS__P2P__PROTOCOL "gossipsub"
 set -x MALACHITE__TEST__MAX_RETAIN_BLOCKS 1000
-
+set -x MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED false
+set -x MALACHITE__TEST__VOTE_EXTENSIONS__SIZE "1KiB"
 
 echo "Compiling Malachite..."
 cargo build --profile $build_profile
@@ -83,7 +89,7 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
 
     echo "[Node $NODE] Spawning node..."
 
-    if $debug
+    if $lldb
         set lldb_script "
             b malachite_cli::main
             run

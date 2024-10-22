@@ -177,9 +177,14 @@ where
         self.validator_set.total_voting_power()
     }
 
-    /// Return the threshold parameters.
-    pub fn per_round(&self) -> &BTreeMap<Round, PerRound<Ctx>> {
-        &self.per_round
+    /// Return the votes for the given round.
+    pub fn per_round(&self, round: Round) -> Option<&PerRound<Ctx>> {
+        self.per_round.get(&round)
+    }
+
+    /// Return how many rounds we have seen votes for so far.
+    pub fn rounds(&self) -> usize {
+        self.per_round.len()
     }
 
     /// Return the evidence of equivocation.

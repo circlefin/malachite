@@ -677,6 +677,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-channel"
+version = "0.5.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33480d6946193aa8033910124896ca395333cae7e2d1113d1fef6c3272217df2"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-utils"
 version = "0.8.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2415,11 +2424,11 @@ dependencies = [
  "libp2p",
  "malachite-blocksync",
  "malachite-common",
+ "malachite-config",
  "malachite-consensus",
  "malachite-gossip-consensus",
  "malachite-gossip-mempool",
  "malachite-metrics",
- "malachite-node",
  "malachite-proto",
  "ractor",
  "tokio",
@@ -2450,6 +2459,7 @@ dependencies = [
  "directories",
  "itertools",
  "malachite-common",
+ "malachite-config",
  "malachite-metrics",
  "malachite-node",
  "malachite-starknet-app",
@@ -2461,6 +2471,7 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
+ "tracing-appender",
  "tracing-subscriber",
 ]
 
@@ -2468,7 +2479,20 @@ dependencies = [
 name = "malachite-common"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "derive-where",
+]
+
+[[package]]
+name = "malachite-config"
+version = "0.1.0"
+dependencies = [
+ "bytesize",
+ "humantime-serde",
+ "malachite-common",
+ "multiaddr",
+ "serde",
+ "toml",
 ]
 
 [[package]]
@@ -2505,9 +2529,9 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "libp2p-identity",
+ "malachite-config",
  "malachite-gossip-consensus",
  "malachite-metrics",
- "malachite-node",
  "malachite-starknet-host",
  "rand",
  "tokio",
@@ -2572,13 +2596,9 @@ dependencies = [
 name = "malachite-node"
 version = "0.1.0"
 dependencies = [
- "bytesize",
- "humantime-serde",
  "malachite-common",
- "multiaddr",
  "rand",
  "serde",
- "toml",
 ]
 
 [[package]]
@@ -2610,6 +2630,7 @@ dependencies = [
  "malachite-actors",
  "malachite-blocksync",
  "malachite-common",
+ "malachite-config",
  "malachite-consensus",
  "malachite-gossip-consensus",
  "malachite-gossip-mempool",
@@ -2641,9 +2662,9 @@ dependencies = [
  "malachite-actors",
  "malachite-blocksync",
  "malachite-common",
+ "malachite-config",
  "malachite-gossip-mempool",
  "malachite-metrics",
- "malachite-node",
  "malachite-proto",
  "malachite-starknet-p2p-types",
  "ractor",
@@ -2666,6 +2687,7 @@ dependencies = [
 name = "malachite-starknet-p2p-types"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "malachite-common",
  "malachite-proto",
  "malachite-starknet-p2p-proto",
@@ -2682,7 +2704,7 @@ version = "0.1.0"
 dependencies = [
  "bytesize",
  "malachite-common",
- "malachite-node",
+ "malachite-config",
  "malachite-starknet-app",
  "malachite-starknet-host",
  "rand",
@@ -2697,14 +2719,15 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
+ "bytes",
  "bytesize",
  "ed25519-consensus",
  "hex",
  "malachite-actors",
  "malachite-common",
+ "malachite-config",
  "malachite-consensus",
  "malachite-driver",
- "malachite-node",
  "malachite-proto",
  "malachite-round",
  "malachite-vote",
@@ -3459,9 +3482,9 @@ dependencies = [
 
 [[package]]
 name = "ractor"
-version = "0.11.2"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61e6aec2fe1f8a8f2fe79897826a0ea18b41f97735ee3704a6dd29c989a65c65"
+checksum = "5e780e8876d6207aeed3c7a16f3022d290fc42f509ee413151196c6b66f577bc"
 dependencies = [
  "async-trait",
  "dashmap",
@@ -3804,9 +3827,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.128"
+version = "1.0.132"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ff5456707a1de34e7e37f2a6fd3d3f808c318259cbd01ab6377795054b483d8"
+checksum = "d726bfaff4b320266d395898905d0eba0345aae23b54aee3a737e260fd46db03"
 dependencies = [
  "itoa",
  "memchr",
@@ -4442,6 +4465,18 @@ dependencies = [
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
+]
+
+[[package]]
+name = "tracing-appender"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3566e8ce28cc0a3fe42519fc80e6b4c943cc4c8cef275620eb8dac2d3d4e06cf"
+dependencies = [
+ "crossbeam-channel",
+ "thiserror",
+ "time",
+ "tracing-subscriber",
 ]
 
 [[package]]

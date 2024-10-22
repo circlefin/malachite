@@ -1,25 +1,25 @@
-#![allow(unused_variables, unused_imports)]
-use bytes::Bytes;
-
-use std::ops::Deref;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use eyre::eyre;
-use malachite_blocksync::SyncedBlock;
 
-use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
-use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
+use rand::RngCore;
 use sha3::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, trace, warn};
 
-use crate::block_store::{BlockStore, DecidedBlock};
+use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
+use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
+use malachite_blocksync::SyncedBlock;
+
 use malachite_actors::consensus::ConsensusMsg;
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
-use malachite_common::{Proposal, Round, Validity, Value, ValueId};
+use malachite_common::{Extension, Proposal, Round, Validity, Value};
 use malachite_metrics::Metrics;
+use malachite_proto::Protobuf;
 
+use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
@@ -48,7 +48,7 @@ pub struct HostState {
 impl Default for HostState {
     fn default() -> Self {
         Self {
-            height: Height::new(0),
+            height: Height::new(0, 0),
             round: Round::Nil,
             proposer: None,
             block_store: BlockStore::default(),
@@ -100,7 +100,7 @@ impl StarknetHost {
         height: Height,
         round: Round,
     ) -> Option<ProposedValue<MockContext>> {
-        let (value, validator_address, validity) =
+        let (value, validator_address, validity, extension) =
             self.build_proposal_content_from_parts(parts, height, round)?;
 
         Some(ProposedValue {
@@ -109,6 +109,7 @@ impl StarknetHost {
             round,
             value,
             validity,
+            extension,
         })
     }
 
@@ -118,7 +119,7 @@ impl StarknetHost {
         parts: &[Arc<ProposalPart>],
         height: Height,
         round: Round,
-    ) -> Option<(BlockHash, Address, Validity)> {
+    ) -> Option<(BlockHash, Address, Validity, Option<Extension>)> {
         if parts.is_empty() {
             return None;
         }
@@ -128,12 +129,25 @@ impl StarknetHost {
             return None;
         };
 
-        let Some(fin) = parts.iter().find_map(|part| part.as_fin()) else {
+        let Some(_fin) = parts.iter().find_map(|part| part.as_fin()) else {
             error!("No Fin part found in the proposal parts");
             return None;
         };
 
         trace!(parts.len = %parts.len(), "Building proposal content from parts");
+
+        let extension = self.host.params().vote_extensions.enabled.then(|| {
+            debug!(
+                size = %self.host.params().vote_extensions.size,
+                "Vote extensions are enabled"
+            );
+
+            let size = self.host.params().vote_extensions.size.as_u64() as usize;
+            let mut bytes = vec![0u8; size];
+            rand::thread_rng().fill_bytes(&mut bytes);
+
+            Extension::from(bytes)
+        });
 
         let block_hash = {
             let mut block_hasher = sha3::Keccak256::new();
@@ -148,7 +162,7 @@ impl StarknetHost {
         // TODO: How to compute validity?
         let validity = Validity::Valid;
 
-        Some((block_hash, init.proposer.clone(), validity))
+        Some((block_hash, init.proposer.clone(), validity, extension))
     }
 
     #[tracing::instrument(skip_all, fields(
@@ -165,7 +179,7 @@ impl StarknetHost {
     ) -> Option<ProposedValue<MockContext>> {
         state.part_store.store(height, round, part.clone());
 
-        if let ProposalPart::Transactions(txes) = &part {
+        if let ProposalPart::Transactions(_txes) = &part {
             debug!("Simulating tx execution and proof verification");
 
             // Simulate Tx execution and proof verification (assumes success)
@@ -179,9 +193,14 @@ impl StarknetHost {
 
         let all_parts = state.part_store.all_parts(height, round);
 
+        trace!(
+            count = state.part_store.blocks_stored(),
+            "The store has blocks"
+        );
+
         // TODO: Do more validations, e.g. there is no higher tx proposal part,
         //       check that we have received the proof, etc.
-        let Some(fin) = all_parts.iter().find_map(|part| part.as_fin()) else {
+        let Some(_fin) = all_parts.iter().find_map(|part| part.as_fin()) else {
             debug!("Final proposal part has not been received yet");
             return None;
         };
@@ -202,12 +221,17 @@ impl StarknetHost {
             .block_store
             .store_keys()
             .last()
-            .unwrap_or(&Height::default())
-            .as_u64();
+            .copied()
+            .unwrap_or_default();
 
-        let min_number_blocks: u64 =
-            std::cmp::min(self.host.params().max_retain_blocks as u64, max_height);
-        let retain_height = Height::new(max_height - min_number_blocks);
+        let min_number_blocks: u64 = std::cmp::min(
+            self.host.params().max_retain_blocks as u64,
+            max_height.as_u64(),
+        );
+
+        let retain_height =
+            Height::new(max_height.as_u64() - min_number_blocks, max_height.fork_id);
+
         state.block_store.prune(retain_height);
     }
 }
@@ -250,7 +274,7 @@ impl Actor for StarknetHost {
                 height,
                 round,
                 timeout_duration,
-                address,
+                address: _,
                 reply_to,
             } => {
                 let deadline = Instant::now() + timeout_duration;
@@ -264,17 +288,25 @@ impl Actor for StarknetHost {
                 state.next_stream_id += 1;
 
                 let mut sequence = 0;
+                let mut extension_part = None;
+
                 while let Some(part) = rx_part.recv().await {
                     state.part_store.store(height, round, part.clone());
+
+                    if let ProposalPart::Transactions(_) = &part {
+                        if extension_part.is_none() {
+                            extension_part = Some(part.clone());
+                        }
+                    }
 
                     debug!(
                         %stream_id,
                         %sequence,
-                        part_type = ?part.part_type(),
                         "Broadcasting proposal part"
                     );
 
-                    let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(part));
+                    let msg =
+                        StreamMessage::new(stream_id, sequence, StreamContent::Data(part.clone()));
                     sequence += 1;
 
                     self.gossip_consensus
@@ -287,15 +319,20 @@ impl Actor for StarknetHost {
                     .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
 
                 let block_hash = rx_hash.await?;
-                debug!("Got block with hash: {block_hash}");
+                debug!(%block_hash, "Got block");
 
                 let parts = state.part_store.all_parts(height, round);
+
+                let extension = extension_part
+                    .and_then(|part| part.as_transactions().and_then(|txs| txs.to_bytes().ok()))
+                    .map(Extension::from);
 
                 if let Some(value) = self.build_value_from_parts(&parts, height, round) {
                     reply_to.send(LocallyProposedValue::new(
                         value.height,
                         value.round,
                         value.value,
+                        extension,
                     ))?;
                 }
 
@@ -378,10 +415,18 @@ impl Actor for StarknetHost {
 
                 // Update metrics
                 let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
+                let extension_size: usize = commits
+                    .iter()
+                    .map(|c| c.extension.as_ref().map(|e| e.size_bytes()).unwrap_or(0))
+                    .sum();
+
+                let block_and_commits_size = block_size + extension_size;
                 let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
 
                 self.metrics.block_tx_count.observe(tx_count as f64);
-                self.metrics.block_size_bytes.observe(block_size as f64);
+                self.metrics
+                    .block_size_bytes
+                    .observe(block_and_commits_size as f64);
                 self.metrics.finalized_txes.inc_by(tx_count as u64);
 
                 // Send Update to mempool to remove all the tx-es included in the block.
@@ -449,7 +494,7 @@ impl Actor for StarknetHost {
                 reply_to,
             } => {
                 // TODO - process and check that block_bytes match the proposal
-                let block_hash = {
+                let _block_hash = {
                     let mut block_hasher = sha3::Keccak256::new();
                     block_hasher.update(block_bytes);
                     BlockHash::new(block_hasher.finalize().into())
@@ -461,6 +506,7 @@ impl Actor for StarknetHost {
                     validator_address: proposal.validator_address().clone(),
                     value: proposal.value().id(),
                     validity: Validity::Valid,
+                    extension: None,
                 };
 
                 reply_to.send(proposal)?;

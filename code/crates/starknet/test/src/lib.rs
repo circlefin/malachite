@@ -9,13 +9,13 @@ use tokio::time::{sleep, Duration};
 use tracing::{error, info, Instrument};
 
 use malachite_common::VotingPower;
-use malachite_node::config::{
+use malachite_config::{
     Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol, TransportProtocol,
 };
 use malachite_starknet_app::spawn::spawn_node_actor;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
 
-pub use malachite_node::config::App;
+pub use malachite_config::App;
 
 pub enum Expected {
     Exactly(usize),
@@ -271,8 +271,8 @@ impl TestNode {
 }
 
 pub const HEIGHTS: u64 = 3;
-pub const START_HEIGHT: Height = Height::new(1);
-pub const END_HEIGHT: Height = Height::new(START_HEIGHT.as_u64() + HEIGHTS - 1);
+pub const START_HEIGHT: Height = Height::new(1, 1);
+pub const END_HEIGHT: Height = START_HEIGHT.increment_by(HEIGHTS - 1);
 pub const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 
 fn init_logging() {
@@ -302,12 +302,13 @@ fn init_logging() {
 
 use bytesize::ByteSize;
 
-use malachite_node::config::{
+use malachite_config::{
     ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
 };
 
 pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> NodeConfig {
     let transport = TransportProtocol::Tcp;
+    let protocol = PubSubProtocol::default();
 
     NodeConfig {
         app,
@@ -318,7 +319,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 transport,
-                protocol: PubSubProtocol::GossipSub,
+                protocol,
                 listen_addr: transport.multiaddr("127.0.0.1", test.consensus_base_port + i),
                 persistent_peers: (0..N)
                     .filter(|j| i != *j)
@@ -330,7 +331,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
         mempool: MempoolConfig {
             p2p: P2pConfig {
                 transport,
-                protocol: PubSubProtocol::GossipSub,
+                protocol,
                 listen_addr: transport.multiaddr("127.0.0.1", test.mempool_base_port + i),
                 persistent_peers: (0..N)
                     .filter(|j| i != *j)
