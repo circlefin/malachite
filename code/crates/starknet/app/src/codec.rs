@@ -105,7 +105,7 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
                 proposal: decode_proposal(synced_block.proposal.unwrap())
                     .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("proposal"))?,
                 certificate,
-                block_bytes: Bytes::from(synced_block.block_bytes),
+                block_bytes: synced_block.block_bytes,
             })
         }
 
