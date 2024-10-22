@@ -11,4 +11,16 @@ mod state;
 pub use state::State;
 
 mod types;
-pub use types::{RawMessage, Request, Response, ResponseChannel, Status, SyncedBlock};
+pub use types::{
+    InboundRequestId, OutboundRequestId, PeerId, RawMessage, Request, Response, ResponseChannel,
+    Status, SyncedBlock,
+};
+
+mod macros;
+
+#[doc(hidden)]
+pub mod co;
+pub use co::{Effect, Error, Input, Resume};
+
+#[doc(hidden)]
+pub use tracing;

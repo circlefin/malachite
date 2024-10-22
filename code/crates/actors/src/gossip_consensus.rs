@@ -79,8 +79,8 @@ pub enum GossipEvent<Ctx: Context> {
     Proposal(PeerId, SignedProposal<Ctx>),
     ProposalPart(PeerId, StreamMessage<Ctx::ProposalPart>),
     Status(PeerId, Status<Ctx>),
-    BlockSyncRequest(InboundRequestId, Request<Ctx>), // received a block request
-    BlockSyncResponse(OutboundRequestId, Response<Ctx>), // received a block response
+    BlockSyncRequest(InboundRequestId, PeerId, Request<Ctx>), // received a block request
+    BlockSyncResponse(OutboundRequestId, Response<Ctx>),      // received a block response
 }
 
 pub enum State<Ctx: Context> {
@@ -339,8 +339,9 @@ where
                             return Ok(());
                         }
                     };
+
                     self.publish(
-                        GossipEvent::BlockSyncRequest(request_id, request),
+                        GossipEvent::BlockSyncRequest(request_id, peer, request),
                         subscribers,
                     );
                 }
@@ -353,6 +354,7 @@ where
                             return Ok(());
                         }
                     };
+
                     self.publish(
                         GossipEvent::BlockSyncResponse(request_id, response),
                         subscribers,

@@ -1,5 +1,6 @@
 use libp2p::metrics::Registry;
 
+#[derive(Default)]
 pub struct Metrics {}
 
 impl Metrics {

@@ -2442,9 +2442,11 @@ dependencies = [
  "bytes",
  "derive-where",
  "displaydoc",
+ "genawaiter",
  "libp2p",
  "malachite-common",
  "serde",
+ "tracing",
 ]
 
 [[package]]
