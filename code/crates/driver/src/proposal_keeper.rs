@@ -194,7 +194,7 @@ where
     /// but with different values but for the same height and round.
     ///
     /// # Precondition
-    /// - Fails if the two conflicting proposals were not proposed by the same validator.
+    /// - Panics if the two conflicting proposals were not proposed by the same validator.
     pub(crate) fn add(&mut self, existing: SignedProposal<Ctx>, conflicting: SignedProposal<Ctx>) {
         assert_eq!(
             existing.validator_address(),
