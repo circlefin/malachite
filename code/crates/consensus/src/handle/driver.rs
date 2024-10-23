@@ -170,7 +170,8 @@ where
         DriverOutput::Decide(consensus_round, proposal) => {
             info!(
                 round = %consensus_round,
-                ?proposal,
+                height = %proposal.height(),
+                value = %proposal.value().id(),
                 "Decided",
             );
 
