@@ -56,6 +56,7 @@ pub struct Config {
     /// Mempool configuration options
     pub mempool: MempoolConfig,
 
+    /// BlockSync configuration options
     pub blocksync: BlockSyncConfig,
 
     /// Metrics configuration options
@@ -270,7 +271,12 @@ pub struct MempoolConfig {
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BlockSyncConfig {
+    /// Interval at which to update other peers of our status
+    #[serde(with = "humantime_serde")]
     pub status_update_interval: Duration,
+
+    /// Timeout duration for block sync requests
+    #[serde(with = "humantime_serde")]
     pub request_timeout: Duration,
 }
 
