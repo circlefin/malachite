@@ -1453,9 +1453,7 @@ fn driver_step_change_mux_with_proposal_and_commit_quorum() {
         TestStep {
             desc: "v2 precommits value for round 1, we hit f+1 threshold, move to round 1",
             input: precommit_input_at(Round::new(1), value, &v2.address),
-            expected_outputs: vec![
-                new_round_output(Round::new(1)),
-            ],
+            expected_outputs: vec![new_round_output(Round::new(1))],
             expected_round: Round::new(1),
             new_state: new_round(Round::new(1)),
         },
@@ -1525,12 +1523,9 @@ fn proposal_mux_with_polka() {
             new_state: new_round(Round::new(1)),
         },
         TestStep {
-            desc:
-                "Start round 1, change step to propose, start propose timer",
+            desc: "Start round 1, change step to propose, start propose timer",
             input: new_round_input(Round::new(1), v2.address),
-            expected_outputs: vec![
-                start_propose_timer_output(Round::new(1)),
-            ],
+            expected_outputs: vec![start_propose_timer_output(Round::new(1))],
             expected_round: Round::new(1),
             new_state: propose_state(Round::new(1)),
         },
@@ -1589,11 +1584,10 @@ fn proposal_mux_with_commit_quorum() {
             new_state: propose_state(Round::new(0)),
         },
         TestStep {
-            desc: "v2 precommits value for round 1, we hit f+1 threshold (also 2f+1), move to round 1",
+            desc:
+                "v2 precommits value for round 1, we hit f+1 threshold (also 2f+1), move to round 1",
             input: precommit_input_at(Round::new(1), value, &v2.address),
-            expected_outputs: vec![
-                new_round_output(Round::new(1)),
-            ],
+            expected_outputs: vec![new_round_output(Round::new(1))],
             expected_round: Round::new(1),
             new_state: new_round(Round::new(1)),
         },
@@ -1602,7 +1596,8 @@ fn proposal_mux_with_commit_quorum() {
             input: new_round_input(Round::new(1), v2.address),
             expected_outputs: vec![
                 start_propose_timer_output(Round::new(1)),
-                start_precommit_timer_output(Round::new(1))],
+                start_precommit_timer_output(Round::new(1)),
+            ],
             expected_round: Round::new(1),
             new_state: propose_state(Round::new(1)),
         },
@@ -1615,10 +1610,7 @@ fn proposal_mux_with_commit_quorum() {
                 Validity::Valid,
                 v1.address,
             ),
-            expected_outputs: vec![
-                decide_output(Round::new(1), proposal),
-
-            ],
+            expected_outputs: vec![decide_output(Round::new(1), proposal)],
             expected_round: Round::new(1),
             new_state: decided_state(Round::new(1), value),
         },
