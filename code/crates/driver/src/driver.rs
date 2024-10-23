@@ -330,7 +330,7 @@ where
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let round_state = core::mem::take(&mut self.round_state);
 
-        let current_step = round_state.step;
+        let previous_step = round_state.step;
 
         let proposer = self.get_proposer()?;
         let info = Info::new(input_round, &self.address, proposer.address());
@@ -341,7 +341,7 @@ where
         // Update state
         self.round_state = transition.next_state.clone();
 
-        if current_step != self.round_state.step {
+        if previous_step != self.round_state.step && self.round_state.step != Step::Unstarted {
             let pending_input = self.multiplex_step_change(input_round);
 
             self.pending_input = pending_input
