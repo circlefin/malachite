@@ -133,7 +133,7 @@ fn driver_steps_proposer() {
             },
         },
         TestStep {
-            desc: "Receive our own proposal, prevote for it (v1)",
+            desc: "Receive our own proposal, prevote it (v1)",
             input: None,
             expected_outputs: vec![Output::Vote(Vote::new_prevote(
                 Height::new(1),
@@ -162,7 +162,7 @@ fn driver_steps_proposer() {
             },
         },
         TestStep {
-            desc: "v2 prevotes for our proposal",
+            desc: "v2 prevotes our proposal",
             input: Some(Input::Vote(new_signed_prevote(
                 Height::new(1),
                 Round::new(0),
@@ -179,7 +179,7 @@ fn driver_steps_proposer() {
             },
         },
         TestStep {
-            desc: "v3 prevotes for our proposal, we get +2/3 prevotes, precommit for it (v1)",
+            desc: "v3 prevotes our proposal, we get +2/3 prevotes, precommit it (v1)",
             input: Some(Input::Vote(new_signed_prevote(
                 Height::new(1),
                 Round::new(0),
@@ -229,7 +229,7 @@ fn driver_steps_proposer() {
             },
         },
         TestStep {
-            desc: "v2 precommits for our proposal",
+            desc: "v2 precommits our proposal",
             input: Some(Input::Vote(new_signed_precommit(
                 Height::new(1),
                 Round::new(0),
@@ -254,7 +254,7 @@ fn driver_steps_proposer() {
             },
         },
         TestStep {
-            desc: "v3 precommits for our proposal, we get +2/3 precommits, decide it (v1)",
+            desc: "v3 precommits our proposal, we get +2/3 precommits, decide it (v1)",
             input: Some(Input::Vote(new_signed_precommit(
                 Height::new(1),
                 Round::new(0),
@@ -380,7 +380,7 @@ fn driver_steps_not_proposer_valid() {
             },
         },
         TestStep {
-            desc: "Receive a proposal, prevote for it (v2)",
+            desc: "Receive a proposal, prevote it (v2)",
             input: Some(Input::Proposal(proposal.clone(), Validity::Valid)),
             expected_outputs: vec![Output::Vote(Vote::new_prevote(
                 Height::new(1),
@@ -409,7 +409,7 @@ fn driver_steps_not_proposer_valid() {
             },
         },
         TestStep {
-            desc: "v1 prevotes for its own proposal",
+            desc: "v1 prevotes its own proposal",
             input: Some(Input::Vote(new_signed_prevote(
                 Height::new(1),
                 Round::new(0),
@@ -426,7 +426,7 @@ fn driver_steps_not_proposer_valid() {
             },
         },
         TestStep {
-            desc: "v3 prevotes for v1's proposal, v2 gets +2/3 prevotes, precommits for it",
+            desc: "v3 prevotes v1's proposal, v2 gets +2/3 prevotes, precommits it",
             input: Some(Input::Vote(new_signed_prevote(
                 Height::new(1),
                 Round::new(0),
@@ -501,7 +501,7 @@ fn driver_steps_not_proposer_valid() {
             },
         },
         TestStep {
-            desc: "v3 precommits for v1's proposal, it gets +2/3 precommits, decide it",
+            desc: "v3 precommits v1's proposal, it gets +2/3 precommits, decide it",
             input: Some(Input::Vote(new_signed_precommit(
                 Height::new(1),
                 Round::new(0),
@@ -558,7 +558,11 @@ fn driver_steps_not_proposer_invalid() {
     let steps = vec![
         TestStep {
             desc: "Start round 0, we are not the proposer",
-            input: Some(Input::NewRound(Height::new(1), Round::new(0), proposal.validator_address)),
+            input: Some(Input::NewRound(
+                Height::new(1),
+                Round::new(0),
+                proposal.validator_address,
+            )),
             expected_outputs: vec![Output::ScheduleTimeout(Timeout::propose(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
@@ -569,11 +573,14 @@ fn driver_steps_not_proposer_invalid() {
             },
         },
         TestStep {
-            desc: "Receive an invalid proposal, prevote for nil (v2)",
+            desc: "Receive an invalid proposal, prevote nil (v2)",
             input: Some(Input::Proposal(proposal.clone(), Validity::Invalid)),
-            expected_outputs: vec!(Output::Vote(
-                Vote::new_prevote(Height::new(1),Round::new(0), NilOrVal::Nil, my_addr)
-            )),
+            expected_outputs: vec![Output::Vote(Vote::new_prevote(
+                Height::new(1),
+                Round::new(0),
+                NilOrVal::Nil,
+                my_addr,
+            ))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -595,10 +602,13 @@ fn driver_steps_not_proposer_invalid() {
             },
         },
         TestStep {
-            desc: "v1 prevotes for its own proposal",
-            input: Some(Input::Vote(
-                new_signed_prevote(Height::new(1), Round::new(0), NilOrVal::Val(value.id()), v1.address)
-            )),
+            desc: "v1 prevotes its own proposal",
+            input: Some(Input::Vote(new_signed_prevote(
+                Height::new(1),
+                Round::new(0),
+                NilOrVal::Val(value.id()),
+                v1.address,
+            ))),
             expected_outputs: vec![],
             expected_round: Round::new(0),
             new_state: State {
@@ -609,10 +619,14 @@ fn driver_steps_not_proposer_invalid() {
             },
         },
         TestStep {
-            desc: "v3 prevotes for v1's proposal, we have polka for any, schedule prevote timeout (v2)",
-            input: Some(Input::Vote(
-                new_signed_prevote(Height::new(1), Round::new(0), NilOrVal::Val(value.id()), v3.address)
-            )),
+            desc:
+                "v3 prevotes v1's proposal, we have a polka for any, schedule prevote timeout (v2)",
+            input: Some(Input::Vote(new_signed_prevote(
+                Height::new(1),
+                Round::new(0),
+                NilOrVal::Val(value.id()),
+                v3.address,
+            ))),
             expected_outputs: vec![Output::ScheduleTimeout(Timeout::prevote(Round::new(0)))],
             expected_round: Round::new(0),
             new_state: State {
@@ -623,11 +637,14 @@ fn driver_steps_not_proposer_invalid() {
             },
         },
         TestStep {
-            desc: "prevote timeout elapses, we precommit for nil (v2)",
+            desc: "prevote timeout elapses, we precommit nil (v2)",
             input: Some(Input::TimeoutElapsed(Timeout::prevote(Round::new(0)))),
-            expected_outputs: vec!(Output::Vote(
-                Vote::new_precommit(Height::new(1), Round::new(0), NilOrVal::Nil, my_addr)
-            )),
+            expected_outputs: vec![Output::Vote(Vote::new_precommit(
+                Height::new(1),
+                Round::new(0),
+                NilOrVal::Nil,
+                my_addr,
+            ))],
             expected_round: Round::new(0),
             new_state: State {
                 height: Height::new(1),
@@ -790,9 +807,9 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 ..Default::default()
             },
         },
-        // Receive a propose timeout, prevote for nil (from v3)
+        // Receive a propose timeout, prevote nil (from v3)
         TestStep {
-            desc: "Receive a propose timeout, prevote for nil (v3)",
+            desc: "Receive a propose timeout, prevote nil (v3)",
             input: Some(Input::TimeoutElapsed(Timeout::propose(Round::new(0)))),
             expected_outputs: vec![Output::Vote(Vote::new_prevote(
                 Height::new(1),
@@ -821,9 +838,9 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 ..Default::default()
             },
         },
-        // v1 prevotes for its own proposal
+        // v1 prevotes its own proposal
         TestStep {
-            desc: "v1 prevotes for its own proposal",
+            desc: "v1 prevotes its own proposal",
             input: Some(Input::Vote(new_signed_prevote(
                 Height::new(1),
                 Round::new(0),
@@ -839,9 +856,9 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 ..Default::default()
             },
         },
-        // v2 prevotes for nil, we get +2/3 nil prevotes and precommit for nil
+        // v2 prevotes nil, we get +2/3 nil prevotes and precommit nil
         TestStep {
-            desc: "v2 prevotes for nil, we get +2/3 prevotes, precommit for nil",
+            desc: "v2 prevotes nil, we get +2/3 prevotes, precommit nil",
             input: Some(Input::Vote(new_signed_prevote(
                 Height::new(1),
                 Round::new(0),
@@ -893,9 +910,9 @@ fn driver_steps_not_proposer_timeout_multiple_rounds() {
                 ..Default::default()
             },
         },
-        // v2 precommits for nil
+        // v2 precommits nil
         TestStep {
-            desc: "v2 precommits for nil",
+            desc: "v2 precommits nil",
             input: Some(Input::Vote(new_signed_precommit(
                 Height::new(1),
                 Round::new(0),
@@ -1012,7 +1029,7 @@ fn driver_steps_validator_not_found() {
         .process(Input::NewRound(Height::new(1), Round::new(0), v1.address))
         .expect("execute succeeded");
 
-    // v2 prevotes for some proposal, we cannot find it in the validator set => error
+    // v2 prevotes some proposal, we cannot find it in the validator set => error
     let output = driver.process(Input::Vote(new_signed_prevote(
         Height::new(1),
         Round::new(0),
@@ -1054,9 +1071,9 @@ fn driver_steps_skip_round_skip_threshold() {
                 ..Default::default()
             },
         },
-        // Receive a propose timeout, prevote for nil (from v3)
+        // Receive a propose timeout, prevote nil (from v3)
         TestStep {
-            desc: "Receive a propose timeout, prevote for nil (v3)",
+            desc: "Receive a propose timeout, prevote nil (v3)",
             input: Some(Input::TimeoutElapsed(Timeout::propose(Round::new(0)))),
             expected_outputs: vec![Output::Vote(Vote::new_prevote(
                 height,
@@ -1085,9 +1102,9 @@ fn driver_steps_skip_round_skip_threshold() {
                 ..Default::default()
             },
         },
-        // v1 prevotes for its own proposal
+        // v1 prevotes its own proposal
         TestStep {
-            desc: "v1 prevotes for its own proposal in round 1",
+            desc: "v1 prevotes its own proposal in round 1",
             input: Some(Input::Vote(new_signed_prevote(
                 height,
                 Round::new(1),
@@ -1103,9 +1120,9 @@ fn driver_steps_skip_round_skip_threshold() {
                 ..Default::default()
             },
         },
-        // v2 prevotes for v1 proposal in round 1, expected output is to move to next round
+        // v2 prevotes v1 proposal in round 1, expected output is to move to next round
         TestStep {
-            desc: "v2 prevotes for v1 proposal, we get +1/3 messages from future round",
+            desc: "v2 prevotes v1 proposal, we get +1/3 messages from future round",
             input: Some(Input::Vote(new_signed_prevote(
                 height,
                 Round::new(1),
@@ -1156,9 +1173,9 @@ fn driver_steps_skip_round_quorum_threshold() {
                 ..Default::default()
             },
         },
-        // Receive a propose timeout, prevote for nil (from v3)
+        // Receive a propose timeout, prevote nil (from v3)
         TestStep {
-            desc: "Receive a propose timeout, prevote for nil (v3)",
+            desc: "Receive a propose timeout, prevote nil (v3)",
             input: Some(Input::TimeoutElapsed(Timeout::propose(Round::new(0)))),
             expected_outputs: vec![Output::Vote(Vote::new_prevote(
                 height,
@@ -1187,9 +1204,9 @@ fn driver_steps_skip_round_quorum_threshold() {
                 ..Default::default()
             },
         },
-        // v1 prevotes for its own proposal
+        // v1 prevotes its own proposal
         TestStep {
-            desc: "v1 prevotes for its own proposal in round 1",
+            desc: "v1 prevotes its own proposal in round 1",
             input: Some(Input::Vote(new_signed_prevote(
                 height,
                 Round::new(1),
@@ -1205,9 +1222,9 @@ fn driver_steps_skip_round_quorum_threshold() {
                 ..Default::default()
             },
         },
-        // v2 prevotes for v1 proposal in round 1, expected output is to move to next round
+        // v2 prevotes v1 proposal in round 1, expected output is to move to next round
         TestStep {
-            desc: "v2 prevotes for v1 proposal, we get +1/3 messages from future round",
+            desc: "v2 prevotes v1 proposal, we get +1/3 messages from future round",
             input: Some(Input::Vote(new_signed_prevote(
                 height,
                 Round::new(1),
