@@ -19,8 +19,11 @@ pub use types::{
 mod macros;
 
 #[doc(hidden)]
+pub mod handle;
+pub use handle::{Effect, Error, Input, Resume};
+
+#[doc(hidden)]
 pub mod co;
-pub use co::{Effect, Error, Input, Resume};
 
 #[doc(hidden)]
 pub use tracing;

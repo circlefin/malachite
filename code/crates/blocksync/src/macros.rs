@@ -20,7 +20,8 @@
 #[macro_export]
 macro_rules! process {
     (input: $input:expr, state: $state:expr, metrics: $metrics:expr, with: $effect:ident => $handle:expr) => {{
-        let mut gen = $crate::co::Gen::new(|co| $crate::co::handle(co, $state, $metrics, $input));
+        let mut gen =
+            $crate::co::Gen::new(|co| $crate::handle::handle(co, $state, $metrics, $input));
 
         let mut co_result = gen.resume_with($crate::Resume::default());
 
@@ -68,7 +69,7 @@ macro_rules! process {
 #[macro_export]
 macro_rules! perform {
     ($co:expr, $effect:expr) => {
-        perform!($co, $effect, $crate::co::Resume::Continue(_))
+        perform!($co, $effect, $crate::handle::Resume::Continue(_))
     };
 
     ($co:expr, $effect:expr, $pat:pat) => {
@@ -81,7 +82,7 @@ macro_rules! perform {
         match $co.yield_($effect).await {
             $pat => $expr,
             resume => {
-                return ::core::result::Result::Err($crate::co::Error::UnexpectedResume(
+                return ::core::result::Result::Err($crate::handle::Error::UnexpectedResume(
                     resume,
                     stringify!($pat)
                 )
