@@ -118,8 +118,8 @@ pub enum Msg<Ctx: Context> {
     /// Publish status
     PublishStatus(Status<Ctx>),
 
-    /// Send a request to a peer
-    OutgoingBlockSyncRequest(PeerId, Request<Ctx>),
+    /// Send a request to a peer, returning the outbound request ID
+    OutgoingBlockSyncRequest(PeerId, Request<Ctx>, RpcReplyPort<OutboundRequestId>),
 
     /// Send a response for a blocks request to a peer
     OutgoingBlockSyncResponse(InboundRequestId, Response<Ctx>),
@@ -234,10 +234,13 @@ where
                 }
             }
 
-            Msg::OutgoingBlockSyncRequest(peer_id, request) => {
+            Msg::OutgoingBlockSyncRequest(peer_id, request, reply_to) => {
                 let request = Codec::encode_request(request);
                 match request {
-                    Ok(data) => ctrl_handle.blocksync_request(peer_id, data).await?,
+                    Ok(data) => {
+                        let request_id = ctrl_handle.blocksync_request(peer_id, data).await?;
+                        reply_to.send(request_id)?;
+                    }
                     Err(e) => error!("Failed to encode request message: {e:?}"),
                 }
             }

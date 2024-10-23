@@ -1,21 +1,31 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use derive_where::derive_where;
 use libp2p::request_response::InboundRequestId;
+use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::task::JoinHandle;
 
-use malachite_blocksync as blocksync;
+use malachite_blocksync::{self as blocksync, OutboundRequestId};
 use malachite_blocksync::{Request, SyncedBlock};
 use malachite_common::{Certificate, Context};
+use tracing::{debug, error, warn};
 
-use crate::gossip_consensus::Msg::OutgoingBlockSyncRequest;
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
 use crate::host::{HostMsg, HostRef};
 use crate::util::forward::forward;
 use crate::util::ticker::ticker;
+use crate::util::timers::{TimeoutElapsed, TimerScheduler};
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Timeout {
+    Request(OutboundRequestId),
+}
+
+type Timers<Ctx> = TimerScheduler<Timeout, Msg<Ctx>>;
 
 pub type BlockSyncRef<Ctx> = ActorRef<Msg<Ctx>>;
 
@@ -27,6 +37,15 @@ pub struct RawDecidedBlock<Ctx: Context> {
 }
 
 #[derive_where(Clone, Debug)]
+pub struct InflightRequest<Ctx: Context> {
+    pub peer_id: PeerId,
+    pub request_id: OutboundRequestId,
+    pub request: Request<Ctx>,
+}
+
+pub type InflightRequests<Ctx> = HashMap<OutboundRequestId, InflightRequest<Ctx>>;
+
+#[derive_where(Debug)]
 pub enum Msg<Ctx: Context> {
     /// Internal tick
     Tick,
@@ -42,17 +61,28 @@ pub enum Msg<Ctx: Context> {
 
     /// Host has a response for the blocks request
     GotDecidedBlock(Ctx::Height, InboundRequestId, Option<SyncedBlock<Ctx>>),
+
+    /// A timeout has elapsed
+    TimeoutElapsed(TimeoutElapsed<Timeout>),
+}
+
+impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
+    fn from(elapsed: TimeoutElapsed<Timeout>) -> Self {
+        Msg::TimeoutElapsed(elapsed)
+    }
 }
 
 #[derive(Debug)]
-pub struct Args {
+pub struct Params {
     pub status_update_interval: Duration,
+    pub request_timeout: Duration,
 }
 
-impl Default for Args {
+impl Default for Params {
     fn default() -> Self {
         Self {
             status_update_interval: Duration::from_secs(10),
+            request_timeout: Duration::from_secs(10),
         }
     }
 }
@@ -61,6 +91,13 @@ impl Default for Args {
 pub struct State<Ctx: Context> {
     /// The state of the blocksync state machine
     blocksync: blocksync::State<Ctx>,
+
+    /// Scheduler for timers
+    timers: Timers<Ctx>,
+
+    /// In-flight requests
+    inflight: InflightRequests<Ctx>,
+
     /// Task for sending status updates
     ticker: JoinHandle<()>,
 }
@@ -70,6 +107,7 @@ pub struct BlockSync<Ctx: Context> {
     ctx: Ctx,
     gossip: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
+    params: Params,
     metrics: blocksync::Metrics,
 }
 
@@ -77,17 +115,23 @@ impl<Ctx> BlockSync<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(ctx: Ctx, gossip: GossipConsensusRef<Ctx>, host: HostRef<Ctx>) -> Self {
+    pub fn new(
+        ctx: Ctx,
+        gossip: GossipConsensusRef<Ctx>,
+        host: HostRef<Ctx>,
+        params: Params,
+    ) -> Self {
         Self {
             ctx,
             gossip,
             host,
+            params,
             metrics: blocksync::Metrics::default(),
         }
     }
 
     pub async fn spawn(self) -> Result<(BlockSyncRef<Ctx>, JoinHandle<()>), ractor::SpawnErr> {
-        Actor::spawn(None, self, Args::default()).await
+        Actor::spawn(None, self, ()).await
     }
 
     async fn process_input(
@@ -101,7 +145,7 @@ where
             state: &mut state.blocksync,
             metrics: &self.metrics,
             with: effect => {
-                self.handle_effect(myself, effect).await
+                self.handle_effect(myself, &mut state.timers, &mut state.inflight, effect).await
             }
         )
     }
@@ -109,6 +153,8 @@ where
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
+        timers: &mut Timers<Ctx>,
+        inflight: &mut InflightRequests<Ctx>,
         effect: blocksync::Effect<Ctx>,
     ) -> Result<blocksync::Resume<Ctx>, ActorProcessingErr> {
         use blocksync::Effect;
@@ -119,8 +165,28 @@ where
             }
 
             Effect::SendRequest(peer_id, request) => {
-                self.gossip
-                    .cast(OutgoingBlockSyncRequest(peer_id, request))?;
+                let result = ractor::call!(self.gossip, |reply_to| {
+                    GossipConsensusMsg::OutgoingBlockSyncRequest(peer_id, request.clone(), reply_to)
+                });
+
+                match result {
+                    Ok(request_id) => {
+                        timers
+                            .start_timer(Timeout::Request(request_id), self.params.request_timeout);
+
+                        inflight.insert(
+                            request_id,
+                            InflightRequest {
+                                peer_id,
+                                request_id,
+                                request,
+                            },
+                        );
+                    }
+                    Err(e) => {
+                        error!("Failed to send request to gossip layer: {e}");
+                    }
+                }
             }
 
             Effect::SendResponse(request_id, response) => {
@@ -151,29 +217,32 @@ where
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
-    type Arguments = Args;
+    type Arguments = ();
 
     async fn pre_start(
         &self,
         myself: ActorRef<Self::Msg>,
-        args: Args,
+        _args: (),
     ) -> Result<Self::State, ActorProcessingErr> {
         let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
         self.gossip.cast(GossipConsensusMsg::Subscribe(forward))?;
 
-        let ticker = tokio::spawn(ticker(args.status_update_interval, myself.clone(), || {
-            Msg::Tick
-        }));
+        let ticker = tokio::spawn(ticker(
+            self.params.status_update_interval,
+            myself.clone(),
+            || Msg::Tick,
+        ));
 
         Ok(State {
             blocksync: blocksync::State::default(),
+            timers: Timers::new(myself.clone()),
+            inflight: HashMap::new(),
             ticker,
         })
     }
 
     // TODO:
     //  - proper FSM
-    //  - timeout requests
     //  - multiple requests for next few heights
     //  - etc
     #[tracing::instrument(name = "blocksync", skip_all)]
@@ -212,6 +281,15 @@ where
                 .await?;
             }
 
+            Msg::GossipEvent(GossipEvent::BlockSyncResponse(request_id, _response)) => {
+                // Cancel the timer associated with the request for which we just received a response
+                state.timers.cancel(&Timeout::Request(request_id));
+            }
+
+            Msg::GossipEvent(_) => {
+                // Ignore other gossip events
+            }
+
             Msg::Decided(height) => {
                 self.process_input(&myself, state, blocksync::Input::Decided(height))
                     .await?;
@@ -231,7 +309,32 @@ where
                 .await?;
             }
 
-            _ => {}
+            Msg::TimeoutElapsed(elapsed) => {
+                let Some(timeout) = state.timers.intercept_timer_msg(elapsed) else {
+                    // Timer was cancelled or already processed, ignore
+                    return Ok(());
+                };
+
+                warn!(?timeout, "Timeout elapsed");
+
+                match timeout {
+                    Timeout::Request(request_id) => {
+                        if let Some(inflight) = state.inflight.remove(&request_id) {
+                            self.process_input(
+                                &myself,
+                                state,
+                                blocksync::Input::RequestTimedOut(
+                                    inflight.peer_id,
+                                    inflight.request,
+                                ),
+                            )
+                            .await?;
+                        } else {
+                            debug!(%request_id, "Timeout for unknown request");
+                        }
+                    }
+                }
+            }
         }
 
         Ok(())

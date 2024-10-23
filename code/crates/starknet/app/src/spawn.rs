@@ -1,10 +1,10 @@
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
-use malachite_actors::block_sync::{BlockSync, BlockSyncRef};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
+use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
@@ -12,7 +12,8 @@ use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
 use malachite_common::SignedProposal;
 use malachite_config::{
-    Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig, TransportProtocol,
+    BlockSyncConfig, Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig,
+    TransportProtocol,
 };
 use malachite_gossip_consensus::{
     Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
@@ -58,8 +59,13 @@ pub async fn spawn_node_actor(
     )
     .await;
 
-    let block_sync =
-        spawn_block_sync_actor(ctx.clone(), gossip_consensus.clone(), host.clone()).await;
+    let block_sync = spawn_block_sync_actor(
+        ctx.clone(),
+        gossip_consensus.clone(),
+        host.clone(),
+        &cfg.blocksync,
+    )
+    .await;
 
     let start_height = Height::new(1, 1);
 
@@ -99,8 +105,14 @@ async fn spawn_block_sync_actor(
     ctx: MockContext,
     gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
+    config: &BlockSyncConfig,
 ) -> BlockSyncRef<MockContext> {
-    let block_sync = BlockSync::new(ctx, gossip_consensus, host);
+    let params = BlockSyncParams {
+        status_update_interval: config.status_update_interval,
+        request_timeout: config.request_timeout,
+    };
+
+    let block_sync = BlockSync::new(ctx, gossip_consensus, host, params);
     block_sync.spawn().await.unwrap().0
 }
 

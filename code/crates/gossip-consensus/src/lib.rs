@@ -13,10 +13,10 @@ use libp2p::request_response::InboundRequestId;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, quic, SwarmBuilder};
 use libp2p_broadcast as broadcast;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, error_span, trace, Instrument};
 
-use malachite_blocksync as blocksync;
+use malachite_blocksync::{self as blocksync, OutboundRequestId};
 use malachite_discovery::{self as discovery, ConnectionData};
 use malachite_metrics::SharedRegistry;
 
@@ -139,7 +139,7 @@ pub enum Event {
 #[derive(Debug)]
 pub enum CtrlMsg {
     Publish(Channel, Bytes),
-    BlockSyncRequest(PeerId, Bytes),
+    BlockSyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
     BlockSyncReply(InboundRequestId, Bytes),
     Shutdown,
 }
@@ -281,12 +281,16 @@ async fn handle_ctrl_msg(
             ControlFlow::Continue(())
         }
 
-        CtrlMsg::BlockSyncRequest(peer_id, request) => {
-            // TODO - check if we need to store the outbound request id
-            let _request_id = swarm
+        CtrlMsg::BlockSyncRequest(peer_id, request, reply_to) => {
+            let request_id = swarm
                 .behaviour_mut()
                 .blocksync
                 .send_request(peer_id, request);
+
+            if let Err(e) = reply_to.send(request_id) {
+                error!(%peer_id, "Error sending BlockSync request: {e}");
+            }
+
             ControlFlow::Continue(())
         }
 

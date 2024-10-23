@@ -12,7 +12,7 @@ pub type ResponseChannel = libp2p::request_response::ResponseChannel<RawResponse
 
 #[derive(Display)]
 #[displaydoc("Status {{ peer_id: {peer_id}, height: {height} }}")]
-#[derive_where(Debug, PartialEq, Eq)]
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct Status<Ctx: Context> {
     pub peer_id: PeerId,
     pub height: Ctx::Height,

@@ -347,6 +347,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
             max_tx_count: 10000,
             gossip_batch_size: 0,
         },
+        blocksync: Default::default(),
         metrics: MetricsConfig {
             enabled: false,
             listen_addr: format!("127.0.0.1:{}", test.metrics_base_port + i)

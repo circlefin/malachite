@@ -1,7 +1,8 @@
 use bytes::Bytes;
 use libp2p::request_response::InboundRequestId;
 use libp2p::PeerId;
-use tokio::sync::mpsc;
+use malachite_blocksync::OutboundRequestId;
+use tokio::sync::{mpsc, oneshot};
 use tokio::task;
 
 use crate::{Channel, CtrlMsg, Event};
@@ -41,11 +42,14 @@ impl CtrlHandle {
         &self,
         peer_id: PeerId,
         data: Bytes,
-    ) -> Result<(), eyre::Report> {
+    ) -> Result<OutboundRequestId, eyre::Report> {
+        let (tx, rx) = oneshot::channel();
+
         self.tx_ctrl
-            .send(CtrlMsg::BlockSyncRequest(peer_id, data))
+            .send(CtrlMsg::BlockSyncRequest(peer_id, data, tx))
             .await?;
-        Ok(())
+
+        Ok(rx.await?)
     }
 
     pub async fn blocksync_reply(
