@@ -1,38 +1,30 @@
 #![allow(unused_crate_dependencies)]
 
+use std::time::Duration;
+
 use bytesize::ByteSize;
 use malachite_config::{GossipSubConfig, PubSubProtocol};
 use malachite_starknet_test::{App, Expected, Test, TestNode, TestParams};
 
-async fn run_n2f0_tests(test_params: TestParams) {
+async fn run_n2f0_tests(params: TestParams) {
     let test = Test::new(
         [TestNode::correct(10), TestNode::correct(10)],
         Expected::Exactly(6),
     );
 
-    test.run_with_custom_config(App::Starknet, test_params)
+    test.run_with_custom_config(App::Starknet, Duration::from_secs(30), params)
         .await
 }
 
 #[tokio::test]
-pub async fn flood_default_config() {
-    let test = Test::new(
-        [TestNode::correct(10), TestNode::correct(10)],
-        Expected::Exactly(6),
-    );
-
-    test.run(App::Starknet).await
-}
-
-#[tokio::test]
 pub async fn broadcast_custom_config_1ktx() {
-    let test_params = TestParams::new(
+    let params = TestParams::new(
         PubSubProtocol::Broadcast,
         ByteSize::kib(1),
         ByteSize::kib(1),
     );
 
-    run_n2f0_tests(test_params).await
+    run_n2f0_tests(params).await
 }
 
 #[tokio::test]

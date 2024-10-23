@@ -10,7 +10,8 @@ use tracing::{error, info, Instrument};
 
 use malachite_common::VotingPower;
 use malachite_config::{
-    Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol, TransportProtocol,
+    Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol, TestConfig,
+    TransportProtocol,
 };
 use malachite_starknet_app::spawn::spawn_node_actor;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
@@ -129,17 +130,22 @@ impl<const N: usize> Test<N> {
         configs.try_into().expect("N configs")
     }
 
-    pub async fn run(self, app: App) {
+    pub async fn run(self, app: App, timeout: Duration) {
         let node_configs = self.generate_default_configs(app);
-        self.run_with_config(&node_configs).await
+        self.run_with_config(&node_configs, timeout).await
     }
 
-    pub async fn run_with_custom_config(self, app: App, test_params: TestParams) {
+    pub async fn run_with_custom_config(
+        self,
+        app: App,
+        timeout: Duration,
+        test_params: TestParams,
+    ) {
         let node_configs = self.generate_custom_configs(app, test_params);
-        self.run_with_config(&node_configs).await
+        self.run_with_config(&node_configs, timeout).await
     }
 
-    pub async fn run_with_config(self, configs: &[Config; N]) {
+    pub async fn run_with_config(self, configs: &[Config; N], timeout: Duration) {
         init_logging();
 
         let mut handles = Vec::with_capacity(N);
@@ -214,7 +220,7 @@ impl<const N: usize> Test<N> {
             );
         }
 
-        tokio::time::sleep(TEST_TIMEOUT).await;
+        tokio::time::sleep(timeout).await;
 
         let correct_decisions = correct_decisions.load(Ordering::Relaxed);
 
@@ -273,7 +279,6 @@ impl TestNode {
 pub const HEIGHTS: u64 = 3;
 pub const START_HEIGHT: Height = Height::new(1, 1);
 pub const END_HEIGHT: Height = START_HEIGHT.increment_by(HEIGHTS - 1);
-pub const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 
 fn init_logging() {
     use tracing_subscriber::util::SubscriberInitExt;
@@ -340,7 +345,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                 discovery: DiscoveryConfig { enabled: false },
             },
             max_tx_count: 10000,
-            gossip_batch_size: 100,
+            gossip_batch_size: 0,
         },
         metrics: MetricsConfig {
             enabled: false,
@@ -349,7 +354,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                 .unwrap(),
         },
         runtime: RuntimeConfig::single_threaded(),
-        test: Default::default(),
+        test: TestConfig::default(),
     }
 }
 

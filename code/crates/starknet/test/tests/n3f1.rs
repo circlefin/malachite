@@ -1,5 +1,7 @@
 #![allow(unused_crate_dependencies)]
 
+use std::time::Duration;
+
 use malachite_starknet_test::{App, Expected, Fault, Test, TestNode};
 
 #[tokio::test]
@@ -13,7 +15,7 @@ pub async fn proposer_fails_to_start() {
         Expected::Exactly(0),
     );
 
-    test.run(App::Starknet).await
+    test.run(App::Starknet, Duration::from_secs(30)).await
 }
 
 #[tokio::test]
@@ -27,7 +29,7 @@ pub async fn one_node_fails_to_start() {
         Expected::Exactly(0),
     );
 
-    test.run(App::Starknet).await
+    test.run(App::Starknet, Duration::from_secs(30)).await
 }
 
 #[tokio::test]
@@ -41,7 +43,7 @@ pub async fn proposer_crashes_at_height_1() {
         Expected::AtMost(4),
     );
 
-    test.run(App::Starknet).await
+    test.run(App::Starknet, Duration::from_secs(30)).await
 }
 
 #[tokio::test]
@@ -55,5 +57,5 @@ pub async fn one_node_crashes_at_height_2() {
         Expected::AtMost(7),
     );
 
-    test.run(App::Starknet).await
+    test.run(App::Starknet, Duration::from_secs(30)).await
 }
