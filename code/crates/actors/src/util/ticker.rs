@@ -12,6 +12,7 @@ where
 
         if let Err(e) = target.cast(msg()) {
             tracing::error!(?e, ?target, "Failed to send tick message");
+            break;
         }
     }
 }

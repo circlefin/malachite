@@ -59,3 +59,20 @@ pub async fn one_node_crashes_at_height_2() {
 
     test.run(App::Starknet, Duration::from_secs(30)).await
 }
+
+#[tokio::test]
+pub async fn blocksync() {
+    let test = Test::new(
+        [
+            TestNode::correct(10),
+            TestNode::correct(10),
+            TestNode::faulty(
+                5,
+                vec![Fault::Crash(2), Fault::Restart(Duration::from_secs(5))],
+            ),
+        ],
+        Expected::AtMost(7),
+    );
+
+    test.run(App::Starknet, Duration::from_secs(30)).await
+}
