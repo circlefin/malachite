@@ -1,7 +1,7 @@
 /// Process an [`Input`][input] and handle the emitted [`Effects`][effect].
 ///
-/// [input]: crate::input::Input
-/// [effect]: crate::effect::Effect
+/// [input]: crate::handle::Input
+/// [effect]: crate::handle::Effect
 ///
 /// # Example
 ///
@@ -50,8 +50,6 @@ macro_rules! process {
 /// Effects yielded by this macro must resume with a value that matches the provided pattern.
 /// If not pattern is give, then the yielded effect must resume with [`Resume::Continue`][continue].
 ///
-/// [continue]: crate::effect::Resume::Continue
-///
 /// # Errors
 /// This macro will abort the current function with a [`Error::UnexpectedResume`][error] error
 /// if the effect does not resume with a value that matches the provided pattern.
@@ -65,7 +63,8 @@ macro_rules! process {
 /// let value: Ctx::Value = perform!(co, effect, Resume::ProposeValue(_, value) => value);
 /// ```
 ///
-/// [error]: crate::error::Error::UnexpectedResume
+/// [continue]: crate::handle::Resume::Continue
+/// [error]: crate::handle::Error::UnexpectedResume
 #[macro_export]
 macro_rules! perform {
     ($co:expr, $effect:expr) => {
