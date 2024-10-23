@@ -1175,6 +1175,241 @@ fn driver_equivocate_proposal() {
     run_steps(&mut driver, steps);
 }
 
+#[test]
+fn river_step_change_mux_with_proposal() {
+    let value: Value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new(my_sk.clone());
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v1 prevotes nil",
+            input: prevote_nil_input(&v1.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v2 prevotes for for nil, we get polkaNil, but we are in Propose step",
+            input: prevote_nil_input(&v2.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Timeout propose, prevote for nil then precommit for nil",
+            input: timeout_propose_input(Round::new(0)),
+            expected_outputs: vec![
+                prevote_nil_output(Round::new(0), &my_addr),
+                precommit_nil_output(Round::new(0), &my_addr),
+            ],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v1 precommits nil",
+            input: precommit_nil_input(Round::new(0), &v1.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v2 precommits nil, we get polkaNil, but we are in Propose step",
+            input: precommit_nil_input(Round::new(0), &v2.address),
+            expected_outputs: vec![start_precommit_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive proposal for next round, store",
+            input: proposal_input(
+                Round::new(1),
+                value,
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: precommit_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Timeout precommit, start new round",
+            input: timeout_precommit_input(Round::new(0)),
+            expected_outputs: vec![new_round_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
+        TestStep {
+            desc:
+                "Start round 1, change step to propose, start propose timer, mux proposal, prevote",
+            input: new_round_input(Round::new(1), v2.address),
+            expected_outputs: vec![
+                start_propose_timer_output(Round::new(1)),
+                prevote_output(Round::new(1), value, &my_addr),
+            ],
+            expected_round: Round::new(1),
+            new_state: prevote_state(Round::new(1)),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+#[test]
+fn driver_step_change_mux_with_proposal_and_polka() {
+    let value: Value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new(my_sk.clone());
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let proposal = Proposal::new(Height::new(1), Round::new(1), value, Round::Nil, v1.address);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive proposal for next round, store",
+            input: proposal_input(
+                Round::new(1),
+                value,
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v1 prevotes value for round 1",
+            input: prevote_input_at(Round::new(1), value, &v1.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v2 prevotes value for round 1, we hit the f+1 threshold, move to round 1",
+            input: prevote_input_at(Round::new(1), value, &v2.address),
+            expected_outputs: vec![new_round_output(Round::new(1))],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
+        TestStep {
+            desc:
+                "Start round 1, change step to propose, start propose timer, mux proposal, prevote",
+            input: new_round_input(Round::new(1), v2.address),
+            expected_outputs: vec![
+                start_propose_timer_output(Round::new(1)),
+                prevote_output(Round::new(1), value, &my_addr),
+                start_prevote_timer_output(Round::new(1)),
+                precommit_output(Round::new(1), value, &my_addr),
+            ],
+            expected_round: Round::new(1),
+            new_state: precommit_state_with_proposal_and_locked_and_valid(
+                Round::new(1),
+                proposal.clone(),
+            ),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
+#[test]
+fn driver_step_change_mux_with_proposal_and_commit_quorum() {
+    let value: Value = Value::new(9999);
+
+    let [(v1, _sk1), (v2, _sk2), (v3, sk3)] = make_validators([2, 3, 2]);
+    let (my_sk, my_addr) = (sk3.clone(), v3.address);
+
+    let height = Height::new(1);
+    let ctx = TestContext::new(my_sk.clone());
+    let vs = ValidatorSet::new(vec![v1.clone(), v2.clone(), v3.clone()]);
+
+    let proposal = Proposal::new(Height::new(1), Round::new(1), value, Round::Nil, v1.address);
+
+    let mut driver = Driver::new(ctx, height, vs, my_addr, Default::default());
+
+    let steps = vec![
+        TestStep {
+            desc: "Start round 0, we, v3, are not the proposer, start timeout propose",
+            input: new_round_input(Round::new(0), v1.address),
+            expected_outputs: vec![start_propose_timer_output(Round::new(0))],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "Receive proposal for round 1, store",
+            input: proposal_input(
+                Round::new(1),
+                value,
+                Round::Nil,
+                Validity::Valid,
+                v1.address,
+            ),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v1 precommits value for round 1",
+            input: precommit_input_at(Round::new(1), value, &v1.address),
+            expected_outputs: vec![],
+            expected_round: Round::new(0),
+            new_state: propose_state(Round::new(0)),
+        },
+        TestStep {
+            desc: "v2 precommits value for round 1, we hit f+1 threshold, move to round 1",
+            input: precommit_input_at(Round::new(1), value, &v2.address),
+            expected_outputs: vec![
+                new_round_output(Round::new(1)),
+                start_precommit_timer_output(Round::new(1)),
+            ],
+            expected_round: Round::new(1),
+            new_state: new_round(Round::new(1)),
+        },
+        TestStep {
+            desc:
+                "Start round 1, change step to propose, start propose timer, mux proposal, decide",
+            input: new_round_input(Round::new(1), v2.address),
+            expected_outputs: vec![
+                start_propose_timer_output(Round::new(1)),
+                decide_output(Round::new(1), proposal),
+            ],
+            expected_round: Round::new(1),
+            new_state: decided_state(Round::new(1), value),
+        },
+    ];
+
+    run_steps(&mut driver, steps);
+}
+
 fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
     for step in steps {
         println!("Step: {}", step.desc);
