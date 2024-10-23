@@ -56,6 +56,8 @@ pub struct Config {
     /// Mempool configuration options
     pub mempool: MempoolConfig,
 
+    pub blocksync: BlockSyncConfig,
+
     /// Metrics configuration options
     pub metrics: MetricsConfig,
 
@@ -264,6 +266,21 @@ pub struct MempoolConfig {
 
     /// Maximum number of transactions to gossip at once in a batch
     pub gossip_batch_size: usize,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BlockSyncConfig {
+    pub status_update_interval: Duration,
+    pub request_timeout: Duration,
+}
+
+impl Default for BlockSyncConfig {
+    fn default() -> Self {
+        Self {
+            status_update_interval: Duration::from_secs(10),
+            request_timeout: Duration::from_secs(10),
+        }
+    }
 }
 
 /// Consensus configuration options

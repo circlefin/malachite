@@ -5,6 +5,8 @@ use libp2p::PeerId;
 
 use malachite_common::Context;
 
+use crate::Status;
+
 #[derive_where(Clone, Debug, Default)]
 pub struct State<Ctx>
 where
@@ -20,15 +22,15 @@ where
     pub pending_requests: BTreeMap<Ctx::Height, PeerId>,
 
     /// The set of peers we are connected to in order to get blocks and certificates.
-    pub peers: BTreeMap<PeerId, Ctx::Height>,
+    pub peers: BTreeMap<PeerId, Status<Ctx>>,
 }
 
 impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn store_peer_height(&mut self, peer: PeerId, height: Ctx::Height) {
-        self.peers.insert(peer, height);
+    pub fn update_status(&mut self, status: Status<Ctx>) {
+        self.peers.insert(status.peer_id, status);
     }
 
     pub fn store_pending_request(&mut self, height: Ctx::Height, peer: PeerId) {
@@ -37,5 +39,9 @@ where
 
     pub fn remove_pending_request(&mut self, height: Ctx::Height) {
         self.pending_requests.remove(&height);
+    }
+
+    pub fn has_pending_request(&self, height: &Ctx::Height) -> bool {
+        self.pending_requests.contains_key(height)
     }
 }

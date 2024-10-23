@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use derive_where::derive_where;
 use displaydoc::Display;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use malachite_common::{Context, Proposal};
 
@@ -66,6 +66,9 @@ pub enum Input<Ctx: Context> {
 
     /// Got a response from the application to our `GetBlock` request
     GotBlock(InboundRequestId, Ctx::Height, Option<SyncedBlock<Ctx>>),
+
+    /// A request timed out
+    RequestTimedOut(PeerId, Request<Ctx>),
 }
 
 pub async fn handle<Ctx>(
@@ -87,6 +90,9 @@ where
         }
         Input::GotBlock(request_id, height, block) => {
             on_block(co, state, metrics, request_id, height, block).await
+        }
+        Input::RequestTimedOut(peer_id, request) => {
+            on_request_timed_out(co, state, metrics, peer_id, request).await
         }
     }
 }
@@ -128,9 +134,9 @@ where
     let sync_height = state.sync_height;
     let tip_height = state.tip_height;
 
-    debug!(%peer_height, %peer, "Received peer status");
+    debug!(%status.peer_id, %status.height, "Received peer status");
 
-    state.store_peer_height(peer, peer_height);
+    state.update_status(status);
 
     if peer_height > tip_height {
         info!(%peer_height, %peer, "SYNC REQUIRED: Falling behind");
@@ -180,9 +186,9 @@ where
 
     state.sync_height = height;
 
-    for (peer, &peer_height) in &state.peers {
-        if peer_height > height {
-            debug!(%height, %peer_height, %peer, "Starting new height, requesting block");
+    for (peer, status) in &state.peers {
+        if status.height > height && !state.has_pending_request(&status.height) {
+            debug!(%height, peer.height = %status.height, %peer, "Starting new height, requesting block from peer");
 
             perform!(co, Effect::SendRequest(*peer, Request::new(height)));
 
@@ -245,6 +251,23 @@ where
         co,
         Effect::SendResponse(request_id, Response::new(response))
     );
+
+    Ok(())
+}
+
+pub async fn on_request_timed_out<Ctx>(
+    _co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    _metrics: &Metrics,
+    peer_id: PeerId,
+    request: Request<Ctx>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    warn!(%peer_id, %request.height, "Request timed out");
+
+    state.remove_pending_request(request.height);
 
     Ok(())
 }
