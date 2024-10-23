@@ -7,6 +7,7 @@ use derive_where::derive_where;
 use libp2p::request_response::InboundRequestId;
 use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
+use rand::SeedableRng;
 use tokio::task::JoinHandle;
 
 use malachite_blocksync::{self as blocksync, OutboundRequestId};
@@ -87,7 +88,10 @@ impl Default for Params {
     }
 }
 
-#[derive_where(Debug)]
+pub struct Args<Ctx: Context> {
+    pub initial_height: Ctx::Height,
+}
+
 pub struct State<Ctx: Context> {
     /// The state of the blocksync state machine
     blocksync: blocksync::State<Ctx>,
@@ -130,8 +134,11 @@ where
         }
     }
 
-    pub async fn spawn(self) -> Result<(BlockSyncRef<Ctx>, JoinHandle<()>), ractor::SpawnErr> {
-        Actor::spawn(None, self, ()).await
+    pub async fn spawn(
+        self,
+        initial_height: Ctx::Height,
+    ) -> Result<(BlockSyncRef<Ctx>, JoinHandle<()>), ractor::SpawnErr> {
+        Actor::spawn(None, self, Args { initial_height }).await
     }
 
     async fn process_input(
@@ -217,12 +224,12 @@ where
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
-    type Arguments = ();
+    type Arguments = Args<Ctx>;
 
     async fn pre_start(
         &self,
         myself: ActorRef<Self::Msg>,
-        _args: (),
+        args: Args<Ctx>,
     ) -> Result<Self::State, ActorProcessingErr> {
         let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
         self.gossip.cast(GossipConsensusMsg::Subscribe(forward))?;
@@ -233,8 +240,10 @@ where
             || Msg::Tick,
         ));
 
+        let rng = Box::new(rand::rngs::StdRng::from_entropy());
+
         Ok(State {
-            blocksync: blocksync::State::default(),
+            blocksync: blocksync::State::new(rng, args.initial_height),
             timers: Timers::new(myself.clone()),
             inflight: HashMap::new(),
             ticker,

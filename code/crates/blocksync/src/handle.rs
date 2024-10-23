@@ -123,32 +123,29 @@ where
 pub async fn on_status<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
     status: Status<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    let peer = status.peer_id;
-    let peer_height = status.height;
-    let sync_height = state.sync_height;
-    let tip_height = state.tip_height;
-
     debug!(%status.peer_id, %status.height, "Received peer status");
+
+    let peer_height = status.height;
 
     state.update_status(status);
 
-    if peer_height > tip_height {
-        info!(%peer_height, %peer, "SYNC REQUIRED: Falling behind");
+    if peer_height > state.tip_height {
+        info!(
+            tip.height = %state.tip_height,
+            sync.height = %state.sync_height,
+            peer.height = %peer_height,
+            "SYNC REQUIRED: Falling behind"
+        );
 
-        // If there are no pending requests for the base height yet then ask for a batch of blocks from peer
-        if !state.pending_requests.contains_key(&sync_height) {
-            debug!(%sync_height, %peer, "Requesting block from peer");
-
-            perform!(co, Effect::SendRequest(peer, Request::new(sync_height)));
-
-            state.store_pending_request(sync_height, peer);
-        }
+        // We are lagging behind one of our peer at least,
+        // request sync from any peer already at or above that peer's height.
+        request_sync(co, state, metrics).await?;
     }
 
     Ok(())
@@ -176,7 +173,7 @@ where
 pub async fn on_start_height<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
     height: Ctx::Height,
 ) -> Result<(), Error<Ctx>>
 where
@@ -186,17 +183,9 @@ where
 
     state.sync_height = height;
 
-    for (peer, status) in &state.peers {
-        if status.height > height && !state.has_pending_request(&status.height) {
-            debug!(%height, peer.height = %status.height, %peer, "Starting new height, requesting block from peer");
-
-            perform!(co, Effect::SendRequest(*peer, Request::new(height)));
-
-            state.store_pending_request(height, *peer);
-
-            break;
-        }
-    }
+    // Check if there is any peer already at or above the height we just started,
+    // and request sync from that peer in order to catch up.
+    request_sync(co, state, metrics).await?;
 
     Ok(())
 }
@@ -268,6 +257,35 @@ where
     warn!(%peer_id, %request.height, "Request timed out");
 
     state.remove_pending_request(request.height);
+
+    Ok(())
+}
+
+/// If there are no pending requests for the sync height,
+/// and there is peer at a higher height than our sync height,
+/// then sync from that peer.
+async fn request_sync<Ctx>(
+    co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    _metrics: &Metrics,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    let sync_height = state.sync_height;
+
+    if state.has_pending_request(&sync_height) {
+        debug!(sync.height = %sync_height, "Already have a pending request for this height");
+        return Ok(());
+    }
+
+    if let Some(peer) = state.random_peer_at_or_above(sync_height) {
+        debug!(sync.height = %sync_height, %peer, "Requesting block from peer");
+
+        perform!(co, Effect::SendRequest(peer, Request::new(sync_height)));
+
+        state.store_pending_request(sync_height, peer);
+    }
 
     Ok(())
 }

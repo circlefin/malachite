@@ -41,6 +41,9 @@ pub async fn spawn_node_actor(
     let metrics = Metrics::register(registry);
     let address = Address::from_public_key(private_key.public_key());
 
+    // Start at height 1-1
+    let start_height = Height::new(1, 1);
+
     // Spawn mempool and its gossip layer
     let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, registry).await;
     let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test).await;
@@ -64,10 +67,9 @@ pub async fn spawn_node_actor(
         gossip_consensus.clone(),
         host.clone(),
         &cfg.blocksync,
+        start_height,
     )
     .await;
-
-    let start_height = Height::new(1, 1);
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(
@@ -106,6 +108,7 @@ async fn spawn_block_sync_actor(
     gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
     config: &BlockSyncConfig,
+    initial_height: Height,
 ) -> BlockSyncRef<MockContext> {
     let params = BlockSyncParams {
         status_update_interval: config.status_update_interval,
@@ -113,7 +116,7 @@ async fn spawn_block_sync_actor(
     };
 
     let block_sync = BlockSync::new(ctx, gossip_consensus, host, params);
-    block_sync.spawn().await.unwrap().0
+    block_sync.spawn(initial_height).await.unwrap().0
 }
 
 #[allow(clippy::too_many_arguments)]
