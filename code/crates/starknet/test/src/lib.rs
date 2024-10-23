@@ -10,8 +10,8 @@ use tracing::{error, info, Instrument};
 
 use malachite_common::VotingPower;
 use malachite_config::{
-    Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol, TestConfig,
-    TransportProtocol,
+    BlockSyncConfig, Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol,
+    TestConfig, TransportProtocol,
 };
 use malachite_starknet_app::spawn::spawn_node_actor;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
@@ -191,15 +191,38 @@ impl<const N: usize> Test<N> {
             let correct_decisions = Arc::clone(&correct_decisions);
 
             let node_test = self.nodes[i].clone();
-            let actor_ref = actors[i].clone();
+            let mut actor_ref = actors[i].clone();
+
+            let validator_set = self.validator_set.clone();
+            let (_, private_key) = self.vals_and_keys[i];
+
+            let config = configs[i].clone();
 
             tokio::spawn(
                 async move {
                     for height in START_HEIGHT.as_u64()..=END_HEIGHT.as_u64() {
                         if node_test.crashes_at(height) {
-                            info!("Faulty node has crashed");
-                            actor_ref.kill();
-                            break;
+                            info!("Faulty node has crashed at height {height}");
+
+                            actor_ref.stop(Some("Faulty node must crash".to_string()));
+
+                            if let Some(interval) = node_test.restarts_after() {
+                                sleep(interval).await;
+
+                                let (tx_decision, rx_decision2) = mpsc::channel(HEIGHTS as usize);
+
+                                let (actor_ref2, _) = spawn_node_actor(
+                                    config.clone(),
+                                    validator_set.clone(),
+                                    private_key,
+                                    Some(tx_decision),
+                                ).await;
+
+                                rx_decision = rx_decision2;
+                                actor_ref = actor_ref2;
+                            } else {
+                                break;
+                            }
                         }
 
                         let decision = rx_decision.recv().await;
@@ -216,15 +239,20 @@ impl<const N: usize> Test<N> {
                         }
                     }
                 }
-                .instrument(tracing::error_span!("node", i)),
+                .instrument(tracing::error_span!("node", %i)),
             );
         }
 
-        tokio::time::sleep(timeout).await;
+        sleep(timeout).await;
 
         let correct_decisions = correct_decisions.load(Ordering::Relaxed);
 
-        if !self.expected_decisions.check(correct_decisions) {
+        if self.expected_decisions.check(correct_decisions) {
+            info!(
+                "Correct number of decisions: got {}, expected: {}",
+                correct_decisions, self.expected_decisions
+            );
+        } else {
             panic!(
                 "Incorrect number of decisions: got {}, expected {}",
                 correct_decisions, self.expected_decisions
@@ -241,6 +269,7 @@ impl<const N: usize> Test<N> {
 pub enum Fault {
     NoStart,
     Crash(u64),
+    Restart(Duration),
 }
 
 #[derive(Clone)]
@@ -270,8 +299,15 @@ impl TestNode {
 
     pub fn crashes_at(&self, height: u64) -> bool {
         self.faults.iter().any(|f| match f {
-            Fault::NoStart => false,
             Fault::Crash(h) => *h == height,
+            _ => false,
+        })
+    }
+
+    fn restarts_after(&self) -> Option<Duration> {
+        self.faults.iter().find_map(|f| match f {
+            Fault::Restart(d) => Some(*d),
+            _ => None,
         })
     }
 }
@@ -347,7 +383,10 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
             max_tx_count: 10000,
             gossip_batch_size: 0,
         },
-        blocksync: Default::default(),
+        blocksync: BlockSyncConfig {
+            status_update_interval: Duration::from_secs(2),
+            request_timeout: Duration::from_secs(5),
+        },
         metrics: MetricsConfig {
             enabled: false,
             listen_addr: format!("127.0.0.1:{}", test.metrics_base_port + i)
