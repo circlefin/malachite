@@ -1,17 +1,18 @@
 use std::collections::BTreeMap;
 
-use derive_where::derive_where;
 use libp2p::PeerId;
 
 use malachite_common::Context;
+use rand::seq::IteratorRandom;
 
 use crate::Status;
 
-#[derive_where(Clone, Debug, Default)]
 pub struct State<Ctx>
 where
     Ctx: Context,
 {
+    rng: Box<dyn rand::RngCore + Send>,
+
     /// Height of last decided block
     pub tip_height: Ctx::Height,
 
@@ -29,8 +30,26 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
+    pub fn new(rng: Box<dyn rand::RngCore + Send>, tip_height: Ctx::Height) -> Self {
+        Self {
+            rng,
+            tip_height,
+            sync_height: tip_height,
+            pending_requests: BTreeMap::new(),
+            peers: BTreeMap::new(),
+        }
+    }
+
     pub fn update_status(&mut self, status: Status<Ctx>) {
         self.peers.insert(status.peer_id, status);
+    }
+
+    /// Select at random a peer that that we know is at or above the given height.
+    pub fn random_peer_at_or_above(&mut self, height: Ctx::Height) -> Option<PeerId> {
+        self.peers
+            .iter()
+            .filter_map(move |(&peer, status)| (status.height >= height).then_some(peer))
+            .choose_stable(&mut self.rng)
     }
 
     pub fn store_pending_request(&mut self, height: Ctx::Height, peer: PeerId) {

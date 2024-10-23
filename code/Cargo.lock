@@ -2431,6 +2431,7 @@ dependencies = [
  "malachite-metrics",
  "malachite-proto",
  "ractor",
+ "rand",
  "tokio",
  "tracing",
 ]
@@ -2445,6 +2446,7 @@ dependencies = [
  "genawaiter",
  "libp2p",
  "malachite-common",
+ "rand",
  "serde",
  "tracing",
 ]
