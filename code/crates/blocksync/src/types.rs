@@ -1,11 +1,12 @@
 use bytes::Bytes;
 use derive_where::derive_where;
 use displaydoc::Display;
-use libp2p::identity::PeerId;
-use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use serde::{Deserialize, Serialize};
 
 use malachite_common::{Certificate, Context, SignedProposal};
+
+pub use libp2p::identity::PeerId;
+pub use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 
 pub type ResponseChannel = libp2p::request_response::ResponseChannel<RawResponse>;
 

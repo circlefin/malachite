@@ -6,16 +6,16 @@ use derive_where::derive_where;
 use libp2p::request_response::InboundRequestId;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tokio::task::JoinHandle;
-use tracing::{debug, error_span, info};
 
 use malachite_blocksync as blocksync;
 use malachite_blocksync::{Request, SyncedBlock};
-use malachite_common::{Certificate, Context, Proposal};
+use malachite_common::{Certificate, Context};
 
 use crate::gossip_consensus::Msg::OutgoingBlockSyncRequest;
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
 use crate::host::{HostMsg, HostRef};
 use crate::util::forward::forward;
+use crate::util::ticker::ticker;
 
 pub type BlockSyncRef<Ctx> = ActorRef<Msg<Ctx>>;
 
@@ -41,7 +41,7 @@ pub enum Msg<Ctx: Context> {
     StartHeight(Ctx::Height),
 
     /// Host has a response for the blocks request
-    DecidedBlock(InboundRequestId, Option<SyncedBlock<Ctx>>),
+    GotDecidedBlock(Ctx::Height, InboundRequestId, Option<SyncedBlock<Ctx>>),
 }
 
 #[derive(Debug)]
@@ -70,6 +70,7 @@ pub struct BlockSync<Ctx: Context> {
     ctx: Ctx,
     gossip: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
+    metrics: blocksync::Metrics,
 }
 
 impl<Ctx> BlockSync<Ctx>
@@ -77,11 +78,69 @@ where
     Ctx: Context,
 {
     pub fn new(ctx: Ctx, gossip: GossipConsensusRef<Ctx>, host: HostRef<Ctx>) -> Self {
-        Self { ctx, gossip, host }
+        Self {
+            ctx,
+            gossip,
+            host,
+            metrics: blocksync::Metrics::default(),
+        }
     }
 
     pub async fn spawn(self) -> Result<(BlockSyncRef<Ctx>, JoinHandle<()>), ractor::SpawnErr> {
         Actor::spawn(None, self, Args::default()).await
+    }
+
+    async fn process_input(
+        &self,
+        myself: &ActorRef<Msg<Ctx>>,
+        state: &mut State<Ctx>,
+        input: blocksync::Input<Ctx>,
+    ) -> Result<(), ActorProcessingErr> {
+        malachite_blocksync::process!(
+            input: input,
+            state: &mut state.blocksync,
+            metrics: &self.metrics,
+            with: effect => {
+                self.handle_effect(myself, effect).await
+            }
+        )
+    }
+
+    async fn handle_effect(
+        &self,
+        myself: &ActorRef<Msg<Ctx>>,
+        effect: blocksync::Effect<Ctx>,
+    ) -> Result<blocksync::Resume<Ctx>, ActorProcessingErr> {
+        use blocksync::Effect;
+        match effect {
+            Effect::PublishStatus(height) => {
+                self.gossip
+                    .cast(GossipConsensusMsg::PublishStatus(Status::new(height)))?;
+            }
+
+            Effect::SendRequest(peer_id, request) => {
+                self.gossip
+                    .cast(OutgoingBlockSyncRequest(peer_id, request))?;
+            }
+
+            Effect::SendResponse(request_id, response) => {
+                self.gossip
+                    .cast(GossipConsensusMsg::OutgoingBlockSyncResponse(
+                        request_id, response,
+                    ))?;
+            }
+
+            Effect::GetBlock(request_id, height) => {
+                self.host.call_and_forward(
+                    |reply_to| HostMsg::GetDecidedBlock { height, reply_to },
+                    myself,
+                    move |block| Msg::<Ctx>::GotDecidedBlock(height, request_id, block),
+                    None,
+                )?;
+            }
+        }
+
+        Ok(blocksync::Resume::default())
     }
 }
 
@@ -100,18 +159,11 @@ where
         args: Args,
     ) -> Result<Self::State, ActorProcessingErr> {
         let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
-
         self.gossip.cast(GossipConsensusMsg::Subscribe(forward))?;
 
-        let ticker = tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(args.status_update_interval).await;
-
-                if let Err(e) = myself.cast(Msg::Tick) {
-                    tracing::error!(?e, "Failed to send tick message");
-                }
-            }
-        });
+        let ticker = tokio::spawn(ticker(args.status_update_interval, myself.clone(), || {
+            Msg::Tick
+        }));
 
         Ok(State {
             blocksync: blocksync::State::default(),
@@ -120,7 +172,6 @@ where
     }
 
     // TODO:
-    //  - move to blocksync crate
     //  - proper FSM
     //  - timeout requests
     //  - multiple requests for next few heights
@@ -134,94 +185,50 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::Tick => {
-                let status = Status {
-                    height: state.blocksync.tip_height,
-                };
-
-                self.gossip
-                    .cast(GossipConsensusMsg::PublishStatus(status))?;
+                self.process_input(&myself, state, blocksync::Input::Tick)
+                    .await?;
             }
 
-            Msg::GossipEvent(GossipEvent::Status(peer, status)) => {
-                let peer_height = status.height;
-                let sync_height = state.blocksync.sync_height;
-                let tip_height = state.blocksync.tip_height;
+            Msg::GossipEvent(GossipEvent::Status(peer_id, status)) => {
+                let status = blocksync::Status {
+                    peer_id,
+                    height: status.height,
+                };
 
-                let _span = error_span!("status", %sync_height, %tip_height).entered();
-
-                debug!(%peer_height, %peer, "Received peer status");
-
-                state.blocksync.store_peer_height(peer, peer_height);
-
-                if peer_height > tip_height {
-                    info!(%peer_height, %peer, "SYNC REQUIRED: Falling behind");
-
-                    // If there are no pending requests for the base height yet then ask for a batch of blocks from peer
-                    if !state.blocksync.pending_requests.contains_key(&sync_height) {
-                        debug!(%sync_height, %peer, "Requesting block from peer");
-
-                        self.gossip
-                            .cast(OutgoingBlockSyncRequest(peer, Request::new(sync_height)))?;
-
-                        state.blocksync.store_pending_request(sync_height, peer);
-                    }
-                }
+                self.process_input(&myself, state, blocksync::Input::Status(status))
+                    .await?;
             }
 
             Msg::GossipEvent(GossipEvent::BlockSyncRequest(
                 request_id,
+                from,
                 blocksync::Request { height },
             )) => {
-                debug!(%height, "Received request for block");
-
-                // Retrieve the blocks for the requested heights
-                self.host.call_and_forward(
-                    |reply_to| HostMsg::GetDecidedBlock { height, reply_to },
+                self.process_input(
                     &myself,
-                    move |block| Msg::<Ctx>::DecidedBlock(request_id, block),
-                    None,
-                )?;
+                    state,
+                    blocksync::Input::Request(request_id, from, Request::new(height)),
+                )
+                .await?;
             }
 
             Msg::Decided(height) => {
-                debug!(%height, "Decided height");
-
-                state.blocksync.tip_height = height;
-                state.blocksync.remove_pending_request(height);
+                self.process_input(&myself, state, blocksync::Input::Decided(height))
+                    .await?;
             }
 
             Msg::StartHeight(height) => {
-                debug!(%height, "Starting new height");
-
-                state.blocksync.sync_height = height;
-
-                for (peer, &peer_height) in &state.blocksync.peers {
-                    if peer_height > height {
-                        debug!(%height, %peer_height, %peer, "Starting new height, requesting block");
-
-                        self.gossip
-                            .cast(OutgoingBlockSyncRequest(*peer, Request::new(height)))?;
-
-                        state.blocksync.store_pending_request(height, *peer);
-
-                        break;
-                    }
-                }
+                self.process_input(&myself, state, blocksync::Input::StartHeight(height))
+                    .await?;
             }
 
-            Msg::DecidedBlock(request_id, decided_block) => {
-                match &decided_block {
-                    None => debug!("Received empty response"),
-                    Some(block) => {
-                        debug!(height = %block.proposal.height(), "Received decided block")
-                    }
-                }
-
-                self.gossip
-                    .cast(GossipConsensusMsg::OutgoingBlockSyncResponse(
-                        request_id,
-                        blocksync::Response::new(decided_block),
-                    ))?;
+            Msg::GotDecidedBlock(height, request_id, block) => {
+                self.process_input(
+                    &myself,
+                    state,
+                    blocksync::Input::GotBlock(request_id, height, block),
+                )
+                .await?;
             }
 
             _ => {}

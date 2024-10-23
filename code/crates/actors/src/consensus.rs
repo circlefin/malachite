@@ -409,7 +409,7 @@ where
         }
     }
 
-    #[tracing::instrument(skip(self, myself))]
+    #[tracing::instrument(skip_all, fields(height = %height, round = %round))]
     fn get_value(
         &self,
         myself: &ActorRef<Msg<Ctx>>,

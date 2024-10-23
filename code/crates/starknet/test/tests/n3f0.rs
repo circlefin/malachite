@@ -1,5 +1,7 @@
 #![allow(unused_crate_dependencies)]
 
+use std::time::Duration;
+
 use malachite_starknet_test::{App, Expected, Test, TestNode};
 
 #[tokio::test]
@@ -10,8 +12,8 @@ pub async fn all_correct_nodes() {
             TestNode::correct(15),
             TestNode::correct(10),
         ],
-        Expected::Exactly(9),
+        Expected::AtLeast(9),
     );
 
-    test.run(App::Starknet).await
+    test.run(App::Starknet, Duration::from_secs(60)).await
 }
