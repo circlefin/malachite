@@ -50,8 +50,9 @@ where
     /// The proposer for the current round, None for round nil.
     proposer: Option<Ctx::Address>,
 
-    /// The pending input to be processed next, if any.
-    pending_input: Vec<(Round, RoundInput<Ctx>)>,
+    /// The pending inputs to be processed next, if any.
+    /// The first element of the tuple is the round at which that input has been emitted.
+    pending_inputs: Vec<(Round, RoundInput<Ctx>)>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -84,7 +85,7 @@ where
             vote_keeper,
             round_state,
             proposer: None,
-            pending_input: vec![],
+            pending_inputs: vec![],
         }
     }
 
@@ -103,7 +104,7 @@ where
         self.proposal_keeper = proposal_keeper;
         self.vote_keeper = vote_keeper;
         self.round_state = round_state;
-        self.pending_input = vec![];
+        self.pending_inputs = vec![];
     }
 
     /// Return the height of the consensus.
@@ -183,11 +184,11 @@ where
         self.lift_output(round_output, &mut outputs);
 
         // Apply the pending inputs, if any, and lift their outputs
-        while !self.pending_input.is_empty() {
-            let new_pending = core::mem::take(&mut self.pending_input);
+        while !self.pending_inputs.is_empty() {
+            let new_pending = core::mem::take(&mut self.pending_inputs);
             for (round, input) in new_pending {
-                if let Some(round_output) = self.apply_input(round, input)? {
-                    self.lift_output(round_output, &mut outputs)
+                if let Some(output) = self.apply_input(round, input)? {
+                    self.lift_output(output, &mut outputs)
                 }
             }
         }
@@ -339,14 +340,14 @@ where
         let transition = round_state.apply(&info, input);
 
         // Update state
-        self.round_state = transition.next_state.clone();
+        self.round_state = transition.next_state;
 
         if previous_step != self.round_state.step && self.round_state.step != Step::Unstarted {
-            let pending_input = self.multiplex_step_change(input_round);
+            let pending_inputs = self.multiplex_step_change(input_round);
 
-            self.pending_input = pending_input
-                .iter()
-                .map(|input| (input_round, input.clone()))
+            self.pending_inputs = pending_inputs
+                .into_iter()
+                .map(|input| (input_round, input))
                 .collect();
         }
 
