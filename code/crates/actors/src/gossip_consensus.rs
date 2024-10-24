@@ -6,7 +6,7 @@ use derive_where::derive_where;
 use libp2p::identity::Keypair;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
-use tracing::{debug, error, error_span, Instrument};
+use tracing::{debug, error};
 
 use malachite_common::{Context, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
@@ -136,7 +136,6 @@ where
                     }
                 }
             }
-            .instrument(error_span!("gossip.consensus")),
         );
 
         Ok(State::Running {
@@ -156,7 +155,6 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(name = "gossip.consensus", skip(self, _myself, msg, state))]
     async fn handle(
         &self,
         _myself: ActorRef<Msg<Ctx>>,

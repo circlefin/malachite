@@ -7,7 +7,7 @@ use ractor::ActorProcessingErr;
 use ractor::ActorRef;
 use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
-use tracing::{error, error_span, Instrument};
+use tracing::error;
 
 use malachite_gossip_mempool::handle::CtrlHandle;
 use malachite_gossip_mempool::types::MempoolTransactionBatch;
@@ -91,7 +91,6 @@ impl Actor for GossipMempool {
                     }
                 }
             }
-            .instrument(error_span!("gossip.mempool")),
         );
 
         Ok(State::Running {
@@ -110,7 +109,6 @@ impl Actor for GossipMempool {
         Ok(())
     }
 
-    #[tracing::instrument(name = "gossip.mempool", skip(self, _myself, msg, state))]
     async fn handle(
         &self,
         _myself: ActorRef<Msg>,

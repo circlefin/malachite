@@ -406,7 +406,6 @@ where
         Ok(validator_set)
     }
 
-    #[tracing::instrument(skip_all)]
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
@@ -526,7 +525,6 @@ where
     type State = State<Ctx>;
     type Arguments = ();
 
-    #[tracing::instrument(name = "consensus", skip_all)]
     async fn pre_start(
         &self,
         myself: ActorRef<Msg<Ctx>>,
@@ -571,14 +569,6 @@ where
         self.handle_msg(myself, state, msg).await
     }
 
-    #[tracing::instrument(
-        name = "consensus",
-        skip_all,
-        fields(
-            height = %state.consensus.driver.height(),
-            round = %state.consensus.driver.round()
-        )
-    )]
     async fn post_stop(
         &self,
         _myself: ActorRef<Self::Msg>,
