@@ -371,7 +371,7 @@ fn driver_steps_decide_previous_with_locked_and_valid() {
 // L24 - v2 receives proposal(v) from v1, prevotes v (step prevote)
 // L37 - v1 and v3 prevote v, v2 gets +2/3 prevotes, locked_value=v, valid_value=v, sends precommit(v) (step precommit)
 // L56 - v2 receives a precommit(id(v), round=1) from v3, starts new round (step new_round)
-//   Note - this doesn't seem correct v2 behaviour (??)
+//   Note - this doesn't seem correct v3 behaviour (??)
 // L16, L19 - v2 is the proposer and has both a locked and valid value from round 0, propose(round=1, value=v, valid_round=0) (step propose)
 // L28 - v2 receives its proposal and has 2f+1 prevotes from round 0 and:
 //   L29 - locked_round(0) <= valid_round(0) and valid_round(0) < round(1)
@@ -725,7 +725,7 @@ fn driver_steps_polka_previous_new_proposal() {
 // L63 - v2 receives timeout prevote, prevotes nil (step precommit)
 // L36 - v2 receives the proposal(v) from v1, sets valid = v (L42, L43) but does NOT lock (L37-L41 not executed) (step precommit)
 // L56 - v2 receives a prevote(id(v), round=1) from v3, starts new round (step new_round)
-//   Note - this doesn't seem correct v2 behaviour
+//   Note - this doesn't seem correct v3 behaviour
 // L16, L19 - v2 is the proposer and has a valid value from round 0, propose(round=1, value=v, valid_round=0) (step propose)
 // L28 - v2 receives its proposal and has 2f+1 prevotes from round 0 and:
 //   L29 - locked_round(-1) < valid_round(0) and valid_round(0) < round(1) BUT locked_value is nil
@@ -1473,18 +1473,6 @@ fn driver_step_change_mux_with_proposal_and_commit_quorum() {
     run_steps(&mut driver, steps);
 }
 
-fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
-    for step in steps {
-        println!("Step: {}", step.desc);
-
-        let outputs = driver.process(step.input).expect("execute succeeded");
-
-        assert_eq!(outputs, step.expected_outputs, "expected outputs");
-        assert_eq!(driver.round(), step.expected_round, "expected round");
-        assert_eq!(driver.round_state(), &step.new_state, "expected state");
-    }
-}
-
 #[test]
 fn proposal_mux_with_polka() {
     let value: Value = Value::new(9999);
@@ -1617,4 +1605,16 @@ fn proposal_mux_with_commit_quorum() {
     ];
 
     run_steps(&mut driver, steps);
+}
+
+fn run_steps(driver: &mut Driver<TestContext>, steps: Vec<TestStep>) {
+    for step in steps {
+        println!("Step: {}", step.desc);
+
+        let outputs = driver.process(step.input).expect("execute succeeded");
+
+        assert_eq!(outputs, step.expected_outputs, "expected outputs");
+        assert_eq!(driver.round(), step.expected_round, "expected round");
+        assert_eq!(driver.round_state(), &step.new_state, "expected state");
+    }
 }
