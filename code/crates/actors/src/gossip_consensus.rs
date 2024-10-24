@@ -127,16 +127,14 @@ where
 
         let (mut recv_handle, ctrl_handle) = handle.split();
 
-        let recv_task = tokio::spawn(
-            async move {
-                while let Some(event) = recv_handle.recv().await {
-                    if let Err(e) = myself.cast(Msg::NewEvent(event)) {
-                        error!("Actor has died, stopping gossip consensus: {e:?}");
-                        break;
-                    }
+        let recv_task = tokio::spawn(async move {
+            while let Some(event) = recv_handle.recv().await {
+                if let Err(e) = myself.cast(Msg::NewEvent(event)) {
+                    error!("Actor has died, stopping gossip consensus: {e:?}");
+                    break;
                 }
             }
-        );
+        });
 
         Ok(State::Running {
             peers: BTreeSet::new(),

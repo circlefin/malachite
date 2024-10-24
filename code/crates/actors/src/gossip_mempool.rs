@@ -82,16 +82,14 @@ impl Actor for GossipMempool {
             malachite_gossip_mempool::spawn(args.keypair, args.config, args.metrics).await?;
         let (mut recv_handle, ctrl_handle) = handle.split();
 
-        let recv_task = tokio::spawn(
-            async move {
-                while let Some(event) = recv_handle.recv().await {
-                    if let Err(e) = myself.cast(Msg::NewEvent(event)) {
-                        error!("Actor has died, stopping gossip mempool: {e:?}");
-                        break;
-                    }
+        let recv_task = tokio::spawn(async move {
+            while let Some(event) = recv_handle.recv().await {
+                if let Err(e) = myself.cast(Msg::NewEvent(event)) {
+                    error!("Actor has died, stopping gossip mempool: {e:?}");
+                    break;
                 }
             }
-        );
+        });
 
         Ok(State::Running {
             peers: BTreeSet::new(),
