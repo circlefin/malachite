@@ -187,8 +187,6 @@ where
                 VKOutput::PolkaNil => RoundInput::PolkaNil,
                 VKOutput::PolkaValue(v) => {
                     if v == proposal.value().id() {
-                        // TODO - L28 is not properly covered when the last vote for polka previous
-                        // at `vr` arrives after `Proposal(h, r, v, vr)`
                         if validity.is_valid() {
                             RoundInput::ProposalAndPolkaCurrent(proposal.clone())
                         } else {
