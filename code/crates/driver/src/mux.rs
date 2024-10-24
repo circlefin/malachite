@@ -27,6 +27,8 @@
 //! | prevote         | PolkaAny              | \*              | PolkaAny                        | prevote         | L34            | prevote timer                      |
 //! | precommit       | PolkaValue(v)         | Proposal(v)     | ProposalAndPolkaCurrent         | precommit       | L36, L42       | (set valid)                        |
 
+use alloc::vec::Vec;
+
 use malachite_common::SignedProposal;
 use malachite_common::{Context, Proposal, Round, Validity, Value, ValueId, VoteType};
 use malachite_round::input::Input as RoundInput;
@@ -220,7 +222,7 @@ where
 
     /// After a step change, check for inputs to be sent to the round state machine.
     pub(crate) fn multiplex_step_change(&mut self, round: Round) -> Vec<RoundInput<Ctx>> {
-        let mut result = vec![];
+        let mut result = Vec::new();
 
         if let Some((proposal, validity)) = self
             .proposal_keeper
