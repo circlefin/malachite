@@ -9,13 +9,12 @@ use crate::{Address, BlockProof, Height, Transactions};
 pub struct ProposalInit {
     pub height: Height,
     pub proposal_round: Round,
+    pub valid_round: Option<Round>,
     pub proposer: Address,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProposalFin {
-    pub valid_round: Option<Round>,
-}
+pub struct ProposalFin {}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProposalPart {
@@ -105,15 +104,14 @@ impl proto::Protobuf for ProposalPart {
             Messages::Init(init) => ProposalPart::Init(ProposalInit {
                 height: Height::new(init.block_number, init.fork_id),
                 proposal_round: Round::new(i64::from(init.proposal_round)),
+                valid_round: init.valid_round.map(|round| Round::new(i64::from(round))),
                 proposer: Address::from_proto(
                     init.proposer
                         .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("proposer"))?,
                 )?,
             }),
-            Messages::Fin(fin) => {
-                let valid_round = fin.valid_round.map(|round| Round::new(i64::from(round)));
-                ProposalPart::Fin(ProposalFin { valid_round })
-            }
+            Messages::Fin(_) => ProposalPart::Fin(ProposalFin {}),
+
             Messages::Transactions(txes) => {
                 let transactions = Transactions::from_proto(txes)?;
                 ProposalPart::Transactions(transactions)
@@ -134,11 +132,10 @@ impl proto::Protobuf for ProposalPart {
                 block_number: init.height.block_number,
                 fork_id: init.height.fork_id,
                 proposal_round: init.proposal_round.as_i64() as u32, // FIXME: p2p-types
+                valid_round: init.valid_round.map(|round| round.as_i64() as u32),
                 proposer: Some(init.proposer.to_proto()?),
             }),
-            ProposalPart::Fin(fin) => Messages::Fin(p2p_proto::ProposalFin {
-                valid_round: fin.valid_round.map(|round| round.as_i64() as u32), // FIXME: p2p-types
-            }),
+            ProposalPart::Fin(_) => Messages::Fin(p2p_proto::ProposalFin {}),
             ProposalPart::Transactions(txes) => Messages::Transactions(p2p_proto::Transactions {
                 transactions: txes
                     .as_slice()

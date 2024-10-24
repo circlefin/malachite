@@ -66,6 +66,7 @@ async fn run_build_proposal_task(
             height,
             proposal_round: round,
             proposer: proposer.clone(),
+            valid_round: Some(Round::Nil),
         });
 
         block_hasher.update(part.to_sign_bytes());
@@ -157,8 +158,7 @@ async fn run_build_proposal_task(
 
     // Fin
     {
-        // TODO: Compute actual "valid_round"
-        let part = ProposalPart::Fin(ProposalFin { valid_round: None });
+        let part = ProposalPart::Fin(ProposalFin {});
 
         block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;
