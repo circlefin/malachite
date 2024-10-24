@@ -40,7 +40,7 @@ where
     timeout_config: TimeoutConfig,
     gossip_consensus: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
-    block_sync: BlockSyncRef<Ctx>,
+    block_sync: Option<BlockSyncRef<Ctx>>,
     metrics: Metrics,
     tx_decision: Option<TxDecision<Ctx>>,
 }
@@ -135,7 +135,7 @@ where
         timeout_config: TimeoutConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
-        block_sync: BlockSyncRef<Ctx>,
+        block_sync: Option<BlockSyncRef<Ctx>>,
         metrics: Metrics,
         tx_decision: Option<TxDecision<Ctx>>,
     ) -> Self {
@@ -158,7 +158,7 @@ where
         timeout_config: TimeoutConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
-        block_sync: BlockSyncRef<Ctx>,
+        block_sync: Option<BlockSyncRef<Ctx>>,
         metrics: Metrics,
         tx_decision: Option<TxDecision<Ctx>>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
@@ -184,9 +184,11 @@ where
         input: ConsensusInput<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         if let ConsensusInput::StartHeight(height, _) = input {
-            self.block_sync
-                .cast(BlockSyncMsg::StartHeight(height))
-                .map_err(|e| eyre!("Error when sending start height to blocksync: {e:?}"))?;
+            if let Some(block_sync) = &self.block_sync {
+                block_sync
+                    .cast(BlockSyncMsg::StartHeight(height))
+                    .map_err(|e| eyre!("Error when sending start height to BlockSync: {e:?}"))?;
+            }
         }
 
         malachite_consensus::process!(
@@ -556,9 +558,13 @@ where
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
-                self.block_sync
-                    .cast(BlockSyncMsg::Decided(proposal_height))
-                    .map_err(|e| eyre!("Error when sending decided height to blocksync: {e:?}"))?;
+                if let Some(block_sync) = &self.block_sync {
+                    block_sync
+                        .cast(BlockSyncMsg::Decided(proposal_height))
+                        .map_err(|e| {
+                            eyre!("Error when sending decided height to blocksync: {e:?}")
+                        })?;
+                }
 
                 Ok(Resume::Continue)
             }

@@ -271,6 +271,9 @@ pub struct MempoolConfig {
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BlockSyncConfig {
+    /// Enable BlockSync
+    pub enabled: bool,
+
     /// Interval at which to update other peers of our status
     #[serde(with = "humantime_serde")]
     pub status_update_interval: Duration,
@@ -283,6 +286,7 @@ pub struct BlockSyncConfig {
 impl Default for BlockSyncConfig {
     fn default() -> Self {
         Self {
+            enabled: true,
             status_update_interval: Duration::from_secs(10),
             request_timeout: Duration::from_secs(10),
         }

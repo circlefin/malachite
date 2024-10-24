@@ -109,14 +109,20 @@ async fn spawn_block_sync_actor(
     host: HostRef<MockContext>,
     config: &BlockSyncConfig,
     initial_height: Height,
-) -> BlockSyncRef<MockContext> {
+) -> Option<BlockSyncRef<MockContext>> {
+    if !config.enabled {
+        return None;
+    }
+
     let params = BlockSyncParams {
         status_update_interval: config.status_update_interval,
         request_timeout: config.request_timeout,
     };
 
     let block_sync = BlockSync::new(ctx, gossip_consensus, host, params);
-    block_sync.spawn(initial_height).await.unwrap().0
+    let (actor_ref, _) = block_sync.spawn(initial_height).await.unwrap();
+
+    Some(actor_ref)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -128,7 +134,7 @@ async fn spawn_consensus_actor(
     cfg: NodeConfig,
     gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
-    block_sync: BlockSyncRef<MockContext>,
+    block_sync: Option<BlockSyncRef<MockContext>>,
     metrics: Metrics,
     tx_decision: Option<mpsc::Sender<SignedProposal<MockContext>>>,
 ) -> ConsensusRef<MockContext> {

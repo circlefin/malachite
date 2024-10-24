@@ -18,43 +18,52 @@ async fn run_n2f0_tests(params: TestParams) {
 
 #[tokio::test]
 pub async fn broadcast_custom_config_1ktx() {
-    let params = TestParams::new(
-        PubSubProtocol::Broadcast,
-        ByteSize::kib(1),
-        ByteSize::kib(1),
-    );
+    let params = TestParams {
+        enable_blocksync: false,
+        protocol: PubSubProtocol::Broadcast,
+        block_size: ByteSize::kib(1),
+        tx_size: ByteSize::kib(1),
+        txs_per_part: 1,
+    };
 
     run_n2f0_tests(params).await
 }
 
 #[tokio::test]
 pub async fn broadcast_custom_config_2ktx() {
-    let test_params = TestParams::new(
-        PubSubProtocol::Broadcast,
-        ByteSize::kib(2),
-        ByteSize::kib(2),
-    );
+    let params = TestParams {
+        enable_blocksync: false,
+        protocol: PubSubProtocol::Broadcast,
+        block_size: ByteSize::kib(2),
+        tx_size: ByteSize::kib(2),
+        txs_per_part: 1,
+    };
 
-    run_n2f0_tests(test_params).await
+    run_n2f0_tests(params).await
 }
 
 #[tokio::test]
 pub async fn gossip_custom_config_1ktx() {
-    let test_params = TestParams::new(
-        PubSubProtocol::GossipSub(GossipSubConfig::default()),
-        ByteSize::kib(1),
-        ByteSize::kib(1),
-    );
-    run_n2f0_tests(test_params).await
+    let params = TestParams {
+        enable_blocksync: false,
+        protocol: PubSubProtocol::GossipSub(GossipSubConfig::default()),
+        block_size: ByteSize::kib(1),
+        tx_size: ByteSize::kib(1),
+        txs_per_part: 1,
+    };
+
+    run_n2f0_tests(params).await
 }
 
 #[tokio::test]
 pub async fn gossip_custom_config_2ktx() {
-    let test_params = TestParams::new(
-        PubSubProtocol::GossipSub(GossipSubConfig::default()),
-        ByteSize::kib(2),
-        ByteSize::kib(2),
-    );
+    let params = TestParams {
+        enable_blocksync: false,
+        protocol: PubSubProtocol::GossipSub(GossipSubConfig::default()),
+        block_size: ByteSize::kib(2),
+        tx_size: ByteSize::kib(2),
+        txs_per_part: 1,
+    };
 
-    run_n2f0_tests(test_params).await
+    run_n2f0_tests(params).await
 }

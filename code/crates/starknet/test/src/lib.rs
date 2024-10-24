@@ -51,19 +51,11 @@ impl fmt::Display for Expected {
 }
 
 pub struct TestParams {
-    protocol: PubSubProtocol,
-    block_size: ByteSize,
-    tx_size: ByteSize,
-}
-
-impl TestParams {
-    pub fn new(protocol: PubSubProtocol, block_size: ByteSize, tx_size: ByteSize) -> Self {
-        Self {
-            protocol,
-            block_size,
-            tx_size,
-        }
-    }
+    pub enable_blocksync: bool,
+    pub protocol: PubSubProtocol,
+    pub block_size: ByteSize,
+    pub tx_size: ByteSize,
+    pub txs_per_part: usize,
 }
 
 pub struct Test<const N: usize> {
@@ -118,11 +110,12 @@ impl<const N: usize> Test<N> {
         for i in 0..N {
             let mut config = make_node_config(self, i, app);
 
+            config.blocksync.enabled = test_params.enable_blocksync;
             config.mempool.gossip_batch_size = 0;
             config.consensus.max_block_size = test_params.block_size;
             config.consensus.p2p.protocol = test_params.protocol;
             config.test.tx_size = test_params.tx_size;
-            config.test.txs_per_part = 1;
+            config.test.txs_per_part = test_params.txs_per_part;
 
             configs.push(config);
         }
@@ -384,6 +377,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
             gossip_batch_size: 100,
         },
         blocksync: BlockSyncConfig {
+            enabled: false,
             status_update_interval: Duration::from_secs(2),
             request_timeout: Duration::from_secs(5),
         },

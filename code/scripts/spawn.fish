@@ -66,6 +66,7 @@ set -x MALACHITE__TEST__EXEC_TIME_PER_TX "500us"
 set -x MALACHITE__TEST__MAX_RETAIN_BLOCKS 1000
 set -x MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED false
 set -x MALACHITE__TEST__VOTE_EXTENSIONS__SIZE "1KiB"
+set -x MALACHITE__BLOCKSYNC__ENABLED true
 
 echo "Compiling Malachite..."
 cargo build --profile $build_profile
