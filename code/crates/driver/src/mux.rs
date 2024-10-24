@@ -158,17 +158,19 @@ where
 
     pub(crate) fn store_and_multiplex_proposal(
         &mut self,
-        proposal: SignedProposal<Ctx>,
+        signed_proposal: SignedProposal<Ctx>,
         validity: Validity,
     ) -> Option<RoundInput<Ctx>> {
         // Should only receive proposals for our height.
-        assert_eq!(self.height(), proposal.height());
+        assert_eq!(self.height(), signed_proposal.height());
+
+        let proposal = signed_proposal.message.clone();
 
         // Store the proposal and its validity
         self.proposal_keeper
-            .store_proposal(proposal.clone(), validity);
+            .store_proposal(signed_proposal, validity);
 
-        self.multiplex_proposal(proposal.message, validity)
+        self.multiplex_proposal(proposal, validity)
     }
 
     /// After a vote threshold change for a given round, check if we have a polka for nil, some value or any,
@@ -224,12 +226,12 @@ where
     pub(crate) fn multiplex_step_change(&mut self, round: Round) -> Vec<RoundInput<Ctx>> {
         let mut result = Vec::new();
 
-        if let Some((proposal, validity)) = self
+        if let Some((signed_proposal, validity)) = self
             .proposal_keeper
-            .clone()
             .get_proposal_and_validity_for_round(round)
         {
-            let proposal = &proposal.message;
+            let proposal = &signed_proposal.message;
+
             match self.round_state().step {
                 Step::Propose => {
                     if let Some(input) = self.multiplex_proposal(proposal.clone(), *validity) {
