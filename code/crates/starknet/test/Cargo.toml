@@ -10,12 +10,13 @@ rust-version.workspace = true
 
 [dependencies]
 malachite-common.workspace           = true
-malachite-config.workspace             = true
+malachite-config.workspace           = true
 malachite-starknet-host.workspace    = true
 malachite-starknet-app.workspace     = true
 
 bytesize.workspace                   = true
 rand.workspace                       = true
+ractor.workspace                     = true
 tokio.workspace                      = true
 tracing.workspace                    = true
 tracing-subscriber.workspace         = true

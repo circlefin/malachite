@@ -1,14 +1,18 @@
+#![allow(unused_crate_dependencies)]
+
 use core::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use malachite_starknet_host::mock::context::MockContext;
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
-use tokio::sync::mpsc;
+use rand::SeedableRng;
+use tokio::sync::broadcast;
+use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
-use tracing::{error, info, Instrument};
+use tracing::{error, error_span, info, Instrument};
 
-use malachite_common::VotingPower;
+use malachite_common::{SignedProposal, VotingPower};
 use malachite_config::{
     BlockSyncConfig, Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol,
     TestConfig, TransportProtocol,
@@ -18,6 +22,7 @@ use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet
 
 pub use malachite_config::App;
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Expected {
     Exactly(usize),
     AtLeast(usize),
@@ -56,266 +61,382 @@ pub struct TestParams {
     pub block_size: ByteSize,
     pub tx_size: ByteSize,
     pub txs_per_part: usize,
+    pub vote_extensions: Option<ByteSize>,
+}
+
+impl Default for TestParams {
+    fn default() -> Self {
+        Self {
+            enable_blocksync: false,
+            protocol: PubSubProtocol::default(),
+            block_size: ByteSize::mib(1),
+            tx_size: ByteSize::kib(1),
+            txs_per_part: 256,
+            vote_extensions: None,
+        }
+    }
+}
+
+impl TestParams {
+    fn apply_to_config(&self, config: &mut Config) {
+        config.blocksync.enabled = self.enable_blocksync;
+        config.consensus.p2p.protocol = self.protocol;
+        config.consensus.max_block_size = self.block_size;
+        config.test.tx_size = self.tx_size;
+        config.test.txs_per_part = self.txs_per_part;
+        config.test.vote_extensions.enabled = self.vote_extensions.is_some();
+        config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Step {
+    Crash,
+    Restart(Duration),
+    WaitUntil(u64),
+    Expect(Expected),
+    Success,
+    Pause,
+}
+
+pub type NodeId = usize;
+
+#[derive(Clone)]
+pub struct TestNode {
+    pub id: NodeId,
+    pub voting_power: VotingPower,
+    pub start_height: Height,
+    pub start_delay: Duration,
+    pub steps: Vec<Step>,
+}
+
+impl TestNode {
+    pub fn new(id: usize) -> Self {
+        Self {
+            id,
+            voting_power: 1,
+            start_height: Height::new(1, 1),
+            start_delay: Duration::from_secs(0),
+            steps: vec![],
+        }
+    }
+
+    pub fn vp(mut self, power: VotingPower) -> Self {
+        self.voting_power = power;
+        self
+    }
+
+    pub fn start(self) -> Self {
+        self.start_at(1)
+    }
+
+    pub fn start_at(self, height: u64) -> Self {
+        self.start_after(height, Duration::from_secs(0))
+    }
+
+    pub fn start_after(mut self, height: u64, delay: Duration) -> Self {
+        self.start_height.block_number = height;
+        self.start_delay = delay;
+        self
+    }
+
+    pub fn crash(mut self) -> Self {
+        self.steps.push(Step::Crash);
+        self
+    }
+
+    pub fn restart_after(mut self, delay: Duration) -> Self {
+        self.steps.push(Step::Restart(delay));
+        self
+    }
+
+    pub fn wait_until(mut self, height: u64) -> Self {
+        self.steps.push(Step::WaitUntil(height));
+        self
+    }
+
+    pub fn expect(mut self, expected: Expected) -> Self {
+        self.steps.push(Step::Expect(expected));
+        self
+    }
+
+    pub fn success(mut self) -> Self {
+        self.steps.push(Step::Success);
+        self
+    }
+
+    pub fn pause(mut self) -> Self {
+        self.steps.push(Step::Pause);
+        self
+    }
+}
+
+fn unique_id() -> usize {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static ID: AtomicUsize = AtomicUsize::new(1);
+    ID.fetch_add(1, Ordering::SeqCst)
 }
 
 pub struct Test<const N: usize> {
+    pub id: usize,
     pub nodes: [TestNode; N],
+    pub private_keys: [PrivateKey; N],
     pub validator_set: ValidatorSet,
-    pub vals_and_keys: [(Validator, PrivateKey); N],
-    pub expected_decisions: Expected,
     pub consensus_base_port: usize,
     pub mempool_base_port: usize,
     pub metrics_base_port: usize,
 }
 
 impl<const N: usize> Test<N> {
-    pub fn new(nodes: [TestNode; N], expected_decisions: Expected) -> Self {
-        let vals_and_keys = make_validators(Self::voting_powers(&nodes));
-        let validators = vals_and_keys.iter().map(|(v, _)| v).cloned();
+    pub fn new(nodes: [TestNode; N]) -> Self {
+        let vals_and_keys = make_validators(voting_powers(&nodes));
+        let (validators, private_keys): (Vec<_>, Vec<_>) = vals_and_keys.into_iter().unzip();
+        let private_keys = private_keys.try_into().expect("N private keys");
         let validator_set = ValidatorSet::new(validators);
+        let id = unique_id();
+        let base_port = 20_000 + id * 1000;
 
         Self {
+            id,
             nodes,
+            private_keys,
             validator_set,
-            vals_and_keys,
-            expected_decisions,
-            consensus_base_port: rand::thread_rng().gen_range(21000..30000),
-            mempool_base_port: rand::thread_rng().gen_range(31000..40000),
-            metrics_base_port: rand::thread_rng().gen_range(41000..50000),
+            consensus_base_port: base_port,
+            mempool_base_port: base_port + 100,
+            metrics_base_port: base_port + 200,
         }
-    }
-
-    pub fn voting_powers(nodes: &[TestNode; N]) -> [VotingPower; N] {
-        let mut voting_powers = [0; N];
-        for (i, node) in nodes.iter().enumerate() {
-            voting_powers[i] = node.voting_power;
-        }
-        voting_powers
     }
 
     pub fn generate_default_configs(&self, app: App) -> [Config; N] {
-        let mut configs = vec![];
-
-        for i in 0..N {
-            let config = make_node_config(self, i, app);
-            configs.push(config)
-        }
-
+        let configs: Vec<_> = (0..N).map(|i| make_node_config(self, i, app)).collect();
         configs.try_into().expect("N configs")
     }
 
-    pub fn generate_custom_configs(&self, app: App, test_params: TestParams) -> [Config; N] {
-        let mut configs = vec![];
-
-        for i in 0..N {
-            let mut config = make_node_config(self, i, app);
-
-            config.blocksync.enabled = test_params.enable_blocksync;
-            config.mempool.gossip_batch_size = 0;
-            config.consensus.max_block_size = test_params.block_size;
-            config.consensus.p2p.protocol = test_params.protocol;
-            config.test.tx_size = test_params.tx_size;
-            config.test.txs_per_part = test_params.txs_per_part;
-
-            configs.push(config);
+    pub fn generate_custom_configs(&self, app: App, params: TestParams) -> [Config; N] {
+        let mut configs = self.generate_default_configs(app);
+        for config in &mut configs {
+            params.apply_to_config(config);
         }
-
-        configs.try_into().expect("N configs")
+        configs
     }
 
     pub async fn run(self, app: App, timeout: Duration) {
-        let node_configs = self.generate_default_configs(app);
-        self.run_with_config(&node_configs, timeout).await
+        let configs = self.generate_default_configs(app);
+        self.run_with_config(configs, timeout).await
     }
 
-    pub async fn run_with_custom_config(
-        self,
-        app: App,
-        timeout: Duration,
-        test_params: TestParams,
-    ) {
-        let node_configs = self.generate_custom_configs(app, test_params);
-        self.run_with_config(&node_configs, timeout).await
+    pub async fn run_with_custom_config(self, app: App, timeout: Duration, params: TestParams) {
+        let configs = self.generate_custom_configs(app, params);
+        self.run_with_config(configs, timeout).await
     }
 
-    pub async fn run_with_config(self, configs: &[Config; N], timeout: Duration) {
+    pub async fn run_with_config(self, configs: [Config; N], timeout: Duration) {
         init_logging();
 
-        let mut handles = Vec::with_capacity(N);
+        let _span = error_span!("test", id = %self.id).entered();
 
-        for (i, config) in configs.iter().enumerate().take(N) {
-            if self.nodes[i].faults.contains(&Fault::NoStart) {
-                continue;
-            }
+        let mut set = JoinSet::new();
 
-            let (_, private_key) = &self.vals_and_keys[i];
-            let (tx_decision, rx_decision) = mpsc::channel(HEIGHTS as usize);
-
-            let node = tokio::spawn(spawn_node_actor(
-                config.clone(),
-                self.validator_set.clone(),
-                *private_key,
-                Some(tx_decision),
-            ));
-
-            handles.push((node, rx_decision));
-        }
-
-        sleep(Duration::from_secs(5)).await;
-
-        let mut nodes = Vec::with_capacity(handles.len());
-        for (i, (handle, rx)) in handles.into_iter().enumerate() {
-            let (actor_ref, _) = handle.await.expect("Error: node failed to start");
-            let test = self.nodes[i].clone();
-            nodes.push((actor_ref, test, rx));
-        }
-
-        let mut actors = Vec::with_capacity(nodes.len());
-        let mut rxs = Vec::with_capacity(nodes.len());
-
-        for (actor, _, rx) in nodes {
-            actors.push(actor);
-            rxs.push(rx);
-        }
-
-        let correct_decisions = Arc::new(AtomicUsize::new(0));
-
-        for (i, mut rx_decision) in rxs.into_iter().enumerate() {
-            let correct_decisions = Arc::clone(&correct_decisions);
-
-            let node_test = self.nodes[i].clone();
-            let mut actor_ref = actors[i].clone();
-
+        for ((node, config), private_key) in self
+            .nodes
+            .into_iter()
+            .zip(configs.into_iter())
+            .zip(self.private_keys.into_iter())
+        {
             let validator_set = self.validator_set.clone();
-            let (_, private_key) = self.vals_and_keys[i];
-
-            let config = configs[i].clone();
-
-            tokio::spawn(
+            set.spawn(
                 async move {
-                    for height in START_HEIGHT.as_u64()..=END_HEIGHT.as_u64() {
-                        if node_test.crashes_at(height) {
-                            info!("Faulty node has crashed at height {height}");
+                    let id = node.id;
+                    let result = run_node(node, config, validator_set, private_key).await;
+                    (id, result)
+                }
+                .instrument(tracing::Span::current()),
+            );
+        }
 
-                            actor_ref.stop(Some("Faulty node must crash".to_string()));
+        let results = tokio::time::timeout(timeout, set.join_all()).await;
+        match results {
+            Ok(results) => {
+                check_results(results);
+            }
+            Err(_) => {
+                error!("Test timed out after {timeout:?}");
+                std::process::exit(1);
+            }
+        }
+    }
+}
 
-                            if let Some(interval) = node_test.restarts_after() {
-                                sleep(interval).await;
+fn check_results(results: Vec<(NodeId, TestResult)>) {
+    let mut errors = 0;
 
-                                let (tx_decision, rx_decision2) = mpsc::channel(HEIGHTS as usize);
+    for (id, result) in results {
+        let _span = tracing::error_span!("node", %id).entered();
+        match result {
+            TestResult::Success(actual, expected) => {
+                info!("Correct number of decisions: got {actual}, expected: {expected}",);
+            }
+            TestResult::Failure(actual, expected) => {
+                errors += 1;
+                error!("Incorrect number of decisions: got {actual}, expected {expected}",);
+            }
+            TestResult::Unknown => {
+                errors += 1;
+                error!("Unknown test result");
+            }
+        }
+    }
 
-                                let (actor_ref2, _) = spawn_node_actor(
-                                    config.clone(),
-                                    validator_set.clone(),
-                                    private_key,
-                                    Some(tx_decision),
-                                ).await;
+    if errors > 0 {
+        error!("Test failed with {errors} errors");
+        std::process::exit(1);
+    }
+}
 
-                                rx_decision = rx_decision2;
-                                actor_ref = actor_ref2;
-                            } else {
-                                break;
-                            }
-                        }
+pub enum TestResult {
+    Success(usize, Expected),
+    Failure(usize, Expected),
+    Unknown,
+}
 
-                        let decision = rx_decision.recv().await;
+type RxDecision = broadcast::Receiver<SignedProposal<MockContext>>;
 
-                        // TODO: Heights can go to higher rounds, therefore removing the round and value check for now.
-                        match decision {
-                            Some(proposal) if proposal.height.as_u64() == height /* && r == Round::new(0) */ => {
-                                info!("{height}/{HEIGHTS} correct decision");
-                                correct_decisions.fetch_add(1, Ordering::Relaxed);
-                            }
-                            _ => {
-                                error!("{height}/{HEIGHTS} no decision")
-                            }
-                        }
+#[tracing::instrument("node", skip_all, fields(id = %node.id))]
+async fn run_node(
+    node: TestNode,
+    config: Config,
+    validator_set: ValidatorSet,
+    private_key: PrivateKey,
+) -> TestResult {
+    sleep(node.start_delay).await;
+
+    info!("Spawning node with voting power {}", node.voting_power);
+
+    let (tx, mut rx) = broadcast::channel(100);
+    let (mut actor_ref, mut handle) = spawn_node_actor(
+        config.clone(),
+        validator_set.clone(),
+        private_key,
+        Some(node.start_height),
+        Some(tx.clone()),
+    )
+    .await;
+
+    let decisions = Arc::new(AtomicUsize::new(0));
+
+    let spawn_bg = |mut rx: RxDecision| {
+        tokio::spawn({
+            let decisions = Arc::clone(&decisions);
+
+            async move {
+                while let Ok(_decision) = rx.recv().await {
+                    decisions.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        })
+    };
+
+    let mut bg = spawn_bg(tx.subscribe());
+
+    for step in node.steps {
+        match step {
+            Step::WaitUntil(target_height) => {
+                info!("Waiting until node reaches height {target_height}");
+
+                'inner: while let Ok(decision) = rx.recv().await {
+                    let height = decision.height.as_u64();
+                    info!("Node reached height {height}");
+
+                    if height == target_height {
+                        sleep(Duration::from_millis(100)).await;
+                        break 'inner;
                     }
                 }
-                .instrument(tracing::error_span!("node", %i)),
-            );
-        }
+            }
 
-        sleep(timeout).await;
+            Step::Crash => {
+                let height = decisions.load(Ordering::SeqCst);
+                info!("Node crashes at height {height}");
 
-        let correct_decisions = correct_decisions.load(Ordering::Relaxed);
+                actor_ref
+                    .stop_and_wait(Some("Node must crash".to_string()), None)
+                    .await
+                    .expect("Node must stop");
+            }
 
-        if self.expected_decisions.check(correct_decisions) {
-            info!(
-                "Correct number of decisions: got {}, expected: {}",
-                correct_decisions, self.expected_decisions
-            );
-        } else {
-            panic!(
-                "Incorrect number of decisions: got {}, expected {}",
-                correct_decisions, self.expected_decisions
-            );
-        }
+            Step::Restart(after) => {
+                info!("Node will restart in {after:?}");
 
-        for actor in actors {
-            let _ = actor.stop_and_wait(None, None).await;
+                sleep(after).await;
+
+                bg.abort();
+                handle.abort();
+
+                let (new_tx, new_rx) = broadcast::channel(100);
+                let (new_actor_ref, new_handle) = spawn_node_actor(
+                    config.clone(),
+                    validator_set.clone(),
+                    private_key,
+                    Some(node.start_height),
+                    Some(new_tx.clone()),
+                )
+                .await;
+
+                bg = spawn_bg(new_tx.subscribe());
+
+                actor_ref = new_actor_ref;
+                handle = new_handle;
+                rx = new_rx;
+            }
+
+            Step::Pause => {
+                info!("Pausing");
+                while rx.recv().await.is_ok() {}
+            }
+
+            Step::Expect(expected) => {
+                let actual = decisions.load(Ordering::SeqCst);
+
+                actor_ref.stop(Some("Test is over".to_string()));
+                handle.abort();
+                bg.abort();
+
+                if expected.check(actual) {
+                    return TestResult::Success(actual, expected);
+                } else {
+                    return TestResult::Failure(actual, expected);
+                }
+            }
+
+            Step::Success => {
+                actor_ref.stop(Some("Test is over".to_string()));
+                handle.abort();
+                bg.abort();
+
+                let actual = decisions.load(Ordering::SeqCst);
+                return TestResult::Success(actual, Expected::Exactly(actual));
+            }
         }
     }
+
+    actor_ref.stop(Some("Test is over".to_string()));
+    handle.abort();
+    bg.abort();
+
+    return TestResult::Unknown;
 }
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Fault {
-    NoStart,
-    Crash(u64),
-    Restart(Duration),
-}
-
-#[derive(Clone)]
-pub struct TestNode {
-    pub voting_power: VotingPower,
-    pub faults: Vec<Fault>,
-}
-
-impl TestNode {
-    pub fn correct(voting_power: VotingPower) -> Self {
-        Self {
-            voting_power,
-            faults: vec![],
-        }
-    }
-
-    pub fn faulty(voting_power: VotingPower, faults: Vec<Fault>) -> Self {
-        Self {
-            voting_power,
-            faults,
-        }
-    }
-
-    pub fn start_node(&self) -> bool {
-        !self.faults.contains(&Fault::NoStart)
-    }
-
-    pub fn crashes_at(&self, height: u64) -> bool {
-        self.faults.iter().any(|f| match f {
-            Fault::Crash(h) => *h == height,
-            _ => false,
-        })
-    }
-
-    fn restarts_after(&self) -> Option<Duration> {
-        self.faults.iter().find_map(|f| match f {
-            Fault::Restart(d) => Some(*d),
-            _ => None,
-        })
-    }
-}
-
-pub const HEIGHTS: u64 = 3;
-pub const START_HEIGHT: Height = Height::new(1, 1);
-pub const END_HEIGHT: Height = START_HEIGHT.increment_by(HEIGHTS - 1);
 
 fn init_logging() {
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
-    let filter = EnvFilter::builder()
-        .parse("info,malachite=debug,ractor=error")
-        .unwrap();
+    let directive = if matches!(std::env::var("TEST_DEBUG").as_deref(), Ok("1")) {
+        "malachite=debug,malachite_starknet_test=debug,ractor=error"
+    } else {
+        "malachite=error,malachite_starknet_test=debug,ractor=error"
+    };
+
+    let filter = EnvFilter::builder().parse(directive).unwrap();
 
     pub fn enable_ansi() -> bool {
         use std::io::IsTerminal;
@@ -341,7 +462,7 @@ use malachite_config::{
 };
 
 pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> NodeConfig {
-    let transport = TransportProtocol::Tcp;
+    let transport = TransportProtocol::Quic;
     let protocol = PubSubProtocol::default();
 
     NodeConfig {
@@ -374,7 +495,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                 discovery: DiscoveryConfig { enabled: false },
             },
             max_tx_count: 10000,
-            gossip_batch_size: 100,
+            gossip_batch_size: 0,
         },
         blocksync: BlockSyncConfig {
             enabled: false,
@@ -390,6 +511,14 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
         runtime: RuntimeConfig::single_threaded(),
         test: TestConfig::default(),
     }
+}
+
+fn voting_powers<const N: usize>(nodes: &[TestNode; N]) -> [VotingPower; N] {
+    let mut voting_powers = [0; N];
+    for (i, node) in nodes.iter().enumerate() {
+        voting_powers[i] = node.voting_power;
+    }
+    voting_powers
 }
 
 pub fn make_validators<const N: usize>(

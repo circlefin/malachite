@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
-use tokio::sync::mpsc;
+use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 
 use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
@@ -33,16 +33,16 @@ pub async fn spawn_node_actor(
     cfg: NodeConfig,
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
-    tx_decision: Option<mpsc::Sender<SignedProposal<MockContext>>>,
+    start_height: Option<Height>,
+    tx_decision: Option<broadcast::Sender<SignedProposal<MockContext>>>,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(private_key);
+
+    let start_height = start_height.unwrap_or(Height::new(1, 1));
 
     let registry = SharedRegistry::global();
     let metrics = Metrics::register(registry);
     let address = Address::from_public_key(private_key.public_key());
-
-    // Start at height 1-1
-    let start_height = Height::new(1, 1);
 
     // Spawn mempool and its gossip layer
     let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, registry).await;
@@ -136,7 +136,7 @@ async fn spawn_consensus_actor(
     host: HostRef<MockContext>,
     block_sync: Option<BlockSyncRef<MockContext>>,
     metrics: Metrics,
-    tx_decision: Option<mpsc::Sender<SignedProposal<MockContext>>>,
+    tx_decision: Option<broadcast::Sender<SignedProposal<MockContext>>>,
 ) -> ConsensusRef<MockContext> {
     let consensus_params = ConsensusParams {
         start_height,
