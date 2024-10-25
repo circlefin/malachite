@@ -155,6 +155,10 @@ type = "gossipsub"
 ###         BlockSync Configuration Options         ###
 #######################################################
 [blocksync]
+# Enable BlockSync
+# Override with MALACHITE__BLOCKSYNC__ENABLED env variable
+enabled = true
+
 # Interval at which to update other peers of our status
 # Override with MALACHITE__BLOCKSYNC__STATUS_UPDATE_INTERVAL env variable
 status_update_interval = "10s"
