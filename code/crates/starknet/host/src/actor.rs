@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use bytes::Bytes;
 use eyre::eyre;
 
+use itertools::Itertools;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use rand::RngCore;
 use sha3::Digest;
@@ -39,7 +39,7 @@ pub struct HostState {
     height: Height,
     round: Round,
     proposer: Option<Address>,
-    block_store: BlockStore<MockContext>,
+    block_store: BlockStore,
     part_store: PartStore<MockContext>,
     part_streams_map: PartStreamsMap,
     next_stream_id: StreamId,
@@ -217,12 +217,7 @@ impl StarknetHost {
     }
 
     fn store_block(&self, state: &mut HostState) {
-        let max_height = state
-            .block_store
-            .store_keys()
-            .last()
-            .copied()
-            .unwrap_or_default();
+        let max_height = state.block_store.store_keys().last().unwrap_or_default();
 
         let min_number_blocks: u64 = std::cmp::min(
             self.host.params().max_retain_blocks as u64,
@@ -410,6 +405,7 @@ impl Actor for StarknetHost {
                         all_txes.append(&mut txes);
                     }
                 }
+
                 // Build the block from proposal parts and commits and store it
                 state.block_store.store(&proposal, &all_txes, &commits);
 
@@ -429,7 +425,8 @@ impl Actor for StarknetHost {
                     .observe(block_and_commits_size as f64);
                 self.metrics.finalized_txes.inc_by(tx_count as u64);
 
-                // Send Update to mempool to remove all the tx-es included in the block.
+                // Gather hashes of all the tx-es included in the block,
+                // so that we can notify the mempool to remove them.
                 let mut tx_hashes = vec![];
                 for part in all_parts {
                     if let ProposalPart::Transactions(txes) = &part.as_ref() {
@@ -466,17 +463,16 @@ impl Actor for StarknetHost {
                         // if it has been pruned. In the Status we currently do not mention the
                         // minimum height of the block that we do have.
                         warn!(
-                            "No block for {height}, available blocks: {:?}",
-                            state.block_store.store_keys()
+                            "No block for {height}, available blocks: {}",
+                            state.block_store.store_keys().format(", ")
                         );
 
                         reply_to.send(None)?;
                     }
                     Some(block) => {
-                        let block_id = block.block.block_id;
                         let block = SyncedBlock {
                             proposal: block.proposal,
-                            block_bytes: Bytes::copy_from_slice(block_id.as_bytes()), // TODO - get bytes for Block
+                            block_bytes: block.block.to_bytes().unwrap(),
                             certificate: block.certificate,
                         };
 

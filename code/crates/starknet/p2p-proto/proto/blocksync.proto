@@ -4,6 +4,7 @@ package blocksync;
 
 import "p2p/proto/common.proto";
 import "p2p/proto/consensus.proto";
+import "p2p/proto/transaction.proto";
 
 message Status {
   PeerID peer_id = 1;
@@ -25,4 +26,11 @@ message SyncedBlock {
   ConsensusMessage proposal = 1;
   repeated ConsensusMessage commits = 2;
   bytes block_bytes = 3;
+}
+
+message Block {
+  uint64 block_number = 1;
+  uint64 fork_id = 2;
+  Transactions transactions = 3;
+  Hash block_hash = 4;
 }

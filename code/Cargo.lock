@@ -2663,6 +2663,7 @@ dependencies = [
  "bytesize",
  "derive-where",
  "eyre",
+ "itertools",
  "malachite-actors",
  "malachite-blocksync",
  "malachite-common",

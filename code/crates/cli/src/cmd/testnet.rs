@@ -75,7 +75,7 @@ pub struct TestnetCmd {
 
     /// Enable peer discovery.
     /// If enabled, the node will attempt to discover other nodes in the network
-    #[clap(long, default_value = "true")]
+    #[clap(long, default_value = "false")]
     pub enable_discovery: bool,
 
     /// The transport protocol to use for P2P communication
@@ -252,7 +252,7 @@ pub fn generate_config(
                     .filter(|j| *j != index)
                     .map(|j| transport.multiaddr("127.0.0.1", MEMPOOL_BASE_PORT + j))
                     .collect(),
-                discovery: DiscoveryConfig { enabled: true },
+                discovery: DiscoveryConfig { enabled: false },
                 transport,
             },
             max_tx_count: 10000,
