@@ -47,6 +47,7 @@ jobs:
             --exclude malachite-test-mbt \
             --ignore-filename-regex crates/cli \
             --all-features \
+            --test-threads 1 \
             --ignore-run-fail \
             --lcov \
             --output-path lcov.info
