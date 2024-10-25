@@ -76,9 +76,10 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
       - name: Run Starknet tests
-        run: cargo nextest run --all-features --no-fail-fast --failure-output final --test-threads 1 -p malachite-starknet-test
+        run: cargo nextest run --release --all-features --no-fail-fast --failure-output final --test-threads 1 -p malachite-starknet-test
       - name: Run Discovery tests
-        run: cargo nextest run --all-features --no-fail-fast --failure-output final --test-threads 1 -p malachite-discovery-test
+        run: cargo nextest run --release --all-features --no-fail-fast --failure-output final --test-threads 1 -p malachite-discovery-test
+
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
