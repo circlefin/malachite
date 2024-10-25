@@ -462,16 +462,16 @@ use malachite_config::{
     ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
 };
 
-fn transport_from_env() -> TransportProtocol {
+fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     if let Ok(protocol) = std::env::var("MALACHITE_TRANSPORT") {
-        TransportProtocol::from_str(&protocol).unwrap_or(TransportProtocol::Quic)
+        TransportProtocol::from_str(&protocol).unwrap_or(default)
     } else {
-        TransportProtocol::Quic
+        default
     }
 }
 
 pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> NodeConfig {
-    let transport = transport_from_env();
+    let transport = transport_from_env(TransportProtocol::Tcp);
     let protocol = PubSubProtocol::default();
 
     NodeConfig {
