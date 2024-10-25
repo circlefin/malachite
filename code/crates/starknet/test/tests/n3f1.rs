@@ -22,8 +22,8 @@ pub async fn one_node_fails_to_start() {
     const HEIGHT: u64 = 5;
 
     let n1 = TestNode::new(1).vp(5).start().wait_until(HEIGHT).success();
-    let n2 = TestNode::new(2).vp(1).success();
-    let n3 = TestNode::new(3).vp(5).start().wait_until(HEIGHT).success();
+    let n2 = TestNode::new(2).vp(5).start().wait_until(HEIGHT).success();
+    let n3 = TestNode::new(3).vp(1).success();
 
     Test::new([n1, n2, n3])
         .run(App::Starknet, Duration::from_secs(30))
@@ -35,13 +35,13 @@ pub async fn proposer_crashes_at_height_2() {
     const HEIGHT: u64 = 5;
 
     let n1 = TestNode::new(1).vp(5).start().wait_until(HEIGHT).success();
-    let n3 = TestNode::new(3).vp(5).start().wait_until(HEIGHT).success();
     let n2 = TestNode::new(2)
         .vp(1)
         .start()
         .wait_until(2)
         .crash()
         .success();
+    let n3 = TestNode::new(3).vp(5).start().wait_until(HEIGHT).success();
 
     Test::new([n1, n2, n3])
         .run(App::Starknet, Duration::from_secs(30))
