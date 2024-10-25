@@ -8,23 +8,39 @@ use malachite_starknet_test::{App, Test, TestNode, TestParams};
 pub async fn crash_restart() {
     const HEIGHT: u64 = 10;
 
-    let n1 = TestNode::new(1).vp(10).start().wait_until(HEIGHT).success();
+    // Node 1 starts with 10 voting power.
+    let n1 = TestNode::new(1)
+        .vp(10)
+        .start()
+        // Wait until it reaches height 10
+        .wait_until(HEIGHT)
+        // Record a successful test for this node
+        .success();
+
+    // Node 2 starts with 10 voting power, in parallel with node 1 and with the same behaviour
     let n2 = TestNode::new(2).vp(10).start().wait_until(HEIGHT).success();
+
+    // Node 3 starts with 5 voting power, in parallel with node 1 and 2.
     let n3 = TestNode::new(3)
         .vp(5)
         .start()
+        // Then the test runner waits until it reaches height 2...
         .wait_until(2)
+        // ...and kills the node!
         .crash()
+        // After that, it waits 5 seconds before restarting the node
         .restart_after(Duration::from_secs(5))
+        // Wait until the node reached the expected height
         .wait_until(HEIGHT)
+        // Record a successful test for this node
         .success();
 
     Test::new([n1, n2, n3])
         .run_with_custom_config(
-            App::Starknet,
-            Duration::from_secs(30),
+            App::Starknet,           // Application to run
+            Duration::from_secs(30), // Timeout for the whole test
             TestParams {
-                enable_blocksync: true,
+                enable_blocksync: true, // Enable BlockSync
                 ..Default::default()
             },
         )
