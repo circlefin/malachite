@@ -1,6 +1,7 @@
 #![allow(unused_crate_dependencies)]
 
 use core::fmt;
+use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -461,8 +462,16 @@ use malachite_config::{
     ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
 };
 
+fn transport_from_env() -> TransportProtocol {
+    if let Ok(protocol) = std::env::var("MALACHITE_TRANSPORT") {
+        TransportProtocol::from_str(&protocol).unwrap_or(TransportProtocol::Quic)
+    } else {
+        TransportProtocol::Quic
+    }
+}
+
 pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> NodeConfig {
-    let transport = TransportProtocol::Quic;
+    let transport = transport_from_env();
     let protocol = PubSubProtocol::default();
 
     NodeConfig {
