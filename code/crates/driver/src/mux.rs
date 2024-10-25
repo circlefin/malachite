@@ -3,14 +3,19 @@
 //! The table below describes the input to the Multiplexer and the output events to the Round State Machine.
 //!
 //! The input data is:
-//! - The step change from the Round State Machine.
+//! - Proposals from the Driver.
 //! - The output events from the Vote Keeper.
-//! - Proposals and votes from the Driver.
+//! - The step change from the Round State Machine.
+//!
+//! The table below shows the result of multiplexing an input, result that is sent as input to the round state machine, expected effects the tendermint algorithm condition.
+//! Looking at the first entry as an example:
+//! - If a proposal is received and a quorum of precommits exists, then the `PropAndPrecommitValue` input (L49) is sent to the round state machine.
+//!   The round state machine will move to `commit` step, return the `decide(v)` to the driver.
+//! - If a vote is received and as a result a quorum of precommits is reached, and if a valid proposal is present, then the same as above happens
 //!
 //!
-//! | Step Changed To | Vote Keeper Rhreshold | Proposal        | Multiplexed Input to Round SM   | New Step        | Algo Condition | Output                             |
+//! | Step            | Vote Keeper Threshold | Proposal        | Multiplexed Input to Round SM   | New Step        | Algo Clause    | Output                             |
 //! |---------------- | --------------------- | --------------- |---------------------------------| ---------       | -------------- | ---------------------------------- |
-//! | new(??)         | -                     | -               | NewRound                        | propose         | L11            | …                                  |
 //! | any             | PrecommitValue(v)     | Proposal(v)     | PropAndPrecommitValue           | commit          | L49            | decide(v)                          |
 //! | any             | PrecommitAny          | \*              | PrecommitAny                    | any (unchanged) | L47            | sch\_precommit\_timer              |
 //! | propose         | none                  | InvalidProposal | InvalidProposal                 | prevote         | L22, L26       | prevote\_nil                       |
@@ -21,6 +26,8 @@
 //! | prevote         | PolkaValue(v)         | Proposal(v)     | ProposalAndPolkaCurrent         | precommit       | L36, L37       | (set locked and valid)precommit(v) |
 //! | prevote         | PolkaAny              | \*              | PolkaAny                        | prevote         | L34            | prevote timer                      |
 //! | precommit       | PolkaValue(v)         | Proposal(v)     | ProposalAndPolkaCurrent         | precommit       | L36, L42       | (set valid)                        |
+
+use alloc::vec::Vec;
 
 use malachite_common::SignedProposal;
 use malachite_common::{Context, Proposal, Round, Validity, Value, ValueId, VoteType};
@@ -49,51 +56,42 @@ where
     ///
     /// The method follows these steps:
     ///
-    /// 1. Store the proposal.
+    /// 1. Check that there is an ongoing round, otherwise return `None`
     ///
-    /// 2. Check that there is an ongoing round, otherwise return `None`
-    ///
-    /// 3. If the proposal is invalid, the method follows these steps:
+    /// 2. If the proposal is invalid, the method follows these steps:
     ///    a. If we are at propose step and the proposal's proof-of-lock (POL) round is `Nil`, return
     ///       `RoundInput::InvalidProposal`.
     ///    b. If we are at propose step and there is a polka for a prior-round proof-of-lock (POL),
     ///       return `RoundInput::InvalidProposalAndPolkaPrevious`.
     ///    c. For other steps or if there is no prior-round POL, return `None`.
     ///
-    /// 5. If a quorum of precommit votes is met for the proposal's value,
+    /// 3. If a quorum of precommit votes is met for the proposal's value,
     ///    return `RoundInput::ProposalAndPrecommitValue` including the proposal.
     ///
-    /// 6. If the proposal is for a different round than the current one, return `None`.
+    /// 4. If the proposal is for a different round than the current one, return `None`.
     ///
-    /// 7. If a POL is present for the current round and we are beyond the prevote step,
+    /// 5. If a polka is present for the current round and we are beyond the prevote step,
     ///    return `RoundInput::ProposalAndPolkaCurrent`, including the proposal.
     ///
-    /// 8. If we are at the propose step, and a prior round POL exists,
-    ///    check if the proposal's valid round is equal to the threshold's valid round,
-    ///    and then returns `RoundInput::ProposalAndPolkaPrevious`, including the proposal.
+    /// 6. If we are at the propose step, and a polka exists for a the propopsal's POL round,
+    ///    return `RoundInput::ProposalAndPolkaPrevious`, including the proposal.
     ///
-    /// 9. If none of the above conditions are met, simply wrap the proposal in
+    /// 7. If none of the above conditions are met, simply wrap the proposal in
     ///    `RoundInput::Proposal` and return it.
     pub(crate) fn multiplex_proposal(
         &mut self,
-        proposal: SignedProposal<Ctx>,
+        proposal: Ctx::Proposal,
         validity: Validity,
     ) -> Option<RoundInput<Ctx>> {
         // Should only receive proposals for our height.
-        assert_eq!(self.round_state.height, proposal.height());
-
-        // Store the proposal and its validity
-        self.proposal_keeper
-            .store_proposal(proposal.clone(), validity);
-
-        let proposal = proposal.message;
+        assert_eq!(self.height(), proposal.height());
 
         // Check that there is an ongoing round
         if self.round_state.round == Round::Nil {
             return None;
         }
 
-        // Determine if the polka is for a previous round
+        // Determine if there is a polka for a previous round
         let polka_previous = proposal.pol_round().is_defined()
             && proposal.pol_round() < self.round_state.round
             && self.vote_keeper.is_threshold_met(
@@ -130,10 +128,10 @@ where
             return Some(RoundInput::ProposalAndPrecommitValue(proposal));
         }
 
-        // If the proposal is for a different round, drop the proposal.
+        // If the proposal is for a different round, return.
         // This check must be after the L49 check above because a commit quorum from any round
         // should result in a decision.
-        if self.round_state.round > proposal.round() {
+        if self.round_state.round != proposal.round() {
             return None;
         }
 
@@ -158,10 +156,27 @@ where
         Some(RoundInput::Proposal(proposal))
     }
 
+    pub(crate) fn store_and_multiplex_proposal(
+        &mut self,
+        signed_proposal: SignedProposal<Ctx>,
+        validity: Validity,
+    ) -> Option<RoundInput<Ctx>> {
+        // Should only receive proposals for our height.
+        assert_eq!(self.height(), signed_proposal.height());
+
+        let proposal = signed_proposal.message.clone();
+
+        // Store the proposal and its validity
+        self.proposal_keeper
+            .store_proposal(signed_proposal, validity);
+
+        self.multiplex_proposal(proposal, validity)
+    }
+
     /// After a vote threshold change for a given round, check if we have a polka for nil, some value or any,
     /// based on the type of threshold and the current proposal.
     pub(crate) fn multiplex_vote_threshold(
-        &self,
+        &mut self,
         new_threshold: VKOutput<ValueId<Ctx>>,
         threshold_round: Round,
     ) -> RoundInput<Ctx> {
@@ -176,8 +191,6 @@ where
                 VKOutput::PolkaNil => RoundInput::PolkaNil,
                 VKOutput::PolkaValue(v) => {
                     if v == proposal.value().id() {
-                        // TODO - L28 is not properly covered when the last vote for polka previous
-                        // at `vr` arrives after `Proposal(h, r, v, vr)`
                         if validity.is_valid() {
                             RoundInput::ProposalAndPolkaCurrent(proposal.clone())
                         } else {
@@ -209,44 +222,73 @@ where
         }
     }
 
-    /// After a step change, see if there is an input to be
-    /// sent implicitly to the round state machine.
-    pub(crate) fn multiplex_step_change(
-        &self,
-        pending_step: Step,
-        round: Round,
-    ) -> Option<RoundInput<Ctx>> {
-        match pending_step {
-            Step::Unstarted => None,
+    /// After a step change, check for inputs to be sent to the round state machine.
+    pub(crate) fn multiplex_step_change(&mut self, round: Round) -> Vec<RoundInput<Ctx>> {
+        let mut result = Vec::new();
 
-            Step::Propose => None,
+        if let Some((signed_proposal, validity)) = self
+            .proposal_keeper
+            .get_proposal_and_validity_for_round(round)
+        {
+            let proposal = &signed_proposal.message;
 
-            // After a step change to prevote, check if we have a polka for nil, some value or any,
-            // and return the corresponding input for the round state machine.
-            // TODO - review this code again
-            Step::Prevote => {
-                if has_polka_nil(&self.vote_keeper, round) {
-                    Some(RoundInput::PolkaNil)
-                } else if let Some(proposal) = has_polka_value(
-                    &self.vote_keeper,
-                    round,
-                    self.proposal_keeper
-                        .get_proposal_for_round(round)
-                        .map(|p| &p.message),
-                ) {
-                    Some(RoundInput::ProposalAndPolkaCurrent(proposal.clone()))
-                } else if has_polka_any(&self.vote_keeper, round) {
-                    Some(RoundInput::PolkaAny)
-                } else {
-                    None
+            match self.round_state().step {
+                Step::Propose => {
+                    if let Some(input) = self.multiplex_proposal(proposal.clone(), *validity) {
+                        result.push(input)
+                    }
                 }
+
+                Step::Prevote if has_polka_value(&self.vote_keeper, round, proposal) => result
+                    .push(self.multiplex_vote_threshold(
+                        VKOutput::PolkaValue(proposal.value().id()),
+                        round,
+                    )),
+
+                _ => {}
             }
-
-            Step::Precommit => None,
-
-            Step::Commit => None,
         }
+
+        if let Some(threshold) = find_non_value_threshold(&self.vote_keeper, round) {
+            result.push(self.multiplex_vote_threshold(threshold, round))
+        }
+
+        result
     }
+}
+
+fn find_non_value_threshold<Ctx>(
+    votekeeper: &VoteKeeper<Ctx>,
+    round: Round,
+) -> Option<VKOutput<ValueId<Ctx>>>
+where
+    Ctx: Context,
+{
+    if has_precommit_any(votekeeper, round) {
+        Some(VKOutput::PrecommitAny)
+    } else if has_polka_nil(votekeeper, round) {
+        Some(VKOutput::PolkaNil)
+    } else if has_polka_any(votekeeper, round) {
+        Some(VKOutput::PolkaAny)
+    } else {
+        None
+    }
+}
+
+/// Check if we have a polka for a value
+fn has_polka_value<Ctx>(
+    votekeeper: &VoteKeeper<Ctx>,
+    round: Round,
+    proposal: &Ctx::Proposal,
+) -> bool
+where
+    Ctx: Context,
+{
+    votekeeper.is_threshold_met(
+        &round,
+        VoteType::Prevote,
+        Threshold::Value(proposal.value().id()),
+    )
 }
 
 /// Check if we have a polka for nil
@@ -257,30 +299,18 @@ where
     votekeeper.is_threshold_met(&round, VoteType::Prevote, Threshold::Nil)
 }
 
-/// Check if we have a polka for a value
-fn has_polka_value<'p, Ctx>(
-    votekeeper: &VoteKeeper<Ctx>,
-    round: Round,
-    proposal: Option<&'p Ctx::Proposal>,
-) -> Option<&'p Ctx::Proposal>
-where
-    Ctx: Context,
-{
-    let proposal = proposal?;
-
-    votekeeper
-        .is_threshold_met(
-            &round,
-            VoteType::Prevote,
-            Threshold::Value(proposal.value().id()),
-        )
-        .then_some(proposal)
-}
-
 /// Check if we have a polka for any
 fn has_polka_any<Ctx>(votekeeper: &VoteKeeper<Ctx>, round: Round) -> bool
 where
     Ctx: Context,
 {
     votekeeper.is_threshold_met(&round, VoteType::Prevote, Threshold::Any)
+}
+
+/// Check if we have a quorum of precommits for any
+fn has_precommit_any<Ctx>(votekeeper: &VoteKeeper<Ctx>, round: Round) -> bool
+where
+    Ctx: Context,
+{
+    votekeeper.is_threshold_met(&round, VoteType::Precommit, Threshold::Any)
 }
