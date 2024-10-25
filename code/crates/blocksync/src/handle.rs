@@ -279,7 +279,7 @@ where
         return Ok(());
     }
 
-    if let Some(peer) = state.random_peer_at_or_above(sync_height) {
+    if let Some(peer) = state.random_peer_with_block(sync_height) {
         debug!(sync.height = %sync_height, %peer, "Requesting block from peer");
 
         perform!(co, Effect::SendRequest(peer, Request::new(sync_height)));

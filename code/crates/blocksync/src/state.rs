@@ -48,6 +48,16 @@ where
     pub fn random_peer_at_or_above(&mut self, height: Ctx::Height) -> Option<PeerId> {
         self.peers
             .iter()
+            .filter_map(move |(&peer, status)| {
+                (status.earliest_block_height <= height).then_some(peer)
+            })
+            .choose_stable(&mut self.rng)
+    }
+
+    /// Select at random a peer that that we know is at or above the given height.
+    pub fn random_peer_with_block(&mut self, height: Ctx::Height) -> Option<PeerId> {
+        self.peers
+            .iter()
             .filter_map(move |(&peer, status)| (status.height >= height).then_some(peer))
             .choose_stable(&mut self.rng)
     }

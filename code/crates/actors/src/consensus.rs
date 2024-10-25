@@ -400,7 +400,8 @@ where
             }
 
             Msg::GetStatus(reply_to) => {
-                let status = Status::new(state.consensus.driver.height());
+                let earliest_block_height = self.get_earliest_block_height().await?;
+                let status = Status::new(state.consensus.driver.height(), earliest_block_height);
 
                 if let Err(e) = reply_to.send(status) {
                     error!("Error when replying to GetStatus message: {e:?}");
@@ -411,7 +412,6 @@ where
         }
     }
 
-    #[tracing::instrument(skip_all, fields(height = %height, round = %round))]
     fn get_value(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
@@ -444,7 +444,6 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
     async fn get_validator_set(
         &self,
         height: Ctx::Height,
@@ -456,6 +455,13 @@ where
         .map_err(|e| eyre!("Failed to get validator set at height {height}: {e:?}"))?;
 
         Ok(validator_set)
+    }
+
+    async fn get_earliest_block_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
+        ractor::call!(self.host, |reply_to| HostMsg::GetEarliestBlockHeight {
+            reply_to
+        })
+        .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
     }
 
     #[tracing::instrument(skip_all)]
