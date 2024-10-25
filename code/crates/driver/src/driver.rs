@@ -50,8 +50,9 @@ where
     /// The proposer for the current round, None for round nil.
     proposer: Option<Ctx::Address>,
 
-    /// The pending input to be processed next, if any.
-    pending_input: Option<(Round, RoundInput<Ctx>)>,
+    /// The pending inputs to be processed next, if any.
+    /// The first element of the tuple is the round at which that input has been emitted.
+    pending_inputs: Vec<(Round, RoundInput<Ctx>)>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -60,8 +61,8 @@ where
 {
     /// Create a new `Driver` instance for the given height.
     ///
-    /// This instance is only valid for a single height
-    /// and should be discarded and re-created for the next height.
+    /// Called when consensus is started and initialized with the first height.
+    /// Re-initialization for subsequent heights is done using `move_to_height()`.
     ///
     /// TODO: Consider wrapping the validator set in a Arc to avoid cloning
     pub fn new(
@@ -84,7 +85,7 @@ where
             vote_keeper,
             round_state,
             proposer: None,
-            pending_input: None,
+            pending_inputs: vec![],
         }
     }
 
@@ -103,7 +104,7 @@ where
         self.proposal_keeper = proposal_keeper;
         self.vote_keeper = vote_keeper;
         self.round_state = round_state;
-        self.pending_input = None;
+        self.pending_inputs = vec![];
     }
 
     /// Return the height of the consensus.
@@ -183,20 +184,16 @@ where
         self.lift_output(round_output, &mut outputs);
 
         // Apply the pending inputs, if any, and lift their outputs
-        self.process_pending(&mut outputs)?;
-
-        Ok(outputs)
-    }
-
-    /// Process the pending input, if any.
-    fn process_pending(&mut self, outputs: &mut Vec<Output<Ctx>>) -> Result<(), Error<Ctx>> {
-        while let Some((round, input)) = self.pending_input.take() {
-            if let Some(round_output) = self.apply_input(round, input)? {
-                self.lift_output(round_output, outputs);
-            };
+        while !self.pending_inputs.is_empty() {
+            let new_pending = core::mem::take(&mut self.pending_inputs);
+            for (round, input) in new_pending {
+                if let Some(output) = self.apply_input(round, input)? {
+                    self.lift_output(output, &mut outputs)
+                }
+            }
         }
 
-        Ok(())
+        Ok(outputs)
     }
 
     /// Convert the output of the round state machine to the output type of the driver.
@@ -273,7 +270,7 @@ where
 
         let round = proposal.round();
 
-        match self.multiplex_proposal(proposal, validity) {
+        match self.store_and_multiplex_proposal(proposal, validity) {
             Some(round_input) => self.apply_input(round, round_input),
             None => Ok(None),
         }
@@ -333,7 +330,8 @@ where
         input: RoundInput<Ctx>,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let round_state = core::mem::take(&mut self.round_state);
-        let current_step = round_state.step;
+
+        let previous_step = round_state.step;
 
         let proposer = self.get_proposer()?;
         let info = Info::new(input_round, &self.address, proposer.address());
@@ -341,16 +339,17 @@ where
         // Apply the input to the round state machine
         let transition = round_state.apply(&info, input);
 
-        let pending_step = transition.next_state.step;
-
-        if current_step != pending_step {
-            let pending_input = self.multiplex_step_change(pending_step, input_round);
-
-            self.pending_input = pending_input.map(|input| (input_round, input));
-        }
-
         // Update state
         self.round_state = transition.next_state;
+
+        if previous_step != self.round_state.step && self.round_state.step != Step::Unstarted {
+            let pending_inputs = self.multiplex_step_change(input_round);
+
+            self.pending_inputs = pending_inputs
+                .into_iter()
+                .map(|input| (input_round, input))
+                .collect();
+        }
 
         // Return output, if any
         Ok(transition.output)

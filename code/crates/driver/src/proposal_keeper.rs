@@ -112,14 +112,6 @@ where
             .and_then(|round_info| round_info.proposal.as_ref())
     }
 
-    /// Return the proposal and validity for the round.
-    pub fn get_proposal_for_round(&self, round: Round) -> Option<&SignedProposal<Ctx>> {
-        match self.get_proposal_and_validity_for_round(round) {
-            Some((proposal, _)) => Some(proposal),
-            None => None,
-        }
-    }
-
     /// Return the evidence of equivocation.
     pub fn evidence(&self) -> &EvidenceMap<Ctx> {
         &self.evidence
