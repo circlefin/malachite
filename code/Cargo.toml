@@ -35,6 +35,9 @@ license      = "Apache-2.0"
 publish      = false
 rust-version = "1.77"
 
+[profile.dev]
+opt-level = 1
+
 [profile.release]
 lto = "thin"
 overflow-checks = true
