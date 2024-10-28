@@ -491,6 +491,19 @@ where
                 Ok(Resume::ValidatorSet(height, validator_set))
             }
 
+            Effect::RestreamValue(height, round, valid_round, address) => {
+                self.host
+                    .cast(HostMsg::RestreamValue {
+                        height,
+                        round,
+                        valid_round,
+                        address,
+                    })
+                    .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
+
+                Ok(Resume::Continue)
+            }
+
             Effect::Decide {
                 height,
                 round,

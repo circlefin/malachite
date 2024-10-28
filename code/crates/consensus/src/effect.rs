@@ -46,6 +46,10 @@ where
     /// Resume with: [`Resume::Continue`]
     GetValue(Ctx::Height, Round, Timeout),
 
+    /// Restream value at the given height, round and valid round
+    /// Resume with: [`Resume::Continue`]
+    RestreamValue(Ctx::Height, Round, Round, Ctx::Address),
+
     /// Get the validator set at the given height
     /// Resume with: [`Resume::ValidatorSet`]
     GetValidatorSet(Ctx::Height),

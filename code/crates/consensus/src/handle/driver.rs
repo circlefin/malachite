@@ -137,11 +137,21 @@ where
                 "Proposing value"
             );
 
-            let signed_proposal = state.ctx.sign_proposal(proposal);
+            let signed_proposal = state.ctx.sign_proposal(proposal.clone());
 
             perform!(
                 co,
                 Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal.clone()))
+            );
+
+            perform!(
+                co,
+                Effect::RestreamValue(
+                    proposal.height(),
+                    proposal.round(),
+                    proposal.pol_round(),
+                    proposal.validator_address().clone()
+                )
             );
 
             on_proposal(co, state, metrics, signed_proposal).await
