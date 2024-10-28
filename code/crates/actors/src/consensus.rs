@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use eyre::eyre;
 use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
-use tokio::sync::mpsc;
+use tokio::sync::broadcast;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
@@ -29,7 +29,7 @@ pub use malachite_consensus::State as ConsensusState;
 
 pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
-pub type TxDecision<Ctx> = mpsc::Sender<SignedProposal<Ctx>>;
+pub type TxDecision<Ctx> = broadcast::Sender<SignedProposal<Ctx>>;
 
 pub struct Consensus<Ctx>
 where
@@ -551,7 +551,7 @@ where
 
             Effect::Decide { proposal, commits } => {
                 if let Some(tx_decision) = &self.tx_decision {
-                    let _ = tx_decision.send(proposal.clone()).await;
+                    let _ = tx_decision.send(proposal.clone());
                 }
 
                 let proposal_height = proposal.height();

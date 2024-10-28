@@ -35,6 +35,9 @@ license      = "Apache-2.0"
 publish      = false
 rust-version = "1.77"
 
+[profile.dev]
+opt-level = 1
+
 [profile.release]
 lto = "thin"
 overflow-checks = true
@@ -79,6 +82,7 @@ async-recursion    = "1.1"
 async-trait        = "0.1.83"
 axum               = "0.7"
 base64             = "0.22.0"
+bon                = "2.3.0"
 bytesize           = "1.3"
 bytes              = { version = "1", default-features = false }
 clap               = "4.5"

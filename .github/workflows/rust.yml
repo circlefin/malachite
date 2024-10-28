@@ -15,6 +15,7 @@ on:
 
 env:
   CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
   CARGO_PROFILE_DEV_DEBUG: 1
   CARGO_PROFILE_RELEASE_DEBUG: 1
   RUST_BACKTRACE: short
@@ -23,7 +24,7 @@ env:
 
 jobs:
   test:
-    name: Test
+    name: Unit Tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -47,10 +48,38 @@ jobs:
           cache-workspaces: "code"
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
-      - name: Build code
-        run: cargo nextest run --workspace --all-features --no-run
       - name: Run tests
-        run: cargo nextest run --workspace --all-features --no-fail-fast --failure-output final
+        run: cargo nextest run --workspace --all-features --no-fail-fast --failure-output final --test-threads 1 --exclude malachite-starknet-test --exclude malachite-discovery-test
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: code
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+      - name: Install Quint
+        run: npm install -g @informalsystems/quint
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache-workspaces: "code"
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+      - name: Run Starknet tests
+        run: cargo nextest run --all-features --no-fail-fast --failure-output final --test-threads 1 -p malachite-starknet-test
+      - name: Run Discovery tests
+        run: cargo nextest run --all-features --no-fail-fast --failure-output final --test-threads 1 -p malachite-discovery-test
 
   clippy:
     name: Clippy
