@@ -103,13 +103,14 @@ impl proto::Protobuf for ProposalPart {
         Ok(match message {
             Messages::Init(init) => ProposalPart::Init(ProposalInit {
                 height: Height::new(init.block_number, init.fork_id),
-                proposal_round: Round::new(i64::from(init.proposal_round)),
-                valid_round: init.valid_round.map(|round| Round::new(i64::from(round))),
+                proposal_round: Round::new(init.proposal_round),
+                valid_round: init.valid_round.map(Round::new),
                 proposer: Address::from_proto(
                     init.proposer
                         .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("proposer"))?,
                 )?,
             }),
+
             Messages::Fin(_) => ProposalPart::Fin(ProposalFin {}),
 
             Messages::Transactions(txes) => {
@@ -131,7 +132,10 @@ impl proto::Protobuf for ProposalPart {
             ProposalPart::Init(init) => Messages::Init(p2p_proto::ProposalInit {
                 block_number: init.height.block_number,
                 fork_id: init.height.fork_id,
-                proposal_round: init.proposal_round.as_i64() as u32, // FIXME: p2p-types
+                proposal_round: init
+                    .proposal_round
+                    .as_u32()
+                    .expect("round should not be nil"),
                 valid_round: init.valid_round.map(|round| round.as_i64() as u32),
                 proposer: Some(init.proposer.to_proto()?),
             }),

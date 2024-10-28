@@ -171,7 +171,7 @@ impl Protobuf for ProposalPart {
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(crate::proto::ProposalPart {
             height: Some(self.height.to_proto()?),
-            round: self.round.as_i64(),
+            round: self.round.as_u32().expect("round should not be nil"),
             sequence: self.sequence,
             content: Some(self.content.to_any()?),
             validator_address: Some(self.validator_address.to_proto()?),
