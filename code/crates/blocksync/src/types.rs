@@ -16,6 +16,7 @@ pub type ResponseChannel = libp2p::request_response::ResponseChannel<RawResponse
 pub struct Status<Ctx: Context> {
     pub peer_id: PeerId,
     pub height: Ctx::Height,
+    pub earliest_block_height: Ctx::Height,
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]

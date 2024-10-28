@@ -4,6 +4,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use bytes::Bytes;
 use derive_where::derive_where;
+use eyre::eyre;
 use libp2p::request_response::InboundRequestId;
 use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
@@ -157,6 +158,13 @@ where
         )
     }
 
+    async fn get_earliest_block_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
+        ractor::call!(self.host, |reply_to| HostMsg::GetEarliestBlockHeight {
+            reply_to
+        })
+        .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
+    }
+
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
@@ -165,10 +173,16 @@ where
         effect: blocksync::Effect<Ctx>,
     ) -> Result<blocksync::Resume<Ctx>, ActorProcessingErr> {
         use blocksync::Effect;
+
         match effect {
             Effect::PublishStatus(height) => {
+                let earliest_block_height = self.get_earliest_block_height().await?;
+
                 self.gossip
-                    .cast(GossipConsensusMsg::PublishStatus(Status::new(height)))?;
+                    .cast(GossipConsensusMsg::PublishStatus(Status::new(
+                        height,
+                        earliest_block_height,
+                    )))?;
             }
 
             Effect::SendRequest(peer_id, request) => {
@@ -271,6 +285,7 @@ where
                 let status = blocksync::Status {
                     peer_id,
                     height: status.height,
+                    earliest_block_height: status.earliest_block_height,
                 };
 
                 self.process_input(&myself, state, blocksync::Input::Status(status))

@@ -10,6 +10,8 @@ message Status {
   PeerID peer_id = 1;
   uint64 block_number = 2;
   uint64 fork_id = 3;
+  uint64 earliest_block_number = 4;
+  uint64 earliest_fork_id = 5;
 }
 
 message Request {

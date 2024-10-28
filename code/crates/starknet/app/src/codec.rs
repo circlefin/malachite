@@ -33,6 +33,10 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
             peer_id: libp2p_identity::PeerId::from_bytes(&peer_id.id)
                 .map_err(|e| ProtoError::Other(e.to_string()))?,
             height: Height::new(status.block_number, status.fork_id),
+            earliest_block_height: Height::new(
+                status.earliest_block_number,
+                status.earliest_fork_id,
+            ),
         })
     }
 
@@ -43,6 +47,8 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
             }),
             block_number: status.height.block_number,
             fork_id: status.height.fork_id,
+            earliest_block_number: status.earliest_block_height.block_number,
+            earliest_fork_id: status.earliest_block_height.fork_id,
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))

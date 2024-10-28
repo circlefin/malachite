@@ -265,6 +265,13 @@ impl Actor for StarknetHost {
                 Ok(())
             }
 
+            HostMsg::GetEarliestBlockHeight { reply_to } => {
+                let earliest_block_height =
+                    state.block_store.store_keys().next().unwrap_or_default();
+                reply_to.send(earliest_block_height)?;
+                Ok(())
+            }
+
             HostMsg::GetValue {
                 height,
                 round,
@@ -459,9 +466,6 @@ impl Actor for StarknetHost {
 
                 match state.block_store.store.get(&height).cloned() {
                     None => {
-                        // TODO - it is possible that a peer asks for a block that we don't have
-                        // if it has been pruned. In the Status we currently do not mention the
-                        // minimum height of the block that we do have.
                         warn!(
                             "No block for {height}, available blocks: {}",
                             state.block_store.store_keys().format(", ")

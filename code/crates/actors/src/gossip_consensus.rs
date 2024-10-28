@@ -97,11 +97,15 @@ pub enum State<Ctx: Context> {
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct Status<Ctx: Context> {
     pub height: Ctx::Height,
+    pub earliest_block_height: Ctx::Height,
 }
 
 impl<Ctx: Context> Status<Ctx> {
-    pub fn new(height: Ctx::Height) -> Self {
-        Self { height }
+    pub fn new(height: Ctx::Height, earliest_block_height: Ctx::Height) -> Self {
+        Self {
+            height,
+            earliest_block_height,
+        }
     }
 }
 
@@ -225,6 +229,7 @@ where
                 let status = blocksync::Status {
                     peer_id: ctrl_handle.peer_id(),
                     height: status.height,
+                    earliest_block_height: status.earliest_block_height,
                 };
 
                 let data = Codec::encode_status(status);
@@ -324,7 +329,10 @@ where
                 trace!(%from, height = %status.height, "Received status");
 
                 self.publish(
-                    GossipEvent::Status(status.peer_id, Status::new(status.height)),
+                    GossipEvent::Status(
+                        status.peer_id,
+                        Status::new(status.height, status.earliest_block_height),
+                    ),
                     subscribers,
                 );
             }
