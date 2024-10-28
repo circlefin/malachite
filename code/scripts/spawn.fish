@@ -85,7 +85,7 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
 
     rm -f "$NODE_HOME/logs/*.log"
 
-    set pane $(tmux new-window -P -n "node-$NODE" /bin/zsh)
+    set pane $(tmux new-window -P -n "node-$NODE" "$(which fish)")
 
     echo "[Node $NODE] Spawning node..."
 
