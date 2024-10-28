@@ -8,7 +8,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use malachite_test_mbt::consensus::State;
-use malachite_test_mbt::utils::generate_traces;
+use malachite_test_mbt::utils::{generate_random_traces, generate_test_traces};
 
 use runner::ConsensusRunner;
 
@@ -22,8 +22,6 @@ fn test_itf() {
 
     if std::env::var("KEEP_TEMP").is_ok() {
         std::mem::forget(temp_dir);
-    } else {
-        std::mem::drop(temp_dir);
     }
 
     let quint_seed = std::env::var("QUINT_SEED")
@@ -38,11 +36,17 @@ fn test_itf() {
         .filter(|&x| x != 0)
         .expect("invalid random seed for quint");
 
-    generate_traces(
+    generate_test_traces(
         "tests/consensus/consensusTest.qnt",
         &temp_path.to_string_lossy(),
         quint_seed,
     );
+
+    // generate_random_traces(
+    //     "tests/consensus/consensusTest.qnt",
+    //     &temp_path.to_string_lossy(),
+    //     quint_seed,
+    // );
 
     for json_fixture in glob(&format!("{}/*.itf.json", temp_path.display()))
         .expect("Failed to read glob pattern")
