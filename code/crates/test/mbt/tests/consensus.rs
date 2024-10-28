@@ -65,8 +65,7 @@ fn test_itf() {
         // Build mapping from model addresses to real addresses
         let address_map = utils::build_address_map(&trace, &mut rng);
 
-        let consensus_runner = ConsensusRunner { address_map };
-
+        let consensus_runner = ConsensusRunner::new(address_map);
         trace.run_on(consensus_runner).unwrap();
     }
 }

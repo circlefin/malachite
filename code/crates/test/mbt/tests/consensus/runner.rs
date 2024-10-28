@@ -18,6 +18,18 @@ use crate::utils::{
 
 pub struct ConsensusRunner {
     pub address_map: BTreeMap<String, Address>,
+    pub last_state: Option<State>,
+    pub skip_step: bool,
+}
+
+impl ConsensusRunner {
+    pub fn new(address_map: BTreeMap<String, Address>) -> Self {
+        Self {
+            address_map,
+            last_state: None,
+            skip_step: false,
+        }
+    }
 }
 
 impl ItfRunner for ConsensusRunner {
@@ -43,6 +55,16 @@ impl ItfRunner for ConsensusRunner {
         actual: &mut Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
+        self.skip_step = false;
+
+        if let Some(last_state) = self.last_state.replace(expected.clone()) {
+            if &last_state == expected {
+                println!("➡️ Skipping duplicate step");
+                self.skip_step = true;
+                return Ok(None);
+            }
+        }
+
         println!("🔸 step: actual state={:?}", actual);
         println!("🔸 step: model input={:?}", expected.input);
         println!("🔸 step: model state={:?}", expected.state);
@@ -195,6 +217,10 @@ impl ItfRunner for ConsensusRunner {
         result: &Self::Result,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
+        if self.skip_step {
+            return Ok(true);
+        }
+
         // Get expected result.
         let expected_result = &expected.output;
 
@@ -283,6 +309,10 @@ impl ItfRunner for ConsensusRunner {
         actual: &Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
+        if self.skip_step {
+            return Ok(true);
+        }
+
         // TODO: What to do with actual.height? There is no height in the spec.
 
         println!("🟢 state invariant: actual state={:?}", actual);
