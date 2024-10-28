@@ -102,7 +102,7 @@ prometheus-client  = "0.22"
 prost              = "0.13"
 prost-build        = "0.13"
 prost-types        = "0.13"
-ractor             = "0.12.3"
+ractor             = "0.12.4"
 rand               = { version = "0.8.5", features = ["std_rng"] }
 rand_chacha        = "0.3.1"
 seahash            = "4.1"
