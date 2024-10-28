@@ -61,6 +61,14 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
 
+    /// Request to restream an existing block/value from Driver
+    RestreamValue {
+        height: Ctx::Height,
+        round: Round,
+        valid_round: Round,
+        address: Ctx::Address,
+    },
+
     /// ProposalPart received <-- consensus <-- gossip
     ReceivedProposalPart {
         from: PeerId,

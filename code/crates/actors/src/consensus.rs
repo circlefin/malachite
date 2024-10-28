@@ -209,7 +209,7 @@ where
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::ProposeValue(height, round, value, extension),
+                        ConsensusInput::ProposeValue(height, round, Round::Nil, value, extension),
                     )
                     .await;
 

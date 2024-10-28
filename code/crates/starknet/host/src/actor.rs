@@ -98,13 +98,14 @@ impl StarknetHost {
         height: Height,
         round: Round,
     ) -> Option<ProposedValue<MockContext>> {
-        let (value, validator_address, validity, extension) =
+        let (valid_round, value, validator_address, validity, extension) =
             self.build_proposal_content_from_parts(parts, height, round)?;
 
         Some(ProposedValue {
             validator_address,
             height,
             round,
+            valid_round,
             value,
             validity,
             extension,
@@ -117,7 +118,7 @@ impl StarknetHost {
         parts: &[Arc<ProposalPart>],
         height: Height,
         round: Round,
-    ) -> Option<(BlockHash, Address, Validity, Option<Extension>)> {
+    ) -> Option<(Round, BlockHash, Address, Validity, Option<Extension>)> {
         if parts.is_empty() {
             return None;
         }
@@ -126,6 +127,8 @@ impl StarknetHost {
             error!("No Init part found in the proposal parts");
             return None;
         };
+
+        let valid_round = init.valid_round;
 
         let Some(fin) = parts.iter().find_map(|part| part.as_fin()) else {
             error!("No Fin part found in the proposal parts");
@@ -160,7 +163,13 @@ impl StarknetHost {
         // TODO: How to compute validity?
         let validity = Validity::Valid;
 
-        Some((block_hash, init.proposer.clone(), validity, extension))
+        Some((
+            valid_round,
+            block_hash,
+            init.proposer.clone(),
+            validity,
+            extension,
+        ))
     }
 
     #[tracing::instrument(skip_all, fields(
@@ -314,6 +323,58 @@ impl Actor for StarknetHost {
                         extension,
                     ))?;
                 }
+
+                Ok(())
+            }
+
+            HostMsg::RestreamValue {
+                height,
+                round,
+                valid_round,
+                address,
+            } => {
+                let mut parts = state.part_store.all_parts(height, valid_round);
+                let stream_id = state.next_stream_id;
+                state.next_stream_id += 1;
+
+                let mut extension_part = None;
+
+                for (sequence, part) in parts.iter_mut().enumerate() {
+                    let mut part = Arc::unwrap_or_clone((*part).clone());
+
+                    // Change the Init to indicate restreaming
+                    match part {
+                        ProposalPart::Init(ref mut init_part) => {
+                            assert_eq!(init_part.proposal_round, valid_round);
+                            init_part.proposal_round = round;
+                            init_part.valid_round = valid_round;
+                            init_part.proposer = address.clone();
+                            state.part_store.store(height, round, part.clone());
+                        }
+                        ProposalPart::Transactions(_) => {
+                            if extension_part.is_none() {
+                                extension_part = Some(part.clone());
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    debug!(
+                        %stream_id,
+                        %sequence,
+                        "Broadcasting proposal part"
+                    );
+
+                    let msg =
+                        StreamMessage::new(stream_id, sequence as u64, StreamContent::Data(part));
+
+                    self.gossip_consensus
+                        .cast(GossipConsensusMsg::BroadcastProposalPart(msg))?;
+                }
+
+                let extension = extension_part
+                    .and_then(|part| part.as_transactions().and_then(|txs| txs.to_bytes().ok()))
+                    .map(Extension::from);
 
                 Ok(())
             }

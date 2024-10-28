@@ -36,6 +36,7 @@ pub enum ConsensusMsg<Ctx: Context> {
 pub struct ProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
+    pub valid_round: Round,
     pub validator_address: Ctx::Address,
     pub value: Ctx::Value,
     pub validity: Validity,

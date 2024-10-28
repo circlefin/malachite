@@ -66,7 +66,7 @@ async fn run_build_proposal_task(
             height,
             proposal_round: round,
             proposer: proposer.clone(),
-            valid_round: Some(Round::Nil),
+            valid_round: Round::Nil,
         });
 
         block_hasher.update(part.to_sign_bytes());
