@@ -65,7 +65,7 @@ impl ItfRunner for VoteKeeperRunner {
 
             WeightedVote::Vote(input_vote, weight, current_round) => {
                 // Build step to execute.
-                let round = Round::new(input_vote.round);
+                let round = Round::from(input_vote.round);
                 let height = Height::new(input_vote.height as u64);
                 let value = value_from_model(&input_vote.value_id);
                 let address = self.addresses.get(input_vote.src_address.as_str()).unwrap();
@@ -85,7 +85,7 @@ impl ItfRunner for VoteKeeperRunner {
                 // Execute step.
                 Ok(actual.apply_vote(
                     SignedVote::new(vote, Signature::test()),
-                    Round::new(*current_round),
+                    Round::from(*current_round),
                 ))
             }
         }
@@ -119,7 +119,7 @@ impl ItfRunner for VoteKeeperRunner {
                     );
                 }
                 (Output::SkipRound(round), Skip(expected_round)) => {
-                    assert_eq!(round, &Round::new(*expected_round));
+                    assert_eq!(round, &Round::from(*expected_round));
                 }
                 (actual, expected) => {
                     panic!("actual: {:?}, expected: {:?}", actual, expected)
@@ -151,7 +151,7 @@ impl ItfRunner for VoteKeeperRunner {
         for (&round, expected_round) in &expected_state.rounds {
             // doesn't check for current Height and Round
 
-            let actual_round = actual_state.per_round(Round::new(round)).unwrap();
+            let actual_round = actual_state.per_round(Round::from(round)).unwrap();
 
             let expected_outputs = &expected_round.emitted_outputs;
             let actual_outputs = actual_round.emitted_outputs();

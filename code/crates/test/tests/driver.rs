@@ -92,13 +92,7 @@ fn driver_steps_proposer() {
 
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = new_signed_proposal(
-        Height::new(1),
-        Round::new(0),
-        value,
-        Round::new(-1),
-        my_addr,
-    );
+    let proposal = new_signed_proposal(Height::new(1), Round::new(0), value, Round::Nil, my_addr);
 
     let steps = vec![
         TestStep {
@@ -354,13 +348,8 @@ fn driver_steps_not_proposer_valid() {
 
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = new_signed_proposal(
-        Height::new(1),
-        Round::new(0),
-        value,
-        Round::new(-1),
-        v1.address,
-    );
+    let proposal =
+        new_signed_proposal(Height::new(1), Round::new(0), value, Round::Nil, v1.address);
 
     let steps = vec![
         TestStep {
@@ -547,13 +536,8 @@ fn driver_steps_not_proposer_invalid() {
 
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
-    let proposal = new_signed_proposal(
-        Height::new(1),
-        Round::new(0),
-        value,
-        Round::new(-1),
-        v1.address,
-    );
+    let proposal =
+        new_signed_proposal(Height::new(1), Round::new(0), value, Round::Nil, v1.address);
 
     let steps = vec![
         TestStep {
@@ -675,13 +659,8 @@ fn driver_steps_not_proposer_other_height() {
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     // Proposal is for another height
-    let proposal = new_signed_proposal(
-        Height::new(2),
-        Round::new(0),
-        value,
-        Round::new(-1),
-        v1.address,
-    );
+    let proposal =
+        new_signed_proposal(Height::new(2), Round::new(0), value, Round::Nil, v1.address);
 
     let steps = vec![
         TestStep {
@@ -739,13 +718,8 @@ fn driver_steps_not_proposer_other_round() {
     let mut driver = Driver::new(ctx, height, vs.clone(), my_addr, Default::default());
 
     // Proposal is for another round
-    let proposal = new_signed_proposal(
-        Height::new(1),
-        Round::new(1),
-        value,
-        Round::new(-1),
-        v2.address,
-    );
+    let proposal =
+        new_signed_proposal(Height::new(1), Round::new(1), value, Round::Nil, v2.address);
 
     let steps = vec![
         TestStep {

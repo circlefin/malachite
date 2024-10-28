@@ -73,7 +73,7 @@ message Proposal {
     uint64 block_number = 2;
     uint32 round = 3;
     Hash block_hash = 4;
-    int64 pol_round = 5;
+    optional uint32 pol_round = 5;
     Address proposer = 6;
 }
 

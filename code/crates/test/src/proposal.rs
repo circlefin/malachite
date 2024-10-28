@@ -69,9 +69,9 @@ impl Protobuf for Proposal {
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(Self::Proto {
             height: Some(self.height.to_proto()?),
-            round: self.round.as_i64(),
+            round: self.round.as_u32().expect("round should not be nil"),
             value: Some(self.value.to_proto()?),
-            pol_round: self.pol_round.as_i64(),
+            pol_round: self.pol_round.as_u32(),
             validator_address: Some(self.validator_address.to_proto()?),
         })
     }
@@ -90,7 +90,7 @@ impl Protobuf for Proposal {
                     .value
                     .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("value"))?,
             )?,
-            pol_round: Round::new(proto.pol_round),
+            pol_round: Round::from(proto.pol_round),
             validator_address: Address::from_proto(
                 proto
                     .validator_address

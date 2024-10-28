@@ -158,7 +158,9 @@ async fn run_build_proposal_task(
     // Fin
     {
         // TODO: Compute actual "valid_round"
-        let part = ProposalPart::Fin(ProposalFin { valid_round: None });
+        let part = ProposalPart::Fin(ProposalFin {
+            valid_round: Round::Nil,
+        });
 
         block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;
