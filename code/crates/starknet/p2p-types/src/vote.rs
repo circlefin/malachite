@@ -78,7 +78,7 @@ impl proto::Protobuf for Vote {
         Ok(Self {
             vote_type: proto_to_common_vote_type(proto.vote_type()),
             height: Height::new(proto.block_number, proto.fork_id),
-            round: Round::new(i64::from(proto.round)),
+            round: Round::new(proto.round),
             block_hash: match proto.block_hash {
                 Some(block_hash) => NilOrVal::Val(BlockHash::from_proto(block_hash)?),
                 None => NilOrVal::Nil,
@@ -98,7 +98,7 @@ impl proto::Protobuf for Vote {
             vote_type: common_to_proto_vote_type(self.vote_type).into(),
             block_number: self.height.block_number,
             fork_id: self.height.fork_id,
-            round: self.round.as_i64() as u32, // FIXME: This is a hack
+            round: self.round.as_u32().expect("round should not be nil"),
             block_hash: match &self.block_hash {
                 NilOrVal::Nil => None,
                 NilOrVal::Val(v) => Some(v.to_proto()?),

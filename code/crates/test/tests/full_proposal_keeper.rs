@@ -1,6 +1,6 @@
 use malachite_actors::host::ProposedValue;
 use malachite_common::{Context, Round, SignedProposal, Validity};
-use malachite_consensus::{FullProposalKeeper, Input};
+use malachite_consensus::{FullProposal, FullProposalKeeper, Input};
 use malachite_test::utils::validators::make_validators;
 use malachite_test::{Address, Proposal, Value};
 use malachite_test::{Height, TestContext};
@@ -17,68 +17,78 @@ fn signed_proposal_pol(
     ctx.sign_proposal(proposal1)
 }
 
-macro_rules! prop {
-    ($co:expr, $a:expr, $r:expr, $v:expr, $vr: expr) => {
-        signed_proposal_pol(
-            $co,
-            Height::new(1),
-            Round::new($r),
-            Value::new($v),
-            Round::new($vr),
-            $a,
-        )
-    };
+fn prop(
+    ctx: &TestContext,
+    address: Address,
+    round: u32,
+    value: u64,
+    pol_round: i64,
+) -> SignedProposal<TestContext> {
+    signed_proposal_pol(
+        ctx,
+        Height::new(1),
+        Round::new(round),
+        Value::new(value),
+        Round::from(pol_round),
+        address,
+    )
 }
 
-macro_rules! prop_msg {
-    ($co:expr, $a:expr, $r:expr, $v:expr, $vr: expr) => {
-        Input::Proposal(signed_proposal_pol(
-            $co,
-            Height::new(1),
-            Round::new($r),
-            Value::new($v),
-            Round::new($vr),
-            $a,
-        ))
-    };
+fn prop_msg(
+    ctx: &TestContext,
+    address: Address,
+    round: u32,
+    value: u64,
+    pol_round: i64,
+) -> Input<TestContext> {
+    Input::Proposal(prop(ctx, address, round, value, pol_round))
 }
 
-macro_rules! value {
-    ( $a:expr, $r:expr, $v:expr, $val: expr) => {
-        ProposedValue {
-            height: Height::new(1),
-            round: Round::new($r),
-            validator_address: $a,
-            value: Value::new($v),
-            validity: $val,
-            extension: Default::default(),
-        }
-    };
+fn value(
+    validator_address: Address,
+    round: u32,
+    value: u64,
+    validity: Validity,
+) -> ProposedValue<TestContext> {
+    ProposedValue {
+        height: Height::new(1),
+        round: Round::new(round),
+        validator_address,
+        value: Value::new(value),
+        validity,
+        extension: Default::default(),
+    }
 }
 
-macro_rules! val_msg {
-    ( $a:expr, $r:expr, $v:expr, $val: expr) => {
-        Input::ReceivedProposedValue(ProposedValue {
-            height: Height::new(1),
-            round: Round::new($r),
-            value: Value::new($v),
-            validity: $val,
-            validator_address: $a,
-            extension: Default::default(),
-        })
-    };
+fn val_msg(
+    validator_address: Address,
+    round: u32,
+    value: u64,
+    validity: Validity,
+) -> Input<TestContext> {
+    Input::ReceivedProposedValue(ProposedValue {
+        height: Height::new(1),
+        round: Round::new(round),
+        value: Value::new(value),
+        validity,
+        validator_address,
+        extension: Default::default(),
+    })
 }
 
-macro_rules! prop_at_round_and_value {
-    ( $k:expr, $r:expr, $v:expr) => {
-        $k.full_proposal_at_round_and_value(&Height::new(1), Round::new($r), &Value::new($v).id())
-    };
+fn prop_at_round_and_value(
+    k: &FullProposalKeeper<TestContext>,
+    r: u32,
+    v: u64,
+) -> Option<&FullProposal<TestContext>> {
+    k.full_proposal_at_round_and_value(&Height::new(1), Round::new(r), &Value::new(v).id())
 }
 
-macro_rules! props_for_value {
-    ( $k:expr, $v:expr) => {
-        $k.full_proposals_for_value(&$v)
-    };
+fn props_for_value(
+    k: &FullProposalKeeper<TestContext>,
+    v: &ProposedValue<TestContext>,
+) -> Vec<SignedProposal<TestContext>> {
+    k.full_proposals_for_value(v)
 }
 
 // Used for full proposer keeper testing:
@@ -89,8 +99,8 @@ macro_rules! props_for_value {
 struct Test {
     desc: &'static str,
     input: Vec<Input<TestContext>>,
-    some_fp_for_rv: Vec<(i64, u64)>,
-    none_fp_for_rv: Vec<(i64, u64)>,
+    some_fp_for_rv: Vec<(u32, u64)>,
+    none_fp_for_rv: Vec<(u32, u64)>,
     fps_for_value: (ProposedValue<TestContext>, Vec<SignedProposal<TestContext>>),
 }
 
@@ -106,152 +116,152 @@ fn full_proposal_keeper_tests() {
         Test {
             desc: "BASIC: prop(0, 10, -1), val(0, 10, valid)",
             input: vec![
-                prop_msg!(&c1, a1, 0, 10, -1),
-                val_msg!(a1, 0, 10, Validity::Valid),
+                prop_msg(&c1, a1, 0, 10, -1),
+                val_msg(a1, 0, 10, Validity::Valid),
             ],
             some_fp_for_rv: vec![(0, 10)],
             none_fp_for_rv: vec![],
             fps_for_value: (
-                value!(a1, 0, 10, Validity::Valid),
-                vec![prop!(&c1, a1, 0, 10, -1)],
+                value(a1, 0, 10, Validity::Valid),
+                vec![prop(&c1, a1, 0, 10, -1)],
             ),
         },
         Test {
             desc: "BASIC: prop(0, 10, -1), val(0, 10, invalid)",
             input: vec![
-                prop_msg!(&c1, a1, 0, 10, -1),
-                val_msg!(a1, 0, 10, Validity::Invalid),
+                prop_msg(&c1, a1, 0, 10, -1),
+                val_msg(a1, 0, 10, Validity::Invalid),
             ],
             some_fp_for_rv: vec![(0, 10)],
             none_fp_for_rv: vec![],
             fps_for_value: (
-                value!(a1, 0, 10, Validity::Invalid),
-                vec![prop!(&c1, a1, 0, 10, -1)],
+                value(a1, 0, 10, Validity::Invalid),
+                vec![prop(&c1, a1, 0, 10, -1)],
             ),
         },
         Test {
             desc: "BASIC: prop(0, 10, -1), val(0, 20, valid)",
             input: vec![
-                prop_msg!(&c1, a1, 0, 10, -1),
-                val_msg!(a1, 0, 20, Validity::Valid),
+                prop_msg(&c1, a1, 0, 10, -1),
+                val_msg(a1, 0, 20, Validity::Valid),
             ],
             some_fp_for_rv: vec![],
             none_fp_for_rv: vec![(0, 10), (0, 20)],
-            fps_for_value: (value!(a1, 0, 20, Validity::Valid), vec![]),
+            fps_for_value: (value(a1, 0, 20, Validity::Valid), vec![]),
         },
         Test {
             desc: "BASIC: prop(0, 10, -1), prop(0, 20, -1), val(0, 20, valid)",
             input: vec![
-                prop_msg!(&c1, a1, 0, 10, -1),
-                prop_msg!(&c1, a1, 0, 20, -1),
-                val_msg!(a1, 0, 20, Validity::Valid),
+                prop_msg(&c1, a1, 0, 10, -1),
+                prop_msg(&c1, a1, 0, 20, -1),
+                val_msg(a1, 0, 20, Validity::Valid),
             ],
             some_fp_for_rv: vec![(0, 20)],
             none_fp_for_rv: vec![(0, 10)],
             fps_for_value: (
-                value!(a1, 0, 20, Validity::Valid),
-                vec![prop!(&c1, a1, 0, 20, -1)],
+                value(a1, 0, 20, Validity::Valid),
+                vec![prop(&c1, a1, 0, 20, -1)],
             ),
         },
         Test {
             desc: "BASIC: prop(0, 10, -1), val(0, 20, valid), val(0, 10, valid), prop(0, 20, -1)",
             input: vec![
-                prop_msg!(&c1, a1, 0, 10, -1),
-                val_msg!(a1, 0, 20, Validity::Valid),
-                val_msg!(a1, 0, 10, Validity::Valid),
-                prop_msg!(&c1, a1, 0, 20, -1),
+                prop_msg(&c1, a1, 0, 10, -1),
+                val_msg(a1, 0, 20, Validity::Valid),
+                val_msg(a1, 0, 10, Validity::Valid),
+                prop_msg(&c1, a1, 0, 20, -1),
             ],
             some_fp_for_rv: vec![(0, 10), (0, 20)],
             none_fp_for_rv: vec![],
             fps_for_value: (
-                value!(a1, 0, 10, Validity::Valid),
-                vec![prop!(&c1, a1, 0, 10, -1)],
+                value(a1, 0, 10, Validity::Valid),
+                vec![prop(&c1, a1, 0, 10, -1)],
             ),
         },
         Test {
             desc: "BASIC: prop(0, 10, -1), val(0, 10, valid), prop(0, 20, -1), val(0, 20, valid)",
             input: vec![
-                prop_msg!(&c1, a1, 0, 10, -1),
-                val_msg!(a1, 0, 10, Validity::Valid),
-                prop_msg!(&c1, a1, 0, 20, -1),
-                val_msg!(a1, 0, 20, Validity::Valid),
+                prop_msg(&c1, a1, 0, 10, -1),
+                val_msg(a1, 0, 10, Validity::Valid),
+                prop_msg(&c1, a1, 0, 20, -1),
+                val_msg(a1, 0, 20, Validity::Valid),
             ],
             some_fp_for_rv: vec![(0, 10), (0, 20)],
             none_fp_for_rv: vec![],
             fps_for_value: (
-                value!(a1, 0, 10, Validity::Valid),
-                vec![prop!(&c1, a1, 0, 10, -1)],
+                value(a1, 0, 10, Validity::Valid),
+                vec![prop(&c1, a1, 0, 10, -1)],
             ),
         },
         Test {
             desc: "POL: prop(0, 10, -1), val(0, 10, valid), prop(1, 10, 0)",
             input: vec![
-                prop_msg!(&c1, a1, 0, 10, -1),
-                val_msg!(a1, 0, 10, Validity::Valid),
-                prop_msg!(&c2, a2, 1, 10, 0),
+                prop_msg(&c1, a1, 0, 10, -1),
+                val_msg(a1, 0, 10, Validity::Valid),
+                prop_msg(&c2, a2, 1, 10, 0),
             ],
             some_fp_for_rv: vec![(0, 10), (1, 10)],
             none_fp_for_rv: vec![],
             fps_for_value: (
-                value!(a1, 0, 10, Validity::Valid),
-                vec![prop!(&c1, a1, 0, 10, -1), prop!(&c2, a2, 1, 10, 0)],
+                value(a1, 0, 10, Validity::Valid),
+                vec![prop(&c1, a1, 0, 10, -1), prop(&c2, a2, 1, 10, 0)],
             ),
         },
         Test {
             desc: "POL: prop(1, 10, 0), val(0, 10, valid), prop(0, 10, -1), val(0, 20, valid),",
             input: vec![
-                prop_msg!(&c2, a2, 1, 10, 0),
-                val_msg!(a1, 0, 10, Validity::Valid),
-                prop_msg!(&c1, a1, 0, 10, -1),
-                val_msg!(a1, 0, 20, Validity::Valid),
+                prop_msg(&c2, a2, 1, 10, 0),
+                val_msg(a1, 0, 10, Validity::Valid),
+                prop_msg(&c1, a1, 0, 10, -1),
+                val_msg(a1, 0, 20, Validity::Valid),
             ],
             some_fp_for_rv: vec![(0, 10), (1, 10)],
             none_fp_for_rv: vec![],
-            fps_for_value: (value!(a1, 0, 20, Validity::Valid), vec![]),
+            fps_for_value: (value(a1, 0, 20, Validity::Valid), vec![]),
         },
         Test {
             desc: "POL: prop(0, 10, -1), val(0, 10, valid), prop(1, 20, 0)",
             input: vec![
-                prop_msg!(&c1, a1, 0, 20, -1),
-                val_msg!(a1, 0, 10, Validity::Valid),
-                prop_msg!(&c2, a2, 1, 20, 0),
+                prop_msg(&c1, a1, 0, 20, -1),
+                val_msg(a1, 0, 10, Validity::Valid),
+                prop_msg(&c2, a2, 1, 20, 0),
             ],
             some_fp_for_rv: vec![],
             none_fp_for_rv: vec![(1, 20)],
-            fps_for_value: (value!(a1, 0, 20, Validity::Valid), vec![]),
+            fps_for_value: (value(a1, 0, 20, Validity::Valid), vec![]),
         },
         Test {
             desc: "POL: val(0, 10, valid), prop(0, 20, -1), val(0, 20, valid), prop(1, 10, 0)",
             input: vec![
-                val_msg!(a1, 0, 10, Validity::Valid),
-                prop_msg!(&c1, a1, 0, 20, -1),
-                val_msg!(a1, 0, 20, Validity::Valid),
-                prop_msg!(&c2, a2, 1, 10, 0),
-                prop_msg!(&c2, a2, 1, 20, 0),
+                val_msg(a1, 0, 10, Validity::Valid),
+                prop_msg(&c1, a1, 0, 20, -1),
+                val_msg(a1, 0, 20, Validity::Valid),
+                prop_msg(&c2, a2, 1, 10, 0),
+                prop_msg(&c2, a2, 1, 20, 0),
             ],
             some_fp_for_rv: vec![(0, 20), (1, 10)],
             none_fp_for_rv: vec![],
             fps_for_value: (
-                value!(a1, 0, 20, Validity::Valid),
-                vec![prop!(&c1, a1, 0, 20, -1), prop!(&c2, a2, 1, 20, 0)],
+                value(a1, 0, 20, Validity::Valid),
+                vec![prop(&c1, a1, 0, 20, -1), prop(&c2, a2, 1, 20, 0)],
             ),
         },
         Test {
             desc: "POL: prop(1, 10, 0), prop(0, 10, -1), prop(2, 10, 0), val(0, 10, valid)",
             input: vec![
-                prop_msg!(&c1, a1, 1, 10, 0),
-                prop_msg!(&c2, a2, 0, 10, -1),
-                prop_msg!(&c1, a1, 2, 10, 0),
-                val_msg!(a1, 0, 10, Validity::Valid),
+                prop_msg(&c1, a1, 1, 10, 0),
+                prop_msg(&c2, a2, 0, 10, -1),
+                prop_msg(&c1, a1, 2, 10, 0),
+                val_msg(a1, 0, 10, Validity::Valid),
             ],
             some_fp_for_rv: vec![(0, 10), (1, 10), (2, 10)],
             none_fp_for_rv: vec![],
             fps_for_value: (
-                value!(a1, 0, 10, Validity::Valid),
+                value(a1, 0, 10, Validity::Valid),
                 vec![
-                    prop!(&c2, a2, 0, 10, -1),
-                    prop!(&c1, a1, 1, 10, 0),
-                    prop!(&c1, a1, 2, 10, 0),
+                    prop(&c2, a2, 0, 10, -1),
+                    prop(&c1, a1, 1, 10, 0),
+                    prop(&c1, a1, 2, 10, 0),
                 ],
             ),
         },
@@ -269,13 +279,13 @@ fn full_proposal_keeper_tests() {
             }
         }
         for (r, v) in s.some_fp_for_rv {
-            assert!(prop_at_round_and_value!(keeper, r, v).is_some());
+            assert!(prop_at_round_and_value(&keeper, r, v).is_some());
         }
         for (r, v) in s.none_fp_for_rv {
-            assert!(prop_at_round_and_value!(keeper, r, v).is_none());
+            assert!(prop_at_round_and_value(&keeper, r, v).is_none());
         }
         assert_eq!(
-            props_for_value!(keeper, s.fps_for_value.0),
+            props_for_value(&keeper, &s.fps_for_value.0),
             s.fps_for_value.1
         )
     }

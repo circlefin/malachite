@@ -245,7 +245,6 @@ impl Actor for StarknetHost {
         Ok(initial_state)
     }
 
-    #[tracing::instrument("starknet.host", skip_all)]
     async fn handle(
         &self,
         _myself: HostRef,
