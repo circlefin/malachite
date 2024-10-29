@@ -49,16 +49,18 @@ pub fn generate_random_traces(spec_rel_path: &str, gen_dir: &str, quint_seed: u6
         .output()
         .expect("Failed to run quint test");
 
-    // // Remove traces from imported modules
-    // for redundant_itf in glob(&format!(
-    //     "{gen_dir}/*{}::*.*",
-    //     spec_path.file_stem().unwrap().to_str().unwrap()
-    // ))
-    // .expect("Failed to read glob pattern")
-    // .flatten()
-    // {
-    //     std::fs::remove_file(&redundant_itf).unwrap();
-    // }
-
     println!("🪄 Generated traces in {gen_dir:?}");
+}
+
+const DEFAULT_QUINT_SEED: u64 = 118;
+
+pub fn quint_seed() -> u64 {
+    let seed = std::env::var("QUINT_SEED")
+        .ok()
+        .and_then(|x| x.parse::<u64>().ok())
+        .unwrap_or(DEFAULT_QUINT_SEED);
+
+    println!("Using QUINT_SEED={seed}");
+
+    seed
 }

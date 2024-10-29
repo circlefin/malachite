@@ -53,7 +53,8 @@ pub enum Input {
     PrecommitAny,
 
     #[serde(rename = "ProposalAndCommitAndValidCInput")]
-    ProposalAndCommitAndValid(Value),
+    #[serde(with = "As::<(Integer, Same)>")]
+    ProposalAndCommitAndValid(Round, NonNilValue),
 
     #[serde(rename = "RoundSkipCInput")]
     #[serde(with = "As::<Integer>")]
@@ -98,7 +99,8 @@ pub enum Output {
     Timeout(Round, Timeout),
 
     #[serde(rename = "DecidedOutput")]
-    Decided(Value),
+    #[serde(with = "As::<(Integer, Same)>")]
+    Decided(Round, NonNilValue),
 
     #[serde(rename = "SkipRoundOutput")]
     #[serde(with = "As::<Integer>")]

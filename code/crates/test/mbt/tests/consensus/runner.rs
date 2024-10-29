@@ -145,12 +145,13 @@ impl ItfRunner for ConsensusRunner {
                 (data, Input::InvalidProposalAndPolkaPrevious(proposal))
             }
 
-            ModelInput::ProposalAndCommitAndValid(value) => {
-                let data = Info::new(actual.round, address, some_other_node);
+            ModelInput::ProposalAndCommitAndValid(round, value) => {
+                let input_round = Round::from(*round);
+                let data = Info::new(input_round, address, some_other_node);
                 let proposal = TestContext::new_proposal(
                     actual.height,
-                    actual.round,
-                    value_from_model(value).unwrap(),
+                    input_round,
+                    value_from_string(value).unwrap(),
                     Round::Nil,
                     *some_other_node,
                 );
@@ -285,12 +286,14 @@ impl ItfRunner for ConsensusRunner {
                 }
 
                 (
-                    Output::Decision(_round, proposal),
-                    ModelOutput::Decided(expected_decided_value),
+                    Output::Decision(round, proposal),
+                    ModelOutput::Decided(expected_round, expected_decided_value),
                 ) => {
+                    assert_eq!(round.as_i64(), *expected_round, "unexpected decided round");
+
                     assert_eq!(
                         Some(proposal.value),
-                        value_from_model(expected_decided_value),
+                        value_from_string(expected_decided_value),
                         "unexpected decided value"
                     );
                 }
