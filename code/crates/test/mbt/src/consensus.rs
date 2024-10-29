@@ -49,6 +49,9 @@ pub enum Input {
     #[serde(rename = "ProposalAndPolkaAndValidCInput")]
     ProposalAndPolkaAndValid(Value),
 
+    #[serde(rename = "ProposalAndPolkaAndInvalidCInput")]
+    ProposalAndPolkaAndInvalid(Value),
+
     #[serde(rename = "PrecommitAnyCInput")]
     PrecommitAny,
 
@@ -71,10 +74,6 @@ pub enum Input {
     #[serde(rename = "TimeoutPrecommitCInput")]
     #[serde(with = "As::<(Integer, Integer)>")]
     TimeoutPrecommit(Height, Round),
-
-    #[serde(rename = "ProposalAndPolkaAndInvalidCInputCInput")]
-    #[serde(with = "As::<(Integer, Integer, Same)>")]
-    ProposalAndPolkaAndInvalidCInput(Height, Round, Value),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]

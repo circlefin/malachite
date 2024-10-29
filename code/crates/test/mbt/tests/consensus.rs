@@ -32,12 +32,6 @@ fn test_itf() {
         quint_seed,
     );
 
-    // generate_random_traces(
-    //     "tests/consensus/consensusTest.qnt",
-    //     &temp_path.to_string_lossy(),
-    //     quint_seed,
-    // );
-
     for json_fixture in glob(&format!("{}/*.itf.json", temp_path.display()))
         .expect("Failed to read glob pattern")
         .flatten()

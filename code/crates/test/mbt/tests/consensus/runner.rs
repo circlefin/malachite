@@ -132,12 +132,11 @@ impl ItfRunner for ConsensusRunner {
                 (data, Input::ProposalAndPolkaCurrent(proposal))
             }
 
-            ModelInput::ProposalAndPolkaAndInvalidCInput(height, round, value) => {
-                let input_round = Round::from(*round);
-                let data = Info::new(input_round, address, some_other_node);
+            ModelInput::ProposalAndPolkaAndInvalid(value) => {
+                let data = Info::new(actual.round, address, some_other_node);
                 let proposal = TestContext::new_proposal(
-                    Height::new(*height as u64),
-                    input_round,
+                    actual.height,
+                    actual.round,
                     value_from_model(value).unwrap(),
                     Round::Nil,
                     *some_other_node,
