@@ -230,51 +230,12 @@ where
 
         Ok(blocksync::Resume::default())
     }
-}
 
-#[async_trait]
-impl<Ctx> Actor for BlockSync<Ctx>
-where
-    Ctx: Context,
-{
-    type Msg = Msg<Ctx>;
-    type State = State<Ctx>;
-    type Arguments = Args<Ctx>;
-
-    async fn pre_start(
+    async fn handle_msg(
         &self,
-        myself: ActorRef<Self::Msg>,
-        args: Args<Ctx>,
-    ) -> Result<Self::State, ActorProcessingErr> {
-        let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
-        self.gossip.cast(GossipConsensusMsg::Subscribe(forward))?;
-
-        let ticker = tokio::spawn(ticker(
-            self.params.status_update_interval,
-            myself.clone(),
-            || Msg::Tick,
-        ));
-
-        let rng = Box::new(rand::rngs::StdRng::from_entropy());
-
-        Ok(State {
-            blocksync: blocksync::State::new(rng, args.initial_height),
-            timers: Timers::new(myself.clone()),
-            inflight: HashMap::new(),
-            ticker,
-        })
-    }
-
-    // TODO:
-    //  - proper FSM
-    //  - multiple requests for next few heights
-    //  - etc
-    #[tracing::instrument(name = "blocksync", skip_all)]
-    async fn handle(
-        &self,
-        myself: ActorRef<Self::Msg>,
-        msg: Self::Msg,
-        state: &mut Self::State,
+        myself: ActorRef<Msg<Ctx>>,
+        msg: Msg<Ctx>,
+        state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::Tick => {
@@ -363,6 +324,54 @@ where
                     }
                 }
             }
+        }
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl<Ctx> Actor for BlockSync<Ctx>
+where
+    Ctx: Context,
+{
+    type Msg = Msg<Ctx>;
+    type State = State<Ctx>;
+    type Arguments = Args<Ctx>;
+
+    async fn pre_start(
+        &self,
+        myself: ActorRef<Self::Msg>,
+        args: Args<Ctx>,
+    ) -> Result<Self::State, ActorProcessingErr> {
+        let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
+        self.gossip.cast(GossipConsensusMsg::Subscribe(forward))?;
+
+        let ticker = tokio::spawn(ticker(
+            self.params.status_update_interval,
+            myself.clone(),
+            || Msg::Tick,
+        ));
+
+        let rng = Box::new(rand::rngs::StdRng::from_entropy());
+
+        Ok(State {
+            blocksync: blocksync::State::new(rng, args.initial_height),
+            timers: Timers::new(myself.clone()),
+            inflight: HashMap::new(),
+            ticker,
+        })
+    }
+
+    #[tracing::instrument(name = "blocksync", skip_all)]
+    async fn handle(
+        &self,
+        myself: ActorRef<Self::Msg>,
+        msg: Self::Msg,
+        state: &mut Self::State,
+    ) -> Result<(), ActorProcessingErr> {
+        if let Err(e) = self.handle_msg(myself, msg, state).await {
+            error!("Error handling message: {e:?}");
         }
 
         Ok(())

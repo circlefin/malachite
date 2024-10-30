@@ -651,7 +651,11 @@ where
         msg: Msg<Ctx>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        self.handle_msg(myself, state, msg).await
+        if let Err(e) = self.handle_msg(myself, state, msg).await {
+            error!("Error when handling message: {e:?}");
+        }
+
+        Ok(())
     }
 
     async fn post_stop(
