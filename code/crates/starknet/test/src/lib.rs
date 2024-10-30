@@ -507,7 +507,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                 discovery: DiscoveryConfig { enabled: false },
             },
             max_tx_count: 10000,
-            gossip_batch_size: 0,
+            gossip_batch_size: 100,
         },
         blocksync: BlockSyncConfig {
             enabled: false,
