@@ -19,6 +19,8 @@ use super::utils::{build_validator_set, check_votes, value_from_model};
 pub struct VoteKeeperRunner {
     rng: StdRng,
     addresses: HashMap<String, Address>,
+    last_state: Option<State>,
+    skip_step: bool,
 }
 
 impl VoteKeeperRunner {
@@ -26,6 +28,8 @@ impl VoteKeeperRunner {
         Self {
             rng,
             addresses: HashMap::new(),
+            last_state: None,
+            skip_step: false,
         }
     }
 }
@@ -60,6 +64,16 @@ impl ItfRunner for VoteKeeperRunner {
         actual: &mut Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
+        self.skip_step = false;
+
+        if let Some(last_state) = self.last_state.replace(expected.clone()) {
+            if &last_state == expected {
+                println!("➡️ Skipping duplicate step");
+                self.skip_step = true;
+                return Ok(None);
+            }
+        }
+
         match &expected.weighted_vote {
             WeightedVote::NoVote => Err(()),
 
@@ -96,7 +110,12 @@ impl ItfRunner for VoteKeeperRunner {
         result: &Self::Result,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
+        if self.skip_step {
+            return Ok(true);
+        }
+
         let expected_result = &expected.last_emitted;
+
         match result {
             Some(result) => match (result, expected_result) {
                 // TODO: check expected_round
@@ -135,6 +154,10 @@ impl ItfRunner for VoteKeeperRunner {
         actual: &Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
+        if self.skip_step {
+            return Ok(true);
+        }
+
         // doesn't check for current Height and Round
 
         let actual_state = actual;
