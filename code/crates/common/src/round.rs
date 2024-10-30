@@ -138,16 +138,4 @@ mod tests {
         assert!(Round::Some(1).is_defined());
         assert!(Round::Some(2).is_defined());
     }
-
-    // #[test]
-    // fn test_proto() {
-    //     let p1 = Option::None::<i64>;
-    //     let p2: Option<u32> = Some(10);
-    //     let r1 = Round::new(i64::from(p2.unwrap_or(-1)));
-    //     let r2 = Round::new(i64::from(p2.unwrap_or_default()));
-
-    //     assert_eq!(Round::Nil, r1);
-    //     assert_eq!(Round::Some(10), r2);
-
-    // }
 }
