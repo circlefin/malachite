@@ -131,7 +131,7 @@ impl StarknetHost {
         };
 
         let valid_round = init.valid_round;
-        if let Round::Some(vr) = valid_round {
+        if let Round::Some(_vr) = valid_round {
             debug!(
                 "Reassembling a Proposal we might have seen before: {:?}",
                 init
@@ -401,10 +401,11 @@ impl Actor for StarknetHost {
                         StreamMessage::new(stream_id, sequence as u64, StreamContent::Data(part));
 
                     self.gossip_consensus
-                        .cast(GossipConsensusMsg::BroadcastProposalPart(msg))?;
+                        .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
                 }
 
-                let extension = extension_part
+                // TODO - send a reply with extension
+                let _extension = extension_part
                     .and_then(|part| part.as_transactions().and_then(|txs| txs.to_bytes().ok()))
                     .map(Extension::from);
 
@@ -573,6 +574,7 @@ impl Actor for StarknetHost {
                 let proposal = ProposedValue {
                     height: proposal.height(),
                     round: proposal.round(),
+                    valid_round: proposal.pol_round(),
                     validator_address: proposal.validator_address().clone(),
                     value: proposal.value().id(),
                     validity: Validity::Valid,
