@@ -8,9 +8,11 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-common = { workspace = true }
+malachite-common  = { workspace = true }
+malachite-metrics = { workspace = true }
 
 bytes            = { workspace = true, features = ["serde"] }
+dashmap          = { workspace = true }
 derive-where     = { workspace = true }
 displaydoc       = { workspace = true }
 genawaiter       = { workspace = true }

@@ -2,9 +2,10 @@ use core::marker::PhantomData;
 
 use derive_where::derive_where;
 use displaydoc::Display;
+use libp2p::request_response::OutboundRequestId;
 use tracing::{debug, error, info, warn};
 
-use malachite_common::{Context, Proposal};
+use malachite_common::{Context, Height, Proposal};
 
 use crate::co::Co;
 use crate::perform;
@@ -64,6 +65,9 @@ pub enum Input<Ctx: Context> {
     /// A BlockSync request has been received from a peer
     Request(InboundRequestId, PeerId, Request<Ctx>),
 
+    /// A BlockSync response has been received
+    Response(OutboundRequestId, Response<Ctx>),
+
     /// Got a response from the application to our `GetBlock` request
     GotBlock(InboundRequestId, Ctx::Height, Option<SyncedBlock<Ctx>>),
 
@@ -87,6 +91,9 @@ where
         Input::Decided(height) => on_decided(co, state, metrics, height).await,
         Input::Request(request_id, peer_id, request) => {
             on_request(co, state, metrics, request_id, peer_id, request).await
+        }
+        Input::Response(request_id, response) => {
+            on_response(co, state, metrics, request_id, response).await
         }
         Input::GotBlock(request_id, height, block) => {
             on_block(co, state, metrics, request_id, height, block).await
@@ -155,7 +162,7 @@ where
 pub async fn on_request<Ctx>(
     co: Co<Ctx>,
     _state: &mut State<Ctx>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
     request_id: InboundRequestId,
     peer: PeerId,
     request: Request<Ctx>,
@@ -165,7 +172,27 @@ where
 {
     debug!(height = %request.height, %peer, "Received request for block");
 
+    metrics.request_received(request.height.as_u64());
+
     perform!(co, Effect::GetBlock(request_id, request.height));
+
+    Ok(())
+}
+
+#[tracing::instrument(skip_all)]
+pub async fn on_response<Ctx>(
+    _co: Co<Ctx>,
+    _state: &mut State<Ctx>,
+    metrics: &Metrics,
+    request_id: OutboundRequestId,
+    response: Response<Ctx>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    debug!(height = %response.height, %request_id, "Received response");
+
+    metrics.response_received(response.height.as_u64());
 
     Ok(())
 }
@@ -210,7 +237,7 @@ where
 pub async fn on_block<Ctx>(
     co: Co<Ctx>,
     _state: &mut State<Ctx>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
     request_id: InboundRequestId,
     height: Ctx::Height,
     block: Option<SyncedBlock<Ctx>>,
@@ -238,8 +265,10 @@ where
 
     perform!(
         co,
-        Effect::SendResponse(request_id, Response::new(response))
+        Effect::SendResponse(request_id, Response::new(height, response))
     );
+
+    metrics.response_sent(height.as_u64());
 
     Ok(())
 }
@@ -247,7 +276,7 @@ where
 pub async fn on_request_timed_out<Ctx>(
     _co: Co<Ctx>,
     state: &mut State<Ctx>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
     peer_id: PeerId,
     request: Request<Ctx>,
 ) -> Result<(), Error<Ctx>>
@@ -255,6 +284,8 @@ where
     Ctx: Context,
 {
     warn!(%peer_id, %request.height, "Request timed out");
+
+    metrics.request_timed_out(request.height.as_u64());
 
     state.remove_pending_request(request.height);
 
@@ -267,7 +298,7 @@ where
 async fn request_sync<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -281,6 +312,8 @@ where
 
     if let Some(peer) = state.random_peer_with_block(sync_height) {
         debug!(sync.height = %sync_height, %peer, "Requesting block from peer");
+
+        metrics.request_sent(sync_height.as_u64());
 
         perform!(co, Effect::SendRequest(peer, Request::new(sync_height)));
 

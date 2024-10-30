@@ -2440,11 +2440,13 @@ name = "malachite-blocksync"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "dashmap",
  "derive-where",
  "displaydoc",
  "genawaiter",
  "libp2p",
  "malachite-common",
+ "malachite-metrics",
  "rand",
  "serde",
  "tracing",

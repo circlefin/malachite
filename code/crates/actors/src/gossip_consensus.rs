@@ -73,14 +73,19 @@ pub struct Args<Codec> {
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum GossipEvent<Ctx: Context> {
     Listening(Multiaddr),
+
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
+
     Vote(PeerId, SignedVote<Ctx>),
+
     Proposal(PeerId, SignedProposal<Ctx>),
     ProposalPart(PeerId, StreamMessage<Ctx::ProposalPart>),
+
     Status(PeerId, Status<Ctx>),
-    BlockSyncRequest(InboundRequestId, PeerId, Request<Ctx>), // received a block request
-    BlockSyncResponse(OutboundRequestId, Response<Ctx>),      // received a block response
+
+    BlockSyncRequest(InboundRequestId, PeerId, Request<Ctx>),
+    BlockSyncResponse(OutboundRequestId, Response<Ctx>),
 }
 
 pub enum State<Ctx: Context> {

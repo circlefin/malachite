@@ -17,11 +17,12 @@ message Status {
 message Request {
   uint64 block_number = 1;
   uint64 fork_id = 2;
-
 }
 
 message Response {
-  SyncedBlock block = 1;
+  uint64 block_number = 1;
+  uint64 fork_id = 2;
+  SyncedBlock block = 3;
 }
 
 message SyncedBlock {

@@ -88,6 +88,7 @@ bytes              = { version = "1", default-features = false }
 clap               = "4.5"
 color-eyre         = "0.6"
 config             = { version = "0.14", features = ["toml"], default-features = false }
+dashmap            = "6.1.0"
 derive-where       = "1.2.7"
 displaydoc         = { version = "0.2", default-features = false }
 directories        = "5.0.1"

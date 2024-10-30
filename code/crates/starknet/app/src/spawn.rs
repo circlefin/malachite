@@ -10,6 +10,7 @@ use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
+use malachite_blocksync as blocksync;
 use malachite_common::SignedProposal;
 use malachite_config::{
     BlockSyncConfig, Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig,
@@ -68,6 +69,7 @@ pub async fn spawn_node_actor(
         host.clone(),
         &cfg.blocksync,
         start_height,
+        registry,
     )
     .await;
 
@@ -109,6 +111,7 @@ async fn spawn_block_sync_actor(
     host: HostRef<MockContext>,
     config: &BlockSyncConfig,
     initial_height: Height,
+    registry: &SharedRegistry,
 ) -> Option<BlockSyncRef<MockContext>> {
     if !config.enabled {
         return None;
@@ -119,7 +122,8 @@ async fn spawn_block_sync_actor(
         request_timeout: config.request_timeout,
     };
 
-    let block_sync = BlockSync::new(ctx, gossip_consensus, host, params);
+    let metrics = blocksync::Metrics::register(registry);
+    let block_sync = BlockSync::new(ctx, gossip_consensus, host, params, metrics);
     let (actor_ref, _) = block_sync.spawn(initial_height).await.unwrap();
 
     Some(actor_ref)

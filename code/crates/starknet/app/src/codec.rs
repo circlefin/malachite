@@ -118,6 +118,7 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         let response = proto::blocksync::Response::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(blocksync::Response {
+            height: Height::new(response.block_number, response.fork_id),
             block: response.block.map(decode_sync_block).transpose()?,
         })
     }
@@ -157,6 +158,8 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         }
 
         let proto = proto::blocksync::Response {
+            block_number: response.height.block_number,
+            fork_id: response.height.fork_id,
             block: response.block.map(encode_synced_block).transpose()?,
         };
 

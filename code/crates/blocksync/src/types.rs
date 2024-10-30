@@ -32,12 +32,13 @@ impl<Ctx: Context> Request<Ctx> {
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct Response<Ctx: Context> {
+    pub height: Ctx::Height,
     pub block: Option<SyncedBlock<Ctx>>,
 }
 
 impl<Ctx: Context> Response<Ctx> {
-    pub fn new(block: Option<SyncedBlock<Ctx>>) -> Self {
-        Self { block }
+    pub fn new(height: Ctx::Height, block: Option<SyncedBlock<Ctx>>) -> Self {
+        Self { height, block }
     }
 }
 

@@ -125,13 +125,14 @@ where
         gossip: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
         params: Params,
+        metrics: blocksync::Metrics,
     ) -> Self {
         Self {
             ctx,
             gossip,
             host,
             params,
-            metrics: blocksync::Metrics::default(),
+            metrics,
         }
     }
 
@@ -292,22 +293,25 @@ where
                     .await?;
             }
 
-            Msg::GossipEvent(GossipEvent::BlockSyncRequest(
-                request_id,
-                from,
-                blocksync::Request { height },
-            )) => {
+            Msg::GossipEvent(GossipEvent::BlockSyncRequest(request_id, from, request)) => {
                 self.process_input(
                     &myself,
                     state,
-                    blocksync::Input::Request(request_id, from, Request::new(height)),
+                    blocksync::Input::Request(request_id, from, request),
                 )
                 .await?;
             }
 
-            Msg::GossipEvent(GossipEvent::BlockSyncResponse(request_id, _response)) => {
+            Msg::GossipEvent(GossipEvent::BlockSyncResponse(request_id, response)) => {
                 // Cancel the timer associated with the request for which we just received a response
                 state.timers.cancel(&Timeout::Request(request_id));
+
+                self.process_input(
+                    &myself,
+                    state,
+                    blocksync::Input::Response(request_id, response),
+                )
+                .await?;
             }
 
             Msg::GossipEvent(_) => {

@@ -296,28 +296,28 @@ where
 
                     GossipEvent::BlockSyncResponse(
                         request_id,
-                        blocksync::Response {
-                            block: Some(synced_block),
-                        },
+                        blocksync::Response { height, block },
                     ) => {
-                        debug!(
-                            height = %synced_block.proposal.height(),
-                            "Received blocksync response"
-                        );
+                        debug!(%height, %request_id, "Received BlockSync response");
+
+                        let Some(block) = block else {
+                            error!(%height, %request_id, "Received empty block sync response");
+                            return Ok(());
+                        };
 
                         if let Err(e) = self
                             .process_input(
                                 &myself,
                                 state,
                                 ConsensusInput::ReceivedSyncedBlock(
-                                    synced_block.proposal,
-                                    synced_block.certificate,
-                                    synced_block.block_bytes,
+                                    block.proposal,
+                                    block.certificate,
+                                    block.block_bytes,
                                 ),
                             )
                             .await
                         {
-                            error!(%request_id, "Error when processing received synced block: {e:?}");
+                            error!(%height, %request_id, "Error when processing received synced block: {e:?}");
                         }
                     }
 
