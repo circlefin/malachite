@@ -129,6 +129,12 @@ impl StarknetHost {
         };
 
         let valid_round = init.valid_round;
+        if let Round::Some(vr) = valid_round {
+            debug!(
+                "Reassembling a Proposal we might have seen before: {:?}",
+                init
+            );
+        }
 
         let Some(fin) = parts.iter().find_map(|part| part.as_fin()) else {
             error!("No Fin part found in the proposal parts");
@@ -333,6 +339,8 @@ impl Actor for StarknetHost {
                 valid_round,
                 address,
             } => {
+                debug!(%height, %round, "Restreaming exsiting proposal...");
+
                 let mut parts = state.part_store.all_parts(height, valid_round);
                 let stream_id = state.next_stream_id;
                 state.next_stream_id += 1;
@@ -349,6 +357,8 @@ impl Actor for StarknetHost {
                             init_part.proposal_round = round;
                             init_part.valid_round = valid_round;
                             init_part.proposer = address.clone();
+                            debug!(%height, %round, "Created new Init part {:?}", init_part);
+
                             state.part_store.store(height, round, part.clone());
                         }
                         ProposalPart::Transactions(_) => {

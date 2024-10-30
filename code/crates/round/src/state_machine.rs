@@ -432,6 +432,14 @@ where
         return Transition::to(state);
     }
 
+    // TODO - remove
+    // For testing the restreaming.
+    // let value_id = if state.round == Round::Some(0) {
+    //     NilOrVal::Nil
+    // } else {
+    //     NilOrVal::Val(proposal.value().id())
+    // };
+
     let value = proposal.value();
     let output = Output::precommit(
         state.height,
