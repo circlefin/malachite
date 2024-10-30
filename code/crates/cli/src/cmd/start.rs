@@ -11,7 +11,10 @@ use malachite_starknet_app::node::StarknetNode;
 use crate::metrics;
 
 #[derive(Parser, Debug, Clone, Default, PartialEq)]
-pub struct StartCmd;
+pub struct StartCmd {
+    #[clap(long)]
+    start_height: Option<u64>,
+}
 
 impl StartCmd {
     pub async fn run(
@@ -42,7 +45,10 @@ impl StartCmd {
         let (actor, handle) = match cfg.app {
             App::Starknet => {
                 use malachite_starknet_app::spawn::spawn_node_actor;
-                spawn_node_actor(cfg, genesis, private_key, None).await
+                let start_height = self
+                    .start_height
+                    .map(|height| malachite_starknet_app::types::Height::new(height, 1));
+                spawn_node_actor(cfg, genesis, private_key, start_height, None).await
             }
         };
 

@@ -11,10 +11,12 @@ workspace = true
 
 [dependencies]
 malachite-metrics   = { workspace = true }
+malachite-blocksync = { workspace = true }
 malachite-discovery = { workspace = true }
 
 bytes              = { workspace = true }
 either             = { workspace = true }
+eyre               = { workspace = true }
 futures            = { workspace = true }
 libp2p             = { workspace = true }
 libp2p-broadcast   = { workspace = true }

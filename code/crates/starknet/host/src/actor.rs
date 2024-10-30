@@ -1,31 +1,31 @@
-#![allow(unused_variables, unused_imports)]
-
-use std::ops::Deref;
 use std::sync::Arc;
 
-use bytes::Bytes;
 use eyre::eyre;
+
+use itertools::Itertools;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use rand::RngCore;
 use sha3::Digest;
 use tokio::time::Instant;
-use tracing::{debug, error, trace};
+use tracing::{debug, error, trace, warn};
+
+use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
+use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
+use malachite_blocksync::SyncedBlock;
 
 use malachite_actors::consensus::ConsensusMsg;
-use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
-use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
-use malachite_common::{Extension, Round, Validity};
+use malachite_common::{Extension, Proposal, Round, Validity, Value};
 use malachite_metrics::Metrics;
 use malachite_proto::Protobuf;
-use malachite_starknet_p2p_types::Transactions;
 
+use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
 use crate::part_store::PartStore;
 use crate::streaming::PartStreamsMap;
-use crate::types::{Address, BlockHash, Height, Proposal, ProposalPart, ValidatorSet};
+use crate::types::{Address, BlockHash, Height, ProposalPart, ValidatorSet};
 use crate::Host;
 
 pub struct StarknetHost {
@@ -39,6 +39,7 @@ pub struct HostState {
     height: Height,
     round: Round,
     proposer: Option<Address>,
+    block_store: BlockStore,
     part_store: PartStore<MockContext>,
     part_streams_map: PartStreamsMap,
     next_stream_id: StreamId,
@@ -50,6 +51,7 @@ impl Default for HostState {
             height: Height::new(0, 0),
             round: Round::Nil,
             proposer: None,
+            block_store: BlockStore::default(),
             part_store: PartStore::default(),
             part_streams_map: PartStreamsMap::default(),
             next_stream_id: StreamId::default(),
@@ -136,7 +138,7 @@ impl StarknetHost {
             );
         }
 
-        let Some(fin) = parts.iter().find_map(|part| part.as_fin()) else {
+        let Some(_fin) = parts.iter().find_map(|part| part.as_fin()) else {
             error!("No Fin part found in the proposal parts");
             return None;
         };
@@ -192,7 +194,7 @@ impl StarknetHost {
     ) -> Option<ProposedValue<MockContext>> {
         state.part_store.store(height, round, part.clone());
 
-        if let ProposalPart::Transactions(txes) = &part {
+        if let ProposalPart::Transactions(_txes) = &part {
             debug!("Simulating tx execution and proof verification");
 
             // Simulate Tx execution and proof verification (assumes success)
@@ -206,14 +208,14 @@ impl StarknetHost {
 
         let all_parts = state.part_store.all_parts(height, round);
 
-        debug!(
+        trace!(
             count = state.part_store.blocks_stored(),
             "The store has blocks"
         );
 
         // TODO: Do more validations, e.g. there is no higher tx proposal part,
         //       check that we have received the proof, etc.
-        let Some(fin) = all_parts.iter().find_map(|part| part.as_fin()) else {
+        let Some(_fin) = all_parts.iter().find_map(|part| part.as_fin()) else {
             debug!("Final proposal part has not been received yet");
             return None;
         };
@@ -227,6 +229,20 @@ impl StarknetHost {
         );
 
         self.build_value_from_parts(&all_parts, height, round)
+    }
+
+    fn store_block(&self, state: &mut HostState) {
+        let max_height = state.block_store.store_keys().last().unwrap_or_default();
+
+        let min_number_blocks: u64 = std::cmp::min(
+            self.host.params().max_retain_blocks as u64,
+            max_height.as_u64(),
+        );
+
+        let retain_height =
+            Height::new(max_height.as_u64() - min_number_blocks, max_height.fork_id);
+
+        state.block_store.prune(retain_height);
     }
 }
 
@@ -244,7 +260,6 @@ impl Actor for StarknetHost {
         Ok(initial_state)
     }
 
-    #[tracing::instrument("starknet.host", skip_all)]
     async fn handle(
         &self,
         _myself: HostRef,
@@ -264,11 +279,18 @@ impl Actor for StarknetHost {
                 Ok(())
             }
 
+            HostMsg::GetEarliestBlockHeight { reply_to } => {
+                let earliest_block_height =
+                    state.block_store.store_keys().next().unwrap_or_default();
+                reply_to.send(earliest_block_height)?;
+                Ok(())
+            }
+
             HostMsg::GetValue {
                 height,
                 round,
                 timeout_duration,
-                address,
+                address: _,
                 reply_to,
             } => {
                 let deadline = Instant::now() + timeout_duration;
@@ -304,13 +326,13 @@ impl Actor for StarknetHost {
                     sequence += 1;
 
                     self.gossip_consensus
-                        .cast(GossipConsensusMsg::BroadcastProposalPart(msg))?;
+                        .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
                 }
 
                 let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin(true));
 
                 self.gossip_consensus
-                    .cast(GossipConsensusMsg::BroadcastProposalPart(msg))?;
+                    .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
 
                 let block_hash = rx_hash.await?;
                 debug!(%block_hash, "Got block");
@@ -444,15 +466,25 @@ impl Actor for StarknetHost {
             }
 
             HostMsg::Decide {
-                height,
-                round,
-                value: block_hash,
+                proposal,
                 commits,
                 consensus,
             } => {
-                let all_parts = state.part_store.all_parts(height, round);
+                let height = proposal.height;
+                let round = proposal.round;
+                let mut all_parts = state.part_store.all_parts(height, round);
 
-                // TODO: Build the block from proposal parts and commits and store it
+                let mut all_txes = vec![];
+                for arc in all_parts.iter_mut() {
+                    let part = Arc::unwrap_or_clone((*arc).clone());
+                    if let ProposalPart::Transactions(transactions) = part {
+                        let mut txes = transactions.into_vec();
+                        all_txes.append(&mut txes);
+                    }
+                }
+
+                // Build the block from proposal parts and commits and store it
+                state.block_store.store(&proposal, &all_txes, &commits);
 
                 // Update metrics
                 let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
@@ -470,7 +502,8 @@ impl Actor for StarknetHost {
                     .observe(block_and_commits_size as f64);
                 self.metrics.finalized_txes.inc_by(tx_count as u64);
 
-                // Send Update to mempool to remove all the tx-es included in the block.
+                // Gather hashes of all the tx-es included in the block,
+                // so that we can notify the mempool to remove them.
                 let mut tx_hashes = vec![];
                 for part in all_parts {
                     if let ProposalPart::Transactions(txes) = &part.as_ref() {
@@ -481,14 +514,72 @@ impl Actor for StarknetHost {
                 // Prune the PartStore of all parts for heights lower than `state.height`
                 state.part_store.prune(state.height);
 
+                // Store the block
+                self.store_block(state);
+
                 // Notify the mempool to remove corresponding txs
                 self.mempool.cast(MempoolMsg::Update { tx_hashes })?;
 
                 // Notify Starknet Host of the decision
-                self.host.decision(block_hash, commits, height).await;
+                self.host
+                    .decision(proposal.block_hash, commits, height)
+                    .await;
 
                 // Start the next height
                 consensus.cast(ConsensusMsg::StartHeight(state.height.increment()))?;
+
+                Ok(())
+            }
+
+            HostMsg::GetDecidedBlock { height, reply_to } => {
+                debug!(%height, "Received request for block");
+
+                match state.block_store.store.get(&height).cloned() {
+                    None => {
+                        warn!(
+                            "No block for {height}, available blocks: {}",
+                            state.block_store.store_keys().format(", ")
+                        );
+
+                        reply_to.send(None)?;
+                    }
+                    Some(block) => {
+                        let block = SyncedBlock {
+                            proposal: block.proposal,
+                            block_bytes: block.block.to_bytes().unwrap(),
+                            certificate: block.certificate,
+                        };
+
+                        debug!("Got block at {height}");
+                        reply_to.send(Some(block))?;
+                    }
+                }
+
+                Ok(())
+            }
+
+            HostMsg::ProcessSyncedBlockBytes {
+                proposal,
+                block_bytes,
+                reply_to,
+            } => {
+                // TODO - process and check that block_bytes match the proposal
+                let _block_hash = {
+                    let mut block_hasher = sha3::Keccak256::new();
+                    block_hasher.update(block_bytes);
+                    BlockHash::new(block_hasher.finalize().into())
+                };
+
+                let proposal = ProposedValue {
+                    height: proposal.height(),
+                    round: proposal.round(),
+                    validator_address: proposal.validator_address().clone(),
+                    value: proposal.value().id(),
+                    validity: Validity::Valid,
+                    extension: None,
+                };
+
+                reply_to.send(proposal)?;
 
                 Ok(())
             }

@@ -1,68 +1,74 @@
 #![allow(unused_crate_dependencies)]
 
+use std::time::Duration;
+
 use bytesize::ByteSize;
 use malachite_config::{GossipSubConfig, PubSubProtocol};
-use malachite_starknet_test::{App, Expected, Test, TestNode, TestParams};
+use malachite_starknet_test::{App, Test, TestNode, TestParams};
 
-async fn run_n2f0_tests(test_params: TestParams) {
-    let test = Test::new(
-        [TestNode::correct(10), TestNode::correct(10)],
-        Expected::Exactly(6),
-    );
+async fn run_n2f0_tests(params: TestParams) {
+    const HEIGHT: u64 = 5;
 
-    test.run_with_custom_config(App::Starknet, test_params)
+    let n1 = TestNode::new(1).start().wait_until(HEIGHT).success();
+    let n2 = TestNode::new(2).start().wait_until(HEIGHT).success();
+
+    Test::new([n1, n2])
+        .run_with_custom_config(App::Starknet, Duration::from_secs(30), params)
         .await
 }
 
 #[tokio::test]
-pub async fn flood_default_config() {
-    let test = Test::new(
-        [TestNode::correct(10), TestNode::correct(10)],
-        Expected::Exactly(6),
-    );
-
-    test.run(App::Starknet).await
-}
-
-#[tokio::test]
 pub async fn broadcast_custom_config_1ktx() {
-    let test_params = TestParams::new(
-        PubSubProtocol::Broadcast,
-        ByteSize::kib(1),
-        ByteSize::kib(1),
-    );
+    let params = TestParams {
+        enable_blocksync: false,
+        protocol: PubSubProtocol::Broadcast,
+        block_size: ByteSize::kib(1),
+        tx_size: ByteSize::kib(1),
+        txs_per_part: 1,
+        ..Default::default()
+    };
 
-    run_n2f0_tests(test_params).await
+    run_n2f0_tests(params).await
 }
 
 #[tokio::test]
 pub async fn broadcast_custom_config_2ktx() {
-    let test_params = TestParams::new(
-        PubSubProtocol::Broadcast,
-        ByteSize::kib(2),
-        ByteSize::kib(2),
-    );
+    let params = TestParams {
+        enable_blocksync: false,
+        protocol: PubSubProtocol::Broadcast,
+        block_size: ByteSize::kib(2),
+        tx_size: ByteSize::kib(2),
+        txs_per_part: 1,
+        ..Default::default()
+    };
 
-    run_n2f0_tests(test_params).await
+    run_n2f0_tests(params).await
 }
 
 #[tokio::test]
 pub async fn gossip_custom_config_1ktx() {
-    let test_params = TestParams::new(
-        PubSubProtocol::GossipSub(GossipSubConfig::default()),
-        ByteSize::kib(1),
-        ByteSize::kib(1),
-    );
-    run_n2f0_tests(test_params).await
+    let params = TestParams {
+        enable_blocksync: false,
+        protocol: PubSubProtocol::GossipSub(GossipSubConfig::default()),
+        block_size: ByteSize::kib(1),
+        tx_size: ByteSize::kib(1),
+        txs_per_part: 1,
+        ..Default::default()
+    };
+
+    run_n2f0_tests(params).await
 }
 
 #[tokio::test]
 pub async fn gossip_custom_config_2ktx() {
-    let test_params = TestParams::new(
-        PubSubProtocol::GossipSub(GossipSubConfig::default()),
-        ByteSize::kib(2),
-        ByteSize::kib(2),
-    );
+    let params = TestParams {
+        enable_blocksync: false,
+        protocol: PubSubProtocol::GossipSub(GossipSubConfig::default()),
+        block_size: ByteSize::kib(2),
+        tx_size: ByteSize::kib(2),
+        txs_per_part: 1,
+        ..Default::default()
+    };
 
-    run_n2f0_tests(test_params).await
+    run_n2f0_tests(params).await
 }

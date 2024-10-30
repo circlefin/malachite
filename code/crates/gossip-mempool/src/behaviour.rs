@@ -8,7 +8,7 @@ pub use libp2p::{Multiaddr, PeerId};
 
 use malachite_metrics::Registry;
 
-use crate::PROTOCOL_VERSION;
+use crate::PROTOCOL;
 
 const MAX_TRANSMIT_SIZE: usize = 4 * 1024 * 1024; // 4 MiB
 
@@ -50,7 +50,7 @@ impl Behaviour {
     pub fn new(keypair: &Keypair) -> Self {
         Self {
             identify: identify::Behaviour::new(identify::Config::new(
-                PROTOCOL_VERSION.to_string(),
+                PROTOCOL.to_string(),
                 keypair.public(),
             )),
             ping: ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5))),
@@ -65,7 +65,7 @@ impl Behaviour {
     pub fn new_with_metrics(keypair: &Keypair, registry: &mut Registry) -> Self {
         Self {
             identify: identify::Behaviour::new(identify::Config::new(
-                PROTOCOL_VERSION.to_string(),
+                PROTOCOL.to_string(),
                 keypair.public(),
             )),
             ping: ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5))),

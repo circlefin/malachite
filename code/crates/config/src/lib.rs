@@ -56,6 +56,9 @@ pub struct Config {
     /// Mempool configuration options
     pub mempool: MempoolConfig,
 
+    /// BlockSync configuration options
+    pub blocksync: BlockSyncConfig,
+
     /// Metrics configuration options
     pub metrics: MetricsConfig,
 
@@ -266,6 +269,30 @@ pub struct MempoolConfig {
     pub gossip_batch_size: usize,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BlockSyncConfig {
+    /// Enable BlockSync
+    pub enabled: bool,
+
+    /// Interval at which to update other peers of our status
+    #[serde(with = "humantime_serde")]
+    pub status_update_interval: Duration,
+
+    /// Timeout duration for block sync requests
+    #[serde(with = "humantime_serde")]
+    pub request_timeout: Duration,
+}
+
+impl Default for BlockSyncConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            status_update_interval: Duration::from_secs(10),
+            request_timeout: Duration::from_secs(10),
+        }
+    }
+}
+
 /// Consensus configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
@@ -394,6 +421,7 @@ pub struct TestConfig {
     pub time_allowance_factor: f32,
     #[serde(with = "humantime_serde")]
     pub exec_time_per_tx: Duration,
+    pub max_retain_blocks: usize,
     #[serde(default)]
     pub vote_extensions: VoteExtensionsConfig,
 }
@@ -405,6 +433,7 @@ impl Default for TestConfig {
             txs_per_part: 256,
             time_allowance_factor: 0.5,
             exec_time_per_tx: Duration::from_millis(1),
+            max_retain_blocks: 1000,
             vote_extensions: VoteExtensionsConfig::default(),
         }
     }

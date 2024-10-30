@@ -1,5 +1,23 @@
 #!/usr/bin/env fish
 
+set -x MALACHITE__CONSENSUS__P2P__PROTOCOL__TYPE "broadcast"
+set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "10MiB"
+set -x MALACHITE__CONSENSUS__TIMEOUT_PROPOSE "5s"
+set -x MALACHITE__CONSENSUS__TIMEOUT_PREVOTE "3s"
+set -x MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT "3s"
+set -x MALACHITE__CONSENSUS__TIMEOUT_COMMIT "0s"
+set -x MALACHITE__MEMPOOL__MAX_TX_COUNT 10000
+set -x MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE 0
+set -x MALACHITE__TEST__TX_SIZE "1KB"
+set -x MALACHITE__TEST__TXS_PER_PART 1024
+set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.5
+set -x MALACHITE__TEST__EXEC_TIME_PER_TX "500us"
+set -x MALACHITE__TEST__MAX_RETAIN_BLOCKS 100
+set -x MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED false
+set -x MALACHITE__TEST__VOTE_EXTENSIONS__SIZE "1KiB"
+set -x MALACHITE__BLOCKSYNC__ENABLED true
+
+
 # This script takes:
 # - a number of nodes to run as an argument,
 # - the home directory for the nodes configuration folders
@@ -51,21 +69,6 @@ if set -q _flag_lldb
     set lldb true
 end
 
-set -x MALACHITE__CONSENSUS__P2P__PROTOCOL__TYPE "gossipsub"
-set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "1MiB"
-set -x MALACHITE__CONSENSUS__TIMEOUT_PROPOSE "5s"
-set -x MALACHITE__CONSENSUS__TIMEOUT_PREVOTE "3s"
-set -x MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT "3s"
-set -x MALACHITE__CONSENSUS__TIMEOUT_COMMIT "0s"
-set -x MALACHITE__MEMPOOL__MAX_TX_COUNT "1000"
-set -x MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE 0
-set -x MALACHITE__TEST__TX_SIZE "1KB"
-set -x MALACHITE__TEST__TXS_PER_PART 128
-set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.5
-set -x MALACHITE__TEST__EXEC_TIME_PER_TX "1ms"
-set -x MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED true
-set -x MALACHITE__TEST__VOTE_EXTENSIONS__SIZE "1KiB"
-
 echo "Compiling Malachite..."
 cargo build --profile $build_profile
 
@@ -83,7 +86,7 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
 
     rm -f "$NODE_HOME/logs/*.log"
 
-    set pane $(tmux new-window -P -n "node-$NODE" /bin/zsh)
+    set pane $(tmux new-window -P -n "node-$NODE" "$(which fish)")
 
     echo "[Node $NODE] Spawning node..."
 
@@ -102,41 +105,33 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
         set cmd_prefix "cargo instruments --profile $build_profile --template $profile_template --time-limit 60000 --output '$NODE_HOME/traces/' --"
 
         tmux send -t "$pane" "sleep $NODE" Enter
-        tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 > '$NODE_HOME/logs/node.log' &" Enter
-        tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
-        tmux send -t "$pane" "tail -f '$NODE_HOME/logs/node.log'" Enter
+        tmux send -t "$pane" "unbuffer $cmd_prefix start --home '$NODE_HOME' 2>&1 | tee '$NODE_HOME/logs/node.log'" Enter
+        # tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
+        # tmux send -t "$pane" "fg" Enter
     else
         set cmd_prefix "./target/$build_folder/malachite-cli"
 
-        tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME' 2>&1 > '$NODE_HOME/logs/node.log' &" Enter
-        tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
-        tmux send -t "$pane" "tail -f '$NODE_HOME/logs/node.log'" Enter
+        tmux send -t "$pane" "unbuffer $cmd_prefix start --home '$NODE_HOME' 2>&1 | tee '$NODE_HOME/logs/node.log'" Enter
+        # tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
+        # tmux send -t "$pane" "fg" Enter
     end
 end
 
 echo "Spawned $NODES_COUNT nodes."
 echo
 
-read -l -P "Launch tmux? [Y/n] " launch_tmux
-switch $launch_tmux
-    case N n
-        echo "To attach to the tmux session, run:"
-        echo "  tmux attach -t $session"
-    case '*'
-        tmux attach -t $session
-end
+tmux attach -t $session
 
 echo
 
-read -l -P "Press Enter to stop the nodes... " done
+# read -l -P "Press Enter to stop the nodes... " done
+# echo "Stopping all nodes..."
+# for NODE in (seq 0 $(math $NODES_COUNT - 1))
+#     set NODE_PID (cat "$NODES_HOME/$NODE/node.pid")
+#     echo "[Node $NODE] Stopping node (PID: $NODE_PID)..."
+#     kill $NODE_PID
+# end
+# echo
 
-echo "Stopping all nodes..."
-for NODE in (seq 0 $(math $NODES_COUNT - 1))
-    set NODE_PID (cat "$NODES_HOME/$NODE/node.pid")
-    echo "[Node $NODE] Stopping node (PID: $NODE_PID)..."
-    kill $NODE_PID
-end
-echo
 read -l -P "Press Enter to kill the tmux session... " done
-
 tmux kill-session -t $session

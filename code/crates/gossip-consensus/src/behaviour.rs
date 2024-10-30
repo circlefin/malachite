@@ -9,10 +9,12 @@ use libp2p_broadcast as broadcast;
 
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
+
+use malachite_blocksync as blocksync;
 use malachite_discovery as discovery;
 use malachite_metrics::Registry;
 
-use crate::{GossipSubConfig, PubSubProtocol, PROTOCOL_VERSION};
+use crate::{GossipSubConfig, PubSubProtocol, PROTOCOL};
 
 const MAX_TRANSMIT_SIZE: usize = 4 * 1024 * 1024; // 4 MiB
 
@@ -22,6 +24,7 @@ pub enum NetworkEvent {
     Ping(ping::Event),
     GossipSub(gossipsub::Event),
     Broadcast(broadcast::Event),
+    BlockSync(blocksync::Event),
     RequestResponse(discovery::Event),
 }
 
@@ -46,6 +49,12 @@ impl From<gossipsub::Event> for NetworkEvent {
 impl From<broadcast::Event> for NetworkEvent {
     fn from(event: broadcast::Event) -> Self {
         Self::Broadcast(event)
+    }
+}
+
+impl From<blocksync::Event> for NetworkEvent {
+    fn from(event: blocksync::Event) -> Self {
+        Self::BlockSync(event)
     }
 }
 
@@ -74,6 +83,7 @@ pub struct Behaviour {
     pub identify: identify::Behaviour,
     pub ping: ping::Behaviour,
     pub pubsub: Either<gossipsub::Behaviour, broadcast::Behaviour>,
+    pub blocksync: blocksync::Behaviour,
     pub request_response: Toggle<discovery::Behaviour>,
 }
 
@@ -131,7 +141,7 @@ impl Behaviour {
         registry: &mut Registry,
     ) -> Self {
         let identify = identify::Behaviour::new(identify::Config::new(
-            PROTOCOL_VERSION.to_string(),
+            PROTOCOL.to_string(),
             keypair.public(),
         ));
 
@@ -155,12 +165,16 @@ impl Behaviour {
             )),
         };
 
+        let blocksync =
+            blocksync::Behaviour::new_with_metrics(registry.sub_registry_with_prefix("blocksync"));
+
         let request_response = Toggle::from(discovery.enabled.then(discovery::new_behaviour));
 
         Self {
             identify,
             ping,
             pubsub,
+            blocksync,
             request_response,
         }
     }

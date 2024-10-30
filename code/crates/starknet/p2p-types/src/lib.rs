@@ -29,6 +29,9 @@ pub use validator_set::ValidatorSet;
 mod proposal_part;
 pub use proposal_part::{PartType, ProposalFin, ProposalInit, ProposalPart};
 
+mod block;
+pub use block::Block;
+
 mod block_proof;
 pub use block_proof::BlockProof;
 

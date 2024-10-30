@@ -1,17 +1,20 @@
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
-use tokio::sync::mpsc;
+use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 
+use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
-use malachite_common::Round;
+use malachite_blocksync as blocksync;
+use malachite_common::SignedProposal;
 use malachite_config::{
-    Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig, TransportProtocol,
+    BlockSyncConfig, Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig,
+    TransportProtocol,
 };
 use malachite_gossip_consensus::{
     Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
@@ -23,7 +26,7 @@ use malachite_starknet_host::actor::StarknetHost;
 use malachite_starknet_host::mempool::{Mempool, MempoolRef};
 use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::mock::host::{MockHost, MockParams};
-use malachite_starknet_host::types::{Address, BlockHash, Height, PrivateKey, ValidatorSet};
+use malachite_starknet_host::types::{Address, Height, PrivateKey, ValidatorSet};
 
 use crate::codec::ProtobufCodec;
 
@@ -31,9 +34,12 @@ pub async fn spawn_node_actor(
     cfg: NodeConfig,
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
-    tx_decision: Option<mpsc::Sender<(Height, Round, BlockHash)>>,
+    start_height: Option<Height>,
+    tx_decision: Option<broadcast::Sender<SignedProposal<MockContext>>>,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(private_key);
+
+    let start_height = start_height.unwrap_or(Height::new(1, 1));
 
     let registry = SharedRegistry::global();
     let metrics = Metrics::register(registry);
@@ -57,7 +63,15 @@ pub async fn spawn_node_actor(
     )
     .await;
 
-    let start_height = Height::new(1, 1);
+    let block_sync = spawn_block_sync_actor(
+        ctx.clone(),
+        gossip_consensus.clone(),
+        host.clone(),
+        &cfg.blocksync,
+        start_height,
+        registry,
+    )
+    .await;
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(
@@ -68,6 +82,7 @@ pub async fn spawn_node_actor(
         cfg,
         gossip_consensus.clone(),
         host.clone(),
+        block_sync.clone(),
         metrics,
         tx_decision,
     )
@@ -79,6 +94,7 @@ pub async fn spawn_node_actor(
         gossip_consensus,
         consensus,
         gossip_mempool,
+        block_sync,
         mempool.get_cell(),
         host,
         start_height,
@@ -87,6 +103,30 @@ pub async fn spawn_node_actor(
     let (actor_ref, handle) = node.spawn().await.unwrap();
 
     (actor_ref, handle)
+}
+
+async fn spawn_block_sync_actor(
+    ctx: MockContext,
+    gossip_consensus: GossipConsensusRef<MockContext>,
+    host: HostRef<MockContext>,
+    config: &BlockSyncConfig,
+    initial_height: Height,
+    registry: &SharedRegistry,
+) -> Option<BlockSyncRef<MockContext>> {
+    if !config.enabled {
+        return None;
+    }
+
+    let params = BlockSyncParams {
+        status_update_interval: config.status_update_interval,
+        request_timeout: config.request_timeout,
+    };
+
+    let metrics = blocksync::Metrics::register(registry);
+    let block_sync = BlockSync::new(ctx, gossip_consensus, host, params, metrics);
+    let (actor_ref, _) = block_sync.spawn(initial_height).await.unwrap();
+
+    Some(actor_ref)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -98,8 +138,9 @@ async fn spawn_consensus_actor(
     cfg: NodeConfig,
     gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
+    block_sync: Option<BlockSyncRef<MockContext>>,
     metrics: Metrics,
-    tx_decision: Option<mpsc::Sender<(Height, Round, BlockHash)>>,
+    tx_decision: Option<broadcast::Sender<SignedProposal<MockContext>>>,
 ) -> ConsensusRef<MockContext> {
     let consensus_params = ConsensusParams {
         start_height,
@@ -114,6 +155,7 @@ async fn spawn_consensus_actor(
         cfg.consensus.timeouts,
         gossip_consensus,
         host,
+        block_sync,
         metrics,
         tx_decision,
     )
@@ -211,6 +253,7 @@ async fn spawn_host_actor(
         txs_per_part: cfg.test.txs_per_part,
         time_allowance_factor: cfg.test.time_allowance_factor,
         exec_time_per_tx: cfg.test.exec_time_per_tx,
+        max_retain_blocks: cfg.test.max_retain_blocks,
         vote_extensions: cfg.test.vote_extensions,
     };
 

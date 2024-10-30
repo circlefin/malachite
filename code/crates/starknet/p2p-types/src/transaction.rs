@@ -110,6 +110,12 @@ impl Transactions {
         self.0.push(tx);
     }
 
+    /// Add a set of transaction to the batch
+    pub fn append(&mut self, txes: Transactions) {
+        let mut txes1 = txes.clone();
+        self.0.append(&mut txes1.0);
+    }
+
     /// Get the number of transactions in the batch
     pub fn len(&self) -> usize {
         self.0.len()

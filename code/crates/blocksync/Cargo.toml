@@ -1,0 +1,25 @@
+[package]
+name                   = "malachite-blocksync"
+version.workspace      = true
+edition.workspace      = true
+repository.workspace   = true
+license.workspace      = true
+publish.workspace      = true
+rust-version.workspace = true
+
+[dependencies]
+malachite-common  = { workspace = true }
+malachite-metrics = { workspace = true }
+
+bytes            = { workspace = true, features = ["serde"] }
+dashmap          = { workspace = true }
+derive-where     = { workspace = true }
+displaydoc       = { workspace = true }
+genawaiter       = { workspace = true }
+libp2p           = { workspace = true, features = ["request-response", "cbor"] }
+rand             = { workspace = true }
+serde            = { workspace = true }
+tracing          = { workspace = true }
+
+[lints]
+workspace = true

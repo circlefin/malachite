@@ -150,15 +150,34 @@ transport = "quic"
 # Broadcast is an experimental protocol with no additional configuration options.
 type = "gossipsub"
 
+
+#######################################################
+###         BlockSync Configuration Options         ###
+#######################################################
+[blocksync]
+# Enable BlockSync
+# Override with MALACHITE__BLOCKSYNC__ENABLED env variable
+enabled = true
+
+# Interval at which to update other peers of our status
+# Override with MALACHITE__BLOCKSYNC__STATUS_UPDATE_INTERVAL env variable
+status_update_interval = "10s"
+
+# Timeout duration for block sync requests
+# Override with MALACHITE__BLOCKSYNC__REQUEST_TIMEOUT env variable
+request_timeout = "10s"
+
 #######################################################
 ###          Metrics Configuration Options          ###
 #######################################################
 [metrics]
 
 # Enable the metrics server
+# Override with MALACHITE__METRICS__ENABLED env variable
 enabled = true
 
 # Metrics are exported at `http://127.0.0.1:9000/metrics`
+# Override with MALACHITE__METRICS__LISTEN_ADDR env variable
 listen_addr = "127.0.0.1:9000"
 
 #######################################################
@@ -170,11 +189,13 @@ listen_addr = "127.0.0.1:9000"
 # Possible values:
 # - "single_threaded": A single threaded runtime (default)
 # - "multi_threaded":  A multi-threaded runtime
+# Override with MALACHITE__RUNTIME__FLAVOR env variable
 flavor = "single_threaded"
 
 # For the multi-threaded runtime only.
 # Sets the number of worker threads the Runtime will use.
 # If set to 0, defaults to the number of cores available to the system.
+# Override with MALACHITE__RUNTIME__WORKER_THREADS env variable
 # worker_threads = 4
 
 
@@ -191,5 +212,9 @@ txs_per_part = 256
 time_allowance_factor = 0.5
 # Override with MALACHITE__TEST__EXEC_TIME_PER_TX env variable
 exec_time_per_tx = "1ms"
+# Maximum number of blocks, relative to the current block, that can be kept in the block store.
+# A value of 0 indicates that no blocks are pruned.
+# Override with MALACHITE__TEST__MAX_RETAIN_BLOCKS env variable
+max_retain_blocks = 1000
 # Override with MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED and MALACHITE__TEST__VOTE_EXTENSIONS__SIZE env variables
 vote_extensions = { enabled = false, size = "0 KB" }

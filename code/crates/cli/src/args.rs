@@ -61,7 +61,7 @@ pub enum Commands {
 
 impl Default for Commands {
     fn default() -> Self {
-        Commands::Start(StartCmd)
+        Commands::Start(StartCmd::default())
     }
 }
 

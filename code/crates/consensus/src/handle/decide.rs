@@ -5,7 +5,7 @@ pub async fn decide<Ctx>(
     state: &mut State<Ctx>,
     metrics: &Metrics,
     consensus_round: Round,
-    proposal: Ctx::Proposal,
+    proposal: SignedProposal<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -22,7 +22,7 @@ where
 
     // Update metrics
     {
-        // We are only interesting in consensus time for round 0, ie. in the happy path.
+        // We are only interested in consensus time for round 0, ie. in the happy path.
         if consensus_round == Round::new(0) {
             metrics.consensus_end();
         }
@@ -46,15 +46,7 @@ where
         }
     }
 
-    perform!(
-        co,
-        Effect::Decide {
-            height,
-            round: proposal_round,
-            value: value.clone(),
-            commits
-        }
-    );
+    perform!(co, Effect::Decide { proposal, commits });
 
     // Reinitialize to remove any previous round or equivocating precommits.
     // TODO: Revise when evidence module is added.

@@ -324,5 +324,8 @@ fn init_logging() {
         .with_thread_ids(false);
 
     let subscriber = builder.finish();
-    subscriber.init();
+
+    if let Err(e) = subscriber.try_init() {
+        eprintln!("Failed to initialize logging: {e}");
+    }
 }

@@ -20,8 +20,8 @@ use malachite_starknet_app::node::StarknetNode;
 use crate::args::Args;
 use crate::cmd::init::{save_config, save_genesis, save_priv_validator_key};
 
-const MIN_VOTING_POWER: u64 = 8;
-const MAX_VOTING_POWER: u64 = 15;
+const MIN_VOTING_POWER: u64 = 1;
+const MAX_VOTING_POWER: u64 = 1;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum RuntimeFlavour {
@@ -75,7 +75,7 @@ pub struct TestnetCmd {
 
     /// Enable peer discovery.
     /// If enabled, the node will attempt to discover other nodes in the network
-    #[clap(long, default_value = "true")]
+    #[clap(long, default_value = "false")]
     pub enable_discovery: bool,
 
     /// The transport protocol to use for P2P communication
@@ -252,12 +252,13 @@ pub fn generate_config(
                     .filter(|j| *j != index)
                     .map(|j| transport.multiaddr("127.0.0.1", MEMPOOL_BASE_PORT + j))
                     .collect(),
-                discovery: DiscoveryConfig { enabled: true },
+                discovery: DiscoveryConfig { enabled: false },
                 transport,
             },
             max_tx_count: 10000,
             gossip_batch_size: 0,
         },
+        blocksync: Default::default(),
         metrics: MetricsConfig {
             enabled: true,
             listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),

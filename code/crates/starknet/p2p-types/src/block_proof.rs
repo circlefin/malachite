@@ -2,7 +2,7 @@ use bytes::Bytes;
 use malachite_proto as proto;
 use malachite_starknet_p2p_proto as p2p_proto;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BlockProof {
     pub bytes: Vec<Bytes>,
 }
