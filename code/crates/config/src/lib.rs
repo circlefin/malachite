@@ -4,10 +4,12 @@
 
 use core::fmt;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
 use bytesize::ByteSize;
+use config as config_rs;
 use malachite_common::TimeoutStep;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
@@ -44,9 +46,6 @@ pub struct Config {
     /// A custom human-readable name for this node
     pub moniker: String,
 
-    /// The name of the application to run
-    pub app: App,
-
     /// Log configuration options
     pub logging: LoggingConfig,
 
@@ -65,6 +64,18 @@ pub struct Config {
     /// Test configuration
     #[serde(default)]
     pub test: TestConfig,
+}
+
+/// load_config parses the environment variables and loads the provided config file path
+/// to create a Config struct.
+pub fn load_config(config_file_path: &Path, prefix: Option<&str>) -> Result<Config, String> {
+    config_rs::Config::builder()
+        .add_source(config::File::from(config_file_path))
+        .add_source(config::Environment::with_prefix(prefix.unwrap_or("MALACHITE")).separator("__"))
+        .build()
+        .map_err(|error| error.to_string())?
+        .try_deserialize()
+        .map_err(|error| error.to_string())
 }
 
 /// P2P configuration options

@@ -100,22 +100,22 @@ impl<const N: usize> Test<N> {
         voting_powers
     }
 
-    pub fn generate_default_configs(&self, app: App) -> [Config; N] {
+    pub fn generate_default_configs(&self) -> [Config; N] {
         let mut configs = vec![];
 
         for i in 0..N {
-            let config = make_node_config(self, i, app);
+            let config = make_node_config(self, i);
             configs.push(config)
         }
 
         configs.try_into().expect("N configs")
     }
 
-    pub fn generate_custom_configs(&self, app: App, test_params: TestParams) -> [Config; N] {
+    pub fn generate_custom_configs(&self, test_params: TestParams) -> [Config; N] {
         let mut configs = vec![];
 
         for i in 0..N {
-            let mut config = make_node_config(self, i, app);
+            let mut config = make_node_config(self, i);
 
             config.mempool.gossip_batch_size = 0;
             config.consensus.max_block_size = test_params.block_size;
@@ -129,13 +129,13 @@ impl<const N: usize> Test<N> {
         configs.try_into().expect("N configs")
     }
 
-    pub async fn run(self, app: App) {
-        let node_configs = self.generate_default_configs(app);
+    pub async fn run(self) {
+        let node_configs = self.generate_default_configs();
         self.run_with_config(&node_configs).await
     }
 
-    pub async fn run_with_custom_config(self, app: App, test_params: TestParams) {
-        let node_configs = self.generate_custom_configs(app, test_params);
+    pub async fn run_with_custom_config(self, test_params: TestParams) {
+        let node_configs = self.generate_custom_configs(test_params);
         self.run_with_config(&node_configs).await
     }
 
@@ -306,12 +306,11 @@ use malachite_config::{
     ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
 };
 
-pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> NodeConfig {
+pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> NodeConfig {
     let transport = TransportProtocol::Tcp;
     let protocol = PubSubProtocol::default();
 
     NodeConfig {
-        app,
         moniker: format!("node-{i}"),
         logging: LoggingConfig::default(),
         consensus: ConsensusConfig {

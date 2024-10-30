@@ -2,7 +2,7 @@
 
 use bytesize::ByteSize;
 use malachite_config::{GossipSubConfig, PubSubProtocol};
-use malachite_starknet_test::{App, Expected, Test, TestNode, TestParams};
+use malachite_starknet_test::{Expected, Test, TestNode, TestParams};
 
 async fn run_n2f0_tests(test_params: TestParams) {
     let test = Test::new(
@@ -10,8 +10,7 @@ async fn run_n2f0_tests(test_params: TestParams) {
         Expected::Exactly(6),
     );
 
-    test.run_with_custom_config(App::Starknet, test_params)
-        .await
+    test.run_with_custom_config(test_params).await
 }
 
 #[tokio::test]
@@ -21,7 +20,7 @@ pub async fn flood_default_config() {
         Expected::Exactly(6),
     );
 
-    test.run(App::Starknet).await
+    test.run().await
 }
 
 #[tokio::test]

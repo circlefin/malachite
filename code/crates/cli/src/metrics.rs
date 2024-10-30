@@ -1,3 +1,5 @@
+//! Prometheus metrics
+
 use axum::routing::get;
 use axum::Router;
 use tokio::net::TcpListener;

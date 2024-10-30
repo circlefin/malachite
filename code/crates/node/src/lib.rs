@@ -18,6 +18,8 @@ pub trait Node {
     where
         R: RngCore + CryptoRng;
 
+    fn generate_public_key(&self, pk: PrivateKey<Self::Context>) -> PublicKey<Self::Context>;
+
     fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey<Self::Context>;
 
     fn load_private_key_file(
@@ -34,4 +36,6 @@ pub trait Node {
         &self,
         validators: Vec<(PublicKey<Self::Context>, VotingPower)>,
     ) -> Self::Genesis;
+
+    fn run(&self) -> impl std::future::Future<Output = ()>;
 }

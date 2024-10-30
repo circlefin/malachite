@@ -1,12 +1,19 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+use crate::spawn::spawn_node_actor;
 use malachite_common::VotingPower;
+use malachite_config::Config;
 use malachite_node::Node;
 use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::types::{PrivateKey, PublicKey, Validator, ValidatorSet};
 use rand::{CryptoRng, RngCore};
+use tracing::{info, Instrument};
 
-pub struct StarknetNode;
+pub struct StarknetNode {
+    pub config: Option<Config>,
+    pub genesis_file: PathBuf,
+    pub private_key_file: PathBuf,
+}
 
 impl Node for StarknetNode {
     type Context = MockContext;
@@ -18,6 +25,10 @@ impl Node for StarknetNode {
         R: RngCore + CryptoRng,
     {
         PrivateKey::generate(rng)
+    }
+
+    fn generate_public_key(&self, pk: PrivateKey) -> PublicKey {
+        pk.public_key()
     }
 
     fn load_private_key_file(
@@ -47,5 +58,32 @@ impl Node for StarknetNode {
             .map(|(pk, vp)| Validator::new(pk, vp));
 
         ValidatorSet::new(validators)
+    }
+
+    async fn run(&self) {
+        let span = tracing::error_span!("node", moniker=%self.config.clone().unwrap().moniker);
+        let _enter = span.enter();
+
+        let priv_key_file = self
+            .load_private_key_file(self.private_key_file.clone())
+            .unwrap();
+        let private_key = self.load_private_key(priv_key_file);
+        let genesis = self.load_genesis(self.genesis_file.clone()).unwrap();
+        let (actor, handle) =
+            spawn_node_actor(self.config.clone().unwrap(), genesis, private_key, None).await;
+
+        tokio::spawn({
+            let actor = actor.clone();
+            {
+                async move {
+                    tokio::signal::ctrl_c().await.unwrap();
+                    info!("Shutting down...");
+                    actor.stop(None);
+                }
+            }
+            .instrument(span.clone())
+        });
+
+        handle.await.unwrap();
     }
 }

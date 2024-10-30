@@ -2441,18 +2441,14 @@ dependencies = [
  "bytesize",
  "clap",
  "color-eyre",
- "config",
  "directories",
  "itertools",
  "malachite-common",
  "malachite-config",
  "malachite-metrics",
  "malachite-node",
- "malachite-starknet-app",
- "malachite-starknet-host",
  "rand",
  "serde_json",
- "tempfile",
  "tikv-jemallocator",
  "tokio",
  "toml",
@@ -2474,6 +2470,7 @@ name = "malachite-config"
 version = "0.1.0"
 dependencies = [
  "bytesize",
+ "config",
  "humantime-serde",
  "malachite-common",
  "multiaddr",
@@ -2625,6 +2622,7 @@ dependencies = [
  "malachite-test",
  "prost",
  "rand",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",
@@ -4046,6 +4044,19 @@ checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
  "der",
+]
+
+[[package]]
+name = "starknet-app"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "malachite-cli",
+ "malachite-config",
+ "malachite-starknet-app",
+ "tempfile",
+ "tikv-jemallocator",
+ "tracing",
 ]
 
 [[package]]

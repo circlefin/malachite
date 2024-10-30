@@ -19,6 +19,7 @@ members = [
   "crates/test",
   "crates/test/mbt",
   "crates/vote",
+  "examples/starknet-app",
 ]
 
 [workspace.package]

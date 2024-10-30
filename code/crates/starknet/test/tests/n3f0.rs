@@ -1,6 +1,6 @@
 #![allow(unused_crate_dependencies)]
 
-use malachite_starknet_test::{App, Expected, Test, TestNode};
+use malachite_starknet_test::{Expected, Test, TestNode};
 
 #[tokio::test]
 pub async fn all_correct_nodes() {
@@ -13,5 +13,5 @@ pub async fn all_correct_nodes() {
         Expected::Exactly(9),
     );
 
-    test.run(App::Starknet).await
+    test.run().await
 }
