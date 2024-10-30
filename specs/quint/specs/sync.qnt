@@ -67,6 +67,13 @@ type SynchronizerOutput =
     | SOBlock(Proposal)
     | SONoOutput
 
+
+
+// ****************************************************************************
+// Synchronizer (client side)
+// ****************************************************************************
+
+
 /// The state of the synchronizer
 type Synchronizer = {
     id: Address,
@@ -82,6 +89,11 @@ type Synchronizer = {
     responses: Set[ResponseMsg],
 }
 
+//
+// Synchronizer functions
+//
+
+/// Initialize the synchronizer
 pure def initSynchronizer(id: Address, peers: Set[Address]) : Synchronizer =
     {   id: id,
         height: -1,
@@ -93,15 +105,7 @@ pure def initSynchronizer(id: Address, peers: Set[Address]) : Synchronizer =
         responses: Set(),
     }
 
-/// The server state are just incoming requests. The actual data used to respond
-/// is from the NodeState
-type Server = {
-    inbuffer : Set[RequestMsg]
-}
-
-pure def initServer = {inbuffer : Set()}
-
-/// auxiliary function to iterate over the received status messages
+/// Auxiliary function to iterate over the received status messages
 pure def updatePeerStatus (ps: Address -> SyncStatus, msgs: Set[SyncStatusMsg]) : Address -> SyncStatus =
     msgs.fold(ps, (newStatus , msg) => 
         if (newStatus.get(msg.peer).top < msg.top) // TODO: think about base?
@@ -112,96 +116,18 @@ pure def updatePeerStatus (ps: Address -> SyncStatus, msgs: Set[SyncStatusMsg]) 
 
 /// inform the synchronizer that consensus has entered height h
 pure def syncNewHeight (s: Synchronizer, h: Height) : Synchronizer =
-    if (h <= s.height) s
+    if (h <= s.height) 
+        s
     else
         s.with("height", h)
 
-/// look into the node state and generate a status message
-pure def syncStatus (s: NodeState) : SyncStatusMsg =
-// TODO: perhaps we should add to height to the chain entries to capture non-zero bases
-    { peer: s.es.cs.p , base: 0, top: s.es.chain.length() - 1  }
-
-
-
-
-pure def broadcastStatus(buffer: Address -> Set[SyncStatusMsg], sm: SyncStatusMsg): Address -> Set[SyncStatusMsg] =
-    buffer.keys().mapBy(x => { ...buffer.get(x).union(Set(sm)) })
-
-/// put the response message in the boffer of the client
-pure def sendResponse(buffer: Address -> Set[ResponseMsg], m: ResponseMsg): Address -> Set[ResponseMsg] =
-    buffer.put(m.client, { ...buffer.get(m.client).union(Set(m)) })
-
-
-//
-// State machine
-//
-
-var syncSystem: Address -> Synchronizer
-var serverSystem: Address -> Server
-
-var statusBuffer : Address -> Set[SyncStatusMsg]  
-var syncResponseBuffer : Address -> Set[ResponseMsg]
-var syncRequestBuffer : Address -> Set[RequestMsg]
-
-action syncInit = all {
-    statusBuffer' = Correct.mapBy(v => Set()),
-    syncResponseBuffer' = Correct.mapBy(v => Set()),
-    syncRequestBuffer' = Correct.mapBy(v => Set()),
-    syncSystem' = Correct.mapBy(v => initSynchronizer(v, validators)),
-    serverSystem' = Correct.mapBy(v => initServer),    
-}
-
-/// environment sends the node to the next height.
-/// checks that we have all the previous blocks in the store.
-action newHeightAction(v, valset, h) = all {
-    system.get(v).es.chain.length() >= system.get(v).es.cs.height,
-    val ns = system.get(v).with("es", initDriver(v, valset, h, system.get(v).es.chain))
-    system' = system.put(v, ns), 
-    syncSystem' = syncSystem.put(v, syncNewHeight(syncSystem.get(v), h)),
-    // rest unchanged
-    statusBuffer' = statusBuffer,
-    syncResponseBuffer' = syncResponseBuffer,
-    serverSystem' = serverSystem,
-    syncRequestBuffer' = syncRequestBuffer,
-    _hist' = _hist,
-    propBuffer' = propBuffer,
-    voteBuffer' = voteBuffer,
-    certBuffer' = certBuffer,
-}
-
-/// initialize consensus and synchronizer
-action initAll = all {
-    init,
-    syncInit
-}
-
-action syncUnchangedAll = all {
-    statusBuffer' = statusBuffer,
-    syncResponseBuffer' = syncResponseBuffer,
-    syncSystem' = syncSystem,
-    serverSystem' = serverSystem,
-    syncRequestBuffer' = syncRequestBuffer,
-}
-
-
+/// returned by the synchronizer: sync is the new state, so is the output towards
+/// the consensus driver, req are messages sent towards peers/servers
 type ClientResult = {
     sync: Synchronizer, 
     so: SynchronizerOutput, 
     req: Option[RequestMsg]
 }
-
-
-// {
-//     height: Height,
-//     peers: Set[Address],    // MVP: this is going to be the validator set for now
-//                             // so we use addresses. We might use peerID in the future
-//     peerStatus: Address -> SyncStatus,
-//     openRequests: Set[RequestMsg],
-//     lastSyncedHeight: Height, // done if greater than or equal to height
-//     // we could add buffers for certificates and values
-//     statusMsgs: Set[SyncStatusMsg],
-//     responses: Set[ResponseMsg],
-// }
 
 pure def syncClient (s: Synchronizer) : ClientResult =
     val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
@@ -285,13 +211,34 @@ pure def syncClient (s: Synchronizer) : ClientResult =
                 req: None}
 
 
+// ****************************************************************************
+// Server
+// ****************************************************************************
 
+
+/// The server state are just incoming requests. The actual data used to respond
+/// is from the NodeState
+type Server = {
+    inbuffer : Set[RequestMsg]
+}
+
+//
+// Server functions
+//
+
+pure def initServer = {inbuffer : Set()}
+
+
+/// look into the node state and generate a status message
+pure def syncStatus (s: NodeState) : SyncStatusMsg =
+// TODO: perhaps we should add to height to the chain entries to capture non-zero bases
+    { peer: s.es.cs.p , base: 0, top: s.es.chain.length() - 1  }
+
+/// new server state and response messages to be sent
 type ServerOutput = {
     sync: Server, 
     msg: Option[ResponseMsg], 
 }
-
-
 
 pure def syncServer (s: Server, ns: NodeState) : ServerOutput =
     if (s.inbuffer.size() > 0) 
@@ -318,6 +265,86 @@ pure def syncServer (s: Server, ns: NodeState) : ServerOutput =
     else {
         sync: s,
         msg: None}
+
+
+
+
+
+
+
+//
+// State machine
+//
+// The statemachine is put on top of statemachineAsync, that is, we use its
+// initialization and steps, and add the updates to the variables defined below
+//
+
+
+
+// Variables
+
+var syncSystem: Address -> Synchronizer
+var serverSystem: Address -> Server
+
+var statusBuffer : Address -> Set[SyncStatusMsg]  
+var syncResponseBuffer : Address -> Set[ResponseMsg]
+var syncRequestBuffer : Address -> Set[RequestMsg]
+
+// Auxiliary functions for sending messages
+
+pure def broadcastStatus(buffer: Address -> Set[SyncStatusMsg], sm: SyncStatusMsg): Address -> Set[SyncStatusMsg] =
+    buffer.keys().mapBy(x => { ...buffer.get(x).union(Set(sm)) })
+
+/// put the response message in the buffer of the client
+pure def sendResponse(buffer: Address -> Set[ResponseMsg], m: ResponseMsg): Address -> Set[ResponseMsg] =
+    buffer.put(m.client, { ...buffer.get(m.client).union(Set(m)) })
+
+//
+// Actions
+//
+
+/// initializing the variables of the sync part of the state machine 
+action syncInit = all {
+    statusBuffer' = Correct.mapBy(v => Set()),
+    syncResponseBuffer' = Correct.mapBy (v => Set()),
+    syncRequestBuffer' = Correct.mapBy(v => Set()),
+    syncSystem' = Correct.mapBy(v => initSynchronizer(v, validators)),
+    serverSystem' = Correct.mapBy(v => initServer),    
+}
+
+action syncUnchangedAll = all {
+    statusBuffer' = statusBuffer,
+    syncResponseBuffer' = syncResponseBuffer,
+    syncSystem' = syncSystem,
+    serverSystem' = serverSystem,
+    syncRequestBuffer' = syncRequestBuffer,
+}
+
+/// initialize consensus and synchronizer
+action initAll = all {
+    init,
+    syncInit
+}
+
+
+/// environment sends the node to the next height.
+/// checks that we have all the previous blocks in the store.
+action newHeightAction(v, valset, h) = all {
+    system.get(v).es.chain.length() >= system.get(v).es.cs.height,
+    val ns = system.get(v).with("es", initDriver(v, valset, h, system.get(v).es.chain))
+    system' = system.put(v, ns), 
+    syncSystem' = syncSystem.put(v, syncNewHeight(syncSystem.get(v), h)),
+    // rest unchanged
+    statusBuffer' = statusBuffer,
+    syncResponseBuffer' = syncResponseBuffer,
+    serverSystem' = serverSystem,
+    syncRequestBuffer' = syncRequestBuffer,
+    _hist' = _hist,
+    propBuffer' = propBuffer,
+    voteBuffer' = voteBuffer,
+    certBuffer' = certBuffer,
+}
+
 
 
 
