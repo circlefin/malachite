@@ -361,7 +361,7 @@ impl Actor for StarknetHost {
                 valid_round,
                 address,
             } => {
-                debug!(%height, %round, "Restreaming exsiting proposal...");
+                debug!(%height, %round, "Restreaming existing proposal...");
 
                 let mut parts = state.part_store.all_parts(height, valid_round);
                 let stream_id = state.next_stream_id;
