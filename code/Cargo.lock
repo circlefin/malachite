@@ -2449,8 +2449,6 @@ dependencies = [
  "malachite-node",
  "rand",
  "serde_json",
- "tempfile",
- "tikv-jemallocator",
  "tokio",
  "toml",
  "tracing",
@@ -4050,6 +4048,7 @@ dependencies = [
 name = "starknet-app"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "color-eyre",
  "malachite-cli",
  "malachite-config",

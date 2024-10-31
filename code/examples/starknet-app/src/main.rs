@@ -85,3 +85,109 @@ pub fn main() -> color_eyre::Result<()> {
             .map_err(|error| eyre!("Failed to run testnet command {:?}", error)),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+
+    use clap::Parser;
+    use color_eyre::eyre;
+    use malachite_cli::args::{Args, Commands};
+    use malachite_cli::cmd::init::*;
+    use malachite_config::LoggingConfig;
+    use malachite_starknet_app::node::StarknetNode;
+
+    #[test]
+    fn running_init_creates_config_files() -> eyre::Result<()> {
+        let tmp = tempfile::tempdir()?;
+        let config_dir = tmp.path().join("config");
+
+        let args = Args::parse_from(["test", "--home", tmp.path().to_str().unwrap(), "init"]);
+        let cmd = InitCmd::default();
+
+        let node = &StarknetNode {
+            config: None,
+            genesis_file: PathBuf::from("genesis.json"),
+            private_key_file: PathBuf::from("priv_validator_key.json"),
+        };
+        cmd.run(
+            node,
+            &args.get_config_file_path().unwrap(),
+            &args.get_genesis_file_path().unwrap(),
+            &args.get_priv_validator_key_file_path().unwrap(),
+            LoggingConfig {
+                log_level: args.log_level.unwrap_or_default(),
+                log_format: args.log_format.unwrap_or_default(),
+            },
+        )
+        .expect("Failed to run init command");
+
+        let files = fs::read_dir(&config_dir)?.flatten().collect::<Vec<_>>();
+
+        assert!(has_file(&files, &config_dir.join("config.toml")));
+        assert!(has_file(&files, &config_dir.join("genesis.json")));
+        assert!(has_file(
+            &files,
+            &config_dir.join("priv_validator_key.json")
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn running_testnet_creates_all_configs() -> eyre::Result<()> {
+        let tmp = tempfile::tempdir()?;
+
+        let args = Args::parse_from([
+            "test",
+            "--home",
+            tmp.path().to_str().unwrap(),
+            "testnet",
+            "--nodes",
+            "3",
+        ]);
+
+        let Commands::Testnet(ref cmd) = args.command else {
+            panic!("not testnet command");
+        };
+
+        let node = &StarknetNode {
+            config: None,
+            genesis_file: PathBuf::from("genesis.json"),
+            private_key_file: PathBuf::from("priv_validator_key.json"),
+        };
+        cmd.run(
+            node,
+            &args.get_home_dir().unwrap(),
+            LoggingConfig {
+                log_level: args.log_level.unwrap_or_default(),
+                log_format: args.log_format.unwrap_or_default(),
+            },
+        )
+        .expect("Failed to run init command");
+
+        let files = fs::read_dir(&tmp)?.flatten().collect::<Vec<_>>();
+
+        assert_eq!(files.len(), 3);
+
+        assert!(has_file(&files, &tmp.path().join("0")));
+        assert!(has_file(&files, &tmp.path().join("1")));
+        assert!(has_file(&files, &tmp.path().join("2")));
+
+        for node in 0..3 {
+            let node_dir = tmp.path().join(node.to_string()).join("config");
+            let files = fs::read_dir(&node_dir)?.flatten().collect::<Vec<_>>();
+
+            assert!(has_file(&files, &node_dir.join("config.toml")));
+            assert!(has_file(&files, &node_dir.join("genesis.json")));
+            assert!(has_file(&files, &node_dir.join("priv_validator_key.json")));
+        }
+
+        Ok(())
+    }
+
+    fn has_file(files: &[fs::DirEntry], path: &PathBuf) -> bool {
+        files.iter().any(|f| &f.path() == path)
+    }
+}
