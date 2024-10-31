@@ -139,8 +139,7 @@ where
         save_config(
             &args.get_config_file_path()?,
             &crate::new::generate_config(i, nodes, runtime, enable_discovery, transport, logging),
-        )
-        .unwrap();
+        )?;
 
         // Save private key
         let priv_validator_key = node.make_private_key_file((*private_key).clone());
@@ -148,11 +147,10 @@ where
             node,
             &args.get_priv_validator_key_file_path()?,
             &priv_validator_key,
-        )
-        .unwrap();
+        )?;
 
         // Save genesis
-        save_genesis(node, &args.get_genesis_file_path()?, &genesis).unwrap();
+        save_genesis(node, &args.get_genesis_file_path()?, &genesis)?;
     }
     Ok(())
 }

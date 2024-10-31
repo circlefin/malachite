@@ -3,7 +3,7 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 use core::fmt;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
@@ -41,7 +41,7 @@ impl FromStr for App {
 }
 
 /// Malachite configuration options
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     /// A custom human-readable name for this node
     pub moniker: String,
@@ -98,6 +98,17 @@ pub struct P2pConfig {
     pub protocol: PubSubProtocol,
 }
 
+impl Default for P2pConfig {
+    fn default() -> Self {
+        P2pConfig {
+            listen_addr: Multiaddr::empty(),
+            persistent_peers: vec![],
+            discovery: Default::default(),
+            transport: Default::default(),
+            protocol: Default::default(),
+        }
+    }
+}
 /// Peer Discovery configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct DiscoveryConfig {
@@ -265,7 +276,7 @@ mod gossipsub {
 }
 
 /// Mempool configuration options
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MempoolConfig {
     /// P2P configuration options
     pub p2p: P2pConfig,
@@ -278,7 +289,7 @@ pub struct MempoolConfig {
 }
 
 /// Consensus configuration options
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
     /// Max block size
     pub max_block_size: ByteSize,
@@ -366,6 +377,15 @@ pub struct MetricsConfig {
 
     /// Address at which to serve the metrics at
     pub listen_addr: SocketAddr,
+}
+
+impl Default for MetricsConfig {
+    fn default() -> Self {
+        MetricsConfig {
+            enabled: false,
+            listen_addr: SocketAddr::new(IpAddr::from([127, 0, 0, 1]), 9000),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

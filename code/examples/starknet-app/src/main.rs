@@ -1,6 +1,7 @@
 use color_eyre::eyre::eyre;
 use malachite_cli::args::{Args, Commands};
 use malachite_cli::{logging, runtime};
+use malachite_config::Config;
 use malachite_starknet_app::node::StarknetNode;
 use tracing::{error, info, trace};
 
@@ -37,13 +38,14 @@ pub fn main() -> color_eyre::Result<()> {
     trace!("Command-line parameters: {args:?}");
 
     let node = &StarknetNode {
-        config: None,
+        config: Config::default(), // placeholder, because `init` and `testnet` has no valid configuration file.
         genesis_file: args.get_genesis_file_path().unwrap(),
         private_key_file: args.get_priv_validator_key_file_path().unwrap(),
     };
 
     match &args.command {
         Commands::Start(cmd) => {
+            // Build configuration from valid configuration file and command-line parameters.
             let mut config = opt_config
                 .map_err(|error| error!(%error, "Failed to load configuration."))
                 .unwrap();
@@ -61,8 +63,9 @@ pub fn main() -> color_eyre::Result<()> {
             );
             trace!(?config, "Configuration");
 
+            // Redefine the node with the valid configuration.
             let node = &StarknetNode {
-                config: Some(config),
+                config,
                 genesis_file: args.get_genesis_file_path().unwrap(),
                 private_key_file: args.get_priv_validator_key_file_path().unwrap(),
             };
@@ -95,7 +98,7 @@ mod tests {
     use color_eyre::eyre;
     use malachite_cli::args::{Args, Commands};
     use malachite_cli::cmd::init::*;
-    use malachite_config::LoggingConfig;
+    use malachite_config::{Config, LoggingConfig};
     use malachite_starknet_app::node::StarknetNode;
 
     #[test]
@@ -107,7 +110,7 @@ mod tests {
         let cmd = InitCmd::default();
 
         let node = &StarknetNode {
-            config: None,
+            config: Config::default(),
             genesis_file: PathBuf::from("genesis.json"),
             private_key_file: PathBuf::from("priv_validator_key.json"),
         };
@@ -153,7 +156,7 @@ mod tests {
         };
 
         let node = &StarknetNode {
-            config: None,
+            config: Config::default(),
             genesis_file: PathBuf::from("genesis.json"),
             private_key_file: PathBuf::from("priv_validator_key.json"),
         };

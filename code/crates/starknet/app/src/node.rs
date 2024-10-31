@@ -10,7 +10,7 @@ use rand::{CryptoRng, RngCore};
 use tracing::{info, Instrument};
 
 pub struct StarknetNode {
-    pub config: Option<Config>,
+    pub config: Config,
     pub genesis_file: PathBuf,
     pub private_key_file: PathBuf,
 }
@@ -61,7 +61,7 @@ impl Node for StarknetNode {
     }
 
     async fn run(&self) {
-        let span = tracing::error_span!("node", moniker=%self.config.clone().unwrap().moniker);
+        let span = tracing::error_span!("node", moniker=%self.config.clone().moniker);
         let _enter = span.enter();
 
         let priv_key_file = self
@@ -70,7 +70,7 @@ impl Node for StarknetNode {
         let private_key = self.load_private_key(priv_key_file);
         let genesis = self.load_genesis(self.genesis_file.clone()).unwrap();
         let (actor, handle) =
-            spawn_node_actor(self.config.clone().unwrap(), genesis, private_key, None).await;
+            spawn_node_actor(self.config.clone(), genesis, private_key, None).await;
 
         tokio::spawn({
             let actor = actor.clone();
