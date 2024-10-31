@@ -33,4 +33,4 @@ toml               = { workspace = true }
 tikv-jemallocator = { workspace = true, features = ["background_threads"] }
 
 [dev-dependencies]
-#tempfile           = { workspace = true }
+tempfile           = { workspace = true }
