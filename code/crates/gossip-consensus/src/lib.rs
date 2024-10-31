@@ -303,8 +303,8 @@ async fn handle_ctrl_msg(
             let result = swarm.behaviour_mut().blocksync.send_response(channel, data);
 
             match result {
-                Ok(()) => trace!("Replied to BlockSync request"),
-                Err(e) => error!("Error replying to BlockSync request: {e}"),
+                Ok(()) => debug!(%request_id, "Replied to BlockSync request"),
+                Err(e) => error!(%request_id, "Error replying to BlockSync request: {e}"),
             }
 
             ControlFlow::Continue(())
