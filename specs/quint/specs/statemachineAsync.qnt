@@ -246,17 +246,27 @@ action step = {
     }
 }
 
+/// environment sends the node to the next height.
+/// checks that we have all the previous blocks in the store.
+action newHeightAction(v, valset, h) = all {
+    system.get(v).es.chain.length() >= system.get(v).es.cs.height,
+    val ns = system.get(v).with("es", initDriver(v, valset, h, system.get(v).es.chain))
+    system' = system.put(v, ns), 
+    _hist' = _hist,
+    propBuffer' = propBuffer,
+    voteBuffer' = voteBuffer,
+    certBuffer' = certBuffer,
+}
 
-
-// retreat workaround
-
-action workaround(v, result) = all{
+/// retreat workaround. TODO: check with Gabriela about Quint flattening
+/// the code should be situation in sync.qnt at action syncStepClient(v)
+action putSyncOutputIntoNode(v, result) = all{
         system' = match result.so {
             // Put the sync output into the consensus engine
             | SOCertificate(cert) => 
                 system.put(v, {... system.get(v), 
                     incomingSyncCertificates:   
-                    system.get(v).incomingCertificates.union(Set(cert))})
+                    system.get(v).incomingSyncCertificates.union(Set(cert))})
             | SOBlock(value) =>  
                 system.put(v, 
                     {... system.get(v), 
