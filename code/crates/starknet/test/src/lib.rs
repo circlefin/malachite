@@ -493,6 +493,8 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                     .map(|j| transport.multiaddr("127.0.0.1", test.consensus_base_port + j))
                     .collect(),
                 discovery: DiscoveryConfig { enabled: false },
+                rpc_max_size: ByteSize::mib(10),
+                pubsub_max_size: ByteSize::mib(4),
             },
         },
         mempool: MempoolConfig {
@@ -505,6 +507,8 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                     .map(|j| transport.multiaddr("127.0.0.1", test.mempool_base_port + j))
                     .collect(),
                 discovery: DiscoveryConfig { enabled: false },
+                rpc_max_size: ByteSize::mib(10),
+                pubsub_max_size: ByteSize::mib(4),
             },
             max_tx_count: 10000,
             gossip_batch_size: 100,

@@ -88,6 +88,12 @@ pub struct P2pConfig {
 
     /// The type of pub-sub protocol to use for consensus
     pub protocol: PubSubProtocol,
+
+    /// The maximum size of messages to send over pub-sub
+    pub pubsub_max_size: ByteSize,
+
+    /// The maximum size of messages to send over RPC
+    pub rpc_max_size: ByteSize,
 }
 
 /// Peer Discovery configuration options

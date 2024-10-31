@@ -191,6 +191,8 @@ async fn spawn_gossip_consensus_actor(
             }
             PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
         },
+        rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
+        pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
     };
 
     let keypair = make_keypair(private_key);

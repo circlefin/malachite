@@ -27,6 +27,23 @@ pub struct Config {
     pub max_response_size: usize,
 }
 
+impl Config {
+    pub fn with_request_timeout(mut self, request_timeout: Duration) -> Self {
+        self.request_timeout = request_timeout;
+        self
+    }
+
+    pub fn with_max_request_size(mut self, max_request_size: usize) -> Self {
+        self.max_request_size = max_request_size;
+        self
+    }
+
+    pub fn with_max_response_size(mut self, max_response_size: usize) -> Self {
+        self.max_response_size = max_response_size;
+        self
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
