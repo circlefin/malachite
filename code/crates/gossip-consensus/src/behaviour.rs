@@ -165,8 +165,10 @@ impl Behaviour {
             )),
         };
 
-        let blocksync =
-            blocksync::Behaviour::new_with_metrics(registry.sub_registry_with_prefix("blocksync"));
+        let blocksync = blocksync::Behaviour::new_with_metrics(
+            blocksync::Config::default(),
+            registry.sub_registry_with_prefix("blocksync"),
+        );
 
         let discovery = Toggle::from(discovery.enabled.then(discovery::new_behaviour));
 
