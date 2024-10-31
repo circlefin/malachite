@@ -84,14 +84,14 @@ pub struct Behaviour {
     pub ping: ping::Behaviour,
     pub pubsub: Either<gossipsub::Behaviour, broadcast::Behaviour>,
     pub blocksync: blocksync::Behaviour,
-    pub request_response: Toggle<discovery::Behaviour>,
+    pub discovery: Toggle<discovery::Behaviour>,
 }
 
 impl discovery::SendRequestResponse for Behaviour {
     fn send_request(&mut self, peer_id: &PeerId, req: discovery::Request) -> OutboundRequestId {
-        self.request_response
+        self.discovery
             .as_mut()
-            .expect("Request-response behaviour should be available")
+            .expect("Discovery behaviour should be available")
             .send_request(peer_id, req)
     }
 
@@ -100,9 +100,9 @@ impl discovery::SendRequestResponse for Behaviour {
         ch: ResponseChannel<discovery::Response>,
         rs: discovery::Response,
     ) -> Result<(), discovery::Response> {
-        self.request_response
+        self.discovery
             .as_mut()
-            .expect("Request-response behaviour should be available")
+            .expect("Discovery behaviour should be available")
             .send_response(ch, rs)
     }
 }
@@ -168,14 +168,14 @@ impl Behaviour {
         let blocksync =
             blocksync::Behaviour::new_with_metrics(registry.sub_registry_with_prefix("blocksync"));
 
-        let request_response = Toggle::from(discovery.enabled.then(discovery::new_behaviour));
+        let discovery = Toggle::from(discovery.enabled.then(discovery::new_behaviour));
 
         Self {
             identify,
             ping,
             pubsub,
             blocksync,
-            request_response,
+            discovery,
         }
     }
 }
