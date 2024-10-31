@@ -21,8 +21,6 @@ use malachite_config::{
 use malachite_starknet_app::spawn::spawn_node_actor;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
 
-pub use malachite_config::App;
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Expected {
     Exactly(usize),

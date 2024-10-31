@@ -14,32 +14,6 @@ use malachite_common::TimeoutStep;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub enum App {
-    #[default]
-    #[serde(rename = "starknet")]
-    Starknet,
-}
-
-impl fmt::Display for App {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Starknet => write!(f, "starknet"),
-        }
-    }
-}
-
-impl FromStr for App {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "starknet" => Ok(Self::Starknet),
-            _ => Err(format!("unknown application: {s}, available: starknet")),
-        }
-    }
-}
-
 /// Malachite configuration options
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Config {
@@ -561,14 +535,6 @@ mod tests {
             LogFormat::from_str("yaml"),
             Err("Invalid log format: yaml".to_string())
         )
-    }
-
-    #[test]
-    fn parse_invalid_app() {
-        assert_eq!(
-            App::from_str("invalid"),
-            Err("unknown application: invalid, available: starknet".to_string())
-        );
     }
 
     #[test]
