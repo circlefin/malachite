@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use malachite_starknet_test::{App, Test, TestNode, TestParams};
+use malachite_starknet_test::{Test, TestNode, TestParams};
 
 #[tokio::test]
 pub async fn crash_restart() {
@@ -37,7 +37,6 @@ pub async fn crash_restart() {
 
     Test::new([n1, n2, n3])
         .run_with_custom_config(
-            App::Starknet,           // Application to run
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
                 enable_blocksync: true, // Enable BlockSync

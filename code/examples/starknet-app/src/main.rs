@@ -1,7 +1,6 @@
 use color_eyre::eyre::eyre;
 use malachite_cli::args::{Args, Commands};
 use malachite_cli::{logging, runtime};
-use malachite_config::Config;
 use malachite_starknet_app::node::StarknetNode;
 use tracing::{error, info, trace};
 
@@ -38,9 +37,10 @@ pub fn main() -> color_eyre::Result<()> {
     trace!("Command-line parameters: {args:?}");
 
     let node = &StarknetNode {
-        config: Config::default(), // placeholder, because `init` and `testnet` has no valid configuration file.
+        config: Default::default(), // placeholder, because `init` and `testnet` has no valid configuration file.
         genesis_file: args.get_genesis_file_path().unwrap(),
         private_key_file: args.get_priv_validator_key_file_path().unwrap(),
+        start_height: Default::default(), // placeholder, because start_height is only valid in StartCmd.
     };
 
     match &args.command {
@@ -68,6 +68,7 @@ pub fn main() -> color_eyre::Result<()> {
                 config,
                 genesis_file: args.get_genesis_file_path().unwrap(),
                 private_key_file: args.get_priv_validator_key_file_path().unwrap(),
+                start_height: cmd.start_height,
             };
 
             let rt = runtime::build_runtime(runtime)?;
@@ -98,7 +99,7 @@ mod tests {
     use color_eyre::eyre;
     use malachite_cli::args::{Args, Commands};
     use malachite_cli::cmd::init::*;
-    use malachite_config::{Config, LoggingConfig};
+    use malachite_config::LoggingConfig;
     use malachite_starknet_app::node::StarknetNode;
 
     #[test]
@@ -110,9 +111,10 @@ mod tests {
         let cmd = InitCmd::default();
 
         let node = &StarknetNode {
-            config: Config::default(),
+            config: Default::default(),
             genesis_file: PathBuf::from("genesis.json"),
             private_key_file: PathBuf::from("priv_validator_key.json"),
+            start_height: Default::default(),
         };
         cmd.run(
             node,
@@ -156,9 +158,10 @@ mod tests {
         };
 
         let node = &StarknetNode {
-            config: Config::default(),
+            config: Default::default(),
             genesis_file: PathBuf::from("genesis.json"),
             private_key_file: PathBuf::from("priv_validator_key.json"),
+            start_height: Default::default(),
         };
         cmd.run(
             node,

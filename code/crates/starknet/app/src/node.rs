@@ -13,6 +13,7 @@ pub struct StarknetNode {
     pub config: Config,
     pub genesis_file: PathBuf,
     pub private_key_file: PathBuf,
+    pub start_height: Option<u64>,
 }
 
 impl Node for StarknetNode {
@@ -69,8 +70,17 @@ impl Node for StarknetNode {
             .unwrap();
         let private_key = self.load_private_key(priv_key_file);
         let genesis = self.load_genesis(self.genesis_file.clone()).unwrap();
-        let (actor, handle) =
-            spawn_node_actor(self.config.clone(), genesis, private_key, None).await;
+        let start_height = self
+            .start_height
+            .map(|height| crate::types::Height::new(height, 1));
+        let (actor, handle) = spawn_node_actor(
+            self.config.clone(),
+            genesis,
+            private_key,
+            start_height,
+            None,
+        )
+        .await;
 
         tokio::spawn({
             let actor = actor.clone();

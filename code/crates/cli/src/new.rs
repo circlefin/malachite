@@ -10,8 +10,8 @@ use malachite_common::{PrivateKey, PublicKey};
 use malachite_config::*;
 use malachite_node::Node;
 
-const MIN_VOTING_POWER: u64 = 8;
-const MAX_VOTING_POWER: u64 = 15;
+const MIN_VOTING_POWER: u64 = 1;
+const MAX_VOTING_POWER: u64 = 1;
 
 const CONSENSUS_BASE_PORT: usize = 27000;
 const MEMPOOL_BASE_PORT: usize = 28000;
@@ -123,6 +123,7 @@ pub fn generate_config(
             max_tx_count: 10000,
             gossip_batch_size: 0,
         },
+        blocksync: Default::default(),
         metrics: MetricsConfig {
             enabled: true,
             listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),

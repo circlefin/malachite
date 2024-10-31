@@ -10,7 +10,7 @@ use crate::metrics;
 #[derive(Parser, Debug, Clone, Default, PartialEq)]
 pub struct StartCmd {
     #[clap(long)]
-    start_height: Option<u64>,
+    pub start_height: Option<u64>,
 }
 
 impl StartCmd {

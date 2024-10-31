@@ -138,8 +138,7 @@ where
         // Save config
         save_config(
             &args.get_config_file_path()?,
-            &crate::new::generate_config(i, nodes, runtime, enable_
-              ry, transport, logging),
+            &crate::new::generate_config(i, nodes, runtime, enable_discovery, transport, logging),
         )?;
 
         // Save private key
