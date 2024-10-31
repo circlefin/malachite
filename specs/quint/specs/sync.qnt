@@ -131,20 +131,18 @@ type ClientResult = {
 
 /// we have received a certifact. now we need to issue the corresponding block request
 /// and generate a certificate output
-pure def syncHandleCertificate (s: Synchronizer, cert: Set[Vote], newPeerStates: Address -> SyncStatus, peer: str ) : ClientResult =
+pure def syncHandleCertificate (s: Synchronizer, cert: Set[Vote], peer: str ) : ClientResult =
     val blockReq = {    client: s.id,
                         server: peer, 
                         rtype: SyncBlock,
                         height: s.height}
-    {   sync: {...s,    peerStatus: newPeerStates,
-                        openRequests: Set(blockReq)}, // If we have parallelization we need to be more precise here
+    {   sync: {...s, openRequests: Set(blockReq)}, // If we have parallelization we need to be more precise here
         so: SOCertificate(cert),
         req: Some(blockReq)}
 
 /// we have received a block. now we need to  generate a block output
-pure def syncHandleBlock (s: Synchronizer, p: Proposal, newPeerStates: Address -> SyncStatus ) : ClientResult =
-    {   sync: {...s,    peerStatus: newPeerStates,
-                        openRequests: Set(), // If we have parallelization we need to remove one element,
+pure def syncHandleBlock (s: Synchronizer, p: Proposal) : ClientResult =
+    {   sync: {...s,    openRequests: Set(), // If we have parallelization we need to remove one element,
                         lastSyncedHeight: s.height }, // blockheight,
         so: SOBlock(p),
         req: None}
@@ -154,9 +152,10 @@ pure def syncHandleBlock (s: Synchronizer, p: Proposal, newPeerStates: Address -
 /// 3. otherwise check whether we have a response and act accordingly
 pure def syncClient (s: Synchronizer) : ClientResult =
     val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
+    val newS = { ...s, peerStatus: newPeerStates}
     if (s.lastSyncedHeight >= s.height)
         // nothing to do
-        {   sync: {...s, peerStatus: newPeerStates},
+        {   sync: newS,
             so: SONoOutput,
             req: None}
     else
@@ -169,9 +168,7 @@ pure def syncClient (s: Synchronizer) : ClientResult =
                             server: goodPeers.fold("", (acc, i) => i), //chooseSome(),
                             rtype: SyncCertificate,
                             height: s.height}
-                {   sync: {...s,    
-                                peerStatus: newPeerStates,
-                                openRequests: s.openRequests.union(Set(req))},
+                {   sync: {... newS, openRequests: s.openRequests.union(Set(req))},
                     so: SONoOutput,
                     req: Some(req)
                 }
@@ -179,19 +176,20 @@ pure def syncClient (s: Synchronizer) : ClientResult =
                 // we issued a request before, let's see whether there is a response
                 if (s.responses.size()> 0)
                     val resp = s.responses.fold(emptyResponseMsg, (acc, i) => i) //chooseSome() // in the future there might be parallelization
+                    
                     match resp.response {
-                        | RespBlock(prop) => syncHandleBlock(s, prop, newPeerStates)
-                        | RespCertificate(cert) => syncHandleCertificate(s,cert, newPeerStates, goodPeers.fold("", (s,x) => x))
+                        | RespBlock(prop) => syncHandleBlock(newS, prop)
+                        | RespCertificate(cert) => syncHandleCertificate(newS, cert, goodPeers.fold("", (s,x) => x))
                     }
                 else 
                     // I don't have response 
                     // this might be timeout logic
-                    {   sync: {...s, peerStatus: newPeerStates},
+                    {   sync: newS,
                         so: SONoOutput,
                         req: None}
         else
             // no peers
-            {   sync: {...s, peerStatus: newPeerStates},
+            {   sync: newS,
                 so: SONoOutput,
                 req: None}
 
