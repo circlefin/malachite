@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
-use rand::{RngCore, SeedableRng};
+use rand::RngCore;
 use tracing::{debug, info, trace};
 
 use malachite_actors::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
@@ -235,7 +235,7 @@ fn generate_and_broadcast_txes(
 
     let mut transactions = Vec::with_capacity(count);
     let mut tx_batch = Transactions::default();
-    let mut rng = rand::rngs::SmallRng::from_entropy();
+    let mut rng = rand::thread_rng();
 
     for _ in 0..count {
         // Generate transaction
