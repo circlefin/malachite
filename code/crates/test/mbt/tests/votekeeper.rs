@@ -4,7 +4,7 @@ pub mod runner;
 pub mod utils;
 
 use glob::glob;
-use malachite_test_mbt::utils::generate_traces;
+use malachite_test_mbt::utils::generate_test_traces;
 use malachite_test_mbt::votekeeper::State;
 
 use rand::rngs::StdRng;
@@ -24,17 +24,15 @@ fn test_itf() {
     }
 
     let quint_seed = option_env!("QUINT_SEED")
-        // use inspect when stabilized
-        .map(|x| {
+        .inspect(|x| {
             println!("using QUINT_SEED={}", x);
-            x
         })
         .or(Some("118"))
         .and_then(|x| x.parse::<u64>().ok())
         .filter(|&x| x != 0)
         .expect("invalid random seed for quint");
 
-    generate_traces(
+    generate_test_traces(
         "tests/votekeeper/votekeeperTest.qnt",
         &temp_path.to_string_lossy(),
         quint_seed,

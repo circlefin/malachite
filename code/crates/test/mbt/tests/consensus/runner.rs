@@ -18,6 +18,18 @@ use crate::utils::{
 
 pub struct ConsensusRunner {
     pub address_map: BTreeMap<String, Address>,
+    pub last_state: Option<State>,
+    pub skip_step: bool,
+}
+
+impl ConsensusRunner {
+    pub fn new(address_map: BTreeMap<String, Address>) -> Self {
+        Self {
+            address_map,
+            last_state: None,
+            skip_step: false,
+        }
+    }
 }
 
 impl ItfRunner for ConsensusRunner {
@@ -32,7 +44,7 @@ impl ItfRunner for ConsensusRunner {
         let height = Height::new(expected.state.height as u64);
         let round = expected.state.round;
 
-        let round = Round::new(round);
+        let round = Round::from(round);
         let init_state = RoundState::new(height, round);
 
         Ok(init_state)
@@ -43,6 +55,16 @@ impl ItfRunner for ConsensusRunner {
         actual: &mut Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
+        self.skip_step = false;
+
+        if let Some(last_state) = self.last_state.replace(expected.clone()) {
+            if &last_state == expected {
+                println!("➡️ Skipping duplicate step");
+                self.skip_step = true;
+                return Ok(None);
+            }
+        }
+
         println!("🔸 step: actual state={:?}", actual);
         println!("🔸 step: model input={:?}", expected.input);
         println!("🔸 step: model state={:?}", expected.state);
@@ -54,7 +76,7 @@ impl ItfRunner for ConsensusRunner {
             ModelInput::NoInput => unreachable!(),
 
             ModelInput::NewRound(round) => {
-                let round = Round::new(*round);
+                let round = Round::from(*round);
 
                 (
                     Info::new(round, address, some_other_node),
@@ -63,7 +85,7 @@ impl ItfRunner for ConsensusRunner {
             }
 
             ModelInput::NewRoundProposer(round) => {
-                let round = Round::new(*round);
+                let round = Round::from(*round);
                 (Info::new_proposer(round, address), Input::NewRound(round))
             }
 
@@ -74,7 +96,7 @@ impl ItfRunner for ConsensusRunner {
             }
 
             ModelInput::Proposal(round, value) => {
-                let input_round = Round::new(*round);
+                let input_round = Round::from(*round);
                 let data = Info::new(input_round, address, some_other_node);
                 let proposal = TestContext::new_proposal(
                     actual.height,
@@ -92,7 +114,7 @@ impl ItfRunner for ConsensusRunner {
                     actual.height,
                     actual.round,
                     value_from_model(value).unwrap(),
-                    Round::new(*valid_round),
+                    Round::from(*valid_round),
                     *some_other_node,
                 );
                 (data, Input::ProposalAndPolkaPrevious(proposal))
@@ -110,12 +132,11 @@ impl ItfRunner for ConsensusRunner {
                 (data, Input::ProposalAndPolkaCurrent(proposal))
             }
 
-            ModelInput::ProposalAndPolkaAndInvalidCInput(height, round, value) => {
-                let input_round = Round::new(*round);
-                let data = Info::new(input_round, address, some_other_node);
+            ModelInput::ProposalAndPolkaAndInvalid(value) => {
+                let data = Info::new(actual.round, address, some_other_node);
                 let proposal = TestContext::new_proposal(
-                    Height::new(*height as u64),
-                    input_round,
+                    actual.height,
+                    actual.round,
                     value_from_model(value).unwrap(),
                     Round::Nil,
                     *some_other_node,
@@ -123,12 +144,13 @@ impl ItfRunner for ConsensusRunner {
                 (data, Input::InvalidProposalAndPolkaPrevious(proposal))
             }
 
-            ModelInput::ProposalAndCommitAndValid(value) => {
-                let data = Info::new(actual.round, address, some_other_node);
+            ModelInput::ProposalAndCommitAndValid(round, value) => {
+                let input_round = Round::from(*round);
+                let data = Info::new(input_round, address, some_other_node);
                 let proposal = TestContext::new_proposal(
                     actual.height,
-                    actual.round,
-                    value_from_model(value).unwrap(),
+                    input_round,
+                    value_from_string(value).unwrap(),
                     Round::Nil,
                     *some_other_node,
                 );
@@ -156,7 +178,7 @@ impl ItfRunner for ConsensusRunner {
             ),
 
             ModelInput::RoundSkip(round) => {
-                let input_round = Round::new(*round);
+                let input_round = Round::from(*round);
                 (
                     Info::new(input_round, address, some_other_node),
                     Input::SkipRound(input_round),
@@ -164,17 +186,17 @@ impl ItfRunner for ConsensusRunner {
             }
 
             ModelInput::TimeoutPropose(_height, round) => (
-                Info::new(Round::new(*round), address, some_other_node),
+                Info::new(Round::from(*round), address, some_other_node),
                 Input::TimeoutPropose,
             ),
 
             ModelInput::TimeoutPrevote(_height, round) => (
-                Info::new(Round::new(*round), address, some_other_node),
+                Info::new(Round::from(*round), address, some_other_node),
                 Input::TimeoutPrevote,
             ),
 
             ModelInput::TimeoutPrecommit(_height, round) => (
-                Info::new(Round::new(*round), address, some_other_node),
+                Info::new(Round::from(*round), address, some_other_node),
                 Input::TimeoutPrecommit,
             ),
         };
@@ -195,6 +217,10 @@ impl ItfRunner for ConsensusRunner {
         result: &Self::Result,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
+        if self.skip_step {
+            return Ok(true);
+        }
+
         // Get expected result.
         let expected_result = &expected.output;
 
@@ -259,12 +285,14 @@ impl ItfRunner for ConsensusRunner {
                 }
 
                 (
-                    Output::Decision(_round, proposal),
-                    ModelOutput::Decided(expected_decided_value),
+                    Output::Decision(round, proposal),
+                    ModelOutput::Decided(expected_round, expected_decided_value),
                 ) => {
+                    assert_eq!(round.as_i64(), *expected_round, "unexpected decided round");
+
                     assert_eq!(
                         Some(proposal.value),
-                        value_from_model(expected_decided_value),
+                        value_from_string(expected_decided_value),
                         "unexpected decided value"
                     );
                 }
@@ -283,6 +311,10 @@ impl ItfRunner for ConsensusRunner {
         actual: &Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
+        if self.skip_step {
+            return Ok(true);
+        }
+
         // TODO: What to do with actual.height? There is no height in the spec.
 
         println!("🟢 state invariant: actual state={:?}", actual);

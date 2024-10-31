@@ -45,8 +45,11 @@ impl fmt::Display for Height {
 }
 
 impl malachite_common::Height for Height {
-    fn increment(&self) -> Self {
-        self.increment()
+    fn increment_by(&self, n: u64) -> Self {
+        Self {
+            block_number: self.block_number + n,
+            fork_id: self.fork_id,
+        }
     }
 
     fn as_u64(&self) -> u64 {

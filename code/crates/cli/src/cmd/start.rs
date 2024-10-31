@@ -8,7 +8,10 @@ use malachite_node::Node;
 use crate::metrics;
 
 #[derive(Parser, Debug, Clone, Default, PartialEq)]
-pub struct StartCmd;
+pub struct StartCmd {
+    #[clap(long)]
+    start_height: Option<u64>,
+}
 
 impl StartCmd {
     pub async fn run<N>(&self, node: &N, metrics: Option<MetricsConfig>) -> Result<(), Error>

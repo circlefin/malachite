@@ -3,6 +3,7 @@ use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 
 use crate::handle::on_proposal;
+use crate::handle::vote::on_vote;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
 
@@ -163,21 +164,19 @@ where
                 Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote.clone()))
             );
 
-            apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await
+            on_vote(co, state, metrics, signed_vote).await
         }
 
         DriverOutput::Decide(consensus_round, proposal) => {
-            // TODO: Remove proposal, votes, block for the round
             info!(
                 round = %consensus_round,
-                ?proposal,
+                height = %proposal.height(),
+                value = %proposal.value().id(),
                 "Decided",
             );
 
             // Store value decided on for retrieval when timeout commit elapses
-            state
-                .decision
-                .insert((state.driver.height(), consensus_round), proposal.clone());
+            state.store_decision(state.driver.height(), consensus_round, proposal.clone());
 
             perform!(
                 co,

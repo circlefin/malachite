@@ -1,10 +1,18 @@
+use bytes::Bytes;
 use std::time::Duration;
 
 use derive_where::derive_where;
 use libp2p::PeerId;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachite_common::{Context, Extension, Round, SignedVote};
+use malachite_blocksync::SyncedBlock;
+use malachite_common::{Context, Extension, Round, SignedProposal, SignedVote};
+
+use crate::consensus::ConsensusRef;
+use crate::util::streaming::StreamMessage;
+
+/// A value to propose that has just been received.
+pub use malachite_consensus::ProposedValue;
 
 /// This is the value that the application constructed
 /// and has finished streaming on gossip.
@@ -34,12 +42,6 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
     }
 }
 
-/// A value to propose that has just been received.
-pub use malachite_consensus::ProposedValue;
-
-use crate::consensus::ConsensusRef;
-use crate::util::streaming::StreamMessage;
-
 /// A reference to the host actor.
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 
@@ -61,6 +63,9 @@ pub enum HostMsg<Ctx: Context> {
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
 
+    /// Request the earliest block height in the block store
+    GetEarliestBlockHeight { reply_to: RpcReplyPort<Ctx::Height> },
+
     /// ProposalPart received <-- consensus <-- gossip
     ReceivedProposalPart {
         from: PeerId,
@@ -76,10 +81,21 @@ pub enum HostMsg<Ctx: Context> {
 
     // Consensus has decided on a value
     Decide {
-        height: Ctx::Height,
-        round: Round,
-        value: Ctx::Value,
+        proposal: SignedProposal<Ctx>,
         commits: Vec<SignedVote<Ctx>>,
         consensus: ConsensusRef<Ctx>,
+    },
+
+    // Retrieve decided block from the block store
+    GetDecidedBlock {
+        height: Ctx::Height,
+        reply_to: RpcReplyPort<Option<SyncedBlock<Ctx>>>,
+    },
+
+    // Synced block
+    ProcessSyncedBlockBytes {
+        proposal: SignedProposal<Ctx>,
+        block_bytes: Bytes,
+        reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },
 }

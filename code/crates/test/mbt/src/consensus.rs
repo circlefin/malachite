@@ -4,14 +4,14 @@ use serde::Deserialize;
 use crate::deserializers as de;
 use crate::types::{Address, Height, NonNilValue, Proposal, Round, Step, Timeout, Value, Vote};
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct State {
     pub state: ConsensusState,
     pub input: Input,
     pub output: Output,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename = "ConsensusInput")]
 #[serde(tag = "tag", content = "value")]
 pub enum Input {
@@ -49,11 +49,15 @@ pub enum Input {
     #[serde(rename = "ProposalAndPolkaAndValidCInput")]
     ProposalAndPolkaAndValid(Value),
 
+    #[serde(rename = "ProposalAndPolkaAndInvalidCInput")]
+    ProposalAndPolkaAndInvalid(Value),
+
     #[serde(rename = "PrecommitAnyCInput")]
     PrecommitAny,
 
     #[serde(rename = "ProposalAndCommitAndValidCInput")]
-    ProposalAndCommitAndValid(Value),
+    #[serde(with = "As::<(Integer, Same)>")]
+    ProposalAndCommitAndValid(Round, NonNilValue),
 
     #[serde(rename = "RoundSkipCInput")]
     #[serde(with = "As::<Integer>")]
@@ -70,13 +74,9 @@ pub enum Input {
     #[serde(rename = "TimeoutPrecommitCInput")]
     #[serde(with = "As::<(Integer, Integer)>")]
     TimeoutPrecommit(Height, Round),
-
-    #[serde(rename = "ProposalAndPolkaAndInvalidCInputCInput")]
-    #[serde(with = "As::<(Integer, Integer, Same)>")]
-    ProposalAndPolkaAndInvalidCInput(Height, Round, Value),
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename = "ConsensusOutput")]
 #[serde(tag = "tag", content = "value")]
 pub enum Output {
@@ -98,7 +98,8 @@ pub enum Output {
     Timeout(Round, Timeout),
 
     #[serde(rename = "DecidedOutput")]
-    Decided(Value),
+    #[serde(with = "As::<(Integer, Same)>")]
+    Decided(Round, NonNilValue),
 
     #[serde(rename = "SkipRoundOutput")]
     #[serde(with = "As::<Integer>")]
@@ -108,7 +109,7 @@ pub enum Output {
     Error(String),
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConsensusState {
     #[serde(rename = "p")]

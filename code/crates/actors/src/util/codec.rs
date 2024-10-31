@@ -5,9 +5,10 @@ use malachite_proto::Protobuf;
 
 use super::streaming::StreamMessage;
 
-pub trait NetworkCodec<Ctx: Context>: Sync + Send + 'static {
-    type Error: std::error::Error + Send + Sync + 'static;
-
+pub trait NetworkCodec<Ctx: Context>: Sync + Send + 'static
+where
+    Self: malachite_blocksync::NetworkCodec<Ctx>,
+{
     fn decode_msg(bytes: Bytes) -> Result<SignedConsensusMsg<Ctx>, Self::Error>;
     fn encode_msg(msg: SignedConsensusMsg<Ctx>) -> Result<Bytes, Self::Error>;
 

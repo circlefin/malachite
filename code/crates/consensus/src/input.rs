@@ -1,5 +1,9 @@
+use bytes::Bytes;
 use derive_where::derive_where;
-use malachite_common::{Context, Extension, Round, SignedProposal, SignedVote, Timeout};
+
+use malachite_common::{
+    Certificate, Context, Extension, Round, SignedProposal, SignedVote, Timeout,
+};
 
 use crate::types::ProposedValue;
 
@@ -26,4 +30,7 @@ where
 
     /// The value corresponding to a proposal has been received
     ReceivedProposedValue(ProposedValue<Ctx>),
+
+    /// A block received via BlockSync
+    ReceivedSyncedBlock(SignedProposal<Ctx>, Certificate<Ctx>, Bytes),
 }

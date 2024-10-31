@@ -5,6 +5,7 @@ use tracing::{error, info, warn};
 
 use malachite_common::Context;
 
+use crate::block_sync::BlockSyncRef;
 use crate::consensus::ConsensusRef;
 use crate::gossip_consensus::GossipConsensusRef;
 use crate::gossip_mempool::GossipMempoolRef;
@@ -18,6 +19,7 @@ pub struct Node<Ctx: Context> {
     gossip_consensus: GossipConsensusRef<Ctx>,
     consensus: ConsensusRef<Ctx>,
     gossip_mempool: GossipMempoolRef,
+    block_sync: Option<BlockSyncRef<Ctx>>,
     mempool: ActorCell,
     host: HostRef<Ctx>,
     start_height: Ctx::Height,
@@ -33,6 +35,7 @@ where
         gossip_consensus: GossipConsensusRef<Ctx>,
         consensus: ConsensusRef<Ctx>,
         gossip_mempool: GossipMempoolRef,
+        block_sync: Option<BlockSyncRef<Ctx>>,
         mempool: ActorCell,
         host: HostRef<Ctx>,
         start_height: Ctx::Height,
@@ -42,6 +45,7 @@ where
             gossip_consensus,
             consensus,
             gossip_mempool,
+            block_sync,
             mempool,
             host,
             start_height,
@@ -70,9 +74,13 @@ where
         // Set ourselves as the supervisor of the other actors
         self.gossip_consensus.link(myself.get_cell());
         self.consensus.link(myself.get_cell());
-        self.gossip_mempool.link(myself.get_cell());
         self.mempool.link(myself.get_cell());
         self.host.link(myself.get_cell());
+        self.gossip_mempool.link(myself.get_cell());
+
+        if let Some(actor) = &self.block_sync {
+            actor.link(myself.get_cell());
+        }
 
         Ok(())
     }

@@ -14,7 +14,7 @@ pub struct ProposalInit {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalFin {
-    pub valid_round: Option<Round>,
+    pub valid_round: Round,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -104,14 +104,14 @@ impl proto::Protobuf for ProposalPart {
         Ok(match message {
             Messages::Init(init) => ProposalPart::Init(ProposalInit {
                 height: Height::new(init.block_number, init.fork_id),
-                proposal_round: Round::new(i64::from(init.proposal_round)),
+                proposal_round: Round::new(init.proposal_round),
                 proposer: Address::from_proto(
                     init.proposer
                         .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("proposer"))?,
                 )?,
             }),
             Messages::Fin(fin) => {
-                let valid_round = fin.valid_round.map(|round| Round::new(i64::from(round)));
+                let valid_round = Round::from(fin.valid_round);
                 ProposalPart::Fin(ProposalFin { valid_round })
             }
             Messages::Transactions(txes) => {
@@ -133,11 +133,14 @@ impl proto::Protobuf for ProposalPart {
             ProposalPart::Init(init) => Messages::Init(p2p_proto::ProposalInit {
                 block_number: init.height.block_number,
                 fork_id: init.height.fork_id,
-                proposal_round: init.proposal_round.as_i64() as u32, // FIXME: p2p-types
+                proposal_round: init
+                    .proposal_round
+                    .as_u32()
+                    .expect("round should not be nil"),
                 proposer: Some(init.proposer.to_proto()?),
             }),
             ProposalPart::Fin(fin) => Messages::Fin(p2p_proto::ProposalFin {
-                valid_round: fin.valid_round.map(|round| round.as_i64() as u32), // FIXME: p2p-types
+                valid_round: fin.valid_round.as_u32(),
             }),
             ProposalPart::Transactions(txes) => Messages::Transactions(p2p_proto::Transactions {
                 transactions: txes

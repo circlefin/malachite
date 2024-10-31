@@ -1,5 +1,6 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let protos = &[
+        "./proto/blocksync.proto",
         "./proto/p2p/proto/common.proto",
         "./proto/p2p/proto/header.proto",
         "./proto/p2p/proto/transaction.proto",
@@ -14,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = prost_build::Config::new();
     config.bytes(["."]);
     config.enable_type_names();
-    config.default_package_filename("p2p_specs");
+    config.default_package_filename("p2p");
     config.compile_protos(protos, &["./proto"])?;
 
     Ok(())

@@ -62,7 +62,7 @@ pub struct TestnetCmd {
 
     /// Enable peer discovery.
     /// If enabled, the node will attempt to discover other nodes in the network
-    #[clap(long, default_value = "true")]
+    #[clap(long, default_value = "false")]
     pub enable_discovery: bool,
 
     /// The transport protocol to use for P2P communication
@@ -138,7 +138,8 @@ where
         // Save config
         save_config(
             &args.get_config_file_path()?,
-            &crate::new::generate_config(i, nodes, runtime, enable_discovery, transport, logging),
+            &crate::new::generate_config(i, nodes, runtime, enable_
+              ry, transport, logging),
         )?;
 
         // Save private key

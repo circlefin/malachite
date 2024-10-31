@@ -124,7 +124,7 @@ impl Protobuf for Vote {
         Ok(Self::Proto {
             vote_type: encode_votetype(self.typ).into(),
             height: Some(self.height.to_proto()?),
-            round: self.round.as_i64(),
+            round: self.round.as_u32().expect("round should not be nil"),
             value: match &self.value {
                 NilOrVal::Nil => None,
                 NilOrVal::Val(v) => Some(v.to_proto()?),
