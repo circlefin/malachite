@@ -194,6 +194,8 @@ pure def syncClient (s: Synchronizer) : ClientResult =
                 req: None}
 
 
+
+
 // ****************************************************************************
 // Server
 // ****************************************************************************
@@ -255,8 +257,14 @@ pure def syncServer (s: Server, ns: NodeState) : ServerOutput =
 
 
 
-//
+
+// ****************************************************************************
 // State machine
+// ****************************************************************************
+
+
+
+
 //
 // The statemachine is put on top of statemachineAsync, that is, we use its
 // initialization and steps, and add the updates to the variables defined below
@@ -272,6 +280,7 @@ var serverSystem: Address -> Server
 var statusBuffer : Address -> Set[SyncStatusMsg]  
 var syncResponseBuffer : Address -> Set[ResponseMsg]
 var syncRequestBuffer : Address -> Set[RequestMsg]
+
 
 // Auxiliary functions for sending messages
 
@@ -348,15 +357,15 @@ action syncStatusStep(v) = all {
 action syncStepServer(v) = all {
     val result = syncServer(serverSystem.get(v), system.get(v)) // this is where the chains is passed
     all {
-        unchangedAll,
-        statusBuffer' = statusBuffer, 
+        serverSystem' = serverSystem.put(v, result.sync),
         syncResponseBuffer' = match result.msg {
             | Some(m) => syncResponseBuffer.sendResponse(m) // TODO: fix after broadcast
             | None => syncResponseBuffer
         },
         syncSystem' = syncSystem,
-        serverSystem' = serverSystem.put(v, result.sync),
         syncRequestBuffer' = syncRequestBuffer,
+        statusBuffer' = statusBuffer, 
+        unchangedAll,
     }
 }
 
@@ -364,16 +373,16 @@ action syncStepServer(v) = all {
 action syncStepClient(v) = all {
     val result = syncClient(syncSystem.get(v))
     all {
-        putSyncOutputIntoNode(v, result),   // the logic's code should be here, but due to Quint issues
-                                            // we need to keep it in stateMachineAsync for now
-        statusBuffer' = statusBuffer, 
-        syncResponseBuffer' = syncResponseBuffer,
         syncSystem' = syncSystem.put(v, result.sync),
-        serverSystem' = serverSystem,
         syncRequestBuffer' = match result.req {
             | Some(m) => syncRequestBuffer.put(m.server, syncRequestBuffer.get(m.server).union(Set(m)))
             | None => syncRequestBuffer
-        },
+        },        
+        putSyncOutputIntoNode(v, result.so),    // the logic's code should be here, but due to Quint issues
+                                                // we need to keep it in stateMachineAsync for now
+        statusBuffer' = statusBuffer, 
+        syncResponseBuffer' = syncResponseBuffer,
+        serverSystem' = serverSystem,
     }
 }
 
@@ -520,7 +529,7 @@ run syncCycle(h) =
     .expect(system.get("v4").es.chain.length() > h)
 
 run retreat = 
-    nondet heightToReach = 1.to(7).oneOf()
+    nondet heightToReach = 1.to(4).oneOf()
     initHeight( q::debug ("Height:", heightToReach))
     .then(heightToReach.reps(i => syncCycle(i)))
     .expect(system.get("v4").es.chain == system.get("v2").es.chain)

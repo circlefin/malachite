@@ -260,18 +260,15 @@ action newHeightAction(v, valset, h) = all {
 
 /// retreat workaround. TODO: check with Gabriela about Quint flattening
 /// the code should be situation in sync.qnt at action syncStepClient(v)
-action putSyncOutputIntoNode(v, result) = all{
-        system' = match result.so {
+action putSyncOutputIntoNode(v, syncOut) = all{
+        system' = match syncOut {
             // Put the sync output into the consensus engine
-            | SOCertificate(cert) => 
-                system.put(v, {... system.get(v), 
-                    incomingSyncCertificates:   
-                    system.get(v).incomingSyncCertificates.union(Set(cert))})
-            | SOBlock(value) =>  
-                system.put(v, 
-                    {... system.get(v), 
-                    incomingSyncProposals: system.get(v).incomingSyncProposals.union(Set(value))})
-
+            | SOCertificate(cert) => system.put(v, {... system.get(v), 
+                    incomingSyncCertificates: 
+                        system.get(v).incomingSyncCertificates.union(Set(cert))})
+            | SOBlock(prop) => system.put(v, {... system.get(v), 
+                    incomingSyncProposals: 
+                        system.get(v).incomingSyncProposals.union(Set(prop))})
             | SONoOutput => system
         },
         propBuffer' = propBuffer,
