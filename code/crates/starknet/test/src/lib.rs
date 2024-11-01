@@ -208,26 +208,26 @@ impl<const N: usize> Test<N> {
         }
     }
 
-    pub fn generate_default_configs(&self) -> [Config; N] {
-        let configs: Vec<_> = (0..N).map(|i| make_node_config(self, i)).collect();
+    pub fn generate_default_configs(&self, app: App) -> [Config; N] {
+        let configs: Vec<_> = (0..N).map(|i| make_node_config(self, i, app)).collect();
         configs.try_into().expect("N configs")
     }
 
-    pub fn generate_custom_configs(&self, params: TestParams) -> [Config; N] {
-        let mut configs = self.generate_default_configs();
+    pub fn generate_custom_configs(&self, app: App, params: TestParams) -> [Config; N] {
+        let mut configs = self.generate_default_configs(app);
         for config in &mut configs {
             params.apply_to_config(config);
         }
         configs
     }
 
-    pub async fn run(self, timeout: Duration) {
-        let configs = self.generate_default_configs();
+    pub async fn run(self, app: App, timeout: Duration) {
+        let configs = self.generate_default_configs(app);
         self.run_with_config(configs, timeout).await
     }
 
-    pub async fn run_with_custom_config(self, timeout: Duration, params: TestParams) {
-        let configs = self.generate_custom_configs(params);
+    pub async fn run_with_custom_config(self, app: App, timeout: Duration, params: TestParams) {
+        let configs = self.generate_custom_configs(app, params);
         self.run_with_config(configs, timeout).await
     }
 
@@ -473,11 +473,12 @@ fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     }
 }
 
-pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> NodeConfig {
+pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> NodeConfig {
     let transport = transport_from_env(TransportProtocol::Tcp);
     let protocol = PubSubProtocol::default();
 
     NodeConfig {
+        app,
         moniker: format!("node-{i}"),
         logging: LoggingConfig::default(),
         consensus: ConsensusConfig {
