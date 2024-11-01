@@ -387,8 +387,8 @@ inducing undesirable behaviour, are two:
    `⟨PRECOMMIT, h, r, *⟩` messages for values that are not in line with the
    expected contents of its `lockedValue_q` and `lockedRound_q` variables.
 
-It is virtually impossible to prevent **equivocation attacks**, and the way
-that a correct process can deal with it is by only considering the first
+Since Byzantine processes can always produce **equivocation attacks**, a way
+that a correct process can deal with them is by only considering the first
 `⟨PREVOTE, h, r, *⟩` or `⟨PRECOMMIT, h, r, *⟩` messages received from a process
 in a round `r` of height `h`.
 Different (equivocating) versions of the same message from the same sender
