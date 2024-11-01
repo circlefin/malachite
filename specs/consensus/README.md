@@ -16,6 +16,8 @@ The specification of the consensus algorithm and its implementation is organized
 - [**misbehavior.md**](./misbehavior.md): describes different kinds of
   misbehavior by Byzantine processes that over time can harm the system (lead to
   disagreement), and how each misbehavior is defined and can be detected;
+- [**design.md**](./design.md): overviews the design of Malachite's
+  implementation of the Tendermint consensus algorithm.
 
 ## References
 
