@@ -44,6 +44,9 @@ pub struct Config {
     /// A custom human-readable name for this node
     pub moniker: String,
 
+    /// The name of the application to run
+    pub app: App,
+
     /// Log configuration options
     pub logging: LoggingConfig,
 
