@@ -80,7 +80,7 @@ where
     use io::AsyncWriteExt;
 
     let len = data.len();
-    if len > max_len as usize || len > u32::MAX as usize {
+    if len > max_len || len > u32::MAX as usize {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "data too large",
