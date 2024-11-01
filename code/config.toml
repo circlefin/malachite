@@ -153,6 +153,10 @@ persistent_peers = []
 # - "quic": QUIC
 transport = "quic"
 
+# These have no effects on the mempool yet
+pubsub_max_size = "4 MiB"
+rpc_max_size = "10 MiB"
+
 #######################################################
 ###   Mempool P2P Protocol Configuration Options    ###
 #######################################################
