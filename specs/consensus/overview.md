@@ -1,4 +1,4 @@
-# Consensus Algorithm: Overview
+# Tendermint Consensus Algorithm
 
 A consensus algorithm is run by a (previously defined) set of **processes**[^1], some
 of which may fail, that **propose** values and guarantees that eventually all
