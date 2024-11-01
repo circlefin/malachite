@@ -91,7 +91,7 @@ discovery = { enabled = true }
 # The maximum size of messages to send over pub-sub
 # Must be larger than the maximum block part size.
 # Override with MALACHITE__CONSENSUS__P2P__PUBSUB_MAX_SIZE env variable
-pubsub_max_size = "4 MiB",
+pubsub_max_size = "4 MiB"
 
 # The maximum size of messages to send over RPC
 # Must be larger than the maximum block size.
