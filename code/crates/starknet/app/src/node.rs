@@ -97,3 +97,53 @@ impl Node for StarknetNode {
         handle.await.unwrap();
     }
 }
+
+#[test]
+fn test_starknet_node() {
+    // Create temp folder for confiugration files
+    let temp_dir =
+        tempfile::TempDir::with_prefix("malachite-node-").expect("Failed to create temp dir");
+    let temp_path = temp_dir.path().to_owned();
+
+    if std::env::var("KEEP_TEMP").is_ok() {
+        std::mem::forget(temp_dir);
+    }
+
+    // Create default configuration
+    let node = StarknetNode {
+        config: Config {
+            moniker: "test-node".to_string(),
+            ..Default::default()
+        },
+        genesis_file: temp_path.join("genesis.json"),
+        private_key_file: temp_path.join("private_key.json"),
+        start_height: Some(1),
+    };
+
+    // Create configureation files
+    use malachite_cli::*;
+    let priv_keys = new::generate_private_keys(&node, 1, true);
+    let pub_keys = priv_keys
+        .iter()
+        .map(|pk| node.generate_public_key(*pk))
+        .collect();
+    let genesis = new::generate_genesis(&node, pub_keys, true);
+    file::save_priv_validator_key(&node, &node.private_key_file, &priv_keys[0]).unwrap();
+    file::save_genesis(&node, &node.genesis_file, &genesis).unwrap();
+
+    // Run the node for a few seconds
+    const TIMEOUT: u64 = 3;
+    use tokio::time::{timeout, Duration};
+    let rt = malachite_cli::runtime::build_runtime(node.config.runtime).unwrap();
+    let result = rt.block_on(async { timeout(Duration::from_secs(TIMEOUT), node.run()).await });
+
+    // Check that the node did not quit before the timeout.
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert_eq!(error.to_string(), "deadline has elapsed");
+    let io_error: std::io::Error = error.into();
+    assert_eq!(
+        io_error.to_string(),
+        std::io::Error::new(std::io::ErrorKind::TimedOut, "timed out").to_string()
+    );
+}
