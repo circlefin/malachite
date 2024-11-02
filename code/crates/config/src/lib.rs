@@ -527,6 +527,10 @@ mod tests {
         let config = toml::from_str::<Config>(file).unwrap();
         assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
         assert_eq!(config.test, TestConfig::default());
+
+        let config = load_config(Path::new("../../config.toml"), None).unwrap();
+        assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
+        assert_eq!(config.test, TestConfig::default());
     }
 
     #[test]
