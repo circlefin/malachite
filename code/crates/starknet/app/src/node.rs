@@ -100,7 +100,7 @@ impl Node for StarknetNode {
 
 #[test]
 fn test_starknet_node() {
-    // Create temp folder for confiugration files
+    // Create temp folder for configuration files
     let temp_dir =
         tempfile::TempDir::with_prefix("malachite-node-").expect("Failed to create temp dir");
     let temp_path = temp_dir.path().to_owned();
