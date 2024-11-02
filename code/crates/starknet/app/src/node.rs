@@ -120,7 +120,7 @@ fn test_starknet_node() {
         start_height: Some(1),
     };
 
-    // Create configureation files
+    // Create configuration files
     use malachite_cli::*;
     let priv_keys = new::generate_private_keys(&node, 1, true);
     let pub_keys = priv_keys
