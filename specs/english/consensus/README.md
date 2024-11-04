@@ -239,7 +239,7 @@ The diagram below offers a visual representation of the state machine. It shows 
 and red for the complex events (e.g. `ProposalAndPolkaCurrent` is sent to the state machine when a valid proposal and a polka of prevotes have been received).
 The actions are shown in italics (blue) and the output messages are shown in blue.
 
-![Consensus SM Diagram](assets/sm_diagram.jpeg)
+![Consensus SM Diagram](../assets/sm_diagram.jpeg)
 
 The set of states can be summarized as:
 
