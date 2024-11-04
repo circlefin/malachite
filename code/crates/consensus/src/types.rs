@@ -45,8 +45,8 @@ pub struct ProposedValue<Ctx: Context> {
 
 /// The possible messages used to deliver proposals
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ValueMessageTypes {
-    BlockParts,
-    Proposal,
-    ProposalAndBlockParts,
+pub enum ValuePayload {
+    PartsOnly,
+    ProposalOnly,
+    ProposalAndParts,
 }

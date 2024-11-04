@@ -463,7 +463,7 @@ use bytesize::ByteSize;
 
 use malachite_config::{
     ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
-    ValueMessageTypes,
+    ValuePayload,
 };
 
 fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
@@ -484,7 +484,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
         logging: LoggingConfig::default(),
         consensus: ConsensusConfig {
             max_block_size: ByteSize::mib(1),
-            value_msg_types: ValueMessageTypes::default(),
+            value_payload: ValuePayload::default(),
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 transport,

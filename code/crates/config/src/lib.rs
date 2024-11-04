@@ -304,7 +304,7 @@ pub struct ConsensusConfig {
     pub timeouts: TimeoutConfig,
 
     /// Message types that can carry values
-    pub value_msg_types: ValueMessageTypes,
+    pub value_payload: ValuePayload,
 
     /// P2P configuration options
     pub p2p: P2pConfig,
@@ -312,26 +312,14 @@ pub struct ConsensusConfig {
 
 /// Message types required by consensus to deliver the value being proposed
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ValueMessageTypes {
+#[serde(rename_all = "kebab-case")]
+pub enum ValuePayload {
     #[default]
-    BlockParts,
-    Proposal, // TODO - add small block app to test this option
-    ProposalAndBlockParts,
+    PartsOnly,
+    ProposalOnly, // TODO - add small block app to test this option
+    ProposalAndParts,
 }
 
-impl FromStr for ValueMessageTypes {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "blockparts" => Ok(ValueMessageTypes::BlockParts),
-            "proposal" => Ok(ValueMessageTypes::Proposal),
-            "proposalandblockparts" => Ok(ValueMessageTypes::ProposalAndBlockParts),
-            e => Err(format!("Invalid value message type: {e}")),
-        }
-    }
-}
 /// Timeouts
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TimeoutConfig {

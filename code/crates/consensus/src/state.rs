@@ -7,7 +7,7 @@ use tracing::warn;
 
 use crate::input::Input;
 use crate::{FullProposal, FullProposalKeeper};
-use crate::{Params, ProposedValue, ValueMessageTypes};
+use crate::{Params, ProposedValue, ValuePayload};
 
 /// The state maintained by consensus for processing a [`Input`][crate::Input].
 pub struct State<Ctx>
@@ -18,7 +18,7 @@ where
     pub ctx: Ctx,
 
     /// The messages required to deliver proposals
-    pub value_msg_types: ValueMessageTypes,
+    pub value_payload: ValuePayload,
 
     /// Driver for the per-round consensus state machine
     pub driver: Driver<Ctx>,
@@ -41,7 +41,7 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(ctx: Ctx, params: Params<Ctx>, value_msg_types: ValueMessageTypes) -> Self {
+    pub fn new(ctx: Ctx, params: Params<Ctx>, value_payload: ValuePayload) -> Self {
         let driver = Driver::new(
             ctx.clone(),
             params.start_height,
@@ -52,7 +52,7 @@ where
 
         Self {
             ctx,
-            value_msg_types,
+            value_payload,
             driver,
             input_queue: Default::default(),
             full_proposal_keeper: Default::default(),

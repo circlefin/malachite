@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
+use malachite_consensus::ValuePayload;
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 
@@ -149,11 +150,17 @@ async fn spawn_consensus_actor(
         threshold_params: Default::default(),
     };
 
+    let value_payload = match cfg.consensus.value_payload {
+        malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
+        malachite_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
+        malachite_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
+    };
+
     Consensus::spawn(
         ctx,
         consensus_params,
         cfg.consensus.timeouts,
-        cfg.consensus.value_msg_types,
+        value_payload,
         gossip_consensus,
         host,
         block_sync,
@@ -250,7 +257,7 @@ async fn spawn_host_actor(
 ) -> HostRef<MockContext> {
     let mock_params = MockParams {
         max_block_size: cfg.consensus.max_block_size,
-        value_msg_types: cfg.consensus.value_msg_types,
+        value_payload: cfg.consensus.value_payload,
         tx_size: cfg.test.tx_size,
         txs_per_part: cfg.test.txs_per_part,
         time_allowance_factor: cfg.test.time_allowance_factor,

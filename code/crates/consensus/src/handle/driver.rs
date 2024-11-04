@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::ValueMessageTypes;
+use crate::ValuePayload;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 
@@ -142,7 +142,7 @@ where
             let signed_proposal = state.ctx.sign_proposal(proposal.clone());
 
             // Proposal messages should not be broadcasted if they are implicit, instead they should be inferred from the block parts
-            if state.value_msg_types != ValueMessageTypes::BlockParts {
+            if state.value_payload != ValuePayload::PartsOnly {
                 perform!(
                     co,
                     Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal.clone()))
