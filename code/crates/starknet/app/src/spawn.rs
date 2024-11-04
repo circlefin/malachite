@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
-use malachite_consensus::ValuePayload;
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 
@@ -17,6 +16,7 @@ use malachite_config::{
     BlockSyncConfig, Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig,
     TransportProtocol,
 };
+use malachite_consensus::ValuePayload;
 use malachite_gossip_consensus::{
     Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
 };
@@ -143,24 +143,24 @@ async fn spawn_consensus_actor(
     metrics: Metrics,
     tx_decision: Option<broadcast::Sender<SignedProposal<MockContext>>>,
 ) -> ConsensusRef<MockContext> {
-    let consensus_params = ConsensusParams {
-        start_height,
-        initial_validator_set,
-        address,
-        threshold_params: Default::default(),
-    };
-
     let value_payload = match cfg.consensus.value_payload {
         malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
         malachite_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
         malachite_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
     };
 
+    let consensus_params = ConsensusParams {
+        start_height,
+        initial_validator_set,
+        address,
+        threshold_params: Default::default(),
+        value_payload,
+    };
+
     Consensus::spawn(
         ctx,
         consensus_params,
         cfg.consensus.timeouts,
-        value_payload,
         gossip_consensus,
         host,
         block_sync,

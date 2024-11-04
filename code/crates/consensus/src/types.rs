@@ -44,9 +44,26 @@ pub struct ProposedValue<Ctx: Context> {
 }
 
 /// The possible messages used to deliver proposals
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ValuePayload {
     PartsOnly,
     ProposalOnly,
     ProposalAndParts,
+}
+
+impl ValuePayload {
+    pub fn include_proposal(self) -> bool {
+        matches!(
+            self,
+            ValuePayload::ProposalOnly | ValuePayload::ProposalAndParts
+        )
+    }
+
+    pub fn parts_only(self) -> bool {
+        matches!(self, ValuePayload::PartsOnly)
+    }
+
+    pub fn proposal_only(&self) -> bool {
+        matches!(self, ValuePayload::ProposalOnly)
+    }
 }

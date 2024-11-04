@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use crate::handle::driver::apply_driver_input;
-use crate::types::{ProposedValue, ValuePayload};
+use crate::types::ProposedValue;
 
 #[tracing::instrument(
     skip_all,
@@ -37,7 +37,8 @@ where
     }
 
     state.store_value(&proposed_value);
-    if state.value_payload == ValuePayload::PartsOnly {
+
+    if state.params.value_payload.parts_only() {
         let proposal = Ctx::new_proposal(
             proposed_value.height,
             proposed_value.round,

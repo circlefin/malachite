@@ -14,7 +14,7 @@ use malachite_common::{
     Context, Extension, Proposal, Round, SignedProposal, Timeout, TimeoutStep, ValidatorSet,
 };
 use malachite_config::TimeoutConfig;
-use malachite_consensus::{Effect, Resume, ValuePayload};
+use malachite_consensus::{Effect, Resume};
 use malachite_metrics::Metrics;
 
 use crate::block_sync::Msg as BlockSyncMsg;
@@ -38,7 +38,6 @@ where
     ctx: Ctx,
     params: ConsensusParams<Ctx>,
     timeout_config: TimeoutConfig,
-    value_payload: ValuePayload,
     gossip_consensus: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
     block_sync: Option<BlockSyncRef<Ctx>>,
@@ -134,7 +133,6 @@ where
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
-        value_payload: ValuePayload,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
         block_sync: Option<BlockSyncRef<Ctx>>,
@@ -150,7 +148,6 @@ where
             block_sync,
             metrics,
             tx_decision,
-            value_payload,
         }
     }
 
@@ -159,7 +156,6 @@ where
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
-        value_payload: ValuePayload,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
         block_sync: Option<BlockSyncRef<Ctx>>,
@@ -170,7 +166,6 @@ where
             ctx,
             params,
             timeout_config,
-            value_payload,
             gossip_consensus,
             host,
             block_sync,
@@ -336,10 +331,11 @@ where
                     }
 
                     GossipEvent::Proposal(from, proposal) => {
-                        if state.consensus.value_payload == ValuePayload::PartsOnly {
+                        if state.consensus.params.value_payload.parts_only() {
                             error!(%from, "Properly configured peer should never send proposal messages in BlockPart mode");
                             return Ok(());
                         }
+
                         if let Err(e) = self
                             .process_input(&myself, state, ConsensusInput::Proposal(proposal))
                             .await
@@ -349,10 +345,11 @@ where
                     }
 
                     GossipEvent::ProposalPart(from, part) => {
-                        if state.consensus.value_payload == ValuePayload::ProposalOnly {
+                        if state.consensus.params.value_payload.proposal_only() {
                             error!(%from, "Properly configured peer should never send block part messages in Proposal mode");
                             return Ok(());
                         }
+
                         self.host
                             .call_and_forward(
                                 |reply_to| HostMsg::ReceivedProposalPart {
@@ -649,11 +646,7 @@ where
         Ok(State {
             timers: Timers::new(myself),
             timeouts: Timeouts::new(self.timeout_config),
-            consensus: ConsensusState::new(
-                self.ctx.clone(),
-                self.params.clone(),
-                self.value_payload,
-            ),
+            consensus: ConsensusState::new(self.ctx.clone(), self.params.clone()),
             connected_peers: BTreeSet::new(),
         })
     }
