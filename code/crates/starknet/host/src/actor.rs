@@ -195,8 +195,8 @@ impl StarknetHost {
         let all_parts = state.part_store.all_parts(height, round);
 
         trace!(
-            count = state.part_store.len(),
-            "Number of parts in the part store"
+            count = state.part_store.blocks_count(),
+            "Blocks for which we have parts"
         );
 
         // TODO: Do more validations, e.g. there is no higher tx proposal part,
