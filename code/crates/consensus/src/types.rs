@@ -42,3 +42,11 @@ pub struct ProposedValue<Ctx: Context> {
     pub validity: Validity,
     pub extension: Option<Extension>,
 }
+
+/// Message types used to deliver the value being proposed
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ValueMessageTypes {
+    Proposal,
+    BlockParts,
+    ProposalAndBlockParts,
+}

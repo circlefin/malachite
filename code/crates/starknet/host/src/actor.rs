@@ -161,6 +161,11 @@ impl StarknetHost {
         let block_hash = {
             let mut block_hasher = sha3::Keccak256::new();
             for part in parts {
+                if let Some(_init) = part.as_init() {
+                    // We don't want to hash over the init so restreaming returns the same hash
+                    // TODO - we should probably still include height.
+                    continue;
+                }
                 block_hasher.update(part.to_sign_bytes());
             }
             BlockHash::new(block_hasher.finalize().into())

@@ -13,8 +13,8 @@ use malachite_blocksync as blocksync;
 use malachite_common::{
     Context, Extension, Proposal, Round, SignedProposal, Timeout, TimeoutStep, ValidatorSet,
 };
-use malachite_config::TimeoutConfig;
-use malachite_consensus::{Effect, Resume};
+use malachite_config::{TimeoutConfig, ValueMessageTypes as MsgTypeConfig};
+use malachite_consensus::{Effect, Resume, ValueMessageTypes};
 use malachite_metrics::Metrics;
 
 use crate::block_sync::Msg as BlockSyncMsg;
@@ -38,6 +38,7 @@ where
     ctx: Ctx,
     params: ConsensusParams<Ctx>,
     timeout_config: TimeoutConfig,
+    value_msg_types: MsgTypeConfig,
     gossip_consensus: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
     block_sync: Option<BlockSyncRef<Ctx>>,
@@ -133,6 +134,7 @@ where
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
+        value_msg_types: MsgTypeConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
         block_sync: Option<BlockSyncRef<Ctx>>,
@@ -148,6 +150,7 @@ where
             block_sync,
             metrics,
             tx_decision,
+            value_msg_types,
         }
     }
 
@@ -156,6 +159,7 @@ where
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
+        value_msg_types: MsgTypeConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
         block_sync: Option<BlockSyncRef<Ctx>>,
@@ -166,6 +170,7 @@ where
             ctx,
             params,
             timeout_config,
+            value_msg_types,
             gossip_consensus,
             host,
             block_sync,
@@ -331,6 +336,10 @@ where
                     }
 
                     GossipEvent::Proposal(from, proposal) => {
+                        if state.consensus.value_msg_types == ValueMessageTypes::BlockParts {
+                            error!(%from, "Properly configured peer should never send proposal messages in BlockPart mode");
+                            return Ok(());
+                        }
                         if let Err(e) = self
                             .process_input(&myself, state, ConsensusInput::Proposal(proposal))
                             .await
@@ -340,6 +349,10 @@ where
                     }
 
                     GossipEvent::ProposalPart(from, part) => {
+                        if state.consensus.value_msg_types == ValueMessageTypes::Proposal {
+                            error!(%from, "Properly configured peer should never send block part messages in Proposal mode");
+                            return Ok(());
+                        }
                         self.host
                             .call_and_forward(
                                 |reply_to| HostMsg::ReceivedProposalPart {
@@ -614,6 +627,15 @@ where
     }
 }
 
+// TODO - fix imports or def location
+fn types_from_config(cfg: MsgTypeConfig) -> ValueMessageTypes {
+    match cfg {
+        MsgTypeConfig::ProposalAndBlockParts => ValueMessageTypes::ProposalAndBlockParts,
+        MsgTypeConfig::BlockParts => ValueMessageTypes::BlockParts,
+        MsgTypeConfig::Proposal => ValueMessageTypes::Proposal,
+    }
+}
+
 #[async_trait]
 impl<Ctx> Actor for Consensus<Ctx>
 where
@@ -633,10 +655,11 @@ where
         self.gossip_consensus
             .cast(GossipConsensusMsg::Subscribe(forward))?;
 
+        let msg_types = types_from_config(self.value_msg_types);
         Ok(State {
             timers: Timers::new(myself),
             timeouts: Timeouts::new(self.timeout_config),
-            consensus: ConsensusState::new(self.ctx.clone(), self.params.clone()),
+            consensus: ConsensusState::new(self.ctx.clone(), self.params.clone(), msg_types),
             connected_peers: BTreeSet::new(),
         })
     }

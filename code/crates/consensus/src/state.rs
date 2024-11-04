@@ -6,9 +6,8 @@ use malachite_driver::Driver;
 use tracing::warn;
 
 use crate::input::Input;
-use crate::Params;
-use crate::ProposedValue;
 use crate::{FullProposal, FullProposalKeeper};
+use crate::{Params, ProposedValue, ValueMessageTypes};
 
 /// The state maintained by consensus for processing a [`Input`][crate::Input].
 pub struct State<Ctx>
@@ -17,6 +16,9 @@ where
 {
     /// The context for the consensus state machine
     pub ctx: Ctx,
+
+    /// The messages that carry proposed value
+    pub value_msg_types: ValueMessageTypes,
 
     /// Driver for the per-round consensus state machine
     pub driver: Driver<Ctx>,
@@ -39,7 +41,7 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(ctx: Ctx, params: Params<Ctx>) -> Self {
+    pub fn new(ctx: Ctx, params: Params<Ctx>, value_msg_types: ValueMessageTypes) -> Self {
         let driver = Driver::new(
             ctx.clone(),
             params.start_height,
@@ -50,9 +52,10 @@ where
 
         Self {
             ctx,
+            value_msg_types,
             driver,
             input_queue: Default::default(),
-            full_proposal_keeper: Default::default(),
+            full_proposal_keeper: FullProposalKeeper::new(),
             signed_precommits: Default::default(),
             decision: Default::default(),
         }

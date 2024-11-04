@@ -153,6 +153,7 @@ async fn spawn_consensus_actor(
         ctx,
         consensus_params,
         cfg.consensus.timeouts,
+        cfg.consensus.value_msg_types,
         gossip_consensus,
         host,
         block_sync,
@@ -249,6 +250,7 @@ async fn spawn_host_actor(
 ) -> HostRef<MockContext> {
     let mock_params = MockParams {
         max_block_size: cfg.consensus.max_block_size,
+        value_msg_types: cfg.consensus.value_msg_types,
         tx_size: cfg.test.tx_size,
         txs_per_part: cfg.test.txs_per_part,
         time_allowance_factor: cfg.test.time_allowance_factor,

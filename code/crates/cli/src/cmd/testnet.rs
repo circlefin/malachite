@@ -212,6 +212,7 @@ pub fn generate_config(
         moniker: format!("test-{}", index),
         consensus: ConsensusConfig {
             max_block_size: ByteSize::mib(1),
+            value_msg_types: ValueMessageTypes::default(),
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 protocol: consensus_p2p_protocol,

@@ -303,10 +303,35 @@ pub struct ConsensusConfig {
     #[serde(flatten)]
     pub timeouts: TimeoutConfig,
 
+    /// Message types that can carry values
+    pub value_msg_types: ValueMessageTypes,
+
     /// P2P configuration options
     pub p2p: P2pConfig,
 }
 
+/// Message types used to deliver the value being proposed
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ValueMessageTypes {
+    Proposal, // TODO - add small block app to test this option
+    #[default]
+    BlockParts,
+    ProposalAndBlockParts,
+}
+
+impl FromStr for ValueMessageTypes {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "proposal" => Ok(ValueMessageTypes::Proposal),
+            "blockparts" => Ok(ValueMessageTypes::BlockParts),
+            "proposalandblockparts" => Ok(ValueMessageTypes::ProposalAndBlockParts),
+            e => Err(format!("Invalid value message type: {e}")),
+        }
+    }
+}
 /// Timeouts
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TimeoutConfig {
@@ -518,6 +543,7 @@ mod tests {
 
     #[test]
     fn parse_default_config_file() {
+        //
         let file = include_str!("../../../config.toml");
         let config = toml::from_str::<Config>(file).unwrap();
         assert_eq!(config.consensus.timeouts, TimeoutConfig::default());

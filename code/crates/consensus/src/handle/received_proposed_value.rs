@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 use crate::handle::driver::apply_driver_input;
-use crate::types::ProposedValue;
+use crate::types::{ProposedValue, ValueMessageTypes};
 
 #[tracing::instrument(
     skip_all,
@@ -37,6 +37,17 @@ where
     }
 
     state.store_value(&proposed_value);
+    if state.value_msg_types == ValueMessageTypes::BlockParts {
+        let proposal = Ctx::new_proposal(
+            proposed_value.height,
+            proposed_value.round,
+            proposed_value.value.clone(),
+            proposed_value.valid_round,
+            proposed_value.validator_address.clone(),
+        );
+        let signed_proposal = Ctx::sign_proposal(&state.ctx, proposal); // TODO - keep unsigned proposals in keeper
+        state.store_proposal(signed_proposal);
+    }
 
     let proposals = state.full_proposals_for_value(&proposed_value);
     for signed_proposal in proposals {

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytesize::ByteSize;
-use malachite_config::VoteExtensionsConfig;
+use malachite_config::{ValueMessageTypes, VoteExtensionsConfig};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::Instrument;
@@ -23,6 +23,7 @@ use build_proposal::build_proposal_task;
 #[derive(Copy, Clone, Debug)]
 pub struct MockParams {
     pub max_block_size: ByteSize,
+    pub value_msg_types: ValueMessageTypes,
     pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub time_allowance_factor: f32,

@@ -1,5 +1,5 @@
 use crate::handle::signature::verify_signature;
-use crate::prelude::*;
+use crate::{prelude::*, ProposedValue, ValueMessageTypes};
 
 use crate::handle::driver::apply_driver_input;
 use crate::handle::validator_set::get_validator_set;
@@ -71,6 +71,20 @@ where
 
     state.store_proposal(signed_proposal.clone());
 
+    if state.value_msg_types == ValueMessageTypes::Proposal {
+        // TODO - pass the received value up to the host that will verify and give back validity and extension.
+        // Currently starknet Context defines value as BlockHash, we need a PoC app for this.
+        let new_value = ProposedValue {
+            height: signed_proposal.height(),
+            round: signed_proposal.round(),
+            valid_round: signed_proposal.pol_round(),
+            validator_address: signed_proposal.validator_address().clone(),
+            value: signed_proposal.value().clone(),
+            validity: Validity::Valid,
+            extension: Default::default(),
+        };
+        state.store_value(&new_value);
+    }
     if let Some(full_proposal) = state.full_proposal_at_round_and_value(
         &proposal_height,
         proposal_round,

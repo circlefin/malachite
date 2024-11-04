@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::ValueMessageTypes;
 use malachite_driver::Input as DriverInput;
 use malachite_driver::Output as DriverOutput;
 
@@ -140,11 +141,13 @@ where
 
             let signed_proposal = state.ctx.sign_proposal(proposal.clone());
 
-            perform!(
-                co,
-                Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal.clone()))
-            );
-
+            if state.value_msg_types != ValueMessageTypes::BlockParts {
+                // Proposal messages are implicit, should be inferred from the block parts
+                perform!(
+                    co,
+                    Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal.clone()))
+                );
+            }
             if let Round::Some(_vr) = signed_proposal.pol_round() {
                 perform!(
                     co,
