@@ -53,8 +53,13 @@ cargo build --release
 
 # Create nodes and logs directories, run nodes
 for NODE in $(seq 0 $((NODES_COUNT - 1))); do
-    mkdir -p "$NODES_HOME/$NODE/logs"
-    rm -f "$NODES_HOME/$NODE/logs/*.log"
+    rm -rf "$NODE_HOME/$NODE/db"
+    rm -rf "$NODE_HOME/$NODE/logs"
+    rm -rf "$NODE_HOME/$NODE/traces"
+
+    mkdir -p "$NODE_HOME/$NODE/db"
+    mkdir -p "$NODE_HOME/$NODE/logs"
+    mkdir -p "$NODE_HOME/$NODE/traces"
 
     echo "[Node $NODE] Spawning node..."
     cargo run -q --release -- start --home "$NODES_HOME/$NODE" > "$NODES_HOME/$NODE/logs/node.log" 2>&1 &

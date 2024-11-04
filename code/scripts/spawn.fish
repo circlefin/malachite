@@ -81,10 +81,14 @@ set NODES_HOME  $_flag_home
 
 for NODE in (seq 0 $(math $NODES_COUNT - 1))
     set NODE_HOME "$NODES_HOME/$NODE"
+
+    rm -rf "$NODE_HOME/db"
+    rm -rf "$NODE_HOME/logs"
+    rm -rf "$NODE_HOME/traces"
+
+    mkdir -p "$NODE_HOME/db"
     mkdir -p "$NODE_HOME/logs"
     mkdir -p "$NODE_HOME/traces"
-
-    rm -f "$NODE_HOME/logs/*.log"
 
     set pane $(tmux new-window -P -n "node-$NODE" "$(which fish)")
 
