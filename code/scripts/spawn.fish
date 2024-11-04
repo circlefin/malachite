@@ -1,10 +1,8 @@
 #!/usr/bin/env fish
 
-set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "100 MiB"
-set -x MALACHITE__CONSENSUS__P2P__RPC_MAX_SIZE "110 MiB"
-set -x MALACHITE__CONSENSUS__P2P__PUBSUB_MAX_SIZE "20 MiB"
 set -x MALACHITE__CONSENSUS__P2P__PROTOCOL__TYPE "gossipsub"
-set -x MALACHITE__CONSENSUS__TIMEOUT_PROPOSE "10s"
+set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "2MiB"
+set -x MALACHITE__CONSENSUS__TIMEOUT_PROPOSE "5s"
 set -x MALACHITE__CONSENSUS__TIMEOUT_PREVOTE "3s"
 set -x MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT "3s"
 set -x MALACHITE__CONSENSUS__TIMEOUT_COMMIT "0s"
@@ -83,10 +81,14 @@ set NODES_HOME  $_flag_home
 
 for NODE in (seq 0 $(math $NODES_COUNT - 1))
     set NODE_HOME "$NODES_HOME/$NODE"
+
+    rm -rf "$NODE_HOME/db"
+    rm -rf "$NODE_HOME/logs"
+    rm -rf "$NODE_HOME/traces"
+
+    mkdir -p "$NODE_HOME/db"
     mkdir -p "$NODE_HOME/logs"
     mkdir -p "$NODE_HOME/traces"
-
-    rm -f "$NODE_HOME/logs/*.log"
 
     set pane $(tmux new-window -P -n "node-$NODE" "$(which fish)")
 

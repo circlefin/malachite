@@ -1,16 +1,20 @@
 use std::path::{Path, PathBuf};
 
-use crate::spawn::spawn_node_actor;
+use rand::{CryptoRng, RngCore};
+use tracing::{info, Instrument};
+
 use malachite_common::VotingPower;
 use malachite_config::Config;
 use malachite_node::Node;
 use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::types::{PrivateKey, PublicKey, Validator, ValidatorSet};
-use rand::{CryptoRng, RngCore};
-use tracing::{info, Instrument};
+
+use crate::spawn::spawn_node_actor;
+use crate::types::Height;
 
 pub struct StarknetNode {
     pub config: Config,
+    pub home_dir: PathBuf,
     pub genesis_file: PathBuf,
     pub private_key_file: PathBuf,
     pub start_height: Option<u64>,
@@ -62,19 +66,22 @@ impl Node for StarknetNode {
     }
 
     async fn run(&self) {
-        let span = tracing::error_span!("node", moniker=%self.config.clone().moniker);
+        let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _enter = span.enter();
 
         let priv_key_file = self
             .load_private_key_file(self.private_key_file.clone())
             .unwrap();
+
         let private_key = self.load_private_key(priv_key_file);
+
         let genesis = self.load_genesis(self.genesis_file.clone()).unwrap();
-        let start_height = self
-            .start_height
-            .map(|height| crate::types::Height::new(height, 1));
+
+        let start_height = self.start_height.map(|height| Height::new(height, 1));
+
         let (actor, handle) = spawn_node_actor(
             self.config.clone(),
+            self.home_dir.clone(),
             genesis,
             private_key,
             start_height,
@@ -103,6 +110,7 @@ fn test_starknet_node() {
     // Create temp folder for configuration files
     let temp_dir =
         tempfile::TempDir::with_prefix("malachite-node-").expect("Failed to create temp dir");
+
     let temp_path = temp_dir.path().to_owned();
 
     if std::env::var("KEEP_TEMP").is_ok() {
@@ -111,6 +119,7 @@ fn test_starknet_node() {
 
     // Create default configuration
     let node = StarknetNode {
+        home_dir: temp_path.clone(),
         config: Config {
             moniker: "test-node".to_string(),
             ..Default::default()

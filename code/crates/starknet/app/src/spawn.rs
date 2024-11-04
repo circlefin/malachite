@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
@@ -28,10 +29,11 @@ use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::mock::host::{MockHost, MockParams};
 use malachite_starknet_host::types::{Address, Height, PrivateKey, ValidatorSet};
 
-use crate::codec::ProtobufCodec;
+use malachite_starknet_host::codec::ProtobufCodec;
 
 pub async fn spawn_node_actor(
     cfg: NodeConfig,
+    home_dir: PathBuf,
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
     start_height: Option<Height>,
@@ -54,6 +56,7 @@ pub async fn spawn_node_actor(
 
     // Spawn the host actor
     let host = spawn_host_actor(
+        home_dir,
         &cfg,
         &address,
         &initial_validator_set,
@@ -242,6 +245,7 @@ async fn spawn_gossip_mempool_actor(
 }
 
 async fn spawn_host_actor(
+    home_dir: PathBuf,
     cfg: &NodeConfig,
     address: &Address,
     initial_validator_set: &ValidatorSet,
@@ -266,7 +270,7 @@ async fn spawn_host_actor(
         initial_validator_set.clone(),
     );
 
-    StarknetHost::spawn(mock_host, mempool, gossip_consensus, metrics)
+    StarknetHost::spawn(home_dir, mock_host, mempool, gossip_consensus, metrics)
         .await
         .unwrap()
 }

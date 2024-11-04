@@ -37,6 +37,7 @@ pub fn main() -> color_eyre::Result<()> {
     trace!("Command-line parameters: {args:?}");
 
     let node = &StarknetNode {
+        home_dir: args.get_home_dir().unwrap(),
         config: Default::default(), // placeholder, because `init` and `testnet` has no valid configuration file.
         genesis_file: args.get_genesis_file_path().unwrap(),
         private_key_file: args.get_priv_validator_key_file_path().unwrap(),
@@ -65,6 +66,7 @@ pub fn main() -> color_eyre::Result<()> {
 
             // Redefine the node with the valid configuration.
             let node = &StarknetNode {
+                home_dir: args.get_home_dir().unwrap(),
                 config,
                 genesis_file: args.get_genesis_file_path().unwrap(),
                 private_key_file: args.get_priv_validator_key_file_path().unwrap(),
@@ -111,6 +113,7 @@ mod tests {
         let cmd = InitCmd::default();
 
         let node = &StarknetNode {
+            home_dir: tmp.path().to_owned(),
             config: Default::default(),
             genesis_file: PathBuf::from("genesis.json"),
             private_key_file: PathBuf::from("priv_validator_key.json"),
@@ -158,6 +161,7 @@ mod tests {
         };
 
         let node = &StarknetNode {
+            home_dir: tmp.path().to_owned(),
             config: Default::default(),
             genesis_file: PathBuf::from("genesis.json"),
             private_key_file: PathBuf::from("priv_validator_key.json"),

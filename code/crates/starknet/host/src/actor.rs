@@ -1,8 +1,8 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use eyre::eyre;
 
-use itertools::Itertools;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use rand::RngCore;
 use sha3::Digest;
@@ -45,13 +45,13 @@ pub struct HostState {
     next_stream_id: StreamId,
 }
 
-impl Default for HostState {
-    fn default() -> Self {
+impl HostState {
+    fn new(home_dir: PathBuf) -> Self {
         Self {
             height: Height::new(0, 0),
             round: Round::Nil,
             proposer: None,
-            block_store: BlockStore::default(),
+            block_store: BlockStore::new(home_dir.join("blocks.db")).unwrap(),
             part_store: PartStore::default(),
             part_streams_map: PartStreamsMap::default(),
             next_stream_id: StreamId::default(),
@@ -78,6 +78,7 @@ impl StarknetHost {
     }
 
     pub async fn spawn(
+        home_dir: PathBuf,
         host: MockHost,
         mempool: MempoolRef,
         gossip_consensus: GossipConsensusRef<MockContext>,
@@ -86,7 +87,7 @@ impl StarknetHost {
         let (actor_ref, _) = Actor::spawn(
             None,
             Self::new(host, mempool, gossip_consensus, metrics),
-            HostState::default(),
+            HostState::new(home_dir),
         )
         .await?;
 
@@ -191,8 +192,8 @@ impl StarknetHost {
         let all_parts = state.part_store.all_parts(height, round);
 
         trace!(
-            count = state.part_store.blocks_stored(),
-            "The store has blocks"
+            count = state.part_store.blocks_count(),
+            "Blocks for which we have parts"
         );
 
         // TODO: Do more validations, e.g. there is no higher tx proposal part,
@@ -213,18 +214,19 @@ impl StarknetHost {
         self.build_value_from_parts(&all_parts, height, round)
     }
 
-    fn store_block(&self, state: &mut HostState) {
-        let max_height = state.block_store.store_keys().last().unwrap_or_default();
+    async fn prune_block_store(&self, state: &mut HostState) {
+        let max_height = state.block_store.last_height().unwrap_or_default();
+        let max_retain_blocks = self.host.params().max_retain_blocks as u64;
 
-        let min_number_blocks: u64 = std::cmp::min(
-            self.host.params().max_retain_blocks as u64,
-            max_height.as_u64(),
-        );
+        // Compute the height to retain blocks higher than
+        let retain_height = max_height.as_u64().saturating_sub(max_retain_blocks);
+        if retain_height == 0 {
+            // No need to prune anything, since we would retain every blocks
+            return;
+        }
 
-        let retain_height =
-            Height::new(max_height.as_u64() - min_number_blocks, max_height.fork_id);
-
-        state.block_store.prune(retain_height);
+        let retain_height = Height::new(retain_height, max_height.fork_id);
+        state.block_store.prune(retain_height).await;
     }
 }
 
@@ -262,8 +264,7 @@ impl Actor for StarknetHost {
             }
 
             HostMsg::GetEarliestBlockHeight { reply_to } => {
-                let earliest_block_height =
-                    state.block_store.store_keys().next().unwrap_or_default();
+                let earliest_block_height = state.block_store.first_height().unwrap_or_default();
                 reply_to.send(earliest_block_height)?;
                 Ok(())
             }
@@ -405,7 +406,10 @@ impl Actor for StarknetHost {
                 }
 
                 // Build the block from proposal parts and commits and store it
-                state.block_store.store(&proposal, &all_txes, &commits);
+                state
+                    .block_store
+                    .store(&proposal, &all_txes, &commits)
+                    .await;
 
                 // Update metrics
                 let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
@@ -436,7 +440,7 @@ impl Actor for StarknetHost {
                 state.part_store.prune(state.height);
 
                 // Store the block
-                self.store_block(state);
+                self.prune_block_store(state).await;
 
                 // Notify the mempool to remove corresponding txs
                 self.mempool.cast(MempoolMsg::Update { tx_hashes })?;
@@ -455,13 +459,12 @@ impl Actor for StarknetHost {
             HostMsg::GetDecidedBlock { height, reply_to } => {
                 debug!(%height, "Received request for block");
 
-                match state.block_store.store.get(&height).cloned() {
+                match state.block_store.get(height).await {
                     None => {
-                        warn!(
-                            %height,
-                            "No block found, available blocks: {}",
-                            state.block_store.store_keys().format(", ")
-                        );
+                        let min = state.block_store.first_height().unwrap_or_default();
+                        let max = state.block_store.last_height().unwrap_or_default();
+
+                        warn!(%height, "No block for this height, available blocks: {min}..={max}");
 
                         reply_to.send(None)?;
                     }

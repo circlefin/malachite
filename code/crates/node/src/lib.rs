@@ -2,6 +2,7 @@
 #![allow(unexpected_cfgs)]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
+use std::future::Future;
 use std::path::Path;
 
 use malachite_common::{Context, PrivateKey, PublicKey, VotingPower};
@@ -37,5 +38,5 @@ pub trait Node {
         validators: Vec<(PublicKey<Self::Context>, VotingPower)>,
     ) -> Self::Genesis;
 
-    fn run(&self) -> impl std::future::Future<Output = ()>;
+    fn run(&self) -> impl Future<Output = ()> + Send;
 }

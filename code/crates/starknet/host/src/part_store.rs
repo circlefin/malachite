@@ -54,7 +54,7 @@ impl<Ctx: Context> PartStore<Ctx> {
         self.store.retain(|(height, _), _| *height >= min_height);
     }
 
-    pub fn blocks_stored(&self) -> usize {
+    pub fn blocks_count(&self) -> usize {
         self.store.len()
     }
 }
