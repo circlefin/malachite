@@ -354,12 +354,8 @@ impl Discovery {
             self.handler.remove_matching_pending_connections(&peer_id);
         }
 
-        // Ignore if discovery is disabled or the peer is already known or
-        // the peer has already been requested
-        if !self.is_enabled()
-            || self.peers.contains_key(&peer_id)
-            || self.handler.has_already_requested(&peer_id)
-        {
+        // Ignore if the peer is already known or the peer has already been requested
+        if self.peers.contains_key(&peer_id) || self.handler.has_already_requested(&peer_id) {
             self.handler.remove_connection_type(&peer_id);
             self.check_if_idle();
             return;
@@ -372,6 +368,10 @@ impl Discovery {
             self.peers.len(),
             self.metrics.elapsed().as_millis(),
         );
+
+        if !self.is_enabled() {
+            return;
+        }
 
         // Only request peers from dialed peers
         let connection_type = self.handler.remove_connection_type(&peer_id);

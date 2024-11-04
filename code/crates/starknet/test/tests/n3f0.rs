@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use malachite_starknet_test::{Test, TestNode};
+use malachite_starknet_test::{App, Test, TestNode};
 
 #[tokio::test]
 pub async fn all_correct_nodes() {
@@ -13,6 +13,6 @@ pub async fn all_correct_nodes() {
     let n3 = TestNode::new(3).start().wait_until(HEIGHT).success();
 
     Test::new([n1, n2, n3])
-        .run(Duration::from_secs(30))
+        .run(App::Starknet, Duration::from_secs(30))
         .await
 }
