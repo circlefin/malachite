@@ -10,6 +10,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::Instrument;
 
+use crate::part_store::PartStore;
 use malachite_common::{Round, SignedVote};
 
 use crate::mempool::MempoolRef;
@@ -36,6 +37,7 @@ pub struct MockHost {
     mempool: MempoolRef,
     address: Address,
     validator_set: ValidatorSet,
+    pub part_store: PartStore<MockContext>,
 }
 
 impl MockHost {
@@ -50,6 +52,7 @@ impl MockHost {
             mempool,
             address,
             validator_set,
+            part_store: Default::default(),
         }
     }
 
