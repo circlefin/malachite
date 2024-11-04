@@ -36,11 +36,11 @@ log_format = "plaintext"
 # Override with MALACHITE__CONSENSUS__MAX_BLOCK_SIZE env variable
 max_block_size = "1 MiB"
 
-# The message(s) used to carry value required by consensus
-# Available values: 
-# - proposal: full value is included in the consensus Proposal (explicit) message (untested, application to be developed as PoC)
-# - blockparts: full value is included in the block parts and there is no explicit Proposal message (used by starknet test app)
-# - proposalandparts: both block parts and proposal messages are required (similar to Comet implementation of tendermint, can be configured for starknet app)
+# The message(s) required by consensus to carry value related paylods.
+# Available options are: 
+# - "proposal": full value is included in the consensus Proposal (explicit) message (untested, application to be developed as PoC)
+# - "blockparts": full value is included in the block parts and there is no explicit Proposal message (used by starknet test app)
+# - "proposalandparts": both block parts and proposal messages are required (similar to Comet implementation of tendermint, can be configured for starknet app)
 # Override with MALACHITE__CONSENSUS__VALUE_MSG_TYPES env variable
 value_msg_types = "blockparts"
 

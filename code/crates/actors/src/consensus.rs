@@ -630,9 +630,9 @@ where
 // TODO - fix imports or def location
 fn types_from_config(cfg: MsgTypeConfig) -> ValueMessageTypes {
     match cfg {
-        MsgTypeConfig::ProposalAndBlockParts => ValueMessageTypes::ProposalAndBlockParts,
         MsgTypeConfig::BlockParts => ValueMessageTypes::BlockParts,
         MsgTypeConfig::Proposal => ValueMessageTypes::Proposal,
+        MsgTypeConfig::ProposalAndBlockParts => ValueMessageTypes::ProposalAndBlockParts,
     }
 }
 

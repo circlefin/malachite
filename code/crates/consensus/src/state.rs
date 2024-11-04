@@ -17,7 +17,7 @@ where
     /// The context for the consensus state machine
     pub ctx: Ctx,
 
-    /// The messages that carry proposed value
+    /// The messages required to deliver proposals
     pub value_msg_types: ValueMessageTypes,
 
     /// Driver for the per-round consensus state machine
@@ -55,7 +55,7 @@ where
             value_msg_types,
             driver,
             input_queue: Default::default(),
-            full_proposal_keeper: FullProposalKeeper::new(),
+            full_proposal_keeper: Default::default(),
             signed_precommits: Default::default(),
             decision: Default::default(),
         }

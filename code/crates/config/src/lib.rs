@@ -310,13 +310,13 @@ pub struct ConsensusConfig {
     pub p2p: P2pConfig,
 }
 
-/// Message types used to deliver the value being proposed
+/// Message types required by consensus to deliver the value being proposed
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ValueMessageTypes {
-    Proposal, // TODO - add small block app to test this option
     #[default]
     BlockParts,
+    Proposal, // TODO - add small block app to test this option
     ProposalAndBlockParts,
 }
 
@@ -325,8 +325,8 @@ impl FromStr for ValueMessageTypes {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "proposal" => Ok(ValueMessageTypes::Proposal),
             "blockparts" => Ok(ValueMessageTypes::BlockParts),
+            "proposal" => Ok(ValueMessageTypes::Proposal),
             "proposalandblockparts" => Ok(ValueMessageTypes::ProposalAndBlockParts),
             e => Err(format!("Invalid value message type: {e}")),
         }
@@ -543,7 +543,6 @@ mod tests {
 
     #[test]
     fn parse_default_config_file() {
-        //
         let file = include_str!("../../../config.toml");
         let config = toml::from_str::<Config>(file).unwrap();
         assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
