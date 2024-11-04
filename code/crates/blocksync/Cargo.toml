@@ -11,6 +11,7 @@ rust-version.workspace = true
 malachite-common  = { workspace = true }
 malachite-metrics = { workspace = true }
 
+async-trait      = { workspace = true }
 bytes            = { workspace = true, features = ["serde"] }
 dashmap          = { workspace = true }
 derive-where     = { workspace = true }

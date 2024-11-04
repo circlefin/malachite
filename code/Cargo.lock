@@ -2439,6 +2439,7 @@ dependencies = [
 name = "malachite-blocksync"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "bytes",
  "dashmap",
  "derive-where",
@@ -2630,6 +2631,7 @@ dependencies = [
  "libp2p-identity",
  "malachite-actors",
  "malachite-blocksync",
+ "malachite-cli",
  "malachite-common",
  "malachite-config",
  "malachite-consensus",
@@ -2646,6 +2648,7 @@ dependencies = [
  "rand",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",

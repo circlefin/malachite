@@ -175,7 +175,7 @@ async fn spawn_gossip_consensus_actor(
             enabled: cfg.consensus.p2p.discovery.enabled,
             ..Default::default()
         },
-        idle_connection_timeout: Duration::from_secs(60),
+        idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: match cfg.consensus.p2p.transport {
             TransportProtocol::Tcp => malachite_gossip_consensus::TransportProtocol::Tcp,
             TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
@@ -191,6 +191,8 @@ async fn spawn_gossip_consensus_actor(
             }
             PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
         },
+        rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
+        pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
     };
 
     let keypair = make_keypair(private_key);
@@ -226,7 +228,7 @@ async fn spawn_gossip_mempool_actor(
     let config_gossip_mempool = GossipMempoolConfig {
         listen_addr: cfg.mempool.p2p.listen_addr.clone(),
         persistent_peers: cfg.mempool.p2p.persistent_peers.clone(),
-        idle_connection_timeout: Duration::from_secs(60),
+        idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: match cfg.mempool.p2p.transport {
             TransportProtocol::Tcp => malachite_gossip_mempool::TransportProtocol::Tcp,
             TransportProtocol::Quic => malachite_gossip_mempool::TransportProtocol::Quic,

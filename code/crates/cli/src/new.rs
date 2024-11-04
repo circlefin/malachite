@@ -107,6 +107,7 @@ pub fn generate_config(
                     enabled: enable_discovery,
                 },
                 transport,
+                ..Default::default()
             },
         },
         mempool: MempoolConfig {
@@ -119,6 +120,7 @@ pub fn generate_config(
                     .collect(),
                 discovery: DiscoveryConfig { enabled: true },
                 transport,
+                ..Default::default()
             },
             max_tx_count: 10000,
             gossip_batch_size: 0,

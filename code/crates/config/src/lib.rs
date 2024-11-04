@@ -73,6 +73,12 @@ pub struct P2pConfig {
 
     /// The type of pub-sub protocol to use for consensus
     pub protocol: PubSubProtocol,
+
+    /// The maximum size of messages to send over pub-sub
+    pub pubsub_max_size: ByteSize,
+
+    /// The maximum size of messages to send over RPC
+    pub rpc_max_size: ByteSize,
 }
 
 impl Default for P2pConfig {
@@ -83,6 +89,8 @@ impl Default for P2pConfig {
             discovery: Default::default(),
             transport: Default::default(),
             protocol: Default::default(),
+            rpc_max_size: ByteSize::mib(10),
+            pubsub_max_size: ByteSize::mib(4),
         }
     }
 }

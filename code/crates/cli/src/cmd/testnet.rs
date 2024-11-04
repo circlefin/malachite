@@ -152,5 +152,6 @@ where
         // Save genesis
         save_genesis(node, &args.get_genesis_file_path()?, &genesis)?;
     }
+
     Ok(())
 }
