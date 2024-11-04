@@ -19,7 +19,7 @@ use crate::types::*;
 use crate::Host;
 
 mod build_proposal;
-use build_proposal::build_proposal_task;
+use build_proposal::{build_proposal_task, repropose_task};
 
 #[derive(Copy, Clone, Debug)]
 pub struct MockParams {
@@ -136,8 +136,15 @@ impl Host for MockHost {
     async fn send_known_proposal(
         &self,
         block_hash: Self::BlockHash,
-    ) -> mpsc::Sender<Self::ProposalPart> {
-        todo!()
+    ) -> mpsc::Receiver<Self::ProposalPart> {
+        let parts = self.part_store.all_parts_by_value_id(block_hash);
+        let (tx_part, rx_content) = mpsc::channel(self.params.txs_per_part);
+
+        tokio::spawn(
+            repropose_task(block_hash, tx_part, parts.clone()).instrument(tracing::Span::current()),
+        );
+
+        rx_content
     }
 
     /// The set of validators for a given block height. What do we need?

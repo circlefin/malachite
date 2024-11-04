@@ -73,7 +73,7 @@ pub trait Host {
     async fn send_known_proposal(
         &self,
         block_hash: Self::BlockHash,
-    ) -> mpsc::Sender<Self::ProposalPart>;
+    ) -> mpsc::Receiver<Self::ProposalPart>;
 
     /// The set of validators for a given block height. What do we need?
     /// - address      - tells the networking layer where to send messages.

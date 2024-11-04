@@ -23,6 +23,7 @@ use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
+use crate::part_store::Entry;
 use crate::streaming::PartStreamsMap;
 use crate::types::{Address, BlockHash, Height, ProposalPart, ValidatorSet};
 use crate::Host;
@@ -58,7 +59,7 @@ impl HostState {
     #[tracing::instrument(skip_all, fields(%height, %round))]
     pub fn build_value_from_parts(
         &self,
-        parts: &[Arc<ProposalPart>],
+        parts: &Entry<MockContext>,
         height: Height,
         round: Round,
     ) -> Option<ProposedValue<MockContext>> {
@@ -79,10 +80,11 @@ impl HostState {
     #[tracing::instrument(skip_all, fields(%height, %round))]
     pub fn build_proposal_content_from_parts(
         &self,
-        parts: &[Arc<ProposalPart>],
+        entry: &Entry<MockContext>,
         height: Height,
         round: Round,
     ) -> Option<(Round, BlockHash, Address, Validity, Option<Extension>)> {
+        let parts = &entry.parts;
         if parts.is_empty() {
             return None;
         }
@@ -123,6 +125,11 @@ impl HostState {
         let block_hash = {
             let mut block_hasher = sha3::Keccak256::new();
             for part in parts {
+                if let Some(_init) = part.as_init() {
+                    // We don't want to hash over the init so restreaming returns the same hash
+                    // TODO - we should probably still include height.
+                    continue;
+                }
                 block_hasher.update(part.to_sign_bytes());
             }
             BlockHash::new(block_hasher.finalize().into())
@@ -167,7 +174,8 @@ impl HostState {
             trace!("Simulation took {exec_time:?} to execute {num_txes} txes");
         }
 
-        let all_parts = self.host.part_store.all_parts(height, round);
+        let entry = self.host.part_store.all_parts(height, round);
+        let all_parts = entry.parts.clone();
 
         trace!(
             count = self.host.part_store.blocks_stored(),
@@ -189,7 +197,14 @@ impl HostState {
             "All parts have been received already, building value"
         );
 
-        self.build_value_from_parts(&all_parts, height, round)
+        let result = self.build_value_from_parts(&entry, height, round);
+        if let Some(proposed_value) = result.clone() {
+            self.host
+                .part_store
+                .store_value_id(height, round, proposed_value.value);
+        }
+
+        result
     }
 }
 
@@ -317,10 +332,11 @@ impl Actor for StarknetHost {
 
                     let msg =
                         StreamMessage::new(stream_id, sequence, StreamContent::Data(part.clone()));
-                    sequence += 1;
 
                     self.gossip_consensus
                         .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
+
+                    sequence += 1;
                 }
 
                 let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin(true));
@@ -329,8 +345,12 @@ impl Actor for StarknetHost {
                     .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
 
                 let block_hash = rx_hash.await?;
-                debug!(%block_hash, "Got block");
+                debug!(%block_hash, "Got block, storing with parts");
 
+                state
+                    .host
+                    .part_store
+                    .store_value_id(height, round, block_hash);
                 let parts = state.host.part_store.all_parts(height, round);
 
                 let extension = extension_part
@@ -354,21 +374,22 @@ impl Actor for StarknetHost {
                 round,
                 valid_round,
                 address,
+                value_id,
             } => {
                 debug!(%height, %round, "Restreaming existing proposal...");
 
-                let mut parts = state.host.part_store.all_parts(height, valid_round);
+                let mut rx_part = state.host.send_known_proposal(value_id).await;
+
                 let stream_id = state.next_stream_id;
                 state.next_stream_id += 1;
 
+                let mut sequence = 0;
                 let mut extension_part = None;
 
-                for (sequence, part) in parts.iter_mut().enumerate() {
-                    let mut part = Arc::unwrap_or_clone((*part).clone());
-
-                    // Change the Init to indicate restreaming
+                while let Some(mut part) = rx_part.recv().await {
                     match part {
                         ProposalPart::Init(ref mut init_part) => {
+                            // Change the Init to reflect it is a reproposal
                             assert_eq!(init_part.proposal_round, valid_round);
                             init_part.proposal_round = round;
                             init_part.valid_round = valid_round;
@@ -378,11 +399,16 @@ impl Actor for StarknetHost {
                             state.host.part_store.store(height, round, part.clone());
                         }
                         ProposalPart::Transactions(_) => {
+                            // Store the transaction part
+                            state.host.part_store.store(height, round, part.clone());
                             if extension_part.is_none() {
                                 extension_part = Some(part.clone());
                             }
                         }
-                        _ => {}
+                        _ => {
+                            // Store BlockProof and Fin parts
+                            state.host.part_store.store(height, round, part.clone());
+                        }
                     }
 
                     debug!(
@@ -396,6 +422,8 @@ impl Actor for StarknetHost {
 
                     self.gossip_consensus
                         .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
+
+                    sequence += 1;
                 }
 
                 // TODO - send a reply with extension
@@ -411,6 +439,7 @@ impl Actor for StarknetHost {
                 part,
                 reply_to,
             } => {
+                // TODO - use state.host.receive_proposal() and move some of the logic below there
                 let sequence = part.sequence;
 
                 let Some(parts) = state.part_streams_map.insert(from, part) else {
@@ -467,7 +496,7 @@ impl Actor for StarknetHost {
             } => {
                 let height = proposal.height;
                 let round = proposal.round;
-                let mut all_parts = state.host.part_store.all_parts(height, round);
+                let mut all_parts = state.host.part_store.all_parts(height, round).parts;
 
                 let mut all_txes = vec![];
                 for arc in all_parts.iter_mut() {
