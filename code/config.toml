@@ -70,19 +70,33 @@ timeout_commit = "0s"
 [consensus.p2p]
 
 # Address to listen for incoming connections
+# Override with MALACHITE__CONSENSUS__P2P__LISTEN_ADDR env variable
 listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
 
 # List of nodes to keep persistent connections to
+# Override with MALACHITE__CONSENSUS__P2P__PERSISTENT_PEERS env variable
 persistent_peers = []
 
 # Transport protocol to use for P2P communication
 # Valid values:
 # - "tcp": TCP + Noise
 # - "quic": QUIC
+# Override with MALACHITE__CONSENSUS__P2P__TRANSPORT env variable
 transport = "quic"
 
 # Enable the discovery protocol to find more peers
+# Override with MALACHITE__CONSENSUS__P2P__DISCOVERY__ENABLED env variable
 discovery = { enabled = true }
+
+# The maximum size of messages to send over pub-sub
+# Must be larger than the maximum block part size.
+# Override with MALACHITE__CONSENSUS__P2P__PUBSUB_MAX_SIZE env variable
+pubsub_max_size = "4 MiB"
+
+# The maximum size of messages to send over RPC
+# Must be larger than the maximum block size.
+# Override with MALACHITE__CONSENSUS__P2P__RPC_MAX_SIZE env variable
+rpc_max_size = "10 MiB"
 
 #######################################################
 ###  Consensus P2P Protocol Configuration Options   ###
@@ -138,6 +152,10 @@ persistent_peers = []
 # - "tcp": TCP + Noise
 # - "quic": QUIC
 transport = "quic"
+
+# These have no effects on the mempool yet
+pubsub_max_size = "4 MiB"
+rpc_max_size = "10 MiB"
 
 #######################################################
 ###   Mempool P2P Protocol Configuration Options    ###

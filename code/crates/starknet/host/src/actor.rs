@@ -138,12 +138,9 @@ impl StarknetHost {
         trace!(parts.len = %parts.len(), "Building proposal content from parts");
 
         let extension = self.host.params().vote_extensions.enabled.then(|| {
-            debug!(
-                size = %self.host.params().vote_extensions.size,
-                "Vote extensions are enabled"
-            );
-
             let size = self.host.params().vote_extensions.size.as_u64() as usize;
+            debug!(%size, "Vote extensions are enabled" );
+
             let mut bytes = vec![0u8; size];
             rand::thread_rng().fill_bytes(&mut bytes);
 
@@ -290,22 +287,11 @@ impl Actor for StarknetHost {
                 state.next_stream_id += 1;
 
                 let mut sequence = 0;
-                let mut extension_part = None;
 
                 while let Some(part) = rx_part.recv().await {
                     state.part_store.store(height, round, part.clone());
 
-                    if let ProposalPart::Transactions(_) = &part {
-                        if extension_part.is_none() {
-                            extension_part = Some(part.clone());
-                        }
-                    }
-
-                    debug!(
-                        %stream_id,
-                        %sequence,
-                        "Broadcasting proposal part"
-                    );
+                    debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
                     let msg =
                         StreamMessage::new(stream_id, sequence, StreamContent::Data(part.clone()));
@@ -321,13 +307,19 @@ impl Actor for StarknetHost {
                     .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
 
                 let block_hash = rx_hash.await?;
-                debug!(%block_hash, "Got block");
+                debug!(%block_hash, "Assembled block");
 
                 let parts = state.part_store.all_parts(height, round);
 
-                let extension = extension_part
-                    .and_then(|part| part.as_transactions().and_then(|txs| txs.to_bytes().ok()))
-                    .map(Extension::from);
+                let extension = self.host.params().vote_extensions.enabled.then(|| {
+                    let size = self.host.params().vote_extensions.size.as_u64() as usize;
+                    debug!(%size, "Vote extensions are enabled");
+
+                    let mut bytes = vec![0u8; size];
+                    rand::thread_rng().fill_bytes(&mut bytes);
+
+                    Extension::from(bytes)
+                });
 
                 if let Some(value) = self.build_value_from_parts(&parts, height, round) {
                     reply_to.send(LocallyProposedValue::new(
@@ -472,7 +464,7 @@ impl Actor for StarknetHost {
                         let min = state.block_store.first_height().unwrap_or_default();
                         let max = state.block_store.last_height().unwrap_or_default();
 
-                        warn!("No block for {height}, available blocks: {min}..={max}",);
+                        warn!(%height, "No block for this height, available blocks: {min}..={max}");
 
                         reply_to.send(None)?;
                     }
@@ -483,7 +475,7 @@ impl Actor for StarknetHost {
                             certificate: block.certificate,
                         };
 
-                        debug!("Got block at {height}");
+                        debug!(%height, "Found decided block in store");
                         reply_to.send(Some(block))?;
                     }
                 }
