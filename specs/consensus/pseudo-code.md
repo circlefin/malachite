@@ -1,8 +1,8 @@
-# Pseudo-code
+# Tendermint Consensus Algorithm: Pseudo-code
 
 Algorithm 1 from page 6 of the paper
-["The latest gossip on BFT consensus"](https://arxiv.org/abs/1807.04938)
-([PDF](https://arxiv.org/pdf/1807.04938)), by Ethan Buchman, Jae Kwon,
+["The latest gossip on BFT consensus"][tendermint-arxiv]
+([PDF][tendermint-pdf]), by Ethan Buchman, Jae Kwon,
 and Zarko Milosevic, last revised in November 2019:
 Tendermint consensus algorithm.
 
@@ -90,3 +90,9 @@ Tendermint consensus algorithm.
 66:    if height = h_p ∧ round = round_p then
 67:       StartRound(round_p + 1)
 ```
+
+The [overview.md](./overview.md) document details the operation of Tendermint
+consensus algorithm, from its pseudo-code.
+
+[tendermint-arxiv]: https://arxiv.org/abs/1807.04938
+[tendermint-pdf]: https://arxiv.org/pdf/1807.04938
