@@ -70,6 +70,7 @@ fn start(args: &Args, cfg: Config, cmd: &StartCmd) -> Result<()> {
     let rt = builder.enable_all().build()?;
     rt.block_on(cmd.run(
         cfg,
+        args.get_home_dir()?,
         args.get_priv_validator_key_file_path()?,
         args.get_genesis_file_path()?,
     ))

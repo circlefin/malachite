@@ -20,6 +20,7 @@ ractor.workspace                     = true
 tokio.workspace                      = true
 tracing.workspace                    = true
 tracing-subscriber.workspace         = true
+tempfile.workspace                   = true
 
 [lints]
 workspace = true

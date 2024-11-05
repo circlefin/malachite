@@ -1,22 +1,22 @@
 #!/usr/bin/env fish
 
-set -x MALACHITE__CONSENSUS__P2P__PROTOCOL__TYPE "broadcast"
-set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "10MiB"
+set -x MALACHITE__CONSENSUS__P2P__PROTOCOL__TYPE "gossipsub"
+set -x MALACHITE__CONSENSUS__MAX_BLOCK_SIZE "2MiB"
 set -x MALACHITE__CONSENSUS__TIMEOUT_PROPOSE "5s"
 set -x MALACHITE__CONSENSUS__TIMEOUT_PREVOTE "3s"
 set -x MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT "3s"
 set -x MALACHITE__CONSENSUS__TIMEOUT_COMMIT "0s"
-set -x MALACHITE__MEMPOOL__MAX_TX_COUNT 10000
+set -x MALACHITE__MEMPOOL__MAX_TX_COUNT 1000
 set -x MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE 0
-set -x MALACHITE__TEST__TX_SIZE "1KB"
+set -x MALACHITE__TEST__TX_SIZE "10 KiB"
 set -x MALACHITE__TEST__TXS_PER_PART 1024
 set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.5
-set -x MALACHITE__TEST__EXEC_TIME_PER_TX "500us"
-set -x MALACHITE__TEST__MAX_RETAIN_BLOCKS 100
+set -x MALACHITE__TEST__EXEC_TIME_PER_TX "100us"
+set -x MALACHITE__TEST__MAX_RETAIN_BLOCKS 50
 set -x MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED false
 set -x MALACHITE__TEST__VOTE_EXTENSIONS__SIZE "1KiB"
 set -x MALACHITE__BLOCKSYNC__ENABLED true
-
+set -x MALACHITE__BLOCKSYNC__REQUEST_TIMEOUT "30s"
 
 # This script takes:
 # - a number of nodes to run as an argument,
@@ -81,10 +81,14 @@ set NODES_HOME  $_flag_home
 
 for NODE in (seq 0 $(math $NODES_COUNT - 1))
     set NODE_HOME "$NODES_HOME/$NODE"
+
+    rm -rf "$NODE_HOME/db"
+    rm -rf "$NODE_HOME/logs"
+    rm -rf "$NODE_HOME/traces"
+
+    mkdir -p "$NODE_HOME/db"
     mkdir -p "$NODE_HOME/logs"
     mkdir -p "$NODE_HOME/traces"
-
-    rm -f "$NODE_HOME/logs/*.log"
 
     set pane $(tmux new-window -P -n "node-$NODE" "$(which fish)")
 

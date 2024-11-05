@@ -1,6 +1,7 @@
 #![allow(unused_crate_dependencies)]
 
 use core::fmt;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -245,10 +246,16 @@ impl<const N: usize> Test<N> {
             .zip(self.private_keys.into_iter())
         {
             let validator_set = self.validator_set.clone();
+
+            let home_dir =
+                tempfile::TempDir::with_prefix(format!("malachite-starknet-test-{}", self.id))
+                    .unwrap()
+                    .into_path();
+
             set.spawn(
                 async move {
                     let id = node.id;
-                    let result = run_node(node, config, validator_set, private_key).await;
+                    let result = run_node(node, home_dir, config, validator_set, private_key).await;
                     (id, result)
                 }
                 .instrument(tracing::Span::current()),
@@ -305,6 +312,7 @@ type RxDecision = broadcast::Receiver<SignedProposal<MockContext>>;
 #[tracing::instrument("node", skip_all, fields(id = %node.id))]
 async fn run_node(
     node: TestNode,
+    home_dir: PathBuf,
     config: Config,
     validator_set: ValidatorSet,
     private_key: PrivateKey,
@@ -316,6 +324,7 @@ async fn run_node(
     let (tx, mut rx) = broadcast::channel(100);
     let (mut actor_ref, mut handle) = spawn_node_actor(
         config.clone(),
+        home_dir.clone(),
         validator_set.clone(),
         private_key,
         Some(node.start_height),
@@ -376,6 +385,7 @@ async fn run_node(
                 let (new_tx, new_rx) = broadcast::channel(100);
                 let (new_actor_ref, new_handle) = spawn_node_actor(
                     config.clone(),
+                    home_dir.clone(),
                     validator_set.clone(),
                     private_key,
                     Some(node.start_height),
@@ -493,6 +503,8 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                     .map(|j| transport.multiaddr("127.0.0.1", test.consensus_base_port + j))
                     .collect(),
                 discovery: DiscoveryConfig { enabled: false },
+                rpc_max_size: ByteSize::mib(10),
+                pubsub_max_size: ByteSize::mib(4),
             },
         },
         mempool: MempoolConfig {
@@ -505,6 +517,8 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                     .map(|j| transport.multiaddr("127.0.0.1", test.mempool_base_port + j))
                     .collect(),
                 discovery: DiscoveryConfig { enabled: false },
+                rpc_max_size: ByteSize::mib(10),
+                pubsub_max_size: ByteSize::mib(4),
             },
             max_tx_count: 10000,
             gossip_batch_size: 100,

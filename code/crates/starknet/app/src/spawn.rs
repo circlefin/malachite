@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
@@ -28,10 +29,11 @@ use malachite_starknet_host::mock::context::MockContext;
 use malachite_starknet_host::mock::host::{MockHost, MockParams};
 use malachite_starknet_host::types::{Address, Height, PrivateKey, ValidatorSet};
 
-use crate::codec::ProtobufCodec;
+use malachite_starknet_host::codec::ProtobufCodec;
 
 pub async fn spawn_node_actor(
     cfg: NodeConfig,
+    home_dir: PathBuf,
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
     start_height: Option<Height>,
@@ -54,6 +56,7 @@ pub async fn spawn_node_actor(
 
     // Spawn the host actor
     let host = spawn_host_actor(
+        home_dir,
         &cfg,
         &address,
         &initial_validator_set,
@@ -175,7 +178,7 @@ async fn spawn_gossip_consensus_actor(
             enabled: cfg.consensus.p2p.discovery.enabled,
             ..Default::default()
         },
-        idle_connection_timeout: Duration::from_secs(60),
+        idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: match cfg.consensus.p2p.transport {
             TransportProtocol::Tcp => malachite_gossip_consensus::TransportProtocol::Tcp,
             TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
@@ -191,6 +194,8 @@ async fn spawn_gossip_consensus_actor(
             }
             PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
         },
+        rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
+        pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
     };
 
     let keypair = make_keypair(private_key);
@@ -226,7 +231,7 @@ async fn spawn_gossip_mempool_actor(
     let config_gossip_mempool = GossipMempoolConfig {
         listen_addr: cfg.mempool.p2p.listen_addr.clone(),
         persistent_peers: cfg.mempool.p2p.persistent_peers.clone(),
-        idle_connection_timeout: Duration::from_secs(60),
+        idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: match cfg.mempool.p2p.transport {
             TransportProtocol::Tcp => malachite_gossip_mempool::TransportProtocol::Tcp,
             TransportProtocol::Quic => malachite_gossip_mempool::TransportProtocol::Quic,
@@ -240,6 +245,7 @@ async fn spawn_gossip_mempool_actor(
 }
 
 async fn spawn_host_actor(
+    home_dir: PathBuf,
     cfg: &NodeConfig,
     address: &Address,
     initial_validator_set: &ValidatorSet,
@@ -264,7 +270,7 @@ async fn spawn_host_actor(
         initial_validator_set.clone(),
     );
 
-    StarknetHost::spawn(mock_host, mempool, gossip_consensus, metrics)
+    StarknetHost::spawn(home_dir, mock_host, mempool, gossip_consensus, metrics)
         .await
         .unwrap()
 }

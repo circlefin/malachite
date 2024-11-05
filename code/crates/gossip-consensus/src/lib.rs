@@ -96,6 +96,8 @@ pub struct Config {
     pub idle_connection_timeout: Duration,
     pub transport: TransportProtocol,
     pub protocol: PubSubProtocol,
+    pub rpc_max_size: usize,
+    pub pubsub_max_size: usize,
 }
 
 impl Config {
@@ -175,18 +177,14 @@ pub async fn spawn(
                 )?
                 .with_dns()?
                 .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| {
-                    Behaviour::new_with_metrics(config.protocol, kp, config.discovery, registry)
-                })?
+                .with_behaviour(|kp| Behaviour::new_with_metrics(&config, kp, registry))?
                 .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
                 .build()),
             TransportProtocol::Quic => Ok(builder
                 .with_quic_config(|cfg| config.apply_to_quic(cfg))
                 .with_dns()?
                 .with_bandwidth_metrics(registry)
-                .with_behaviour(|kp| {
-                    Behaviour::new_with_metrics(config.protocol, kp, config.discovery, registry)
-                })?
+                .with_behaviour(|kp| Behaviour::new_with_metrics(&config, kp, registry))?
                 .with_swarm_config(|cfg| config.apply_to_swarm(cfg))
                 .build()),
         }
@@ -303,8 +301,8 @@ async fn handle_ctrl_msg(
             let result = swarm.behaviour_mut().blocksync.send_response(channel, data);
 
             match result {
-                Ok(()) => trace!("Replied to BlockSync request"),
-                Err(e) => error!("Error replying to BlockSync request: {e}"),
+                Ok(()) => debug!(%request_id, "Replied to BlockSync request"),
+                Err(e) => error!(%request_id, "Error replying to BlockSync request: {e}"),
             }
 
             ControlFlow::Continue(())

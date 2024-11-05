@@ -7,14 +7,16 @@ use malachite_common::{Certificate, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Bytes;
 use malachite_proto::{Error as ProtoError, Protobuf};
-use malachite_starknet_host::mock::context::MockContext;
-use malachite_starknet_host::types::{Proposal, Vote};
+use malachite_starknet_p2p_types::{self as p2p, Height};
+
 use malachite_starknet_p2p_proto::consensus_message::Messages;
 use malachite_starknet_p2p_proto::ConsensusMessage;
 use malachite_starknet_p2p_proto::{self as proto};
-use malachite_starknet_p2p_types::{self as p2p, Height};
 
 use malachite_blocksync as blocksync;
+
+use crate::mock::context::MockContext;
+use crate::types::{Proposal, Vote};
 
 pub struct ProtobufCodec;
 
@@ -72,49 +74,6 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
     }
 
     fn decode_response(bytes: Bytes) -> Result<blocksync::Response<MockContext>, Self::Error> {
-        fn decode_proposal(msg: ConsensusMessage) -> Option<SignedProposal<MockContext>> {
-            let signature = msg.signature?;
-            let proposal = match msg.messages {
-                Some(Messages::Proposal(p)) => Some(p),
-                _ => None,
-            }?;
-
-            let signature = p2p::Signature::from_proto(signature).ok()?;
-            let proposal = Proposal::from_proto(proposal).ok()?;
-            Some(SignedProposal::new(proposal, signature))
-        }
-
-        fn decode_vote(msg: ConsensusMessage) -> Option<SignedVote<MockContext>> {
-            let signature = msg.signature?;
-            let vote = match msg.messages {
-                Some(Messages::Vote(v)) => Some(v),
-                _ => None,
-            }?;
-
-            let signature = p2p::Signature::from_proto(signature).ok()?;
-            let vote = Vote::from_proto(vote).ok()?;
-            Some(SignedVote::new(vote, signature))
-        }
-
-        fn decode_sync_block(
-            synced_block: proto::blocksync::SyncedBlock,
-        ) -> Result<blocksync::SyncedBlock<MockContext>, ProtoError> {
-            let commits = synced_block
-                .commits
-                .into_iter()
-                .filter_map(decode_vote)
-                .collect();
-
-            let certificate = Certificate::new(commits);
-
-            Ok(blocksync::SyncedBlock {
-                proposal: decode_proposal(synced_block.proposal.unwrap())
-                    .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("proposal"))?,
-                certificate,
-                block_bytes: synced_block.block_bytes,
-            })
-        }
-
         let response = proto::blocksync::Response::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(blocksync::Response {
@@ -124,39 +83,6 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
     }
 
     fn encode_response(response: blocksync::Response<MockContext>) -> Result<Bytes, Self::Error> {
-        fn encode_proposal(
-            proposal: SignedProposal<MockContext>,
-        ) -> Result<ConsensusMessage, ProtoError> {
-            Ok(ConsensusMessage {
-                messages: Some(Messages::Proposal(proposal.message.to_proto()?)),
-                signature: Some(proposal.signature.to_proto()?),
-            })
-        }
-
-        fn encode_vote(vote: SignedVote<MockContext>) -> Result<ConsensusMessage, ProtoError> {
-            Ok(ConsensusMessage {
-                messages: Some(Messages::Vote(vote.message.to_proto()?)),
-                signature: Some(vote.signature.to_proto()?),
-            })
-        }
-
-        fn encode_synced_block(
-            synced_block: blocksync::SyncedBlock<MockContext>,
-        ) -> Result<proto::blocksync::SyncedBlock, ProtoError> {
-            let commits = synced_block
-                .certificate
-                .commits
-                .into_iter()
-                .map(encode_vote)
-                .collect::<Result<Vec<_>, _>>()?;
-
-            Ok(proto::blocksync::SyncedBlock {
-                proposal: Some(encode_proposal(synced_block.proposal)?),
-                commits,
-                block_bytes: synced_block.block_bytes,
-            })
-        }
-
         let proto = proto::blocksync::Response {
             block_number: response.height.block_number,
             fork_id: response.height.fork_id,
@@ -235,4 +161,80 @@ impl NetworkCodec<MockContext> for ProtobufCodec {
 
         p2p_msg.to_bytes()
     }
+}
+
+pub(crate) fn encode_proposal(
+    proposal: SignedProposal<MockContext>,
+) -> Result<ConsensusMessage, ProtoError> {
+    Ok(ConsensusMessage {
+        messages: Some(Messages::Proposal(proposal.message.to_proto()?)),
+        signature: Some(proposal.signature.to_proto()?),
+    })
+}
+
+pub(crate) fn encode_vote(vote: SignedVote<MockContext>) -> Result<ConsensusMessage, ProtoError> {
+    Ok(ConsensusMessage {
+        messages: Some(Messages::Vote(vote.message.to_proto()?)),
+        signature: Some(vote.signature.to_proto()?),
+    })
+}
+
+pub(crate) fn encode_synced_block(
+    synced_block: blocksync::SyncedBlock<MockContext>,
+) -> Result<proto::blocksync::SyncedBlock, ProtoError> {
+    let commits = synced_block
+        .certificate
+        .commits
+        .into_iter()
+        .map(encode_vote)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(proto::blocksync::SyncedBlock {
+        proposal: Some(encode_proposal(synced_block.proposal)?),
+        commits,
+        block_bytes: synced_block.block_bytes,
+    })
+}
+
+pub(crate) fn decode_proposal(msg: ConsensusMessage) -> Option<SignedProposal<MockContext>> {
+    let signature = msg.signature?;
+    let proposal = match msg.messages {
+        Some(Messages::Proposal(p)) => Some(p),
+        _ => None,
+    }?;
+
+    let signature = p2p::Signature::from_proto(signature).ok()?;
+    let proposal = Proposal::from_proto(proposal).ok()?;
+    Some(SignedProposal::new(proposal, signature))
+}
+
+pub(crate) fn decode_vote(msg: ConsensusMessage) -> Option<SignedVote<MockContext>> {
+    let signature = msg.signature?;
+    let vote = match msg.messages {
+        Some(Messages::Vote(v)) => Some(v),
+        _ => None,
+    }?;
+
+    let signature = p2p::Signature::from_proto(signature).ok()?;
+    let vote = Vote::from_proto(vote).ok()?;
+    Some(SignedVote::new(vote, signature))
+}
+
+pub(crate) fn decode_sync_block(
+    synced_block: proto::blocksync::SyncedBlock,
+) -> Result<blocksync::SyncedBlock<MockContext>, ProtoError> {
+    let commits = synced_block
+        .commits
+        .into_iter()
+        .filter_map(decode_vote)
+        .collect();
+
+    let certificate = Certificate::new(commits);
+
+    Ok(blocksync::SyncedBlock {
+        proposal: decode_proposal(synced_block.proposal.unwrap())
+            .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("proposal"))?,
+        certificate,
+        block_bytes: synced_block.block_bytes,
+    })
 }
