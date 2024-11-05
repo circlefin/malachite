@@ -41,9 +41,10 @@ impl<Ctx: Context> PartStore<Ctx> {
     }
 
     /// Return all the parts for the given height and round, sorted by sequence in ascending order
-    pub fn all_parts(&self, height: Ctx::Height, round: Round) -> Entry<Ctx> {
+    pub fn all_parts(&self, height: Ctx::Height, round: Round) -> Vec<Arc<Ctx::ProposalPart>> {
         self.store
             .get(&(height, round))
+            .map(|entry| &entry.parts)
             .cloned()
             .unwrap_or_default()
     }
@@ -69,14 +70,15 @@ impl<Ctx: Context> PartStore<Ctx> {
     }
 
     /// Return all the parts for the given height and round, sorted by sequence in ascending order
-    pub fn all_parts_by_value_id(&self, value_id: ValueId<Ctx>) -> Vec<Arc<Ctx::ProposalPart>> {
+    pub fn all_parts_by_value_id(&self, value_id: &ValueId<Ctx>) -> Vec<Arc<Ctx::ProposalPart>> {
         for entry in self.store.values() {
-            if let Some(id) = entry.value_id.clone() {
+            if let Some(ref id) = entry.value_id {
                 if value_id == id {
                     return entry.parts.clone();
                 }
             }
         }
+
         vec![]
     }
 }

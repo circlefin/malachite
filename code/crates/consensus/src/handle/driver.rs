@@ -162,6 +162,19 @@ where
                 );
             }
 
+            if let Round::Some(_vr) = signed_proposal.pol_round() {
+                perform!(
+                    co,
+                    Effect::RestreamValue(
+                        proposal.height(),
+                        proposal.round(),
+                        proposal.pol_round(),
+                        proposal.validator_address().clone(),
+                        proposal.value().id(),
+                    )
+                );
+            }
+
             on_proposal(co, state, metrics, signed_proposal).await
         }
 

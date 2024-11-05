@@ -9,12 +9,11 @@ use sha3::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, trace, warn};
 
+use malachite_actors::consensus::ConsensusMsg;
 use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
+use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachite_blocksync::SyncedBlock;
-
-use malachite_actors::consensus::ConsensusMsg;
-use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_common::{Extension, Proposal, Round, Validity, Value};
 use malachite_metrics::Metrics;
 use malachite_proto::Protobuf;
@@ -23,7 +22,6 @@ use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
 use crate::mock::host::MockHost;
-use crate::part_store::Entry;
 use crate::streaming::PartStreamsMap;
 use crate::types::{Address, BlockHash, Height, ProposalPart, ValidatorSet};
 use crate::Host;
@@ -60,7 +58,7 @@ impl HostState {
     #[tracing::instrument(skip_all, fields(%height, %round))]
     pub fn build_value_from_parts(
         &self,
-        parts: &Entry<MockContext>,
+        parts: &[Arc<ProposalPart>],
         height: Height,
         round: Round,
     ) -> Option<ProposedValue<MockContext>> {
@@ -81,12 +79,10 @@ impl HostState {
     #[tracing::instrument(skip_all, fields(%height, %round))]
     pub fn build_proposal_content_from_parts(
         &self,
-        entry: &Entry<MockContext>,
+        parts: &[Arc<ProposalPart>],
         height: Height,
         round: Round,
     ) -> Option<(Round, BlockHash, Address, Validity, Option<Extension>)> {
-        let parts = &entry.parts;
-
         if parts.is_empty() {
             return None;
         }
@@ -172,8 +168,7 @@ impl HostState {
             trace!("Simulation took {exec_time:?} to execute {num_txes} txes");
         }
 
-        let entry = self.host.part_store.all_parts(height, round);
-        let all_parts = entry.parts.clone();
+        let parts = self.host.part_store.all_parts(height, round);
 
         trace!(
             count = self.host.part_store.blocks_count(),
@@ -182,20 +177,20 @@ impl HostState {
 
         // TODO: Do more validations, e.g. there is no higher tx proposal part,
         //       check that we have received the proof, etc.
-        let Some(_fin) = all_parts.iter().find_map(|part| part.as_fin()) else {
+        let Some(_fin) = parts.iter().find_map(|part| part.as_fin()) else {
             debug!("Final proposal part has not been received yet");
             return None;
         };
 
-        let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
-        let tx_count: usize = all_parts.iter().map(|p| p.tx_count()).sum();
+        let block_size: usize = parts.iter().map(|p| p.size_bytes()).sum();
+        let tx_count: usize = parts.iter().map(|p| p.tx_count()).sum();
 
         debug!(
-            %tx_count, %block_size, num_parts = %all_parts.len(),
+            tx.count = %tx_count, block.size = %block_size, parts.count = %parts.len(),
             "All parts have been received already, building value"
         );
 
-        let result = self.build_value_from_parts(&entry, height, round);
+        let result = self.build_value_from_parts(&parts, height, round);
 
         if let Some(ref proposed_value) = result {
             self.host
@@ -316,28 +311,21 @@ impl Actor for StarknetHost {
                 while let Some(part) = rx_part.recv().await {
                     state.host.part_store.store(height, round, part.clone());
 
-                    if state.host.params.value_payload.include_parts() {
-                        debug!(%stream_id, %sequence, "Broadcasting proposal part");
+                    debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
-                        let msg = StreamMessage::new(
-                            stream_id,
-                            sequence,
-                            StreamContent::Data(part.clone()),
-                        );
+                    let msg =
+                        StreamMessage::new(stream_id, sequence, StreamContent::Data(part.clone()));
 
-                        self.gossip_consensus
-                            .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
-                    }
+                    self.gossip_consensus
+                        .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
 
                     sequence += 1;
                 }
 
-                if state.host.params.value_payload.include_parts() {
-                    let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin(true));
+                let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin(true));
 
-                    self.gossip_consensus
-                        .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
-                }
+                self.gossip_consensus
+                    .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
 
                 let block_hash = rx_hash.await?;
                 debug!(%block_hash, "Assembled block");
@@ -495,15 +483,14 @@ impl Actor for StarknetHost {
                 commits,
                 consensus,
             } => {
-                let height = proposal.height;
-                let round = proposal.round;
-                let mut all_parts = state.host.part_store.all_parts(height, round).parts;
+                let (height, round) = (proposal.height, proposal.round);
+
+                let mut all_parts = state.host.part_store.all_parts(height, round);
 
                 let mut all_txes = vec![];
-                for arc in all_parts.iter_mut() {
-                    let part = Arc::unwrap_or_clone((*arc).clone());
-                    if let ProposalPart::Transactions(transactions) = part {
-                        let mut txes = transactions.into_vec();
+                for part in all_parts.iter_mut() {
+                    if let ProposalPart::Transactions(transactions) = part.as_ref() {
+                        let mut txes = transactions.to_vec();
                         all_txes.append(&mut txes);
                     }
                 }

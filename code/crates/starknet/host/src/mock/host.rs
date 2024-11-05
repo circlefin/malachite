@@ -133,7 +133,7 @@ impl Host for MockHost {
         &self,
         block_hash: Self::BlockHash,
     ) -> mpsc::Receiver<Self::ProposalPart> {
-        let parts = self.part_store.all_parts_by_value_id(block_hash);
+        let parts = self.part_store.all_parts_by_value_id(&block_hash);
         let (tx_part, rx_content) = mpsc::channel(self.params.txs_per_part);
 
         tokio::spawn(
