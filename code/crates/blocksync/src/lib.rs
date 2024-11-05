@@ -1,5 +1,5 @@
 mod behaviour;
-pub use behaviour::{Behaviour, Event};
+pub use behaviour::{Behaviour, Config, Event};
 
 mod codec;
 pub use codec::NetworkCodec;
@@ -15,6 +15,8 @@ pub use types::{
     InboundRequestId, OutboundRequestId, PeerId, RawMessage, Request, Response, ResponseChannel,
     Status, SyncedBlock,
 };
+
+mod rpc;
 
 mod macros;
 

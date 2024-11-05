@@ -243,6 +243,8 @@ pub fn generate_config(
                     enabled: enable_discovery,
                 },
                 transport,
+                rpc_max_size: ByteSize::mib(10),
+                pubsub_max_size: ByteSize::mib(4),
             },
         },
         mempool: MempoolConfig {
@@ -255,6 +257,8 @@ pub fn generate_config(
                     .collect(),
                 discovery: DiscoveryConfig { enabled: false },
                 transport,
+                rpc_max_size: ByteSize::mib(10),
+                pubsub_max_size: ByteSize::mib(4),
             },
             max_tx_count: 10000,
             gossip_batch_size: 0,

@@ -1,5 +1,3 @@
-#![allow(unused_variables)]
-
 use std::collections::BTreeSet;
 use std::time::Duration;
 
@@ -10,6 +8,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::Instrument;
 
+use crate::part_store::PartStore;
 use malachite_common::{Round, SignedVote};
 
 use crate::mempool::MempoolRef;
@@ -18,7 +17,7 @@ use crate::types::*;
 use crate::Host;
 
 mod build_proposal;
-use build_proposal::build_proposal_task;
+use build_proposal::{build_proposal_task, repropose_task};
 
 #[derive(Copy, Clone, Debug)]
 pub struct MockParams {
@@ -37,6 +36,7 @@ pub struct MockHost {
     mempool: MempoolRef,
     address: Address,
     validator_set: ValidatorSet,
+    pub part_store: PartStore<MockContext>,
 }
 
 impl MockHost {
@@ -51,6 +51,7 @@ impl MockHost {
             mempool,
             address,
             validator_set,
+            part_store: Default::default(),
         }
     }
 
@@ -114,11 +115,11 @@ impl Host for MockHost {
     ///
     /// Return
     /// - block_hash - ID of the content in the block.
-    #[tracing::instrument(skip_all, fields(%height))]
+    #[tracing::instrument(skip_all, fields(height = %_height))]
     async fn receive_proposal(
         &self,
-        content: mpsc::Receiver<Self::ProposalPart>,
-        height: Self::Height,
+        _content: mpsc::Receiver<Self::ProposalPart>,
+        _height: Self::Height,
     ) -> oneshot::Receiver<Self::BlockHash> {
         todo!()
     }
@@ -134,15 +135,22 @@ impl Host for MockHost {
     async fn send_known_proposal(
         &self,
         block_hash: Self::BlockHash,
-    ) -> mpsc::Sender<Self::ProposalPart> {
-        todo!()
+    ) -> mpsc::Receiver<Self::ProposalPart> {
+        let parts = self.part_store.all_parts_by_value_id(block_hash);
+        let (tx_part, rx_content) = mpsc::channel(self.params.txs_per_part);
+
+        tokio::spawn(
+            repropose_task(block_hash, tx_part, parts).instrument(tracing::Span::current()),
+        );
+
+        rx_content
     }
 
     /// The set of validators for a given block height. What do we need?
     /// - address      - tells the networking layer where to send messages.
     /// - public_key   - used for signature verification and identification.
     /// - voting_power - used for quorum calculations.
-    async fn validators(&self, height: Self::Height) -> Option<BTreeSet<Self::Validator>> {
+    async fn validators(&self, _height: Self::Height) -> Option<BTreeSet<Self::Validator>> {
         Some(self.validator_set.validators.iter().cloned().collect())
     }
 
@@ -153,9 +161,9 @@ impl Host for MockHost {
     /// Validates the signature field of a message. If None returns false.
     async fn validate_signature(
         &self,
-        hash: &Self::MessageHash,
-        signature: &Self::Signature,
-        public_key: &Self::PublicKey,
+        _hash: &Self::MessageHash,
+        _signature: &Self::Signature,
+        _public_key: &Self::PublicKey,
     ) -> bool {
         todo!()
     }

@@ -6,7 +6,7 @@ use libp2p::PeerId;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachite_blocksync::SyncedBlock;
-use malachite_common::{Context, Extension, Round, SignedProposal, SignedVote};
+use malachite_common::{Context, Extension, Round, SignedProposal, SignedVote, ValueId};
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
@@ -69,6 +69,7 @@ pub enum HostMsg<Ctx: Context> {
         round: Round,
         valid_round: Round,
         address: Ctx::Address,
+        value_id: ValueId<Ctx>,
     },
 
     /// Request the earliest block height in the block store

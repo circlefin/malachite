@@ -20,6 +20,7 @@ impl StartCmd {
     pub async fn run(
         &self,
         cfg: Config,
+        home_dir: PathBuf,
         private_key_file: PathBuf,
         genesis_file: PathBuf,
     ) -> Result<()> {
@@ -45,10 +46,12 @@ impl StartCmd {
         let (actor, handle) = match cfg.app {
             App::Starknet => {
                 use malachite_starknet_app::spawn::spawn_node_actor;
+
                 let start_height = self
                     .start_height
                     .map(|height| malachite_starknet_app::types::Height::new(height, 1));
-                spawn_node_actor(cfg, genesis, private_key, start_height, None).await
+
+                spawn_node_actor(cfg, home_dir, genesis, private_key, start_height, None).await
             }
         };
 

@@ -156,7 +156,8 @@ where
                         proposal.height(),
                         proposal.round(),
                         proposal.pol_round(),
-                        proposal.validator_address().clone()
+                        proposal.validator_address().clone(),
+                        proposal.value().id(),
                     )
                 );
             }

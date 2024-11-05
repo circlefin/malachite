@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
+use std::sync::Arc;
+
 use bytes::Bytes;
 use bytesize::ByteSize;
 use eyre::eyre;
@@ -69,7 +71,6 @@ async fn run_build_proposal_task(
             valid_round: Round::Nil,
         });
 
-        block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;
         sequence += 1;
     }
@@ -180,5 +181,27 @@ async fn run_build_proposal_task(
         .send(block_hash)
         .map_err(|_| "Failed to send block hash")?;
 
+    Ok(())
+}
+
+pub async fn repropose_task(
+    block_hash: Hash,
+    tx_part: mpsc::Sender<ProposalPart>,
+    parts: Vec<Arc<ProposalPart>>,
+) {
+    if let Err(e) = run_repropose_task(block_hash, tx_part, parts).await {
+        error!("Failed to restream proposal: {e:?}");
+    }
+}
+
+async fn run_repropose_task(
+    _block_hash: Hash,
+    tx_part: mpsc::Sender<ProposalPart>,
+    parts: Vec<Arc<ProposalPart>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for part in parts {
+        let part = Arc::unwrap_or_clone(part);
+        tx_part.send(part).await?;
+    }
     Ok(())
 }
