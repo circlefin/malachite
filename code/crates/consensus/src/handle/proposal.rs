@@ -1,11 +1,11 @@
-use crate::handle::signature::verify_signature;
-use crate::prelude::*;
-
 use crate::handle::driver::apply_driver_input;
+use crate::handle::signature::verify_signature;
 use crate::handle::validator_set::get_validator_set;
 use crate::input::Input;
+use crate::prelude::*;
 use crate::types::ConsensusMsg;
 use crate::util::pretty::PrettyProposal;
+use crate::ProposedValue;
 
 pub async fn on_proposal<Ctx>(
     co: &Co<Ctx>,
@@ -38,10 +38,11 @@ where
     }
 
     info!(
-        consensus.height = %consensus_height,
-        proposal.height = %proposal_height,
-        proposer = %proposer_address,
-        "Received proposal: {}", PrettyProposal::<Ctx>(&signed_proposal.message)
+        height = %consensus_height,
+        %proposal_height,
+        address = %proposer_address,
+        message = %PrettyProposal::<Ctx>(&signed_proposal.message),
+        "Received proposal"
     );
 
     // Queue messages if driver is not initialized, or if they are for higher height.
@@ -56,18 +57,35 @@ where
     }
 
     if proposal_height > consensus_height {
-        debug!("Received proposal for higher height, queuing for later");
+        if consensus_height.increment() == proposal_height {
+            debug!("Received proposal for next height, queuing for later");
 
-        state
-            .input_queue
-            .push_back(Input::Proposal(signed_proposal));
-
+            state
+                .input_queue
+                .push_back(Input::Proposal(signed_proposal));
+        }
         return Ok(());
     }
 
     assert_eq!(proposal_height, consensus_height);
 
     state.store_proposal(signed_proposal.clone());
+
+    if state.params.value_payload.proposal_only() {
+        // TODO - pass the received value up to the host that will verify and give back validity and extension.
+        // Currently starknet Context defines value as BlockHash, we need a PoC app for this.
+        let new_value = ProposedValue {
+            height: signed_proposal.height(),
+            round: signed_proposal.round(),
+            valid_round: signed_proposal.pol_round(),
+            validator_address: signed_proposal.validator_address().clone(),
+            value: signed_proposal.value().clone(),
+            validity: Validity::Valid,
+            extension: Default::default(),
+        };
+
+        state.store_value(&new_value);
+    }
 
     if let Some(full_proposal) = state.full_proposal_at_round_and_value(
         &proposal_height,
@@ -127,7 +145,7 @@ where
         return Ok(false);
     };
 
-    let expected_proposer = state.get_proposer(proposal_height, proposal_round).unwrap(); // FIXME: Unwrap
+    let expected_proposer = state.get_proposer(proposal_height, proposal_round);
 
     if expected_proposer != proposer_address {
         warn!(
@@ -138,6 +156,7 @@ where
             "Received proposal from a non-proposer"
         );
 
+        // TODO - why when we replay proposals the proposer is wrong
         return Ok(false);
     };
 

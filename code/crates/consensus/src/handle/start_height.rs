@@ -38,7 +38,11 @@ where
     let round = Round::new(0);
     info!(%height, "Starting new height");
 
-    let proposer = state.get_proposer(height, round).cloned()?;
+    metrics.block_start();
+    metrics.height.set(height.as_u64() as i64);
+    metrics.round.set(round.as_i64());
+
+    let proposer = state.get_proposer(height, round);
 
     apply_driver_input(
         co,
@@ -47,12 +51,6 @@ where
         DriverInput::NewRound(height, round, proposer.clone()),
     )
     .await?;
-
-    metrics.block_start();
-    metrics.height.set(height.as_u64() as i64);
-    metrics.round.set(round.as_i64());
-
-    perform!(co, Effect::StartRound(height, round, proposer));
 
     replay_pending_msgs(co, state, metrics).await?;
 
@@ -68,7 +66,7 @@ where
     Ctx: Context,
 {
     let pending_inputs = std::mem::take(&mut state.input_queue);
-    debug!("Replaying {} inputs", pending_inputs.len());
+    debug!(count = pending_inputs.len(), "Replaying inputs");
 
     for pending_input in pending_inputs {
         handle_input(co, state, metrics, pending_input).await?;

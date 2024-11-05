@@ -1,6 +1,6 @@
 FILE?=prometheus.tgz
 
-extract:
+extract: stop
 	rm -rf data-prometheus
 	mkdir data-prometheus
 	tar -xvzf $(FILE) -C data-prometheus

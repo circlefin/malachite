@@ -19,6 +19,8 @@ use super::utils::{build_validator_set, check_votes, value_from_model};
 pub struct VoteKeeperRunner {
     rng: StdRng,
     addresses: HashMap<String, Address>,
+    last_state: Option<State>,
+    skip_step: bool,
 }
 
 impl VoteKeeperRunner {
@@ -26,6 +28,8 @@ impl VoteKeeperRunner {
         Self {
             rng,
             addresses: HashMap::new(),
+            last_state: None,
+            skip_step: false,
         }
     }
 }
@@ -60,12 +64,22 @@ impl ItfRunner for VoteKeeperRunner {
         actual: &mut Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<Self::Result, Self::Error> {
+        self.skip_step = false;
+
+        if let Some(last_state) = self.last_state.replace(expected.clone()) {
+            if &last_state == expected {
+                println!("➡️ Skipping duplicate step");
+                self.skip_step = true;
+                return Ok(None);
+            }
+        }
+
         match &expected.weighted_vote {
             WeightedVote::NoVote => Err(()),
 
             WeightedVote::Vote(input_vote, weight, current_round) => {
                 // Build step to execute.
-                let round = Round::new(input_vote.round);
+                let round = Round::from(input_vote.round);
                 let height = Height::new(input_vote.height as u64);
                 let value = value_from_model(&input_vote.value_id);
                 let address = self.addresses.get(input_vote.src_address.as_str()).unwrap();
@@ -85,7 +99,7 @@ impl ItfRunner for VoteKeeperRunner {
                 // Execute step.
                 Ok(actual.apply_vote(
                     SignedVote::new(vote, Signature::test()),
-                    Round::new(*current_round),
+                    Round::from(*current_round),
                 ))
             }
         }
@@ -96,7 +110,12 @@ impl ItfRunner for VoteKeeperRunner {
         result: &Self::Result,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
+        if self.skip_step {
+            return Ok(true);
+        }
+
         let expected_result = &expected.last_emitted;
+
         match result {
             Some(result) => match (result, expected_result) {
                 // TODO: check expected_round
@@ -119,7 +138,7 @@ impl ItfRunner for VoteKeeperRunner {
                     );
                 }
                 (Output::SkipRound(round), Skip(expected_round)) => {
-                    assert_eq!(round, &Round::new(*expected_round));
+                    assert_eq!(round, &Round::from(*expected_round));
                 }
                 (actual, expected) => {
                     panic!("actual: {:?}, expected: {:?}", actual, expected)
@@ -135,6 +154,10 @@ impl ItfRunner for VoteKeeperRunner {
         actual: &Self::ActualState,
         expected: &Self::ExpectedState,
     ) -> Result<bool, Self::Error> {
+        if self.skip_step {
+            return Ok(true);
+        }
+
         // doesn't check for current Height and Round
 
         let actual_state = actual;
@@ -146,12 +169,12 @@ impl ItfRunner for VoteKeeperRunner {
             "total_weight for the current height"
         );
 
-        assert_eq!(actual_state.per_round().len(), expected_state.rounds.len());
+        assert_eq!(actual_state.rounds(), expected_state.rounds.len());
 
         for (&round, expected_round) in &expected_state.rounds {
             // doesn't check for current Height and Round
 
-            let actual_round = actual_state.per_round().get(&Round::new(round)).unwrap();
+            let actual_round = actual_state.per_round(Round::from(round)).unwrap();
 
             let expected_outputs = &expected_round.emitted_outputs;
             let actual_outputs = actual_round.emitted_outputs();

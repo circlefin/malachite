@@ -9,8 +9,6 @@ use rand::{CryptoRng, RngCore};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-pub mod config;
-
 pub trait Node {
     type Context: Context;
     type Genesis: Serialize + DeserializeOwned;

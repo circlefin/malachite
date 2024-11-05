@@ -11,7 +11,12 @@ where
         Default + Copy + Clone + Debug + Display + PartialEq + Eq + PartialOrd + Ord + Send + Sync,
 {
     /// Increment the height by one.
-    fn increment(&self) -> Self;
+    fn increment(&self) -> Self {
+        self.increment_by(1)
+    }
+
+    /// Increment this height by the given amount.
+    fn increment_by(&self, n: u64) -> Self;
 
     /// Convert the height to a `u64`.
     fn as_u64(&self) -> u64;

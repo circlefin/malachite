@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use malachite_proto::Protobuf;
 use malachite_starknet_p2p_proto as p2p_proto;
 
@@ -16,7 +17,7 @@ pub struct StreamMessage {
 
 pub enum StreamContent {
     /// Serialized content.
-    Data(Vec<u8>),
+    Data(Bytes),
     /// Fin must be set to true.
     Fin(bool),
 }

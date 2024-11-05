@@ -102,6 +102,20 @@ pub fn precommit_input(round: Round, value: Value, addr: &Address) -> Input<Test
     ))
 }
 
+pub fn precommit_nil_input(round: Round, addr: &Address) -> Input<TestContext> {
+    Input::Vote(SignedVote::new(
+        Vote::new_precommit(Height::new(1), round, NilOrVal::Nil, *addr),
+        Signature::test(),
+    ))
+}
+
+pub fn precommit_input_at(round: Round, value: Value, addr: &Address) -> Input<TestContext> {
+    Input::Vote(SignedVote::new(
+        Vote::new_precommit(Height::new(1), round, NilOrVal::Val(value.id()), *addr),
+        Signature::test(),
+    ))
+}
+
 pub fn decide_output(round: Round, proposal: Proposal) -> Output<TestContext> {
     Output::Decide(round, proposal)
 }
@@ -232,11 +246,11 @@ pub fn precommit_state_with_proposal_and_locked_and_valid(
         step: Step::Precommit,
         valid: Some(RoundValue {
             value: proposal.value,
-            round: Round::new(0),
+            round: proposal.round,
         }),
         locked: Some(RoundValue {
             value: proposal.value,
-            round: Round::new(0),
+            round: proposal.round,
         }),
         ..Default::default()
     }

@@ -34,11 +34,11 @@ pub enum VoteKeeperOutput {
     #[serde(with = "As::<(Integer, Same)>")]
     PolkaValue(Round, NonNilValue),
 
-    #[serde(rename = "PrevoteAnyVKOutput")]
+    #[serde(rename = "PrecommitAnyVKOutput")]
     #[serde(with = "As::<Integer>")]
     PrecommitAny(Round),
 
-    #[serde(rename = "PrevoteNilVKOutput")]
+    #[serde(rename = "PrecommitValueVKOutput")]
     #[serde(with = "As::<(Integer, Same)>")]
     PrecommitValue(Round, NonNilValue),
 

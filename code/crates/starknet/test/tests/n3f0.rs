@@ -1,17 +1,18 @@
 #![allow(unused_crate_dependencies)]
 
-use malachite_starknet_test::{App, Expected, Test, TestNode};
+use std::time::Duration;
+
+use malachite_starknet_test::{App, Test, TestNode};
 
 #[tokio::test]
 pub async fn all_correct_nodes() {
-    let test = Test::new(
-        [
-            TestNode::correct(5),
-            TestNode::correct(15),
-            TestNode::correct(10),
-        ],
-        Expected::Exactly(9),
-    );
+    const HEIGHT: u64 = 5;
 
-    test.run(App::Starknet).await
+    let n1 = TestNode::new(1).start().wait_until(HEIGHT).success();
+    let n2 = TestNode::new(2).start().wait_until(HEIGHT).success();
+    let n3 = TestNode::new(3).start().wait_until(HEIGHT).success();
+
+    Test::new([n1, n2, n3])
+        .run(App::Starknet, Duration::from_secs(30))
+        .await
 }

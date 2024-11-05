@@ -27,13 +27,19 @@ where
 
         write!(
             f,
-            "{:?}(height: {}, round: {}, value: {}, from: {})",
+            "{:?}(height: {}, round: {}, value: {}, from: {}",
             self.0.vote_type(),
             self.0.height(),
             self.0.round(),
             PrettyVal(self.0.value().as_ref()),
-            self.0.validator_address()
-        )
+            self.0.validator_address(),
+        )?;
+
+        if let Some(e) = self.0.extension() {
+            write!(f, ", extension: {:?} bytes", e.size_bytes())?;
+        }
+
+        write!(f, ")")
     }
 }
 

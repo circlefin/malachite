@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use derive_where::derive_where;
 
 use malachite_common::*;
@@ -46,6 +47,10 @@ where
     /// Resume with: [`Resume::Continue`]
     GetValue(Ctx::Height, Round, Timeout),
 
+    /// Restream value at the given height, round and valid round
+    /// Resume with: [`Resume::Continue`]
+    RestreamValue(Ctx::Height, Round, Round, Ctx::Address, ValueId<Ctx>),
+
     /// Get the validator set at the given height
     /// Resume with: [`Resume::ValidatorSet`]
     GetValidatorSet(Ctx::Height),
@@ -57,10 +62,15 @@ where
     /// Consensus has decided on a value
     /// Resume with: [`Resume::Continue`]
     Decide {
-        height: Ctx::Height,
-        round: Round,
-        value: Ctx::Value,
+        proposal: SignedProposal<Ctx>,
         commits: Vec<SignedMessage<Ctx, Ctx::Vote>>,
+    },
+
+    /// Consensus has received a synced decided block
+    /// Resume with: [`Resume::Continue`]
+    SyncedBlock {
+        proposal: SignedProposal<Ctx>,
+        block_bytes: Bytes,
     },
 }
 

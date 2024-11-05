@@ -27,14 +27,31 @@ where
     }
 
     if state.driver.height() < proposed_value.height {
-        debug!("Received value for higher height, queuing for later");
-        state
-            .input_queue
-            .push_back(Input::ReceivedProposedValue(proposed_value));
+        if state.driver.height().increment() == proposed_value.height {
+            debug!("Received value for next height, queuing for later");
+            state
+                .input_queue
+                .push_back(Input::ReceivedProposedValue(proposed_value));
+        }
         return Ok(());
     }
 
     state.store_value(&proposed_value);
+
+    if state.params.value_payload.parts_only() {
+        let proposal = Ctx::new_proposal(
+            proposed_value.height,
+            proposed_value.round,
+            proposed_value.value.clone(),
+            proposed_value.valid_round,
+            proposed_value.validator_address.clone(),
+        );
+
+        // TODO - keep unsigned proposals in keeper. For now we keep all happy
+        // by signing all "implicit" proposals with this node's key
+        let signed_proposal = Ctx::sign_proposal(&state.ctx, proposal);
+        state.store_proposal(signed_proposal);
+    }
 
     let proposals = state.full_proposals_for_value(&proposed_value);
     for signed_proposal in proposals {

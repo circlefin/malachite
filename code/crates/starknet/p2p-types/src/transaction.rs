@@ -1,5 +1,6 @@
 use core::fmt;
 
+use bytes::Bytes;
 use malachite_proto::{self as proto};
 use malachite_starknet_p2p_proto as p2p_proto;
 
@@ -8,25 +9,26 @@ use crate::Hash;
 /// Transaction
 #[derive(Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Transaction {
-    data: Vec<u8>,
+    data: Bytes,
     hash: Hash,
 }
 
 impl Transaction {
     /// Create a new transaction from bytes
-    pub fn new(data: Vec<u8>) -> Self {
+    pub fn new(data: impl Into<Bytes>) -> Self {
+        let data = data.into();
         let hash = Self::compute_hash(&data);
         Self { data, hash }
     }
 
     /// Get bytes from a transaction
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.data.to_vec()
+    pub fn to_bytes(&self) -> Bytes {
+        self.data.clone()
     }
 
     /// Get bytes from a transaction
     pub fn as_bytes(&self) -> &[u8] {
-        self.data.as_slice()
+        self.data.as_ref()
     }
 
     /// Size of this transaction in bytes
@@ -108,6 +110,12 @@ impl Transactions {
         self.0.push(tx);
     }
 
+    /// Add a set of transaction to the batch
+    pub fn append(&mut self, txes: Transactions) {
+        let mut txes1 = txes.clone();
+        self.0.append(&mut txes1.0);
+    }
+
     /// Get the number of transactions in the batch
     pub fn len(&self) -> usize {
         self.0.len()
@@ -121,6 +129,11 @@ impl Transactions {
     /// Get transactions from a batch
     pub fn into_vec(self) -> Vec<Transaction> {
         self.0
+    }
+
+    /// Get transactions from a batch
+    pub fn to_vec(&self) -> Vec<Transaction> {
+        self.0.to_vec()
     }
 
     /// Get transactions from a batch
