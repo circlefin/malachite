@@ -41,9 +41,10 @@ impl<Ctx: Context> PartStore<Ctx> {
     }
 
     /// Return all the parts for the given height and round, sorted by sequence in ascending order
-    pub fn all_parts(&self, height: Ctx::Height, round: Round) -> Entry<Ctx> {
+    pub fn all_parts(&self, height: Ctx::Height, round: Round) -> Vec<Arc<Ctx::ProposalPart>> {
         self.store
             .get(&(height, round))
+            .map(|entry| &entry.parts)
             .cloned()
             .unwrap_or_default()
     }

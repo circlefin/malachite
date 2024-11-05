@@ -132,6 +132,11 @@ impl Transactions {
     }
 
     /// Get transactions from a batch
+    pub fn to_vec(&self) -> Vec<Transaction> {
+        self.0.to_vec()
+    }
+
+    /// Get transactions from a batch
     pub fn as_slice(&self) -> &[Transaction] {
         &self.0
     }
