@@ -26,7 +26,7 @@ var _hist: (str, DriverInput, ConsensusOutput)
 //var _histSimple: (str, str, str)
 
 action init = all {
-    system' = validators.mapBy(v => initNode(v, validatorSet)),
+    system' = validators.mapBy(v => initNode(v, validatorSet, 0)),
     _hist' = ("INIT", NoDInput, NoConsensusOutput)
 //    _histSimple' = ("INIT", "", "")
 }
@@ -173,7 +173,7 @@ run DecidingRunTest =
         })
     .then(all{
         // validator 3 decided on "a block"
-        assert(system.get("v3").es.chain.head().decision == "a block"),
+        assert(system.get("v3").es.chain.head().decision.proposal == "a block"),
         system' = system,
         _hist' = _hist
     })
