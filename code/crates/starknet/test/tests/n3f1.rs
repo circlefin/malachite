@@ -1,59 +1,67 @@
 #![allow(unused_crate_dependencies)]
 
-use malachite_starknet_test::{App, Expected, Fault, Test, TestNode};
+use std::time::Duration;
+
+use malachite_starknet_test::{App, Test, TestNode};
 
 #[tokio::test]
 pub async fn proposer_fails_to_start() {
-    let test = Test::new(
-        [
-            TestNode::faulty(10, vec![Fault::NoStart]),
-            TestNode::correct(10),
-            TestNode::correct(10),
-        ],
-        Expected::Exactly(0),
-    );
+    const HEIGHT: u64 = 5;
 
-    test.run(App::Starknet).await
+    let n1 = TestNode::new(1).vp(1).success();
+    let n2 = TestNode::new(2).vp(5).start().wait_until(HEIGHT).success();
+    let n3 = TestNode::new(3).vp(5).start().wait_until(HEIGHT).success();
+
+    Test::new([n1, n2, n3])
+        .run(App::Starknet, Duration::from_secs(30))
+        .await
 }
 
 #[tokio::test]
 pub async fn one_node_fails_to_start() {
-    let test = Test::new(
-        [
-            TestNode::correct(10),
-            TestNode::faulty(10, vec![Fault::NoStart]),
-            TestNode::correct(10),
-        ],
-        Expected::Exactly(0),
-    );
+    const HEIGHT: u64 = 5;
 
-    test.run(App::Starknet).await
+    let n1 = TestNode::new(1).vp(5).start().wait_until(HEIGHT).success();
+    let n2 = TestNode::new(2).vp(5).start().wait_until(HEIGHT).success();
+    let n3 = TestNode::new(3).vp(1).success();
+
+    Test::new([n1, n2, n3])
+        .run(App::Starknet, Duration::from_secs(30))
+        .await
 }
 
 #[tokio::test]
-pub async fn proposer_crashes_at_height_1() {
-    let test = Test::new(
-        [
-            TestNode::faulty(10, vec![Fault::Crash(1)]),
-            TestNode::correct(10),
-            TestNode::correct(10),
-        ],
-        Expected::AtMost(4),
-    );
+pub async fn proposer_crashes_at_height_2() {
+    const HEIGHT: u64 = 5;
 
-    test.run(App::Starknet).await
+    let n1 = TestNode::new(1).vp(5).start().wait_until(HEIGHT).success();
+    let n2 = TestNode::new(2)
+        .vp(1)
+        .start()
+        .wait_until(2)
+        .crash()
+        .success();
+    let n3 = TestNode::new(3).vp(5).start().wait_until(HEIGHT).success();
+
+    Test::new([n1, n2, n3])
+        .run(App::Starknet, Duration::from_secs(30))
+        .await
 }
 
 #[tokio::test]
-pub async fn one_node_crashes_at_height_2() {
-    let test = Test::new(
-        [
-            TestNode::correct(10),
-            TestNode::correct(10),
-            TestNode::faulty(5, vec![Fault::Crash(2)]),
-        ],
-        Expected::AtMost(7),
-    );
+pub async fn one_node_crashes_at_height_3() {
+    const HEIGHT: u64 = 5;
 
-    test.run(App::Starknet).await
+    let n1 = TestNode::new(1).vp(5).start().wait_until(HEIGHT).success();
+    let n3 = TestNode::new(3).vp(5).start().wait_until(HEIGHT).success();
+    let n2 = TestNode::new(2)
+        .vp(1)
+        .start()
+        .wait_until(3)
+        .crash()
+        .success();
+
+    Test::new([n1, n2, n3])
+        .run(App::Starknet, Duration::from_secs(30))
+        .await
 }

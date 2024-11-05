@@ -36,7 +36,16 @@ log_format = "plaintext"
 # Override with MALACHITE__CONSENSUS__MAX_BLOCK_SIZE env variable
 max_block_size = "1 MiB"
 
+# The message(s) required by consensus to carry the value payload.
+# Available options are:
+# - "parts-only": Full value is included in the proposal parts and there is no explicit Proposal message (default)
+# - "proposal-only": Full value is included in the (explicit) consensus Proposal message (untested)
+# - "proposal-and-parts": Both proposal parts and Proposal message are required (similar to CometBFT implementation of Tendermint)
+# Override with MALACHITE__CONSENSUS__VALUE_PAYLOAD env variable
+value_payload = "parts-only"
+
 ## Timeouts
+
 # How long we wait for a proposal block before prevoting nil
 # Override with MALACHITE__CONSENSUS__TIMEOUT_PROPOSE env variable
 timeout_propose = "3s"
@@ -70,23 +79,57 @@ timeout_commit = "0s"
 [consensus.p2p]
 
 # Address to listen for incoming connections
+# Override with MALACHITE__CONSENSUS__P2P__LISTEN_ADDR env variable
 listen_addr = "/ip4/0.0.0.0/udp/0/quic-v1"
 
 # List of nodes to keep persistent connections to
+# Override with MALACHITE__CONSENSUS__P2P__PERSISTENT_PEERS env variable
 persistent_peers = []
 
 # Transport protocol to use for P2P communication
 # Valid values:
 # - "tcp": TCP + Noise
 # - "quic": QUIC
+# Override with MALACHITE__CONSENSUS__P2P__TRANSPORT env variable
 transport = "quic"
 
-# The type of pub-sub protocol to use for consensus
-# Possible values:
-# - "gossipsub": Use the GossipSub v1.1 protocol (gossip, recommended)
-# - "broadcast": Use the Broadcast protocol (no gossip, experimental)
-# Override with MALACHITE__CONSENSUS__P2P__PROTOCOL env variable
-protocol = "gossipsub"
+# Enable the discovery protocol to find more peers
+# Override with MALACHITE__CONSENSUS__P2P__DISCOVERY__ENABLED env variable
+discovery = { enabled = true }
+
+# The maximum size of messages to send over pub-sub
+# Must be larger than the maximum block part size.
+# Override with MALACHITE__CONSENSUS__P2P__PUBSUB_MAX_SIZE env variable
+pubsub_max_size = "4 MiB"
+
+# The maximum size of messages to send over RPC
+# Must be larger than the maximum block size.
+# Override with MALACHITE__CONSENSUS__P2P__RPC_MAX_SIZE env variable
+rpc_max_size = "10 MiB"
+
+#######################################################
+###  Consensus P2P Protocol Configuration Options   ###
+#######################################################
+# GossipSub v1.1 is the default and recommended protocol for Consensus P2P.
+[consensus.p2p.protocol]
+# Valid options are "gossipsub" and "broadcast".
+# Broadcast is an experimental protocol with no additional configuration options.
+type = "gossipsub"
+
+# GossipSub only. Target number of peers for the mesh network (D in the GossipSub spec)
+mesh_n = 6
+
+# GossipSub only. Maximum number of peers in mesh network before removing some (D_high in the GossipSub spec)
+mesh_n_high = 12
+
+# GossipSub only. Minimum number of peers in mesh network before adding more (D_low in the spec)
+mesh_n_low = 4
+
+# GossipSub only. Minimum number of outbound peers in the mesh network before adding more (D_out in the spec).
+# This value must be smaller or equal than `mesh_n / 2` and smaller than `mesh_n_low`.
+# When this value is set to 0 or does not meet the above constraints,
+# it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
+mesh_outbound_min = 2
 
 #######################################################
 ###          Mempool Configuration Options          ###
@@ -119,14 +162,37 @@ persistent_peers = []
 # - "quic": QUIC
 transport = "quic"
 
-# The type of pub-sub protocol to use for the mempool
+# These have no effects on the mempool yet
+pubsub_max_size = "4 MiB"
+rpc_max_size = "10 MiB"
+
+#######################################################
+###   Mempool P2P Protocol Configuration Options    ###
+#######################################################
+
 # /!\ This setting has no effect on the mempool yet /!\
-#
-# Possible values:
-# - "gossipsub": Use the GossipSub v1.1 protocol (gossip, recommended)
-# - "broadcast": Use the Broadcast protocol (no gossip, experimental)
-# Override with MALACHITE__CONSENSUS__MEMPOOL__PROTOCOL env variable
-protocol = "gossipsub"
+# GossipSub v1.1 is the default and recommended protocol for Mempool P2P.
+[mempool.p2p.protocol]
+# Valid options are "gossipsub" and "broadcast".
+# Broadcast is an experimental protocol with no additional configuration options.
+type = "gossipsub"
+
+
+#######################################################
+###         BlockSync Configuration Options         ###
+#######################################################
+[blocksync]
+# Enable BlockSync
+# Override with MALACHITE__BLOCKSYNC__ENABLED env variable
+enabled = true
+
+# Interval at which to update other peers of our status
+# Override with MALACHITE__BLOCKSYNC__STATUS_UPDATE_INTERVAL env variable
+status_update_interval = "10s"
+
+# Timeout duration for block sync requests
+# Override with MALACHITE__BLOCKSYNC__REQUEST_TIMEOUT env variable
+request_timeout = "10s"
 
 #######################################################
 ###          Metrics Configuration Options          ###
@@ -134,9 +200,11 @@ protocol = "gossipsub"
 [metrics]
 
 # Enable the metrics server
+# Override with MALACHITE__METRICS__ENABLED env variable
 enabled = true
 
 # Metrics are exported at `http://127.0.0.1:9000/metrics`
+# Override with MALACHITE__METRICS__LISTEN_ADDR env variable
 listen_addr = "127.0.0.1:9000"
 
 #######################################################
@@ -148,11 +216,13 @@ listen_addr = "127.0.0.1:9000"
 # Possible values:
 # - "single_threaded": A single threaded runtime (default)
 # - "multi_threaded":  A multi-threaded runtime
+# Override with MALACHITE__RUNTIME__FLAVOR env variable
 flavor = "single_threaded"
 
 # For the multi-threaded runtime only.
 # Sets the number of worker threads the Runtime will use.
 # If set to 0, defaults to the number of cores available to the system.
+# Override with MALACHITE__RUNTIME__WORKER_THREADS env variable
 # worker_threads = 4
 
 
@@ -169,3 +239,9 @@ txs_per_part = 256
 time_allowance_factor = 0.5
 # Override with MALACHITE__TEST__EXEC_TIME_PER_TX env variable
 exec_time_per_tx = "1ms"
+# Maximum number of blocks, relative to the current block, that can be kept in the block store.
+# A value of 0 indicates that no blocks are pruned.
+# Override with MALACHITE__TEST__MAX_RETAIN_BLOCKS env variable
+max_retain_blocks = 1000
+# Override with MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED and MALACHITE__TEST__VOTE_EXTENSIONS__SIZE env variables
+vote_extensions = { enabled = false, size = "0 KB" }

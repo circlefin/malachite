@@ -11,7 +11,7 @@ where
     Ctx: Context,
 {
     if state.driver.height() == height {
-        return Ok(Some(Cow::Borrowed(&state.driver.validator_set)));
+        return Ok(Some(Cow::Borrowed(state.driver.validator_set())));
     }
 
     perform!(co, Effect::GetValidatorSet(height),

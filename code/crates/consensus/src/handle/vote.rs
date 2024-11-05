@@ -37,10 +37,11 @@ where
     }
 
     info!(
-        consensus.height = %consensus_height,
-        vote.height = %vote_height,
-        validator = %validator_address,
-        "Received vote: {}", PrettyVote::<Ctx>(&signed_vote.message)
+        height = %consensus_height,
+        %vote_height,
+        address = %validator_address,
+        message = %PrettyVote::<Ctx>(&signed_vote.message),
+        "Received vote",
     );
 
     // Queue messages if driver is not initialized, or if they are for higher height.
@@ -59,14 +60,16 @@ where
     }
 
     if consensus_height < vote_height {
-        debug!(
-            consensus.height = %consensus_height,
-            vote.height = %vote_height,
-            validator = %validator_address,
-            "Received vote for higher height, queuing for later"
-        );
+        if consensus_height.increment() == vote_height {
+            debug!(
+                consensus.height = %consensus_height,
+                vote.height = %vote_height,
+                validator = %validator_address,
+                "Received vote for next height, queuing for later"
+            );
 
-        state.input_queue.push_back(Input::Vote(signed_vote));
+            state.input_queue.push_back(Input::Vote(signed_vote));
+        }
         return Ok(());
     }
 

@@ -1,24 +1,17 @@
 [package]
-name        = "malachite-node"
-description = "Node for running the Malachite consensus engine"
-
-version.workspace    = true
-edition.workspace    = true
-repository.workspace = true
-license.workspace    = true
-publish.workspace    = true
-
-[lints]
-workspace = true
+name                   = "malachite-node"
+version.workspace      = true
+edition.workspace      = true
+repository.workspace   = true
+license.workspace      = true
+publish.workspace      = true
+rust-version.workspace = true
 
 [dependencies]
 malachite-common.workspace  = true
 
-bytesize          = { workspace = true, features = ["serde"] }
-humantime-serde   = { workspace = true }
-multiaddr         = { workspace = true }
-rand              = { workspace = true }
-serde             = { workspace = true, features = ["derive"] }
+rand  = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 
-[dev-dependencies]
-toml.workspace = true
+[lints]
+workspace = true

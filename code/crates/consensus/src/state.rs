@@ -1,13 +1,13 @@
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use tracing::debug;
 
 use malachite_common::*;
 use malachite_driver::Driver;
+use tracing::warn;
 
-use crate::error::Error;
 use crate::input::Input;
-use crate::Params;
-use crate::ProposedValue;
 use crate::{FullProposal, FullProposalKeeper};
+use crate::{Params, ProposedValue};
 
 /// The state maintained by consensus for processing a [`Input`][crate::Input].
 pub struct State<Ctx>
@@ -17,21 +17,24 @@ where
     /// The context for the consensus state machine
     pub ctx: Ctx,
 
+    /// The consensus parameters
+    pub params: Params<Ctx>,
+
     /// Driver for the per-round consensus state machine
     pub driver: Driver<Ctx>,
 
     /// A queue of inputs that were received before the
-    /// driver started the new height and was still at round Nil.
+    /// driver started the new height.
     pub input_queue: VecDeque<Input<Ctx>>,
 
     /// The proposals to decide on.
     pub full_proposal_keeper: FullProposalKeeper<Ctx>,
 
     /// Store Precommit votes to be sent along the decision to the host
-    pub signed_precommits: BTreeMap<(Ctx::Height, Round), Vec<SignedVote<Ctx>>>,
+    pub signed_precommits: BTreeMap<(Ctx::Height, Round), BTreeSet<SignedVote<Ctx>>>,
 
     /// Decision per height
-    pub decision: BTreeMap<(Ctx::Height, Round), Ctx::Proposal>,
+    pub decision: BTreeMap<(Ctx::Height, Round), SignedProposal<Ctx>>,
 }
 
 impl<Ctx> State<Ctx>
@@ -42,14 +45,15 @@ where
         let driver = Driver::new(
             ctx.clone(),
             params.start_height,
-            params.initial_validator_set,
-            params.address,
+            params.initial_validator_set.clone(),
+            params.address.clone(),
             params.threshold_params,
         );
 
         Self {
             ctx,
             driver,
+            params,
             input_queue: Default::default(),
             full_proposal_keeper: Default::default(),
             signed_precommits: Default::default(),
@@ -57,28 +61,10 @@ where
         }
     }
 
-    pub fn get_proposer(
-        &self,
-        height: Ctx::Height,
-        round: Round,
-    ) -> Result<&Ctx::Address, Error<Ctx>> {
-        assert!(self.driver.validator_set.count() > 0);
-        assert!(round != Round::Nil && round.as_i64() >= 0);
-
-        let proposer_index = {
-            let height = height.as_u64() as usize;
-            let round = round.as_i64() as usize;
-
-            (height - 1 + round) % self.driver.validator_set.count()
-        };
-
-        let proposer = self
-            .driver
-            .validator_set
-            .get_by_index(proposer_index)
-            .ok_or(Error::ProposerNotFound(height, round))?;
-
-        Ok(proposer.address())
+    pub fn get_proposer(&self, height: Ctx::Height, round: Round) -> &Ctx::Address {
+        self.ctx
+            .select_proposer(self.driver.validator_set(), height, round)
+            .address()
     }
 
     pub fn store_signed_precommit(&mut self, precommit: SignedVote<Ctx>) {
@@ -90,7 +76,20 @@ where
         self.signed_precommits
             .entry((height, round))
             .or_default()
-            .push(precommit);
+            .insert(precommit);
+    }
+
+    pub fn store_decision(&mut self, height: Ctx::Height, round: Round, proposal: Ctx::Proposal) {
+        if let Some(full_proposal) = self.full_proposal_keeper.full_proposal_at_round_and_value(
+            &height,
+            proposal.round(),
+            &proposal.value().id(),
+        ) {
+            self.decision.insert(
+                (self.driver.height(), round),
+                full_proposal.proposal.clone(),
+            );
+        }
     }
 
     pub fn restore_precommits(
@@ -100,16 +99,17 @@ where
         value: &Ctx::Value,
     ) -> Vec<SignedVote<Ctx>> {
         // Get the commits for the height and round.
-        let mut commits_for_height_and_round = self
+        let commits_for_height_and_round = self
             .signed_precommits
             .remove(&(height, round))
             .unwrap_or_default();
 
         // Keep the commits for the specified value.
-        // For now we ignore equivocating votes if present.
-        commits_for_height_and_round.retain(|c| c.value() == &NilOrVal::Val(value.id()));
-
+        // For now, we ignore equivocating votes if present.
         commits_for_height_and_round
+            .into_iter()
+            .filter(|c| c.value() == &NilOrVal::Val(value.id()))
+            .collect()
     }
 
     pub fn full_proposal_at_round_and_value(
@@ -119,7 +119,7 @@ where
         value: &Ctx::Value,
     ) -> Option<&FullProposal<Ctx>> {
         self.full_proposal_keeper
-            .full_proposal_at_round_and_value(height, round, value)
+            .full_proposal_at_round_and_value(height, round, &value.id())
     }
 
     pub fn full_proposals_for_value(
@@ -137,10 +137,55 @@ where
     pub fn store_value(&mut self, new_value: &ProposedValue<Ctx>) {
         // Values for higher height should have been cached for future processing
         assert_eq!(new_value.height, self.driver.height());
-        self.full_proposal_keeper.store_value(new_value)
+
+        // Store the value at both round and valid_round
+        self.full_proposal_keeper.store_value(new_value);
     }
 
     pub fn remove_full_proposals(&mut self, height: Ctx::Height) {
+        debug!("Removing proposals for {height}");
         self.full_proposal_keeper.remove_full_proposals(height)
+    }
+
+    pub fn print_state(&self) {
+        if let Some(per_round) = self.driver.votes().per_round(self.driver.round()) {
+            warn!(
+                "Number of validators having voted: {} / {}",
+                per_round.addresses_weights().get_inner().len(),
+                self.driver.validator_set().count()
+            );
+            warn!(
+                "Total voting power of validators: {}",
+                self.driver.validator_set().total_voting_power()
+            );
+            warn!(
+                "Voting power required: {}",
+                self.driver.validator_set().total_voting_power() * 2 / 3
+            );
+            warn!(
+                "Total voting power of validators having voted: {}",
+                per_round.addresses_weights().sum()
+            );
+            warn!(
+                "Total voting power of validators having prevoted nil: {}",
+                per_round
+                    .votes()
+                    .get_weight(VoteType::Prevote, &NilOrVal::Nil)
+            );
+            warn!(
+                "Total voting power of validators having precommited nil: {}",
+                per_round
+                    .votes()
+                    .get_weight(VoteType::Precommit, &NilOrVal::Nil)
+            );
+            warn!(
+                "Total weight of prevotes: {}",
+                per_round.votes().weight_sum(VoteType::Prevote)
+            );
+            warn!(
+                "Total weight of precommits: {}",
+                per_round.votes().weight_sum(VoteType::Precommit)
+            );
+        }
     }
 }

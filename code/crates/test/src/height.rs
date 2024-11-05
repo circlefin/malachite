@@ -39,8 +39,8 @@ impl fmt::Debug for Height {
 }
 
 impl malachite_common::Height for Height {
-    fn increment(&self) -> Self {
-        Self(self.0 + 1)
+    fn increment_by(&self, n: u64) -> Self {
+        Self(self.0 + n)
     }
 
     fn as_u64(&self) -> u64 {

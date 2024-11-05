@@ -8,7 +8,7 @@ resource tls_private_key ssh {
 }
 
 resource digitalocean_ssh_key cc {
-  name = "autossh"
+  name = "autossh-project-${var.project_name}"
   public_key = tls_private_key.ssh.public_key_openssh
 }
 

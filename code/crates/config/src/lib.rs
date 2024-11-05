@@ -1,3 +1,7 @@
+// For coverage on nightly
+#![allow(unexpected_cfgs)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+
 use core::fmt;
 use std::net::SocketAddr;
 use std::str::FromStr;
@@ -52,6 +56,9 @@ pub struct Config {
     /// Mempool configuration options
     pub mempool: MempoolConfig,
 
+    /// BlockSync configuration options
+    pub blocksync: BlockSyncConfig,
+
     /// Metrics configuration options
     pub metrics: MetricsConfig,
 
@@ -66,17 +73,35 @@ pub struct Config {
 /// P2P configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct P2pConfig {
-    // Address to listen for incoming connections
+    /// Address to listen for incoming connections
     pub listen_addr: Multiaddr,
 
     /// List of nodes to keep persistent connections to
     pub persistent_peers: Vec<Multiaddr>,
+
+    /// Peer discovery
+    #[serde(default)]
+    pub discovery: DiscoveryConfig,
 
     /// Transport protocol to use
     pub transport: TransportProtocol,
 
     /// The type of pub-sub protocol to use for consensus
     pub protocol: PubSubProtocol,
+
+    /// The maximum size of messages to send over pub-sub
+    pub pubsub_max_size: ByteSize,
+
+    /// The maximum size of messages to send over RPC
+    pub rpc_max_size: ByteSize,
+}
+
+/// Peer Discovery configuration options
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+pub struct DiscoveryConfig {
+    /// Enable peer discovery
+    #[serde(default)]
+    pub enabled: bool,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -110,13 +135,131 @@ impl FromStr for TransportProtocol {
     }
 }
 
-/// The type of pub-sub protocol
-#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+/// The type of pub-sub protocol.
+/// If multiple protocols are configured in the configuration file, the first one from this list
+/// will be used.
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum PubSubProtocol {
-    #[default]
-    GossipSub,
+    GossipSub(GossipSubConfig),
     Broadcast,
+}
+
+impl Default for PubSubProtocol {
+    fn default() -> Self {
+        Self::GossipSub(GossipSubConfig::default())
+    }
+}
+
+/// GossipSub configuration
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(from = "gossipsub::RawConfig", default)]
+pub struct GossipSubConfig {
+    /// Target number of peers for the mesh network (D in the GossipSub spec)
+    mesh_n: usize,
+
+    /// Maximum number of peers in mesh network before removing some (D_high in the GossipSub spec)
+    mesh_n_high: usize,
+
+    /// Minimum number of peers in mesh network before adding more (D_low in the spec)
+    mesh_n_low: usize,
+
+    /// Minimum number of outbound peers in the mesh network before adding more (D_out in the spec).
+    /// This value must be smaller or equal than `mesh_n / 2` and smaller than `mesh_n_low`.
+    /// When this value is set to 0 or does not meet the above constraints,
+    /// it will be calculated as `max(1, min(mesh_n / 2, mesh_n_low - 1))`
+    mesh_outbound_min: usize,
+}
+
+impl Default for GossipSubConfig {
+    fn default() -> Self {
+        Self::new(6, 12, 4, 2)
+    }
+}
+
+impl GossipSubConfig {
+    /// Create a new, valid GossipSub configuration.
+    pub fn new(
+        mesh_n: usize,
+        mesh_n_high: usize,
+        mesh_n_low: usize,
+        mesh_outbound_min: usize,
+    ) -> Self {
+        let mut result = Self {
+            mesh_n,
+            mesh_n_high,
+            mesh_n_low,
+            mesh_outbound_min,
+        };
+
+        result.adjust();
+        result
+    }
+
+    /// Adjust the configuration values.
+    pub fn adjust(&mut self) {
+        use std::cmp::{max, min};
+
+        if self.mesh_n == 0 {
+            self.mesh_n = 6;
+        }
+
+        if self.mesh_n_high == 0 || self.mesh_n_high < self.mesh_n {
+            self.mesh_n_high = self.mesh_n * 2;
+        }
+
+        if self.mesh_n_low == 0 || self.mesh_n_low > self.mesh_n {
+            self.mesh_n_low = self.mesh_n * 2 / 3;
+        }
+
+        if self.mesh_outbound_min == 0
+            || self.mesh_outbound_min > self.mesh_n / 2
+            || self.mesh_outbound_min >= self.mesh_n_low
+        {
+            self.mesh_outbound_min = max(1, min(self.mesh_n / 2, self.mesh_n_low - 1));
+        }
+    }
+
+    pub fn mesh_n(&self) -> usize {
+        self.mesh_n
+    }
+
+    pub fn mesh_n_high(&self) -> usize {
+        self.mesh_n_high
+    }
+
+    pub fn mesh_n_low(&self) -> usize {
+        self.mesh_n_low
+    }
+
+    pub fn mesh_outbound_min(&self) -> usize {
+        self.mesh_outbound_min
+    }
+}
+
+mod gossipsub {
+    #[derive(serde::Deserialize)]
+    pub struct RawConfig {
+        #[serde(default)]
+        mesh_n: usize,
+        #[serde(default)]
+        mesh_n_high: usize,
+        #[serde(default)]
+        mesh_n_low: usize,
+        #[serde(default)]
+        mesh_outbound_min: usize,
+    }
+
+    impl From<RawConfig> for super::GossipSubConfig {
+        fn from(raw: RawConfig) -> Self {
+            super::GossipSubConfig::new(
+                raw.mesh_n,
+                raw.mesh_n_high,
+                raw.mesh_n_low,
+                raw.mesh_outbound_min,
+            )
+        }
+    }
 }
 
 /// Mempool configuration options
@@ -132,6 +275,30 @@ pub struct MempoolConfig {
     pub gossip_batch_size: usize,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BlockSyncConfig {
+    /// Enable BlockSync
+    pub enabled: bool,
+
+    /// Interval at which to update other peers of our status
+    #[serde(with = "humantime_serde")]
+    pub status_update_interval: Duration,
+
+    /// Timeout duration for block sync requests
+    #[serde(with = "humantime_serde")]
+    pub request_timeout: Duration,
+}
+
+impl Default for BlockSyncConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            status_update_interval: Duration::from_secs(10),
+            request_timeout: Duration::from_secs(10),
+        }
+    }
+}
+
 /// Consensus configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
@@ -142,8 +309,21 @@ pub struct ConsensusConfig {
     #[serde(flatten)]
     pub timeouts: TimeoutConfig,
 
+    /// Message types that can carry values
+    pub value_payload: ValuePayload,
+
     /// P2P configuration options
     pub p2p: P2pConfig,
+}
+
+/// Message types required by consensus to deliver the value being proposed
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ValuePayload {
+    #[default]
+    PartsOnly,
+    ProposalOnly, // TODO - add small block app to test this option
+    ProposalAndParts,
 }
 
 /// Timeouts
@@ -247,6 +427,12 @@ impl RuntimeConfig {
     }
 }
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct VoteExtensionsConfig {
+    pub enabled: bool,
+    pub size: ByteSize,
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestConfig {
     pub tx_size: ByteSize,
@@ -254,6 +440,9 @@ pub struct TestConfig {
     pub time_allowance_factor: f32,
     #[serde(with = "humantime_serde")]
     pub exec_time_per_tx: Duration,
+    pub max_retain_blocks: usize,
+    #[serde(default)]
+    pub vote_extensions: VoteExtensionsConfig,
 }
 
 impl Default for TestConfig {
@@ -263,6 +452,8 @@ impl Default for TestConfig {
             txs_per_part: 256,
             time_allowance_factor: 0.5,
             exec_time_per_tx: Duration::from_millis(1),
+            max_retain_blocks: 1000,
+            vote_extensions: VoteExtensionsConfig::default(),
         }
     }
 }

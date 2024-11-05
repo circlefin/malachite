@@ -1,49 +1,109 @@
-# Environment variables for the servers
-# CANDC - the IP address of the command and control server (CC is used by compilers)
-# NODEi - the ip address of the node server "i"
-# D_N - the number of node servers in total
-# PSSH_H - space-separated list of all the node server IP addresses for pssh input
-# PSSH_P - the number of parallel processes to run with pssh
-# MALACHITE_DIR - the path to the malachite repository directory
-# IS_CC - 1 means we are on the CC server, 0 we are not. (Used to determine the docker -H parameter when run locally.)
+# Environment variables for the servers:
+#   CANDC - the IP address of the command and control server (CC is used by compilers)
+#   NODEi - the ip address of the node server "i"
+#   D_N - the number of node servers in total
+#   PSSH_H - space-separated list of all the node server IP addresses for pssh input
+#   PSSH_P - the number of parallel processes to run with pssh
+#   MALACHITE_DIR - the path to the malachite repository directory
+#   IS_CC - 1 means we are on the CC server, 0 we are not. (Used to determine the docker -H parameter when run locally.)
 ##
 # Aliases for easy manual access to the servers (don't use these in scripts)
-# ssh-cc - ssh into the cc server
-# ssh-(nodeX) - ssh into node server "X"
+#   ssh-cc - ssh into the cc server
+#   ssh-(nodeX) - ssh into node server "X"
 ##
 # Additional functionality in shell functions (see README for more info)
-# xssh - parallel ssh command to all servers. Change PSSH_H and PSSH_P for different behavior.
-# get_ip - get the IP address of a node server for programmatic use (example: get_ip 0)
-# ok_cc - check if the CC server has all services installed
-# deploy_cc - build the local source code into a docker image on the cc server and push it to the cc registry
-# setup_config - create configuration on the cc server
-# done-pull - pull the node image on all the node servers.  Accepts list of IDs or "all". (example: d_pull 0 1 2)
-# d_run - run the application on a node server. Accepts list of IDs or "all". (example: d_run 0 1 2)
-# d_log - get the logs of the application from a node server (example: d_log 0 -f)
-# d_stop - stop the application on a node server. Accepts list of IDs or "all". (example: d_stop 0 2)
-# d_rm - remove node container from server. Accepts list of IDs or "all". (example: d_rm 0 1 2)
-# cheat_sheet - get some help on the order of commands to run
-# fetch_dashboard - fetch the dashboard graphs from Grafana (example: fetch_dashboard now-30m now-15m)
-# get_prometheus_data - create a compressed prometheus data file (and download it from the cc server)
+# Node name translation:
+#   get_ip - Translate node ID numbers to IP addresses. 0 -> 1.2.3.4
+#   get_id - Translate host names to node IDs. nyc1-1 -> 2
+#   get_hostname - Translate node IDs to hostnames. 2 -> nyc1-1
+# Server management:
+#   xssh - Parallel SSH wrapper that uses the custom-defined PSSH_* variables.
+#   ok_cc - Provide user feedback if the CC server finished building.
+#   deploy_cc - Build and push the binary to CC Hub either from local machine or from CC.
+#   setup_config - Create fresh default configuration for all nodes.
+# Docker commands for all nodes at once:
+#   d_pull - pull the node image on all the node servers.  Accepts list of IDs or "all". (example: d_pull 0 1 2)
+#   d_run - run the application on a node server. Accepts list of IDs or "all". (example: d_run 0 1 2)
+#   d_log - get the logs of the application from a node server (example: d_log 0 -f)
+#   d_stop - stop the application on a node server. Accepts list of IDs or "all". (example: d_stop 0 2)
+#   d_rm - remove node container from server. Accepts list of IDs or "all". (example: d_rm 0 1 2)
+# Retrieve data:
+#   cheat_sheet - get some help on the order of commands to run
+#   fetch_dashboard - fetch the dashboard graphs from Grafana (example: fetch_dashboard now-30m now-15m)
+#   get_prometheus_data - create a compressed prometheus data file (and download it from the cc server)
+# Undocumented commands that should be made available after some more testing:
+#   _change_one_config_entry
+#   _reset_prometheus_db
+#   _reset_elastic_db
+# Undocumented commands that might become useful:
+#   _reset_prometheus_db_online
+#   _reset_elastic_db_online
+# Undocumented commands used internally:
+#   _is_cc
+#   _keyscan_cc
+#  _compose_persistent_peers
+#  _change_config
+#  _create_hostname_links
+#  _parse_multiple_hosts
 ##
 
+# Global variables and aliases imported using jinja templates from terraform.
 export CANDC="${cc.ip}"
 %{~ for i, n in nodes }
 export NODE${i}="${n.ip}"
 %{~ endfor }
 export D_N="${length(nodes)}"
 export PSSH_H="${join(" ",ips)}"
-export PSSH_P="${length(nodes)}"
-export PSSH_T=120
-export PSSH_V="-v"
-export MALACHITE_DIR="$(dirname "$(dirname "${path}")")"
-export IS_CC=0
-
-alias ssh-cc="ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@${cc.ip}"
 %{~ for i,n in nodes }
 alias ssh-node${i}="ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@${n.ip}"
 %{~ endfor }
+export __MALACHITE_TERRAFORM_DIR="${path}"
 
+# Global variables that change when copied to the CC server using Terraform.
+export MALACHITE_DIR="$(dirname "$(dirname "$__MALACHITE_TERRAFORM_DIR")")"
+export IS_CC="0"
+
+# More global variables and aliases that can be derived from previously available data.
+alias ssh-cc="ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$${CANDC}"
+alias ssh_cc="ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null root@$${CANDC}"
+export PSSH_P="$${D_N}"
+export PSSH_T=120
+export PSSH_V="-v"
+
+# Translate node ID numbers to IP addresses. 0 -> 1.2.3.4
+get_ip() {
+  case "$1" in
+%{~ for i, n in nodes }
+    ${i}) echo "${n.ip}";;
+%{~ endfor }
+    *) echo "IP for node $1 not found" && return 1
+  esac
+}
+
+# Translate host names to node IDs. nyc1-1 -> 2
+get_id() {
+  case "$1" in
+%{~ for i, n in nodes }
+    ${n.name}) echo "${i}";;
+%{~ endfor }
+  *) echo "id for hostname $1 not found" && return 1
+  esac
+}
+
+# Translate node IDs to hostnames. 2 -> nyc1-1
+get_hostname() {
+  case "$1" in
+%{~ for i, n in nodes }
+    ${i}) echo "${n.name}";;
+%{~ endfor }
+  *) echo "hostname for node $1 not found" && return 1
+  esac
+}
+
+## End of Terraform template code. Do not put Jinja expressions below this line.
+## The below code could be broken out to a separate shell script.
+
+# Parallel SSH wrapper that uses the custom-defined PSSH_* variables.
 xssh() {
   if _is_cc; then
     pssh -i $PSSH_V -p $PSSH_P -t $PSSH_T -H "$PSSH_H" "$@"
@@ -52,34 +112,12 @@ xssh() {
   fi
 }
 
-get_ip() {
-  I="$1"
-%{~ for i, n in nodes }
-  test "$I" -eq "${i}" && echo "${n.ip}" && return
-%{~ endfor }
-  echo "IP for node $I not found" && return 1
-}
-
-get_id() {
-  I="$1"
-%{~ for i, n in nodes }
-  test "$I" = "${n.name}" && echo "${i}" && return
-%{~ endfor }
-  echo "id for hostname $I not found" && return 1
-}
-
-get_hostname() {
-  I="$1"
-%{~ for i, n in nodes }
-  test "$I" -eq "${i}" && echo "${n.name}" && return
-%{~ endfor }
-  echo "hostname for node $I not found" && return 1
-}
-
+# Provide user feedback if the CC server finished building.
 ok_cc() {
   PSSH_P=1 PSSH_H=$CANDC xssh "cat /etc/cc"
 }
 
+# Build and push the binary to CC Hub either from local machine or from CC.
 deploy_cc() {
   test -d "$MALACHITE_DIR/code" || (echo "Source code repository not found. Clone or copy manually." && return 1)
   if _is_cc; then
@@ -90,6 +128,7 @@ deploy_cc() {
   fi
 }
 
+# Create fresh default configuration for all nodes.
 setup_config() {
   if _is_cc; then
     rm -r /data/*
@@ -168,24 +207,24 @@ _reset_prometheus_db() {
   fi
 }
 
-_reset_prometheus_db2() {
+_reset_prometheus_db_online() {
   # Mark all node_exporter data for deletion
-  #curl -s -X POST -g 'http://${cc.ip}:9090/api/v1/admin/tsdb/delete_series?match[]={job="node_exporter"}'
+  #curl -s -X POST -g 'http://$${CANDC}:9090/api/v1/admin/tsdb/delete_series?match[]={job="node_exporter"}'
   # Mark all malachite data for deletion
-  #curl -s -X POST -g 'http://${cc.ip}:9090/api/v1/admin/tsdb/delete_series?match[]={job="malachite"}'
+  #curl -s -X POST -g 'http://$${CANDC}:9090/api/v1/admin/tsdb/delete_series?match[]={job="malachite"}'
   # Mark all data for deletion
-  #curl -s -X POST -g 'http://${cc.ip}:9090/api/v1/admin/tsdb/delete_series?match[]={__name__=~".+"}'
+  #curl -s -X POST -g 'http://$${CANDC}:9090/api/v1/admin/tsdb/delete_series?match[]={__name__=~".+"}'
   # Set end of deletion frame to "now - 30 minutes".
   END="$1"
   if [ -z "$END" ]; then
     END="$(($(date +%s) - 60 * 30))"
   fi
   # Mark node_exporter data for deletion
-  curl -s -X POST -g 'http://${cc.ip}:9090/api/v1/admin/tsdb/delete_series?match[]={job="node_exporter"}&end='"$END"
+  curl -s -X POST -g 'http://$${CANDC}:9090/api/v1/admin/tsdb/delete_series?match[]={job="node_exporter"}&end='"$END"
   # Mark malachite data for deletion
-  curl -s -X POST -g 'http://${cc.ip}:9090/api/v1/admin/tsdb/delete_series?match[]={job="malachite"}&end='"$END"
+  curl -s -X POST -g 'http://$${CANDC}:9090/api/v1/admin/tsdb/delete_series?match[]={job="malachite"}&end='"$END"
   # Physically delete data
-  curl -s -X POST -g 'http://${cc.ip}:9090/api/v1/admin/tsdb/clean_tombstones'
+  curl -s -X POST -g 'http://$${CANDC}:9090/api/v1/admin/tsdb/clean_tombstones'
 }
 
 _reset_elastic_db() {
@@ -198,17 +237,17 @@ _reset_elastic_db() {
   fi
 }
 
-_reset_elastic_db2() {
+_reset_elastic_db_online() {
   if [ -f /root/docker-elk/.env ]; then
     source /root/docker-elk/.env
   fi
   if [ -z "$ELASTIC_PASSWORD" ]; then
     echo "Please set the ELASTIC_PASSWORD environment variable."
   else
-    INDEX="$(curl -s -X GET --user "elastic:$ELASTIC_PASSWORD" http://${cc.ip}:9200/_cat/indices/*docker* | cut -d\  -f3)"
+    INDEX="$(curl -s -X GET --user "elastic:$ELASTIC_PASSWORD" http://$${CANDC}:9200/_cat/indices/*docker* | cut -d\  -f3)"
     DS="$(echo $INDEX | sed -e 's/^.ds-logs-//' -e 's/-[^-]*$//')"
-    curl -X DELETE --user "elastic:$ELASTIC_PASSWORD" "http://${cc.ip}:9200/_data_stream/$DS"
-    curl -X DELETE --user "elastic:$ELASTIC_PASSWORD" "http://${cc.ip}:9200/$INDEX"
+    curl -X DELETE --user "elastic:$ELASTIC_PASSWORD" "http://$${CANDC}:9200/_data_stream/$DS"
+    curl -X DELETE --user "elastic:$ELASTIC_PASSWORD" "http://$${CANDC}:9200/$INDEX"
   fi
 }
 
@@ -219,14 +258,6 @@ _is_cc() {
 _keyscan_cc() {
   ssh-keygen -R "$CANDC" > /dev/null
   ssh-keyscan -t ed25519 "$CANDC" >> "$HOME/.ssh/known_hosts"
-}
-
-_keyscan_servers() {
-  _keyscan_cc 2> /dev/null
-%{~ for n in nodes }
-  ssh-keygen -R "${n.ip}" > /dev/null
-  ssh-keyscan -t ed25519 "${n.ip}" >> "$HOME/.ssh/known_hosts" 2> /dev/null
-%{~ endfor }
 }
 
 _compose_persistent_peers() {
@@ -300,12 +331,6 @@ _parse_multiple_hosts() {
     done
   fi
   echo "$PSSH_X"
-}
-
-_print_hosts() {
-  cat <<EOF
-${etc-hosts}
-EOF
 }
 
 fetch_dashboard() {

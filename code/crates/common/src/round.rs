@@ -11,19 +11,23 @@ pub enum Round {
     Nil,
 
     /// Some round `r` where `r >= 0`
-    Some(i64),
+    Some(u32),
 }
 
 impl Round {
-    /// Create a new round.
+    /// Create a new non-nil round.
+    pub const fn new(round: u32) -> Self {
+        Self::Some(round)
+    }
+
+    /// Convert a round to a `Option<u32>`.
     ///
-    /// If `round < 0`, then `Round::Nil` is returned.
-    /// Otherwise, `Round::Some(round)` is returned.
-    pub const fn new(round: i64) -> Self {
-        if round < 0 {
-            Self::Nil
-        } else {
-            Self::Some(round)
+    /// `Round::Nil` is converted to `None`.
+    /// `Round::Some(r)` is converted to `Some(r)`.
+    pub fn as_u32(&self) -> Option<u32> {
+        match self {
+            Round::Nil => None,
+            Round::Some(r) => Some(*r),
         }
     }
 
@@ -34,16 +38,16 @@ impl Round {
     pub fn as_i64(&self) -> i64 {
         match self {
             Round::Nil => -1,
-            Round::Some(r) => *r,
+            Round::Some(r) => i64::from(*r),
         }
     }
 
-    /// Whether the round is defined, ie. `Round::Some(r)` where `r >= 0`.
+    /// Whether the round is defined, ie. `r >= 0`.
     pub fn is_defined(&self) -> bool {
-        matches!(self, Round::Some(r) if *r >= 0)
+        matches!(self, Round::Some(_))
     }
 
-    /// Whether the round is `Round::Nil`.
+    /// Whether the round is nil, ie. `r == 0`.
     pub fn is_nil(&self) -> bool {
         matches!(self, Round::Nil)
     }
@@ -56,6 +60,33 @@ impl Round {
         match self {
             Round::Nil => Round::new(0),
             Round::Some(r) => Round::new(r + 1),
+        }
+    }
+}
+
+impl From<u32> for Round {
+    fn from(round: u32) -> Self {
+        Round::new(round)
+    }
+}
+
+impl From<Option<u32>> for Round {
+    fn from(round: Option<u32>) -> Self {
+        match round {
+            None => Round::Nil,
+            Some(r) => Round::new(r),
+        }
+    }
+}
+
+impl From<i64> for Round {
+    fn from(round: i64) -> Self {
+        assert!(round <= i64::from(u32::MAX));
+
+        if round < 0 {
+            Round::Nil
+        } else {
+            Round::new(round as u32)
         }
     }
 }
@@ -85,11 +116,15 @@ mod tests {
     #[test]
     fn test_round() {
         // Test Round::new()
-        assert_eq!(Round::new(-42), Round::Nil);
-        assert_eq!(Round::new(-1), Round::Nil);
         assert_eq!(Round::new(0), Round::Some(0));
         assert_eq!(Round::new(1), Round::Some(1));
         assert_eq!(Round::new(2), Round::Some(2));
+
+        // Test Round::as_u32()
+        assert_eq!(Round::Nil.as_u32(), None);
+        assert_eq!(Round::Some(0).as_u32(), Some(0));
+        assert_eq!(Round::Some(1).as_u32(), Some(1));
+        assert_eq!(Round::Some(2).as_u32(), Some(2));
 
         // Test Round::as_i64()
         assert_eq!(Round::Nil.as_i64(), -1);

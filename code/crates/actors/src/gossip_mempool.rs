@@ -7,7 +7,7 @@ use ractor::ActorProcessingErr;
 use ractor::ActorRef;
 use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
-use tracing::{error, error_span, Instrument};
+use tracing::error;
 
 use malachite_gossip_mempool::handle::CtrlHandle;
 use malachite_gossip_mempool::types::MempoolTransactionBatch;
@@ -82,17 +82,14 @@ impl Actor for GossipMempool {
             malachite_gossip_mempool::spawn(args.keypair, args.config, args.metrics).await?;
         let (mut recv_handle, ctrl_handle) = handle.split();
 
-        let recv_task = tokio::spawn(
-            async move {
-                while let Some(event) = recv_handle.recv().await {
-                    if let Err(e) = myself.cast(Msg::NewEvent(event)) {
-                        error!("Actor has died, stopping gossip mempool: {e:?}");
-                        break;
-                    }
+        let recv_task = tokio::spawn(async move {
+            while let Some(event) = recv_handle.recv().await {
+                if let Err(e) = myself.cast(Msg::NewEvent(event)) {
+                    error!("Actor has died, stopping gossip mempool: {e:?}");
+                    break;
                 }
             }
-            .instrument(error_span!("gossip.mempool")),
-        );
+        });
 
         Ok(State::Running {
             peers: BTreeSet::new(),
@@ -110,7 +107,6 @@ impl Actor for GossipMempool {
         Ok(())
     }
 
-    #[tracing::instrument(name = "gossip.mempool", skip(self, _myself, msg, state))]
     async fn handle(
         &self,
         _myself: ActorRef<Msg>,

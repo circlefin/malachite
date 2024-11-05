@@ -1,7 +1,7 @@
 use color_eyre::eyre::Result;
 use tracing::{error, info, trace};
 
-use malachite_node::config::{Config, RuntimeConfig};
+use malachite_config::{Config, RuntimeConfig};
 
 use crate::args::{Args, Commands};
 use crate::cmd::init::InitCmd;
@@ -26,7 +26,9 @@ pub fn main() -> Result<()> {
     let config = args.load_config();
     let logging = config.as_ref().map(|c| c.logging).unwrap_or_default();
 
-    logging::init(logging.log_level, logging.log_format);
+    // This is a drop guard responsible for flushing any remaining logs when the program terminates.
+    // It must be assigned to a binding that is not _, as _ will result in the guard being dropped immediately.
+    let _guard = logging::init(logging.log_level, logging.log_format);
 
     trace!("Command-line parameters: {args:?}");
 
@@ -38,9 +40,10 @@ pub fn main() -> Result<()> {
             })?;
 
             info!(
-                "Loaded configuration from {:?}",
-                args.get_config_file_path().unwrap_or_default().display()
+                file = %args.get_config_file_path().unwrap_or_default().display(),
+                "Loaded configuration",
             );
+            trace!(?config, "Configuration");
 
             start(&args, config, cmd)
         }
@@ -67,6 +70,7 @@ fn start(args: &Args, cfg: Config, cmd: &StartCmd) -> Result<()> {
     let rt = builder.enable_all().build()?;
     rt.block_on(cmd.run(
         cfg,
+        args.get_home_dir()?,
         args.get_priv_validator_key_file_path()?,
         args.get_genesis_file_path()?,
     ))

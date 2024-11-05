@@ -107,7 +107,7 @@ $ docker exec -it CONTAINER_NAME /bin/bash
 12. In this new session, check the logs
 
 ```
-# tail -f x/0/log/node.log
+# tail -f app/code/x/0/logs/node.log
 ```
 
 13. Check the metrics
@@ -121,12 +121,12 @@ For the block time:
 For the number of rounds per block:
 
 ```
-# curl -s localhost:29000/metrics | grep rounds_per_block
+# curl -s localhost:29000/metrics | grep time_per_block
 ```
 
 For the latency as seen by libp2p:
 
 ```
-# curl -s localhost:29000/metrics | grep 'consensus_libp2p_ping_rtt_seconds_'
+# curl -s localhost:29000/metrics | grep 'consensus_libp2p_ping_rtt_seconds'
 ```
 

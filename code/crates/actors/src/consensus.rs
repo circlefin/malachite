@@ -4,27 +4,32 @@ use std::time::Duration;
 use async_trait::async_trait;
 use eyre::eyre;
 use libp2p::PeerId;
-use ractor::{Actor, ActorProcessingErr, ActorRef};
-use tokio::sync::mpsc;
+use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
+use tokio::sync::broadcast;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
-use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValidatorSet, VoteType};
+use malachite_blocksync as blocksync;
+use malachite_common::{
+    Context, Extension, Proposal, Round, SignedProposal, Timeout, TimeoutStep, ValidatorSet,
+};
+use malachite_config::TimeoutConfig;
 use malachite_consensus::{Effect, Resume};
 use malachite_metrics::Metrics;
-use malachite_node::config::TimeoutConfig;
 
-use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg};
+use crate::block_sync::Msg as BlockSyncMsg;
+use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg, Status};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::forward::forward;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
+use crate::block_sync::BlockSyncRef;
 pub use malachite_consensus::Params as ConsensusParams;
 pub use malachite_consensus::State as ConsensusState;
 
 pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
-pub type TxDecision<Ctx> = mpsc::Sender<(<Ctx as Context>::Height, Round, <Ctx as Context>::Value)>;
+pub type TxDecision<Ctx> = broadcast::Sender<SignedProposal<Ctx>>;
 
 pub struct Consensus<Ctx>
 where
@@ -35,6 +40,7 @@ where
     timeout_config: TimeoutConfig,
     gossip_consensus: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
+    block_sync: Option<BlockSyncRef<Ctx>>,
     metrics: Metrics,
     tx_decision: Option<TxDecision<Ctx>>,
 }
@@ -52,10 +58,13 @@ pub enum Msg<Ctx: Context> {
     TimeoutElapsed(TimeoutElapsed<Timeout>),
 
     /// The proposal builder has built a value and can be used in a new proposal consensus message
-    ProposeValue(Ctx::Height, Round, Ctx::Value),
+    ProposeValue(Ctx::Height, Round, Ctx::Value, Option<Extension>),
 
-    /// Received and sssembled the full value proposed by a validator
+    /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>),
+
+    /// Get the status of the consensus state machine
+    GetStatus(RpcReplyPort<Status<Ctx>>),
 }
 
 type ConsensusInput<Ctx> = malachite_consensus::Input<Ctx>;
@@ -119,12 +128,14 @@ impl<Ctx> Consensus<Ctx>
 where
     Ctx: Context,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
+        block_sync: Option<BlockSyncRef<Ctx>>,
         metrics: Metrics,
         tx_decision: Option<TxDecision<Ctx>>,
     ) -> Self {
@@ -134,6 +145,7 @@ where
             timeout_config,
             gossip_consensus,
             host,
+            block_sync,
             metrics,
             tx_decision,
         }
@@ -146,6 +158,7 @@ where
         timeout_config: TimeoutConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
+        block_sync: Option<BlockSyncRef<Ctx>>,
         metrics: Metrics,
         tx_decision: Option<TxDecision<Ctx>>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
@@ -155,6 +168,7 @@ where
             timeout_config,
             gossip_consensus,
             host,
+            block_sync,
             metrics,
             tx_decision,
         );
@@ -169,6 +183,14 @@ where
         state: &mut State<Ctx>,
         input: ConsensusInput<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
+        if let ConsensusInput::StartHeight(height, _) = input {
+            if let Some(block_sync) = &self.block_sync {
+                block_sync
+                    .cast(BlockSyncMsg::StartHeight(height))
+                    .map_err(|e| eyre!("Error when sending start height to BlockSync: {e:?}"))?;
+            }
+        }
+
         malachite_consensus::process!(
             input: input,
             state: &mut state.consensus,
@@ -204,12 +226,12 @@ where
                 Ok(())
             }
 
-            Msg::ProposeValue(height, round, value) => {
+            Msg::ProposeValue(height, round, value, extension) => {
                 let result = self
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::ProposeValue(height, round, value),
+                        ConsensusInput::ProposeValue(height, round, Round::Nil, value, extension),
                     )
                     .await;
 
@@ -222,9 +244,8 @@ where
 
             Msg::GossipEvent(event) => {
                 match event {
-                    GossipEvent::Listening(addr) => {
-                        info!("Listening on {addr}");
-                        Ok(())
+                    GossipEvent::Listening(address) => {
+                        info!(%address, "Listening");
                     }
 
                     GossipEvent::PeerConnected(peer_id) => {
@@ -233,18 +254,19 @@ where
                             return Ok(());
                         }
 
-                        info!("Connected to peer {peer_id}");
+                        info!(%peer_id, "Connected to peer");
 
-                        let validator_set = &state.consensus.driver.validator_set;
+                        let validator_set = state.consensus.driver.validator_set();
                         let connected_peers = state.connected_peers.len();
                         let total_peers = validator_set.count() - 1;
 
-                        debug!("Connected to {connected_peers}/{total_peers} peers");
+                        debug!(connected = %connected_peers, total = %total_peers, "Connected to another peer");
 
                         self.metrics.connected_peers.inc();
 
+                        // TODO: change logic
                         if connected_peers == total_peers {
-                            info!("Enough peers ({connected_peers}) connected to start consensus");
+                            info!(count = %connected_peers, "Enough peers connected to start consensus");
 
                             let height = state.consensus.driver.height();
 
@@ -260,20 +282,43 @@ where
                                 error!("Error when starting height {height}: {e:?}");
                             }
                         }
-
-                        Ok(())
                     }
 
                     GossipEvent::PeerDisconnected(peer_id) => {
-                        info!("Disconnected from peer {peer_id}");
+                        info!(%peer_id, "Disconnected from peer");
 
                         if state.connected_peers.remove(&peer_id) {
                             self.metrics.connected_peers.dec();
 
                             // TODO: pause/stop consensus, if necessary
                         }
+                    }
 
-                        Ok(())
+                    GossipEvent::BlockSyncResponse(
+                        request_id,
+                        blocksync::Response { height, block },
+                    ) => {
+                        debug!(%height, %request_id, "Received BlockSync response");
+
+                        let Some(block) = block else {
+                            error!(%height, %request_id, "Received empty block sync response");
+                            return Ok(());
+                        };
+
+                        if let Err(e) = self
+                            .process_input(
+                                &myself,
+                                state,
+                                ConsensusInput::ReceivedSyncedBlock(
+                                    block.proposal,
+                                    block.certificate,
+                                    block.block_bytes,
+                                ),
+                            )
+                            .await
+                        {
+                            error!(%height, %request_id, "Error when processing received synced block: {e:?}");
+                        }
                     }
 
                     GossipEvent::Vote(from, vote) => {
@@ -283,22 +328,28 @@ where
                         {
                             error!(%from, "Error when processing vote: {e:?}");
                         }
-
-                        Ok(())
                     }
 
                     GossipEvent::Proposal(from, proposal) => {
+                        if state.consensus.params.value_payload.parts_only() {
+                            error!(%from, "Properly configured peer should never send proposal messages in BlockPart mode");
+                            return Ok(());
+                        }
+
                         if let Err(e) = self
                             .process_input(&myself, state, ConsensusInput::Proposal(proposal))
                             .await
                         {
                             error!(%from, "Error when processing proposal: {e:?}");
                         }
-
-                        Ok(())
                     }
 
                     GossipEvent::ProposalPart(from, part) => {
+                        if state.consensus.params.value_payload.proposal_only() {
+                            error!(%from, "Properly configured peer should never send block part messages in Proposal mode");
+                            return Ok(());
+                        }
+
                         self.host
                             .call_and_forward(
                                 |reply_to| HostMsg::ReceivedProposalPart {
@@ -313,10 +364,12 @@ where
                             .map_err(|e| {
                                 eyre!("Error when forwarding proposal parts to host: {e:?}")
                             })?;
-
-                        Ok(())
                     }
+
+                    _ => {}
                 }
+
+                Ok(())
             }
 
             Msg::TimeoutElapsed(elapsed) => {
@@ -330,51 +383,7 @@ where
                 if matches!(timeout.step, TimeoutStep::Prevote | TimeoutStep::Precommit) {
                     warn!(step = ?timeout.step, "Timeout elapsed");
 
-                    if let Some(per_round) = state
-                        .consensus
-                        .driver
-                        .vote_keeper
-                        .per_round()
-                        .get(&state.consensus.driver.round())
-                    {
-                        warn!(
-                            "Number of validators having voted: {} / {}",
-                            per_round.addresses_weights().get_inner().len(),
-                            state.consensus.driver.validator_set.count()
-                        );
-                        warn!(
-                            "Total voting power of validators: {}",
-                            state.consensus.driver.validator_set.total_voting_power()
-                        );
-                        warn!(
-                            "Voting power required: {}",
-                            state.consensus.driver.validator_set.total_voting_power() * 2 / 3
-                        );
-                        warn!(
-                            "Total voting power of validators having voted: {}",
-                            per_round.addresses_weights().sum()
-                        );
-                        warn!(
-                            "Total voting power of validators having prevoted nil: {}",
-                            per_round
-                                .votes()
-                                .get_weight(VoteType::Prevote, &NilOrVal::Nil)
-                        );
-                        warn!(
-                            "Total voting power of validators having precommited nil: {}",
-                            per_round
-                                .votes()
-                                .get_weight(VoteType::Precommit, &NilOrVal::Nil)
-                        );
-                        warn!(
-                            "Total weight of prevotes: {}",
-                            per_round.votes().weight_sum(VoteType::Prevote)
-                        );
-                        warn!(
-                            "Total weight of precommits: {}",
-                            per_round.votes().weight_sum(VoteType::Precommit)
-                        );
-                    }
+                    state.consensus.print_state();
                 }
 
                 let result = self
@@ -399,10 +408,20 @@ where
 
                 Ok(())
             }
+
+            Msg::GetStatus(reply_to) => {
+                let earliest_block_height = self.get_earliest_block_height().await?;
+                let status = Status::new(state.consensus.driver.height(), earliest_block_height);
+
+                if let Err(e) = reply_to.send(status) {
+                    error!("Error when replying to GetStatus message: {e:?}");
+                }
+
+                Ok(())
+            }
         }
     }
 
-    #[tracing::instrument(skip(self, myself))]
     fn get_value(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
@@ -422,7 +441,12 @@ where
             },
             myself,
             |proposed: LocallyProposedValue<Ctx>| {
-                Msg::<Ctx>::ProposeValue(proposed.height, proposed.round, proposed.value)
+                Msg::<Ctx>::ProposeValue(
+                    proposed.height,
+                    proposed.round,
+                    proposed.value,
+                    proposed.extension,
+                )
             },
             None,
         )?;
@@ -430,7 +454,6 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
     async fn get_validator_set(
         &self,
         height: Ctx::Height,
@@ -444,7 +467,13 @@ where
         Ok(validator_set)
     }
 
-    #[tracing::instrument(skip_all)]
+    async fn get_earliest_block_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
+        ractor::call!(self.host, |reply_to| HostMsg::GetEarliestBlockHeight {
+            reply_to
+        })
+        .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
+    }
+
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
@@ -504,7 +533,7 @@ where
 
             Effect::Broadcast(gossip_msg) => {
                 self.gossip_consensus
-                    .cast(GossipConsensusMsg::BroadcastMsg(gossip_msg))
+                    .cast(GossipConsensusMsg::Publish(gossip_msg))
                     .map_err(|e| eyre!("Error when broadcasting gossip message: {e:?}"))?;
 
                 Ok(Resume::Continue)
@@ -529,25 +558,66 @@ where
                 Ok(Resume::ValidatorSet(height, validator_set))
             }
 
-            Effect::Decide {
-                height,
-                round,
-                value,
-                commits,
-            } => {
+            Effect::RestreamValue(height, round, valid_round, address, value_id) => {
+                self.host
+                    .cast(HostMsg::RestreamValue {
+                        height,
+                        round,
+                        valid_round,
+                        address,
+                        value_id,
+                    })
+                    .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
+
+                Ok(Resume::Continue)
+            }
+
+            Effect::Decide { proposal, commits } => {
                 if let Some(tx_decision) = &self.tx_decision {
-                    let _ = tx_decision.send((height, round, value.clone())).await;
+                    let _ = tx_decision.send(proposal.clone());
                 }
+
+                let proposal_height = proposal.height();
 
                 self.host
                     .cast(HostMsg::Decide {
-                        height,
-                        round,
-                        value,
+                        proposal,
                         commits,
                         consensus: myself.clone(),
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
+
+                if let Some(block_sync) = &self.block_sync {
+                    block_sync
+                        .cast(BlockSyncMsg::Decided(proposal_height))
+                        .map_err(|e| {
+                            eyre!("Error when sending decided height to blocksync: {e:?}")
+                        })?;
+                }
+
+                Ok(Resume::Continue)
+            }
+
+            Effect::SyncedBlock {
+                proposal,
+                block_bytes,
+            } => {
+                // TODO - add timeout?
+                debug!(
+                    "Consensus received synced block for {}, sending to host",
+                    proposal.height()
+                );
+
+                self.host.call_and_forward(
+                    |reply_to| HostMsg::ProcessSyncedBlockBytes {
+                        proposal,
+                        block_bytes,
+                        reply_to,
+                    },
+                    myself,
+                    |proposed| Msg::<Ctx>::ReceivedProposedValue(proposed),
+                    None,
+                )?;
 
                 Ok(Resume::Continue)
             }
@@ -564,7 +634,6 @@ where
     type State = State<Ctx>;
     type Arguments = ();
 
-    #[tracing::instrument(name = "consensus", skip_all)]
     async fn pre_start(
         &self,
         myself: ActorRef<Msg<Ctx>>,
@@ -606,17 +675,13 @@ where
         msg: Msg<Ctx>,
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        self.handle_msg(myself, state, msg).await
+        if let Err(e) = self.handle_msg(myself, state, msg).await {
+            error!("Error when handling message: {e:?}");
+        }
+
+        Ok(())
     }
 
-    #[tracing::instrument(
-        name = "consensus",
-        skip_all,
-        fields(
-            height = %state.consensus.driver.height(),
-            round = %state.consensus.driver.round()
-        )
-    )]
     async fn post_stop(
         &self,
         _myself: ActorRef<Self::Msg>,

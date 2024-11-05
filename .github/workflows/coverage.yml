@@ -9,6 +9,15 @@ on:
       - specs/quint/**
       - .github/workflows/coverage.yml
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 1
+  CARGO_PROFILE_RELEASE_DEBUG: 1
+  RUST_BACKTRACE: short
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+
 jobs:
   integration:
     name: Integration
@@ -16,8 +25,6 @@ jobs:
     defaults:
       run:
         working-directory: code
-    env:
-      CARGO_TERM_COLOR: always
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,17 +43,16 @@ jobs:
         with:
           toolchain: nightly
           components: llvm-tools-preview
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@cargo-nextest
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
         run: |
-          cargo llvm-cov nextest \
+          cargo llvm-cov test \
             --workspace \
             --exclude malachite-test-mbt \
             --ignore-filename-regex crates/cli \
             --all-features \
+            --jobs 1 \
             --ignore-run-fail \
             --lcov \
             --output-path lcov.info
