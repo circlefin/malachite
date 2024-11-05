@@ -1,35 +1,32 @@
-use crate::handle::proposal::on_proposal;
-use crate::handle::vote::on_vote;
 use crate::prelude::*;
 use bytes::Bytes;
 
 pub async fn on_received_synced_block<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    metrics: &Metrics,
-    proposal: SignedProposal<Ctx>,
-    certificate: Certificate<Ctx>,
+    _metrics: &Metrics,
     block_bytes: Bytes,
+    certificate: CommitCertificate<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
     debug!(
-        proposal.height = %proposal.height(),
-        commits = certificate.commits.len(),
+        certificate.height = %certificate.height,
+        signatures = certificate.aggregated_signature.signatures.len(),
         "Processing certificate"
     );
 
-    on_proposal(co, state, metrics, proposal.clone()).await?;
-
-    for commit in certificate.commits {
-        on_vote(co, state, metrics, commit).await?;
-    }
+    // TODO - verify aggregated signature and send the majority to driver
+    // on_proposal(co, state, metrics, proposal.clone()).await?;
+    // on_two_third_precommits(co, state, metrics, commit).await?;
 
     perform!(
         co,
         Effect::SyncedBlock {
-            proposal,
+            height: certificate.height, // TODO - should come from block
+            round: certificate.round,   // TODO - should come from block
+            validator_address: state.driver.address().clone(), // TODO - should come from block
             block_bytes,
         }
     );

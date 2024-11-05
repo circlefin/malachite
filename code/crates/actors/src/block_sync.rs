@@ -13,7 +13,7 @@ use tokio::task::JoinHandle;
 
 use malachite_blocksync::{self as blocksync, OutboundRequestId};
 use malachite_blocksync::{Request, SyncedBlock};
-use malachite_common::{Certificate, Context};
+use malachite_common::{CommitCertificate, Context};
 use tracing::{debug, error, warn};
 
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
@@ -34,7 +34,7 @@ pub type BlockSyncRef<Ctx> = ActorRef<Msg<Ctx>>;
 #[derive_where(Clone, Debug)]
 pub struct RawDecidedBlock<Ctx: Context> {
     pub height: Ctx::Height,
-    pub certificate: Certificate<Ctx>,
+    pub certificate: CommitCertificate<Ctx>,
     pub block_bytes: Bytes,
 }
 

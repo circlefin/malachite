@@ -4,7 +4,9 @@ use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 
-use malachite_common::Round;
+use malachite_common::{CommitCertificate, Round};
+
+use crate::mock::context::MockContext;
 
 #[async_trait]
 pub trait Host {
@@ -100,10 +102,5 @@ pub trait Host {
     /// - brock_hash - The ID of the content which has been decided.
     /// - precommits - The list of precommits from the round the decision was made (both for and against).
     /// - height     - The height of the decision.
-    async fn decision(
-        &self,
-        block_hash: Self::BlockHash,
-        precommits: Vec<Self::Precommit>,
-        height: Self::Height,
-    );
+    async fn decision(&self, certificate: CommitCertificate<MockContext>);
 }

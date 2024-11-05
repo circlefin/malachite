@@ -14,7 +14,7 @@ use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
 use tracing::{error, error_span, info, Instrument};
 
-use malachite_common::{SignedProposal, VotingPower};
+use malachite_common::{CommitCertificate, VotingPower};
 use malachite_config::{
     BlockSyncConfig, Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol,
     TestConfig, TransportProtocol,
@@ -310,7 +310,7 @@ pub enum TestResult {
     Unknown,
 }
 
-type RxDecision = broadcast::Receiver<SignedProposal<MockContext>>;
+type RxDecision = broadcast::Receiver<CommitCertificate<MockContext>>;
 
 #[tracing::instrument("node", skip_all, fields(id = %node.id))]
 async fn run_node(

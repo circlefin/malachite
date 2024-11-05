@@ -12,7 +12,7 @@ use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
 use malachite_blocksync as blocksync;
-use malachite_common::SignedProposal;
+use malachite_common::CommitCertificate;
 use malachite_config::{
     BlockSyncConfig, Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig,
     TransportProtocol,
@@ -38,7 +38,7 @@ pub async fn spawn_node_actor(
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
     start_height: Option<Height>,
-    tx_decision: Option<broadcast::Sender<SignedProposal<MockContext>>>,
+    tx_decision: Option<broadcast::Sender<CommitCertificate<MockContext>>>,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(private_key);
 
@@ -144,7 +144,7 @@ async fn spawn_consensus_actor(
     host: HostRef<MockContext>,
     block_sync: Option<BlockSyncRef<MockContext>>,
     metrics: Metrics,
-    tx_decision: Option<broadcast::Sender<SignedProposal<MockContext>>>,
+    tx_decision: Option<broadcast::Sender<CommitCertificate<MockContext>>>,
 ) -> ConsensusRef<MockContext> {
     let value_payload = match cfg.consensus.value_payload {
         malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,

@@ -6,7 +6,7 @@ use libp2p::PeerId;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachite_blocksync::SyncedBlock;
-use malachite_common::{Context, Extension, Round, SignedProposal, SignedVote, ValueId};
+use malachite_common::{CommitCertificate, Context, Extension, Round, ValueId};
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
@@ -90,8 +90,7 @@ pub enum HostMsg<Ctx: Context> {
 
     // Consensus has decided on a value
     Decide {
-        proposal: SignedProposal<Ctx>,
-        commits: Vec<SignedVote<Ctx>>,
+        certificate: CommitCertificate<Ctx>,
         consensus: ConsensusRef<Ctx>,
     },
 
@@ -103,7 +102,9 @@ pub enum HostMsg<Ctx: Context> {
 
     // Synced block
     ProcessSyncedBlockBytes {
-        proposal: SignedProposal<Ctx>,
+        height: Ctx::Height,             // TODO - should come from block
+        round: Round,                    // TODO - should come from block
+        validator_address: Ctx::Address, // TODO - should come from block
         block_bytes: Bytes,
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },

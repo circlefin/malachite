@@ -65,8 +65,8 @@ where
         Input::ReceivedProposedValue(value) => {
             on_received_proposed_value(co, state, metrics, value).await
         }
-        Input::ReceivedSyncedBlock(proposal, commits, block_bytes) => {
-            on_received_synced_block(co, state, metrics, proposal, commits, block_bytes).await
+        Input::ReceivedSyncedBlock(block_bytes, commits) => {
+            on_received_synced_block(co, state, metrics, block_bytes, commits).await
         }
     }
 }

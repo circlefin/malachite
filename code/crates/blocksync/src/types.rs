@@ -3,7 +3,7 @@ use derive_where::derive_where;
 use displaydoc::Display;
 use serde::{Deserialize, Serialize};
 
-use malachite_common::{Certificate, Context, SignedProposal};
+use malachite_common::{CommitCertificate, Context};
 
 pub use libp2p::identity::PeerId;
 pub use libp2p::request_response::{InboundRequestId, OutboundRequestId};
@@ -44,9 +44,8 @@ impl<Ctx: Context> Response<Ctx> {
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct SyncedBlock<Ctx: Context> {
-    pub proposal: SignedProposal<Ctx>,
-    pub certificate: Certificate<Ctx>,
     pub block_bytes: Bytes,
+    pub certificate: CommitCertificate<Ctx>,
 }
 
 #[derive(Clone, Debug)]

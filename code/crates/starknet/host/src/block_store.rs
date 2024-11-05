@@ -2,8 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use malachite_blocksync::SyncedBlock;
-use malachite_common::Value;
-use malachite_common::{Certificate, Proposal, SignedProposal, SignedVote};
+use malachite_common::CommitCertificate;
 use malachite_proto::Protobuf;
 use malachite_starknet_p2p_proto as proto;
 use malachite_starknet_p2p_types::{Block, Height, Transaction, Transactions};
@@ -16,16 +15,14 @@ use crate::mock::context::MockContext;
 #[derive(Clone, Debug)]
 pub struct DecidedBlock {
     pub block: Block,
-    pub proposal: SignedProposal<MockContext>,
-    pub certificate: Certificate<MockContext>,
+    pub certificate: CommitCertificate<MockContext>,
 }
 
 impl DecidedBlock {
     fn to_bytes(&self) -> Vec<u8> {
         let synced_block = SyncedBlock {
-            block_bytes: self.block.to_bytes().unwrap(),
-            proposal: self.proposal.clone(),
             certificate: self.certificate.clone(),
+            block_bytes: self.block.to_bytes().unwrap(),
         };
 
         let proto = encode_synced_block(synced_block).unwrap();
@@ -39,7 +36,6 @@ impl DecidedBlock {
 
         Some(Self {
             block,
-            proposal: synced_block.proposal,
             certificate: synced_block.certificate,
         })
     }
@@ -190,26 +186,16 @@ impl BlockStore {
             .unwrap()
     }
 
-    pub async fn store(
-        &self,
-        proposal: &SignedProposal<MockContext>,
-        txes: &[Transaction],
-        commits: &[SignedVote<MockContext>],
-    ) {
-        let block_id = proposal.value().id();
-
-        let certificate = Certificate {
-            commits: commits.to_vec(),
-        };
+    pub async fn store(&self, certificate: &CommitCertificate<MockContext>, txes: &[Transaction]) {
+        let block_id = certificate.value_id;
 
         let decided_block = DecidedBlock {
             block: Block {
-                height: proposal.height(),
+                height: certificate.height,
                 block_hash: block_id,
                 transactions: Transactions::new(txes.to_vec()),
             },
-            proposal: proposal.clone(),
-            certificate,
+            certificate: certificate.clone(),
         };
 
         let db = self.db.clone();

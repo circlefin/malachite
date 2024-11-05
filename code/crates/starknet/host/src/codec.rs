@@ -3,20 +3,26 @@ use prost::Message;
 use blocksync::Status;
 use malachite_actors::util::codec::NetworkCodec;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_common::{Certificate, SignedProposal, SignedVote};
+use malachite_blocksync as blocksync;
+
+use malachite_common::{
+    AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedProposal,
+    SignedVote,
+};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Bytes;
 use malachite_proto::{Error as ProtoError, Protobuf};
-use malachite_starknet_p2p_types::{self as p2p, Height};
+use malachite_starknet_p2p_proto::{
+    AggregatedSignature as AggregatedSignatureRaw, CommitCertificate as CommitCertificateRaw,
+    CommitSignature as CommitSignatureRaw, ConsensusMessage,
+};
+use malachite_starknet_p2p_types::{self as p2p, Address, BlockHash, Height};
 
 use malachite_starknet_p2p_proto::consensus_message::Messages;
-use malachite_starknet_p2p_proto::ConsensusMessage;
 use malachite_starknet_p2p_proto::{self as proto};
 
-use malachite_blocksync as blocksync;
-
 use crate::mock::context::MockContext;
-use crate::types::{Proposal, Vote};
+use crate::types::Vote;
 
 pub struct ProtobufCodec;
 
@@ -163,78 +169,125 @@ impl NetworkCodec<MockContext> for ProtobufCodec {
     }
 }
 
-pub(crate) fn encode_proposal(
-    proposal: SignedProposal<MockContext>,
-) -> Result<ConsensusMessage, ProtoError> {
-    Ok(ConsensusMessage {
-        messages: Some(Messages::Proposal(proposal.message.to_proto()?)),
-        signature: Some(proposal.signature.to_proto()?),
-    })
+pub(crate) fn encode_aggregate_signature(
+    aggregated_signature: AggregatedSignature<MockContext>,
+) -> Result<AggregatedSignatureRaw, ProtoError> {
+    let signatures_result: Result<Vec<CommitSignatureRaw>, ProtoError> = aggregated_signature
+        .signatures
+        .iter()
+        .map(|s| {
+            let validator_address = s.address.to_proto()?;
+            let signature = s.signature.to_proto()?;
+
+            Ok(CommitSignatureRaw {
+                validator_address: Some(validator_address),
+                signature: Some(signature),
+                extension: s.extension.as_ref().map(|e| e.data.clone()),
+            })
+        })
+        .collect();
+
+    let raw_signature = AggregatedSignatureRaw {
+        signatures: signatures_result?,
+    };
+
+    Ok(raw_signature)
 }
 
-pub(crate) fn encode_vote(vote: SignedVote<MockContext>) -> Result<ConsensusMessage, ProtoError> {
-    Ok(ConsensusMessage {
-        messages: Some(Messages::Vote(vote.message.to_proto()?)),
-        signature: Some(vote.signature.to_proto()?),
+pub(crate) fn encode_certificate(
+    certificate: CommitCertificate<MockContext>,
+) -> Result<CommitCertificateRaw, ProtoError> {
+    Ok(CommitCertificateRaw {
+        fork_id: certificate.height.fork_id,
+        block_number: certificate.height.block_number,
+        round: certificate.round.as_u32().expect("round should not be nil"),
+        block_hash: Some(certificate.value_id.to_proto()?),
+        aggregated_signature: Some(encode_aggregate_signature(
+            certificate.aggregated_signature,
+        )?),
     })
 }
 
 pub(crate) fn encode_synced_block(
     synced_block: blocksync::SyncedBlock<MockContext>,
 ) -> Result<proto::blocksync::SyncedBlock, ProtoError> {
-    let commits = synced_block
-        .certificate
-        .commits
-        .into_iter()
-        .map(encode_vote)
-        .collect::<Result<Vec<_>, _>>()?;
-
     Ok(proto::blocksync::SyncedBlock {
-        proposal: Some(encode_proposal(synced_block.proposal)?),
-        commits,
         block_bytes: synced_block.block_bytes,
+        certificate: Some(encode_certificate(synced_block.certificate)?),
     })
 }
 
-pub(crate) fn decode_proposal(msg: ConsensusMessage) -> Option<SignedProposal<MockContext>> {
-    let signature = msg.signature?;
-    let proposal = match msg.messages {
-        Some(Messages::Proposal(p)) => Some(p),
-        _ => None,
-    }?;
+pub(crate) fn decode_aggregated_signature(
+    signature: AggregatedSignatureRaw,
+) -> Result<AggregatedSignature<MockContext>, ProtoError> {
+    let aggregated_signature = signature
+        .signatures
+        .iter()
+        .map(|s| {
+            let sig = s
+                .signature
+                .as_ref()
+                .ok_or_else(|| ProtoError::missing_field::<CommitSignatureRaw>("signature"))?;
 
-    let signature = p2p::Signature::from_proto(signature).ok()?;
-    let proposal = Proposal::from_proto(proposal).ok()?;
-    Some(SignedProposal::new(proposal, signature))
+            let address = Address::from_proto(s.validator_address.clone().ok_or_else(|| {
+                ProtoError::missing_field::<CommitSignatureRaw>("validator_address")
+            })?)?;
+
+            let commit_signature = CommitSignature {
+                address,
+                signature: p2p::Signature::from_proto(sig.clone())?,
+                extension: s.extension.clone().map(Extension::from),
+            };
+            Ok(commit_signature)
+        })
+        .collect::<Result<Vec<_>, ProtoError>>()?;
+    Ok(AggregatedSignature {
+        signatures: aggregated_signature,
+    })
 }
 
-pub(crate) fn decode_vote(msg: ConsensusMessage) -> Option<SignedVote<MockContext>> {
-    let signature = msg.signature?;
-    let vote = match msg.messages {
-        Some(Messages::Vote(v)) => Some(v),
-        _ => None,
-    }?;
+pub(crate) fn decode_certificate(
+    certificate: CommitCertificateRaw,
+) -> Result<CommitCertificate<MockContext>, ProtoError> {
+    let value_id = if let Some(block_hash) = certificate.block_hash {
+        BlockHash::from_proto(block_hash)?
+    } else {
+        return Err(ProtoError::missing_field::<CommitCertificateRaw>(
+            "block_hash",
+        ));
+    };
 
-    let signature = p2p::Signature::from_proto(signature).ok()?;
-    let vote = Vote::from_proto(vote).ok()?;
-    Some(SignedVote::new(vote, signature))
+    let aggregated_signature = if let Some(agg_sig) = certificate.aggregated_signature {
+        decode_aggregated_signature(agg_sig)?
+    } else {
+        return Err(ProtoError::missing_field::<CommitCertificateRaw>(
+            "aggregated_signature",
+        ));
+    };
+
+    let certificate = CommitCertificate {
+        height: Height::new(certificate.block_number, certificate.fork_id),
+        round: Round::new(certificate.round),
+        value_id,
+        aggregated_signature,
+    };
+
+    Ok(certificate)
 }
 
 pub(crate) fn decode_sync_block(
     synced_block: proto::blocksync::SyncedBlock,
 ) -> Result<blocksync::SyncedBlock<MockContext>, ProtoError> {
-    let commits = synced_block
-        .commits
-        .into_iter()
-        .filter_map(decode_vote)
-        .collect();
-
-    let certificate = Certificate::new(commits);
+    let certificate = if let Some(certificate) = synced_block.certificate {
+        certificate
+    } else {
+        return Err(ProtoError::missing_field::<proto::blocksync::SyncedBlock>(
+            "certificate",
+        ));
+    };
 
     Ok(blocksync::SyncedBlock {
-        proposal: decode_proposal(synced_block.proposal.unwrap())
-            .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("proposal"))?,
-        certificate,
         block_bytes: synced_block.block_bytes,
+        certificate: decode_certificate(certificate)?,
     })
 }

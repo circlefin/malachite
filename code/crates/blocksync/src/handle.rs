@@ -5,7 +5,7 @@ use displaydoc::Display;
 use libp2p::request_response::OutboundRequestId;
 use tracing::{debug, error, info, warn};
 
-use malachite_common::{Context, Height, Proposal};
+use malachite_common::{Context, Height};
 
 use crate::co::Co;
 use crate::perform;
@@ -250,9 +250,9 @@ where
             error!(%height, "Received empty response");
             None
         }
-        Some(block) if block.proposal.height() != height => {
+        Some(block) if block.certificate.height != height => {
             error!(
-                %height, block.height = %block.proposal.height(),
+                %height, block.height = %block.certificate.height,
                 "Received block for wrong height"
             );
             None
