@@ -86,6 +86,7 @@ impl HostState {
         round: Round,
     ) -> Option<(Round, BlockHash, Address, Validity, Option<Extension>)> {
         let parts = &entry.parts;
+
         if parts.is_empty() {
             return None;
         }
@@ -96,11 +97,8 @@ impl HostState {
         };
 
         let valid_round = init.valid_round;
-        if let Round::Some(_vr) = valid_round {
-            debug!(
-                "Reassembling a Proposal we might have seen before: {:?}",
-                init
-            );
+        if valid_round.is_defined() {
+            debug!("Reassembling a Proposal we might have seen before: {init:?}");
         }
 
         let Some(_fin) = parts.iter().find_map(|part| part.as_fin()) else {
@@ -123,13 +121,15 @@ impl HostState {
         let block_hash = {
             let mut block_hasher = sha3::Keccak256::new();
             for part in parts {
-                if let Some(_init) = part.as_init() {
+                if part.as_init().is_some() {
                     // We don't want to hash over the init so restreaming returns the same hash
                     // TODO - we should probably still include height.
                     continue;
                 }
+
                 block_hasher.update(part.to_sign_bytes());
             }
+
             BlockHash::new(block_hasher.finalize().into())
         };
 
@@ -196,7 +196,8 @@ impl HostState {
         );
 
         let result = self.build_value_from_parts(&entry, height, round);
-        if let Some(proposed_value) = result.clone() {
+
+        if let Some(ref proposed_value) = result {
             self.host
                 .part_store
                 .store_value_id(height, round, proposed_value.value);
@@ -338,6 +339,7 @@ impl Actor for StarknetHost {
                     .host
                     .part_store
                     .store_value_id(height, round, block_hash);
+
                 let parts = state.host.part_store.all_parts(height, round);
 
                 let extension = state.host.params().vote_extensions.enabled.then(|| {
