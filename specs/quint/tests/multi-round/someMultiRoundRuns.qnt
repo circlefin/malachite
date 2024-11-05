@@ -39,7 +39,7 @@ run AllButOneDecideInR1WhileSlowInR0 = {
     .then(ListDeliverAllVotes(Precommit, others, others, validatorSet, 0, 1, Val("green")))
     .then(others.length().reps(_ => ListTakeAStep(correctList)))
     .then(all {
-        assert(SetFromList(others).forall(proc => system.get(proc).es.chain.head().decision == "green")),
+        assert(SetFromList(others).forall(proc => system.get(proc).es.chain.head().decision.proposal == "green")),
         unchangedAll
     })       
 }
@@ -61,7 +61,7 @@ run DecideForFutureRoundRun = {
     })
     .then(valStep(slow)) // it receives the final precommit and decides
     .then(all {
-        assert(validators.forall(proc => system.get(proc).es.chain.head().decision == "green")),
+        assert(validators.forall(proc => system.get(proc).es.chain.head().decision.proposal == "green")),
         unchangedAll
     })    
 }
@@ -82,7 +82,7 @@ run DecideForFutureRoundPrecommitFirstRun = {
     })
     .then(valStep(slow)) // receive proposal and decide
     .then(all {
-        assert(validators.forall(proc => system.get(proc).es.chain.head().decision == "green")),
+        assert(validators.forall(proc => system.get(proc).es.chain.head().decision.proposal == "green")),
         unchangedAll
     })    
 }
