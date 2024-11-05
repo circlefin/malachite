@@ -316,21 +316,28 @@ impl Actor for StarknetHost {
                 while let Some(part) = rx_part.recv().await {
                     state.host.part_store.store(height, round, part.clone());
 
-                    debug!(%stream_id, %sequence, "Broadcasting proposal part");
+                    if state.host.params.value_payload.include_parts() {
+                        debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
-                    let msg =
-                        StreamMessage::new(stream_id, sequence, StreamContent::Data(part.clone()));
+                        let msg = StreamMessage::new(
+                            stream_id,
+                            sequence,
+                            StreamContent::Data(part.clone()),
+                        );
 
-                    self.gossip_consensus
-                        .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
+                        self.gossip_consensus
+                            .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
+                    }
 
                     sequence += 1;
                 }
 
-                let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin(true));
+                if state.host.params.value_payload.include_parts() {
+                    let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin(true));
 
-                self.gossip_consensus
-                    .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
+                    self.gossip_consensus
+                        .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
+                }
 
                 let block_hash = rx_hash.await?;
                 debug!(%block_hash, "Assembled block");

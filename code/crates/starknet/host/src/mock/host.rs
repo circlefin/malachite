@@ -3,16 +3,17 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytesize::ByteSize;
-use malachite_config::{ValuePayload, VoteExtensionsConfig};
+use malachite_consensus::ValuePayload;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::Instrument;
 
-use crate::part_store::PartStore;
 use malachite_common::{Round, SignedVote};
+use malachite_config::VoteExtensionsConfig;
 
 use crate::mempool::MempoolRef;
 use crate::mock::context::MockContext;
+use crate::part_store::PartStore;
 use crate::types::*;
 use crate::Host;
 

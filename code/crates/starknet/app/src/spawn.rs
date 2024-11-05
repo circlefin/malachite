@@ -261,9 +261,15 @@ async fn spawn_host_actor(
     gossip_consensus: GossipConsensusRef<MockContext>,
     metrics: Metrics,
 ) -> HostRef<MockContext> {
+    let value_payload = match cfg.consensus.value_payload {
+        malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
+        malachite_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
+        malachite_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
+    };
+
     let mock_params = MockParams {
+        value_payload,
         max_block_size: cfg.consensus.max_block_size,
-        value_payload: cfg.consensus.value_payload,
         tx_size: cfg.test.tx_size,
         txs_per_part: cfg.test.txs_per_part,
         time_allowance_factor: cfg.test.time_allowance_factor,

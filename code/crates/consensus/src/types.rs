@@ -59,6 +59,13 @@ impl ValuePayload {
         )
     }
 
+    pub fn include_parts(self) -> bool {
+        matches!(
+            self,
+            ValuePayload::PartsOnly | ValuePayload::ProposalAndParts
+        )
+    }
+
     pub fn parts_only(self) -> bool {
         matches!(self, ValuePayload::PartsOnly)
     }
