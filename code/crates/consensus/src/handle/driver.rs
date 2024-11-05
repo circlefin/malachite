@@ -149,20 +149,7 @@ where
                 );
             }
 
-            if let Round::Some(_vr) = signed_proposal.pol_round() {
-                perform!(
-                    co,
-                    Effect::RestreamValue(
-                        proposal.height(),
-                        proposal.round(),
-                        proposal.pol_round(),
-                        proposal.validator_address().clone(),
-                        proposal.value().id(),
-                    )
-                );
-            }
-
-            if let Round::Some(_vr) = signed_proposal.pol_round() {
+            if signed_proposal.pol_round().is_defined() {
                 perform!(
                     co,
                     Effect::RestreamValue(
