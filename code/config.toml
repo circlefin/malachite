@@ -38,9 +38,9 @@ max_block_size = "1 MiB"
 
 # The message(s) required by consensus to carry the value payload.
 # Available options are:
-# - "parts-only": Full value is included in the proposal parts and there is no explicit Proposal message (default for Starknet test app)
-# - "proposal-only": Full value is included in the (explicit) consensus Proposal message (untested, application to be developed as PoC)
-# - "proposal-and-parts": Both proposal parts and Proposal message are required (similar to Comet implementation of Tendermint, can be configured for Starknet app)
+# - "parts-only": Full value is included in the proposal parts and there is no explicit Proposal message (default)
+# - "proposal-only": Full value is included in the (explicit) consensus Proposal message (untested)
+# - "proposal-and-parts": Both proposal parts and Proposal message are required (similar to CometBFT implementation of Tendermint)
 # Override with MALACHITE__CONSENSUS__VALUE_PAYLOAD env variable
 value_payload = "parts-only"
 
