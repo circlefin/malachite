@@ -1,3 +1,10 @@
-#!/usr/bin/env bash
+#!/bin/bash
+#
+# Accepts optional parameters to `quint`, e.g., `--max-samples 100`.
 
-for x in */*Test.qnt; do quint test $x; done 
+QUINT_PARAMS=$@
+
+for TEST_FILE in */*Test.qnt
+do
+	quint test $QUINT_PARAMS $TEST_FILE
+done 
