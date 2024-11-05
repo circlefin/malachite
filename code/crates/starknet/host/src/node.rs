@@ -3,11 +3,11 @@ use std::path::{Path, PathBuf};
 use rand::{CryptoRng, RngCore};
 use tracing::{info, Instrument};
 
+use crate::mock::context::MockContext;
+use crate::types::{PrivateKey, PublicKey, Validator, ValidatorSet};
 use malachite_common::VotingPower;
 use malachite_config::Config;
 use malachite_node::Node;
-use malachite_starknet_host::mock::context::MockContext;
-use malachite_starknet_host::types::{PrivateKey, PublicKey, Validator, ValidatorSet};
 
 use crate::spawn::spawn_node_actor;
 use crate::types::Height;

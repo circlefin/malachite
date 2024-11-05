@@ -11,8 +11,10 @@ pub mod block_store;
 pub mod codec;
 pub mod mempool;
 pub mod mock;
+pub mod node;
 pub mod part_store;
 pub mod proto;
+pub mod spawn;
 pub mod streaming;
 
 pub use malachite_starknet_p2p_types as types;

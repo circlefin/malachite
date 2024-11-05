@@ -2626,32 +2626,14 @@ dependencies = [
 name = "malachite-starknet-app"
 version = "0.1.0"
 dependencies = [
- "async-trait",
- "bytesize",
- "libp2p-identity",
- "malachite-actors",
- "malachite-blocksync",
+ "clap",
+ "color-eyre",
  "malachite-cli",
- "malachite-common",
  "malachite-config",
- "malachite-consensus",
- "malachite-gossip-consensus",
- "malachite-gossip-mempool",
- "malachite-metrics",
- "malachite-node",
- "malachite-proto",
  "malachite-starknet-host",
- "malachite-starknet-p2p-proto",
- "malachite-starknet-p2p-types",
- "malachite-test",
- "prost",
- "rand",
- "serde",
- "serde_json",
  "tempfile",
- "tokio",
+ "tikv-jemallocator",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -2666,12 +2648,14 @@ dependencies = [
  "libp2p-identity",
  "malachite-actors",
  "malachite-blocksync",
+ "malachite-cli",
  "malachite-common",
  "malachite-config",
  "malachite-consensus",
  "malachite-gossip-consensus",
  "malachite-gossip-mempool",
  "malachite-metrics",
+ "malachite-node",
  "malachite-proto",
  "malachite-starknet-p2p-proto",
  "malachite-starknet-p2p-types",
@@ -2679,8 +2663,10 @@ dependencies = [
  "ractor",
  "rand",
  "redb",
+ "serde_json",
  "sha3",
  "starknet-core",
+ "tempfile",
  "tokio",
  "tracing",
 ]
@@ -2715,7 +2701,6 @@ dependencies = [
  "bytesize",
  "malachite-common",
  "malachite-config",
- "malachite-starknet-app",
  "malachite-starknet-host",
  "ractor",
  "rand",
@@ -4087,20 +4072,6 @@ checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
  "der",
-]
-
-[[package]]
-name = "starknet-app"
-version = "0.1.0"
-dependencies = [
- "clap",
- "color-eyre",
- "malachite-cli",
- "malachite-config",
- "malachite-starknet-app",
- "tempfile",
- "tikv-jemallocator",
- "tracing",
 ]
 
 [[package]]

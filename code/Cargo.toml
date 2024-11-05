@@ -17,7 +17,6 @@ members = [
   "crates/proto",
   "crates/round",
   "crates/vote",
-  "examples/starknet-app",
 
   # Test
   "crates/test",
@@ -71,7 +70,6 @@ malachite-vote             = { version = "0.1.0", path = "crates/vote" }
 
 # Starknet
 malachite-starknet-host      = { version = "0.1.0", path = "crates/starknet/host" }
-malachite-starknet-app       = { version = "0.1.0", path = "crates/starknet/app" }
 malachite-starknet-p2p-proto = { version = "0.1.0", path = "crates/starknet/p2p-proto" }
 malachite-starknet-p2p-types = { version = "0.1.0", path = "crates/starknet/p2p-types" }
 

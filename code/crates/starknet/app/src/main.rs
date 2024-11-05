@@ -1,7 +1,7 @@
 use color_eyre::eyre::eyre;
 use malachite_cli::args::{Args, Commands};
 use malachite_cli::{logging, runtime};
-use malachite_starknet_app::node::StarknetNode;
+use malachite_starknet_host::node::StarknetNode;
 use tracing::{error, info, trace};
 
 // Use jemalloc on Linux
@@ -102,7 +102,7 @@ mod tests {
     use malachite_cli::args::{Args, Commands};
     use malachite_cli::cmd::init::*;
     use malachite_config::LoggingConfig;
-    use malachite_starknet_app::node::StarknetNode;
+    use malachite_starknet_host::node::StarknetNode;
 
     #[test]
     fn running_init_creates_config_files() -> eyre::Result<()> {

@@ -19,7 +19,7 @@ use malachite_config::{
     BlockSyncConfig, Config as NodeConfig, Config, LoggingConfig, PubSubProtocol, TestConfig,
     TransportProtocol,
 };
-use malachite_starknet_app::spawn::spawn_node_actor;
+use malachite_starknet_host::spawn::spawn_node_actor;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
