@@ -33,10 +33,10 @@ pub struct MockParams {
 }
 
 pub struct MockHost {
-    params: MockParams,
-    mempool: MempoolRef,
-    address: Address,
-    validator_set: ValidatorSet,
+    pub params: MockParams,
+    pub mempool: MempoolRef,
+    pub address: Address,
+    pub validator_set: ValidatorSet,
     pub part_store: PartStore<MockContext>,
 }
 
@@ -54,10 +54,6 @@ impl MockHost {
             validator_set,
             part_store: Default::default(),
         }
-    }
-
-    pub fn params(&self) -> MockParams {
-        self.params
     }
 }
 
