@@ -2683,6 +2683,7 @@ dependencies = [
  "redb",
  "sha3",
  "starknet-core",
+ "thiserror",
  "tokio",
  "tracing",
 ]

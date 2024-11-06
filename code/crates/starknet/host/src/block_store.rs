@@ -1,14 +1,16 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use prost::Message;
+use redb::ReadableTable;
+use thiserror::Error;
+
 use malachite_blocksync::SyncedBlock;
 use malachite_common::Value;
 use malachite_common::{Certificate, Proposal, SignedProposal, SignedVote};
 use malachite_proto::Protobuf;
 use malachite_starknet_p2p_proto as proto;
 use malachite_starknet_p2p_types::{Block, Height, Transaction, Transactions};
-use prost::Message;
-use redb::ReadableTable;
 
 use crate::codec::{decode_sync_block, encode_synced_block};
 use crate::mock::context::MockContext;
@@ -45,9 +47,22 @@ impl DecidedBlock {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum StoreError {
-    Database(redb::DatabaseError),
+    #[error("Database error: {0}")]
+    Database(#[from] redb::DatabaseError),
+
+    #[error("Storage error: {0}")]
+    Storage(#[from] redb::StorageError),
+
+    #[error("Table error: {0}")]
+    Table(#[from] redb::TableError),
+
+    #[error("Commit error: {0}")]
+    Commit(#[from] redb::CommitError),
+
+    #[error("Failed to join on task: {0}")]
+    TaskJoin(#[from] tokio::task::JoinError),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -135,13 +150,22 @@ impl Db {
         tx.commit().unwrap();
     }
 
-    fn prune(&self, retain_height: Height) {
+    fn prune(&self, retain_height: Height) -> Result<(), StoreError> {
         let tx = self.db.begin_write().unwrap();
         {
-            let mut table = tx.open_table(BLOCK_TABLE).unwrap();
-            table.retain(|key, _| key > retain_height).unwrap();
+            let mut table = tx.open_table(BLOCK_TABLE)?;
+            let keys = table
+                .range(..retain_height)?
+                .flatten()
+                .map(|(key, _)| key.value())
+                .collect::<Vec<_>>();
+
+            for key in keys {
+                table.remove(&key)?;
+            }
         }
-        tx.commit().unwrap();
+        tx.commit()?;
+        Ok(())
     }
 
     fn first_key(&self) -> Option<Height> {
@@ -220,12 +244,8 @@ impl BlockStore {
         .unwrap();
     }
 
-    pub async fn prune(&self, retain_height: Height) {
-        let db = self.db.clone();
-        tokio::task::spawn_blocking(move || {
-            db.prune(retain_height);
-        })
-        .await
-        .unwrap();
+    pub async fn prune(&self, retain_height: Height) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.prune(retain_height)).await?
     }
 }

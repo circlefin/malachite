@@ -274,7 +274,9 @@ impl StarknetHost {
         }
 
         let retain_height = Height::new(retain_height, max_height.fork_id);
-        state.block_store.prune(retain_height).await;
+        if let Err(e) = state.block_store.prune(retain_height).await {
+            error!(%e, %retain_height, "Failed to prune the block store");
+        }
     }
 }
 
