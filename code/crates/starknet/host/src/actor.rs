@@ -532,10 +532,13 @@ impl Actor for StarknetHost {
                 }
 
                 // Build the block from proposal parts and commits and store it
-                state
+                if let Err(e) = state
                     .block_store
                     .store(&proposal, &all_txes, &commits)
-                    .await;
+                    .await
+                {
+                    error!(%e, %height, %round, "Failed to store the block");
+                }
 
                 // Update metrics
                 let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
@@ -587,7 +590,7 @@ impl Actor for StarknetHost {
                 debug!(%height, "Received request for block");
 
                 match state.block_store.get(height).await {
-                    None => {
+                    Ok(None) => {
                         let min = state.block_store.first_height().unwrap_or_default();
                         let max = state.block_store.last_height().unwrap_or_default();
 
@@ -595,7 +598,7 @@ impl Actor for StarknetHost {
 
                         reply_to.send(None)?;
                     }
-                    Some(block) => {
+                    Ok(Some(block)) => {
                         let block = SyncedBlock {
                             proposal: block.proposal,
                             block_bytes: block.block.to_bytes().unwrap(),
@@ -604,6 +607,10 @@ impl Actor for StarknetHost {
 
                         debug!(%height, "Found decided block in store");
                         reply_to.send(Some(block))?;
+                    }
+                    Err(e) => {
+                        error!(%e, %height, "Failed to get decided block");
+                        reply_to.send(None)?;
                     }
                 }
 

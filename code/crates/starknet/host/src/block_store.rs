@@ -8,7 +8,7 @@ use thiserror::Error;
 use malachite_blocksync::SyncedBlock;
 use malachite_common::Value;
 use malachite_common::{Certificate, Proposal, SignedProposal, SignedVote};
-use malachite_proto::Protobuf;
+use malachite_proto::{Error as ProtoError, Protobuf};
 use malachite_starknet_p2p_proto as proto;
 use malachite_starknet_p2p_types::{Block, Height, Transaction, Transactions};
 
@@ -23,15 +23,15 @@ pub struct DecidedBlock {
 }
 
 impl DecidedBlock {
-    fn to_bytes(&self) -> Vec<u8> {
+    fn into_bytes(self) -> Result<Vec<u8>, ProtoError> {
         let synced_block = SyncedBlock {
-            block_bytes: self.block.to_bytes().unwrap(),
-            proposal: self.proposal.clone(),
-            certificate: self.certificate.clone(),
+            block_bytes: self.block.to_bytes()?,
+            proposal: self.proposal,
+            certificate: self.certificate,
         };
 
-        let proto = encode_synced_block(synced_block).unwrap();
-        proto.encode_to_vec()
+        let proto = encode_synced_block(synced_block)?;
+        Ok(proto.encode_to_vec())
     }
 
     fn from_bytes(bytes: &[u8]) -> Option<Self> {
@@ -60,6 +60,12 @@ pub enum StoreError {
 
     #[error("Commit error: {0}")]
     Commit(#[from] redb::CommitError),
+
+    #[error("Transaction error: {0}")]
+    Transaction(#[from] redb::TransactionError),
+
+    #[error("Failed to encode/decode Protobuf: {0}")]
+    Protobuf(#[from] ProtoError),
 
     #[error("Failed to join on task: {0}")]
     TaskJoin(#[from] tokio::task::JoinError),
@@ -121,33 +127,24 @@ impl Db {
         })
     }
 
-    fn keys(&self) -> Vec<Height> {
-        let tx = self.db.begin_read().unwrap();
-        let table = tx.open_table(BLOCK_TABLE).unwrap();
-        table
-            .iter()
-            .unwrap()
-            .filter_map(|result| result.ok())
-            .map(|(key, _)| key.value())
-            .collect()
+    fn get(&self, height: Height) -> Result<Option<DecidedBlock>, StoreError> {
+        let tx = self.db.begin_read()?;
+        let table = tx.open_table(BLOCK_TABLE)?;
+        let value = table.get(&height)?;
+        let block = value.and_then(|value| DecidedBlock::from_bytes(&value.value()));
+        Ok(block)
     }
 
-    fn get(&self, height: Height) -> Option<DecidedBlock> {
-        let tx = self.db.begin_read().unwrap();
-        let table = tx.open_table(BLOCK_TABLE).unwrap();
-        let value = table.get(&height).unwrap()?;
-        DecidedBlock::from_bytes(&value.value())
-    }
-
-    fn insert(&self, decided_block: DecidedBlock) {
+    fn insert(&self, decided_block: DecidedBlock) -> Result<(), StoreError> {
         let height = decided_block.block.height;
 
-        let tx = self.db.begin_write().unwrap();
+        let tx = self.db.begin_write()?;
         {
-            let mut table = tx.open_table(BLOCK_TABLE).unwrap();
-            table.insert(height, decided_block.to_bytes()).unwrap();
+            let mut table = tx.open_table(BLOCK_TABLE)?;
+            table.insert(height, decided_block.into_bytes()?)?;
         }
-        tx.commit().unwrap();
+        tx.commit()?;
+        Ok(())
     }
 
     fn prune(&self, retain_height: Height) -> Result<(), StoreError> {
@@ -207,11 +204,9 @@ impl BlockStore {
         self.db.keys()
     }
 
-    pub async fn get(&self, height: Height) -> Option<DecidedBlock> {
-        let db = self.db.clone();
-        tokio::task::spawn_blocking(move || db.get(height))
-            .await
-            .unwrap()
+    pub async fn get(&self, height: Height) -> Result<Option<DecidedBlock>, StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.get(height)).await?
     }
 
     pub async fn store(
@@ -219,7 +214,7 @@ impl BlockStore {
         proposal: &SignedProposal<MockContext>,
         txes: &[Transaction],
         commits: &[SignedVote<MockContext>],
-    ) {
+    ) -> Result<(), StoreError> {
         let block_id = proposal.value().id();
 
         let certificate = Certificate {
@@ -236,12 +231,8 @@ impl BlockStore {
             certificate,
         };
 
-        let db = self.db.clone();
-        tokio::task::spawn_blocking(move || {
-            db.insert(decided_block);
-        })
-        .await
-        .unwrap();
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.insert(decided_block)).await?
     }
 
     pub async fn prune(&self, retain_height: Height) -> Result<(), StoreError> {
