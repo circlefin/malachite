@@ -46,12 +46,14 @@ pub struct HostState {
 
 impl HostState {
     pub fn new(host: MockHost, home_dir: PathBuf) -> Self {
+        let db_path = home_dir.join("db").join("blocks.db");
+
         Self {
             height: Height::new(0, 0),
             round: Round::Nil,
             proposer: None,
             host,
-            block_store: BlockStore::new(home_dir.join("blocks.db")).unwrap(),
+            block_store: BlockStore::new(db_path).unwrap(),
             part_streams_map: PartStreamsMap::default(),
             next_stream_id: StreamId::default(),
         }
