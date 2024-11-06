@@ -99,6 +99,7 @@ mod tests {
 
     use clap::Parser;
     use color_eyre::eyre;
+    use color_eyre::eyre::eyre;
     use malachite_cli::args::{Args, Commands};
     use malachite_cli::cmd::init::*;
     use malachite_config::LoggingConfig;
@@ -157,7 +158,7 @@ mod tests {
         ]);
 
         let Commands::Testnet(ref cmd) = args.command else {
-            panic!("not testnet command");
+            return Err(eyre!("not testnet command"));
         };
 
         let node = &StarknetNode {
