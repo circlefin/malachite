@@ -6,7 +6,7 @@ use libp2p::PeerId;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachite_blocksync::SyncedBlock;
-use malachite_common::{Context, Extension, Round, SignedProposal, SignedVote};
+use malachite_common::{Context, Extension, Round, SignedProposal, SignedVote, ValueId};
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
@@ -61,6 +61,15 @@ pub enum HostMsg<Ctx: Context> {
         timeout_duration: Duration,
         address: Ctx::Address,
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
+    },
+
+    /// Request to restream an existing block/value from Driver
+    RestreamValue {
+        height: Ctx::Height,
+        round: Round,
+        valid_round: Round,
+        address: Ctx::Address,
+        value_id: ValueId<Ctx>,
     },
 
     /// Request the earliest block height in the block store

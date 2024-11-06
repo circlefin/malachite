@@ -62,6 +62,7 @@ pub struct TestParams {
     pub tx_size: ByteSize,
     pub txs_per_part: usize,
     pub vote_extensions: Option<ByteSize>,
+    pub value_payload: ValuePayload,
 }
 
 impl Default for TestParams {
@@ -73,6 +74,7 @@ impl Default for TestParams {
             tx_size: ByteSize::kib(1),
             txs_per_part: 256,
             vote_extensions: None,
+            value_payload: ValuePayload::default(),
         }
     }
 }
@@ -82,6 +84,7 @@ impl TestParams {
         config.blocksync.enabled = self.enable_blocksync;
         config.consensus.p2p.protocol = self.protocol;
         config.consensus.max_block_size = self.block_size;
+        config.consensus.value_payload = self.value_payload;
         config.test.tx_size = self.tx_size;
         config.test.txs_per_part = self.txs_per_part;
         config.test.vote_extensions.enabled = self.vote_extensions.is_some();
@@ -471,6 +474,7 @@ use bytesize::ByteSize;
 
 use malachite_config::{
     ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
+    ValuePayload,
 };
 
 fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
@@ -490,6 +494,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> NodeConfig 
         logging: LoggingConfig::default(),
         consensus: ConsensusConfig {
             max_block_size: ByteSize::mib(1),
+            value_payload: ValuePayload::default(),
             timeouts: TimeoutConfig::default(),
             p2p: P2pConfig {
                 transport,

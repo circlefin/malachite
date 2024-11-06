@@ -307,8 +307,21 @@ pub struct ConsensusConfig {
     #[serde(flatten)]
     pub timeouts: TimeoutConfig,
 
+    /// Message types that can carry values
+    pub value_payload: ValuePayload,
+
     /// P2P configuration options
     pub p2p: P2pConfig,
+}
+
+/// Message types required by consensus to deliver the value being proposed
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ValuePayload {
+    #[default]
+    PartsOnly,
+    ProposalOnly, // TODO - add small block app to test this option
+    ProposalAndParts,
 }
 
 /// Timeouts

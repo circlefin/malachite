@@ -9,13 +9,12 @@ use crate::{Address, BlockProof, Height, Transactions};
 pub struct ProposalInit {
     pub height: Height,
     pub proposal_round: Round,
+    pub valid_round: Round,
     pub proposer: Address,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProposalFin {
-    pub valid_round: Round,
-}
+pub struct ProposalFin {}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProposalPart {
@@ -105,15 +104,15 @@ impl proto::Protobuf for ProposalPart {
             Messages::Init(init) => ProposalPart::Init(ProposalInit {
                 height: Height::new(init.block_number, init.fork_id),
                 proposal_round: Round::new(init.proposal_round),
+                valid_round: init.valid_round.into(),
                 proposer: Address::from_proto(
                     init.proposer
                         .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("proposer"))?,
                 )?,
             }),
-            Messages::Fin(fin) => {
-                let valid_round = Round::from(fin.valid_round);
-                ProposalPart::Fin(ProposalFin { valid_round })
-            }
+
+            Messages::Fin(_) => ProposalPart::Fin(ProposalFin {}),
+
             Messages::Transactions(txes) => {
                 let transactions = Transactions::from_proto(txes)?;
                 ProposalPart::Transactions(transactions)
@@ -137,11 +136,10 @@ impl proto::Protobuf for ProposalPart {
                     .proposal_round
                     .as_u32()
                     .expect("round should not be nil"),
+                valid_round: init.valid_round.as_u32(),
                 proposer: Some(init.proposer.to_proto()?),
             }),
-            ProposalPart::Fin(fin) => Messages::Fin(p2p_proto::ProposalFin {
-                valid_round: fin.valid_round.as_u32(),
-            }),
+            ProposalPart::Fin(_) => Messages::Fin(p2p_proto::ProposalFin {}),
             ProposalPart::Transactions(txes) => Messages::Transactions(p2p_proto::Transactions {
                 transactions: txes
                     .as_slice()

@@ -31,7 +31,16 @@ log_format = "plaintext"
 # Override with MALACHITE__CONSENSUS__MAX_BLOCK_SIZE env variable
 max_block_size = "1 MiB"
 
+# The message(s) required by consensus to carry the value payload.
+# Available options are:
+# - "parts-only": Full value is included in the proposal parts and there is no explicit Proposal message (default)
+# - "proposal-only": Full value is included in the (explicit) consensus Proposal message (untested)
+# - "proposal-and-parts": Both proposal parts and Proposal message are required (similar to CometBFT implementation of Tendermint)
+# Override with MALACHITE__CONSENSUS__VALUE_PAYLOAD env variable
+value_payload = "parts-only"
+
 ## Timeouts
+
 # How long we wait for a proposal block before prevoting nil
 # Override with MALACHITE__CONSENSUS__TIMEOUT_PROPOSE env variable
 timeout_propose = "3s"

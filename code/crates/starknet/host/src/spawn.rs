@@ -22,6 +22,7 @@ use malachite_config::{
     BlockSyncConfig, Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig,
     TransportProtocol,
 };
+use malachite_consensus::ValuePayload;
 use malachite_gossip_consensus::{
     Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
 };
@@ -145,11 +146,18 @@ async fn spawn_consensus_actor(
     metrics: Metrics,
     tx_decision: Option<broadcast::Sender<SignedProposal<MockContext>>>,
 ) -> ConsensusRef<MockContext> {
+    let value_payload = match cfg.consensus.value_payload {
+        malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
+        malachite_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
+        malachite_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
+    };
+
     let consensus_params = ConsensusParams {
         start_height,
         initial_validator_set,
         address,
         threshold_params: Default::default(),
+        value_payload,
     };
 
     Consensus::spawn(
@@ -253,7 +261,14 @@ async fn spawn_host_actor(
     gossip_consensus: GossipConsensusRef<MockContext>,
     metrics: Metrics,
 ) -> HostRef<MockContext> {
+    let value_payload = match cfg.consensus.value_payload {
+        malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
+        malachite_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
+        malachite_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
+    };
+
     let mock_params = MockParams {
+        value_payload,
         max_block_size: cfg.consensus.max_block_size,
         tx_size: cfg.test.tx_size,
         txs_per_part: cfg.test.txs_per_part,

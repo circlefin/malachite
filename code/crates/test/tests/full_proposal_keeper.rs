@@ -53,6 +53,7 @@ fn value(
     ProposedValue {
         height: Height::new(1),
         round: Round::new(round),
+        valid_round: Round::Nil,
         validator_address,
         value: Value::new(value),
         validity,
@@ -69,6 +70,7 @@ fn val_msg(
     Input::ReceivedProposedValue(ProposedValue {
         height: Height::new(1),
         round: Round::new(round),
+        valid_round: Round::Nil,
         value: Value::new(value),
         validity,
         validator_address,

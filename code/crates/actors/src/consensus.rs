@@ -231,7 +231,7 @@ where
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::ProposeValue(height, round, value, extension),
+                        ConsensusInput::ProposeValue(height, round, Round::Nil, value, extension),
                     )
                     .await;
 
@@ -331,6 +331,11 @@ where
                     }
 
                     GossipEvent::Proposal(from, proposal) => {
+                        if state.consensus.params.value_payload.parts_only() {
+                            error!(%from, "Properly configured peer should never send proposal messages in BlockPart mode");
+                            return Ok(());
+                        }
+
                         if let Err(e) = self
                             .process_input(&myself, state, ConsensusInput::Proposal(proposal))
                             .await
@@ -340,6 +345,11 @@ where
                     }
 
                     GossipEvent::ProposalPart(from, part) => {
+                        if state.consensus.params.value_payload.proposal_only() {
+                            error!(%from, "Properly configured peer should never send block part messages in Proposal mode");
+                            return Ok(());
+                        }
+
                         self.host
                             .call_and_forward(
                                 |reply_to| HostMsg::ReceivedProposalPart {
@@ -546,6 +556,20 @@ where
                     .ok();
 
                 Ok(Resume::ValidatorSet(height, validator_set))
+            }
+
+            Effect::RestreamValue(height, round, valid_round, address, value_id) => {
+                self.host
+                    .cast(HostMsg::RestreamValue {
+                        height,
+                        round,
+                        valid_round,
+                        address,
+                        value_id,
+                    })
+                    .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
+
+                Ok(Resume::Continue)
             }
 
             Effect::Decide { proposal, commits } => {
