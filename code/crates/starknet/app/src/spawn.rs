@@ -60,6 +60,7 @@ pub async fn spawn_node_actor(
         home_dir,
         &cfg,
         &address,
+        &private_key,
         &initial_validator_set,
         mempool.clone(),
         gossip_consensus.clone(),
@@ -252,10 +253,12 @@ async fn spawn_gossip_mempool_actor(
         .unwrap()
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn spawn_host_actor(
     home_dir: PathBuf,
     cfg: &NodeConfig,
     address: &Address,
+    private_key: &PrivateKey,
     initial_validator_set: &ValidatorSet,
     mempool: MempoolRef,
     gossip_consensus: GossipConsensusRef<MockContext>,
@@ -282,6 +285,7 @@ async fn spawn_host_actor(
         mock_params,
         mempool.clone(),
         address.clone(),
+        *private_key,
         initial_validator_set.clone(),
     );
 
