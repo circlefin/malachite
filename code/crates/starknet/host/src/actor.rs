@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use eyre::eyre;
@@ -45,9 +45,7 @@ pub struct HostState {
 }
 
 impl HostState {
-    pub fn new(host: MockHost, home_dir: PathBuf) -> Self {
-        let db_path = home_dir.join("db").join("blocks.db");
-
+    pub fn new(host: MockHost, db_path: impl AsRef<Path>) -> Self {
         Self {
             height: Height::new(0, 0),
             round: Round::Nil,
@@ -244,10 +242,15 @@ impl StarknetHost {
         gossip_consensus: GossipConsensusRef<MockContext>,
         metrics: Metrics,
     ) -> Result<HostRef, SpawnErr> {
+        let db_dir = home_dir.join("db");
+        std::fs::create_dir_all(&db_dir).map_err(|e| SpawnErr::StartupFailed(e.into()))?;
+
+        let db_path = db_dir.join("blocks.db");
+
         let (actor_ref, _) = Actor::spawn(
             None,
             Self::new(mempool, gossip_consensus, metrics),
-            HostState::new(host, home_dir),
+            HostState::new(host, db_path),
         )
         .await?;
 
