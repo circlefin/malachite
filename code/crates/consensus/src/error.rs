@@ -28,4 +28,8 @@ where
     /// The driver failed to process an input.
     #[error("Driver failed to process input, reason: {0}")]
     DriverProcess(DriverError<Ctx>),
+
+    /// The validator set was not found at the given height.
+    #[error("Validator set not found at height {0}")]
+    ValidatorSetNotFound(Ctx::Height),
 }
