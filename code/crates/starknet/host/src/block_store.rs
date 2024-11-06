@@ -7,14 +7,12 @@ use redb::ReadableTable;
 use thiserror::Error;
 
 use malachite_blocksync::SyncedBlock;
-use malachite_common::Value;
-use malachite_common::{Certificate, Proposal, SignedProposal, SignedVote};
-use malachite_proto::{Error as ProtoError, Protobuf};
-use malachite_starknet_p2p_proto as proto;
-use malachite_starknet_p2p_types::{Block, Height, Transaction, Transactions};
+use malachite_common::{Certificate, Proposal, SignedProposal, SignedVote, Value};
 
 use crate::codec::{decode_sync_block, encode_synced_block};
 use crate::mock::context::MockContext;
+use crate::proto::{self as proto, Error as ProtoError, Protobuf};
+use crate::types::{Block, Height, Transaction, Transactions};
 
 #[derive(Clone, Debug)]
 pub struct DecidedBlock {

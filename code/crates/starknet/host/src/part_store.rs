@@ -4,7 +4,6 @@ use std::sync::Arc;
 use derive_where::derive_where;
 
 use malachite_common::{Context, Round, ValueId};
-pub type Sequence = u64;
 
 // This is a temporary store implementation for proposal parts
 //
