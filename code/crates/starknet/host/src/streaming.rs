@@ -6,7 +6,8 @@ use derive_where::derive_where;
 use malachite_actors::util::streaming::{Sequence, StreamId, StreamMessage};
 use malachite_common::Round;
 use malachite_gossip_mempool::PeerId;
-use malachite_starknet_p2p_types::{Address, Height, ProposalInit, ProposalPart};
+
+use crate::types::{Address, Height, ProposalInit, ProposalPart};
 
 struct MinSeq<T>(StreamMessage<T>);
 

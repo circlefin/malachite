@@ -1,17 +1,17 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use malachite_blocksync::SyncedBlock;
-use malachite_common::Value;
-use malachite_common::{Certificate, Proposal, SignedProposal, SignedVote};
-use malachite_proto::Protobuf;
-use malachite_starknet_p2p_proto as proto;
-use malachite_starknet_p2p_types::{Block, Height, Transaction, Transactions};
 use prost::Message;
 use redb::ReadableTable;
 
+use malachite_blocksync::SyncedBlock;
+use malachite_common::Value;
+use malachite_common::{Certificate, Proposal, SignedProposal, SignedVote};
+
 use crate::codec::{decode_sync_block, encode_synced_block};
 use crate::mock::context::MockContext;
+use crate::proto::{self as proto, Protobuf};
+use crate::types::{Block, Height, Transaction, Transactions};
 
 #[derive(Clone, Debug)]
 pub struct DecidedBlock {

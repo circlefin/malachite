@@ -5,12 +5,10 @@ use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_common::{Certificate, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Bytes;
-use malachite_proto::{Error as ProtoError, Protobuf};
 
-use malachite_starknet_p2p_proto::consensus_message::Messages;
-use malachite_starknet_p2p_proto::ConsensusMessage;
-use malachite_starknet_p2p_proto::{self as proto};
-use malachite_starknet_p2p_types::{self as p2p, Height, ProposalPart};
+use crate::proto::consensus_message::Messages;
+use crate::proto::{self as proto, ConsensusMessage, Error as ProtoError, Protobuf};
+use crate::types::{self as p2p, Height, ProposalPart};
 
 use malachite_blocksync as blocksync;
 
