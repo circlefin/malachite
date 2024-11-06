@@ -17,10 +17,6 @@ pub trait Host {
     type Precommit;
     type Validator;
 
-    // NOTE: Signing of message are left to the `Context` for now
-    // type Message;
-    // type SignedMessage;
-
     /// Initiate building a proposal.
     ///
     /// Params:
@@ -81,11 +77,10 @@ pub trait Host {
     /// - voting_power - used for quorum calculations.
     async fn validators(&self, height: Self::Height) -> Option<BTreeSet<Self::Validator>>;
 
-    // NOTE: Signing of message are left to the `Context` for now
-    // /// Fills in the signature field of Message.
-    // async fn sign(&self, message: Self::Message) -> Self::SignedMessage;
+    /// Sign the given message hash
+    async fn sign(&self, message: Self::MessageHash) -> Self::Signature;
 
-    /// Validates the signature field of a message. If None returns false.
+    /// Validates the signature of a message hash.
     async fn validate_signature(
         &self,
         hash: &Self::MessageHash,

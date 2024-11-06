@@ -17,13 +17,14 @@ use malachite_blocksync::SyncedBlock;
 use malachite_common::{Extension, Proposal, Round, Validity, Value};
 use malachite_metrics::Metrics;
 use malachite_proto::Protobuf;
+use malachite_starknet_p2p_types::ProposalInit;
 
 use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
-use crate::mock::host::MockHost;
+use crate::mock::host::{compute_proposal_hash, MockHost};
 use crate::streaming::PartStreamsMap;
-use crate::types::{Address, BlockHash, Height, ProposalPart, ValidatorSet};
+use crate::types::{Address, BlockHash, Hash, Height, ProposalPart, Signature, ValidatorSet};
 use crate::Host;
 
 pub struct StarknetHost {
@@ -56,14 +57,15 @@ impl HostState {
     }
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
-    pub fn build_value_from_parts(
+    pub async fn build_value_from_parts(
         &self,
         parts: &[Arc<ProposalPart>],
         height: Height,
         round: Round,
     ) -> Option<ProposedValue<MockContext>> {
-        let (valid_round, value, validator_address, validity, extension) =
-            self.build_proposal_content_from_parts(parts, height, round)?;
+        let (valid_round, value, validator_address, validity, extension) = self
+            .build_proposal_content_from_parts(parts, height, round)
+            .await?;
 
         Some(ProposedValue {
             validator_address,
@@ -77,7 +79,7 @@ impl HostState {
     }
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
-    pub fn build_proposal_content_from_parts(
+    pub async fn build_proposal_content_from_parts(
         &self,
         parts: &[Arc<ProposalPart>],
         height: Height,
@@ -97,7 +99,7 @@ impl HostState {
             debug!("Reassembling a Proposal we might have seen before: {init:?}");
         }
 
-        let Some(_fin) = parts.iter().find_map(|part| part.as_fin()) else {
+        let Some(fin) = parts.iter().find_map(|part| part.as_fin()) else {
             error!("No Fin part found in the proposal parts");
             return None;
         };
@@ -117,9 +119,10 @@ impl HostState {
         let block_hash = {
             let mut block_hasher = sha3::Keccak256::new();
             for part in parts {
-                if part.as_init().is_some() {
-                    // We don't want to hash over the init so restreaming returns the same hash
-                    // TODO - we should probably still include height.
+                if part.as_init().is_some() || part.as_fin().is_some() {
+                    // NOTE: We do not hash over Init, so restreaming returns the same hash
+                    // NOTE: We do not hash over Fin, because Fin includes a signature over the block hash
+                    // TODO: we should probably still include height
                     continue;
                 }
 
@@ -131,8 +134,11 @@ impl HostState {
 
         trace!(%block_hash, "Computed block hash");
 
-        // TODO: How to compute validity?
-        let validity = Validity::Valid;
+        let proposal_hash = compute_proposal_hash(init, &block_hash);
+
+        let validity = self
+            .verify_proposal_validity(init, &proposal_hash, &fin.signature)
+            .await?;
 
         Some((
             valid_round,
@@ -141,6 +147,28 @@ impl HostState {
             validity,
             extension,
         ))
+    }
+
+    async fn verify_proposal_validity(
+        &self,
+        init: &ProposalInit,
+        proposal_hash: &Hash,
+        signature: &Signature,
+    ) -> Option<Validity> {
+        let validators = self.host.validators(init.height).await?;
+
+        let public_key = validators
+            .iter()
+            .find(|v| v.address == init.proposer)
+            .map(|v| v.public_key);
+
+        let Some(public_key) = public_key else {
+            error!(proposer = %init.proposer, "No validator found for the proposer");
+            return None;
+        };
+
+        let valid = public_key.verify(&proposal_hash.as_felt(), signature);
+        Some(Validity::from_bool(valid))
     }
 
     #[tracing::instrument(skip_all, fields(
@@ -190,7 +218,7 @@ impl HostState {
             "All parts have been received already, building value"
         );
 
-        let result = self.build_value_from_parts(&parts, height, round);
+        let result = self.build_value_from_parts(&parts, height, round).await;
 
         if let Some(ref proposed_value) = result {
             self.host
@@ -353,7 +381,7 @@ impl Actor for StarknetHost {
                     Extension::from(bytes)
                 });
 
-                if let Some(value) = state.build_value_from_parts(&parts, height, round) {
+                if let Some(value) = state.build_value_from_parts(&parts, height, round).await {
                     reply_to.send(LocallyProposedValue::new(
                         value.height,
                         value.round,
