@@ -162,27 +162,27 @@ async fn run_build_proposal_task(
 
     let block_hash = BlockHash::new(block_hasher.finalize().into());
 
-    // Compute the proposal signature
-    let signature = {
-        let mut hasher = sha3::Keccak256::new();
-
-        // 1. Block number
-        hasher.update(height.block_number.to_be_bytes());
-        // 2. Fork id
-        hasher.update(height.fork_id.to_be_bytes());
-        // 3. Proposal round
-        hasher.update(round.as_i64().to_be_bytes());
-        // 4. Valid round
-        hasher.update(Round::Nil.as_i64().to_be_bytes());
-        // 5. Block hash
-        hasher.update(block_hash.as_bytes());
-
-        let hash = Hash::new(hasher.finalize().into());
-        private_key.sign(&hash.as_felt())
-    };
-
     // Fin
     {
+        // Compute the proposal signature
+        let signature = {
+            let mut hasher = sha3::Keccak256::new();
+
+            // 1. Block number
+            hasher.update(height.block_number.to_be_bytes());
+            // 2. Fork id
+            hasher.update(height.fork_id.to_be_bytes());
+            // 3. Proposal round
+            hasher.update(round.as_i64().to_be_bytes());
+            // 4. Valid round
+            hasher.update(Round::Nil.as_i64().to_be_bytes());
+            // 5. Block hash
+            hasher.update(block_hash.as_bytes());
+
+            let hash = Hash::new(hasher.finalize().into());
+            private_key.sign(&hash.as_felt())
+        };
+
         let part = ProposalPart::Fin(ProposalFin { signature });
         tx_part.send(part).await?;
         sequence += 1;
