@@ -191,6 +191,14 @@ impl Db {
         let (key, _) = table.last().ok()??;
         Some(key.value())
     }
+
+    fn create_tables(&self) -> Result<(), StoreError> {
+        let tx = self.db.begin_write()?;
+        // Implicitly creates the "blocks" table if it does not exists
+        let _ = tx.open_table(BLOCK_TABLE)?;
+        tx.commit()?;
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -200,9 +208,10 @@ pub struct BlockStore {
 
 impl BlockStore {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, StoreError> {
-        Ok(Self {
-            db: Arc::new(Db::new(path)?),
-        })
+        let db = Db::new(path)?;
+        db.create_tables()?;
+
+        Ok(Self { db: Arc::new(db) })
     }
 
     pub fn first_height(&self) -> Option<Height> {
