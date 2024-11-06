@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use eyre::eyre;
 
-use malachite_starknet_p2p_types::ProposalInit;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use rand::RngCore;
 use sha3::Digest;
@@ -18,6 +17,7 @@ use malachite_blocksync::SyncedBlock;
 use malachite_common::{Extension, Proposal, Round, Validity, Value};
 use malachite_metrics::Metrics;
 use malachite_proto::Protobuf;
+use malachite_starknet_p2p_types::ProposalInit;
 
 use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
