@@ -8,5 +8,4 @@ pub mod gossip_consensus;
 pub mod gossip_mempool;
 pub mod host;
 pub mod node;
-pub mod prelude;
 pub mod util;

@@ -9,22 +9,17 @@ publish.workspace    = true
 [lints]
 workspace = true
 
-[features]
-std = []
-debug = ["std"]
-
 [dependencies]
 malachite-common.workspace           = true
+malachite-config.workspace           = true
 malachite-blocksync.workspace        = true
-bytes            = { workspace = true, features = ["serde"] }
 malachite-consensus.workspace        = true
 malachite-gossip-consensus.workspace = true
 malachite-gossip-mempool.workspace   = true
 malachite-metrics.workspace          = true
-malachite-config.workspace             = true
-malachite-proto.workspace            = true
 
 async-trait        = { workspace = true }
+bytes              = { workspace = true, features = ["serde"] }
 derive-where       = { workspace = true }
 eyre               = { workspace = true }
 libp2p             = { workspace = true }
