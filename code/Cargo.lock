@@ -2644,6 +2644,7 @@ dependencies = [
  "bytesize",
  "derive-where",
  "eyre",
+ "itertools",
  "libp2p-identity",
  "malachite-actors",
  "malachite-blocksync",
@@ -2666,6 +2667,7 @@ dependencies = [
  "sha3",
  "starknet-core",
  "tempfile",
+ "thiserror",
  "tokio",
  "tracing",
 ]

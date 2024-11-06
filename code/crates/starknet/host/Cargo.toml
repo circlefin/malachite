@@ -27,6 +27,7 @@ starknet-core.workspace   = true
 async-trait.workspace     = true
 bytesize.workspace        = true
 derive-where.workspace    = true
+itertools.workspace       = true
 libp2p-identity.workspace = true
 eyre.workspace            = true
 prost.workspace           = true
@@ -37,6 +38,7 @@ sha3.workspace            = true
 serde_json.workspace      = true
 tokio.workspace           = true
 tracing.workspace         = true
+thiserror.workspace       = true
 
 [lints]
 workspace = true

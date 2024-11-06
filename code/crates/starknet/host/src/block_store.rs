@@ -1,16 +1,17 @@
+use std::ops::RangeBounds;
 use std::path::Path;
 use std::sync::Arc;
 
 use prost::Message;
 use redb::ReadableTable;
+use thiserror::Error;
 
 use malachite_blocksync::SyncedBlock;
-use malachite_common::Value;
-use malachite_common::{Certificate, Proposal, SignedProposal, SignedVote};
+use malachite_common::{Certificate, Proposal, SignedProposal, SignedVote, Value};
 
 use crate::codec::{decode_sync_block, encode_synced_block};
 use crate::mock::context::MockContext;
-use crate::proto::{self as proto, Protobuf};
+use crate::proto::{self as proto, Error as ProtoError, Protobuf};
 use crate::types::{Block, Height, Transaction, Transactions};
 
 #[derive(Clone, Debug)]
@@ -21,15 +22,15 @@ pub struct DecidedBlock {
 }
 
 impl DecidedBlock {
-    fn to_bytes(&self) -> Vec<u8> {
+    fn into_bytes(self) -> Result<Vec<u8>, ProtoError> {
         let synced_block = SyncedBlock {
-            block_bytes: self.block.to_bytes().unwrap(),
-            proposal: self.proposal.clone(),
-            certificate: self.certificate.clone(),
+            block_bytes: self.block.to_bytes()?,
+            proposal: self.proposal,
+            certificate: self.certificate,
         };
 
-        let proto = encode_synced_block(synced_block).unwrap();
-        proto.encode_to_vec()
+        let proto = encode_synced_block(synced_block)?;
+        Ok(proto.encode_to_vec())
     }
 
     fn from_bytes(bytes: &[u8]) -> Option<Self> {
@@ -45,9 +46,28 @@ impl DecidedBlock {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum StoreError {
-    Database(redb::DatabaseError),
+    #[error("Database error: {0}")]
+    Database(#[from] redb::DatabaseError),
+
+    #[error("Storage error: {0}")]
+    Storage(#[from] redb::StorageError),
+
+    #[error("Table error: {0}")]
+    Table(#[from] redb::TableError),
+
+    #[error("Commit error: {0}")]
+    Commit(#[from] redb::CommitError),
+
+    #[error("Transaction error: {0}")]
+    Transaction(#[from] redb::TransactionError),
+
+    #[error("Failed to encode/decode Protobuf: {0}")]
+    Protobuf(#[from] ProtoError),
+
+    #[error("Failed to join on task: {0}")]
+    TaskJoin(#[from] tokio::task::JoinError),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -106,42 +126,54 @@ impl Db {
         })
     }
 
-    fn keys(&self) -> Vec<Height> {
-        let tx = self.db.begin_read().unwrap();
-        let table = tx.open_table(BLOCK_TABLE).unwrap();
-        table
-            .iter()
-            .unwrap()
-            .filter_map(|result| result.ok())
-            .map(|(key, _)| key.value())
-            .collect()
+    fn get(&self, height: Height) -> Result<Option<DecidedBlock>, StoreError> {
+        let tx = self.db.begin_read()?;
+        let table = tx.open_table(BLOCK_TABLE)?;
+        let value = table.get(&height)?;
+        let block = value.and_then(|value| DecidedBlock::from_bytes(&value.value()));
+        Ok(block)
     }
 
-    fn get(&self, height: Height) -> Option<DecidedBlock> {
-        let tx = self.db.begin_read().unwrap();
-        let table = tx.open_table(BLOCK_TABLE).unwrap();
-        let value = table.get(&height).unwrap()?;
-        DecidedBlock::from_bytes(&value.value())
-    }
-
-    fn insert(&self, decided_block: DecidedBlock) {
+    fn insert(&self, decided_block: DecidedBlock) -> Result<(), StoreError> {
         let height = decided_block.block.height;
 
-        let tx = self.db.begin_write().unwrap();
+        let tx = self.db.begin_write()?;
         {
-            let mut table = tx.open_table(BLOCK_TABLE).unwrap();
-            table.insert(height, decided_block.to_bytes()).unwrap();
+            let mut table = tx.open_table(BLOCK_TABLE)?;
+            table.insert(height, decided_block.into_bytes()?)?;
         }
-        tx.commit().unwrap();
+        tx.commit()?;
+        Ok(())
     }
 
-    fn prune(&self, retain_height: Height) {
+    fn range<Table>(
+        &self,
+        table: &Table,
+        range: impl RangeBounds<Height>,
+    ) -> Result<Vec<Height>, StoreError>
+    where
+        Table: redb::ReadableTable<HeightKey, Vec<u8>>,
+    {
+        Ok(table
+            .range(range)?
+            .flatten()
+            .map(|(key, _)| key.value())
+            .collect::<Vec<_>>())
+    }
+
+    fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
         let tx = self.db.begin_write().unwrap();
-        {
-            let mut table = tx.open_table(BLOCK_TABLE).unwrap();
-            table.retain(|key, _| key > retain_height).unwrap();
-        }
-        tx.commit().unwrap();
+        let pruned = {
+            let mut table = tx.open_table(BLOCK_TABLE)?;
+            let keys = self.range(&table, ..retain_height)?;
+            for key in &keys {
+                table.remove(key)?;
+            }
+            keys
+        };
+        tx.commit()?;
+
+        Ok(pruned)
     }
 
     fn first_key(&self) -> Option<Height> {
@@ -157,6 +189,14 @@ impl Db {
         let (key, _) = table.last().ok()??;
         Some(key.value())
     }
+
+    fn create_tables(&self) -> Result<(), StoreError> {
+        let tx = self.db.begin_write()?;
+        // Implicitly creates the "blocks" table if it does not exists
+        let _ = tx.open_table(BLOCK_TABLE)?;
+        tx.commit()?;
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -166,9 +206,10 @@ pub struct BlockStore {
 
 impl BlockStore {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, StoreError> {
-        Ok(Self {
-            db: Arc::new(Db::new(path)?),
-        })
+        let db = Db::new(path)?;
+        db.create_tables()?;
+
+        Ok(Self { db: Arc::new(db) })
     }
 
     pub fn first_height(&self) -> Option<Height> {
@@ -179,15 +220,9 @@ impl BlockStore {
         self.db.last_key()
     }
 
-    pub fn keys(&self) -> Vec<Height> {
-        self.db.keys()
-    }
-
-    pub async fn get(&self, height: Height) -> Option<DecidedBlock> {
-        let db = self.db.clone();
-        tokio::task::spawn_blocking(move || db.get(height))
-            .await
-            .unwrap()
+    pub async fn get(&self, height: Height) -> Result<Option<DecidedBlock>, StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.get(height)).await?
     }
 
     pub async fn store(
@@ -195,7 +230,7 @@ impl BlockStore {
         proposal: &SignedProposal<MockContext>,
         txes: &[Transaction],
         commits: &[SignedVote<MockContext>],
-    ) {
+    ) -> Result<(), StoreError> {
         let block_id = proposal.value().id();
 
         let certificate = Certificate {
@@ -212,20 +247,12 @@ impl BlockStore {
             certificate,
         };
 
-        let db = self.db.clone();
-        tokio::task::spawn_blocking(move || {
-            db.insert(decided_block);
-        })
-        .await
-        .unwrap();
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.insert(decided_block)).await?
     }
 
-    pub async fn prune(&self, retain_height: Height) {
-        let db = self.db.clone();
-        tokio::task::spawn_blocking(move || {
-            db.prune(retain_height);
-        })
-        .await
-        .unwrap();
+    pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.prune(retain_height)).await?
     }
 }

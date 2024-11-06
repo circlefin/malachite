@@ -1,7 +1,8 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use eyre::eyre;
+use itertools::Itertools;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use rand::RngCore;
 use sha3::Digest;
@@ -44,13 +45,13 @@ pub struct HostState {
 }
 
 impl HostState {
-    pub fn new(host: MockHost, home_dir: PathBuf) -> Self {
+    pub fn new(host: MockHost, db_path: impl AsRef<Path>) -> Self {
         Self {
             height: Height::new(0, 0),
             round: Round::Nil,
             proposer: None,
             host,
-            block_store: BlockStore::new(home_dir.join("blocks.db")).unwrap(),
+            block_store: BlockStore::new(db_path).unwrap(),
             part_streams_map: PartStreamsMap::default(),
             next_stream_id: StreamId::default(),
         }
@@ -241,10 +242,15 @@ impl StarknetHost {
         gossip_consensus: GossipConsensusRef<MockContext>,
         metrics: Metrics,
     ) -> Result<HostRef, SpawnErr> {
+        let db_dir = home_dir.join("db");
+        std::fs::create_dir_all(&db_dir).map_err(|e| SpawnErr::StartupFailed(e.into()))?;
+
+        let db_path = db_dir.join("blocks.db");
+
         let (actor_ref, _) = Actor::spawn(
             None,
             Self::new(mempool, gossip_consensus, metrics),
-            HostState::new(host, home_dir),
+            HostState::new(host, db_path),
         )
         .await?;
 
@@ -268,13 +274,23 @@ impl StarknetHost {
 
         // Compute the height to retain blocks higher than
         let retain_height = max_height.as_u64().saturating_sub(max_retain_blocks);
-        if retain_height == 0 {
+        if retain_height <= 1 {
             // No need to prune anything, since we would retain every blocks
             return;
         }
 
         let retain_height = Height::new(retain_height, max_height.fork_id);
-        state.block_store.prune(retain_height).await;
+        match state.block_store.prune(retain_height).await {
+            Ok(pruned) => {
+                debug!(
+                    %retain_height, pruned = pruned.iter().join(", "),
+                    "Pruned the block store"
+                );
+            }
+            Err(e) => {
+                error!(%e, %retain_height, "Failed to prune the block store");
+            }
+        }
     }
 }
 
@@ -530,10 +546,13 @@ impl Actor for StarknetHost {
                 }
 
                 // Build the block from proposal parts and commits and store it
-                state
+                if let Err(e) = state
                     .block_store
                     .store(&proposal, &all_txes, &commits)
-                    .await;
+                    .await
+                {
+                    error!(%e, %height, %round, "Failed to store the block");
+                }
 
                 // Update metrics
                 let block_size: usize = all_parts.iter().map(|p| p.size_bytes()).sum();
@@ -585,7 +604,7 @@ impl Actor for StarknetHost {
                 debug!(%height, "Received request for block");
 
                 match state.block_store.get(height).await {
-                    None => {
+                    Ok(None) => {
                         let min = state.block_store.first_height().unwrap_or_default();
                         let max = state.block_store.last_height().unwrap_or_default();
 
@@ -593,7 +612,7 @@ impl Actor for StarknetHost {
 
                         reply_to.send(None)?;
                     }
-                    Some(block) => {
+                    Ok(Some(block)) => {
                         let block = SyncedBlock {
                             proposal: block.proposal,
                             block_bytes: block.block.to_bytes().unwrap(),
@@ -602,6 +621,10 @@ impl Actor for StarknetHost {
 
                         debug!(%height, "Found decided block in store");
                         reply_to.send(Some(block))?;
+                    }
+                    Err(e) => {
+                        error!(%e, %height, "Failed to get decided block");
+                        reply_to.send(None)?;
                     }
                 }
 
