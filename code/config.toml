@@ -226,11 +226,6 @@ flavor = "single_threaded"
 #######################################################
 [test]
 
-# The name of the application to runtime
-# Available values: starknet, test
-# Override with MALACHITE__TEST__APP env variable
-app = "starknet"
-
 # Override with MALACHITE__TEST__TX_SIZE env variable
 tx_size = "1 KiB"
 # Override with MALACHITE__TEST__TXS_PER_PART env variable
