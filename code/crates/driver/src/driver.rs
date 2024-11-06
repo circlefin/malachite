@@ -3,8 +3,8 @@ use alloc::vec::Vec;
 use core::fmt;
 
 use malachite_common::{
-    Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep, Validator,
-    ValidatorSet, Validity, Vote,
+    CommitCertificate, Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
+    Validator, ValidatorSet, Validity, Vote,
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
@@ -43,6 +43,9 @@ where
 
     /// The vote keeper.
     pub(crate) vote_keeper: VoteKeeper<Ctx>,
+
+    /// The certificate keeper
+    pub(crate) certificates: Vec<CommitCertificate<Ctx>>,
 
     /// The state of the round state machine.
     pub(crate) round_state: RoundState<Ctx>,
@@ -86,6 +89,7 @@ where
             round_state,
             proposer: None,
             pending_inputs: vec![],
+            certificates: vec![],
         }
     }
 
@@ -219,6 +223,7 @@ where
     /// Apply the given input to the state machine, returning the output, if any.
     fn apply(&mut self, input: Input<Ctx>) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         match input {
+            Input::CommitCertificate(certificate) => self.apply_commit_certificate(certificate),
             Input::NewRound(height, round, proposer) => {
                 self.apply_new_round(height, round, proposer)
             }
@@ -227,6 +232,26 @@ where
             Input::Vote(vote) => self.apply_vote(vote),
             Input::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
         }
+    }
+
+    fn apply_commit_certificate(
+        &mut self,
+        certificate: CommitCertificate<Ctx>,
+    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+        if self.height() != certificate.height {
+            return Err(Error::InvalidCertificateHeight {
+                certificate_height: certificate.height,
+                consensus_height: self.height(),
+            });
+        }
+
+        let round = certificate.round;
+
+        match self.store_and_multiplex_certificate(certificate) {
+            Some(round_input) => self.apply_input(round, round_input),
+            None => Ok(None),
+        }
+        //self.apply_input(certificate.round, RoundInput::CommitCertificate(certificate))
     }
 
     fn apply_new_round(

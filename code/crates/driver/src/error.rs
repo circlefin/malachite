@@ -34,6 +34,14 @@ where
         /// Consensus height
         consensus_height: Ctx::Height,
     },
+
+    /// Received a certificate for another height
+    InvalidCertificateHeight {
+        /// Certificate height
+        certificate_height: Ctx::Height,
+        /// Consensus height
+        consensus_height: Ctx::Height,
+    },
 }
 
 impl<Ctx> fmt::Display for Error<Ctx>
@@ -64,6 +72,15 @@ where
                 write!(
                         f,
                         "Received vote for height {vote_height} different from consensus height {consensus_height}"
+                    )
+            }
+            Error::InvalidCertificateHeight {
+                certificate_height,
+                consensus_height,
+            } => {
+                write!(
+                        f,
+                        "Received certificate for height {certificate_height} different from consensus height {consensus_height}"
                     )
             }
         }

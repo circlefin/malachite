@@ -1,10 +1,10 @@
-use crate::prelude::*;
+use crate::{handle::driver::apply_driver_input, prelude::*};
 use bytes::Bytes;
 
 pub async fn on_received_synced_block<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
     block_bytes: Bytes,
     certificate: CommitCertificate<Ctx>,
 ) -> Result<(), Error<Ctx>>
@@ -17,10 +17,6 @@ where
         "Processing certificate"
     );
 
-    // TODO - verify aggregated signature and send the majority to driver
-    // on_proposal(co, state, metrics, proposal.clone()).await?;
-    // on_two_third_precommits(co, state, metrics, commit).await?;
-
     perform!(
         co,
         Effect::SyncedBlock {
@@ -30,6 +26,16 @@ where
             block_bytes,
         }
     );
+
+    // TODO - verify aggregated signature
+    // Go to Commit step via L49
+    apply_driver_input(
+        co,
+        state,
+        metrics,
+        DriverInput::CommitCertificate(certificate),
+    )
+    .await?;
 
     Ok(())
 }
