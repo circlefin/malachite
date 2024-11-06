@@ -120,8 +120,8 @@ impl HostState {
             let mut block_hasher = sha3::Keccak256::new();
             for part in parts {
                 if part.as_init().is_some() || part.as_fin().is_some() {
-                    // NOTE: We don't want to hash over Init, so restreaming returns the same hash
-                    // NOTE: We do not hash over Fin, because Fin includes the block hash
+                    // NOTE: We do not hash over Init, so restreaming returns the same hash
+                    // NOTE: We do not hash over Fin, because Fin includes a signature over the block hash
                     // TODO: we should probably still include height
                     continue;
                 }
