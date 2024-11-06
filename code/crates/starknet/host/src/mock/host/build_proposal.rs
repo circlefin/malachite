@@ -21,6 +21,7 @@ pub async fn build_proposal_task(
     height: Height,
     round: Round,
     proposer: Address,
+    private_key: PrivateKey,
     params: MockParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -31,6 +32,7 @@ pub async fn build_proposal_task(
         height,
         round,
         proposer,
+        private_key,
         params,
         deadline,
         mempool,
@@ -47,6 +49,7 @@ async fn run_build_proposal_task(
     height: Height,
     round: Round,
     proposer: Address,
+    private_key: PrivateKey,
     params: MockParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -157,11 +160,30 @@ async fn run_build_proposal_task(
         sequence += 1;
     }
 
+    let block_hash = BlockHash::new(block_hasher.finalize().into());
+
+    // Compute the proposal signature
+    let signature = {
+        let mut hasher = sha3::Keccak256::new();
+
+        // 1. Block number
+        hasher.update(height.block_number.to_be_bytes());
+        // 2. Fork id
+        hasher.update(height.fork_id.to_be_bytes());
+        // 3. Proposal round
+        hasher.update(round.as_i64().to_be_bytes());
+        // 4. Valid round
+        hasher.update(Round::Nil.as_i64().to_be_bytes());
+        // 5. Block hash
+        hasher.update(block_hash.as_bytes());
+
+        let hash = Hash::new(hasher.finalize().into());
+        private_key.sign(&hash.as_felt())
+    };
+
     // Fin
     {
-        let part = ProposalPart::Fin(ProposalFin {});
-
-        block_hasher.update(part.to_sign_bytes());
+        let part = ProposalPart::Fin(ProposalFin { signature });
         tx_part.send(part).await?;
         sequence += 1;
     }
@@ -169,7 +191,6 @@ async fn run_build_proposal_task(
     // Close the channel to signal no more parts to come
     drop(tx_part);
 
-    let block_hash = BlockHash::new(block_hasher.finalize().into());
     let block_size = ByteSize::b(block_size as u64);
 
     trace!(

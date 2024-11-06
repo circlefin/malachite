@@ -36,6 +36,7 @@ pub struct MockHost {
     pub params: MockParams,
     pub mempool: MempoolRef,
     pub address: Address,
+    pub private_key: PrivateKey,
     pub validator_set: ValidatorSet,
     pub part_store: PartStore<MockContext>,
 }
@@ -45,12 +46,14 @@ impl MockHost {
         params: MockParams,
         mempool: MempoolRef,
         address: Address,
+        private_key: PrivateKey,
         validator_set: ValidatorSet,
     ) -> Self {
         Self {
             params,
             mempool,
             address,
+            private_key,
             validator_set,
             part_store: Default::default(),
         }
@@ -86,6 +89,7 @@ impl Host for MockHost {
                 height,
                 round,
                 self.address.clone(),
+                self.private_key,
                 self.params,
                 deadline,
                 self.mempool.clone(),
@@ -155,15 +159,16 @@ impl Host for MockHost {
     // /// Fills in the signature field of Message.
     // async fn sign(&self, message: Self::Message) -> Self::SignedMessage;
 
-    /// Validates the signature field of a message. If None returns false.
-    async fn validate_signature(
-        &self,
-        _hash: &Self::MessageHash,
-        _signature: &Self::Signature,
-        _public_key: &Self::PublicKey,
-    ) -> bool {
-        todo!()
-    }
+    // NOTE: Signing of message are left to the `Context` for now
+    // /// Validates the signature field of a message. If None returns false.
+    // async fn validate_signature(
+    //     &self,
+    //     _hash: &Self::MessageHash,
+    //     _signature: &Self::Signature,
+    //     _public_key: &Self::PublicKey,
+    // ) -> bool {
+    //     todo!()
+    // }
 
     /// Update the Context about which decision has been made. It is responsible for pinging any
     /// relevant components in the node to update their states accordingly.

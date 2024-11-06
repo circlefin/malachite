@@ -85,13 +85,14 @@ pub trait Host {
     // /// Fills in the signature field of Message.
     // async fn sign(&self, message: Self::Message) -> Self::SignedMessage;
 
-    /// Validates the signature field of a message. If None returns false.
-    async fn validate_signature(
-        &self,
-        hash: &Self::MessageHash,
-        signature: &Self::Signature,
-        public_key: &Self::PublicKey,
-    ) -> bool;
+    // NOTE: Signing of message are left to the `Context` for now
+    // /// Validates the signature field of a message. If None returns false.
+    // async fn validate_signature(
+    //     &self,
+    //     hash: &Self::MessageHash,
+    //     signature: &Self::Signature,
+    //     public_key: &Self::PublicKey,
+    // ) -> bool;
 
     /// Update the Context about which decision has been made. It is responsible for pinging any
     /// relevant components in the node to update their states accordingly.
