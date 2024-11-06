@@ -163,16 +163,19 @@ impl Db {
             .collect::<Vec<_>>())
     }
 
-    fn prune(&self, retain_height: Height) -> Result<(), StoreError> {
+    fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
         let tx = self.db.begin_write().unwrap();
-        {
+        let pruned = {
             let mut table = tx.open_table(BLOCK_TABLE)?;
-            for key in self.range(&table, ..retain_height)? {
-                table.remove(&key)?;
+            let keys = self.range(&table, ..retain_height)?;
+            for key in &keys {
+                table.remove(key)?;
             }
-        }
+            keys
+        };
         tx.commit()?;
-        Ok(())
+
+        Ok(pruned)
     }
 
     fn first_key(&self) -> Option<Height> {
@@ -241,7 +244,7 @@ impl BlockStore {
         tokio::task::spawn_blocking(move || db.insert(decided_block)).await?
     }
 
-    pub async fn prune(&self, retain_height: Height) -> Result<(), StoreError> {
+    pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.prune(retain_height)).await?
     }

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use eyre::eyre;
 
+use itertools::Itertools;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use rand::RngCore;
 use sha3::Digest;
@@ -268,14 +269,22 @@ impl StarknetHost {
 
         // Compute the height to retain blocks higher than
         let retain_height = max_height.as_u64().saturating_sub(max_retain_blocks);
-        if retain_height == 0 {
+        if retain_height <= 1 {
             // No need to prune anything, since we would retain every blocks
             return;
         }
 
         let retain_height = Height::new(retain_height, max_height.fork_id);
-        if let Err(e) = state.block_store.prune(retain_height).await {
-            error!(%e, %retain_height, "Failed to prune the block store");
+        match state.block_store.prune(retain_height).await {
+            Ok(pruned) => {
+                debug!(
+                    %retain_height, pruned = pruned.iter().join(", "),
+                    "Pruned the block store"
+                );
+            }
+            Err(e) => {
+                error!(%e, %retain_height, "Failed to prune the block store");
+            }
         }
     }
 }
