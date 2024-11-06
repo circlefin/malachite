@@ -47,6 +47,36 @@ pub async fn crash_restart() {
         .await
 }
 
+#[tokio::test]
+pub async fn aggressive_pruning() {
+    const HEIGHT: u64 = 15;
+
+    // Node 1 starts with 10 voting power.
+    let n1 = TestNode::new(1).vp(10).start().wait_until(HEIGHT).success();
+    let n2 = TestNode::new(2).vp(10).start().wait_until(HEIGHT).success();
+
+    let n3 = TestNode::new(3)
+        .vp(5)
+        .start()
+        .wait_until(2)
+        .crash()
+        .restart_after(Duration::from_secs(5))
+        .wait_until(HEIGHT)
+        .success();
+
+    Test::new([n1, n2, n3])
+        .run_with_custom_config(
+            App::Starknet,           // Application to run
+            Duration::from_secs(60), // Timeout for the whole test
+            TestParams {
+                enable_blocksync: true, // Enable BlockSync
+                max_retain_blocks: 10,  // Prune blocks older than 10
+                ..Default::default()
+            },
+        )
+        .await
+}
+
 // TODO: Enable this test once we can start the network without everybody being online
 // #[tokio::test]
 // pub async fn blocksync_start_late() {

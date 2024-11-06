@@ -65,6 +65,7 @@ pub struct TestParams {
     pub txs_per_part: usize,
     pub vote_extensions: Option<ByteSize>,
     pub value_payload: ValuePayload,
+    pub max_retain_blocks: usize,
 }
 
 impl Default for TestParams {
@@ -77,6 +78,7 @@ impl Default for TestParams {
             txs_per_part: 256,
             vote_extensions: None,
             value_payload: ValuePayload::default(),
+            max_retain_blocks: 50,
         }
     }
 }
@@ -91,6 +93,7 @@ impl TestParams {
         config.test.txs_per_part = self.txs_per_part;
         config.test.vote_extensions.enabled = self.vote_extensions.is_some();
         config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();
+        config.test.max_retain_blocks = self.max_retain_blocks;
     }
 }
 
