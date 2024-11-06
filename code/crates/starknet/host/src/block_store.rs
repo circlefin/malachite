@@ -1,3 +1,4 @@
+use std::ops::RangeBounds;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -147,17 +148,26 @@ impl Db {
         Ok(())
     }
 
+    fn range<Table>(
+        &self,
+        table: &Table,
+        range: impl RangeBounds<Height>,
+    ) -> Result<Vec<Height>, StoreError>
+    where
+        Table: redb::ReadableTable<HeightKey, Vec<u8>>,
+    {
+        Ok(table
+            .range(range)?
+            .flatten()
+            .map(|(key, _)| key.value())
+            .collect::<Vec<_>>())
+    }
+
     fn prune(&self, retain_height: Height) -> Result<(), StoreError> {
         let tx = self.db.begin_write().unwrap();
         {
             let mut table = tx.open_table(BLOCK_TABLE)?;
-            let keys = table
-                .range(..retain_height)?
-                .flatten()
-                .map(|(key, _)| key.value())
-                .collect::<Vec<_>>();
-
-            for key in keys {
+            for key in self.range(&table, ..retain_height)? {
                 table.remove(&key)?;
             }
         }
@@ -198,10 +208,6 @@ impl BlockStore {
 
     pub fn last_height(&self) -> Option<Height> {
         self.db.last_key()
-    }
-
-    pub fn keys(&self) -> Vec<Height> {
-        self.db.keys()
     }
 
     pub async fn get(&self, height: Height) -> Result<Option<DecidedBlock>, StoreError> {
