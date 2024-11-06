@@ -2428,7 +2428,6 @@ dependencies = [
  "malachite-gossip-consensus",
  "malachite-gossip-mempool",
  "malachite-metrics",
- "malachite-proto",
  "ractor",
  "rand",
  "tokio",

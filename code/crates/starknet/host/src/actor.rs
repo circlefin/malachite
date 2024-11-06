@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use eyre::eyre;
-
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use rand::RngCore;
 use sha3::Digest;
@@ -16,15 +15,16 @@ use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachite_blocksync::SyncedBlock;
 use malachite_common::{Extension, Proposal, Round, Validity, Value};
 use malachite_metrics::Metrics;
-use malachite_proto::Protobuf;
-use malachite_starknet_p2p_types::ProposalInit;
 
 use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
 use crate::mock::host::{compute_proposal_hash, MockHost};
+use crate::proto::Protobuf;
 use crate::streaming::PartStreamsMap;
-use crate::types::{Address, BlockHash, Hash, Height, ProposalPart, Signature, ValidatorSet};
+use crate::types::{
+    Address, BlockHash, Hash, Height, ProposalInit, ProposalPart, Signature, ValidatorSet,
+};
 use crate::Host;
 
 pub struct StarknetHost {

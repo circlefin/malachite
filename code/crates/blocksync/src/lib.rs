@@ -1,9 +1,6 @@
 mod behaviour;
 pub use behaviour::{Behaviour, Config, Event};
 
-mod codec;
-pub use codec::NetworkCodec;
-
 mod metrics;
 pub use metrics::Metrics;
 
