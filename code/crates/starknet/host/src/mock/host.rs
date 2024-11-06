@@ -155,20 +155,20 @@ impl Host for MockHost {
         Some(self.validator_set.validators.iter().cloned().collect())
     }
 
-    // NOTE: Signing of message are left to the `Context` for now
-    // /// Fills in the signature field of Message.
-    // async fn sign(&self, message: Self::Message) -> Self::SignedMessage;
+    /// Sign a message hash
+    async fn sign(&self, message: Self::MessageHash) -> Self::Signature {
+        self.private_key.sign(&message.as_felt())
+    }
 
-    // NOTE: Signing of message are left to the `Context` for now
-    // /// Validates the signature field of a message. If None returns false.
-    // async fn validate_signature(
-    //     &self,
-    //     _hash: &Self::MessageHash,
-    //     _signature: &Self::Signature,
-    //     _public_key: &Self::PublicKey,
-    // ) -> bool {
-    //     todo!()
-    // }
+    /// Validates the signature field of a message. If None returns false.
+    async fn validate_signature(
+        &self,
+        hash: &Self::MessageHash,
+        signature: &Self::Signature,
+        public_key: &Self::PublicKey,
+    ) -> bool {
+        public_key.verify(&hash.as_felt(), signature)
+    }
 
     /// Update the Context about which decision has been made. It is responsible for pinging any
     /// relevant components in the node to update their states accordingly.
