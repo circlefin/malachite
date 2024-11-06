@@ -14,7 +14,7 @@ use tracing::{error, trace};
 use malachite_common::Round;
 
 use crate::mempool::{MempoolMsg, MempoolRef};
-use crate::mock::host::MockParams;
+use crate::mock::host::{compute_proposal_signature, MockParams};
 use crate::types::*;
 
 pub async fn build_proposal_task(
@@ -66,17 +66,19 @@ async fn run_build_proposal_task(
     let mut max_block_size_reached = false;
 
     // Init
-    {
-        let part = ProposalPart::Init(ProposalInit {
+    let init = {
+        let init = ProposalInit {
             height,
             proposal_round: round,
             proposer: proposer.clone(),
             valid_round: Round::Nil,
-        });
+        };
 
-        tx_part.send(part).await?;
+        tx_part.send(ProposalPart::Init(init.clone())).await?;
         sequence += 1;
-    }
+
+        init
+    };
 
     loop {
         trace!(%height, %round, %sequence, "Building local value");
@@ -164,24 +166,7 @@ async fn run_build_proposal_task(
 
     // Fin
     {
-        // Compute the proposal signature
-        let signature = {
-            let mut hasher = sha3::Keccak256::new();
-
-            // 1. Block number
-            hasher.update(height.block_number.to_be_bytes());
-            // 2. Fork id
-            hasher.update(height.fork_id.to_be_bytes());
-            // 3. Proposal round
-            hasher.update(round.as_i64().to_be_bytes());
-            // 4. Valid round
-            hasher.update(Round::Nil.as_i64().to_be_bytes());
-            // 5. Block hash
-            hasher.update(block_hash.as_bytes());
-
-            let hash = Hash::new(hasher.finalize().into());
-            private_key.sign(&hash.as_felt())
-        };
+        let signature = compute_proposal_signature(&init, &block_hash, &private_key);
 
         let part = ProposalPart::Fin(ProposalFin { signature });
         tx_part.send(part).await?;

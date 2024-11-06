@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use eyre::eyre;
 
-use malachite_starknet_p2p_types::Hash;
+use malachite_starknet_p2p_types::ProposalInit;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use rand::RngCore;
 use sha3::Digest;
@@ -22,9 +22,9 @@ use malachite_proto::Protobuf;
 use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
 use crate::mock::context::MockContext;
-use crate::mock::host::MockHost;
+use crate::mock::host::{compute_proposal_hash, MockHost};
 use crate::streaming::PartStreamsMap;
-use crate::types::{Address, BlockHash, Height, ProposalPart, ValidatorSet};
+use crate::types::{Address, BlockHash, Hash, Height, ProposalPart, Signature, ValidatorSet};
 use crate::Host;
 
 pub struct StarknetHost {
@@ -134,39 +134,11 @@ impl HostState {
 
         trace!(%block_hash, "Computed block hash");
 
-        let proposal_hash = {
-            let mut hasher = sha3::Keccak256::new();
+        let proposal_hash = compute_proposal_hash(init, &block_hash);
 
-            // 1. Block number
-            hasher.update(height.block_number.to_be_bytes());
-            // 2. Fork id
-            hasher.update(height.fork_id.to_be_bytes());
-            // 3. Proposal round
-            hasher.update(round.as_i64().to_be_bytes());
-            // 4. Valid round
-            hasher.update(valid_round.as_i64().to_be_bytes());
-            // 5. Block hash
-            hasher.update(block_hash.as_bytes());
-
-            Hash::new(hasher.finalize().into())
-        };
-
-        let validity = {
-            let proposer = &init.proposer;
-            let validators = self.host.validators(height).await?;
-            let public_key = validators
-                .iter()
-                .find(|v| &v.address == proposer)
-                .map(|v| v.public_key);
-
-            let Some(public_key) = public_key else {
-                error!(%proposer, "No validator found for the proposer");
-                return None;
-            };
-
-            let valid = public_key.verify(&proposal_hash.as_felt(), &fin.signature);
-            Validity::from_bool(valid)
-        };
+        let validity = self
+            .verify_proposal_validity(init, &proposal_hash, &fin.signature)
+            .await?;
 
         Some((
             valid_round,
@@ -175,6 +147,28 @@ impl HostState {
             validity,
             extension,
         ))
+    }
+
+    async fn verify_proposal_validity(
+        &self,
+        init: &ProposalInit,
+        proposal_hash: &Hash,
+        signature: &Signature,
+    ) -> Option<Validity> {
+        let validators = self.host.validators(init.height).await?;
+
+        let public_key = validators
+            .iter()
+            .find(|v| v.address == init.proposer)
+            .map(|v| v.public_key);
+
+        let Some(public_key) = public_key else {
+            error!(proposer = %init.proposer, "No validator found for the proposer");
+            return None;
+        };
+
+        let valid = public_key.verify(&proposal_hash.as_felt(), signature);
+        Some(Validity::from_bool(valid))
     }
 
     #[tracing::instrument(skip_all, fields(
