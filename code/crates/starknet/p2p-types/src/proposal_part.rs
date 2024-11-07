@@ -3,7 +3,7 @@ use malachite_common::Round;
 use malachite_proto as proto;
 use malachite_starknet_p2p_proto as p2p_proto;
 
-use crate::{Address, BlockProof, Height, Transactions};
+use crate::{Address, BlockProof, Height, Signature, Transactions};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalInit {
@@ -14,7 +14,9 @@ pub struct ProposalInit {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProposalFin {}
+pub struct ProposalFin {
+    pub signature: Signature,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProposalPart {
@@ -111,7 +113,12 @@ impl proto::Protobuf for ProposalPart {
                 )?,
             }),
 
-            Messages::Fin(_) => ProposalPart::Fin(ProposalFin {}),
+            Messages::Fin(fin) => ProposalPart::Fin(ProposalFin {
+                signature: Signature::from_proto(
+                    fin.signature
+                        .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("signature"))?,
+                )?,
+            }),
 
             Messages::Transactions(txes) => {
                 let transactions = Transactions::from_proto(txes)?;
@@ -139,7 +146,9 @@ impl proto::Protobuf for ProposalPart {
                 valid_round: init.valid_round.as_u32(),
                 proposer: Some(init.proposer.to_proto()?),
             }),
-            ProposalPart::Fin(_) => Messages::Fin(p2p_proto::ProposalFin {}),
+            ProposalPart::Fin(fin) => Messages::Fin(p2p_proto::ProposalFin {
+                signature: Some(fin.signature.to_proto()?),
+            }),
             ProposalPart::Transactions(txes) => Messages::Transactions(p2p_proto::Transactions {
                 transactions: txes
                     .as_slice()

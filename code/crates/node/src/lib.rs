@@ -2,6 +2,7 @@
 #![allow(unexpected_cfgs)]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
+use std::future::Future;
 use std::path::Path;
 
 use malachite_common::{Context, PrivateKey, PublicKey, VotingPower};
@@ -17,6 +18,8 @@ pub trait Node {
     fn generate_private_key<R>(&self, rng: R) -> PrivateKey<Self::Context>
     where
         R: RngCore + CryptoRng;
+
+    fn generate_public_key(&self, pk: PrivateKey<Self::Context>) -> PublicKey<Self::Context>;
 
     fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey<Self::Context>;
 
@@ -34,4 +37,6 @@ pub trait Node {
         &self,
         validators: Vec<(PublicKey<Self::Context>, VotingPower)>,
     ) -> Self::Genesis;
+
+    fn run(&self) -> impl Future<Output = ()> + Send;
 }

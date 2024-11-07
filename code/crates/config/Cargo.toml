@@ -16,6 +16,7 @@ workspace = true
 malachite-common.workspace  = true
 
 bytesize          = { workspace = true, features = ["serde"] }
+config            = { workspace = true }
 humantime-serde   = { workspace = true }
 multiaddr         = { workspace = true }
 serde             = { workspace = true, features = ["derive"] }

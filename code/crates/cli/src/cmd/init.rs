@@ -1,26 +1,17 @@
 //! Init command
 
-use std::fs;
 use std::path::Path;
 
+use crate::error::Error;
+use crate::file::{save_config, save_genesis, save_priv_validator_key};
+use crate::new::{generate_config, generate_genesis, generate_private_keys};
 use clap::Parser;
-use color_eyre::eyre::{eyre, Context, Result};
-use tracing::{info, warn};
-
-use malachite_config::{App, Config, LogFormat, LogLevel, PubSubProtocol, TransportProtocol};
+use malachite_config::{Config, LoggingConfig, RuntimeConfig, TransportProtocol};
 use malachite_node::Node;
-use malachite_starknet_app::node::StarknetNode;
-
-use crate::cmd::testnet::{
-    generate_config, generate_genesis, generate_private_keys, RuntimeFlavour,
-};
+use tracing::{info, warn};
 
 #[derive(Parser, Debug, Clone, Default, PartialEq)]
 pub struct InitCmd {
-    /// The name of the application to run
-    #[clap(long, default_value_t = App::default())]
-    pub app: App,
-
     /// Overwrite existing configuration files
     #[clap(long)]
     pub overwrite: bool,
@@ -33,116 +24,88 @@ pub struct InitCmd {
 
 impl InitCmd {
     /// Execute the init command
-    pub fn run(
+    pub fn run<N>(
         &self,
+        node: &N,
         config_file: &Path,
         genesis_file: &Path,
         priv_validator_key_file: &Path,
-        log_level: LogLevel,
-        log_format: LogFormat,
-    ) -> Result<()> {
-        let node = match self.app {
-            App::Starknet => StarknetNode,
-        };
+        logging: LoggingConfig,
+    ) -> Result<(), Error>
+    where
+        N: Node,
+    {
+        let config = &generate_config(
+            0,
+            1,
+            RuntimeConfig::SingleThreaded,
+            self.enable_discovery,
+            TransportProtocol::Tcp,
+            logging,
+        );
 
-        // Save default configuration
-        if config_file.exists() && !self.overwrite {
-            warn!(
-                "Configuration file already exists at {:?}, skipping",
-                config_file.display()
-            )
-        } else {
-            info!(file = ?config_file, "Saving configuration");
-            save_config(
-                config_file,
-                &generate_config(
-                    self.app,
-                    0,
-                    1,
-                    RuntimeFlavour::SingleThreaded,
-                    self.enable_discovery,
-                    TransportProtocol::Tcp,
-                    PubSubProtocol::default(),
-                    log_level,
-                    log_format,
-                ),
-            )?;
-        }
-
-        // Save default genesis
-        if genesis_file.exists() && !self.overwrite {
-            warn!(
-                "Genesis file already exists at {:?}, skipping",
-                genesis_file.display()
-            )
-        } else {
-            let private_keys = generate_private_keys(&node, 1, true);
-            let public_keys = private_keys.iter().map(|pk| pk.public_key()).collect();
-            let genesis = generate_genesis(&node, public_keys, true);
-            info!(file = ?genesis_file, "Saving test genesis");
-            save_genesis(&node, genesis_file, &genesis)?;
-        }
-
-        // Save default priv_validator_key
-        if priv_validator_key_file.exists() && !self.overwrite {
-            warn!(
-                "Private key file already exists at {:?}, skipping",
-                priv_validator_key_file.display()
-            )
-        } else {
-            info!(file = ?priv_validator_key_file, "Saving private key");
-            let private_keys = generate_private_keys(&node, 1, false);
-            let priv_validator_key = node.make_private_key_file(private_keys[0]);
-            save_priv_validator_key(&node, priv_validator_key_file, &priv_validator_key)?;
-        }
+        init(
+            node,
+            config,
+            config_file,
+            genesis_file,
+            priv_validator_key_file,
+            self.overwrite,
+        )?;
 
         Ok(())
     }
 }
 
-/// Save configuration to file
-pub fn save_config(config_file: &Path, config: &Config) -> Result<()> {
-    save(config_file, &toml::to_string_pretty(config)?)
-}
-
-/// Save genesis to file
-pub fn save_genesis<N: Node>(_node: &N, genesis_file: &Path, genesis: &N::Genesis) -> Result<()> {
-    save(genesis_file, &serde_json::to_string_pretty(genesis)?)
-}
-
-/// Save private_key validator key to file
-pub fn save_priv_validator_key<N: Node>(
-    _node: &N,
+/// init command to generate defaults.
+pub fn init<N>(
+    node: &N,
+    config: &Config,
+    config_file: &Path,
+    genesis_file: &Path,
     priv_validator_key_file: &Path,
-    priv_validator_key: &N::PrivateKeyFile,
-) -> Result<()> {
-    save(
-        priv_validator_key_file,
-        &serde_json::to_string_pretty(priv_validator_key)?,
-    )
-}
-
-fn save(path: &Path, data: &str) -> Result<()> {
-    use std::io::Write;
-
-    if let Some(parent_dir) = path.parent() {
-        fs::create_dir_all(parent_dir).wrap_err_with(|| {
-            eyre!(
-                "Failed to create parent directory {:?}",
-                parent_dir.display()
-            )
-        })?;
+    overwrite: bool,
+) -> Result<(), Error>
+where
+    N: Node,
+{
+    // Save configuration
+    if config_file.exists() && !overwrite {
+        warn!(file = ?config_file.display(), "Configuration file already exists, skipping")
+    } else {
+        info!(file = ?config_file, "Saving configuration");
+        save_config(config_file, config)?;
     }
 
-    let mut f = fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(path)
-        .wrap_err_with(|| eyre!("Failed to crate configuration file at {:?}", path.display()))?;
+    // Save default priv_validator_key
+    if priv_validator_key_file.exists() && !overwrite {
+        warn!(
+            file = ?priv_validator_key_file.display(),
+            "Private key file already exists, skipping",
+        );
+    } else {
+        info!(file = ?priv_validator_key_file, "Saving private key");
+        let private_keys = generate_private_keys(node, 1, false);
+        let priv_validator_key = node.make_private_key_file(private_keys[0].clone());
+        save_priv_validator_key(node, priv_validator_key_file, &priv_validator_key)?;
+    }
 
-    f.write_all(data.as_bytes())
-        .wrap_err_with(|| eyre!("Failed to write configuration to {:?}", path.display()))?;
+    // Save default genesis
+    if genesis_file.exists() && !overwrite {
+        warn!(
+            "Genesis file already exists at {:?}, skipping",
+            genesis_file.display()
+        )
+    } else {
+        let private_keys = generate_private_keys(node, 1, false);
+        let public_keys = private_keys
+            .iter()
+            .map(|pk| node.generate_public_key(pk.clone()))
+            .collect();
+        let genesis = generate_genesis(node, public_keys, false);
+        info!(file = ?genesis_file, "Saving test genesis");
+        save_genesis(node, genesis_file, &genesis)?;
+    }
 
     Ok(())
 }

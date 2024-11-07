@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use bytesize::ByteSize;
 use malachite_config::{GossipSubConfig, PubSubProtocol};
-use malachite_starknet_test::{App, Test, TestNode, TestParams};
+use malachite_starknet_test::{Test, TestNode, TestParams};
 
 async fn run_n2f0_tests(params: TestParams) {
     const HEIGHT: u64 = 5;
@@ -13,7 +13,7 @@ async fn run_n2f0_tests(params: TestParams) {
     let n2 = TestNode::new(2).start().wait_until(HEIGHT).success();
 
     Test::new([n1, n2])
-        .run_with_custom_config(App::Starknet, Duration::from_secs(30), params)
+        .run_with_custom_config(Duration::from_secs(30), params)
         .await
 }
 

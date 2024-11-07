@@ -5,6 +5,11 @@ use libp2p_identity::ecdsa;
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 
+use crate::actor::StarknetHost;
+use crate::mempool::{Mempool, MempoolRef};
+use crate::mock::context::MockContext;
+use crate::mock::host::{MockHost, MockParams};
+use crate::types::{Address, Height, PrivateKey, ValidatorSet};
 use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
@@ -24,13 +29,8 @@ use malachite_gossip_consensus::{
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
-use malachite_starknet_host::actor::StarknetHost;
-use malachite_starknet_host::mempool::{Mempool, MempoolRef};
-use malachite_starknet_host::mock::context::MockContext;
-use malachite_starknet_host::mock::host::{MockHost, MockParams};
-use malachite_starknet_host::types::{Address, Height, PrivateKey, ValidatorSet};
 
-use malachite_starknet_host::codec::ProtobufCodec;
+use crate::codec::ProtobufCodec;
 
 pub async fn spawn_node_actor(
     cfg: NodeConfig,
@@ -60,6 +60,7 @@ pub async fn spawn_node_actor(
         home_dir,
         &cfg,
         &address,
+        &private_key,
         &initial_validator_set,
         mempool.clone(),
         gossip_consensus.clone(),
@@ -252,10 +253,12 @@ async fn spawn_gossip_mempool_actor(
         .unwrap()
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn spawn_host_actor(
     home_dir: PathBuf,
     cfg: &NodeConfig,
     address: &Address,
+    private_key: &PrivateKey,
     initial_validator_set: &ValidatorSet,
     mempool: MempoolRef,
     gossip_consensus: GossipConsensusRef<MockContext>,
@@ -282,6 +285,7 @@ async fn spawn_host_actor(
         mock_params,
         mempool.clone(),
         address.clone(),
+        *private_key,
         initial_validator_set.clone(),
     );
 

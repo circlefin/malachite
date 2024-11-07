@@ -16,13 +16,11 @@ use tracing::{error, error_span, info, Instrument};
 
 use malachite_common::{CommitCertificate, VotingPower};
 use malachite_config::{
-    BlockSyncConfig, Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol,
-    TestConfig, TransportProtocol,
+    BlockSyncConfig, Config as NodeConfig, Config, LoggingConfig, PubSubProtocol, TestConfig,
+    TransportProtocol,
 };
-use malachite_starknet_app::spawn::spawn_node_actor;
+use malachite_starknet_host::spawn::spawn_node_actor;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
-
-pub use malachite_config::App;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Expected {
@@ -65,6 +63,7 @@ pub struct TestParams {
     pub txs_per_part: usize,
     pub vote_extensions: Option<ByteSize>,
     pub value_payload: ValuePayload,
+    pub max_retain_blocks: usize,
 }
 
 impl Default for TestParams {
@@ -77,6 +76,7 @@ impl Default for TestParams {
             txs_per_part: 256,
             vote_extensions: None,
             value_payload: ValuePayload::default(),
+            max_retain_blocks: 50,
         }
     }
 }
@@ -91,6 +91,7 @@ impl TestParams {
         config.test.txs_per_part = self.txs_per_part;
         config.test.vote_extensions.enabled = self.vote_extensions.is_some();
         config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();
+        config.test.max_retain_blocks = self.max_retain_blocks;
     }
 }
 
@@ -212,26 +213,26 @@ impl<const N: usize> Test<N> {
         }
     }
 
-    pub fn generate_default_configs(&self, app: App) -> [Config; N] {
-        let configs: Vec<_> = (0..N).map(|i| make_node_config(self, i, app)).collect();
+    pub fn generate_default_configs(&self) -> [Config; N] {
+        let configs: Vec<_> = (0..N).map(|i| make_node_config(self, i)).collect();
         configs.try_into().expect("N configs")
     }
 
-    pub fn generate_custom_configs(&self, app: App, params: TestParams) -> [Config; N] {
-        let mut configs = self.generate_default_configs(app);
+    pub fn generate_custom_configs(&self, params: TestParams) -> [Config; N] {
+        let mut configs = self.generate_default_configs();
         for config in &mut configs {
             params.apply_to_config(config);
         }
         configs
     }
 
-    pub async fn run(self, app: App, timeout: Duration) {
-        let configs = self.generate_default_configs(app);
+    pub async fn run(self, timeout: Duration) {
+        let configs = self.generate_default_configs();
         self.run_with_config(configs, timeout).await
     }
 
-    pub async fn run_with_custom_config(self, app: App, timeout: Duration, params: TestParams) {
-        let configs = self.generate_custom_configs(app, params);
+    pub async fn run_with_custom_config(self, timeout: Duration, params: TestParams) {
+        let configs = self.generate_custom_configs(params);
         self.run_with_config(configs, timeout).await
     }
 
@@ -487,12 +488,11 @@ fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     }
 }
 
-pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> NodeConfig {
+pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> NodeConfig {
     let transport = transport_from_env(TransportProtocol::Tcp);
     let protocol = PubSubProtocol::default();
 
     NodeConfig {
-        app,
         moniker: format!("node-{i}"),
         logging: LoggingConfig::default(),
         consensus: ConsensusConfig {
@@ -507,9 +507,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                     .filter(|j| i != *j)
                     .map(|j| transport.multiaddr("127.0.0.1", test.consensus_base_port + j))
                     .collect(),
-                discovery: DiscoveryConfig { enabled: false },
-                rpc_max_size: ByteSize::mib(10),
-                pubsub_max_size: ByteSize::mib(4),
+                ..Default::default()
             },
         },
         mempool: MempoolConfig {
@@ -521,9 +519,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize, app: App) -> N
                     .filter(|j| i != *j)
                     .map(|j| transport.multiaddr("127.0.0.1", test.mempool_base_port + j))
                     .collect(),
-                discovery: DiscoveryConfig { enabled: false },
-                rpc_max_size: ByteSize::mib(10),
-                pubsub_max_size: ByteSize::mib(4),
+                ..Default::default()
             },
             max_tx_count: 10000,
             gossip_batch_size: 100,

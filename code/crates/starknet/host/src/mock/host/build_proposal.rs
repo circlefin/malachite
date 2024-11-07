@@ -14,13 +14,14 @@ use tracing::{error, trace};
 use malachite_common::Round;
 
 use crate::mempool::{MempoolMsg, MempoolRef};
-use crate::mock::host::MockParams;
+use crate::mock::host::{compute_proposal_signature, MockParams};
 use crate::types::*;
 
 pub async fn build_proposal_task(
     height: Height,
     round: Round,
     proposer: Address,
+    private_key: PrivateKey,
     params: MockParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -31,6 +32,7 @@ pub async fn build_proposal_task(
         height,
         round,
         proposer,
+        private_key,
         params,
         deadline,
         mempool,
@@ -47,6 +49,7 @@ async fn run_build_proposal_task(
     height: Height,
     round: Round,
     proposer: Address,
+    private_key: PrivateKey,
     params: MockParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -63,17 +66,19 @@ async fn run_build_proposal_task(
     let mut max_block_size_reached = false;
 
     // Init
-    {
-        let part = ProposalPart::Init(ProposalInit {
+    let init = {
+        let init = ProposalInit {
             height,
             proposal_round: round,
             proposer: proposer.clone(),
             valid_round: Round::Nil,
-        });
+        };
 
-        tx_part.send(part).await?;
+        tx_part.send(ProposalPart::Init(init.clone())).await?;
         sequence += 1;
-    }
+
+        init
+    };
 
     loop {
         trace!(%height, %round, %sequence, "Building local value");
@@ -157,11 +162,13 @@ async fn run_build_proposal_task(
         sequence += 1;
     }
 
+    let block_hash = BlockHash::new(block_hasher.finalize().into());
+
     // Fin
     {
-        let part = ProposalPart::Fin(ProposalFin {});
+        let signature = compute_proposal_signature(&init, &block_hash, &private_key);
 
-        block_hasher.update(part.to_sign_bytes());
+        let part = ProposalPart::Fin(ProposalFin { signature });
         tx_part.send(part).await?;
         sequence += 1;
     }
@@ -169,7 +176,6 @@ async fn run_build_proposal_task(
     // Close the channel to signal no more parts to come
     drop(tx_part);
 
-    let block_hash = BlockHash::new(block_hasher.finalize().into());
     let block_size = ByteSize::b(block_size as u64);
 
     trace!(

@@ -23,10 +23,10 @@ set -x MALACHITE__BLOCKSYNC__REQUEST_TIMEOUT "30s"
 # - the home directory for the nodes configuration folders
 
 function help
-    echo "Usage: spawn.fish [--help] --nodes NODES_COUNT --home NODES_HOME [--profile=PROFILE|--debug] [--lldb]"
+    echo "Usage: spawn.fish [--help] --nodes NODES_COUNT --home NODES_HOME [--app APP_BINARY] [--profile=PROFILE|--debug] [--lldb]"
 end
 
-argparse -n spawn.fish help 'nodes=' 'home=' 'profile=?' debug -- $argv
+argparse -n spawn.fish help 'nodes=' 'home=' 'app=' 'profile=' 'debug' -- $argv
 or return
 
 if set -ql _flag_help
@@ -44,13 +44,17 @@ if ! set -q _flag_home
     return 1
 end
 
-set profile_template (string replace -r '^$' 'time' -- $_flag_profile)
-
+set app_name "malachite-starknet-app"
 set profile false
 set debug false
 set lldb false
 set build_profile release
 set build_folder release
+set profile_template (string replace -r '^$' 'time' -- $_flag_profile)
+
+if set -q _flag_app
+    set app_name $_flag_app
+end
 
 if set -q _flag_profile
     echo "Profiling enabled."
@@ -69,8 +73,8 @@ if set -q _flag_lldb
     set lldb true
 end
 
-echo "Compiling Malachite..."
-cargo build --profile $build_profile
+echo "Compiling `$app_name`..."
+cargo build -p $app_name --profile $build_profile
 
 set session malachite
 tmux kill-session -t $session
@@ -96,28 +100,21 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
 
     if $lldb
         set lldb_script "
-            b malachite_cli::main
+            b $app_name::main
             run
             script with open('$NODE_HOME/node.pid', 'w') as f: f.write(str(lldb.debugger.GetSelectedTarget().process.id))
             continue
         "
 
-        set cmd_prefix "rust-lldb --source =(echo \"$lldb_script\") ./target/$build_folder/malachite-cli -- "
-
+        set cmd_prefix "rust-lldb --source =(echo \"$lldb_script\") ./target/$build_folder/$app_name -- "
         tmux send -t "$pane" "$cmd_prefix start --home '$NODE_HOME'" Enter
     else if $profile; and [ $NODE = 0 ]
-        set cmd_prefix "cargo instruments --profile $build_profile --template $profile_template --time-limit 60000 --output '$NODE_HOME/traces/' --"
-
+        set cmd_prefix "cargo instruments -p $app_name --profile $build_profile --template $profile_template --time-limit 60000 --output '$NODE_HOME/traces/' --"
         tmux send -t "$pane" "sleep $NODE" Enter
         tmux send -t "$pane" "unbuffer $cmd_prefix start --home '$NODE_HOME' 2>&1 | tee '$NODE_HOME/logs/node.log'" Enter
-        # tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
-        # tmux send -t "$pane" "fg" Enter
     else
-        set cmd_prefix "./target/$build_folder/malachite-cli"
-
+        set cmd_prefix "./target/$build_folder/$app_name"
         tmux send -t "$pane" "unbuffer $cmd_prefix start --home '$NODE_HOME' 2>&1 | tee '$NODE_HOME/logs/node.log'" Enter
-        # tmux send -t "$pane" "echo \$! > '$NODE_HOME/node.pid'" Enter
-        # tmux send -t "$pane" "fg" Enter
     end
 end
 
