@@ -12,7 +12,6 @@ rust-version.workspace = true
 malachite-common.workspace           = true
 malachite-config.workspace           = true
 malachite-starknet-host.workspace    = true
-malachite-starknet-app.workspace     = true
 
 bytesize.workspace                   = true
 rand.workspace                       = true

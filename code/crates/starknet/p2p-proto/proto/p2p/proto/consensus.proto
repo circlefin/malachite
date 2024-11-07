@@ -45,7 +45,9 @@ message ProposalInit {
 // 4. valid_round
 // 5. block_hash - the validator calculates the block_hash on its own from the content stream and
 //    confirms the signature with that value.
-message ProposalFin {}
+message ProposalFin {
+    ConsensusSignature signature = 1;
+}
 
 // The timestamp of a proposal can impact consensus, specifically the lower bound applied. If nodes
 // apply a lower bound validation based on their local time, then we risk a scenario where in round

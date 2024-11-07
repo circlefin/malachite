@@ -14,6 +14,7 @@ malachite-consensus.workspace          = true
 malachite-gossip-consensus.workspace   = true
 malachite-common.workspace             = true
 malachite-metrics.workspace            = true
+malachite-node.workspace               = true
 malachite-config.workspace             = true
 malachite-gossip-mempool.workspace     = true
 malachite-proto.workspace              = true
@@ -26,6 +27,7 @@ starknet-core.workspace   = true
 async-trait.workspace     = true
 bytesize.workspace        = true
 derive-where.workspace    = true
+itertools.workspace       = true
 libp2p-identity.workspace = true
 eyre.workspace            = true
 prost.workspace           = true
@@ -33,8 +35,14 @@ ractor.workspace          = true
 rand.workspace            = true
 redb.workspace            = true
 sha3.workspace            = true
+serde_json.workspace      = true
 tokio.workspace           = true
 tracing.workspace         = true
+thiserror.workspace       = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+malachite-cli.workspace = true

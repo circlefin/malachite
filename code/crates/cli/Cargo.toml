@@ -15,15 +15,10 @@ malachite-metrics.workspace       = true
 malachite-config.workspace        = true
 malachite-node.workspace          = true
 
-# Starknet
-malachite-starknet-host.workspace = true
-malachite-starknet-app.workspace  = true
-
 axum               = { workspace = true }
 bytesize           = { workspace = true }
 clap               = { workspace = true, features = ["derive", "env"] }
 color-eyre         = { workspace = true }
-config             = { workspace = true }
 directories        = { workspace = true }
 itertools          = { workspace = true }
 tokio              = { workspace = true, features = ["full"] }
@@ -33,9 +28,3 @@ tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "json"
 serde_json         = { workspace = true }
 rand               = { workspace = true }
 toml               = { workspace = true }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-tikv-jemallocator = { workspace = true, features = ["background_threads"] }
-
-[dev-dependencies]
-tempfile           = { workspace = true }
