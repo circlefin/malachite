@@ -1,8 +1,8 @@
 use core::marker::PhantomData;
 
 use derive_where::derive_where;
-use displaydoc::Display;
 use libp2p::request_response::OutboundRequestId;
+use thiserror::Error;
 use tracing::{debug, error, info, warn};
 
 use malachite_common::{Context, Height};
@@ -12,15 +12,13 @@ use crate::perform;
 use crate::{InboundRequestId, Metrics, PeerId, Request, Response, State, Status, SyncedBlock};
 
 #[derive_where(Debug)]
-#[derive(Display)]
+#[derive(Error)]
 pub enum Error<Ctx: Context> {
     /// The coroutine was resumed with a value which
     /// does not match the expected type of resume value.
-    #[displaydoc("Unexpected resume: {0:?}, expected one of: {1}")]
+    #[error("Unexpected resume: {0:?}, expected one of: {1}")]
     UnexpectedResume(Resume<Ctx>, &'static str),
 }
-
-impl<Ctx: Context> core::error::Error for Error<Ctx> {}
 
 #[derive_where(Debug)]
 pub enum Resume<Ctx: Context> {

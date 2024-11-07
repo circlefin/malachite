@@ -55,7 +55,7 @@ async fn run_build_proposal_task(
     mempool: MempoolRef,
     tx_part: mpsc::Sender<ProposalPart>,
     tx_block_hash: oneshot::Sender<BlockHash>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let start = Instant::now();
     let build_duration = (deadline - start).mul_f32(params.time_allowance_factor);
 
@@ -204,7 +204,7 @@ async fn run_repropose_task(
     _block_hash: Hash,
     tx_part: mpsc::Sender<ProposalPart>,
     parts: Vec<Arc<ProposalPart>>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     for part in parts {
         let part = Arc::unwrap_or_clone(part);
         tx_part.send(part).await?;

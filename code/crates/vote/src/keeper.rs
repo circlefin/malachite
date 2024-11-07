@@ -1,6 +1,7 @@
 //! For tallying votes and emitting messages when certain thresholds are reached.
 
 use derive_where::derive_where;
+use thiserror::Error;
 
 use alloc::collections::{BTreeMap, BTreeSet};
 
@@ -55,11 +56,13 @@ where
 }
 
 /// Errors can that be yielded when recording a vote.
+#[derive(Error)]
 pub enum RecordVoteError<Ctx>
 where
     Ctx: Context,
 {
     /// Attempted to record a conflicting vote.
+    #[error("Conflicting vote: {existing} vs {conflicting}")]
     ConflictingVote {
         /// The vote already recorded.
         existing: SignedVote<Ctx>,

@@ -1,7 +1,6 @@
-use core::fmt;
-
 use alloc::vec::Vec;
 use derive_where::derive_where;
+use thiserror::Error;
 
 use crate::{
     Context, NilOrVal, Round, Signature, SignedExtension, SignedVote, ThresholdParams, Validator,
@@ -168,11 +167,17 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
 
 /// Represents an error that can occur when verifying a certificate.
 #[derive_where(Clone, Debug)]
+#[derive(Error)]
 pub enum CertificateError<Ctx: Context> {
     /// One of the commit signature is invalid.
+    #[error("Invalid commit signature: {0:?}")]
     InvalidCommitSignature(CommitSignature<Ctx>),
 
     /// Not enough voting power has signed the certificate.
+    #[error(
+        "Not enough voting power has signed the certificate: \
+         signed={signed}, total={total}, expected={expected}"
+    )]
     NotEnoughVotingPower {
         /// Signed voting power
         signed: VotingPower,
@@ -182,27 +187,3 @@ pub enum CertificateError<Ctx: Context> {
         expected: VotingPower,
     },
 }
-
-impl<Ctx: Context> fmt::Display for CertificateError<Ctx> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CertificateError::InvalidCommitSignature(commit_sig) => {
-                write!(f, "Invalid commit signature: {commit_sig:?}")
-            }
-
-            CertificateError::NotEnoughVotingPower {
-                signed,
-                total,
-                expected,
-            } => {
-                write!(
-                    f,
-                    "Not enough voting power has signed the certificate: \
-                     signed={signed}, total={total}, expected={expected}",
-                )
-            }
-        }
-    }
-}
-
-impl<Ctx: Context> core::error::Error for CertificateError<Ctx> {}

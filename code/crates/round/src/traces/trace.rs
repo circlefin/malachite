@@ -8,7 +8,7 @@ use super::Line;
 
 #[derive_where(Clone, Debug, Eq, PartialEq)]
 #[derive(Display)]
-/// [{time}] height: {height}, round: {round}, line: {line}
+#[displaydoc("[{time}] height: {height}, round: {round}, line: {line}")]
 pub struct Trace<Ctx: Context> {
     pub time: OffsetDateTime,
     pub height: Ctx::Height,

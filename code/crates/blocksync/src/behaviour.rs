@@ -1,11 +1,11 @@
 use std::time::Duration;
 
 use bytes::Bytes;
-use displaydoc::Display;
 use libp2p::metrics::Registry;
 use libp2p::request_response::{self as rpc, OutboundRequestId, ProtocolSupport};
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{PeerId, StreamProtocol};
+use thiserror::Error;
 
 use crate::rpc::Codec;
 use crate::types::{RawRequest, RawResponse, ResponseChannel};
@@ -89,16 +89,14 @@ impl Behaviour {
     }
 }
 
-#[derive(Clone, Debug, Display)]
+#[derive(Clone, Debug, Error)]
 pub enum Error {
-    #[displaydoc("Failed to send response")]
+    #[error("Failed to send response")]
     SendResponse,
 
-    #[displaydoc("Failed to send request")]
+    #[error("Failed to send request")]
     SendRequest,
 }
-
-impl core::error::Error for Error {}
 
 impl Default for Behaviour {
     fn default() -> Self {
