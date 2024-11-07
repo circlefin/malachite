@@ -50,9 +50,7 @@ pub type SignedProposal<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Proposal>;
 /// A signed proposal part
 pub type SignedProposalPart<Ctx> = SignedMessage<Ctx, <Ctx as Context>::ProposalPart>;
 
-pub use certificate::AggregatedSignature;
-pub use certificate::CommitCertificate;
-pub use certificate::CommitSignature;
+pub use certificate::{AggregatedSignature, CertificateError, CommitCertificate, CommitSignature};
 pub use context::Context;
 pub use height::Height;
 pub use proposal::{Proposal, Validity};

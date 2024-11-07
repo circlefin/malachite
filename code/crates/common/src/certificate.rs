@@ -1,9 +1,11 @@
+use core::fmt;
+
 use alloc::vec::Vec;
 use derive_where::derive_where;
 
 use crate::{
     Context, Extension, NilOrVal, Round, Signature, SignedVote, Validator, ValidatorSet, ValueId,
-    Vote, VoteType,
+    Vote, VoteType, VotingPower,
 };
 
 /// Represents a signature for a certificate, including the address and the signature itself.
@@ -89,7 +91,11 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
     /// If any of those steps fail, return false.
     ///
     /// TODO: Move to Context
-    pub fn verify(&self, ctx: &Ctx, validator_set: &Ctx::ValidatorSet) -> bool {
+    pub fn verify(
+        &self,
+        ctx: &Ctx,
+        validator_set: &Ctx::ValidatorSet,
+    ) -> Result<(), CertificateError<Ctx>> {
         // 1. Check that we have 2/3+ of voting power has signed the certificate
         let total_voting_power = validator_set.total_voting_power();
         let mut signed_voting_power = 0;
@@ -97,7 +103,7 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
         // 2. For each commit signature, reconstruct the signed precommit and verify the signature
         for commit_sig in &self.aggregated_signature.signatures {
             // Skip if validator not in set
-            // TODO: Emit an error instead
+            // TODO: Should we emit an error here instead of skipping that signature?
             let validator = match validator_set.get_by_address(&commit_sig.address) {
                 Some(validator) => validator,
                 None => continue,
@@ -113,8 +119,7 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
 
             // Verify signature
             if !ctx.verify_signed_vote(&vote, &commit_sig.signature, validator.public_key()) {
-                // TODO: Emit an error instead
-                return false;
+                return Err(CertificateError::InvalidCommitSignature(commit_sig.clone()));
             }
 
             signed_voting_power += validator.voting_power();
@@ -122,6 +127,53 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
 
         // Check if we have 2/3+ voting power
         // TODO: Should this use the `ThresholdParams` instead of being hardcoded to 2/3+?
-        signed_voting_power * 3 > total_voting_power * 2
+        if signed_voting_power * 3 > total_voting_power * 2 {
+            Ok(())
+        } else {
+            Err(CertificateError::NotEnoughVotingPower {
+                signed: signed_voting_power,
+                total: total_voting_power,
+                expected: 2 * total_voting_power / 3,
+            })
+        }
+    }
+}
+
+/// Represents an error that can occur when verifying a certificate.
+#[derive_where(Clone, Debug)]
+pub enum CertificateError<Ctx: Context> {
+    /// One of the commit signature is invalid.
+    InvalidCommitSignature(CommitSignature<Ctx>),
+
+    /// Not enough voting power has signed the certificate.
+    NotEnoughVotingPower {
+        /// Signed voting power
+        signed: VotingPower,
+        /// Total voting power
+        total: VotingPower,
+        /// Expected voting power
+        expected: VotingPower,
+    },
+}
+
+impl<Ctx: Context> fmt::Display for CertificateError<Ctx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CertificateError::InvalidCommitSignature(commit_sig) => {
+                write!(f, "Invalid commit signature: {commit_sig:?}")
+            }
+
+            CertificateError::NotEnoughVotingPower {
+                signed,
+                total,
+                expected,
+            } => {
+                write!(
+                    f,
+                    "Not enough voting power has signed the certificate: \
+                     signed={signed}, total={total}, expected={expected}",
+                )
+            }
+        }
     }
 }

@@ -1,6 +1,6 @@
 use derive_where::derive_where;
 
-use malachite_common::{Context, Round};
+use malachite_common::{CertificateError, CommitCertificate, Context, Round};
 use malachite_driver::Error as DriverError;
 
 use crate::effect::Resume;
@@ -32,4 +32,8 @@ where
     /// The validator set was not found at the given height.
     #[error("Validator set not found at height {0}")]
     ValidatorSetNotFound(Ctx::Height),
+
+    /// The certificate is invalid.
+    #[error("Invalid certificate: {1}")]
+    InvalidCertificate(CommitCertificate<Ctx>, CertificateError<Ctx>),
 }
