@@ -1,29 +1,29 @@
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock, RwLock};
 
 pub use prometheus_client::registry::Registry;
 
 #[derive(Clone)]
-pub struct SharedRegistry(Arc<Mutex<Registry>>);
+pub struct SharedRegistry(Arc<RwLock<Registry>>);
 
 impl SharedRegistry {
     pub fn new(registry: Registry) -> Self {
-        Self(Arc::new(Mutex::new(registry)))
+        Self(Arc::new(RwLock::new(registry)))
     }
 
     pub fn global() -> &'static Self {
         global_registry()
     }
 
-    pub fn lock(&self) -> std::sync::MutexGuard<'_, Registry> {
-        self.0.lock().unwrap()
+    pub fn read<A>(&self, f: impl FnOnce(&Registry) -> A) -> A {
+        f(&self.0.read().expect("poisoned lock"))
     }
 
-    pub fn with<A>(&self, f: impl FnOnce(&mut Registry) -> A) -> A {
-        f(&mut self.lock())
+    pub fn write<A>(&self, f: impl FnOnce(&mut Registry) -> A) -> A {
+        f(&mut self.0.write().expect("poisoned lock"))
     }
 
     pub fn with_prefix<A>(&self, prefix: impl AsRef<str>, f: impl FnOnce(&mut Registry) -> A) -> A {
-        f(self.lock().sub_registry_with_prefix(prefix))
+        self.write(|reg| f(reg.sub_registry_with_prefix(prefix)))
     }
 }
 
@@ -35,5 +35,5 @@ fn global_registry() -> &'static SharedRegistry {
 pub fn export<W: core::fmt::Write>(writer: &mut W) {
     use prometheus_client::encoding::text::encode;
 
-    SharedRegistry::global().with(|registry| encode(writer, registry).unwrap())
+    SharedRegistry::global().read(|registry| encode(writer, registry).unwrap())
 }
