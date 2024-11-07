@@ -24,6 +24,7 @@ use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::forward::forward;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
+pub use malachite_consensus::Error as ConsensusError;
 pub use malachite_consensus::Params as ConsensusParams;
 pub use malachite_consensus::State as ConsensusState;
 
@@ -182,13 +183,14 @@ where
         myself: &ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
         input: ConsensusInput<Ctx>,
-    ) -> Result<(), ActorProcessingErr> {
-        if let ConsensusInput::StartHeight(height, _) = input {
-            if let Some(block_sync) = &self.block_sync {
-                block_sync
-                    .cast(BlockSyncMsg::StartHeight(height))
-                    .map_err(|e| eyre!("Error when sending start height to BlockSync: {e:?}"))?;
-            }
+    ) -> Result<(), ConsensusError<Ctx>> {
+        // Notify the BlockSync actor that we have started a new height
+        if let (ConsensusInput::StartHeight(height, _), Some(block_sync)) =
+            (&input, &self.block_sync)
+        {
+            let _ = block_sync
+                .cast(BlockSyncMsg::StartHeight(*height))
+                .inspect_err(|e| error!("Error when sending start height to BlockSync: {e:?}"));
         }
 
         malachite_consensus::process!(
@@ -296,6 +298,7 @@ where
 
                     GossipEvent::BlockSyncResponse(
                         request_id,
+                        peer,
                         blocksync::Response { height, block },
                     ) => {
                         debug!(%height, %request_id, "Received BlockSync response");
@@ -317,6 +320,21 @@ where
                             .await
                         {
                             error!(%height, %request_id, "Error when processing received synced block: {e:?}");
+
+                            let Some(block_sync) = self.block_sync.as_ref() else {
+                                warn!("Received BlockSync response but BlockSync actor is not available");
+                                return Ok(());
+                            };
+
+                            if let ConsensusError::InvalidCertificate(certificate, e) = e {
+                                block_sync
+                                    .cast(BlockSyncMsg::InvalidCertificate(peer, certificate, e))
+                                    .map_err(|e| {
+                                        eyre!(
+                                            "Error when notifying BlockSync of invalid certificate: {e:?}"
+                                        )
+                                    })?;
+                            }
                         }
                     }
 

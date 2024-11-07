@@ -57,6 +57,7 @@ pub enum RawMessage {
     },
     Response {
         request_id: OutboundRequestId,
+        peer: PeerId,
         body: Bytes,
     },
 }

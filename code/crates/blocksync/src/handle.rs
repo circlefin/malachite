@@ -3,9 +3,9 @@ use core::marker::PhantomData;
 use derive_where::derive_where;
 use displaydoc::Display;
 use libp2p::request_response::OutboundRequestId;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
-use malachite_common::{Context, Height};
+use malachite_common::{CertificateError, CommitCertificate, Context, Height};
 
 use crate::co::Co;
 use crate::perform;
@@ -66,13 +66,16 @@ pub enum Input<Ctx: Context> {
     Request(InboundRequestId, PeerId, Request<Ctx>),
 
     /// A BlockSync response has been received
-    Response(OutboundRequestId, Response<Ctx>),
+    Response(OutboundRequestId, PeerId, Response<Ctx>),
 
     /// Got a response from the application to our `GetBlock` request
     GotBlock(InboundRequestId, Ctx::Height, Option<SyncedBlock<Ctx>>),
 
     /// A request timed out
     RequestTimedOut(PeerId, Request<Ctx>),
+
+    /// We received an invalid [`CommitCertificate`]
+    InvalidCertificate(PeerId, CommitCertificate<Ctx>, CertificateError<Ctx>),
 }
 
 pub async fn handle<Ctx>(
@@ -92,14 +95,17 @@ where
         Input::Request(request_id, peer_id, request) => {
             on_request(co, state, metrics, request_id, peer_id, request).await
         }
-        Input::Response(request_id, response) => {
-            on_response(co, state, metrics, request_id, response).await
+        Input::Response(request_id, peer_id, response) => {
+            on_response(co, state, metrics, request_id, peer_id, response).await
         }
         Input::GotBlock(request_id, height, block) => {
             on_block(co, state, metrics, request_id, height, block).await
         }
         Input::RequestTimedOut(peer_id, request) => {
             on_request_timed_out(co, state, metrics, peer_id, request).await
+        }
+        Input::InvalidCertificate(peer, certificate, error) => {
+            on_invalid_certificate(co, state, metrics, peer, certificate, error).await
         }
     }
 }
@@ -185,12 +191,13 @@ pub async fn on_response<Ctx>(
     _state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: OutboundRequestId,
+    peer: PeerId,
     response: Response<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    debug!(height = %response.height, %request_id, "Received response");
+    debug!(height = %response.height, %request_id, %peer, "Received response");
 
     metrics.response_received(response.height.as_u64());
 
@@ -311,14 +318,53 @@ where
     }
 
     if let Some(peer) = state.random_peer_with_block(sync_height) {
-        debug!(sync.height = %sync_height, %peer, "Requesting block from peer");
-
-        metrics.request_sent(sync_height.as_u64());
-
-        perform!(co, Effect::SendRequest(peer, Request::new(sync_height)));
-
-        state.store_pending_request(sync_height, peer);
+        request_sync_from_peer(co, state, metrics, sync_height, peer).await?;
     }
 
     Ok(())
+}
+
+async fn request_sync_from_peer<Ctx>(
+    co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    height: Ctx::Height,
+    peer: PeerId,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    debug!(sync.height = %height, %peer, "Requesting block from peer");
+
+    perform!(co, Effect::SendRequest(peer, Request::new(height)));
+
+    metrics.request_sent(height.as_u64());
+    state.store_pending_request(height, peer);
+
+    Ok(())
+}
+
+async fn on_invalid_certificate<Ctx>(
+    co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    from: PeerId,
+    certificate: CommitCertificate<Ctx>,
+    error: CertificateError<Ctx>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    error!(%error, %certificate.height, %certificate.round, "Received invalid certificate");
+    trace!("Certificate: {certificate:#?}");
+
+    info!("Requesting sync from another peer");
+    state.remove_pending_request(certificate.height);
+
+    let Some(peer) = state.random_peer_with_block_except(certificate.height, from) else {
+        error!("No other peer to request sync from");
+        return Ok(());
+    };
+
+    request_sync_from_peer(co, state, metrics, certificate.height, peer).await
 }
