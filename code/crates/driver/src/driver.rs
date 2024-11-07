@@ -252,7 +252,6 @@ where
             Some(round_input) => self.apply_input(round, round_input),
             None => Ok(None),
         }
-        //self.apply_input(certificate.round, RoundInput::CommitCertificate(certificate))
     }
 
     fn apply_new_round(
