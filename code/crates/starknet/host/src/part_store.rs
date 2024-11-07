@@ -60,12 +60,6 @@ impl<Ctx: Context> PartStore<Ctx> {
         existing.value_id = Some(value_id);
     }
 
-    pub fn value_id(&mut self, height: Ctx::Height, round: Round) -> Option<ValueId<Ctx>> {
-        self.store
-            .get(&(height, round))
-            .map(|entry| entry.value_id.clone())?
-    }
-
     pub fn prune(&mut self, min_height: Ctx::Height) {
         self.store.retain(|(height, _), _| *height >= min_height);
     }
