@@ -117,14 +117,15 @@ where
             }
         }
 
-        // We have a valid proposal.
+        // We have a valid proposal. Check if there is already a certificate for it.
         // L49
-        if let Some(certificate) = self.certificates.first() {
-            //TODO - fix bug, in legit case, cert value_id and proposal have different values
-            // add this check: certificate.value_id == proposal.value().id()
-            if self.round_state.decision.is_none() && proposal.round() == certificate.round {
-                return Some(RoundInput::ProposalAndPrecommitValue(proposal));
-            }
+        if self
+            .certificates
+            .iter()
+            .any(|c| c.value_id == proposal.value().id() && proposal.round() == c.round)
+            && self.round_state.decision.is_none()
+        {
+            return Some(RoundInput::ProposalAndPrecommitValue(proposal));
         }
 
         if self.vote_keeper.is_threshold_met(
