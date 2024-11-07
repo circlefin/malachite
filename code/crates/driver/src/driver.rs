@@ -109,6 +109,7 @@ where
         self.vote_keeper = vote_keeper;
         self.round_state = round_state;
         self.pending_inputs = vec![];
+        self.certificates = vec![];
     }
 
     /// Return the height of the consensus.

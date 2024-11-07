@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use eyre::eyre;
 
+use malachite_starknet_p2p_types::Block;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use rand::RngCore;
 use sha3::Digest;
@@ -581,24 +582,20 @@ impl Actor for StarknetHost {
                 block_bytes,
                 reply_to,
             } => {
-                // TODO - process and check that block_bytes match the proposal
-                let block_hash = {
-                    let mut block_hasher = sha3::Keccak256::new();
-                    block_hasher.update(block_bytes);
-                    BlockHash::new(block_hasher.finalize().into())
-                };
+                let raw_block = Block::from_bytes(block_bytes.as_ref());
+                if let Ok(block) = raw_block {
+                    let proposed_value = ProposedValue {
+                        height,
+                        round,
+                        valid_round: Round::Nil,
+                        validator_address,
+                        value: block.block_hash,
+                        validity: Validity::Valid,
+                        extension: None,
+                    };
 
-                let proposed_value = ProposedValue {
-                    height,
-                    round,
-                    valid_round: Round::Nil,
-                    validator_address,
-                    value: block_hash,
-                    validity: Validity::Valid,
-                    extension: None,
-                };
-
-                reply_to.send(proposed_value)?;
+                    reply_to.send(proposed_value)?;
+                }
 
                 Ok(())
             }
