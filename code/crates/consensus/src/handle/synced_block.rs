@@ -36,7 +36,11 @@ where
         return Err(Error::ValidatorSetNotFound(certificate.height));
     };
 
-    if let Err(e) = certificate.verify(&state.ctx, validator_set.borrow()) {
+    if let Err(e) = certificate.verify(
+        &state.ctx,
+        validator_set.borrow(),
+        state.params.threshold_params,
+    ) {
         return Err(Error::InvalidCertificate(certificate, e));
     }
 

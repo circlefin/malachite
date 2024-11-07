@@ -4,8 +4,8 @@ use alloc::vec::Vec;
 use derive_where::derive_where;
 
 use crate::{
-    Context, Extension, NilOrVal, Round, Signature, SignedVote, Validator, ValidatorSet, ValueId,
-    Vote, VoteType, VotingPower,
+    Context, Extension, NilOrVal, Round, Signature, SignedVote, ThresholdParams, Validator,
+    ValidatorSet, ValueId, Vote, VoteType, VotingPower,
 };
 
 /// Represents a signature for a certificate, including the address and the signature itself.
@@ -95,6 +95,7 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
         &self,
         ctx: &Ctx,
         validator_set: &Ctx::ValidatorSet,
+        thresholds: ThresholdParams,
     ) -> Result<(), CertificateError<Ctx>> {
         // 1. Check that we have 2/3+ of voting power has signed the certificate
         let total_voting_power = validator_set.total_voting_power();
@@ -114,14 +115,16 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
         }
 
         // Check if we have 2/3+ voting power
-        // TODO: Should this use the `ThresholdParams` instead of being hardcoded to 2/3+?
-        if signed_voting_power * 3 > total_voting_power * 2 {
+        if thresholds
+            .quorum
+            .is_met(signed_voting_power, total_voting_power)
+        {
             Ok(())
         } else {
             Err(CertificateError::NotEnoughVotingPower {
                 signed: signed_voting_power,
                 total: total_voting_power,
-                expected: 2 * total_voting_power / 3,
+                expected: thresholds.quorum.min_expected(total_voting_power),
             })
         }
     }
