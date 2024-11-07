@@ -109,20 +109,8 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
                 None => continue,
             };
 
-            // Reconstruct the vote that was signed
-            let vote = Ctx::new_precommit(
-                self.height,
-                self.round,
-                NilOrVal::Val(self.value_id.clone()),
-                validator.address().clone(),
-            );
-
-            // Verify signature
-            if !ctx.verify_signed_vote(&vote, &commit_sig.signature, validator.public_key()) {
-                return Err(CertificateError::InvalidCommitSignature(commit_sig.clone()));
-            }
-
-            signed_voting_power += validator.voting_power();
+            let voting_power = self.verify_commit_signature(ctx, commit_sig, validator)?;
+            signed_voting_power += voting_power;
         }
 
         // Check if we have 2/3+ voting power
@@ -136,6 +124,28 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
                 expected: 2 * total_voting_power / 3,
             })
         }
+    }
+
+    fn verify_commit_signature(
+        &self,
+        ctx: &Ctx,
+        commit_sig: &CommitSignature<Ctx>,
+        validator: &Ctx::Validator,
+    ) -> Result<VotingPower, CertificateError<Ctx>> {
+        // Reconstruct the vote that was signed
+        let vote = Ctx::new_precommit(
+            self.height,
+            self.round,
+            NilOrVal::Val(self.value_id.clone()),
+            validator.address().clone(),
+        );
+
+        // Verify signature
+        if !ctx.verify_signed_vote(&vote, &commit_sig.signature, validator.public_key()) {
+            return Err(CertificateError::InvalidCommitSignature(commit_sig.clone()));
+        }
+
+        Ok(validator.voting_power())
     }
 }
 
@@ -177,3 +187,5 @@ impl<Ctx: Context> fmt::Display for CertificateError<Ctx> {
         }
     }
 }
+
+impl<Ctx: Context> core::error::Error for CertificateError<Ctx> {}
