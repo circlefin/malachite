@@ -11,8 +11,8 @@ use redb::ReadableTable;
 use thiserror::Error;
 
 use crate::codec::{decode_sync_block, encode_synced_block};
-use crate::mock::context::MockContext;
 use crate::proto::{self as proto, Error as ProtoError};
+use crate::types::MockContext;
 use crate::types::{Block, Height, Transaction, Transactions};
 
 #[derive(Clone, Debug)]

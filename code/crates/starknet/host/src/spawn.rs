@@ -5,11 +5,6 @@ use libp2p_identity::ecdsa;
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 
-use crate::actor::StarknetHost;
-use crate::mempool::{Mempool, MempoolRef};
-use crate::mock::context::MockContext;
-use crate::mock::host::{MockHost, MockParams};
-use crate::types::{Address, Height, PrivateKey, ValidatorSet};
 use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
@@ -30,7 +25,12 @@ use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
 
+use crate::actor::StarknetHost;
 use crate::codec::ProtobufCodec;
+use crate::mempool::{Mempool, MempoolRef};
+use crate::mock::host::{MockHost, MockParams};
+use crate::types::MockContext;
+use crate::types::{Address, Height, PrivateKey, ValidatorSet};
 
 pub async fn spawn_node_actor(
     cfg: NodeConfig,

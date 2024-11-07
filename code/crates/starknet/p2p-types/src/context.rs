@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
 use malachite_common::{
-    Context, Extension, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote,
-    ValidatorSet as _, ValueId,
+    Context, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote, ValidatorSet as _,
 };
-use malachite_starknet_p2p_types::{PrivateKey, PublicKey, Signature, SigningScheme};
 use starknet_core::utils::starknet_keccak;
 
-use crate::types::{
-    Address, BlockHash, Height, Proposal, ProposalPart, Validator, ValidatorSet, Vote,
+use crate::{
+    Address, BlockHash, Height, PrivateKey, Proposal, ProposalPart, PublicKey, Signature,
+    SigningScheme, Validator, ValidatorSet, Vote,
 };
+
+mod impls;
 
 #[derive(Clone, Debug)]
 pub struct MockContext {
@@ -130,15 +131,5 @@ impl Context for MockContext {
         address: Address,
     ) -> Vote {
         Vote::new_precommit(height, round, value_id, address)
-    }
-
-    fn extended_precommit(
-        height: Self::Height,
-        round: Round,
-        value_id: NilOrVal<ValueId<Self>>,
-        address: Self::Address,
-        extension: Extension,
-    ) -> Self::Vote {
-        Vote::new_precommit_with_extension(height, round, value_id, address, extension)
     }
 }

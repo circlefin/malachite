@@ -201,6 +201,7 @@ where
                 return Some(RoundInput::ProposalAndPrecommitValue(proposal.clone()));
             }
         }
+
         None
     }
 

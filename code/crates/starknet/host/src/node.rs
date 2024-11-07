@@ -3,14 +3,14 @@ use std::path::{Path, PathBuf};
 use rand::{CryptoRng, RngCore};
 use tracing::{info, Instrument};
 
-use crate::mock::context::MockContext;
-use crate::types::{PrivateKey, PublicKey, Validator, ValidatorSet};
 use malachite_common::VotingPower;
 use malachite_config::Config;
 use malachite_node::Node;
 
 use crate::spawn::spawn_node_actor;
 use crate::types::Height;
+use crate::types::MockContext;
+use crate::types::{PrivateKey, PublicKey, Validator, ValidatorSet};
 
 pub struct StarknetNode {
     pub config: Config,

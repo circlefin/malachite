@@ -2,7 +2,7 @@ use bytes::Bytes;
 use derive_where::derive_where;
 
 use malachite_common::{
-    CommitCertificate, Context, Extension, Round, SignedProposal, SignedVote, Timeout,
+    CommitCertificate, Context, Round, SignedExtension, SignedProposal, SignedVote, Timeout,
 };
 
 use crate::types::ProposedValue;
@@ -23,7 +23,18 @@ where
     Proposal(SignedProposal<Ctx>),
 
     /// Propose a value
-    ProposeValue(Ctx::Height, Round, Round, Ctx::Value, Option<Extension>),
+    ProposeValue(
+        /// Height
+        Ctx::Height,
+        /// Round
+        Round,
+        /// Valid round
+        Round,
+        /// Value
+        Ctx::Value,
+        /// Signed vote extension
+        Option<SignedExtension<Ctx>>,
+    ),
 
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),

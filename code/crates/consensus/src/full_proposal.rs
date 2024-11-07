@@ -4,7 +4,7 @@ use derive_where::derive_where;
 use tracing::debug;
 
 use malachite_common::{
-    Context, Extension, Height, Proposal, Round, SignedProposal, Validity, Value,
+    Context, Height, Proposal, Round, SignedExtension, SignedProposal, Validity, Value,
 };
 
 use crate::ProposedValue;
@@ -19,7 +19,7 @@ pub struct FullProposal<Ctx: Context> {
     /// Proposal consensus message
     pub proposal: SignedProposal<Ctx>,
     /// Extension
-    pub extension: Option<Extension>,
+    pub extension: Option<SignedExtension<Ctx>>,
 }
 
 impl<Ctx: Context> FullProposal<Ctx> {
@@ -27,7 +27,7 @@ impl<Ctx: Context> FullProposal<Ctx> {
         builder_value: Ctx::Value,
         validity: Validity,
         proposal: SignedProposal<Ctx>,
-        extension: Option<Extension>,
+        extension: Option<SignedExtension<Ctx>>,
     ) -> Self {
         Self {
             builder_value,
@@ -48,7 +48,7 @@ enum Entry<Ctx: Context> {
     ProposalOnly(SignedProposal<Ctx>),
 
     /// Only the value has been received.
-    ValueOnly(Ctx::Value, Validity, Option<Extension>),
+    ValueOnly(Ctx::Value, Validity, Option<SignedExtension<Ctx>>),
 
     // This is a placeholder for converting a partial
     // entry (`ProposalOnly` or `ValueOnly`) to a full entry (`Full`).
@@ -62,7 +62,7 @@ impl<Ctx: Context> Entry<Ctx> {
         value: Ctx::Value,
         validity: Validity,
         proposal: SignedProposal<Ctx>,
-        extension: Option<Extension>,
+        extension: Option<SignedExtension<Ctx>>,
     ) -> Self {
         Entry::Full(FullProposal::new(value, validity, proposal, extension))
     }
@@ -170,12 +170,13 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         None
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn get_value<'a>(
         &self,
         height: &Ctx::Height,
         round: Round,
         value: &'a Ctx::Value,
-    ) -> Option<(&'a Ctx::Value, Validity, Option<Extension>)> {
+    ) -> Option<(&'a Ctx::Value, Validity, Option<SignedExtension<Ctx>>)> {
         let entries = self
             .keeper
             .get(&(*height, round))

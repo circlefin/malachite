@@ -6,7 +6,6 @@ use eyre::eyre;
 use itertools::Itertools;
 use malachite_starknet_p2p_types::Block;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
-use rand::RngCore;
 use sha3::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, trace, warn};
@@ -16,15 +15,15 @@ use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef}
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachite_blocksync::SyncedBlock;
-use malachite_common::{Extension, Round, Validity};
+use malachite_common::{Extension, Round, SignedExtension, Validity};
 use malachite_metrics::Metrics;
 
 use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
-use crate::mock::context::MockContext;
 use crate::mock::host::{compute_proposal_hash, MockHost};
 use crate::proto::Protobuf;
 use crate::streaming::PartStreamsMap;
+use crate::types::MockContext;
 use crate::types::{
     Address, BlockHash, Hash, Height, ProposalInit, ProposalPart, Signature, ValidatorSet,
 };
@@ -81,13 +80,20 @@ impl HostState {
         })
     }
 
+    #[allow(clippy::type_complexity)]
     #[tracing::instrument(skip_all, fields(%height, %round))]
     pub async fn build_proposal_content_from_parts(
         &self,
         parts: &[Arc<ProposalPart>],
         height: Height,
         round: Round,
-    ) -> Option<(Round, BlockHash, Address, Validity, Option<Extension>)> {
+    ) -> Option<(
+        Round,
+        BlockHash,
+        Address,
+        Validity,
+        Option<SignedExtension<MockContext>>,
+    )> {
         if parts.is_empty() {
             return None;
         }
@@ -109,15 +115,7 @@ impl HostState {
 
         trace!(parts.len = %parts.len(), "Building proposal content from parts");
 
-        let extension = self.host.params.vote_extensions.enabled.then(|| {
-            let size = self.host.params.vote_extensions.size.as_u64() as usize;
-            debug!(%size, "Vote extensions are enabled" );
-
-            let mut bytes = vec![0u8; size];
-            rand::thread_rng().fill_bytes(&mut bytes);
-
-            Extension::from(bytes)
-        });
+        let extension = self.host.generate_vote_extension(height, round);
 
         let block_hash = {
             let mut block_hasher = sha3::Keccak256::new();
@@ -389,15 +387,7 @@ impl Actor for StarknetHost {
 
                 let parts = state.host.part_store.all_parts(height, round);
 
-                let extension = state.host.params.vote_extensions.enabled.then(|| {
-                    let size = state.host.params.vote_extensions.size.as_u64() as usize;
-                    debug!(%size, "Vote extensions are enabled");
-
-                    let mut bytes = vec![0u8; size];
-                    rand::thread_rng().fill_bytes(&mut bytes);
-
-                    Extension::from(bytes)
-                });
+                let extension = state.host.generate_vote_extension(height, round);
 
                 if let Some(value) = state.build_value_from_parts(&parts, height, round).await {
                     reply_to.send(LocallyProposedValue::new(
