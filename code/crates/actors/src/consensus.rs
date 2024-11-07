@@ -11,19 +11,19 @@ use tracing::{debug, error, info, warn};
 
 use malachite_blocksync as blocksync;
 use malachite_common::{
-    CommitCertificate, Context, Extension, Round, Timeout, TimeoutStep, ValidatorSet,
+    CommitCertificate, Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet,
 };
 use malachite_config::TimeoutConfig;
 use malachite_consensus::{Effect, Resume};
 use malachite_metrics::Metrics;
 
+use crate::block_sync::BlockSyncRef;
 use crate::block_sync::Msg as BlockSyncMsg;
 use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg, Status};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::forward::forward;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
-use crate::block_sync::BlockSyncRef;
 pub use malachite_consensus::Params as ConsensusParams;
 pub use malachite_consensus::State as ConsensusState;
 
@@ -58,7 +58,7 @@ pub enum Msg<Ctx: Context> {
     TimeoutElapsed(TimeoutElapsed<Timeout>),
 
     /// The proposal builder has built a value and can be used in a new proposal consensus message
-    ProposeValue(Ctx::Height, Round, Ctx::Value, Option<Extension>),
+    ProposeValue(Ctx::Height, Round, Ctx::Value, Option<SignedExtension<Ctx>>),
 
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>),

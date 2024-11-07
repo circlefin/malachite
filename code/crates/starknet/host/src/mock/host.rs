@@ -5,14 +5,13 @@ use async_trait::async_trait;
 use bytesize::ByteSize;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
-use tracing::Instrument;
+use tracing::{debug, Instrument};
 
-use malachite_common::{CommitCertificate, Round, SignedVote};
+use malachite_common::{CommitCertificate, Extension, Round, SignedExtension, SignedVote};
 use malachite_config::VoteExtensionsConfig;
 use malachite_consensus::ValuePayload;
 
 use crate::mempool::MempoolRef;
-use crate::mock::context::MockContext;
 use crate::part_store::PartStore;
 use crate::types::*;
 use crate::Host;
@@ -57,6 +56,31 @@ impl MockHost {
             validator_set,
             part_store: Default::default(),
         }
+    }
+
+    pub fn generate_vote_extension(
+        &self,
+        _height: Height,
+        _round: Round,
+    ) -> Option<SignedExtension<MockContext>> {
+        use rand::RngCore;
+        use sha3::Digest;
+
+        if !self.params.vote_extensions.enabled {
+            return None;
+        }
+
+        let size = self.params.vote_extensions.size.as_u64() as usize;
+        debug!(%size, "Vote extensions are enabled");
+
+        let mut bytes = vec![0u8; size];
+        rand::thread_rng().fill_bytes(&mut bytes);
+
+        let hash = Hash::new(sha3::Keccak256::digest(&bytes).into());
+        let extension = Extension::from(bytes);
+        let signature = self.private_key.sign(&hash.as_felt());
+
+        Some(SignedExtension::new(extension, signature))
     }
 }
 

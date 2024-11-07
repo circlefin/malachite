@@ -6,7 +6,7 @@ use tokio::time::Instant;
 
 use malachite_common::{CommitCertificate, Round};
 
-use crate::mock::context::MockContext;
+use crate::types::MockContext;
 
 #[async_trait]
 pub trait Host {

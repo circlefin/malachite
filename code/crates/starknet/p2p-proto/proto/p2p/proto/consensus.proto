@@ -25,7 +25,7 @@ message Vote {
     Address            voter        = 7;
 
     /// ADDED
-    optional bytes     extension    = 8;
+    optional Extension extension    = 8;
 }
 
 message ProposalInit {
@@ -88,15 +88,26 @@ message ConsensusMessage {
     ConsensusSignature signature = 3;
 }
 
+// ADDED
+message Extension {
+    bytes data = 1;
+    ConsensusSignature signature = 2;
+}
+
+// ADDED
 message CommitSignature {
     // TODO - add flag (no vote, nil, value?)
     Address validator_address    = 1;
     ConsensusSignature signature = 2;
-    optional bytes     extension = 3;
+    optional Extension extension = 3;
 }
+
+// ADDED
 message AggregatedSignature {
     repeated CommitSignature signatures = 1;
 }
+
+// ADDED
 message CommitCertificate {
     uint64 fork_id              = 1;
     uint64 block_number         = 2;
