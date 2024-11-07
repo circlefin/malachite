@@ -6,7 +6,7 @@ use libp2p::PeerId;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachite_blocksync::SyncedBlock;
-use malachite_common::{CommitCertificate, Context, Extension, Round, ValueId};
+use malachite_common::{CommitCertificate, Context, Round, SignedExtension, ValueId};
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
@@ -23,7 +23,7 @@ pub struct LocallyProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
     pub value: Ctx::Value,
-    pub extension: Option<Extension>,
+    pub extension: Option<SignedExtension<Ctx>>,
 }
 
 impl<Ctx: Context> LocallyProposedValue<Ctx> {
@@ -31,7 +31,7 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
         height: Ctx::Height,
         round: Round,
         value: Ctx::Value,
-        extension: Option<Extension>,
+        extension: Option<SignedExtension<Ctx>>,
     ) -> Self {
         Self {
             height,

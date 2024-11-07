@@ -12,7 +12,6 @@ use malachite_config::VoteExtensionsConfig;
 use malachite_consensus::ValuePayload;
 
 use crate::mempool::MempoolRef;
-use crate::mock::context::MockContext;
 use crate::part_store::PartStore;
 use crate::types::*;
 use crate::Host;

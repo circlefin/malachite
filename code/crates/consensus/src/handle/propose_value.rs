@@ -12,7 +12,7 @@ pub async fn propose_value<Ctx>(
     round: Round,
     valid_round: Round,
     value: Ctx::Value,
-    extension: Option<Extension>,
+    extension: Option<SignedExtension<Ctx>>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,

@@ -4,15 +4,15 @@ use malachite_actors::util::codec::NetworkCodec;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_blocksync as blocksync;
 use malachite_common::{
-    AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedProposal,
-    SignedVote,
+    AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
+    SignedProposal, SignedVote,
 };
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Bytes;
 
-use crate::mock::context::MockContext;
 use crate::proto::consensus_message::Messages;
 use crate::proto::{self as proto, ConsensusMessage, Error as ProtoError, Protobuf};
+use crate::types::MockContext;
 use crate::types::{self as p2p, Address, BlockHash, Height, ProposalPart, Vote};
 
 pub struct ProtobufCodec;
@@ -188,9 +188,9 @@ where
 pub(crate) fn encode_aggregate_signature(
     aggregated_signature: AggregatedSignature<MockContext>,
 ) -> Result<proto::AggregatedSignature, ProtoError> {
-    let signatures_result: Result<Vec<proto::CommitSignature>, ProtoError> = aggregated_signature
+    let signatures = aggregated_signature
         .signatures
-        .iter()
+        .into_iter()
         .map(|s| {
             let validator_address = s.address.to_proto()?;
             let signature = s.signature.to_proto()?;
@@ -198,16 +198,20 @@ pub(crate) fn encode_aggregate_signature(
             Ok(proto::CommitSignature {
                 validator_address: Some(validator_address),
                 signature: Some(signature),
-                extension: s.extension.as_ref().map(|e| e.data.clone()),
+                extension: s
+                    .extension
+                    .map(|e| -> Result<_, ProtoError> {
+                        Ok(proto::Extension {
+                            data: e.message.data,
+                            signature: Some(e.signature.to_proto()?),
+                        })
+                    })
+                    .transpose()?,
             })
         })
-        .collect();
+        .collect::<Result<_, ProtoError>>()?;
 
-    let proto_signature = proto::AggregatedSignature {
-        signatures: signatures_result?,
-    };
-
-    Ok(proto_signature)
+    Ok(proto::AggregatedSignature { signatures })
 }
 
 pub(crate) fn encode_certificate(
@@ -236,30 +240,44 @@ pub(crate) fn encode_synced_block(
 pub(crate) fn decode_aggregated_signature(
     signature: proto::AggregatedSignature,
 ) -> Result<AggregatedSignature<MockContext>, ProtoError> {
-    let aggregated_signature = signature
+    let signatures = signature
         .signatures
-        .iter()
+        .into_iter()
         .map(|s| {
-            let sig = s
+            let signature = s
                 .signature
-                .as_ref()
-                .ok_or_else(|| ProtoError::missing_field::<proto::CommitSignature>("signature"))?;
+                .ok_or_else(|| ProtoError::missing_field::<proto::CommitSignature>("signature"))
+                .and_then(p2p::Signature::from_proto)?;
 
-            let address = Address::from_proto(s.validator_address.clone().ok_or_else(|| {
-                ProtoError::missing_field::<proto::CommitSignature>("validator_address")
-            })?)?;
+            let address = s
+                .validator_address
+                .ok_or_else(|| {
+                    ProtoError::missing_field::<proto::CommitSignature>("validator_address")
+                })
+                .and_then(Address::from_proto)?;
 
-            let commit_signature = CommitSignature {
+            let extension = s
+                .extension
+                .map(|e| -> Result<_, ProtoError> {
+                    let extension = Extension::from(e.data);
+                    let signature = e
+                        .signature
+                        .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
+                        .and_then(p2p::Signature::from_proto)?;
+
+                    Ok(SignedExtension::new(extension, signature))
+                })
+                .transpose()?;
+
+            Ok(CommitSignature {
                 address,
-                signature: p2p::Signature::from_proto(sig.clone())?,
-                extension: s.extension.clone().map(Extension::from),
-            };
-            Ok(commit_signature)
+                signature,
+                extension,
+            })
         })
         .collect::<Result<Vec<_>, ProtoError>>()?;
-    Ok(AggregatedSignature {
-        signatures: aggregated_signature,
-    })
+
+    Ok(AggregatedSignature { signatures })
 }
 
 pub(crate) fn decode_certificate(

@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use derive_where::derive_where;
 
 use crate::{
-    Context, Extension, NilOrVal, Round, Signature, SignedVote, ThresholdParams, Validator,
+    Context, NilOrVal, Round, Signature, SignedExtension, SignedVote, ThresholdParams, Validator,
     ValidatorSet, ValueId, Vote, VoteType, VotingPower,
 };
 
@@ -16,8 +16,22 @@ pub struct CommitSignature<Ctx: Context> {
     /// The signature itself.
     pub signature: Signature<Ctx>,
     /// Vote extension
-    /// TODO - add extension signature
-    pub extension: Option<Extension>,
+    pub extension: Option<SignedExtension<Ctx>>,
+}
+
+impl<Ctx: Context> CommitSignature<Ctx> {
+    /// Create a new `CommitSignature` from an address and a signature, with an optional extension.
+    pub fn new(
+        address: Ctx::Address,
+        signature: Signature<Ctx>,
+        extension: Option<SignedExtension<Ctx>>,
+    ) -> Self {
+        Self {
+            address,
+            signature,
+            extension,
+        }
+    }
 }
 
 /// Aggregated signature.

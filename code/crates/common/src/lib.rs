@@ -51,6 +51,9 @@ pub type SignedProposal<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Proposal>;
 /// A signed proposal part
 pub type SignedProposalPart<Ctx> = SignedMessage<Ctx, <Ctx as Context>::ProposalPart>;
 
+/// A signed vote extension
+pub type SignedExtension<Ctx> = SignedMessage<Ctx, Extension>;
+
 pub use certificate::{AggregatedSignature, CertificateError, CommitCertificate, CommitSignature};
 pub use context::Context;
 pub use height::Height;

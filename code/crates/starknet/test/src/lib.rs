@@ -6,7 +6,6 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use malachite_starknet_host::mock::context::MockContext;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tokio::sync::broadcast;
@@ -20,6 +19,7 @@ use malachite_config::{
     TransportProtocol,
 };
 use malachite_starknet_host::spawn::spawn_node_actor;
+use malachite_starknet_host::types::MockContext;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

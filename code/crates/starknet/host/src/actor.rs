@@ -16,15 +16,15 @@ use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef}
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachite_blocksync::SyncedBlock;
-use malachite_common::{Extension, Round, Validity};
+use malachite_common::{Extension, Round, SignedExtension, Validity};
 use malachite_metrics::Metrics;
 
 use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
-use crate::mock::context::MockContext;
 use crate::mock::host::{compute_proposal_hash, MockHost};
 use crate::proto::Protobuf;
 use crate::streaming::PartStreamsMap;
+use crate::types::MockContext;
 use crate::types::{
     Address, BlockHash, Hash, Height, ProposalInit, ProposalPart, Signature, ValidatorSet,
 };
@@ -87,7 +87,13 @@ impl HostState {
         parts: &[Arc<ProposalPart>],
         height: Height,
         round: Round,
-    ) -> Option<(Round, BlockHash, Address, Validity, Option<Extension>)> {
+    ) -> Option<(
+        Round,
+        BlockHash,
+        Address,
+        Validity,
+        Option<SignedExtension<MockContext>>,
+    )> {
         if parts.is_empty() {
             return None;
         }
@@ -116,7 +122,9 @@ impl HostState {
             let mut bytes = vec![0u8; size];
             rand::thread_rng().fill_bytes(&mut bytes);
 
-            Extension::from(bytes)
+            let extension = Extension::from(bytes);
+            let signature = todo!();
+            SignedExtension::new(extension, signature)
         });
 
         let block_hash = {
@@ -396,7 +404,9 @@ impl Actor for StarknetHost {
                     let mut bytes = vec![0u8; size];
                     rand::thread_rng().fill_bytes(&mut bytes);
 
-                    Extension::from(bytes)
+                    let extension = Extension::from(bytes);
+                    let signature = todo!();
+                    SignedExtension::new(extension, signature)
                 });
 
                 if let Some(value) = state.build_value_from_parts(&parts, height, round).await {
