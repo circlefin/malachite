@@ -15,12 +15,11 @@ use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef}
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachite_blocksync::SyncedBlock;
-use malachite_common::{Extension, Round, SignedExtension, Validity};
+use malachite_common::{Round, SignedExtension, Validity};
 use malachite_metrics::Metrics;
 
 use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
-use crate::mock::context::MockContext;
 use crate::mock::host::{compute_proposal_hash, compute_proposal_signature, MockHost};
 use crate::proto::Protobuf;
 use crate::streaming::PartStreamsMap;
