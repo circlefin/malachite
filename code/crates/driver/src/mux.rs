@@ -196,8 +196,7 @@ where
             .proposal_keeper
             .get_proposal_and_validity_for_round(certificate.round)
         {
-            let proposal: <Ctx as Context>::Proposal = signed_proposal.message.clone();
-            dbg!(&proposal);
+            let proposal = &signed_proposal.message;
             if proposal.value().id() == certificate.value_id && validity.is_valid() {
                 return Some(RoundInput::ProposalAndPrecommitValue(proposal.clone()));
             }

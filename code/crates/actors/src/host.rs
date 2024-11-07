@@ -102,9 +102,9 @@ pub enum HostMsg<Ctx: Context> {
 
     // Synced block
     ProcessSyncedBlockBytes {
-        height: Ctx::Height,             // TODO - should come from block
-        round: Round,                    // TODO - should come from block
-        validator_address: Ctx::Address, // TODO - should come from block
+        height: Ctx::Height,
+        round: Round,
+        validator_address: Ctx::Address,
         block_bytes: Bytes,
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },

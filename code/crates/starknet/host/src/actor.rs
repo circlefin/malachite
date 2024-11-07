@@ -546,7 +546,7 @@ impl Actor for StarknetHost {
                     }
                 }
 
-                // Build the block from proposal parts and commits and store it
+                // Build the block from transaction parts and certificate, and store it
                 if let Err(e) = state.block_store.store(&certificate, &all_txes).await {
                     error!(%e, %height, %round, "Failed to store the block");
                 }
@@ -634,8 +634,8 @@ impl Actor for StarknetHost {
                 block_bytes,
                 reply_to,
             } => {
-                let raw_block = Block::from_bytes(block_bytes.as_ref());
-                if let Ok(block) = raw_block {
+                let maybe_block = Block::from_bytes(block_bytes.as_ref());
+                if let Ok(block) = maybe_block {
                     let proposed_value = ProposedValue {
                         height,
                         round,

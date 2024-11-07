@@ -3,14 +3,6 @@ use prost::Message;
 use malachite_actors::util::codec::NetworkCodec;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_blocksync as blocksync;
-
-use crate::proto::consensus_message::Messages;
-use crate::proto::{
-    self as proto, AggregatedSignature as AggregatedSignatureRaw,
-    CommitCertificate as CommitCertificateRaw, CommitSignature as CommitSignatureRaw,
-    ConsensusMessage, Error as ProtoError, Protobuf,
-};
-use crate::types::{self as p2p, Address, BlockHash, Height, ProposalPart};
 use malachite_common::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedProposal,
     SignedVote,
@@ -19,7 +11,9 @@ use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Bytes;
 
 use crate::mock::context::MockContext;
-use crate::types::Vote;
+use crate::proto::consensus_message::Messages;
+use crate::proto::{self as proto, ConsensusMessage, Error as ProtoError, Protobuf};
+use crate::types::{self as p2p, Address, BlockHash, Height, ProposalPart, Vote};
 
 pub struct ProtobufCodec;
 
@@ -193,15 +187,15 @@ where
 
 pub(crate) fn encode_aggregate_signature(
     aggregated_signature: AggregatedSignature<MockContext>,
-) -> Result<AggregatedSignatureRaw, ProtoError> {
-    let signatures_result: Result<Vec<CommitSignatureRaw>, ProtoError> = aggregated_signature
+) -> Result<proto::AggregatedSignature, ProtoError> {
+    let signatures_result: Result<Vec<proto::CommitSignature>, ProtoError> = aggregated_signature
         .signatures
         .iter()
         .map(|s| {
             let validator_address = s.address.to_proto()?;
             let signature = s.signature.to_proto()?;
 
-            Ok(CommitSignatureRaw {
+            Ok(proto::CommitSignature {
                 validator_address: Some(validator_address),
                 signature: Some(signature),
                 extension: s.extension.as_ref().map(|e| e.data.clone()),
@@ -209,17 +203,17 @@ pub(crate) fn encode_aggregate_signature(
         })
         .collect();
 
-    let raw_signature = AggregatedSignatureRaw {
+    let proto_signature = proto::AggregatedSignature {
         signatures: signatures_result?,
     };
 
-    Ok(raw_signature)
+    Ok(proto_signature)
 }
 
 pub(crate) fn encode_certificate(
     certificate: CommitCertificate<MockContext>,
-) -> Result<CommitCertificateRaw, ProtoError> {
-    Ok(CommitCertificateRaw {
+) -> Result<proto::CommitCertificate, ProtoError> {
+    Ok(proto::CommitCertificate {
         fork_id: certificate.height.fork_id,
         block_number: certificate.height.block_number,
         round: certificate.round.as_u32().expect("round should not be nil"),
@@ -240,7 +234,7 @@ pub(crate) fn encode_synced_block(
 }
 
 pub(crate) fn decode_aggregated_signature(
-    signature: AggregatedSignatureRaw,
+    signature: proto::AggregatedSignature,
 ) -> Result<AggregatedSignature<MockContext>, ProtoError> {
     let aggregated_signature = signature
         .signatures
@@ -249,10 +243,10 @@ pub(crate) fn decode_aggregated_signature(
             let sig = s
                 .signature
                 .as_ref()
-                .ok_or_else(|| ProtoError::missing_field::<CommitSignatureRaw>("signature"))?;
+                .ok_or_else(|| ProtoError::missing_field::<proto::CommitSignature>("signature"))?;
 
             let address = Address::from_proto(s.validator_address.clone().ok_or_else(|| {
-                ProtoError::missing_field::<CommitSignatureRaw>("validator_address")
+                ProtoError::missing_field::<proto::CommitSignature>("validator_address")
             })?)?;
 
             let commit_signature = CommitSignature {
@@ -269,12 +263,12 @@ pub(crate) fn decode_aggregated_signature(
 }
 
 pub(crate) fn decode_certificate(
-    certificate: CommitCertificateRaw,
+    certificate: proto::CommitCertificate,
 ) -> Result<CommitCertificate<MockContext>, ProtoError> {
     let value_id = if let Some(block_hash) = certificate.block_hash {
         BlockHash::from_proto(block_hash)?
     } else {
-        return Err(ProtoError::missing_field::<CommitCertificateRaw>(
+        return Err(ProtoError::missing_field::<proto::CommitCertificate>(
             "block_hash",
         ));
     };
@@ -282,7 +276,7 @@ pub(crate) fn decode_certificate(
     let aggregated_signature = if let Some(agg_sig) = certificate.aggregated_signature {
         decode_aggregated_signature(agg_sig)?
     } else {
-        return Err(ProtoError::missing_field::<CommitCertificateRaw>(
+        return Err(ProtoError::missing_field::<proto::CommitCertificate>(
             "aggregated_signature",
         ));
     };

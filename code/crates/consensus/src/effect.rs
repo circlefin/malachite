@@ -66,9 +66,9 @@ where
     /// Consensus has received a synced decided block
     /// Resume with: [`Resume::Continue`]
     SyncedBlock {
-        height: Ctx::Height,             // TODO - should come from block
-        round: Round,                    // TODO - should come from block
-        validator_address: Ctx::Address, // TODO - should come from block
+        height: Ctx::Height,
+        round: Round,
+        validator_address: Ctx::Address,
         block_bytes: Bytes,
     },
 }
