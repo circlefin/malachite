@@ -20,9 +20,9 @@ where
     perform!(
         co,
         Effect::SyncedBlock {
-            height: certificate.height, // TODO - should come from block
-            round: certificate.round,   // TODO - should come from block
-            validator_address: state.driver.address().clone(), // TODO - should come from block
+            height: certificate.height,
+            round: certificate.round,
+            validator_address: state.driver.address().clone(),
             block_bytes,
         }
     );
