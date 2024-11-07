@@ -6,7 +6,6 @@ use eyre::eyre;
 use itertools::Itertools;
 use malachite_starknet_p2p_types::Block;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
-use rand::RngCore;
 use sha3::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, trace, warn};
@@ -81,6 +80,7 @@ impl HostState {
         })
     }
 
+    #[allow(clippy::type_complexity)]
     #[tracing::instrument(skip_all, fields(%height, %round))]
     pub async fn build_proposal_content_from_parts(
         &self,
@@ -115,17 +115,7 @@ impl HostState {
 
         trace!(parts.len = %parts.len(), "Building proposal content from parts");
 
-        let extension = self.host.params.vote_extensions.enabled.then(|| {
-            let size = self.host.params.vote_extensions.size.as_u64() as usize;
-            debug!(%size, "Vote extensions are enabled" );
-
-            let mut bytes = vec![0u8; size];
-            rand::thread_rng().fill_bytes(&mut bytes);
-
-            let extension = Extension::from(bytes);
-            let signature = todo!();
-            SignedExtension::new(extension, signature)
-        });
+        let extension = self.host.generate_vote_extension(height, round);
 
         let block_hash = {
             let mut block_hasher = sha3::Keccak256::new();
@@ -397,17 +387,7 @@ impl Actor for StarknetHost {
 
                 let parts = state.host.part_store.all_parts(height, round);
 
-                let extension = state.host.params.vote_extensions.enabled.then(|| {
-                    let size = state.host.params.vote_extensions.size.as_u64() as usize;
-                    debug!(%size, "Vote extensions are enabled");
-
-                    let mut bytes = vec![0u8; size];
-                    rand::thread_rng().fill_bytes(&mut bytes);
-
-                    let extension = Extension::from(bytes);
-                    let signature = todo!();
-                    SignedExtension::new(extension, signature)
-                });
+                let extension = state.host.generate_vote_extension(height, round);
 
                 if let Some(value) = state.build_value_from_parts(&parts, height, round).await {
                     reply_to.send(LocallyProposedValue::new(

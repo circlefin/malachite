@@ -23,7 +23,6 @@ malachite-starknet-p2p-proto.workspace = true
 
 bytes = { workspace = true, features = ["serde"] }
 
-starknet-core.workspace   = true
 async-trait.workspace     = true
 bytesize.workspace        = true
 derive-where.workspace    = true

@@ -2665,7 +2665,6 @@ dependencies = [
  "redb",
  "serde_json",
  "sha3",
- "starknet-core",
  "tempfile",
  "thiserror",
  "tokio",

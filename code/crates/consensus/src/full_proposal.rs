@@ -170,6 +170,7 @@ impl<Ctx: Context> FullProposalKeeper<Ctx> {
         None
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn get_value<'a>(
         &self,
         height: &Ctx::Height,
