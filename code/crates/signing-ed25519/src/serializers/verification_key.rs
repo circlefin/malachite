@@ -1,5 +1,8 @@
 //! Serde Ed25519 VerificationKey CometBFT serializer/deserializer.
 
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+
 use ed25519_consensus::VerificationKey;
 use serde::{Deserialize, Serialize, Serializer};
 

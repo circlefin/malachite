@@ -1,5 +1,8 @@
 //! Serde Ed25519 SigningKey CometBFT serializer/deserializer.
 
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+
 use ed25519_consensus::SigningKey;
 use serde::{Deserialize, Serialize, Serializer};
 

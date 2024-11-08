@@ -8,6 +8,7 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [features]
+std   = []
 serde = ["dep:serde", "dep:base64"]
 rand  = ["dep:rand"]
 
