@@ -4,7 +4,6 @@ use std::sync::Arc;
 use eyre::eyre;
 
 use itertools::Itertools;
-use malachite_starknet_p2p_types::Block;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use sha3::Digest;
 use tokio::time::Instant;
@@ -15,18 +14,16 @@ use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef}
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachite_blocksync::SyncedBlock;
-use malachite_common::{Extension, Round, SignedExtension, Validity};
+use malachite_common::{Round, SignedExtension, Validity};
 use malachite_metrics::Metrics;
+use malachite_starknet_p2p_types::{Block, PartType};
 
 use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
-use crate::mock::host::{compute_proposal_hash, MockHost};
+use crate::mock::host::{compute_proposal_hash, compute_proposal_signature, MockHost};
 use crate::proto::Protobuf;
 use crate::streaming::PartStreamsMap;
-use crate::types::MockContext;
-use crate::types::{
-    Address, BlockHash, Hash, Height, ProposalInit, ProposalPart, Signature, ValidatorSet,
-};
+use crate::types::*;
 use crate::Host;
 
 pub struct StarknetHost {
@@ -415,52 +412,44 @@ impl Actor for StarknetHost {
                 let stream_id = state.next_stream_id;
                 state.next_stream_id += 1;
 
+                let init = ProposalInit {
+                    height,
+                    proposal_round: round,
+                    valid_round,
+                    proposer: address.clone(),
+                };
+
+                let signature =
+                    compute_proposal_signature(&init, &value_id, &state.host.private_key);
+
+                let init_part = ProposalPart::Init(init);
+                let fin_part = ProposalPart::Fin(ProposalFin { signature });
+
+                debug!(%height, %round, "Created new Init part: {init_part:?}");
+
                 let mut sequence = 0;
-                let mut extension_part = None;
 
-                while let Some(mut part) = rx_part.recv().await {
-                    match part {
-                        ProposalPart::Init(ref mut init_part) => {
-                            // Change the Init to reflect it is a reproposal
-                            init_part.proposal_round = round;
-                            init_part.valid_round = valid_round;
-                            init_part.proposer = address.clone();
-                            debug!(%height, %round, "Created new Init part {:?}", init_part);
+                while let Some(part) = rx_part.recv().await {
+                    let new_part = match part.part_type() {
+                        PartType::Init => init_part.clone(),
+                        PartType::Fin => fin_part.clone(),
+                        PartType::Transactions | PartType::BlockProof => part,
+                    };
 
-                            state.host.part_store.store(height, round, part.clone());
-                        }
-                        ProposalPart::Transactions(_) => {
-                            // Store the transaction part
-                            state.host.part_store.store(height, round, part.clone());
-                            if extension_part.is_none() {
-                                extension_part = Some(part.clone());
-                            }
-                        }
-                        _ => {
-                            // Store BlockProof and Fin parts
-                            state.host.part_store.store(height, round, part.clone());
-                        }
+                    state.host.part_store.store(height, round, new_part.clone());
+
+                    if state.host.params.value_payload.include_parts() {
+                        debug!(%stream_id, %sequence, "Broadcasting proposal part");
+
+                        let msg =
+                            StreamMessage::new(stream_id, sequence, StreamContent::Data(new_part));
+
+                        self.gossip_consensus
+                            .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
+
+                        sequence += 1;
                     }
-
-                    debug!(
-                        %stream_id,
-                        %sequence,
-                        "Broadcasting proposal part"
-                    );
-
-                    let msg =
-                        StreamMessage::new(stream_id, sequence as u64, StreamContent::Data(part));
-
-                    self.gossip_consensus
-                        .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
-
-                    sequence += 1;
                 }
-
-                // TODO - send a reply with extension
-                let _extension = extension_part
-                    .and_then(|part| part.as_transactions().and_then(|txs| txs.to_bytes().ok()))
-                    .map(Extension::from);
 
                 Ok(())
             }
