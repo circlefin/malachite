@@ -1,14 +1,11 @@
 # Accountability
 
-#### TLDR
 
+It has been decided to build de-centralized Starknet using consensus engines that are based on the well-known [Tendermint consensus](https://arxiv.org/abs/1807.04938) algorithm. To be safe and live, Tendermint consensus requires that more than 2/3 of the participants are correct, that is, follow the algorithm. In a proof-of-stake context, setting up a correct node is a technological challenge itself, e.g., (1) the node needs to have its private key it uses to sign consensus messages on a computer that is continuously connected to the Internet, which poses a security challenge to the setup or (2) the node needs to have high availability, as downtime of one node may results in downtime (or reduced performance, e.g., throughput) of the whole chain. We thus argue in the following that it is best practice to incentivize node operators to take up this technological challenge seriously.
 
+A prerequisite to such incentivization schemes is to collect evidence of misconfiguration/misbehavior. When we talk about evidence here, we are only interested in provable pieces of information, e.g., if a node has used its private key to sign to conflicting messages (which is forbidden by Tendermint), that is, so-called equivocation (double vote). We don't consider subjective criteria, e.g., whether a node did not respond before a timeout expired.
 
-It has been decided to build de-centralized Starknet using consensus engines that are based on the well-known [Tendermint consensus](https://arxiv.org/abs/1807.04938) algorithm. To be safe and live, Tendermint consensus requires that more than 2/3 of the participants are correct, that is, follow the algorithm. In a proof-of-stake context, setting up a correct node is a technological challenge itself, e.g., (1) the node needs to have its private key it uses to sign consensus messages on a computer that is continuously connected to the Internet, which poses a security challenge to the setup or (2) the node needs to have high availability, as down-time may results in downtime (or reduced performance, e.g., throughput) of the whole chain. We thus argue in the following that it is best practice to incentivize node operators to take up this technological challenge seriously.
-
-A prerequisite to such incentivization schemes, is to collect evidence of misconfiguration/misbehavior. When we talk about evidence here, we are only interested in provable pieces of information, e.g., if a node has used its private key to sign to conflicting messages (which is forbidden by Tendermint), that is, so-called equivocation (double vote). 
-
-What is the typical case for equivocation seen in production systems? Let's look at
+**What is the typical case for equivocation seen in production systems?** Let's look at
 CometBFT. CometBFT is a battle-tested consensus engine based on Tendermint consensus, which
 only records specific misbehavior, namely the duplicate vote evidence. While actual attacks are rare, equivocation has still been observed in production as a result of misconfiguration. Most companies operating a validator typically implement this node as a fault-tolerant setup itself (in order to achieve availability), having copies of the private key of the validator on multiple machines. If such a fault-tolerant setup is implemented poorly or misconfigured, this may result in duplicate (and sometimes conflicting) signatures in a protocol step, although no actual attack was intended.
 
@@ -17,6 +14,8 @@ While a single instance of an unintentional double vote of one process does not 
 Thus we propose that also in de-centralized Starknet such behavior should lead to mild penalties (e.g., not paying fees to the validator for some time, taking a small penalty from their stake), as part of the incentivization scheme motivating validator operators to fix such issues and ensure reliability of their node. I think the concrete incentivization scheme is a matter for the Starknet community and the node operators to agree on; all this lies in the application layer. In the remainder of this post, I would like to focus on the consensus layer, and lay out some options regarding what provable evidence consensus may provide to the application.
 
 ### Misbehavior types
+
+Here we give some explanation about attacks on Tendermint. If you are aware of those, and are just interested in our conclusions, just scroll down to the [last section](#what-evidence-to-collect).
 
 Tendermint is a variant of the [seminal
 algorithm](https://groups.csail.mit.edu/tds/papers/Lynch/MIT-LCS-TM-270.pdf) by
@@ -73,24 +72,24 @@ We argue that the only two types of evidence that make sense to collect are "dou
 
 #### Why not "double proposal"?
 
-First, without double vote, it doesn't harm. Second, in consensus engine implementations sometimes there are no self-contained proposal messages, but rather they are big chunks of data that is transmitted in block parts or streamed, so that the mapping of algorithmic propose messages to what we see in implementations is not so direct and we don't think it makes sense to go down this rabbit hole.
+First, without double vote, it doesn't harm. Second, in consensus engine implementations, sometimes there are no self-contained proposal messages, but rather they are big chunks of data that is transmitted in block parts or streamed, so that the mapping of algorithmic propose messages to what we see in implementations is not so direct. Consequently, we don't think it makes sense to go down this rabbit hole.
 
 #### Why not "bad proposer"?
 
-First, without double vote, it doesn't harm. Second, we are only interested in "provable evidence". So while in principle it can be proven, much more data, partly on consensus internals, is needed to do so. Checking that a process was not supposed to propose at a certain round in a certain height, depends on the application state at this specific situation. Again it doesn't seem to make sense to investigate this, given that there is no value added.
+First, without double vote, it doesn't harm. Second, we are only interested in "provable evidence". So while in principle it can be proven, much more data, partly on consensus internals, is needed to do so. Checking that a process was not supposed to propose at a certain round in a certain height, depends on the application state at this specific situation. Again, it doesn't seem to make sense to investigate this, given that there is no value added.
 
 #### Why "double vote"?
 
 We have laid out above that just to keep the system stable and operational, an incentivization scheme around double votes is very pragmatic. It motivates validator operators to fix misconfigurations and ensure reliability of their node.
 So it makes sense that the consensus engine collects this. Observe that in contrast to "bad proposer" discussed above, the data to prove misbehavior is very concise. See the [evidence data structure](https://github.com/cometbft/cometbft/blob/main/spec/core/data_structures.md#duplicatevoteevidence) from CometBFT, which basically just consists of two signed vote messages.
 
-**What about Amnesia**
+#### What about Amnesia?
 
 Regarding Amnesia there are trade-offs that we would like to start a discussion around
 
 - Pros
   - together with "double vote" this would allow an incentivization scheme around all behaviors that can lead to disagreement
-  - it would allow us to shield the consensus engine against attacks, at least we could generate evidence for forensics
+  - it would allow us to shield the consensus engine against all attacks on safety, at least we could generate evidence for forensics
 - Cons
   - Out-of-the-box, Tendermint consensus does not support provable amnesia evidence. However, we have developed a slight adaptations of Tendermint (roughly speaking adding one additional round field to votes), that would make amnesia provable. (It doesn't involve extra steps of performance penalties, but this is actually a Pro)
   - Our solution doesn't necessarily help with the "fix misconfigurations" issue as it only produces evidence when we have conflicting commits 
