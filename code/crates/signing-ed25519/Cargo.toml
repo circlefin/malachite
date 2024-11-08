@@ -16,7 +16,6 @@ malachite-common  = { workspace = true }
 
 signature         = { workspace = true }
 ed25519-consensus = { workspace = true }
-sha3              = { workspace = true }
 
 # Optional dependencies
 rand              = { workspace = true, optional = true } # rand

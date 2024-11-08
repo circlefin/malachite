@@ -160,14 +160,7 @@ impl PublicKey {
         Self(key.into())
     }
 
-    pub fn hash(&self) -> [u8; 32] {
-        use sha3::{Digest, Keccak256};
-        let mut hasher = Keccak256::new();
-        hasher.update(self.0.as_bytes());
-        hasher.finalize().into()
-    }
-
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &[u8; 32] {
         self.0.as_bytes()
     }
 

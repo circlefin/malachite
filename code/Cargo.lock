@@ -2630,7 +2630,6 @@ dependencies = [
  "malachite-common",
  "rand",
  "serde",
- "sha3",
  "signature",
 ]
 
