@@ -1,6 +1,6 @@
-//! Node command-line interface configuration
+//! Command-line interface arguments for a basic implementation.
 //!
-//! The node CLI reads configuration from the configuration files found in the directory
+//! Read configuration from the configuration files found in the directory
 //! provided with the `--home` global parameter.
 //!
 //! The command-line parameters are stored in the `Args` structure.
@@ -9,15 +9,14 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use color_eyre::eyre::{eyre, Result};
 use directories::BaseDirs;
 
-use malachite_config::{Config, LogFormat, LogLevel};
+use malachite_config::{LogFormat, LogLevel};
 
 use crate::cmd::init::InitCmd;
-use crate::cmd::keys::KeysCmd;
 use crate::cmd::start::StartCmd;
 use crate::cmd::testnet::TestnetCmd;
+use crate::error::Error;
 
 const APP_FOLDER: &str = ".malachite";
 const CONFIG_FILE: &str = "config.toml";
@@ -51,10 +50,6 @@ pub enum Commands {
     /// Initialize configuration
     Init(InitCmd),
 
-    /// Manage keys
-    #[command(subcommand)]
-    Keys(KeysCmd),
-
     /// Generate testnet configuration
     Testnet(TestnetCmd),
 }
@@ -66,37 +61,37 @@ impl Default for Commands {
 }
 
 impl Args {
-    /// new returns a new instance of the configuration.
+    /// new returns a new instance of the arguments.
     pub fn new() -> Args {
         Args::parse()
     }
 
     /// get_home_dir returns the application home folder.
     /// Typically, `$HOME/.malachite`, dependent on the operating system.
-    pub fn get_home_dir(&self) -> Result<PathBuf> {
+    pub fn get_home_dir(&self) -> Result<PathBuf, Error> {
         match self.home {
             Some(ref path) => Ok(path.clone()),
             None => Ok(BaseDirs::new()
-                .ok_or_else(|| eyre!("could not determine home directory path"))?
+                .ok_or(Error::DirPath)?
                 .home_dir()
                 .join(APP_FOLDER)),
         }
     }
 
     /// get_config_dir returns the configuration folder based on the home folder.
-    pub fn get_config_dir(&self) -> Result<PathBuf> {
+    pub fn get_config_dir(&self) -> Result<PathBuf, Error> {
         Ok(self.get_home_dir()?.join("config"))
     }
 
     /// get_config_file_path returns the configuration file path based on the command-line arguments
     /// and the configuration folder.
-    pub fn get_config_file_path(&self) -> Result<PathBuf> {
+    pub fn get_config_file_path(&self) -> Result<PathBuf, Error> {
         Ok(self.get_config_dir()?.join(CONFIG_FILE))
     }
 
     /// get_genesis_file_path returns the genesis file path based on the command-line arguments and
     /// the configuration folder.
-    pub fn get_genesis_file_path(&self) -> Result<PathBuf> {
+    pub fn get_genesis_file_path(&self) -> Result<PathBuf, Error> {
         Ok(self.get_config_dir()?.join(GENESIS_FILE))
     }
 
@@ -107,29 +102,8 @@ impl Args {
 
     /// get_priv_validator_key_file_path returns the private validator key file path based on the
     /// configuration folder.
-    pub fn get_priv_validator_key_file_path(&self) -> Result<PathBuf> {
+    pub fn get_priv_validator_key_file_path(&self) -> Result<PathBuf, Error> {
         Ok(self.get_config_dir()?.join(PRIV_VALIDATOR_KEY_FILE))
-    }
-
-    /// load_config returns a configuration compiled from the input parameters
-    pub fn load_config(&self) -> Result<Config> {
-        let config_file = self.get_config_file_path()?;
-
-        let mut config: Config = config::Config::builder()
-            .add_source(config::File::from(config_file))
-            .add_source(config::Environment::with_prefix("MALACHITE").separator("__"))
-            .build()?
-            .try_deserialize()?;
-
-        if let Some(log_level) = self.log_level {
-            config.logging.log_level = log_level;
-        }
-
-        if let Some(log_format) = self.log_format {
-            config.logging.log_format = log_format;
-        }
-
-        Ok(config)
     }
 }
 

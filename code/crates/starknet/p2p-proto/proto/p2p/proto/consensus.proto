@@ -25,7 +25,7 @@ message Vote {
     Address            voter        = 7;
 
     /// ADDED
-    optional bytes     extension    = 8;
+    optional Extension extension    = 8;
 }
 
 message ProposalInit {
@@ -45,7 +45,9 @@ message ProposalInit {
 // 4. valid_round
 // 5. block_hash - the validator calculates the block_hash on its own from the content stream and
 //    confirms the signature with that value.
-message ProposalFin {}
+message ProposalFin {
+    ConsensusSignature signature = 1;
+}
 
 // The timestamp of a proposal can impact consensus, specifically the lower bound applied. If nodes
 // apply a lower bound validation based on their local time, then we risk a scenario where in round
@@ -84,4 +86,32 @@ message ConsensusMessage {
 
     // Signature by the initial sender (e.g. proposer, voter) of the message.
     ConsensusSignature signature = 3;
+}
+
+// ADDED
+message Extension {
+    bytes data = 1;
+    ConsensusSignature signature = 2;
+}
+
+// ADDED
+message CommitSignature {
+    // TODO - add flag (no vote, nil, value?)
+    Address validator_address    = 1;
+    ConsensusSignature signature = 2;
+    optional Extension extension = 3;
+}
+
+// ADDED
+message AggregatedSignature {
+    repeated CommitSignature signatures = 1;
+}
+
+// ADDED
+message CommitCertificate {
+    uint64 fork_id              = 1;
+    uint64 block_number         = 2;
+    uint32 round                = 3;
+    Hash block_hash             = 4;
+    AggregatedSignature aggregated_signature = 5;
 }

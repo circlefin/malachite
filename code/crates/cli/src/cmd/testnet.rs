@@ -3,25 +3,16 @@
 use std::path::Path;
 use std::str::FromStr;
 
-use bytesize::ByteSize;
 use clap::Parser;
-use color_eyre::eyre::Result;
-use itertools::Itertools;
-use rand::prelude::StdRng;
-use rand::rngs::OsRng;
-use rand::{seq::IteratorRandom, Rng, SeedableRng};
+use color_eyre::eyre::{eyre, Result};
 use tracing::info;
 
-use malachite_common::{PrivateKey, PublicKey};
 use malachite_config::*;
 use malachite_node::Node;
-use malachite_starknet_app::node::StarknetNode;
 
 use crate::args::Args;
-use crate::cmd::init::{save_config, save_genesis, save_priv_validator_key};
-
-const MIN_VOTING_POWER: u64 = 1;
-const MAX_VOTING_POWER: u64 = 1;
+use crate::error::Error;
+use crate::file::{save_config, save_genesis, save_priv_validator_key};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum RuntimeFlavour {
@@ -53,10 +44,6 @@ impl FromStr for RuntimeFlavour {
 
 #[derive(Parser, Debug, Clone, PartialEq)]
 pub struct TestnetCmd {
-    /// The name of the application to run
-    #[clap(short, long, default_value_t = App::default())]
-    pub app: App,
-
     /// Number of validator nodes in the testnet
     #[clap(short, long)]
     pub nodes: usize,
@@ -88,194 +75,83 @@ pub struct TestnetCmd {
 
 impl TestnetCmd {
     /// Execute the testnet command
-    pub fn run(&self, home_dir: &Path, log_level: LogLevel, log_format: LogFormat) -> Result<()> {
-        let node = match self.app {
-            App::Starknet => StarknetNode,
+    pub fn run<N>(&self, node: &N, home_dir: &Path, logging: LoggingConfig) -> Result<()>
+    where
+        N: Node,
+    {
+        let runtime = match self.runtime {
+            RuntimeFlavour::SingleThreaded => RuntimeConfig::SingleThreaded,
+            RuntimeFlavour::MultiThreaded(n) => RuntimeConfig::MultiThreaded { worker_threads: n },
         };
 
-        let private_keys = generate_private_keys(&node, self.nodes, self.deterministic);
-        let public_keys = private_keys.iter().map(|pk| pk.public_key()).collect();
-        let genesis = generate_genesis(&node, public_keys, self.deterministic);
-
-        for (i, private_key) in private_keys.iter().enumerate().take(self.nodes) {
-            // Use home directory `home_dir/<index>`
-            let node_home_dir = home_dir.join(i.to_string());
-
-            info!(
-                id = %i,
-                home = %node_home_dir.display(),
-                "Generating configuration for node..."
-            );
-
-            // Set the destination folder
-            let args = Args {
-                home: Some(node_home_dir),
-                ..Args::default()
-            };
-
-            // Save private key
-            let priv_validator_key = node.make_private_key_file(*private_key);
-            save_priv_validator_key(
-                &node,
-                &args.get_priv_validator_key_file_path()?,
-                &priv_validator_key,
-            )?;
-
-            // Save genesis
-            save_genesis(&node, &args.get_genesis_file_path()?, &genesis)?;
-
-            // Save config
-            save_config(
-                &args.get_config_file_path()?,
-                &generate_config(
-                    self.app,
-                    i,
-                    self.nodes,
-                    self.runtime,
-                    self.enable_discovery,
-                    self.transport,
-                    PubSubProtocol::default(),
-                    log_level,
-                    log_format,
-                ),
-            )?;
-        }
-        Ok(())
+        testnet(
+            node,
+            self.nodes,
+            home_dir,
+            runtime,
+            self.enable_discovery,
+            self.transport,
+            logging,
+            self.deterministic,
+        )
+        .map_err(|e| eyre!("Failed to generate testnet configuration: {:?}", e))
     }
 }
 
-/// Generate private keys. Random or deterministic for different use-cases.
-pub fn generate_private_keys<N>(
+#[allow(clippy::too_many_arguments)]
+pub fn testnet<N>(
     node: &N,
-    size: usize,
+    nodes: usize,
+    home_dir: &Path,
+    runtime: RuntimeConfig,
+    enable_discovery: bool,
+    transport: TransportProtocol,
+    logging: LoggingConfig,
     deterministic: bool,
-) -> Vec<PrivateKey<N::Context>>
+) -> std::result::Result<(), Error>
 where
     N: Node,
 {
-    if deterministic {
-        let mut rng = StdRng::seed_from_u64(0x42);
-        (0..size)
-            .map(|_| node.generate_private_key(&mut rng))
-            .collect()
-    } else {
-        (0..size)
-            .map(|_| node.generate_private_key(OsRng))
-            .collect()
+    let private_keys = crate::new::generate_private_keys(node, nodes, deterministic);
+    let public_keys = private_keys
+        .iter()
+        .map(|pk| node.generate_public_key(pk.clone()))
+        .collect();
+    let genesis = crate::new::generate_genesis(node, public_keys, deterministic);
+
+    for (i, private_key) in private_keys.iter().enumerate().take(nodes) {
+        // Use home directory `home_dir/<index>`
+        let node_home_dir = home_dir.join(i.to_string());
+
+        info!(
+            id = %i,
+            home = %node_home_dir.display(),
+            "Generating configuration for node..."
+        );
+
+        // Set the destination folder
+        let args = Args {
+            home: Some(node_home_dir),
+            ..Args::default()
+        };
+
+        // Save config
+        save_config(
+            &args.get_config_file_path()?,
+            &crate::new::generate_config(i, nodes, runtime, enable_discovery, transport, logging),
+        )?;
+
+        // Save private key
+        let priv_validator_key = node.make_private_key_file((*private_key).clone());
+        save_priv_validator_key(
+            node,
+            &args.get_priv_validator_key_file_path()?,
+            &priv_validator_key,
+        )?;
+
+        // Save genesis
+        save_genesis(node, &args.get_genesis_file_path()?, &genesis)?;
     }
-}
 
-/// Generate a Genesis file from the public keys and voting power.
-/// Voting power can be random or deterministically pseudo-random.
-pub fn generate_genesis<N: Node>(
-    node: &N,
-    pks: Vec<PublicKey<N::Context>>,
-    deterministic: bool,
-) -> N::Genesis {
-    let validators: Vec<_> = if deterministic {
-        let mut rng = StdRng::seed_from_u64(0x42);
-        pks.into_iter()
-            .map(|pk| (pk, rng.gen_range(MIN_VOTING_POWER..=MAX_VOTING_POWER)))
-            .collect()
-    } else {
-        pks.into_iter()
-            .map(|pk| (pk, OsRng.gen_range(MIN_VOTING_POWER..=MAX_VOTING_POWER)))
-            .collect()
-    };
-
-    node.make_genesis(validators)
-}
-
-const CONSENSUS_BASE_PORT: usize = 27000;
-const MEMPOOL_BASE_PORT: usize = 28000;
-const METRICS_BASE_PORT: usize = 29000;
-
-/// Generate configuration for node "index" out of "total" number of nodes.
-#[allow(clippy::too_many_arguments)]
-pub fn generate_config(
-    app: App,
-    index: usize,
-    total: usize,
-    runtime: RuntimeFlavour,
-    enable_discovery: bool,
-    transport: TransportProtocol,
-    consensus_p2p_protocol: PubSubProtocol,
-    log_level: LogLevel,
-    log_format: LogFormat,
-) -> Config {
-    let consensus_port = CONSENSUS_BASE_PORT + index;
-    let mempool_port = MEMPOOL_BASE_PORT + index;
-    let metrics_port = METRICS_BASE_PORT + index;
-
-    Config {
-        app,
-        moniker: format!("test-{}", index),
-        consensus: ConsensusConfig {
-            max_block_size: ByteSize::mib(1),
-            value_payload: ValuePayload::default(),
-            timeouts: TimeoutConfig::default(),
-            p2p: P2pConfig {
-                protocol: consensus_p2p_protocol,
-                listen_addr: transport.multiaddr("127.0.0.1", consensus_port),
-                persistent_peers: if enable_discovery {
-                    let mut rng = rand::thread_rng();
-                    let count = if total > 1 {
-                        rng.gen_range(1..=(total / 2))
-                    } else {
-                        0
-                    };
-                    let peers = (0..total)
-                        .filter(|j| *j != index)
-                        .choose_multiple(&mut rng, count);
-
-                    peers
-                        .iter()
-                        .unique()
-                        .map(|index| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + index))
-                        .collect()
-                } else {
-                    (0..total)
-                        .filter(|j| *j != index)
-                        .map(|j| transport.multiaddr("127.0.0.1", CONSENSUS_BASE_PORT + j))
-                        .collect()
-                },
-                discovery: DiscoveryConfig {
-                    enabled: enable_discovery,
-                },
-                transport,
-                rpc_max_size: ByteSize::mib(10),
-                pubsub_max_size: ByteSize::mib(4),
-            },
-        },
-        mempool: MempoolConfig {
-            p2p: P2pConfig {
-                protocol: PubSubProtocol::default(),
-                listen_addr: transport.multiaddr("127.0.0.1", mempool_port),
-                persistent_peers: (0..total)
-                    .filter(|j| *j != index)
-                    .map(|j| transport.multiaddr("127.0.0.1", MEMPOOL_BASE_PORT + j))
-                    .collect(),
-                discovery: DiscoveryConfig { enabled: false },
-                transport,
-                rpc_max_size: ByteSize::mib(10),
-                pubsub_max_size: ByteSize::mib(4),
-            },
-            max_tx_count: 10000,
-            gossip_batch_size: 0,
-        },
-        blocksync: Default::default(),
-        metrics: MetricsConfig {
-            enabled: true,
-            listen_addr: format!("127.0.0.1:{metrics_port}").parse().unwrap(),
-        },
-        logging: LoggingConfig {
-            log_level,
-            log_format,
-        },
-        runtime: match runtime {
-            RuntimeFlavour::SingleThreaded => RuntimeConfig::single_threaded(),
-            RuntimeFlavour::MultiThreaded(n) => RuntimeConfig::multi_threaded(n),
-        },
-        test: TestConfig::default(),
-    }
+    Ok(())
 }

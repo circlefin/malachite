@@ -2,7 +2,7 @@ use core::fmt::Debug;
 
 use bytes::Bytes;
 
-use crate::{Context, NilOrVal, Round, Value};
+use crate::{Context, NilOrVal, Round, SignedExtension, Value};
 
 /// A type of vote.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -71,8 +71,8 @@ where
     fn validator_address(&self) -> &Ctx::Address;
 
     /// Votes extensions
-    fn extension(&self) -> Option<&Extension>;
+    fn extension(&self) -> Option<&SignedExtension<Ctx>>;
 
     /// Extend this vote with an extension, overriding any existing extension.
-    fn extend(self, extension: Extension) -> Self;
+    fn extend(self, extension: SignedExtension<Ctx>) -> Self;
 }

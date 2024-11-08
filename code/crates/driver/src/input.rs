@@ -1,4 +1,6 @@
-use malachite_common::{Context, Round, SignedProposal, SignedVote, Timeout, Validity};
+use malachite_common::{
+    CommitCertificate, Context, Round, SignedProposal, SignedVote, Timeout, Validity,
+};
 
 use derive_where::derive_where;
 
@@ -19,6 +21,9 @@ where
 
     /// Receive a vote
     Vote(SignedVote<Ctx>),
+
+    /// Received a commit certificate
+    CommitCertificate(CommitCertificate<Ctx>),
 
     /// Receive a timeout
     TimeoutElapsed(Timeout),

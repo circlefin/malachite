@@ -20,6 +20,7 @@ genawaiter       = { workspace = true }
 libp2p           = { workspace = true, features = ["request-response", "cbor"] }
 rand             = { workspace = true }
 serde            = { workspace = true }
+thiserror        = { workspace = true }
 tracing          = { workspace = true }
 
 [lints]

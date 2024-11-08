@@ -7,6 +7,8 @@ use malachite_proto as proto;
 use malachite_starknet_p2p_proto as p2p_proto;
 use starknet_core::types::Hash256;
 
+use crate::Felt;
+
 pub type MessageHash = Hash;
 pub type BlockHash = Hash;
 
@@ -29,6 +31,10 @@ impl Hash {
 
     pub fn as_bytes(&self) -> &[u8; 32] {
         self.0.as_bytes()
+    }
+
+    pub fn as_felt(&self) -> Felt {
+        self.0.try_into().unwrap()
     }
 
     #[allow(clippy::len_without_is_empty)]
@@ -84,7 +90,7 @@ impl fmt::Debug for Hash {
 }
 
 impl str::FromStr for Hash {
-    type Err = Box<dyn std::error::Error>;
+    type Err = Box<dyn core::error::Error>;
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_str(s: &str) -> Result<Self, Self::Err> {

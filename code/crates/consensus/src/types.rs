@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 
 use malachite_common::{
-    Context, Extension, Proposal, Round, SignedProposal, SignedVote, Validity, Vote,
+    Context, Proposal, Round, SignedExtension, SignedProposal, SignedVote, Validity, Vote,
 };
 
 pub use libp2p_identity::PeerId;
@@ -40,7 +40,7 @@ pub struct ProposedValue<Ctx: Context> {
     pub validator_address: Ctx::Address,
     pub value: Ctx::Value,
     pub validity: Validity,
-    pub extension: Option<Extension>,
+    pub extension: Option<SignedExtension<Ctx>>,
 }
 
 /// The possible messages used to deliver proposals

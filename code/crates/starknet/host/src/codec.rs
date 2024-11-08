@@ -1,29 +1,38 @@
 use prost::Message;
 
-use blocksync::Status;
 use malachite_actors::util::codec::NetworkCodec;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_common::{Certificate, SignedProposal, SignedVote};
+use malachite_blocksync as blocksync;
+use malachite_common::{
+    AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
+    SignedProposal, SignedVote,
+};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Bytes;
-use malachite_proto::{Error as ProtoError, Protobuf};
-use malachite_starknet_p2p_types::{self as p2p, Height};
 
-use malachite_starknet_p2p_proto::consensus_message::Messages;
-use malachite_starknet_p2p_proto::ConsensusMessage;
-use malachite_starknet_p2p_proto::{self as proto};
-
-use malachite_blocksync as blocksync;
-
-use crate::mock::context::MockContext;
-use crate::types::{Proposal, Vote};
+use crate::proto::consensus_message::Messages;
+use crate::proto::{self as proto, ConsensusMessage, Error as ProtoError, Protobuf};
+use crate::types::MockContext;
+use crate::types::{self as p2p, Address, BlockHash, Height, ProposalPart, Vote};
 
 pub struct ProtobufCodec;
 
-impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
+impl NetworkCodec<ProposalPart> for ProtobufCodec {
     type Error = ProtoError;
 
-    fn decode_status(bytes: Bytes) -> Result<Status<MockContext>, Self::Error> {
+    fn decode(&self, bytes: Bytes) -> Result<ProposalPart, Self::Error> {
+        ProposalPart::from_bytes(bytes.as_ref())
+    }
+
+    fn encode(&self, msg: ProposalPart) -> Result<Bytes, Self::Error> {
+        msg.to_bytes()
+    }
+}
+
+impl NetworkCodec<blocksync::Status<MockContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<blocksync::Status<MockContext>, Self::Error> {
         let status =
             proto::blocksync::Status::decode(bytes.as_ref()).map_err(ProtoError::Decode)?;
 
@@ -31,7 +40,7 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
             .peer_id
             .ok_or_else(|| ProtoError::missing_field::<proto::blocksync::Status>("peer_id"))?;
 
-        Ok(Status {
+        Ok(blocksync::Status {
             peer_id: libp2p_identity::PeerId::from_bytes(&peer_id.id)
                 .map_err(|e| ProtoError::Other(e.to_string()))?,
             height: Height::new(status.block_number, status.fork_id),
@@ -42,7 +51,7 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         })
     }
 
-    fn encode_status(status: Status<MockContext>) -> Result<Bytes, Self::Error> {
+    fn encode(&self, status: blocksync::Status<MockContext>) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Status {
             peer_id: Some(proto::PeerId {
                 id: Bytes::from(status.peer_id.to_bytes()),
@@ -55,8 +64,12 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
 
         Ok(Bytes::from(proto.encode_to_vec()))
     }
+}
 
-    fn decode_request(bytes: Bytes) -> Result<blocksync::Request<MockContext>, Self::Error> {
+impl NetworkCodec<blocksync::Request<MockContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<blocksync::Request<MockContext>, Self::Error> {
         let request = proto::blocksync::Request::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(blocksync::Request {
@@ -64,7 +77,7 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         })
     }
 
-    fn encode_request(request: blocksync::Request<MockContext>) -> Result<Bytes, Self::Error> {
+    fn encode(&self, request: blocksync::Request<MockContext>) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Request {
             block_number: request.height.block_number,
             fork_id: request.height.fork_id,
@@ -72,8 +85,12 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
 
         Ok(Bytes::from(proto.encode_to_vec()))
     }
+}
 
-    fn decode_response(bytes: Bytes) -> Result<blocksync::Response<MockContext>, Self::Error> {
+impl NetworkCodec<blocksync::Response<MockContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<blocksync::Response<MockContext>, Self::Error> {
         let response = proto::blocksync::Response::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(blocksync::Response {
@@ -82,7 +99,7 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
         })
     }
 
-    fn encode_response(response: blocksync::Response<MockContext>) -> Result<Bytes, Self::Error> {
+    fn encode(&self, response: blocksync::Response<MockContext>) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Response {
             block_number: response.height.block_number,
             fork_id: response.height.fork_id,
@@ -93,8 +110,10 @@ impl blocksync::NetworkCodec<MockContext> for ProtobufCodec {
     }
 }
 
-impl NetworkCodec<MockContext> for ProtobufCodec {
-    fn decode_msg(bytes: Bytes) -> Result<SignedConsensusMsg<MockContext>, Self::Error> {
+impl NetworkCodec<SignedConsensusMsg<MockContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<SignedConsensusMsg<MockContext>, Self::Error> {
         let proto = ConsensusMessage::decode(bytes)?;
 
         let proto_signature = proto
@@ -116,7 +135,7 @@ impl NetworkCodec<MockContext> for ProtobufCodec {
         }
     }
 
-    fn encode_msg(msg: SignedConsensusMsg<MockContext>) -> Result<Bytes, Self::Error> {
+    fn encode(&self, msg: SignedConsensusMsg<MockContext>) -> Result<Bytes, Self::Error> {
         let message = match msg {
             SignedConsensusMsg::Vote(v) => ConsensusMessage {
                 messages: Some(Messages::Vote(v.to_proto()?)),
@@ -130,26 +149,29 @@ impl NetworkCodec<MockContext> for ProtobufCodec {
 
         Ok(Bytes::from(prost::Message::encode_to_vec(&message)))
     }
+}
 
-    fn decode_stream_msg<T>(bytes: Bytes) -> Result<StreamMessage<T>, Self::Error>
-    where
-        T: Protobuf,
-    {
+impl<T> NetworkCodec<StreamMessage<T>> for ProtobufCodec
+where
+    T: Protobuf,
+{
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<StreamMessage<T>, Self::Error> {
         let p2p_msg = p2p::StreamMessage::from_bytes(&bytes)?;
         Ok(StreamMessage {
             stream_id: p2p_msg.id,
             sequence: p2p_msg.sequence,
             content: match p2p_msg.content {
-                p2p::StreamContent::Data(data) => StreamContent::Data(T::from_bytes(&data)?),
+                p2p::StreamContent::Data(data) => {
+                    StreamContent::Data(T::from_bytes(data.as_ref())?)
+                }
                 p2p::StreamContent::Fin(fin) => StreamContent::Fin(fin),
             },
         })
     }
 
-    fn encode_stream_msg<T>(msg: StreamMessage<T>) -> Result<Bytes, Self::Error>
-    where
-        T: Protobuf,
-    {
+    fn encode(&self, msg: StreamMessage<T>) -> Result<Bytes, Self::Error> {
         let p2p_msg = p2p::StreamMessage {
             id: msg.stream_id,
             sequence: msg.sequence,
@@ -163,78 +185,143 @@ impl NetworkCodec<MockContext> for ProtobufCodec {
     }
 }
 
-pub(crate) fn encode_proposal(
-    proposal: SignedProposal<MockContext>,
-) -> Result<ConsensusMessage, ProtoError> {
-    Ok(ConsensusMessage {
-        messages: Some(Messages::Proposal(proposal.message.to_proto()?)),
-        signature: Some(proposal.signature.to_proto()?),
-    })
+pub(crate) fn encode_aggregate_signature(
+    aggregated_signature: AggregatedSignature<MockContext>,
+) -> Result<proto::AggregatedSignature, ProtoError> {
+    let signatures = aggregated_signature
+        .signatures
+        .into_iter()
+        .map(|s| {
+            let validator_address = s.address.to_proto()?;
+            let signature = s.signature.to_proto()?;
+
+            Ok(proto::CommitSignature {
+                validator_address: Some(validator_address),
+                signature: Some(signature),
+                extension: s
+                    .extension
+                    .map(|e| -> Result<_, ProtoError> {
+                        Ok(proto::Extension {
+                            data: e.message.data,
+                            signature: Some(e.signature.to_proto()?),
+                        })
+                    })
+                    .transpose()?,
+            })
+        })
+        .collect::<Result<_, ProtoError>>()?;
+
+    Ok(proto::AggregatedSignature { signatures })
 }
 
-pub(crate) fn encode_vote(vote: SignedVote<MockContext>) -> Result<ConsensusMessage, ProtoError> {
-    Ok(ConsensusMessage {
-        messages: Some(Messages::Vote(vote.message.to_proto()?)),
-        signature: Some(vote.signature.to_proto()?),
+pub(crate) fn encode_certificate(
+    certificate: CommitCertificate<MockContext>,
+) -> Result<proto::CommitCertificate, ProtoError> {
+    Ok(proto::CommitCertificate {
+        fork_id: certificate.height.fork_id,
+        block_number: certificate.height.block_number,
+        round: certificate.round.as_u32().expect("round should not be nil"),
+        block_hash: Some(certificate.value_id.to_proto()?),
+        aggregated_signature: Some(encode_aggregate_signature(
+            certificate.aggregated_signature,
+        )?),
     })
 }
 
 pub(crate) fn encode_synced_block(
     synced_block: blocksync::SyncedBlock<MockContext>,
 ) -> Result<proto::blocksync::SyncedBlock, ProtoError> {
-    let commits = synced_block
-        .certificate
-        .commits
-        .into_iter()
-        .map(encode_vote)
-        .collect::<Result<Vec<_>, _>>()?;
-
     Ok(proto::blocksync::SyncedBlock {
-        proposal: Some(encode_proposal(synced_block.proposal)?),
-        commits,
         block_bytes: synced_block.block_bytes,
+        certificate: Some(encode_certificate(synced_block.certificate)?),
     })
 }
 
-pub(crate) fn decode_proposal(msg: ConsensusMessage) -> Option<SignedProposal<MockContext>> {
-    let signature = msg.signature?;
-    let proposal = match msg.messages {
-        Some(Messages::Proposal(p)) => Some(p),
-        _ => None,
-    }?;
+pub(crate) fn decode_aggregated_signature(
+    signature: proto::AggregatedSignature,
+) -> Result<AggregatedSignature<MockContext>, ProtoError> {
+    let signatures = signature
+        .signatures
+        .into_iter()
+        .map(|s| {
+            let signature = s
+                .signature
+                .ok_or_else(|| ProtoError::missing_field::<proto::CommitSignature>("signature"))
+                .and_then(p2p::Signature::from_proto)?;
 
-    let signature = p2p::Signature::from_proto(signature).ok()?;
-    let proposal = Proposal::from_proto(proposal).ok()?;
-    Some(SignedProposal::new(proposal, signature))
+            let address = s
+                .validator_address
+                .ok_or_else(|| {
+                    ProtoError::missing_field::<proto::CommitSignature>("validator_address")
+                })
+                .and_then(Address::from_proto)?;
+
+            let extension = s
+                .extension
+                .map(|e| -> Result<_, ProtoError> {
+                    let extension = Extension::from(e.data);
+                    let signature = e
+                        .signature
+                        .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
+                        .and_then(p2p::Signature::from_proto)?;
+
+                    Ok(SignedExtension::new(extension, signature))
+                })
+                .transpose()?;
+
+            Ok(CommitSignature {
+                address,
+                signature,
+                extension,
+            })
+        })
+        .collect::<Result<Vec<_>, ProtoError>>()?;
+
+    Ok(AggregatedSignature { signatures })
 }
 
-pub(crate) fn decode_vote(msg: ConsensusMessage) -> Option<SignedVote<MockContext>> {
-    let signature = msg.signature?;
-    let vote = match msg.messages {
-        Some(Messages::Vote(v)) => Some(v),
-        _ => None,
-    }?;
+pub(crate) fn decode_certificate(
+    certificate: proto::CommitCertificate,
+) -> Result<CommitCertificate<MockContext>, ProtoError> {
+    let value_id = if let Some(block_hash) = certificate.block_hash {
+        BlockHash::from_proto(block_hash)?
+    } else {
+        return Err(ProtoError::missing_field::<proto::CommitCertificate>(
+            "block_hash",
+        ));
+    };
 
-    let signature = p2p::Signature::from_proto(signature).ok()?;
-    let vote = Vote::from_proto(vote).ok()?;
-    Some(SignedVote::new(vote, signature))
+    let aggregated_signature = if let Some(agg_sig) = certificate.aggregated_signature {
+        decode_aggregated_signature(agg_sig)?
+    } else {
+        return Err(ProtoError::missing_field::<proto::CommitCertificate>(
+            "aggregated_signature",
+        ));
+    };
+
+    let certificate = CommitCertificate {
+        height: Height::new(certificate.block_number, certificate.fork_id),
+        round: Round::new(certificate.round),
+        value_id,
+        aggregated_signature,
+    };
+
+    Ok(certificate)
 }
 
 pub(crate) fn decode_sync_block(
     synced_block: proto::blocksync::SyncedBlock,
 ) -> Result<blocksync::SyncedBlock<MockContext>, ProtoError> {
-    let commits = synced_block
-        .commits
-        .into_iter()
-        .filter_map(decode_vote)
-        .collect();
-
-    let certificate = Certificate::new(commits);
+    let certificate = if let Some(certificate) = synced_block.certificate {
+        certificate
+    } else {
+        return Err(ProtoError::missing_field::<proto::blocksync::SyncedBlock>(
+            "certificate",
+        ));
+    };
 
     Ok(blocksync::SyncedBlock {
-        proposal: decode_proposal(synced_block.proposal.unwrap())
-            .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("proposal"))?,
-        certificate,
         block_bytes: synced_block.block_bytes,
+        certificate: decode_certificate(certificate)?,
     })
 }

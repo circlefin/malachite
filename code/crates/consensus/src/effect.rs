@@ -61,15 +61,14 @@ where
 
     /// Consensus has decided on a value
     /// Resume with: [`Resume::Continue`]
-    Decide {
-        proposal: SignedProposal<Ctx>,
-        commits: Vec<SignedMessage<Ctx, Ctx::Vote>>,
-    },
+    Decide { certificate: CommitCertificate<Ctx> },
 
     /// Consensus has received a synced decided block
     /// Resume with: [`Resume::Continue`]
     SyncedBlock {
-        proposal: SignedProposal<Ctx>,
+        height: Ctx::Height,
+        round: Round,
+        validator_address: Ctx::Address,
         block_bytes: Bytes,
     },
 }

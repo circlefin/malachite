@@ -2,11 +2,6 @@
 ###                   Main Base Config Options                      ###
 #######################################################################
 
-# The name of the application to runtime
-# Available values: starknet, test
-# Override with MALACHITE__APP env variable
-app = "starknet"
-
 # A custom human readable name for this node
 # Override with MALACHITE__MONIKER env variable
 moniker = "malachite"

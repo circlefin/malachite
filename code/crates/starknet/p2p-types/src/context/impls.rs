@@ -1,10 +1,9 @@
-use malachite_common::{self as common, Extension, NilOrVal, Round, VoteType, VotingPower};
-use malachite_starknet_p2p_types::{
-    Address, BlockHash, Height, PartType, Proposal, ProposalPart, PublicKey, Validator,
-    ValidatorSet, Vote,
-};
+use malachite_common::{self as common, NilOrVal, Round, SignedExtension, VoteType, VotingPower};
 
-use crate::mock::context::MockContext;
+use crate::{
+    Address, BlockHash, Height, MockContext, PartType, Proposal, ProposalPart, PublicKey,
+    Validator, ValidatorSet, Vote,
+};
 
 impl common::ProposalPart<MockContext> for ProposalPart {
     fn is_first(&self) -> bool {
@@ -67,11 +66,11 @@ impl common::Vote<MockContext> for Vote {
         &self.voter
     }
 
-    fn extension(&self) -> Option<&Extension> {
+    fn extension(&self) -> Option<&SignedExtension<MockContext>> {
         self.extension.as_ref()
     }
 
-    fn extend(self, extension: Extension) -> Self {
+    fn extend(self, extension: SignedExtension<MockContext>) -> Self {
         Self {
             extension: Some(extension),
             ..self

@@ -26,14 +26,13 @@ message Response {
 }
 
 message SyncedBlock {
-  ConsensusMessage proposal = 1;
-  repeated ConsensusMessage commits = 2;
-  bytes block_bytes = 3;
+  bytes block_bytes = 1;
+  CommitCertificate certificate = 2;
 }
 
 message Block {
-  uint64 block_number = 1;
-  uint64 fork_id = 2;
+  uint64 fork_id = 1;
+  uint64 block_number = 2;
   Transactions transactions = 3;
   Hash block_hash = 4;
 }

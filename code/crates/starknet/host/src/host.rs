@@ -4,7 +4,9 @@ use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 
-use malachite_common::Round;
+use malachite_common::{CommitCertificate, Round};
+
+use crate::types::MockContext;
 
 #[async_trait]
 pub trait Host {
@@ -16,10 +18,6 @@ pub trait Host {
     type PublicKey;
     type Precommit;
     type Validator;
-
-    // NOTE: Signing of message are left to the `Context` for now
-    // type Message;
-    // type SignedMessage;
 
     /// Initiate building a proposal.
     ///
@@ -81,11 +79,10 @@ pub trait Host {
     /// - voting_power - used for quorum calculations.
     async fn validators(&self, height: Self::Height) -> Option<BTreeSet<Self::Validator>>;
 
-    // NOTE: Signing of message are left to the `Context` for now
-    // /// Fills in the signature field of Message.
-    // async fn sign(&self, message: Self::Message) -> Self::SignedMessage;
+    /// Sign the given message hash
+    async fn sign(&self, message: Self::MessageHash) -> Self::Signature;
 
-    /// Validates the signature field of a message. If None returns false.
+    /// Validates the signature of a message hash.
     async fn validate_signature(
         &self,
         hash: &Self::MessageHash,
@@ -100,10 +97,5 @@ pub trait Host {
     /// - brock_hash - The ID of the content which has been decided.
     /// - precommits - The list of precommits from the round the decision was made (both for and against).
     /// - height     - The height of the decision.
-    async fn decision(
-        &self,
-        block_hash: Self::BlockHash,
-        precommits: Vec<Self::Precommit>,
-        height: Self::Height,
-    );
+    async fn decision(&self, certificate: CommitCertificate<MockContext>);
 }

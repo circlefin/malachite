@@ -11,25 +11,26 @@ use tracing::{debug, error, info, warn};
 
 use malachite_blocksync as blocksync;
 use malachite_common::{
-    Context, Extension, Proposal, Round, SignedProposal, Timeout, TimeoutStep, ValidatorSet,
+    CommitCertificate, Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet,
 };
 use malachite_config::TimeoutConfig;
 use malachite_consensus::{Effect, Resume};
 use malachite_metrics::Metrics;
 
+use crate::block_sync::BlockSyncRef;
 use crate::block_sync::Msg as BlockSyncMsg;
 use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg, Status};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::forward::forward;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
-use crate::block_sync::BlockSyncRef;
+pub use malachite_consensus::Error as ConsensusError;
 pub use malachite_consensus::Params as ConsensusParams;
 pub use malachite_consensus::State as ConsensusState;
 
 pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
-pub type TxDecision<Ctx> = broadcast::Sender<SignedProposal<Ctx>>;
+pub type TxDecision<Ctx> = broadcast::Sender<CommitCertificate<Ctx>>;
 
 pub struct Consensus<Ctx>
 where
@@ -58,7 +59,7 @@ pub enum Msg<Ctx: Context> {
     TimeoutElapsed(TimeoutElapsed<Timeout>),
 
     /// The proposal builder has built a value and can be used in a new proposal consensus message
-    ProposeValue(Ctx::Height, Round, Ctx::Value, Option<Extension>),
+    ProposeValue(Ctx::Height, Round, Ctx::Value, Option<SignedExtension<Ctx>>),
 
     /// Received and assembled the full value proposed by a validator
     ReceivedProposedValue(ProposedValue<Ctx>),
@@ -182,13 +183,14 @@ where
         myself: &ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
         input: ConsensusInput<Ctx>,
-    ) -> Result<(), ActorProcessingErr> {
-        if let ConsensusInput::StartHeight(height, _) = input {
-            if let Some(block_sync) = &self.block_sync {
-                block_sync
-                    .cast(BlockSyncMsg::StartHeight(height))
-                    .map_err(|e| eyre!("Error when sending start height to BlockSync: {e:?}"))?;
-            }
+    ) -> Result<(), ConsensusError<Ctx>> {
+        // Notify the BlockSync actor that we have started a new height
+        if let (ConsensusInput::StartHeight(height, _), Some(block_sync)) =
+            (&input, &self.block_sync)
+        {
+            let _ = block_sync
+                .cast(BlockSyncMsg::StartHeight(*height))
+                .inspect_err(|e| error!("Error when sending start height to BlockSync: {e:?}"));
         }
 
         malachite_consensus::process!(
@@ -296,6 +298,7 @@ where
 
                     GossipEvent::BlockSyncResponse(
                         request_id,
+                        peer,
                         blocksync::Response { height, block },
                     ) => {
                         debug!(%height, %request_id, "Received BlockSync response");
@@ -310,14 +313,28 @@ where
                                 &myself,
                                 state,
                                 ConsensusInput::ReceivedSyncedBlock(
-                                    block.proposal,
-                                    block.certificate,
                                     block.block_bytes,
+                                    block.certificate,
                                 ),
                             )
                             .await
                         {
                             error!(%height, %request_id, "Error when processing received synced block: {e:?}");
+
+                            let Some(block_sync) = self.block_sync.as_ref() else {
+                                warn!("Received BlockSync response but BlockSync actor is not available");
+                                return Ok(());
+                            };
+
+                            if let ConsensusError::InvalidCertificate(certificate, e) = e {
+                                block_sync
+                                    .cast(BlockSyncMsg::InvalidCertificate(peer, certificate, e))
+                                    .map_err(|e| {
+                                        eyre!(
+                                            "Error when notifying BlockSync of invalid certificate: {e:?}"
+                                        )
+                                    })?;
+                            }
                         }
                     }
 
@@ -572,24 +589,23 @@ where
                 Ok(Resume::Continue)
             }
 
-            Effect::Decide { proposal, commits } => {
+            Effect::Decide { certificate } => {
                 if let Some(tx_decision) = &self.tx_decision {
-                    let _ = tx_decision.send(proposal.clone());
+                    let _ = tx_decision.send(certificate.clone());
                 }
 
-                let proposal_height = proposal.height();
+                let height = certificate.height;
 
                 self.host
                     .cast(HostMsg::Decide {
-                        proposal,
-                        commits,
+                        certificate,
                         consensus: myself.clone(),
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
                 if let Some(block_sync) = &self.block_sync {
                     block_sync
-                        .cast(BlockSyncMsg::Decided(proposal_height))
+                        .cast(BlockSyncMsg::Decided(height))
                         .map_err(|e| {
                             eyre!("Error when sending decided height to blocksync: {e:?}")
                         })?;
@@ -599,18 +615,18 @@ where
             }
 
             Effect::SyncedBlock {
-                proposal,
+                height,
+                round,
+                validator_address,
                 block_bytes,
             } => {
-                // TODO - add timeout?
-                debug!(
-                    "Consensus received synced block for {}, sending to host",
-                    proposal.height()
-                );
+                debug!(%height, "Consensus received synced block, sending to host");
 
                 self.host.call_and_forward(
                     |reply_to| HostMsg::ProcessSyncedBlockBytes {
-                        proposal,
+                        height,
+                        round,
+                        validator_address,
                         block_bytes,
                         reply_to,
                     },

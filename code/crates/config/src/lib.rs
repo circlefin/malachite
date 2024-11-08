@@ -3,49 +3,22 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 use core::fmt;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
+use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
 use bytesize::ByteSize;
+use config as config_rs;
 use malachite_common::TimeoutStep;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub enum App {
-    #[default]
-    #[serde(rename = "starknet")]
-    Starknet,
-}
-
-impl fmt::Display for App {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Starknet => write!(f, "starknet"),
-        }
-    }
-}
-
-impl FromStr for App {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "starknet" => Ok(Self::Starknet),
-            _ => Err(format!("unknown application: {s}, available: starknet")),
-        }
-    }
-}
-
 /// Malachite configuration options
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     /// A custom human-readable name for this node
     pub moniker: String,
-
-    /// The name of the application to run
-    pub app: App,
 
     /// Log configuration options
     pub logging: LoggingConfig,
@@ -68,6 +41,18 @@ pub struct Config {
     /// Test configuration
     #[serde(default)]
     pub test: TestConfig,
+}
+
+/// load_config parses the environment variables and loads the provided config file path
+/// to create a Config struct.
+pub fn load_config(config_file_path: &Path, prefix: Option<&str>) -> Result<Config, String> {
+    config_rs::Config::builder()
+        .add_source(config::File::from(config_file_path))
+        .add_source(config::Environment::with_prefix(prefix.unwrap_or("MALACHITE")).separator("__"))
+        .build()
+        .map_err(|error| error.to_string())?
+        .try_deserialize()
+        .map_err(|error| error.to_string())
 }
 
 /// P2P configuration options
@@ -96,6 +81,19 @@ pub struct P2pConfig {
     pub rpc_max_size: ByteSize,
 }
 
+impl Default for P2pConfig {
+    fn default() -> Self {
+        P2pConfig {
+            listen_addr: Multiaddr::empty(),
+            persistent_peers: vec![],
+            discovery: Default::default(),
+            transport: Default::default(),
+            protocol: Default::default(),
+            rpc_max_size: ByteSize::mib(10),
+            pubsub_max_size: ByteSize::mib(4),
+        }
+    }
+}
 /// Peer Discovery configuration options
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct DiscoveryConfig {
@@ -263,7 +261,7 @@ mod gossipsub {
 }
 
 /// Mempool configuration options
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MempoolConfig {
     /// P2P configuration options
     pub p2p: P2pConfig,
@@ -300,7 +298,7 @@ impl Default for BlockSyncConfig {
 }
 
 /// Consensus configuration options
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ConsensusConfig {
     /// Max block size
     pub max_block_size: ByteSize,
@@ -401,6 +399,15 @@ pub struct MetricsConfig {
 
     /// Address at which to serve the metrics at
     pub listen_addr: SocketAddr,
+}
+
+impl Default for MetricsConfig {
+    fn default() -> Self {
+        MetricsConfig {
+            enabled: false,
+            listen_addr: SocketAddr::new(IpAddr::from([127, 0, 0, 1]), 9000),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -541,6 +548,10 @@ mod tests {
         let config = toml::from_str::<Config>(file).unwrap();
         assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
         assert_eq!(config.test, TestConfig::default());
+
+        let config = load_config(Path::new("../../config.toml"), None).unwrap();
+        assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
+        assert_eq!(config.test, TestConfig::default());
     }
 
     #[test]
@@ -549,14 +560,6 @@ mod tests {
             LogFormat::from_str("yaml"),
             Err("Invalid log format: yaml".to_string())
         )
-    }
-
-    #[test]
-    fn parse_invalid_app() {
-        assert_eq!(
-            App::from_str("invalid"),
-            Err("unknown application: invalid, available: starknet".to_string())
-        );
     }
 
     #[test]

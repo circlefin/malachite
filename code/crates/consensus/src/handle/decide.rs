@@ -46,7 +46,9 @@ where
         }
     }
 
-    perform!(co, Effect::Decide { proposal, commits });
+    let certificate = CommitCertificate::new(height, proposal_round, value.id(), commits);
+
+    perform!(co, Effect::Decide { certificate });
 
     // Reinitialize to remove any previous round or equivocating precommits.
     // TODO: Revise when evidence module is added.

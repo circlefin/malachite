@@ -12,7 +12,7 @@ use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
 use malachite_blocksync as blocksync;
-use malachite_common::SignedProposal;
+use malachite_common::CommitCertificate;
 use malachite_config::{
     BlockSyncConfig, Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig,
     TransportProtocol,
@@ -24,13 +24,13 @@ use malachite_gossip_consensus::{
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
-use malachite_starknet_host::actor::StarknetHost;
-use malachite_starknet_host::mempool::{Mempool, MempoolRef};
-use malachite_starknet_host::mock::context::MockContext;
-use malachite_starknet_host::mock::host::{MockHost, MockParams};
-use malachite_starknet_host::types::{Address, Height, PrivateKey, ValidatorSet};
 
-use malachite_starknet_host::codec::ProtobufCodec;
+use crate::actor::StarknetHost;
+use crate::codec::ProtobufCodec;
+use crate::mempool::{Mempool, MempoolRef};
+use crate::mock::host::{MockHost, MockParams};
+use crate::types::MockContext;
+use crate::types::{Address, Height, PrivateKey, ValidatorSet};
 
 pub async fn spawn_node_actor(
     cfg: NodeConfig,
@@ -38,28 +38,29 @@ pub async fn spawn_node_actor(
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
     start_height: Option<Height>,
-    tx_decision: Option<broadcast::Sender<SignedProposal<MockContext>>>,
+    tx_decision: Option<broadcast::Sender<CommitCertificate<MockContext>>>,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(private_key);
 
     let start_height = start_height.unwrap_or(Height::new(1, 1));
 
-    let registry = SharedRegistry::global();
-    let metrics = Metrics::register(registry);
+    let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
+    let metrics = Metrics::register(&registry);
     let address = Address::from_public_key(private_key.public_key());
 
     // Spawn mempool and its gossip layer
-    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, registry).await;
+    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, &registry).await;
     let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test).await;
 
     // Spawn consensus gossip
-    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, &private_key, registry).await;
+    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, &private_key, &registry).await;
 
     // Spawn the host actor
     let host = spawn_host_actor(
         home_dir,
         &cfg,
         &address,
+        &private_key,
         &initial_validator_set,
         mempool.clone(),
         gossip_consensus.clone(),
@@ -73,7 +74,7 @@ pub async fn spawn_node_actor(
         host.clone(),
         &cfg.blocksync,
         start_height,
-        registry,
+        &registry,
     )
     .await;
 
@@ -144,7 +145,7 @@ async fn spawn_consensus_actor(
     host: HostRef<MockContext>,
     block_sync: Option<BlockSyncRef<MockContext>>,
     metrics: Metrics,
-    tx_decision: Option<broadcast::Sender<SignedProposal<MockContext>>>,
+    tx_decision: Option<broadcast::Sender<CommitCertificate<MockContext>>>,
 ) -> ConsensusRef<MockContext> {
     let value_payload = match cfg.consensus.value_payload {
         malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
@@ -252,10 +253,12 @@ async fn spawn_gossip_mempool_actor(
         .unwrap()
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn spawn_host_actor(
     home_dir: PathBuf,
     cfg: &NodeConfig,
     address: &Address,
+    private_key: &PrivateKey,
     initial_validator_set: &ValidatorSet,
     mempool: MempoolRef,
     gossip_consensus: GossipConsensusRef<MockContext>,
@@ -282,6 +285,7 @@ async fn spawn_host_actor(
         mock_params,
         mempool.clone(),
         address.clone(),
+        *private_key,
         initial_validator_set.clone(),
     );
 

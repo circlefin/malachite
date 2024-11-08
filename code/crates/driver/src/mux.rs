@@ -29,7 +29,7 @@
 
 use alloc::vec::Vec;
 
-use malachite_common::SignedProposal;
+use malachite_common::{CommitCertificate, SignedProposal};
 use malachite_common::{Context, Proposal, Round, Validity, Value, ValueId, VoteType};
 use malachite_round::input::Input as RoundInput;
 use malachite_round::state::Step;
@@ -117,8 +117,17 @@ where
             }
         }
 
-        // We have a valid proposal.
+        // We have a valid proposal. Check if there is already a certificate for it.
         // L49
+        if self
+            .certificates
+            .iter()
+            .any(|c| c.value_id == proposal.value().id() && proposal.round() == c.round)
+            && self.round_state.decision.is_none()
+        {
+            return Some(RoundInput::ProposalAndPrecommitValue(proposal));
+        }
+
         if self.vote_keeper.is_threshold_met(
             &proposal.round(),
             VoteType::Precommit,
@@ -171,6 +180,29 @@ where
             .store_proposal(signed_proposal, validity);
 
         self.multiplex_proposal(proposal, validity)
+    }
+
+    pub(crate) fn store_and_multiplex_certificate(
+        &mut self,
+        certificate: CommitCertificate<Ctx>,
+    ) -> Option<RoundInput<Ctx>> {
+        // Should only receive proposals for our height.
+        assert_eq!(self.height(), certificate.height);
+
+        // Store the certificate
+        self.certificates.push(certificate.clone());
+
+        if let Some((signed_proposal, validity)) = self
+            .proposal_keeper
+            .get_proposal_and_validity_for_round(certificate.round)
+        {
+            let proposal = &signed_proposal.message;
+            if proposal.value().id() == certificate.value_id && validity.is_valid() {
+                return Some(RoundInput::ProposalAndPrecommitValue(proposal.clone()));
+            }
+        }
+
+        None
     }
 
     /// After a vote threshold change for a given round, check if we have a polka for nil, some value or any,

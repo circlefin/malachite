@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use malachite_common::{NilOrVal, Round, VoteType};
+use malachite_common::{NilOrVal, Round, SignedExtension, VoteType};
 use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::proto;
@@ -8,14 +8,14 @@ use crate::{Address, Height, TestContext, ValueId};
 pub use malachite_common::Extension;
 
 /// A vote for a value in a round
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Vote {
     pub typ: VoteType,
     pub height: Height,
     pub round: Round,
     pub value: NilOrVal<ValueId>,
     pub validator_address: Address,
-    pub extension: Option<Extension>,
+    pub extension: Option<SignedExtension<TestContext>>,
 }
 
 impl Vote {
@@ -81,11 +81,11 @@ impl malachite_common::Vote<TestContext> for Vote {
         &self.validator_address
     }
 
-    fn extension(&self) -> Option<&Extension> {
+    fn extension(&self) -> Option<&SignedExtension<TestContext>> {
         self.extension.as_ref()
     }
 
-    fn extend(self, extension: Extension) -> Self {
+    fn extend(self, extension: SignedExtension<TestContext>) -> Self {
         Self {
             extension: Some(extension),
             ..self
