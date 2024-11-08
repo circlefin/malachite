@@ -4,10 +4,14 @@
 
 use malachite_common::SigningScheme;
 use rand::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
 use signature::{Keypair, Signer, Verifier};
 
-pub mod serializers;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "serde")]
+#[cfg_attr(coverage_nightly, coverage(off))]
+mod serializers;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Ed25519;
@@ -89,10 +93,12 @@ impl Ord for Signature {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(transparent)]
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct PrivateKey(
-    #[serde(with = "self::serializers::signing_key")] ed25519_consensus::SigningKey,
+    #[cfg_attr(feature = "serde", serde(with = "self::serializers::signing_key"))]
+    ed25519_consensus::SigningKey,
 );
 
 impl PrivateKey {
@@ -137,10 +143,12 @@ impl Keypair for PrivateKey {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(transparent)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct PublicKey(
-    #[serde(with = "self::serializers::verification_key")] ed25519_consensus::VerificationKey,
+    #[cfg_attr(feature = "serde", serde(with = "self::serializers::verification_key"))]
+    ed25519_consensus::VerificationKey,
 );
 
 impl PublicKey {
