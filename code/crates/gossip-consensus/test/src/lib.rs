@@ -178,10 +178,11 @@ impl<const N: usize> Test<N> {
 
         for (i, config) in configs.iter().enumerate().take(N) {
             if self.nodes[i].start_node() {
+                let moniker = format!("node-{i}");
                 let handle = spawn(
                     self.keypairs[i].clone(),
                     config.clone(),
-                    SharedRegistry::global().clone(),
+                    SharedRegistry::global().with_moniker(moniker),
                 )
                 .await
                 .unwrap();

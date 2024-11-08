@@ -44,16 +44,16 @@ pub async fn spawn_node_actor(
 
     let start_height = start_height.unwrap_or(Height::new(1, 1));
 
-    let registry = SharedRegistry::global();
-    let metrics = Metrics::register(registry);
+    let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
+    let metrics = Metrics::register(&registry);
     let address = Address::from_public_key(private_key.public_key());
 
     // Spawn mempool and its gossip layer
-    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, registry).await;
+    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, &registry).await;
     let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test).await;
 
     // Spawn consensus gossip
-    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, &private_key, registry).await;
+    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, &private_key, &registry).await;
 
     // Spawn the host actor
     let host = spawn_host_actor(
@@ -74,7 +74,7 @@ pub async fn spawn_node_actor(
         host.clone(),
         &cfg.blocksync,
         start_height,
-        registry,
+        &registry,
     )
     .await;
 

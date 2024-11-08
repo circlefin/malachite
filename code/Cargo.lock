@@ -2725,9 +2725,11 @@ dependencies = [
 name = "malachite-starknet-test"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "bytesize",
  "malachite-common",
  "malachite-config",
+ "malachite-metrics",
  "malachite-starknet-host",
  "ractor",
  "rand",

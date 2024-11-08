@@ -97,11 +97,11 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
 
     /// Verify the certificate against the given validator set.
     ///
-    /// - Check that we have 2/3+ of voting power has signed the certificate
     /// - For each commit signature in the certificate:
     ///   - Reconstruct the signed precommit and verify its signature
+    /// - Check that we have 2/3+ of voting power has signed the certificate
     ///
-    /// If any of those steps fail, return false.
+    /// If any of those steps fail, return a [`CertificateError`].
     ///
     /// TODO: Move to Context
     pub fn verify(
@@ -110,17 +110,14 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
         validator_set: &Ctx::ValidatorSet,
         thresholds: ThresholdParams,
     ) -> Result<(), CertificateError<Ctx>> {
-        // 1. Check that we have 2/3+ of voting power has signed the certificate
         let total_voting_power = validator_set.total_voting_power();
         let mut signed_voting_power = 0;
 
-        // 2. For each commit signature, reconstruct the signed precommit and verify the signature
+        // For each commit signature, reconstruct the signed precommit and verify the signature
         for commit_sig in &self.aggregated_signature.signatures {
-            // Skip if validator not in set
-            // TODO: Should we emit an error here instead of skipping that signature?
-            let validator = match validator_set.get_by_address(&commit_sig.address) {
-                Some(validator) => validator,
-                None => continue,
+            // Abort if validator not in validator set
+            let Some(validator) = validator_set.get_by_address(&commit_sig.address) else {
+                return Err(CertificateError::UnknownValidator(commit_sig.clone()));
             };
 
             let voting_power = self.verify_commit_signature(ctx, commit_sig, validator)?;
@@ -142,6 +139,10 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
         }
     }
 
+    /// Verify a commit signature against the public key of its validator.
+    ///
+    /// ## Return
+    /// Return the voting power of that validator if the signature is valid.
     fn verify_commit_signature(
         &self,
         ctx: &Ctx,
@@ -158,7 +159,7 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
 
         // Verify signature
         if !ctx.verify_signed_vote(&vote, &commit_sig.signature, validator.public_key()) {
-            return Err(CertificateError::InvalidCommitSignature(commit_sig.clone()));
+            return Err(CertificateError::InvalidSignature(commit_sig.clone()));
         }
 
         Ok(validator.voting_power())
@@ -171,7 +172,11 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
 pub enum CertificateError<Ctx: Context> {
     /// One of the commit signature is invalid.
     #[error("Invalid commit signature: {0:?}")]
-    InvalidCommitSignature(CommitSignature<Ctx>),
+    InvalidSignature(CommitSignature<Ctx>),
+
+    /// A validator in the certificate is not in the validator set.
+    #[error("A validator in the certificate is not in the validator set: {0:?}")]
+    UnknownValidator(CommitSignature<Ctx>),
 
     /// Not enough voting power has signed the certificate.
     #[error(

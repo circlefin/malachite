@@ -52,6 +52,20 @@ where
             .choose_stable(&mut self.rng)
     }
 
+    /// Select at random a peer that that we know is at or above the given height,
+    /// except the given one.
+    pub fn random_peer_with_block_except(
+        &mut self,
+        height: Ctx::Height,
+        except: PeerId,
+    ) -> Option<PeerId> {
+        self.peers
+            .iter()
+            .filter_map(move |(&peer, status)| (status.height >= height).then_some(peer))
+            .filter(|&peer| peer != except)
+            .choose_stable(&mut self.rng)
+    }
+
     pub fn store_pending_request(&mut self, height: Ctx::Height, peer: PeerId) {
         self.pending_requests.insert(height, peer);
     }
