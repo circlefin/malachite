@@ -412,8 +412,6 @@ impl Actor for StarknetHost {
                 let stream_id = state.next_stream_id;
                 state.next_stream_id += 1;
 
-                let mut sequence = 0;
-
                 let init = ProposalInit {
                     height,
                     proposal_round: round,
@@ -421,35 +419,30 @@ impl Actor for StarknetHost {
                     proposer: address.clone(),
                 };
 
-                let init_part = ProposalPart::Init(init.clone());
                 let signature =
                     compute_proposal_signature(&init, &value_id, &state.host.private_key);
 
+                let init_part = ProposalPart::Init(init);
                 let fin_part = ProposalPart::Fin(ProposalFin { signature });
 
-                debug!(%height, %round, "Created new Init part {:?}", init_part);
+                debug!(%height, %round, "Created new Init part: {init_part:?}");
+
+                let mut sequence = 0;
 
                 while let Some(part) = rx_part.recv().await {
                     let new_part = match part.part_type() {
                         PartType::Init => init_part.clone(),
-                        PartType::Transactions | PartType::BlockProof => part,
                         PartType::Fin => fin_part.clone(),
+                        PartType::Transactions | PartType::BlockProof => part,
                     };
 
                     state.host.part_store.store(height, round, new_part.clone());
 
                     if state.host.params.value_payload.include_parts() {
-                        debug!(
-                            %stream_id,
-                            %sequence,
-                            "Broadcasting proposal part"
-                        );
+                        debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
-                        let msg = StreamMessage::new(
-                            stream_id,
-                            sequence as u64,
-                            StreamContent::Data(new_part),
-                        );
+                        let msg =
+                            StreamMessage::new(stream_id, sequence, StreamContent::Data(new_part));
 
                         self.gossip_consensus
                             .cast(GossipConsensusMsg::PublishProposalPart(msg))?;
