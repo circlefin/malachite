@@ -3,8 +3,10 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 use malachite_common::SigningScheme;
-use rand::{CryptoRng, RngCore};
 use signature::{Keypair, Signer, Verifier};
+
+#[cfg(feature = "rand")]
+use rand::{CryptoRng, RngCore};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -17,6 +19,7 @@ mod serializers;
 pub struct Ed25519;
 
 impl Ed25519 {
+    #[cfg(feature = "rand")]
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn generate_keypair<R>(rng: R) -> PrivateKey
     where
@@ -102,6 +105,7 @@ pub struct PrivateKey(
 );
 
 impl PrivateKey {
+    #[cfg(feature = "rand")]
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn generate<R>(rng: R) -> Self
     where
