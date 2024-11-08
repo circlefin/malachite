@@ -13,7 +13,7 @@ use tokio::task::JoinHandle;
 
 use malachite_blocksync::{self as blocksync, OutboundRequestId};
 use malachite_blocksync::{Request, SyncedBlock};
-use malachite_common::{CommitCertificate, Context};
+use malachite_common::{CertificateError, CommitCertificate, Context};
 use tracing::{debug, error, warn};
 
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
@@ -66,6 +66,9 @@ pub enum Msg<Ctx: Context> {
 
     /// A timeout has elapsed
     TimeoutElapsed(TimeoutElapsed<Timeout>),
+
+    /// We received an invalid [`CommitCertificate`] from a peer
+    InvalidCertificate(PeerId, CommitCertificate<Ctx>, CertificateError<Ctx>),
 }
 
 impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
@@ -263,14 +266,14 @@ where
                 .await?;
             }
 
-            Msg::GossipEvent(GossipEvent::BlockSyncResponse(request_id, response)) => {
+            Msg::GossipEvent(GossipEvent::BlockSyncResponse(request_id, peer, response)) => {
                 // Cancel the timer associated with the request for which we just received a response
                 state.timers.cancel(&Timeout::Request(request_id));
 
                 self.process_input(
                     &myself,
                     state,
-                    blocksync::Input::Response(request_id, response),
+                    blocksync::Input::Response(request_id, peer, response),
                 )
                 .await?;
             }
@@ -296,6 +299,15 @@ where
                     blocksync::Input::GotBlock(request_id, height, block),
                 )
                 .await?;
+            }
+
+            Msg::InvalidCertificate(peer, certificate, error) => {
+                self.process_input(
+                    &myself,
+                    state,
+                    blocksync::Input::InvalidCertificate(peer, certificate, error),
+                )
+                .await?
             }
 
             Msg::TimeoutElapsed(elapsed) => {

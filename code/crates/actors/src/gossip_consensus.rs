@@ -95,7 +95,7 @@ pub enum GossipEvent<Ctx: Context> {
     Status(PeerId, Status<Ctx>),
 
     BlockSyncRequest(InboundRequestId, PeerId, Request<Ctx>),
-    BlockSyncResponse(OutboundRequestId, Response<Ctx>),
+    BlockSyncResponse(OutboundRequestId, PeerId, Response<Ctx>),
 }
 
 pub enum State<Ctx: Context> {
@@ -373,17 +373,21 @@ where
                     );
                 }
 
-                RawMessage::Response { request_id, body } => {
+                RawMessage::Response {
+                    request_id,
+                    peer,
+                    body,
+                } => {
                     let response: blocksync::Response<Ctx> = match self.codec.decode(body) {
                         Ok(response) => response,
                         Err(e) => {
-                            error!("Failed to decode BlockSync response: {e:?}");
+                            error!(%peer, "Failed to decode BlockSync response: {e:?}");
                             return Ok(());
                         }
                     };
 
                     self.publish(
-                        GossipEvent::BlockSyncResponse(request_id, response),
+                        GossipEvent::BlockSyncResponse(request_id, peer, response),
                         subscribers,
                     );
                 }

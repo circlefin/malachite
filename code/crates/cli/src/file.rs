@@ -54,7 +54,8 @@ fn save(path: &Path, data: &str) -> Result<(), Error> {
         .open(path)
         .map_err(|_| Error::OpenFile(path.to_path_buf()))?;
 
-    f.write_all(data.as_bytes()).map_err(|_| Error::WriteFile)?;
+    f.write_all(data.as_bytes())
+        .map_err(|_| Error::WriteFile(path.to_path_buf()))?;
 
     Ok(())
 }

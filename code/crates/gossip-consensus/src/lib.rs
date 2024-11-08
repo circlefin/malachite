@@ -605,6 +605,7 @@ async fn handle_blocksync_event(
                     let _ = tx_event
                         .send(Event::BlockSync(blocksync::RawMessage::Response {
                             request_id,
+                            peer,
                             body: response.0,
                         }))
                         .await

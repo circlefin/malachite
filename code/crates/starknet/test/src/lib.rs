@@ -1,6 +1,7 @@
 #![allow(unused_crate_dependencies)]
 
 use core::fmt;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -266,7 +267,10 @@ impl<const N: usize> Test<N> {
             );
         }
 
+        let metrics = tokio::spawn(serve_metrics("127.0.0.1:0".parse().unwrap()));
         let results = tokio::time::timeout(timeout, set.join_all()).await;
+        metrics.abort();
+
         match results {
             Ok(results) => {
                 check_results(results);
@@ -493,7 +497,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> NodeConfig 
     let protocol = PubSubProtocol::default();
 
     NodeConfig {
-        moniker: format!("node-{i}"),
+        moniker: format!("node-{}", test.nodes[i].id),
         logging: LoggingConfig::default(),
         consensus: ConsensusConfig {
             max_block_size: ByteSize::mib(1),
@@ -562,4 +566,24 @@ pub fn make_validators<const N: usize>(
     }
 
     validators.try_into().expect("N validators")
+}
+
+use axum::routing::get;
+use axum::Router;
+use tokio::net::TcpListener;
+
+#[tracing::instrument(name = "metrics", skip_all)]
+async fn serve_metrics(listen_addr: SocketAddr) {
+    let app = Router::new().route("/metrics", get(get_metrics));
+    let listener = TcpListener::bind(listen_addr).await.unwrap();
+    let address = listener.local_addr().unwrap();
+
+    async fn get_metrics() -> String {
+        let mut buf = String::new();
+        malachite_metrics::export(&mut buf);
+        buf
+    }
+
+    info!(%address, "Serving metrics");
+    axum::serve(listener, app).await.unwrap();
 }

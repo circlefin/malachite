@@ -90,7 +90,7 @@ impl fmt::Debug for Hash {
 }
 
 impl str::FromStr for Hash {
-    type Err = Box<dyn std::error::Error>;
+    type Err = Box<dyn core::error::Error>;
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_str(s: &str) -> Result<Self, Self::Err> {

@@ -1,19 +1,23 @@
 //! For storing proposals.
 
-use derive_where::derive_where;
-
 use alloc::collections::BTreeMap;
 use alloc::vec;
 use alloc::vec::Vec;
 
+use derive_where::derive_where;
+use thiserror::Error;
+
 use malachite_common::{Context, Proposal, Round, SignedProposal, Validity};
 
 /// Errors can that be yielded when recording a proposal.
+#[derive_where(Debug)]
+#[derive(Error)]
 pub enum RecordProposalError<Ctx>
 where
     Ctx: Context,
 {
     /// Attempted to record a conflicting proposal.
+    #[error("Conflicting proposal: existing: {existing}, conflicting: {conflicting}")]
     ConflictingProposal {
         /// The proposal already recorded for the same value.
         existing: SignedProposal<Ctx>,
@@ -22,6 +26,7 @@ where
     },
 
     /// Attempted to record a conflicting proposal from a different validator.
+    #[error("Invalid conflicting proposal: existing: {existing}, conflicting: {conflicting}")]
     InvalidConflictingProposal {
         /// The proposal already recorded for the same value.
         existing: SignedProposal<Ctx>,
