@@ -2739,6 +2739,7 @@ dependencies = [
  "malachite-driver",
  "malachite-proto",
  "malachite-round",
+ "malachite-signing-ed25519",
  "malachite-vote",
  "prost",
  "prost-build",

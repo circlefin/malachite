@@ -10,14 +10,15 @@ license.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-actors    = { workspace = true }
-malachite-common    = { workspace = true }
-malachite-consensus = { workspace = true }
-malachite-driver    = { workspace = true }
-malachite-config    = { workspace = true }
-malachite-round     = { workspace = true }
-malachite-vote      = { workspace = true }
-malachite-proto     = { workspace = true }
+malachite-actors          = { workspace = true }
+malachite-common          = { workspace = true }
+malachite-consensus       = { workspace = true }
+malachite-driver          = { workspace = true }
+malachite-config          = { workspace = true }
+malachite-round           = { workspace = true }
+malachite-vote            = { workspace = true }
+malachite-proto           = { workspace = true }
+malachite-signing-ed25519 = { workspace = true, features = ["rand", "serde"] }
 
 async-trait        = { workspace = true }
 base64             = { workspace = true }
