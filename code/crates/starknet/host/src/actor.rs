@@ -4,7 +4,6 @@ use std::sync::Arc;
 use eyre::eyre;
 
 use itertools::Itertools;
-use malachite_starknet_p2p_types::{Block, PartType};
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
 use sha3::Digest;
 use tokio::time::Instant;
@@ -17,6 +16,7 @@ use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachite_blocksync::SyncedBlock;
 use malachite_common::{Round, SignedExtension, Validity};
 use malachite_metrics::Metrics;
+use malachite_starknet_p2p_types::{Block, PartType};
 
 use crate::block_store::BlockStore;
 use crate::mempool::{MempoolMsg, MempoolRef};
