@@ -9,7 +9,7 @@ import statemachineAsync(
     Values = Set("red", "blue"),
     Rounds = Set(0, 1, 2, 3),
     Heights = Set(0) // , 1, 2, 3)
-    ).* from "./statemachineAsync"
+    ).* from "../statemachineAsync"
 
 type Option[a] =
     | Some(a)
