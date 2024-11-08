@@ -91,8 +91,8 @@ Regarding Amnesia there are trade-offs that we would like to start a discussion 
   - together with "double vote" this would allow an incentivization scheme around all behaviors that can lead to disagreement
   - it would allow us to shield the consensus engine against all attacks on safety, at least we could generate evidence for forensics
 - Cons
-  - Out-of-the-box, Tendermint consensus does not support provable amnesia evidence. However, we have developed a slight adaptations of Tendermint (roughly speaking adding one additional round field to votes), that would make amnesia provable. (It doesn't involve extra steps of performance penalties, but this is actually a Pro)
-  - Our solution doesn't necessarily help with the "fix misconfigurations" issue as it only produces evidence when we have conflicting commits 
+  - out-of-the-box, Tendermint consensus does not support provable amnesia evidence. However, we have developed a slight adaptations of Tendermint (roughly speaking adding one additional round field to votes), that would make amnesia provable. (It doesn't involve extra steps of performance penalties, but this is actually a Pro)
+  - our solution doesn't necessarily help with the "fix misconfigurations" issue as it only produces evidence when we have conflicting commits 
 
   ### Conclusions
 
