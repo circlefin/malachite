@@ -94,6 +94,6 @@ Regarding Amnesia there are trade-offs that we would like to start a discussion 
   - out-of-the-box, Tendermint consensus does not support provable amnesia evidence. However, we have developed a slight adaptations of Tendermint (roughly speaking adding one additional round field to votes), that would make amnesia provable. (It doesn't involve extra steps of performance penalties, but this is actually a Pro)
   - our solution doesn't necessarily help with the "fix misconfigurations" issue as it only produces evidence when we have conflicting commits 
 
-  ### Conclusions
+### Conclusions
 
   We have argued that a mild form of incentivization is useful to stabilize the system and keep it operational. Such incentivization scheme must be based on provable data. Based on these two requirements we suggest that the consensus engines may collect two types of evidence. We strongly are in favor for double votes and urge the Starknet community to agree on an incentivization scheme that is acceptable for users and node operators. We are also in favor of considering amnesia evidence, but this perhaps needs an even broader discussion.
