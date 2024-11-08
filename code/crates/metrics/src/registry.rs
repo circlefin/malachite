@@ -28,14 +28,6 @@ impl SharedRegistry {
         }
     }
 
-    fn read<A>(&self, f: impl FnOnce(&Registry) -> A) -> A {
-        f(&self.registry.read().expect("poisoned lock"))
-    }
-
-    fn write<A>(&self, f: impl FnOnce(&mut Registry) -> A) -> A {
-        f(&mut self.registry.write().expect("poisoned lock"))
-    }
-
     pub fn with_prefix<A>(&self, prefix: impl AsRef<str>, f: impl FnOnce(&mut Registry) -> A) -> A {
         if let Some(moniker) = &self.moniker {
             self.write(|reg| {
@@ -49,6 +41,14 @@ impl SharedRegistry {
         } else {
             self.write(|reg| f(reg.sub_registry_with_prefix(prefix)))
         }
+    }
+
+    fn read<A>(&self, f: impl FnOnce(&Registry) -> A) -> A {
+        f(&self.registry.read().expect("poisoned lock"))
+    }
+
+    fn write<A>(&self, f: impl FnOnce(&mut Registry) -> A) -> A {
+        f(&mut self.registry.write().expect("poisoned lock"))
     }
 }
 
