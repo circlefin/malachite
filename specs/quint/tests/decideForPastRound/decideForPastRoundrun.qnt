@@ -49,7 +49,7 @@ run runToDecision =
     .then(ListTakeAStep(others.concat(List(testedVal))))
 
 // at this point others have decided and testedVal is ready to go into next round.
-    .expect(otherSet.forall(x => system.get(x).es.chain[0].decision == "blue"))
+    .expect(otherSet.forall(x => system.get(x).es.chain[0].decision.proposal == "blue"))
     .expect(system.get(testedVal).es.chain == List())
     .then(valStep(testedVal))
 
@@ -67,7 +67,7 @@ run runToDecision =
     .then(valStep(testedVal))
 
 // now we are good. everyone has decided
-    .expect(Correct.forall(x => system.get(x).es.chain[0].decision == "blue"))
+    .expect(Correct.forall(x => system.get(x).es.chain[0].decision.proposal == "blue"))
 
 // moreover, testedVal has evidence
     .expect(Faulty.forall(f =>
