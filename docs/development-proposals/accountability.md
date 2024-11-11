@@ -73,13 +73,15 @@ Tendermint consensus that leads to violation of agreement is either a
 
 We argue that the only two types of evidence that make sense to collect are "double vote" and "amnesia". By the verification results mentioned above, they are the ones actually required to disrupt the system. 
 
-#### Why not "double proposal"?
+### Why not "double propose"?
 
-First, without double vote, it doesn't harm. Second, in consensus engine implementations, sometimes there are no self-contained proposal messages, but rather they are big chunks of data that is transmitted in block parts or streamed, so that the mapping of algorithmic propose messages to what we see in implementations is not so direct. Consequently, we don't think it makes sense to go down this rabbit hole.
+First, it doesn't harm safety by itself, as processes also need to double vote to produce agreement violations.
+Second, in consensus engine implementations, sometimes there are no self-contained `PROPOSAL` messages, but rather they are big chunks of data that is transmitted in block parts or streamed, so that the mapping of algorithmic `PROPOSAL` messages to what we see in implementations is not so direct. Consequently, we don't think it makes sense to go down this rabbit hole.
 
-#### Why not "bad proposer"?
+### Why not "bad proposer"?
 
-First, without double vote, it doesn't harm. Second, we are only interested in "provable evidence". So while in principle it can be proven, much more data, partly on consensus internals, is needed to do so. Checking that a process was not supposed to propose at a certain round in a certain height, depends on the application state at this specific situation. Again, it doesn't seem to make sense to investigate this, given that there is no value added.
+First, by itself it doesn't harm safety, as correct processes will just disregard the produced proposals. 
+Second, we are only interested in "provable evidence". So while in principle it can be proven, much more data, partly on consensus internals, needs to be included in the evidence. Checking that a process was not the proposer of a certain round and height requires knowing the state of the proposer selection algorithm at this specific point. Which is implemented and depends on the state of the application at that point. Again, it doesn't seem to make sense to investigate this, given that there is no value added.
 
 #### Why "double vote"?
 
