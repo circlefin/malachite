@@ -7,9 +7,10 @@ A prerequisite to such incentivization schemes is to collect evidence of misconf
 
 **What is the typical case for equivocation seen in production systems?** Let's look at
 CometBFT. CometBFT is a battle-tested consensus engine based on Tendermint consensus, which
-only records specific misbehavior, namely the duplicate vote evidence. While actual attacks are rare, equivocation has still been observed in production as a result of misconfiguration. Most companies operating a validator typically implement this node as a fault-tolerant setup itself (in order to achieve availability), having copies of the private key of the validator on multiple machines. If such a fault-tolerant setup is implemented poorly or misconfigured, this may result in duplicate (and sometimes conflicting) signatures in a protocol step, although no actual attack was intended.
+only records specific misbehavior, namely the duplicate vote evidence. While actual attacks are rare, equivocation has still been observed in production as a result of misconfiguration. Many companies operating a validator typically implement this node as a fault-tolerant setup itself (in order to achieve availability), having copies of the private key of the validator on multiple machines. For instance, the two tools [tmkms](https://github.com/iqlusioninc/tmkms) and [Horcrux](https://github.com/strangelove-ventures/horcrux) help managing a fault-tolerant setup.
+If, however, a fault-tolerant setup would be implemented poorly or misconfigured, this may result in duplicate (and sometimes conflicting) signatures in a protocol step, although no actual attack was intended.
 
-While a single instance of an unintentional double vote of one process does not pose big problems (it cannot bring disagreement), **repeated unintentional double votes by several validator operators having large voting power might eventually lead to disagreement** and a chain halt. Therefore it make sense to incentivize individual operators to fix their setup while the whole system is still operational.
+While a single instance of an unintentional double vote of one process typically does not pose big problems (it cannot bring disagreement), **repeated unintentional double votes by several validator operators having large voting power might eventually lead to disagreement** and a chain halt. Therefore it make sense to incentivize individual operators to fix their setup while the whole system is still operational.
 
 Thus we propose that also in de-centralized Starknet such behavior should lead to mild penalties (e.g., not paying fees to the validator for some time, taking a small penalty from their stake), as part of the incentivization scheme motivating validator operators to fix such issues and ensure reliability of their node. I think the concrete incentivization scheme is a matter for the Starknet community and the node operators to agree on; all this lies in the application layer. In the remainder of this post, I would like to focus on the consensus layer, and lay out some options regarding what provable evidence consensus may provide to the application.
 
@@ -25,7 +26,9 @@ thirds of faulty processes, they have control over the system.
 
 In order to bring the system to disagreement, the faulty processes need to
 actively deviate from the protocol. By
-superficial inspection of the pseudo code we observe that 
+superficial inspection of the pseudo code (cf. Algorithm 1 in the 
+[arXiv paper](https://arxiv.org/abs/1807.04938)), we find the 
+following types of misbehavior:
 
 - **[Double vote]** correct processeses never send two (different) vote messages
   (`PREVOTE`, `PRECOMMIT`) for the same height and round (that is the messages
@@ -44,7 +47,7 @@ and 2f+1 matching prevotes for the value in round `vr` that satisfies `vr >=
 lockedRound_p` (line 29). In other words
 
 - **[Amnesia]** a correct process never sends a prevote for a value `val` if
-  it has locked a different value `val2` before and hasn't received a proposal
+  it has locked a different value `val2` before, and hasn't received a proposal
   and sufficiently many prevotes for `val2` with valid round `vr >= lockedRound_p`.
 
 Remark on the term "amnesia". Amnesia a violation of the locking mechanism
