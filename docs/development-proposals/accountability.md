@@ -1,20 +1,20 @@
 # Accountability
 
 
-It has been decided to build de-centralized Starknet using consensus engines that are based on the well-known [Tendermint consensus](https://arxiv.org/abs/1807.04938) algorithm. To be safe and live, Tendermint consensus requires that more than 2/3 of the participants are correct, that is, follow the algorithm. In a proof-of-stake context, setting up a correct node is a technological challenge itself, e.g., (1) the node needs to have its private key it uses to sign consensus messages on a computer that is continuously connected to the Internet, which poses a security challenge to the setup or (2) the node needs to have high availability, as downtime of one node may results in downtime (or reduced performance, e.g., throughput) of the whole chain. We thus argue in the following that it is best practice to incentivize node operators to take up this technological challenge seriously.
+It has been decided to build de-centralized Starknet using consensus engines that are based on the well-known [Tendermint consensus](https://arxiv.org/abs/1807.04938) algorithm. To be safe and live, Tendermint consensus requires that more than 2/3 of the participants are correct, that is, follow the algorithm. In a Proof-of-Stake (PoS) context, setting up a correct node is a technological challenge itself, e.g., (1) the node needs to have its private key it uses to sign consensus messages on a computer that is continuously connected to the Internet, which poses a security challenge to the setup or (2) the node needs to have high availability, as downtime of one node may results in downtime (or reduced performance, e.g., throughput) of the whole chain. We thus argue in the following that it is best practice to incentivize node operators to take up this technological challenge seriously.
 
 A prerequisite to such incentivization schemes is to collect evidence of misconfiguration or misbehavior. When we talk about evidence here, we are only interested in provable pieces of information, e.g., if a node has used its private key to sign to conflicting messages (which is forbidden by PoS consensus algorithms, including Tendermint), that is, so-called equivocation (double vote). We don't consider subjective criteria, e.g., whether a node did not respond before a timeout expired.
 
 **What is the typical case for equivocation seen in production systems?** Let's look at
-CometBFT. CometBFT is a battle-tested consensus engine based on Tendermint consensus, which
+[CometBFT](https://github.com/cometbft/cometbft). CometBFT is a battle-tested consensus engine based on Tendermint consensus, which
 only records specific misbehavior, namely the duplicate vote evidence. While actual attacks are rare, equivocation has still been observed in production as a result of misconfiguration. Many companies operating a validator typically implement this node as a fault-tolerant setup itself (in order to achieve availability), having copies of the private key of the validator on multiple machines. For instance, the two tools [tmkms](https://github.com/iqlusioninc/tmkms) and [Horcrux](https://github.com/strangelove-ventures/horcrux) help managing a fault-tolerant setup.
 If, however, a fault-tolerant setup would be implemented poorly or misconfigured, this may result in duplicate (and sometimes conflicting) signatures in a protocol step, although no actual attack was intended.
 
-While a single instance of an unintentional double vote of one process typically does not pose big problems (it cannot bring disagreement), **repeated unintentional double votes by several validator operators having large voting power might eventually lead to disagreement** and a chain halt. Therefore it make sense to incentivize individual operators to fix their setup while the whole system is still operational.
+While a single instance of an unintentional double vote of one process typically does not pose big problems (it cannot bring disagreement), **repeated unintentional double votes by several validators having large voting power might eventually lead to disagreement** and a chain halt. Therefore it make sense to incentivize individual operators to fix their setup while the whole system is still operational.
 
-Thus we propose that also in de-centralized Starknet such behavior should lead to mild penalties (e.g., not paying fees to the validator for some time, taking a small penalty from their stake), as part of the incentivization scheme motivating validator operators to fix such issues and ensure reliability of their node. I think the concrete incentivization scheme is a matter for the Starknet community and the node operators to agree on; all this lies in the application layer. In the remainder of this post, I would like to focus on the consensus layer, and lay out some options regarding what provable evidence consensus may provide to the application.
+Thus we propose that also in Starknet such behavior should lead to mild penalties (e.g., not paying fees to the validator for some time, slashing a small portion of their stake), as part of the incentivization scheme motivating validator operators to fix such issues and ensure reliability of their node. I think the concrete incentivization scheme is a matter for the Starknet community and the node operators to agree on; all this lies in the application layer. In the remainder of this post, I would like to focus on the consensus layer, and lay out some options regarding what provable evidence consensus may provide to the application.
 
-### Misbehavior types
+## Misbehavior types
 
 Here we give some explanation about attacks on Tendermint. If you are aware of those, and are just interested in our conclusions, just scroll down to the [last section](#what-evidence-to-collect).
 
@@ -27,19 +27,19 @@ thirds of faulty processes, they have control over the system.
 In order to bring the system to disagreement, the faulty processes need to
 actively deviate from the protocol. By
 superficial inspection of the pseudo code (cf. Algorithm 1 in the 
-[arXiv paper](https://arxiv.org/abs/1807.04938)), we find the 
+[arXiv paper](https://arxiv.org/abs/1807.04938)), we derive the 
 following types of misbehavior:
 
-- **[Double vote]** correct processeses never send two (different) vote messages
+- **[Double vote]** correct processeses never send two (conflicting) vote messages
   (`PREVOTE`, `PRECOMMIT`) for the same height and round (that is the messages
   differ in the value they carry; also `nil` is considered a value here), and
-- **[Double propose]** a correct proposer never send two different proposals for
+- **[Double propose]** a correct proposer never send two different proposals (i.e., `PROPOSAL` messages) for
   the same height and round, and
 - **[Bad proposer]** a correct processes whose ID is different from the one
   returned by `proposer(h, r)`  does not send a proposal for height `h` and 
-  round `r `.
+  round `r`.
 
-A little bit more involved inspection shows that if a correct process `p` locks a
+A more involved inspection shows that if a correct process `p` locks a
 value (setting `lockedValue_p` and `lockedRound_p` in lines 38 and 39) then it sends
 a prevote for a different value in a later round (line 30) **only if** the
 condition of lines 28/29 is satisfied, that is, only of it receives a proposal
