@@ -11,11 +11,6 @@ module driver {
     // State
     // *************************************************************************
 
-    type BlockStoreEntry = {
-        decision: Proposal, 
-        commit: Set[Vote]
-    }
-
     type DriverState = {
         bk: Bookkeeper,
         cs: ConsensusState,
