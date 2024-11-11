@@ -11,7 +11,8 @@ use libp2p::swarm::NetworkBehaviour;
 use libp2p::{kad, Multiaddr, PeerId, StreamProtocol};
 use serde::{Deserialize, Serialize};
 
-use crate::DISCOVERY_PROTOCOL;
+const DISCOVERY_REQRES_PROTOCOL: &str = "/malachite-discovery-kad/v1beta1";
+const DISCOVERY_KAD_PROTOCOL: &str = "/malachite-discovery-reqres/v1beta1";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Request {
@@ -63,7 +64,7 @@ pub struct Behaviour {
 
 fn request_response_protocol() -> iter::Once<(StreamProtocol, ProtocolSupport)> {
     iter::once((
-        StreamProtocol::new(DISCOVERY_PROTOCOL),
+        StreamProtocol::new(&DISCOVERY_KAD_PROTOCOL),
         ProtocolSupport::Full,
     ))
 }
@@ -73,7 +74,7 @@ fn request_response_config() -> request_response::Config {
 }
 
 fn kademlia_config() -> kad::Config {
-    let config = kad::Config::new(StreamProtocol::new(DISCOVERY_PROTOCOL));
+    let config = kad::Config::new(StreamProtocol::new(&DISCOVERY_REQRES_PROTOCOL));
 
     // TODO: adjust config
 

@@ -40,8 +40,6 @@ mod request;
 pub use request::RequestData;
 use util::RangeCmp;
 
-const DISCOVERY_PROTOCOL: &str = "/malachite-discovery/v1beta1";
-
 #[derive(Debug, PartialEq)]
 enum State {
     Bootstrapping,
