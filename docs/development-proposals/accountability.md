@@ -47,15 +47,15 @@ and 2f+1 matching prevotes for the value in round `vr` that satisfies `vr >=
 lockedRound_p` (line 29). In other words
 
 - **[Amnesia]** a correct process never sends a prevote for a value `v` if
-  it has locked a different value `val2` before, and hasn't received a proposal
-  and sufficiently many prevotes for `val2` with valid round `vr >= lockedRound_p`.
+  it has locked a different value `v'` before and hasn't received a proposal
+  and sufficiently many prevotes for `v'` with valid round `vr >= lockedRound_p`.
 
 Remark on the term "amnesia". Amnesia a violation of the locking mechanism
 introduced by Dwork, Lynch, and Stockmeyer into their algorithm: a process locks
 a value in a round if the value is supported by more than 2/3 of the processes. A process that
 has locked a value can only be convinced to release that lock if more than two
 thirds of the processes have a lock for a later round. In the case of less than
-a third faults, if a process decides value `v` in a round `r` the algorithm ensures
+one third faults, if a process decides value `v` in a round `r` the algorithm ensures
 that more than two thirds have a lock on value `v` for that round. As a result
 once a value is decided, no other value `v' != v` will be supported by enough correct
 processes. However, if there are more than a third faults, adversarial processes
