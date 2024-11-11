@@ -129,7 +129,7 @@ type ClientResult = {
     req: Option[RequestMsg]
 }
 
-/// we have received a certifact. now we need to issue the corresponding block request
+/// We have received a certificate. now we need to issue the corresponding block request
 /// and generate a certificate output
 pure def syncHandleCertificate (s: Synchronizer, cert: Set[Vote], peer: str ) : ClientResult =
     val blockReq = {    client: s.id,
@@ -394,6 +394,7 @@ action syncStepClient(v) = all {
 //
 
 /// deliver a request to server v
+/// remove the request from the syncRequestBuffer and add it to the server's inbuffer.
 action syncDeliverReq(v) =  all {
     syncRequestBuffer.get(v).size() > 0,
     nondet req = syncRequestBuffer.get(v).oneOf()
@@ -408,7 +409,8 @@ action syncDeliverReq(v) =  all {
     }
 }
 
-/// deliver a request to client v
+/// deliver a response to client v
+/// remove the response from the syncResponseBuffer and add it to the client's responses buffer.
 action syncDeliverResp(v) =  all {
     syncResponseBuffer.get(v).size() > 0,
     nondet resp = syncResponseBuffer.get(v).oneOf()
@@ -444,7 +446,7 @@ action syncValStep(v) = all {
     syncUnchangedAll
 }
 
-/// main step function
+/// main step function: either a consensus state-machine step or a sync protocol step
 action stepWithBlockSync = any {
     all {
         step,

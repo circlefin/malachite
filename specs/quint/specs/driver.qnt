@@ -417,7 +417,7 @@ module driver {
         incomingVotes: Set[Vote],
         incomingProposals: Set[Proposal],
         incomingCertificates: Set[Set[Vote]],
-        // TODO: add buffers for sync
+        // buffers for sync protocol. We separate them from non-sync buffers to model that they have higher priority
         incomingSyncProposals: Set[Proposal],
         incomingSyncCertificates: Set[Set[Vote]],
         getValueRequests: Set[(Height, Round)],
