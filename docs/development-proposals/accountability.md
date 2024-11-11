@@ -58,8 +58,8 @@ thirds of the processes have a lock for a later round. In the case of less than
 one third faults, if a process decides value `v` in a round `r` the algorithm ensures
 that more than two thirds have a lock on value `v` for that round. As a result
 once a value is decided, no other value `v' != v` will be supported by enough correct
-processes. However, if there are more than a third faults, adversarial processes
-may lock a value `v` and in a later round "forget" they did that and support a
+processes. However, if there are more than one third faults, adversarial processes
+may lock a value `v` in a round and in a later round "forget" they did that and support a
 different value.
 
 It has been shown by formal verification (see results obtained with
