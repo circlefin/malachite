@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use malachite_proto::{Error as ProtoError, Protobuf};
 
-use crate::proto;
 use crate::signing::PublicKey;
+use crate::{proto, Hashable};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]

@@ -1,0 +1,27 @@
+[package]
+name                   = "malachite-signing-ed25519"
+version.workspace      = true
+edition.workspace      = true
+repository.workspace   = true
+license.workspace      = true
+publish.workspace      = true
+rust-version.workspace = true
+
+[features]
+std   = []
+serde = ["dep:serde", "dep:base64"]
+rand  = ["dep:rand"]
+
+[dependencies]
+malachite-common  = { workspace = true }
+
+signature         = { workspace = true }
+ed25519-consensus = { workspace = true }
+
+# Optional dependencies
+rand              = { workspace = true, optional = true } # rand
+serde             = { workspace = true, optional = true } # serde
+base64            = { workspace = true, optional = true } # serde
+
+[lints]
+workspace = true

@@ -2649,6 +2649,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-signing-ed25519"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "ed25519-consensus",
+ "malachite-common",
+ "rand",
+ "serde",
+ "signature",
+]
+
+[[package]]
 name = "malachite-starknet-app"
 version = "0.1.0"
 dependencies = [
@@ -2756,6 +2768,7 @@ dependencies = [
  "malachite-driver",
  "malachite-proto",
  "malachite-round",
+ "malachite-signing-ed25519",
  "malachite-vote",
  "prost",
  "prost-build",

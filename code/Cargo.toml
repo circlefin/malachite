@@ -18,13 +18,16 @@ members = [
   "crates/round",
   "crates/vote",
 
+  # Ed25519
+  "crates/signing-ed25519",
+
   # Test
   "crates/test",
   "crates/test/mbt",
 
   # Starknet
   "crates/starknet/*",
-  "crates/starknet/*"
+  "crates/starknet/*",
 ]
 
 [workspace.package]
@@ -67,6 +70,7 @@ malachite-round            = { version = "0.1.0", path = "crates/round" }
 malachite-test             = { version = "0.1.0", path = "crates/test" }
 malachite-test-mbt         = { version = "0.1.0", path = "crates/test/mbt" }
 malachite-vote             = { version = "0.1.0", path = "crates/vote" }
+malachite-signing-ed25519  = { version = "0.1.0", path = "crates/signing-ed25519" }
 
 # Starknet
 malachite-starknet-host      = { version = "0.1.0", path = "crates/starknet/host" }
