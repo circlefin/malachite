@@ -71,7 +71,7 @@ Tendermint consensus that leads to violation of agreement is either a
 
 ### What evidence to collect
 
-We argue that the only two types of evidence that make sense to collect are "double vote" and "amnesia". By the verification results mentioned above they are the ones actually needed to disrupt the system. 
+We argue that the only two types of evidence that make sense to collect are "double vote" and "amnesia". By the verification results mentioned above, they are the ones actually required to disrupt the system. 
 
 #### Why not "double proposal"?
 
