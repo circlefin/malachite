@@ -90,15 +90,15 @@ So it makes sense that the consensus engine collects this. Observe that in contr
 
 #### What about Amnesia?
 
-Regarding Amnesia there are trade-offs that we would like to start a discussion around
+Regarding the amnesia attack, there are trade-offs that we would like to start a discussion around:
 
 - Pros
-  - together with "double vote" this would allow an incentivization scheme around all behaviors that can lead to disagreement
-  - it would allow us to shield the consensus engine against all attacks on safety, at least we could generate evidence for forensics
+  - together with "double vote" this would allow an incentivization scheme against all behaviors that can lead to disagreement
+  - it would allow us to shield the consensus engine against all attacks on safety, since we could generate evidence for forensics
 - Cons
-  - out-of-the-box, Tendermint consensus does not support provable amnesia evidence. However, we have developed a slight adaptations of Tendermint (roughly speaking adding one additional round field to votes), that would make amnesia provable. (It doesn't involve extra steps of performance penalties, but this is actually a Pro)
+  - out-of-the-box, Tendermint consensus does not support provable amnesia evidence. However, we have developed a slight adaptations of Tendermint (roughly speaking, it adds one additional round field to votes), that would make amnesia provable. (It doesn't involve extra steps or performance penalties, but this is actually a Pro)
   - our solution doesn't necessarily help with the "fix misconfigurations" issue as it only produces evidence when we have conflicting commits 
 
-### Conclusions
+## Conclusions
 
-  We have argued that a mild form of incentivization is useful to stabilize the system and keep it operational. Such incentivization scheme must be based on provable data. Based on these two requirements we suggest that the consensus engines may collect two types of evidence. We strongly are in favor for double votes and recommend to the Starknet community to agree on an incentivization scheme that is acceptable for users and node operators. We are also in favor of considering amnesia evidence, but this perhaps needs an even broader discussion.
+We argue that a mild form of incentivization is useful to stabilize the system and keep it operational. Such incentivization scheme must be based on provable data. Based on these two requirements we suggest that the consensus engines may collect two types of evidence. We strongly are in favor of "double vote" evidence and recommend to the Starknet community to agree on an incentivization scheme that is acceptable for users and node operators. We are also in favor of considering "amnesia" evidence, although this perhaps needs a broader discussion.
