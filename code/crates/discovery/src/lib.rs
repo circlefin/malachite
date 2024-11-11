@@ -253,6 +253,11 @@ impl Discovery {
             .iter()
             .filter_map(|(peer_id, info)| {
                 if peer_id == &peer {
+                    // Remove the peer also from the bootstrap nodes (if it is there)
+                    info.listen_addrs.first().map(|addr| {
+                        remaining_bootstrap_nodes.retain(|x| x != addr);
+                    });
+
                     return None;
                 }
 
@@ -427,73 +432,80 @@ impl Discovery {
         }
     }
 
-    pub fn on_event(
+    pub fn on_network_event(
         &mut self,
-        event: behaviour::Event,
+        network_event: behaviour::NetworkEvent,
         swarm: &mut Swarm<impl SendRequestResponse>,
     ) {
-        match event {
-            behaviour::Event::Message {
-                peer,
-                message:
-                    request_response::Message::Request {
-                        request, channel, ..
+        match network_event {
+            behaviour::NetworkEvent::RequestResponse(event) => {
+                match event {
+                    request_response::Event::Message {
+                        peer,
+                        message:
+                            request_response::Message::Request {
+                                request, channel, ..
+                            },
+                    } => match request {
+                        behaviour::Request::Peers(peers) => {
+                            debug!(peer_id = %peer, "Received request for peers from peer");
+
+                            // Compute the difference between the known peers and the requested peers
+                            // to avoid sending the requesting peer the peers it already knows.
+                            let peers_difference = self
+                                .get_all_peers_except(peer)
+                                .difference(&peers)
+                                .cloned()
+                                .collect();
+
+                            if swarm
+                                .behaviour_mut()
+                                .send_response(
+                                    channel,
+                                    behaviour::Response::Peers(peers_difference),
+                                )
+                                .is_err()
+                            {
+                                error!("Error sending peers to {peer}");
+                            } else {
+                                trace!("Sent peers to {peer}");
+                            }
+
+                            self.process_received_peers(swarm, peers);
+                        }
                     },
-            } => match request {
-                behaviour::Request::Peers(peers) => {
-                    debug!(peer_id = %peer, "Received request for peers from peer");
 
-                    // Compute the difference between the known peers and the requested peers
-                    // to avoid sending the requesting peer the peers it already knows.
-                    let peers_difference = self
-                        .get_all_peers_except(peer)
-                        .difference(&peers)
-                        .cloned()
-                        .collect();
+                    request_response::Event::Message {
+                        peer,
+                        message:
+                            request_response::Message::Response {
+                                response,
+                                request_id,
+                                ..
+                            },
+                    } => match response {
+                        behaviour::Response::Peers(peers) => {
+                            debug!(count = peers.len(), peer_id = %peer, "Received peers");
 
-                    if swarm
-                        .behaviour_mut()
-                        .send_response(channel, behaviour::Response::Peers(peers_difference))
-                        .is_err()
-                    {
-                        error!("Error sending peers to {peer}");
-                    } else {
-                        trace!("Sent peers to {peer}");
+                            self.handler.remove_pending_request(&request_id);
+
+                            self.process_received_peers(swarm, peers);
+                            self.check_if_idle();
+                        }
+                    },
+
+                    request_response::Event::OutboundFailure {
+                        request_id,
+                        peer,
+                        error,
+                    } => {
+                        error!("Outbound request to {peer} failed: {error}");
+                        self.handle_failed_request(request_id);
                     }
 
-                    self.process_received_peers(swarm, peers);
+                    _ => {}
                 }
-            },
-
-            behaviour::Event::Message {
-                peer,
-                message:
-                    request_response::Message::Response {
-                        response,
-                        request_id,
-                        ..
-                    },
-            } => match response {
-                behaviour::Response::Peers(peers) => {
-                    debug!(count = peers.len(), peer_id = %peer, "Received peers");
-
-                    self.handler.remove_pending_request(&request_id);
-
-                    self.process_received_peers(swarm, peers);
-                    self.check_if_idle();
-                }
-            },
-
-            behaviour::Event::OutboundFailure {
-                request_id,
-                peer,
-                error,
-            } => {
-                error!("Outbound request to {peer} failed: {error}");
-                self.handle_failed_request(request_id);
             }
-
-            _ => {}
         }
     }
 }

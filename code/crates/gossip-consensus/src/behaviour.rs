@@ -23,7 +23,7 @@ pub enum NetworkEvent {
     GossipSub(gossipsub::Event),
     Broadcast(broadcast::Event),
     BlockSync(blocksync::Event),
-    RequestResponse(discovery::Event),
+    Discovery(discovery::NetworkEvent),
 }
 
 impl From<identify::Event> for NetworkEvent {
@@ -56,9 +56,9 @@ impl From<blocksync::Event> for NetworkEvent {
     }
 }
 
-impl From<discovery::Event> for NetworkEvent {
-    fn from(event: discovery::Event) -> Self {
-        Self::RequestResponse(event)
+impl From<discovery::NetworkEvent> for NetworkEvent {
+    fn from(network_event: discovery::NetworkEvent) -> Self {
+        Self::Discovery(network_event)
     }
 }
 
@@ -90,6 +90,7 @@ impl discovery::SendRequestResponse for Behaviour {
         self.discovery
             .as_mut()
             .expect("Discovery behaviour should be available")
+            .request_response
             .send_request(peer_id, req)
     }
 
@@ -101,6 +102,7 @@ impl discovery::SendRequestResponse for Behaviour {
         self.discovery
             .as_mut()
             .expect("Discovery behaviour should be available")
+            .request_response
             .send_response(ch, rs)
     }
 }
@@ -163,7 +165,13 @@ impl Behaviour {
             registry.sub_registry_with_prefix("blocksync"),
         );
 
-        let discovery = Toggle::from(config.discovery.enabled.then(discovery::new_behaviour));
+        let discovery = Toggle::from(
+            config
+                .discovery
+                .enabled
+                // TODO: new() needs to be FnOnce, the closure is a workaround for now
+                .then(|| discovery::Behaviour::new()),
+        );
 
         Self {
             identify,

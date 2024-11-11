@@ -424,8 +424,8 @@ async fn handle_swarm_event(
             return handle_blocksync_event(event, metrics, swarm, state, tx_event).await;
         }
 
-        SwarmEvent::Behaviour(NetworkEvent::RequestResponse(event)) => {
-            state.discovery.on_event(event, swarm);
+        SwarmEvent::Behaviour(NetworkEvent::Discovery(network_event)) => {
+            state.discovery.on_network_event(network_event, swarm);
         }
 
         swarm_event => {

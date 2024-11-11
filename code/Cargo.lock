@@ -2543,6 +2543,7 @@ dependencies = [
 name = "malachite-discovery"
 version = "0.1.0"
 dependencies = [
+ "either",
  "libp2p",
  "malachite-metrics",
  "serde",
