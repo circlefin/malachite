@@ -54,7 +54,7 @@ module sync {
 	/// initializing the variables of the sync part of the state machine
 	action syncInit = all {
 	    syncSystem' = Correct.mapBy(v => initSynchronizer(v, validators)),
-	    serverSystem' = Correct.mapBy(v => initServer),
+	    serverSystem' = Correct.mapBy(v => initServer(v)),
 	    statusBuffer' = Correct.mapBy(v => Set()),
 	    syncResponseBuffer' = Correct.mapBy (v => Set()),
 	    syncRequestBuffer' = Correct.mapBy(v => Set()),
@@ -100,7 +100,7 @@ module sync {
 
 	/// Server v announces its status
 	action syncStatusStep(v) = all {
-	    val newStatus = system.get(v).syncStatus()
+	    val newStatus = serverSystem.get(v).syncStatus(system.get(v))
 	    statusBuffer' = broadcastStatus(statusBuffer, newStatus),
 	    syncResponseBuffer' = syncResponseBuffer,
 	    syncSystem' = syncSystem,

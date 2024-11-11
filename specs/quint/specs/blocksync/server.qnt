@@ -14,6 +14,7 @@ module server {
 	/// The server state are just incoming requests. The actual data used to respond
 	/// is from the NodeState
 	type Server = {
+	    id: Address,
 	    inbuffer : Set[RequestMsg]
 	}
 
@@ -21,14 +22,16 @@ module server {
 	// Server functions
 	//
 
-	pure def initServer = {inbuffer : Set()}
+	pure def initServer(addr: Address) : Server = {
+		id: addr,
+		inbuffer : Set()
+	}
 
 	/// look into the node state and generate a status message
-	pure def syncStatus (s: NodeState) : SyncStatusMsg =
+	pure def syncStatus (server: Server, s: NodeState) : SyncStatusMsg =
 	    // TODO: perhaps we should add to height to the chain entries to capture non-zero bases
-	    // TODO: s.es.cs.p is static, easy to keep in the Server
 	    // TODO: the driver can maintain a copy of them `chain`
-	    { peer: s.es.cs.p , base: 0, top: s.es.chain.length() - 1  }
+	    { peer: server.id , base: 0, top: s.es.chain.length() - 1  }
 
 	/// new server state and response messages to be sent
 	type ServerOutput = {
@@ -45,13 +48,13 @@ module server {
 	                match m.rtype {
 	                    | SyncCertificate =>
 	                            val cm = {  client: m.client,
-	                                        server: m.server,
+	                                        server: s.id,
 	                                        height: m.height,
 	                                        response: RespCertificate(ns.es.chain[m.height].commit)}
 	                            Some(cm)
 	                    | SyncBlock  =>
 	                            val bl = {  client: m.client,
-	                                        server: m.server,
+	                                        server: s.id,
 	                                        height: m.height,
 	                                        response: RespBlock(ns.es.chain[m.height].decision)}
 	                            Some(bl)
