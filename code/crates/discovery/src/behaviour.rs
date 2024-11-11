@@ -26,19 +26,19 @@ pub enum Response {
 
 #[derive(Debug)]
 pub enum NetworkEvent {
-    RequestResponse(request_response::Event<Request, Response>),
     Kademlia(kad::Event),
-}
-
-impl From<request_response::Event<Request, Response>> for NetworkEvent {
-    fn from(event: request_response::Event<Request, Response>) -> Self {
-        Self::RequestResponse(event)
-    }
+    RequestResponse(request_response::Event<Request, Response>),
 }
 
 impl From<kad::Event> for NetworkEvent {
     fn from(event: kad::Event) -> Self {
         Self::Kademlia(event)
+    }
+}
+
+impl From<request_response::Event<Request, Response>> for NetworkEvent {
+    fn from(event: request_response::Event<Request, Response>) -> Self {
+        Self::RequestResponse(event)
     }
 }
 
@@ -58,8 +58,16 @@ where
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "NetworkEvent")]
 pub struct Behaviour {
-    pub request_response: request_response::cbor::Behaviour<Request, Response>,
     pub kademlia: kad::Behaviour<MemoryStore>,
+    pub request_response: request_response::cbor::Behaviour<Request, Response>,
+}
+
+fn kademlia_config() -> kad::Config {
+    let config = kad::Config::new(StreamProtocol::new(&DISCOVERY_REQRES_PROTOCOL));
+
+    // TODO: adjust config
+
+    config
 }
 
 fn request_response_protocol() -> iter::Once<(StreamProtocol, ProtocolSupport)> {
@@ -71,14 +79,6 @@ fn request_response_protocol() -> iter::Once<(StreamProtocol, ProtocolSupport)> 
 
 fn request_response_config() -> request_response::Config {
     request_response::Config::default().with_request_timeout(Duration::from_secs(5))
-}
-
-fn kademlia_config() -> kad::Config {
-    let config = kad::Config::new(StreamProtocol::new(&DISCOVERY_REQRES_PROTOCOL));
-
-    // TODO: adjust config
-
-    config
 }
 
 impl Behaviour {

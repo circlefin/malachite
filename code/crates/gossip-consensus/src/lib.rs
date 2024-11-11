@@ -339,7 +339,7 @@ async fn handle_swarm_event(
         } => {
             state
                 .discovery
-                .handle_connection(peer_id, connection_id, endpoint);
+                .handle_connection(swarm, peer_id, connection_id, endpoint);
         }
 
         SwarmEvent::OutgoingConnectionError {
@@ -348,7 +348,9 @@ async fn handle_swarm_event(
             ..
         } => {
             error!("Error dialing peer: {error}");
-            state.discovery.handle_failed_connection(connection_id);
+            state
+                .discovery
+                .handle_failed_connection(swarm, connection_id);
         }
 
         SwarmEvent::ConnectionClosed {
@@ -385,7 +387,7 @@ async fn handle_swarm_event(
 
                 state
                     .discovery
-                    .handle_new_peer(connection_id, peer_id, info)
+                    .handle_new_peer(swarm, connection_id, peer_id, info);
             } else {
                 trace!(
                     "Peer {peer_id} is using incompatible protocol version: {:?}",
@@ -421,7 +423,7 @@ async fn handle_swarm_event(
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Discovery(network_event)) => {
-            state.discovery.on_network_event(network_event, swarm);
+            state.discovery.on_network_event(swarm, network_event);
         }
 
         swarm_event => {
