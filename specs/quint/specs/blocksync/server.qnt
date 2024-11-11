@@ -7,6 +7,10 @@ module server {
 	import driver.* from "../driver"
 	import blocksync.* from "./blocksync"
 
+	// TODO: this should be changed. The data from NodeState we rely on
+	// should be stored (copied) into the server state. In this way we get
+	// rid from the dependency on the driver, rendering the server
+	// self-contained and easier to test.
 	/// The server state are just incoming requests. The actual data used to respond
 	/// is from the NodeState
 	type Server = {
@@ -21,7 +25,9 @@ module server {
 
 	/// look into the node state and generate a status message
 	pure def syncStatus (s: NodeState) : SyncStatusMsg =
-	// TODO: perhaps we should add to height to the chain entries to capture non-zero bases
+	    // TODO: perhaps we should add to height to the chain entries to capture non-zero bases
+	    // TODO: s.es.cs.p is static, easy to keep in the Server
+	    // TODO: the driver can maintain a copy of them `chain`
 	    { peer: s.es.cs.p , base: 0, top: s.es.chain.length() - 1  }
 
 	/// new server state and response messages to be sent
@@ -31,6 +37,7 @@ module server {
 	}
 
 	pure def syncServer (s: Server, ns: NodeState) : ServerOutput =
+	    // TODO: the driver can maintain a copy of them `chain`
 	    if (s.inbuffer.size() > 0)
 	        val m = s.inbuffer.fold(emptyReqMsg, (acc, i) => i) // chooseSome() // TODO: fix
 	        val result =
