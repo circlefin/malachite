@@ -28,7 +28,7 @@ In order to bring the system to disagreement, the faulty processes need to
 actively deviate from the protocol. By
 superficial inspection of the pseudo code (cf. Algorithm 1 in the 
 [arXiv paper](https://arxiv.org/abs/1807.04938)), we derive the 
-following types of misbehavior:
+following:
 
 - **[Double vote]** correct processeses never send two (conflicting) vote messages
   (`PREVOTE`, `PRECOMMIT`) for the same height and round (that is the messages
