@@ -141,7 +141,6 @@ module sync {
 	        serverSystem' = serverSystem,
 	    }
 	}
->>>>>>> 8eadaf1 (spec/quint: spacing changes)
 
 	//
 	// Actions for the environment to deliver messages in the sync protocol
