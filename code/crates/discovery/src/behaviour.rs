@@ -3,9 +3,12 @@ use std::iter;
 use std::time::Duration;
 
 use either::Either;
+use libp2p::identity::Keypair;
+use libp2p::kad::store::MemoryStore;
+use libp2p::kad::{Addresses, KBucketKey, KBucketRef, Mode};
 use libp2p::request_response::{self, OutboundRequestId, ProtocolSupport, ResponseChannel};
 use libp2p::swarm::NetworkBehaviour;
-use libp2p::{Multiaddr, PeerId, StreamProtocol};
+use libp2p::{kad, Multiaddr, PeerId, StreamProtocol};
 use serde::{Deserialize, Serialize};
 
 use crate::DISCOVERY_PROTOCOL;
@@ -23,11 +26,18 @@ pub enum Response {
 #[derive(Debug)]
 pub enum NetworkEvent {
     RequestResponse(request_response::Event<Request, Response>),
+    Kademlia(kad::Event),
 }
 
 impl From<request_response::Event<Request, Response>> for NetworkEvent {
     fn from(event: request_response::Event<Request, Response>) -> Self {
         Self::RequestResponse(event)
+    }
+}
+
+impl From<kad::Event> for NetworkEvent {
+    fn from(event: kad::Event) -> Self {
+        Self::Kademlia(event)
     }
 }
 
@@ -48,10 +58,8 @@ where
 #[behaviour(to_swarm = "NetworkEvent")]
 pub struct Behaviour {
     pub request_response: request_response::cbor::Behaviour<Request, Response>,
+    pub kademlia: kad::Behaviour<MemoryStore>,
 }
-
-// pub type Event = request_response::Event<Request, Response>;
-// pub type Behaviour = request_response::cbor::Behaviour<Request, Response>;
 
 fn request_response_protocol() -> iter::Once<(StreamProtocol, ProtocolSupport)> {
     iter::once((
@@ -64,22 +72,40 @@ fn request_response_config() -> request_response::Config {
     request_response::Config::default().with_request_timeout(Duration::from_secs(5))
 }
 
+fn kademlia_config() -> kad::Config {
+    let config = kad::Config::new(StreamProtocol::new(DISCOVERY_PROTOCOL));
+
+    // TODO: adjust config
+
+    config
+}
+
 impl Behaviour {
-    pub fn new() -> Self {
+    pub fn new(keypair: &Keypair) -> Self {
+        let mut kademlia = kad::Behaviour::with_config(
+            keypair.public().to_peer_id(),
+            MemoryStore::new(keypair.public().to_peer_id()),
+            kademlia_config(),
+        );
+        // TODO: this is only for local testing
+        // TODO: with real IP addresses, this switch is made automatically
+        kademlia.set_mode(Some(Mode::Server));
+
         let request_response = request_response::cbor::Behaviour::new(
             request_response_protocol(),
             request_response_config(),
         );
 
-        Self { request_response }
+        Self {
+            kademlia,
+            request_response,
+        }
     }
 }
 
-// pub fn new_behaviour() -> Behaviour {
-//     Behaviour::new(request_response_protocol(), request_response_config())
-// }
+pub trait BehaviourTrait: NetworkBehaviour {
+    fn kbuckets(&mut self) -> impl Iterator<Item = KBucketRef<'_, KBucketKey<PeerId>, Addresses>>;
 
-pub trait SendRequestResponse: NetworkBehaviour {
     fn send_request(&mut self, peer_id: &PeerId, req: Request) -> OutboundRequestId;
 
     fn send_response(

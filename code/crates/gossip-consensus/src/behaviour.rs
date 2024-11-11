@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use either::Either;
+use libp2p::kad::{Addresses, KBucketKey, KBucketRef};
 use libp2p::request_response::{OutboundRequestId, ResponseChannel};
 use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
@@ -85,7 +86,15 @@ pub struct Behaviour {
     pub discovery: Toggle<discovery::Behaviour>,
 }
 
-impl discovery::SendRequestResponse for Behaviour {
+impl discovery::BehaviourTrait for Behaviour {
+    fn kbuckets(&mut self) -> impl Iterator<Item = KBucketRef<'_, KBucketKey<PeerId>, Addresses>> {
+        self.discovery
+            .as_mut()
+            .expect("Discovery behaviour should be available")
+            .kademlia
+            .kbuckets()
+    }
+
     fn send_request(&mut self, peer_id: &PeerId, req: discovery::Request) -> OutboundRequestId {
         self.discovery
             .as_mut()
@@ -170,7 +179,7 @@ impl Behaviour {
                 .discovery
                 .enabled
                 // TODO: new() needs to be FnOnce, the closure is a workaround for now
-                .then(|| discovery::Behaviour::new()),
+                .then(|| discovery::Behaviour::new(keypair)),
         );
 
         Self {

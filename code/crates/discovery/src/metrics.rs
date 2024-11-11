@@ -1,7 +1,6 @@
 use std::time::{Duration, Instant};
 
 use malachite_metrics::prometheus::metrics::counter::Counter;
-use tracing::info;
 
 use malachite_metrics::Registry;
 
@@ -13,8 +12,6 @@ pub struct Metrics {
     total_failed: Counter,
     /// Time at which discovery started
     start_time: Instant,
-    /// Whether we have reached the first idle state
-    reached_first_idle: bool,
 }
 
 impl Metrics {
@@ -23,7 +20,6 @@ impl Metrics {
             total_dialed: Counter::default(),
             total_failed: Counter::default(),
             start_time: Instant::now(),
-            reached_first_idle: false,
         };
 
         registry.register(
@@ -51,23 +47,5 @@ impl Metrics {
 
     pub fn elapsed(&self) -> Duration {
         self.start_time.elapsed()
-    }
-
-    pub fn register_idle(&mut self, num_peers: usize) {
-        if !self.reached_first_idle {
-            let total_dialed = self.total_dialed.get();
-            let total_failed = self.total_failed.get();
-
-            info!(
-                "Discovery finished in {}ms, found {} peers, dialed {} peers, {} successful, {} failed",
-                self.start_time.elapsed().as_millis(),
-                num_peers,
-                total_dialed,
-                total_dialed - total_failed,
-                total_failed,
-            );
-
-            self.reached_first_idle = true;
-        }
     }
 }

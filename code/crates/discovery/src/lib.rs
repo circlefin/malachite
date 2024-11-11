@@ -12,7 +12,7 @@ use malachite_metrics::Registry;
 
 use libp2p::{
     core::ConnectedPoint,
-    identify,
+    identify, kad,
     request_response::{self, OutboundRequestId},
     swarm::ConnectionId,
     Multiaddr, PeerId, Swarm,
@@ -38,12 +38,21 @@ use metrics::Metrics;
 
 mod request;
 pub use request::RequestData;
+use util::RangeCmp;
 
 const DISCOVERY_PROTOCOL: &str = "/malachite-discovery/v1beta1";
+
+#[derive(Debug, PartialEq)]
+enum State {
+    Bootstrapping,
+    Extending,
+    Idle,
+}
 
 #[derive(Debug)]
 pub struct Discovery {
     config: Config,
+    state: State,
     peers: HashMap<PeerId, identify::Info>,
     bootstrap_nodes: Vec<Multiaddr>,
     tx_dial: mpsc::UnboundedSender<ConnectionData>,
@@ -65,11 +74,18 @@ impl Discovery {
             }
         );
 
+        let state = if config.enabled {
+            State::Bootstrapping
+        } else {
+            State::Idle
+        };
+
         let (tx_dial, rx_dial) = mpsc::unbounded_channel();
         let (tx_request, rx_request) = mpsc::unbounded_channel();
 
         Self {
             config,
+            state: state,
             peers: HashMap::new(),
             bootstrap_nodes,
             tx_dial,
@@ -116,7 +132,7 @@ impl Discovery {
                 );
 
                 self.metrics.increment_failure();
-                self.check_if_idle();
+                self.check_state();
             }
         }
     }
@@ -127,7 +143,7 @@ impl Discovery {
 
     fn should_dial(
         &self,
-        swarm: &Swarm<impl SendRequestResponse>,
+        swarm: &Swarm<impl BehaviourTrait>,
         connection_data: &ConnectionData,
         check_already_dialed: bool,
     ) -> bool {
@@ -145,7 +161,7 @@ impl Discovery {
 
     pub fn dial_peer(
         &mut self,
-        swarm: &mut Swarm<impl SendRequestResponse>,
+        swarm: &mut Swarm<impl BehaviourTrait>,
         connection_data: ConnectionData,
     ) {
         // Not checking if the peer was already dialed because it is done when
@@ -195,9 +211,15 @@ impl Discovery {
         }
     }
 
-    pub fn add_to_dial_queue(
+    pub fn dial_bootstrap_nodes(&mut self, swarm: &Swarm<impl BehaviourTrait>) {
+        for addr in self.bootstrap_nodes.clone() {
+            self.add_to_dial_queue(swarm, ConnectionData::new(None, addr.clone()));
+        }
+    }
+
+    fn add_to_dial_queue(
         &mut self,
-        swarm: &Swarm<impl SendRequestResponse>,
+        swarm: &Swarm<impl BehaviourTrait>,
         connection_data: ConnectionData,
     ) {
         if self.should_dial(swarm, &connection_data, true) {
@@ -235,7 +257,7 @@ impl Discovery {
         // peers was already sent before this event.
         if self.handler.has_already_requested(&peer_id) {
             self.handler.remove_pending_connection(&connection_id);
-            self.check_if_idle();
+            self.check_state();
             return;
         }
 
@@ -297,7 +319,7 @@ impl Discovery {
                 );
 
                 self.metrics.increment_failure();
-                self.check_if_idle();
+                self.check_state();
             }
         }
     }
@@ -308,7 +330,7 @@ impl Discovery {
 
     fn should_request(
         &self,
-        swarm: &Swarm<impl SendRequestResponse>,
+        swarm: &Swarm<impl BehaviourTrait>,
         request_data: &RequestData,
     ) -> bool {
         // Is connected
@@ -320,7 +342,7 @@ impl Discovery {
 
     pub fn request_peer(
         &mut self,
-        swarm: &mut Swarm<impl SendRequestResponse>,
+        swarm: &mut Swarm<impl BehaviourTrait>,
         request_data: RequestData,
     ) {
         if !self.should_request(swarm, &request_data) {
@@ -362,7 +384,7 @@ impl Discovery {
         // Ignore if the peer is already known or the peer has already been requested
         if self.peers.contains_key(&peer_id) || self.handler.has_already_requested(&peer_id) {
             self.handler.remove_connection_type(&peer_id);
-            self.check_if_idle();
+            self.check_state();
             return;
         }
 
@@ -373,57 +395,111 @@ impl Discovery {
             self.peers.len(),
             self.metrics.elapsed().as_millis(),
         );
+    }
 
+    fn check_state(&mut self) -> State {
+        if !self.is_enabled() {
+            return State::Idle;
+        }
+
+        match self.state {
+            State::Bootstrapping => {
+                return State::Bootstrapping;
+            }
+
+            State::Extending => {
+                let (is_idle, pending_connections_len, pending_requests_len) =
+                    self.handler.is_idle();
+                let rx_dial_len = self.rx_dial.len();
+                let rx_request_len = self.rx_request.len();
+
+                if is_idle && rx_dial_len == 0 && rx_request_len == 0 {
+                    info!("Discovery extension done");
+
+                    self.state = State::Idle;
+
+                    match self.config.peers_range.cmp(self.peers.len()) {
+                        RangeCmp::Less => {
+                            // Network is too small for the expected number of peers
+                            warn!(
+                                "Discovery found {} peers, but expected at least {}",
+                                self.peers.len(),
+                                self.config.peers_range.min
+                            );
+                        }
+
+                        RangeCmp::Inclusive => {
+                            info!("Discovery found {} peers", self.peers.len());
+                        }
+
+                        RangeCmp::Greater => {
+                            // This should not happen
+                            warn!(
+                                "Discovery found {} peers, but expected at most {}",
+                                self.peers.len(),
+                                self.config.peers_range.max
+                            );
+                        }
+                    }
+
+                    return State::Idle;
+                }
+
+                info!("Discovery extension in progress ({}ms), {} pending connections ({} in channel), {} pending requests ({} in channel)",
+                    self.metrics.elapsed().as_millis(),
+                    pending_connections_len,
+                    rx_dial_len,
+                    pending_requests_len,
+                    rx_request_len,
+            );
+
+                return State::Extending;
+            }
+
+            State::Idle => {
+                return State::Idle;
+            }
+        }
+    }
+
+    fn initiate_extension(&mut self, swarm: &mut Swarm<impl BehaviourTrait>) {
         if !self.is_enabled() {
             return;
         }
 
-        // Only request peers from dialed peers
-        let connection_type = self.handler.remove_connection_type(&peer_id);
-        if connection_type == Some(ConnectionType::Dial) {
-            self.tx_request
-                .send(RequestData::new(peer_id))
-                .unwrap_or_else(|e| {
-                    error!("Error sending request to channel: {e}");
-                });
+        let kbuckets = swarm.behaviour_mut().kbuckets();
+
+        // Furthest peer in the routing table
+        if let Some(last_kbucket) = kbuckets.last() {
+            if let Some(furthest_peer) = last_kbucket.iter().next() {
+                let peer_id = furthest_peer.node.key.preimage().clone();
+
+                info!("Initiating extension with peer {}", peer_id);
+
+                self.tx_request
+                    .send(RequestData::new(peer_id))
+                    .unwrap_or_else(|e| {
+                        error!("Error sending request to channel: {e}");
+                    });
+
+                self.state = State::Extending;
+            } else {
+                // This should never happen
+                error!("No peer found in kbucket");
+
+                self.state = State::Idle;
+            }
         } else {
-            // The dialer is supposed to request the peers, no need to request them
-            self.handler.register_requested_peer_id(peer_id);
+            // This should never happen
+            error!("No kbucket found");
+
+            self.state = State::Idle;
         }
-
-        self.check_if_idle();
-    }
-
-    pub fn check_if_idle(&mut self) -> bool {
-        if !self.is_enabled() {
-            return false;
-        }
-
-        let (is_idle, pending_connections_len, pending_requests_len) = self.handler.is_idle();
-        let rx_dial_len = self.rx_dial.len();
-        let rx_request_len = self.rx_request.len();
-
-        if is_idle && rx_dial_len == 0 && rx_request_len == 0 {
-            self.metrics.register_idle(self.peers.len());
-
-            return true;
-        }
-
-        info!(
-            "Discovery in progress ({}ms), {} pending connections ({} in channel), {} pending requests ({} in channel)",
-            self.metrics.elapsed().as_millis(),
-            pending_connections_len,
-            rx_dial_len,
-            pending_requests_len,
-            rx_request_len,
-        );
-
-        false
     }
 
     fn process_received_peers(
         &mut self,
-        swarm: &mut Swarm<impl SendRequestResponse>,
+        swarm: &mut Swarm<impl BehaviourTrait>,
         peers: HashSet<(Option<PeerId>, Multiaddr)>,
     ) {
         // TODO check upper bound on number of peers
@@ -435,7 +511,7 @@ impl Discovery {
     pub fn on_network_event(
         &mut self,
         network_event: behaviour::NetworkEvent,
-        swarm: &mut Swarm<impl SendRequestResponse>,
+        swarm: &mut Swarm<impl BehaviourTrait>,
     ) {
         match network_event {
             behaviour::NetworkEvent::RequestResponse(event) => {
@@ -490,7 +566,7 @@ impl Discovery {
                             self.handler.remove_pending_request(&request_id);
 
                             self.process_received_peers(swarm, peers);
-                            self.check_if_idle();
+                            self.check_state();
                         }
                     },
 
@@ -506,6 +582,57 @@ impl Discovery {
                     _ => {}
                 }
             }
+
+            behaviour::NetworkEvent::Kademlia(event) => match event {
+                kad::Event::OutboundQueryProgressed { result, step, .. } => match result {
+                    kad::QueryResult::Bootstrap(Ok(_)) => {
+                        if step.last {
+                            if self.state == State::Bootstrapping {
+                                info!("Bootstrap done");
+
+                                match self.config.peers_range.cmp(self.peers.len()) {
+                                    RangeCmp::Less => {
+                                        warn!(
+                                            "Bootstrap found {} peers, but expected at least {}",
+                                            self.peers.len(),
+                                            self.config.peers_range.min
+                                        );
+
+                                        self.state = State::Extending;
+                                        self.initiate_extension(swarm);
+                                    }
+
+                                    RangeCmp::Inclusive => {
+                                        info!("Bootstrap found {} peers", self.peers.len());
+
+                                        self.state = State::Idle;
+                                    }
+
+                                    RangeCmp::Greater => {
+                                        warn!(
+                                            "Bootstrap found {} peers, but expected at most {}",
+                                            self.peers.len(),
+                                            self.config.peers_range.max
+                                        );
+
+                                        // TODO: ignore?
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    kad::QueryResult::Bootstrap(Err(error)) => {
+                        error!("Bootstrap failed: {error}");
+
+                        self.state = State::Idle;
+                    }
+
+                    _ => {}
+                },
+
+                _ => {}
+            },
         }
     }
 }

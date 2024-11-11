@@ -17,7 +17,7 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, error_span, trace, Instrument};
 
 use malachite_blocksync::{self as blocksync, OutboundRequestId};
-use malachite_discovery::{self as discovery, ConnectionData};
+use malachite_discovery::{self as discovery};
 use malachite_metrics::SharedRegistry;
 
 pub use bytes::Bytes;
@@ -222,11 +222,7 @@ async fn run(
         return;
     };
 
-    for persistent_peer in config.persistent_peers {
-        state
-            .discovery
-            .add_to_dial_queue(&swarm, ConnectionData::new(None, persistent_peer));
-    }
+    state.discovery.dial_bootstrap_nodes(&swarm);
 
     if let Err(e) = pubsub::subscribe(&mut swarm, Channel::all()) {
         error!("Error subscribing to channels: {e}");

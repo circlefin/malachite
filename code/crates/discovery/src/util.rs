@@ -27,3 +27,32 @@ impl Iterator for FibonacciBackoff {
         Some(Duration::from_millis(self.current))
     }
 }
+
+#[derive(Debug, Copy, Clone)]
+pub struct RangeInclusive {
+    pub min: usize,
+    pub max: usize,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum RangeCmp {
+    Less,
+    Inclusive,
+    Greater,
+}
+
+impl RangeInclusive {
+    pub fn new(min: usize, max: usize) -> Self {
+        Self { min, max }
+    }
+
+    pub fn cmp(&self, val: usize) -> RangeCmp {
+        if val < self.min {
+            RangeCmp::Less
+        } else if val > self.max {
+            RangeCmp::Greater
+        } else {
+            RangeCmp::Inclusive
+        }
+    }
+}
