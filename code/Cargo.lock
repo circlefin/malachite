@@ -2472,7 +2472,7 @@ dependencies = [
  "malachite-metrics",
  "rand",
  "serde",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
  "tracing",
 ]
 
@@ -2492,7 +2492,7 @@ dependencies = [
  "malachite-node",
  "rand",
  "serde_json",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
  "tokio",
  "toml",
  "tracing",
@@ -2506,7 +2506,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "derive-where",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
 ]
 
 [[package]]
@@ -2535,7 +2535,7 @@ dependencies = [
  "malachite-driver",
  "malachite-metrics",
  "multiaddr",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
  "tracing",
 ]
 
@@ -2574,7 +2574,7 @@ dependencies = [
  "malachite-common",
  "malachite-round",
  "malachite-vote",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
 ]
 
 [[package]]
@@ -2635,7 +2635,7 @@ version = "0.1.0"
 dependencies = [
  "prost",
  "prost-types",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
 ]
 
 [[package]]
@@ -2705,7 +2705,7 @@ dependencies = [
  "serde_json",
  "sha3",
  "tempfile",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
  "tokio",
  "tracing",
 ]
@@ -2808,7 +2808,7 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "malachite-common",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
 ]
 
 [[package]]
@@ -4315,11 +4315,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.0"
+version = "2.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15291287e9bff1bc6f9ff3409ed9af665bec7a5fc8ac079ea96be07bca0e2668"
+checksum = "c006c85c7651b3cf2ada4584faa36773bd07bac24acfb39f3c431b36d7e667aa"
 dependencies = [
- "thiserror-impl 2.0.0",
+ "thiserror-impl 2.0.3",
 ]
 
 [[package]]
@@ -4335,9 +4335,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.0"
+version = "2.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22efd00f33f93fa62848a7cab956c3d38c8d43095efda1decfc2b3a5dc0b8972"
+checksum = "f077553d607adc1caf65430528a576c757a71ed73944b66ebb58ef2bbd243568"
 dependencies = [
  "proc-macro2",
  "quote",
