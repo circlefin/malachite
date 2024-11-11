@@ -11,12 +11,12 @@ module blocksync {
 
 	type SyncStatusMsg = {
 	    peer: Address,
-	    base: Height,   
+	    base: Height,
 	    top: Height
 	}
 
 	type SyncStatus = {
-	    base: Height,   
+	    base: Height,
 	    top: Height
 	}
 

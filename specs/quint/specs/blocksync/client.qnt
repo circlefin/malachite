@@ -96,7 +96,7 @@ module client {
 	            so: SONoOutput,
 	            req: None}
 	    else
-	        val goodPeers = s.peers.filter(p => newPeerStates.get(p).base <= s.height  
+	        val goodPeers = s.peers.filter(p => newPeerStates.get(p).base <= s.height
 	                                            and s.height <= newPeerStates.get(p).top )
 	        if (goodPeers.size() > 0)
 	            if (s.openRequests.size() == 0)
@@ -113,7 +113,6 @@ module client {
 	                // we issued a request before, let's see whether there is a response
 	                if (s.responses.size()> 0)
 	                    val resp = s.responses.fold(emptyResponseMsg, (acc, i) => i) //chooseSome() // in the future there might be parallelization
-	                   
 	                    match resp.response {
 	                        | RespBlock(prop) => syncHandleBlock(newS, prop)
 	                        | RespCertificate(cert) => syncHandleCertificate(newS, cert, goodPeers.fold("", (s,x) => x))
