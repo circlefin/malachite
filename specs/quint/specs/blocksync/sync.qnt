@@ -100,18 +100,24 @@ module sync {
 
 	/// Server v announces its status
 	action syncStatusStep(v) = all {
-	    val newStatus = serverSystem.get(v).syncStatus(system.get(v))
-	    statusBuffer' = broadcastStatus(statusBuffer, newStatus),
-	    syncResponseBuffer' = syncResponseBuffer,
-	    syncSystem' = syncSystem,
-	    serverSystem' = serverSystem,
-	    syncRequestBuffer' = syncRequestBuffer,
-	    unchangedAll
+	    val chain = system.get(v).es.chain
+	    val server = serverSystem.get(v).updateServer(chain)
+	    val newStatus = server.syncStatus()
+	    all {
+	        serverSystem' = serverSystem.put(v, server),
+	        statusBuffer' = broadcastStatus(statusBuffer, newStatus),
+	        syncResponseBuffer' = syncResponseBuffer,
+	        syncSystem' = syncSystem,
+	        syncRequestBuffer' = syncRequestBuffer,
+	        unchangedAll,
+	    }
 	}
 
 	/// Server v takes a step (checking for requests and responding)
 	action syncStepServer(v) = all {
-	    val result = syncServer(serverSystem.get(v), system.get(v)) // this is where the chains is passed
+	    val chain = system.get(v).es.chain
+	    val server = serverSystem.get(v).updateServer(chain)
+	    val result = server.syncServer()
 	    all {
 	        serverSystem' = serverSystem.put(v, result.sync),
 	        syncResponseBuffer' = match result.msg {
