@@ -112,9 +112,9 @@ This contains mainly the following functions (and their auxiliary functions):
 
 - `pure def syncClient (s: Synchronizer) : ClientResult`
     - this encodes what happens during a step of a client:
-	      1. update peer statuses, 
+        1. update peer statuses, 
         2. if there is no open request, request something
-	      3. otherwise check whether we have a response and act accordingly
+        3. otherwise check whether we have a response and act accordingly
 
 - `pure def syncStatus (s: NodeState) : SyncStatusMsg`
 	  - look into the block store of the node, generate a status message
