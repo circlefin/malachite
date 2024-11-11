@@ -117,7 +117,7 @@ This contains mainly the following functions (and their auxiliary functions):
         3. otherwise check whether we have a response and act accordingly
 
 - `pure def syncStatus (s: NodeState) : SyncStatusMsg`
-	  - look into the block store of the node, generate a status message
+    - look into the block store of the node, generate a status message
 
 - `pure def syncServer (s: Server, ns: NodeState) : ServerOutput`
     - picks an incoming request (if there is any), and responds the required data
