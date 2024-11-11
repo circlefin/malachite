@@ -85,7 +85,7 @@ module types {
         | Commit(Set[Vote])
 
 
-    // Commited blocks store
+    // Committed blocks store
     type BlockStoreEntry = {
         decision: Proposal,
         commit: Set[Vote]
