@@ -42,11 +42,11 @@ following:
 A more involved inspection shows that if a correct process `p` locks a
 value (setting `lockedValue_p` and `lockedRound_p` in lines 38 and 39) then it sends
 a prevote for a different value in a later round (line 30) **only if** the
-condition of lines 28/29 is satisfied, that is, only of it receives a proposal
+condition of lines 28/29 is satisfied. That is, only of it receives a proposal
 and 2f+1 matching prevotes for the value in round `vr` that satisfies `vr >=
 lockedRound_p` (line 29). In other words
 
-- **[Amnesia]** a correct process never sends a prevote for a value `val` if
+- **[Amnesia]** a correct process never sends a prevote for a value `v` if
   it has locked a different value `val2` before, and hasn't received a proposal
   and sufficiently many prevotes for `val2` with valid round `vr >= lockedRound_p`.
 
