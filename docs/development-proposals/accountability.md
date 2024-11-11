@@ -67,9 +67,9 @@ It has been shown by formal verification (see results obtained with
 [Apalache](https://github.com/cometbft/cometbft/blob/main/spec/light-client/accountability/Synopsis.md))
 that if there are between one third and two thirds of faults, every attack on
 Tendermint consensus that leads to violation of agreement is either a
-"double vote" equivocation or an "amnesia attack". 
+"double vote" or an "amnesia" attack. 
 
-### What evidence to collect
+## What evidence to collect
 
 We argue that the only two types of evidence that make sense to collect are "double vote" and "amnesia". By the verification results mentioned above, they are the ones actually required to disrupt the system. 
 
@@ -83,12 +83,12 @@ Second, in consensus engine implementations, sometimes there are no self-contain
 First, by itself it doesn't harm safety, as correct processes will just disregard the produced proposals. 
 Second, we are only interested in "provable evidence". So while in principle it can be proven, much more data, partly on consensus internals, needs to be included in the evidence. Checking that a process was not the proposer of a certain round and height requires knowing the state of the proposer selection algorithm at this specific point. Which is implemented and depends on the state of the application at that point. Again, it doesn't seem to make sense to investigate this, given that there is no value added.
 
-#### Why "double vote"?
+### Why "double vote"?
 
-We have laid out above that just to keep the system stable and operational, an incentivization scheme around double votes is very pragmatic. It motivates validator operators to fix misconfigurations and ensure reliability of their node.
+We have laid out above that just to keep the system stable and operational, an incentivization scheme against double votes is very pragmatic. It motivates validator operators to fix misconfigurations and ensure reliability of their nodes.
 So it makes sense that the consensus engine collects this. Observe that in contrast to "bad proposer" discussed above, the data to prove misbehavior is very concise. See the [evidence data structure](https://github.com/cometbft/cometbft/blob/main/spec/core/data_structures.md#duplicatevoteevidence) from CometBFT, which basically just consists of two signed vote messages.
 
-#### What about Amnesia?
+### What about Amnesia?
 
 Regarding the amnesia attack, there are trade-offs that we would like to start a discussion around:
 
