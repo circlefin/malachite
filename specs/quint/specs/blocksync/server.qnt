@@ -7,8 +7,6 @@ module server {
 	import driver.* from "../driver"
 	import blocksync.* from "./blocksync"
 
-
-
 	/// The server state are just incoming requests. The actual data used to respond
 	/// is from the NodeState
 	type Server = {
@@ -20,7 +18,6 @@ module server {
 	//
 
 	pure def initServer = {inbuffer : Set()}
-
 
 	/// look into the node state and generate a status message
 	pure def syncStatus (s: NodeState) : SyncStatusMsg =

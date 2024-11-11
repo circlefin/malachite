@@ -143,9 +143,6 @@ module sync {
 	}
 >>>>>>> 8eadaf1 (spec/quint: spacing changes)
 
-
-
-
 	//
 	// Actions for the environment to deliver messages in the sync protocol
 	//
@@ -220,8 +217,6 @@ module sync {
 	        //syncTimeout(v) // TODO:
 	    }
 	}
-
-
 
 	//
 	// Interesting scenarios
