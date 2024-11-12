@@ -25,7 +25,6 @@ pub use behaviour::*;
 
 mod connection;
 pub use connection::ConnectionData;
-use connection::ConnectionType;
 
 mod config;
 pub use config::Config;
@@ -83,7 +82,7 @@ impl Discovery {
 
         Self {
             config,
-            state: state,
+            state,
             peers: HashMap::new(),
             bootstrap_nodes,
             tx_dial,
@@ -242,12 +241,18 @@ impl Discovery {
         connection_id: ConnectionId,
         endpoint: ConnectedPoint,
     ) {
+        match endpoint {
+            ConnectedPoint::Dialer { .. } => {
+                debug!("Connected to {peer_id}");
+            }
+            ConnectedPoint::Listener { .. } => {
+                debug!("Accepted incoming connection from {peer_id}");
+            }
+        }
+
         if !self.is_enabled() {
             return;
         }
-
-        self.handler
-            .register_connection_type(peer_id, endpoint.into());
 
         // Needed in case the peer was dialed without knowing the peer id
         self.handler.register_dialed_peer_id(peer_id);
@@ -391,7 +396,6 @@ impl Discovery {
 
         // Ignore if the peer is already known or the peer has already been requested
         if self.peers.contains_key(&peer_id) || self.handler.has_already_requested(&peer_id) {
-            self.handler.remove_connection_type(&peer_id);
             self.check_state(swarm);
             return;
         }
@@ -408,8 +412,8 @@ impl Discovery {
     fn get_next_peer_to_request(&self, swarm: &mut Swarm<impl BehaviourTrait>) -> Option<PeerId> {
         let mut furthest_peer_id = None;
 
-        // Find the furthest peer in the routing table that has not been requested
-        // both iterators do not implement trait `DoubleEndedIterator`,
+        // Find the furthest peer in the routing table that has not been requested.
+        // Both iterators do not implement trait `DoubleEndedIterator`,
         // so we cannot use `rev()` to directly start from the furthest peer
         for kbucket in swarm.behaviour_mut().kbuckets() {
             for entry in kbucket.iter() {
@@ -454,8 +458,9 @@ impl Discovery {
                                 // Network is too small for the expected number of peers
                                 info!("Discovery extension done");
                                 warn!(
-                                    "Discovery found {} peers, but expected at least {}",
+                                    "Discovery found {} peers in {}ms, but expected at least {}",
                                     self.peers.len(),
+                                    self.metrics.elapsed().as_millis(),
                                     self.config.peers_range.min
                                 );
 
@@ -465,7 +470,11 @@ impl Discovery {
 
                         RangeCmp::Inclusive => {
                             info!("Discovery extension done");
-                            info!("Discovery found {} peers", self.peers.len());
+                            info!(
+                                "Discovery found {} peers in {}ms",
+                                self.peers.len(),
+                                self.metrics.elapsed().as_millis()
+                            );
 
                             self.state = State::Idle;
                         }
@@ -473,8 +482,9 @@ impl Discovery {
                         RangeCmp::Greater => {
                             info!("Discovery extension done");
                             warn!(
-                                "Discovery found {} peers, but expected at most {}",
+                                "Discovery found {} peers in {}ms, but expected at most {}",
                                 self.peers.len(),
+                                self.metrics.elapsed().as_millis(),
                                 self.config.peers_range.max
                             );
 
@@ -520,25 +530,34 @@ impl Discovery {
                     kad::QueryResult::Bootstrap(Ok(_)) => {
                         if step.last {
                             if self.state == State::Bootstrapping {
-                                info!("Discovery bootstrap done, found {} peers", self.peers.len());
+                                info!(
+                                    "Discovery bootstrap done in {}ms, found {} peers",
+                                    self.metrics.elapsed().as_millis(),
+                                    self.peers.len()
+                                );
 
                                 match self.config.peers_range.cmp(self.peers.len()) {
                                     RangeCmp::Less => {
-                                        self.state = State::Extending;
                                         info!("Initiating discovery extension");
+                                        self.state = State::Extending;
                                         self.check_state(swarm); // trigger extension
                                     }
 
                                     RangeCmp::Inclusive => {
-                                        info!("Discovery found {} peers", self.peers.len());
+                                        info!(
+                                            "Discovery found {} peers in {} ms",
+                                            self.peers.len(),
+                                            self.metrics.elapsed().as_millis()
+                                        );
 
                                         self.state = State::Idle;
                                     }
 
                                     RangeCmp::Greater => {
                                         warn!(
-                                            "Discovery found {} peers, but expected at most {}",
+                                            "Discovery found {} peers in {}ms, but expected at most {}",
                                             self.peers.len(),
+                                            self.metrics.elapsed().as_millis(),
                                             self.config.peers_range.max
                                         );
 

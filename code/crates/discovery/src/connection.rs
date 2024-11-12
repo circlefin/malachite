@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use libp2p::{core::ConnectedPoint, swarm::dial_opts::DialOpts, Multiaddr, PeerId};
+use libp2p::{swarm::dial_opts::DialOpts, Multiaddr, PeerId};
 
 use crate::util::FibonacciBackoff;
 
@@ -57,21 +57,6 @@ impl ConnectionData {
             DialOpts::unknown_peer_id()
                 .address(self.multiaddr.clone())
                 .build()
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum ConnectionType {
-    Dial,   // The node initiated the connection
-    Listen, // The node received the connection
-}
-
-impl From<ConnectedPoint> for ConnectionType {
-    fn from(connected_point: ConnectedPoint) -> Self {
-        match connected_point {
-            ConnectedPoint::Dialer { .. } => ConnectionType::Dial,
-            ConnectedPoint::Listener { .. } => ConnectionType::Listen,
         }
     }
 }

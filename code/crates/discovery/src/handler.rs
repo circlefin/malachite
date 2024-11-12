@@ -1,9 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use libp2p::{request_response::OutboundRequestId, swarm::ConnectionId, Multiaddr, PeerId};
-use tracing::debug;
 
-use crate::{request::RequestData, ConnectionData, ConnectionType};
+use crate::{request::RequestData, ConnectionData};
 
 const DEFAULT_MAX_CONCURRENT_DIALS: usize = 2;
 const DEFAULT_MAX_CONCURRENT_REQUESTS: usize = 2;
@@ -14,7 +13,6 @@ pub struct Handler {
     dialed_multiaddrs: HashSet<Multiaddr>,
     max_concurrent_dials: usize,
     pending_connections: HashMap<ConnectionId, ConnectionData>,
-    connections_types: HashMap<PeerId, ConnectionType>,
     requested_peer_ids: HashSet<PeerId>,
     max_concurrent_requests: usize,
     pending_requests: HashMap<OutboundRequestId, RequestData>,
@@ -27,7 +25,6 @@ impl Handler {
             dialed_multiaddrs: HashSet::new(),
             max_concurrent_dials: DEFAULT_MAX_CONCURRENT_DIALS,
             pending_connections: HashMap::new(),
-            connections_types: HashMap::new(),
             requested_peer_ids: HashSet::new(),
             max_concurrent_requests: DEFAULT_MAX_CONCURRENT_REQUESTS,
             pending_requests: HashMap::new(),
@@ -100,26 +97,6 @@ impl Handler {
             .into_iter()
             .filter_map(|connection_id| self.pending_connections.remove(&connection_id))
             .collect()
-    }
-
-    pub fn register_connection_type(&mut self, peer_id: PeerId, connection_type: ConnectionType) {
-        match connection_type {
-            ConnectionType::Dial => {
-                debug!(%peer_id, "Connected to peer");
-                self.connections_types.insert(peer_id, connection_type);
-            }
-            ConnectionType::Listen => {
-                debug!(%peer_id, "Accepted incoming connection from peer");
-                // Only set the connection type if it's not already set to Dial
-                self.connections_types
-                    .entry(peer_id)
-                    .or_insert(connection_type);
-            }
-        }
-    }
-
-    pub fn remove_connection_type(&mut self, peer_id: &PeerId) -> Option<ConnectionType> {
-        self.connections_types.remove(peer_id)
     }
 
     pub fn register_requested_peer_id(&mut self, peer_id: PeerId) {
