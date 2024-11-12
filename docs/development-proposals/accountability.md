@@ -20,7 +20,7 @@ Here we give some explanation about attacks on Tendermint. If you are aware of t
 
 Tendermint is a variant of the [seminal DLS
 algorithm](https://groups.csail.mit.edu/tds/papers/Lynch/MIT-LCS-TM-270.pdf) by
-Dwork, Lynch and Stockmeyer. It shares the property that if less than a third of
+Dwork, Lynch and Stockmeyer. It shares with DLS the property that if less than one third of
 the processes are faulty, agreement is guaranteed. If there are more than two
 thirds of faulty processes, they have control over the system.
 
