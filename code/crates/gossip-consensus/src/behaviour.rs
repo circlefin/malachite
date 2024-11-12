@@ -86,7 +86,7 @@ pub struct Behaviour {
     pub discovery: Toggle<discovery::Behaviour>,
 }
 
-impl discovery::BehaviourTrait for Behaviour {
+impl discovery::DiscoveryClient for Behaviour {
     fn kbuckets(&mut self) -> impl Iterator<Item = KBucketRef<'_, KBucketKey<PeerId>, Addresses>> {
         self.discovery
             .as_mut()

@@ -104,7 +104,7 @@ impl Behaviour {
     }
 }
 
-pub trait BehaviourTrait: NetworkBehaviour {
+pub trait DiscoveryClient: NetworkBehaviour {
     fn kbuckets(&mut self) -> impl Iterator<Item = KBucketRef<'_, KBucketKey<PeerId>, Addresses>>;
 
     fn send_request(&mut self, peer_id: &PeerId, req: Request) -> OutboundRequestId;

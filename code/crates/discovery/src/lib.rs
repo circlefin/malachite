@@ -109,7 +109,7 @@ impl Discovery {
 
     pub fn handle_failed_connection(
         &mut self,
-        swarm: &mut Swarm<impl BehaviourTrait>,
+        swarm: &mut Swarm<impl DiscoveryClient>,
         connection_id: ConnectionId,
     ) {
         if let Some(mut connection_data) = self.handler.remove_pending_connection(&connection_id) {
@@ -144,7 +144,7 @@ impl Discovery {
 
     fn should_dial(
         &self,
-        swarm: &Swarm<impl BehaviourTrait>,
+        swarm: &Swarm<impl DiscoveryClient>,
         connection_data: &ConnectionData,
         check_already_dialed: bool,
     ) -> bool {
@@ -162,7 +162,7 @@ impl Discovery {
 
     pub fn dial_peer(
         &mut self,
-        swarm: &mut Swarm<impl BehaviourTrait>,
+        swarm: &mut Swarm<impl DiscoveryClient>,
         connection_data: ConnectionData,
     ) {
         // Not checking if the peer was already dialed because it is done when
@@ -212,7 +212,7 @@ impl Discovery {
         }
     }
 
-    pub fn dial_bootstrap_nodes(&mut self, swarm: &Swarm<impl BehaviourTrait>) {
+    pub fn dial_bootstrap_nodes(&mut self, swarm: &Swarm<impl DiscoveryClient>) {
         for addr in self.bootstrap_nodes.clone() {
             self.add_to_dial_queue(swarm, ConnectionData::new(None, addr.clone()));
         }
@@ -220,7 +220,7 @@ impl Discovery {
 
     fn add_to_dial_queue(
         &mut self,
-        swarm: &Swarm<impl BehaviourTrait>,
+        swarm: &Swarm<impl DiscoveryClient>,
         connection_data: ConnectionData,
     ) {
         if self.should_dial(swarm, &connection_data, true) {
@@ -236,7 +236,7 @@ impl Discovery {
 
     pub fn handle_connection(
         &mut self,
-        swarm: &mut Swarm<impl BehaviourTrait>,
+        swarm: &mut Swarm<impl DiscoveryClient>,
         peer_id: PeerId,
         connection_id: ConnectionId,
         endpoint: ConnectedPoint,
@@ -307,7 +307,7 @@ impl Discovery {
 
     fn handle_failed_request(
         &mut self,
-        swarm: &mut Swarm<impl BehaviourTrait>,
+        swarm: &mut Swarm<impl DiscoveryClient>,
         request_id: OutboundRequestId,
     ) {
         if let Some(mut request_data) = self.handler.remove_pending_request(&request_id) {
@@ -342,7 +342,7 @@ impl Discovery {
 
     fn should_request(
         &self,
-        swarm: &Swarm<impl BehaviourTrait>,
+        swarm: &Swarm<impl DiscoveryClient>,
         request_data: &RequestData,
     ) -> bool {
         // Is connected
@@ -354,7 +354,7 @@ impl Discovery {
 
     pub fn request_peer(
         &mut self,
-        swarm: &mut Swarm<impl BehaviourTrait>,
+        swarm: &mut Swarm<impl DiscoveryClient>,
         request_data: RequestData,
     ) {
         if !self.should_request(swarm, &request_data) {
@@ -381,7 +381,7 @@ impl Discovery {
 
     pub fn handle_new_peer(
         &mut self,
-        swarm: &mut Swarm<impl BehaviourTrait>,
+        swarm: &mut Swarm<impl DiscoveryClient>,
         connection_id: ConnectionId,
         peer_id: PeerId,
         info: identify::Info,
@@ -409,7 +409,7 @@ impl Discovery {
         );
     }
 
-    fn get_next_peer_to_request(&self, swarm: &mut Swarm<impl BehaviourTrait>) -> Option<PeerId> {
+    fn get_next_peer_to_request(&self, swarm: &mut Swarm<impl DiscoveryClient>) -> Option<PeerId> {
         let mut furthest_peer_id = None;
 
         // Find the furthest peer in the routing table that has not been requested.
@@ -429,7 +429,7 @@ impl Discovery {
         furthest_peer_id
     }
 
-    fn check_state(&mut self, swarm: &mut Swarm<impl BehaviourTrait>) {
+    fn check_state(&mut self, swarm: &mut Swarm<impl DiscoveryClient>) {
         if !self.is_enabled() {
             return;
         }
@@ -510,7 +510,7 @@ impl Discovery {
 
     fn process_received_peers(
         &mut self,
-        swarm: &mut Swarm<impl BehaviourTrait>,
+        swarm: &mut Swarm<impl DiscoveryClient>,
         peers: HashSet<(Option<PeerId>, Multiaddr)>,
     ) {
         // TODO check upper bound on number of peers
@@ -521,7 +521,7 @@ impl Discovery {
 
     pub fn on_network_event(
         &mut self,
-        swarm: &mut Swarm<impl BehaviourTrait>,
+        swarm: &mut Swarm<impl DiscoveryClient>,
         network_event: behaviour::NetworkEvent,
     ) {
         match network_event {
