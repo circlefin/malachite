@@ -21,4 +21,5 @@ malachite-common = { version = "0.1.0", path = "../common" }
 malachite-round  = { version = "0.1.0", path = "../round" }
 malachite-vote   = { version = "0.1.0", path = "../vote" }
 
-derive-where.workspace = true
+derive-where = { workspace = true }
+thiserror    = { workspace = true, default-features = false }

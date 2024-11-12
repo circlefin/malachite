@@ -5,7 +5,7 @@ pub async fn decide<Ctx>(
     state: &mut State<Ctx>,
     metrics: &Metrics,
     consensus_round: Round,
-    proposal: Ctx::Proposal,
+    proposal: SignedProposal<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -22,7 +22,7 @@ where
 
     // Update metrics
     {
-        // We are only interesting in consensus time for round 0, ie. in the happy path.
+        // We are only interested in consensus time for round 0, ie. in the happy path.
         if consensus_round == Round::new(0) {
             metrics.consensus_end();
         }
@@ -41,20 +41,14 @@ where
 
     #[cfg(feature = "debug")]
     {
-        for trace in state.driver.round_state.get_traces() {
-            debug!("Consensus trace: {trace}");
+        for trace in state.driver.get_traces() {
+            debug!(%trace, "Consensus trace");
         }
     }
 
-    perform!(
-        co,
-        Effect::Decide {
-            height,
-            round: proposal_round,
-            value: value.clone(),
-            commits
-        }
-    );
+    let certificate = CommitCertificate::new(height, proposal_round, value.id(), commits);
+
+    perform!(co, Effect::Decide { certificate });
 
     // Reinitialize to remove any previous round or equivocating precommits.
     // TODO: Revise when evidence module is added.

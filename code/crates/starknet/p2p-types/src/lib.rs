@@ -2,6 +2,9 @@
 #![allow(unexpected_cfgs)]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
+mod context;
+pub use context::MockContext;
+
 mod felt;
 pub use felt::Felt;
 
@@ -28,6 +31,9 @@ pub use validator_set::ValidatorSet;
 
 mod proposal_part;
 pub use proposal_part::{PartType, ProposalFin, ProposalInit, ProposalPart};
+
+mod block;
+pub use block::Block;
 
 mod block_proof;
 pub use block_proof::BlockProof;

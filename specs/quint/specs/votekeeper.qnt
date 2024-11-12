@@ -451,7 +451,7 @@ pure def applyCertificate(keeper: Bookkeeper, certificate: Set[Vote], currentRou
         val roundVotes = keeper.rounds.getOrElse(round, newRoundVotes(keeper.height, round, keeper.validatorSet.totalWeight()))
         // overwrite roundvotes with certificate
         val rvEv = roundVotesAndEvidenceFromCertificate(certificate, roundVotes, keeper.validatorSet)
-        val newRounds = keeper.rounds.set(certificate.certificateRound(), rvEv._1)
+        val newRounds = keeper.rounds.put(certificate.certificateRound(), rvEv._1)
         // compute the new bookkeeper state with evidence and updated roundvotes
         val newkeeper = keeper
                             .with("evidence", keeper.evidence.union(rvEv._2))

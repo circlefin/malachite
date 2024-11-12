@@ -6,7 +6,8 @@ use derive_where::derive_where;
 use malachite_actors::util::streaming::{Sequence, StreamId, StreamMessage};
 use malachite_common::Round;
 use malachite_gossip_mempool::PeerId;
-use malachite_starknet_p2p_types::{Address, Height, ProposalInit, ProposalPart};
+
+use crate::types::{Address, Height, ProposalInit, ProposalPart};
 
 struct MinSeq<T>(StreamMessage<T>);
 
@@ -92,7 +93,6 @@ impl<T> StreamState<T> {
 pub struct ProposalParts {
     pub height: Height,
     pub round: Round,
-    pub fork_id: u64,
     pub proposer: Address,
     pub parts: Vec<ProposalPart>,
 }
@@ -141,9 +141,8 @@ impl PartStreamsMap {
         let init_info = state.init_info.as_ref().unwrap();
 
         Some(ProposalParts {
-            height: init_info.block_number,
+            height: init_info.height,
             round: init_info.proposal_round,
-            fork_id: init_info.fork_id,
             proposer: init_info.proposer.clone(),
             parts: to_emit,
         })
@@ -170,9 +169,8 @@ impl PartStreamsMap {
         let init_info = state.init_info.as_ref().unwrap();
 
         Some(ProposalParts {
-            height: init_info.block_number,
+            height: init_info.height,
             round: init_info.proposal_round,
-            fork_id: init_info.fork_id,
             proposer: init_info.proposer.clone(),
             parts: to_emit,
         })

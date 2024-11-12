@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -8,11 +8,11 @@ use tracing::{debug, info, trace};
 
 use malachite_actors::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use malachite_actors::util::forward::forward;
+use malachite_config::{MempoolConfig, TestConfig};
 use malachite_gossip_mempool::types::MempoolTransactionBatch;
 use malachite_gossip_mempool::{Event as GossipEvent, NetworkMsg, PeerId};
-use malachite_node::config::{MempoolConfig, TestConfig};
-use malachite_proto::Protobuf;
 
+use crate::proto::Protobuf;
 use crate::types::{Hash, Transaction, Transactions};
 
 pub type MempoolRef = ActorRef<MempoolMsg>;
@@ -38,14 +38,12 @@ pub enum MempoolMsg {
 
 #[allow(dead_code)]
 pub struct State {
-    pub msg_queue: VecDeque<MempoolMsg>,
     pub transactions: BTreeMap<Hash, Transaction>,
 }
 
 impl State {
     pub fn new() -> Self {
         Self {
-            msg_queue: VecDeque::new(),
             transactions: BTreeMap::new(),
         }
     }
@@ -96,17 +94,17 @@ impl Mempool {
         state: &mut State,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match event {
-            GossipEvent::Listening(addr) => {
-                info!("Listening on {addr}");
+            GossipEvent::Listening(address) => {
+                info!(%address, "Listening");
             }
             GossipEvent::PeerConnected(peer_id) => {
-                info!("Connected to peer {peer_id}");
+                info!(%peer_id, "Connected to peer");
             }
             GossipEvent::PeerDisconnected(peer_id) => {
-                info!("Disconnected from peer {peer_id}");
+                info!(%peer_id, "Disconnected from peer");
             }
             GossipEvent::Message(_channel, from, _msg_id, msg) => {
-                trace!(%from, "Received message of size {} bytes", msg.size_bytes());
+                trace!(%from, size = msg.size_bytes(), "Received message");
 
                 trace!(%from, "Received message");
                 self.handle_network_msg(from, msg.clone(), myself, state) // FIXME: Clone
@@ -160,6 +158,7 @@ impl Actor for Mempool {
             MempoolMsg::GossipEvent,
         )
         .await?;
+
         self.gossip_mempool
             .cast(GossipMempoolMsg::Subscribe(forward))?;
 
@@ -226,14 +225,15 @@ fn generate_and_broadcast_txes(
     count: usize,
     size: usize,
     config: &MempoolConfig,
-    state: &mut State,
+    _state: &mut State,
     gossip_mempool: &GossipMempoolRef,
 ) -> Result<Vec<Transaction>, ActorProcessingErr> {
-    debug!("Generating {} transactions of size {} bytes", count, size);
+    debug!(%count, %size, "Generating transactions");
 
     let batch_size = std::cmp::min(config.gossip_batch_size, count);
+    let gossip_enabled = config.gossip_batch_size > 0;
 
-    let mut transactions = vec![];
+    let mut transactions = Vec::with_capacity(count);
     let mut tx_batch = Transactions::default();
     let mut rng = rand::thread_rng();
 
@@ -243,15 +243,18 @@ fn generate_and_broadcast_txes(
         rng.fill_bytes(&mut tx_bytes);
         let tx = Transaction::new(tx_bytes);
 
-        // Add transaction to state
-        if state.transactions.len() < config.max_tx_count {
-            state.add_tx(&tx);
+        if gossip_enabled {
+            tx_batch.push(tx.clone());
         }
 
-        tx_batch.push(tx.clone());
+        transactions.push(tx);
+
+        // if state.transactions.len() < config.max_tx_count {
+        //     state.add_tx(&tx);
+        // }
 
         // Gossip tx-es to peers in batches
-        if config.gossip_batch_size > 0 && tx_batch.len() >= batch_size {
+        if gossip_enabled && tx_batch.len() >= batch_size {
             let tx_batch = std::mem::take(&mut tx_batch);
 
             let Ok(tx_batch_any) = tx_batch.to_any() else {
@@ -262,8 +265,6 @@ fn generate_and_broadcast_txes(
             let mempool_batch = MempoolTransactionBatch::new(tx_batch_any);
             gossip_mempool.cast(GossipMempoolMsg::BroadcastMsg(mempool_batch))?;
         }
-
-        transactions.push(tx);
     }
 
     Ok(transactions)

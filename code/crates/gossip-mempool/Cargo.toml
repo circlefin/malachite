@@ -18,7 +18,7 @@ libp2p            = { workspace = true }
 prost             = { workspace = true }
 prost-types       = { workspace = true }
 seahash           = { workspace = true }
-tokio             = { workspace = true }
+tokio             = { workspace = true, features = ["macros"] }
 tracing           = { workspace = true }
 
 [build-dependencies]

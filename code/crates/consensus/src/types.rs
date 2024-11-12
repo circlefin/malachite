@@ -1,6 +1,8 @@
 use derive_where::derive_where;
 
-use malachite_common::{Context, Proposal, Round, SignedProposal, SignedVote, Validity, Vote};
+use malachite_common::{
+    Context, Proposal, Round, SignedExtension, SignedProposal, SignedVote, Validity, Vote,
+};
 
 pub use libp2p_identity::PeerId;
 pub use multiaddr::Multiaddr;
@@ -29,11 +31,46 @@ pub enum ConsensusMsg<Ctx: Context> {
 }
 
 /// A value proposed by a validator
+/// Called at non-proposer only.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct ProposedValue<Ctx: Context> {
     pub height: Ctx::Height,
     pub round: Round,
+    pub valid_round: Round,
     pub validator_address: Ctx::Address,
     pub value: Ctx::Value,
     pub validity: Validity,
+    pub extension: Option<SignedExtension<Ctx>>,
+}
+
+/// The possible messages used to deliver proposals
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ValuePayload {
+    PartsOnly,
+    ProposalOnly,
+    ProposalAndParts,
+}
+
+impl ValuePayload {
+    pub fn include_proposal(self) -> bool {
+        matches!(
+            self,
+            ValuePayload::ProposalOnly | ValuePayload::ProposalAndParts
+        )
+    }
+
+    pub fn include_parts(self) -> bool {
+        matches!(
+            self,
+            ValuePayload::PartsOnly | ValuePayload::ProposalAndParts
+        )
+    }
+
+    pub fn parts_only(self) -> bool {
+        matches!(self, ValuePayload::PartsOnly)
+    }
+
+    pub fn proposal_only(&self) -> bool {
+        matches!(self, ValuePayload::ProposalOnly)
+    }
 }

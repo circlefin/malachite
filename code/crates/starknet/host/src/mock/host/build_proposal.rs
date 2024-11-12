@@ -1,5 +1,8 @@
 #![allow(clippy::too_many_arguments)]
 
+use std::sync::Arc;
+
+use bytes::Bytes;
 use bytesize::ByteSize;
 use eyre::eyre;
 use rand::RngCore;
@@ -11,13 +14,14 @@ use tracing::{error, trace};
 use malachite_common::Round;
 
 use crate::mempool::{MempoolMsg, MempoolRef};
-use crate::mock::host::MockParams;
+use crate::mock::host::{compute_proposal_signature, MockParams};
 use crate::types::*;
 
 pub async fn build_proposal_task(
     height: Height,
     round: Round,
     proposer: Address,
+    private_key: PrivateKey,
     params: MockParams,
     deadline: Instant,
     mempool: MempoolRef,
@@ -28,6 +32,7 @@ pub async fn build_proposal_task(
         height,
         round,
         proposer,
+        private_key,
         params,
         deadline,
         mempool,
@@ -44,12 +49,13 @@ async fn run_build_proposal_task(
     height: Height,
     round: Round,
     proposer: Address,
+    private_key: PrivateKey,
     params: MockParams,
     deadline: Instant,
     mempool: MempoolRef,
     tx_part: mpsc::Sender<ProposalPart>,
     tx_block_hash: oneshot::Sender<BlockHash>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let start = Instant::now();
     let build_duration = (deadline - start).mul_f32(params.time_allowance_factor);
 
@@ -60,18 +66,19 @@ async fn run_build_proposal_task(
     let mut max_block_size_reached = false;
 
     // Init
-    {
-        let part = ProposalPart::Init(ProposalInit {
-            block_number: height,
-            fork_id: 1, // TODO: Add fork id
+    let init = {
+        let init = ProposalInit {
+            height,
             proposal_round: round,
             proposer: proposer.clone(),
-        });
+            valid_round: Round::Nil,
+        };
 
-        block_hasher.update(part.to_sign_bytes());
-        tx_part.send(part).await?;
+        tx_part.send(ProposalPart::Init(init.clone())).await?;
         sequence += 1;
-    }
+
+        init
+    };
 
     loop {
         trace!(%height, %round, %sequence, "Building local value");
@@ -145,22 +152,23 @@ async fn run_build_proposal_task(
     {
         // TODO: Compute actual "proof"
         let mut rng = rand::rngs::OsRng;
-        let mut proof = Vec::with_capacity(32);
+        let mut proof = vec![0; 32];
         rng.fill_bytes(&mut proof);
 
-        let part = ProposalPart::BlockProof(BlockProof::new(vec![proof]));
+        let part = ProposalPart::BlockProof(BlockProof::new(vec![Bytes::from(proof)]));
 
         block_hasher.update(part.to_sign_bytes());
         tx_part.send(part).await?;
         sequence += 1;
     }
 
+    let block_hash = BlockHash::new(block_hasher.finalize().into());
+
     // Fin
     {
-        // TODO: Compute actual "valid_round"
-        let part = ProposalPart::Fin(ProposalFin { valid_round: None });
+        let signature = compute_proposal_signature(&init, &block_hash, &private_key);
 
-        block_hasher.update(part.to_sign_bytes());
+        let part = ProposalPart::Fin(ProposalFin { signature });
         tx_part.send(part).await?;
         sequence += 1;
     }
@@ -168,7 +176,6 @@ async fn run_build_proposal_task(
     // Close the channel to signal no more parts to come
     drop(tx_part);
 
-    let block_hash = BlockHash::new(block_hasher.finalize().into());
     let block_size = ByteSize::b(block_size as u64);
 
     trace!(
@@ -180,5 +187,27 @@ async fn run_build_proposal_task(
         .send(block_hash)
         .map_err(|_| "Failed to send block hash")?;
 
+    Ok(())
+}
+
+pub async fn repropose_task(
+    block_hash: Hash,
+    tx_part: mpsc::Sender<ProposalPart>,
+    parts: Vec<Arc<ProposalPart>>,
+) {
+    if let Err(e) = run_repropose_task(block_hash, tx_part, parts).await {
+        error!("Failed to restream proposal: {e:?}");
+    }
+}
+
+async fn run_repropose_task(
+    _block_hash: Hash,
+    tx_part: mpsc::Sender<ProposalPart>,
+    parts: Vec<Arc<ProposalPart>>,
+) -> Result<(), Box<dyn core::error::Error>> {
+    for part in parts {
+        let part = Arc::unwrap_or_clone(part);
+        tx_part.send(part).await?;
+    }
     Ok(())
 }

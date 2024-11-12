@@ -1,6 +1,7 @@
 //! For tallying votes and emitting messages when certain thresholds are reached.
 
 use derive_where::derive_where;
+use thiserror::Error;
 
 use alloc::collections::{BTreeMap, BTreeSet};
 
@@ -11,7 +12,7 @@ use malachite_common::{
 use crate::evidence::EvidenceMap;
 use crate::round_votes::RoundVotes;
 use crate::round_weights::RoundWeights;
-use crate::{Threshold, ThresholdParam, ThresholdParams, Weight};
+use crate::{Threshold, ThresholdParams, Weight};
 
 /// Messages emitted by the vote keeper
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -55,11 +56,13 @@ where
 }
 
 /// Errors can that be yielded when recording a vote.
+#[derive(Error)]
 pub enum RecordVoteError<Ctx>
 where
     Ctx: Context,
 {
     /// Attempted to record a conflicting vote.
+    #[error("Conflicting vote: {existing} vs {conflicting}")]
     ConflictingVote {
         /// The vote already recorded.
         existing: SignedVote<Ctx>,
@@ -177,9 +180,14 @@ where
         self.validator_set.total_voting_power()
     }
 
-    /// Return the threshold parameters.
-    pub fn per_round(&self) -> &BTreeMap<Round, PerRound<Ctx>> {
-        &self.per_round
+    /// Return the votes for the given round.
+    pub fn per_round(&self, round: Round) -> Option<&PerRound<Ctx>> {
+        self.per_round.get(&round)
+    }
+
+    /// Return how many rounds we have seen votes for so far.
+    pub fn rounds(&self) -> usize {
+        self.per_round.len()
     }
 
     /// Return the evidence of equivocation.
@@ -232,7 +240,7 @@ where
             vote.vote_type(),
             per_round,
             vote.value(),
-            self.threshold_params.quorum,
+            self.threshold_params,
             total_weight,
         );
 
@@ -272,7 +280,7 @@ fn compute_threshold<Ctx>(
     vote_type: VoteType,
     round: &PerRound<Ctx>,
     value: &NilOrVal<ValueId<Ctx>>,
-    quorum: ThresholdParam,
+    thresholds: ThresholdParams,
     total_weight: Weight,
 ) -> Threshold<ValueId<Ctx>>
 where
@@ -281,16 +289,16 @@ where
     let weight = round.votes.get_weight(vote_type, value);
 
     match value {
-        NilOrVal::Val(value) if quorum.is_met(weight, total_weight) => {
+        NilOrVal::Val(value) if thresholds.quorum.is_met(weight, total_weight) => {
             Threshold::Value(value.clone())
         }
 
-        NilOrVal::Nil if quorum.is_met(weight, total_weight) => Threshold::Nil,
+        NilOrVal::Nil if thresholds.quorum.is_met(weight, total_weight) => Threshold::Nil,
 
         _ => {
             let weight_sum = round.votes.weight_sum(vote_type);
 
-            if quorum.is_met(weight_sum, total_weight) {
+            if thresholds.quorum.is_met(weight_sum, total_weight) {
                 Threshold::Any
             } else {
                 Threshold::Unreached

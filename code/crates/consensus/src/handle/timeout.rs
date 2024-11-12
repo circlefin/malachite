@@ -16,14 +16,21 @@ where
 
     if timeout.round != round && timeout.step != TimeoutStep::Commit {
         debug!(
-            "Ignoring timeout for round {} at height {}, current round: {round}",
-            timeout.round, height
+            %height,
+            %round,
+            timeout.round = %timeout.round,
+            "Ignoring timeout for different round",
         );
 
         return Ok(());
     }
 
-    info!("{timeout} elapsed at height {height} and round {round}");
+    info!(
+        step = ?timeout.step,
+        %timeout.round,
+        %height,
+        %round,
+        "Timeout elapsed");
 
     apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
 

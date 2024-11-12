@@ -1,3 +1,4 @@
+use prost::bytes::Bytes;
 use tokio::sync::mpsc;
 use tokio::task;
 
@@ -19,7 +20,7 @@ pub struct CtrlHandle {
 }
 
 impl CtrlHandle {
-    pub async fn broadcast(&self, channel: Channel, data: Vec<u8>) -> Result<(), BoxError> {
+    pub async fn broadcast(&self, channel: Channel, data: Bytes) -> Result<(), BoxError> {
         self.tx_ctrl
             .send(CtrlMsg::BroadcastMsg(channel, data))
             .await?;
@@ -71,7 +72,7 @@ impl Handle {
         self.recv.recv().await
     }
 
-    pub async fn broadcast(&self, channel: Channel, data: Vec<u8>) -> Result<(), BoxError> {
+    pub async fn broadcast(&self, channel: Channel, data: Bytes) -> Result<(), BoxError> {
         self.ctrl.broadcast(channel, data).await
     }
 

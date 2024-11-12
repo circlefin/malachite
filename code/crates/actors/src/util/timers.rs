@@ -12,6 +12,7 @@ use tracing::trace;
 
 type TimerTask<Msg> = JoinHandle<Result<(), MessagingErr<Msg>>>;
 
+#[derive(Debug)]
 struct Timer<Key, Msg> {
     /// Message to give to the actor when the timer expires
     key: Key,
@@ -30,6 +31,7 @@ pub struct TimeoutElapsed<Key> {
     generation: u64,
 }
 
+#[derive(Debug)]
 pub struct TimerScheduler<Key, Msg>
 where
     Key: Eq + Hash,

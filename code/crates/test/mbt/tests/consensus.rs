@@ -8,7 +8,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use malachite_test_mbt::consensus::State;
-use malachite_test_mbt::utils::generate_traces;
+use malachite_test_mbt::utils::{generate_test_traces, quint_seed};
 
 use runner::ConsensusRunner;
 
@@ -22,23 +22,11 @@ fn test_itf() {
 
     if std::env::var("KEEP_TEMP").is_ok() {
         std::mem::forget(temp_dir);
-    } else {
-        std::mem::drop(temp_dir);
     }
 
-    let quint_seed = std::env::var("QUINT_SEED")
-        .ok()
-        .map(|x| {
-            println!("Using QUINT_SEED={}", x);
-            x
-        })
-        .as_deref()
-        .or(Some("118"))
-        .and_then(|x| x.parse::<u64>().ok())
-        .filter(|&x| x != 0)
-        .expect("invalid random seed for quint");
+    let quint_seed = quint_seed();
 
-    generate_traces(
+    generate_test_traces(
         "tests/consensus/consensusTest.qnt",
         &temp_path.to_string_lossy(),
         quint_seed,
@@ -61,8 +49,7 @@ fn test_itf() {
         // Build mapping from model addresses to real addresses
         let address_map = utils::build_address_map(&trace, &mut rng);
 
-        let consensus_runner = ConsensusRunner { address_map };
-
+        let consensus_runner = ConsensusRunner::new(address_map);
         trace.run_on(consensus_runner).unwrap();
     }
 }

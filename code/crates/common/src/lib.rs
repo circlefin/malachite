@@ -16,6 +16,7 @@
 
 extern crate alloc;
 
+mod certificate;
 mod context;
 mod height;
 mod proposal;
@@ -23,6 +24,7 @@ mod proposal_part;
 mod round;
 mod signed_message;
 mod signing;
+mod threshold;
 mod timeout;
 mod validator_set;
 mod value;
@@ -49,6 +51,10 @@ pub type SignedProposal<Ctx> = SignedMessage<Ctx, <Ctx as Context>::Proposal>;
 /// A signed proposal part
 pub type SignedProposalPart<Ctx> = SignedMessage<Ctx, <Ctx as Context>::ProposalPart>;
 
+/// A signed vote extension
+pub type SignedExtension<Ctx> = SignedMessage<Ctx, Extension>;
+
+pub use certificate::{AggregatedSignature, CertificateError, CommitCertificate, CommitSignature};
 pub use context::Context;
 pub use height::Height;
 pub use proposal::{Proposal, Validity};
@@ -56,7 +62,8 @@ pub use proposal_part::ProposalPart;
 pub use round::Round;
 pub use signed_message::SignedMessage;
 pub use signing::SigningScheme;
+pub use threshold::{Threshold, ThresholdParam, ThresholdParams};
 pub use timeout::{Timeout, TimeoutStep};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::{NilOrVal, Value};
-pub use vote::{Vote, VoteType};
+pub use vote::{Extension, Vote, VoteType};

@@ -13,4 +13,6 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-derive-where.workspace = true
+bytes = { workspace = true, default-features = false }
+derive-where = { workspace = true }
+thiserror = { workspace = true, default-features = false }

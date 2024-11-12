@@ -1,20 +1,21 @@
+use bytes::Bytes;
 use malachite_common::Round;
 use malachite_proto as proto;
 use malachite_starknet_p2p_proto as p2p_proto;
 
-use crate::{Address, BlockProof, Height, Transactions};
+use crate::{Address, BlockProof, Height, Signature, Transactions};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalInit {
-    pub block_number: Height,
-    pub fork_id: u64,
+    pub height: Height,
     pub proposal_round: Round,
+    pub valid_round: Round,
     pub proposer: Address,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalFin {
-    pub valid_round: Option<Round>,
+    pub signature: Signature,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,7 +43,7 @@ impl ProposalPart {
             Self::Fin(_) => PartType::Fin,
         }
     }
-    pub fn to_sign_bytes(&self) -> Vec<u8> {
+    pub fn to_sign_bytes(&self) -> Bytes {
         proto::Protobuf::to_bytes(self).unwrap() // FIXME: unwrap
     }
 
@@ -103,18 +104,22 @@ impl proto::Protobuf for ProposalPart {
 
         Ok(match message {
             Messages::Init(init) => ProposalPart::Init(ProposalInit {
-                block_number: Height::new(init.block_number),
-                fork_id: init.fork_id,
-                proposal_round: Round::new(i64::from(init.proposal_round)),
+                height: Height::new(init.block_number, init.fork_id),
+                proposal_round: Round::new(init.proposal_round),
+                valid_round: init.valid_round.into(),
                 proposer: Address::from_proto(
                     init.proposer
                         .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("proposer"))?,
                 )?,
             }),
-            Messages::Fin(fin) => {
-                let valid_round = fin.valid_round.map(|round| Round::new(i64::from(round)));
-                ProposalPart::Fin(ProposalFin { valid_round })
-            }
+
+            Messages::Fin(fin) => ProposalPart::Fin(ProposalFin {
+                signature: Signature::from_proto(
+                    fin.signature
+                        .ok_or_else(|| proto::Error::missing_field::<Self::Proto>("signature"))?,
+                )?,
+            }),
+
             Messages::Transactions(txes) => {
                 let transactions = Transactions::from_proto(txes)?;
                 ProposalPart::Transactions(transactions)
@@ -132,13 +137,17 @@ impl proto::Protobuf for ProposalPart {
 
         let message = match self {
             ProposalPart::Init(init) => Messages::Init(p2p_proto::ProposalInit {
-                block_number: init.block_number.as_u64(),
-                fork_id: init.fork_id,
-                proposal_round: init.proposal_round.as_i64() as u32, // FIXME: p2p-types
+                block_number: init.height.block_number,
+                fork_id: init.height.fork_id,
+                proposal_round: init
+                    .proposal_round
+                    .as_u32()
+                    .expect("round should not be nil"),
+                valid_round: init.valid_round.as_u32(),
                 proposer: Some(init.proposer.to_proto()?),
             }),
             ProposalPart::Fin(fin) => Messages::Fin(p2p_proto::ProposalFin {
-                valid_round: fin.valid_round.map(|round| round.as_i64() as u32), // FIXME: p2p-types
+                signature: Some(fin.signature.to_proto()?),
             }),
             ProposalPart::Transactions(txes) => Messages::Transactions(p2p_proto::Transactions {
                 transactions: txes

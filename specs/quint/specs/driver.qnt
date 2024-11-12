@@ -11,6 +11,11 @@ module driver {
     // State
     // *************************************************************************
 
+    type BlockStoreEntry = {
+        decision: Proposal, 
+        commit: Set[Vote]
+    }
+
     type DriverState = {
         bk: Bookkeeper,
         cs: ConsensusState,
@@ -21,13 +26,13 @@ module driver {
         pendingStepChange: Step, // NoStep if last consensus call did not change the step
         started: bool,
         voteKeeperOutput: VoteKeeperOutput,
-        chain: List[{decision: NonNilValue, commit: Set[Vote]}],
+        chain: List[BlockStoreEntry],
         certificates: Set[Certificate], // we store Polkas and Commits we have seen
     }
 
-    pure def initDriver(v: Address, vs: ValidatorSet): DriverState = {
-        bk: initBookKeeper(0, vs),
-        cs: initConsensusState(v, 0),
+    pure def initDriver(v: Address, vs: ValidatorSet, h: Height, chain: List[BlockStoreEntry]): DriverState = {
+        bk: initBookKeeper(h, vs),
+        cs: initConsensusState(v, h),
         proposals: Set(),
         valset: vs,
         executedInputs: List(),
@@ -35,7 +40,7 @@ module driver {
         pendingStepChange: NoStep,
         started: false,
         voteKeeperOutput: NoVKOutput,
-        chain: List(),
+        chain: chain,
         certificates: Set(),
     }
 
@@ -312,7 +317,12 @@ module driver {
             | _ => Set() // This cannot happen
         }
         val v = rv._2
-        val dc = {decision: v, commit: commit}
+        val prop = es.proposals.filter(p => and {   p.height == es.cs.height,
+                                                    p.round == rv._1,
+                                                    p.proposal == rv._2}
+        ).fold(emptyProposal, (acc, i) => i) //chooseSome(),
+        val dc = {decision: prop, commit: commit}
+        // TODO: store proposal in chain instead of value
         toDriverOutput({ ...es, chain: es.chain.append(dc) }, res, c)
 
     // take input out of pending inputs and then call consensus with that input
@@ -407,16 +417,21 @@ module driver {
         incomingVotes: Set[Vote],
         incomingProposals: Set[Proposal],
         incomingCertificates: Set[Set[Vote]],
+        // buffers for sync protocol. We separate them from non-sync buffers to model that they have higher priority
+        incomingSyncProposals: Set[Proposal],
+        incomingSyncCertificates: Set[Set[Vote]],
         getValueRequests: Set[(Height, Round)],
         nextValueToPropose: Value, 
     }
 
-    pure def initNode(v: Address, vs: Address -> Weight): NodeState = {
-        es: initDriver(v,vs),
+    pure def initNode(v: Address, vs: Address -> Weight, height: Height): NodeState = {
+        es: initDriver(v, vs, height, List()),
         timeouts: Set(),
         incomingVotes: Set(),
         incomingProposals: Set(),
         incomingCertificates: Set(),
+        incomingSyncProposals: Set(),
+        incomingSyncCertificates: Set(),
         getValueRequests: Set(),
         nextValueToPropose: Nil, 
     }
@@ -442,6 +457,19 @@ module driver {
     pure def nextAction(state: NodeState): (NodeState, DriverInput) =
         if (not(state.es.started))
             (state, StartDInput)
+
+        else if (state.incomingSyncCertificates != Set())
+            // val cert = state.incomingCertificates.chooseSome()
+            val cert = state.incomingSyncCertificates.fold (Set(), (sum, y) => y)
+            val newstate = { ...state, incomingSyncCertificates: state.incomingSyncCertificates.exclude(Set(cert))}
+            (newstate, CertificateDInput(cert))
+
+        else if (state.incomingSyncProposals != Set())
+            // pick proposal, remove it from incoming
+            // val prop = state.incomingProposals.chooseSome()
+            val prop = state.incomingSyncProposals.fold (emptyProposal, (sum, y) => y)
+            val newstate = { ...state, incomingSyncProposals: state.incomingSyncProposals.exclude(Set(prop))}
+            (newstate, ProposalDInput(prop))
 
         // This is hard-coded right now. I remove the request when served
         // also this prevents the StepChangeDInput for the proposer of a new round
@@ -476,6 +504,7 @@ module driver {
         else if (state.incomingVotes != Set())
             // pick vote, remove it from incoming
             // val vote = state.incomingVotes.chooseSome()
+            // TODO: only take votes for the current round.
             val vote = state.incomingVotes.fold(emptyVote, (sum, y) => y)
             val newstate = { ...state, incomingVotes: state.incomingVotes.exclude(Set(vote))}
             (newstate, VoteDInput(vote))

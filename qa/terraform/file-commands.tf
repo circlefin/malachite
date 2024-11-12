@@ -21,7 +21,6 @@ locals {
     cc    = local.cc
   })
   commands-sh = templatefile("templates/commands.tmpl", {
-    etc-hosts = local.etc-hosts,
     path      = abspath(path.root),
     ips       = local.ips,
     nodes     = local.nodes,

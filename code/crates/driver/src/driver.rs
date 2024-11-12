@@ -3,19 +3,19 @@ use alloc::vec::Vec;
 use core::fmt;
 
 use malachite_common::{
-    Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep, Validator,
-    ValidatorSet, Validity, Vote,
+    CommitCertificate, Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
+    Validator, ValidatorSet, Validity, Vote,
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
 use malachite_round::state::Step::Propose;
-use malachite_round::state::{State as RoundState, Step};
+use malachite_round::state::{RoundValue, State as RoundState, Step};
 use malachite_round::state_machine::Info;
 use malachite_vote::keeper::VoteKeeper;
 
 use crate::input::Input;
 use crate::output::Output;
-use crate::proposal_keeper::ProposalKeeper;
+use crate::proposal_keeper::{EvidenceMap, ProposalKeeper};
 use crate::Error;
 use crate::ThresholdParams;
 
@@ -26,31 +26,36 @@ where
 {
     /// The context of the consensus engine,
     /// for defining the concrete data types and signature scheme.
-    pub ctx: Ctx,
+    #[allow(dead_code)]
+    ctx: Ctx,
 
     /// The address of the node.
-    pub address: Ctx::Address,
+    address: Ctx::Address,
 
     /// Quorum thresholds
-    pub threshold_params: ThresholdParams,
+    threshold_params: ThresholdParams,
 
     /// The validator set at the current height
-    pub validator_set: Ctx::ValidatorSet,
+    validator_set: Ctx::ValidatorSet,
 
     /// The proposals to decide on.
-    pub proposal_keeper: ProposalKeeper<Ctx>,
+    pub(crate) proposal_keeper: ProposalKeeper<Ctx>,
 
     /// The vote keeper.
-    pub vote_keeper: VoteKeeper<Ctx>,
+    pub(crate) vote_keeper: VoteKeeper<Ctx>,
+
+    /// The certificate keeper
+    pub(crate) certificates: Vec<CommitCertificate<Ctx>>,
 
     /// The state of the round state machine.
-    pub round_state: RoundState<Ctx>,
+    pub(crate) round_state: RoundState<Ctx>,
 
     /// The proposer for the current round, None for round nil.
-    pub proposer: Option<Ctx::Address>,
+    proposer: Option<Ctx::Address>,
 
-    /// The pending input to be processed next, if any.
-    pub pending_input: Option<(Round, RoundInput<Ctx>)>,
+    /// The pending inputs to be processed next, if any.
+    /// The first element of the tuple is the round at which that input has been emitted.
+    pending_inputs: Vec<(Round, RoundInput<Ctx>)>,
 }
 
 impl<Ctx> Driver<Ctx>
@@ -59,8 +64,8 @@ where
 {
     /// Create a new `Driver` instance for the given height.
     ///
-    /// This instance is only valid for a single height
-    /// and should be discarded and re-created for the next height.
+    /// Called when consensus is started and initialized with the first height.
+    /// Re-initialization for subsequent heights is done using `move_to_height()`.
     ///
     /// TODO: Consider wrapping the validator set in a Arc to avoid cloning
     pub fn new(
@@ -83,7 +88,8 @@ where
             vote_keeper,
             round_state,
             proposer: None,
-            pending_input: None,
+            pending_inputs: vec![],
+            certificates: vec![],
         }
     }
 
@@ -102,7 +108,8 @@ where
         self.proposal_keeper = proposal_keeper;
         self.vote_keeper = vote_keeper;
         self.round_state = round_state;
-        self.pending_input = None;
+        self.pending_inputs = vec![];
+        self.certificates = vec![];
     }
 
     /// Return the height of the consensus.
@@ -125,9 +132,34 @@ where
         self.round_state.step == Propose
     }
 
+    /// Return the valid value (the value for which we saw a polka) for the current round, if any.
+    pub fn valid_value(&self) -> Option<&RoundValue<Ctx::Value>> {
+        self.round_state.valid.as_ref()
+    }
+
     /// Return a reference to the votekeper
     pub fn votes(&self) -> &VoteKeeper<Ctx> {
         &self.vote_keeper
+    }
+
+    /// Return the state for the current round.
+    pub fn round_state(&self) -> &RoundState<Ctx> {
+        &self.round_state
+    }
+
+    /// Return the address of the node.
+    pub fn address(&self) -> &Ctx::Address {
+        &self.address
+    }
+
+    /// Return the validator set for this height.
+    pub fn validator_set(&self) -> &Ctx::ValidatorSet {
+        &self.validator_set
+    }
+
+    /// Return recorded evidence of equivocation for this height.
+    pub fn evidence(&self) -> &EvidenceMap<Ctx> {
+        self.proposal_keeper.evidence()
     }
 
     /// Return the proposer for the current round.
@@ -157,23 +189,19 @@ where
         self.lift_output(round_output, &mut outputs);
 
         // Apply the pending inputs, if any, and lift their outputs
-        self.process_pending(&mut outputs)?;
+        while !self.pending_inputs.is_empty() {
+            let new_pending = core::mem::take(&mut self.pending_inputs);
+            for (round, input) in new_pending {
+                if let Some(output) = self.apply_input(round, input)? {
+                    self.lift_output(output, &mut outputs)
+                }
+            }
+        }
 
         Ok(outputs)
     }
 
-    /// Process the pending input, if any.
-    fn process_pending(&mut self, outputs: &mut Vec<Output<Ctx>>) -> Result<(), Error<Ctx>> {
-        while let Some((round, input)) = self.pending_input.take() {
-            if let Some(round_output) = self.apply_input(round, input)? {
-                self.lift_output(round_output, outputs);
-            };
-        }
-
-        Ok(())
-    }
-
-    /// Convert an output of the round state machine to the output type of the driver.
+    /// Convert the output of the round state machine to the output type of the driver.
     fn lift_output(&mut self, round_output: RoundOutput<Ctx>, outputs: &mut Vec<Output<Ctx>>) {
         match round_output {
             RoundOutput::NewRound(round) => outputs.push(Output::NewRound(self.height(), round)),
@@ -196,6 +224,7 @@ where
     /// Apply the given input to the state machine, returning the output, if any.
     fn apply(&mut self, input: Input<Ctx>) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         match input {
+            Input::CommitCertificate(certificate) => self.apply_commit_certificate(certificate),
             Input::NewRound(height, round, proposer) => {
                 self.apply_new_round(height, round, proposer)
             }
@@ -203,6 +232,25 @@ where
             Input::Proposal(proposal, validity) => self.apply_proposal(proposal, validity),
             Input::Vote(vote) => self.apply_vote(vote),
             Input::TimeoutElapsed(timeout) => self.apply_timeout(timeout),
+        }
+    }
+
+    fn apply_commit_certificate(
+        &mut self,
+        certificate: CommitCertificate<Ctx>,
+    ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
+        if self.height() != certificate.height {
+            return Err(Error::InvalidCertificateHeight {
+                certificate_height: certificate.height,
+                consensus_height: self.height(),
+            });
+        }
+
+        let round = certificate.round;
+
+        match self.store_and_multiplex_certificate(certificate) {
+            Some(round_input) => self.apply_input(round, round_input),
+            None => Ok(None),
         }
     }
 
@@ -247,7 +295,7 @@ where
 
         let round = proposal.round();
 
-        match self.multiplex_proposal(proposal, validity) {
+        match self.store_and_multiplex_proposal(proposal, validity) {
             Some(round_input) => self.apply_input(round, round_input),
             None => Ok(None),
         }
@@ -307,7 +355,8 @@ where
         input: RoundInput<Ctx>,
     ) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
         let round_state = core::mem::take(&mut self.round_state);
-        let current_step = round_state.step;
+
+        let previous_step = round_state.step;
 
         let proposer = self.get_proposer()?;
         let info = Info::new(input_round, &self.address, proposer.address());
@@ -315,19 +364,26 @@ where
         // Apply the input to the round state machine
         let transition = round_state.apply(&info, input);
 
-        let pending_step = transition.next_state.step;
-
-        if current_step != pending_step {
-            let pending_input = self.multiplex_step_change(pending_step, input_round);
-
-            self.pending_input = pending_input.map(|input| (input_round, input));
-        }
-
         // Update state
         self.round_state = transition.next_state;
 
+        if previous_step != self.round_state.step && self.round_state.step != Step::Unstarted {
+            let pending_inputs = self.multiplex_step_change(input_round);
+
+            self.pending_inputs = pending_inputs
+                .into_iter()
+                .map(|input| (input_round, input))
+                .collect();
+        }
+
         // Return output, if any
         Ok(transition.output)
+    }
+
+    /// Return the traces logged during execution.
+    #[cfg(feature = "debug")]
+    pub fn get_traces(&self) -> &[malachite_round::traces::Trace<Ctx>] {
+        self.round_state.get_traces()
     }
 }
 
