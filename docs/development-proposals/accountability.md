@@ -31,7 +31,7 @@ superficial inspection of the pseudo code (cf. Algorithm 1 in the
 following:
 
 - **[Double vote]** correct processeses never send two (conflicting) vote messages
-  (`PREVOTE`, `PRECOMMIT`) for the same height and round (that is the messages
+  (`PREVOTE`, `PRECOMMIT`) for the same height and round (that is, the messages
   differ in the value they carry; also `nil` is considered a value here), and
 - **[Double propose]** a correct proposer never send two different proposals (i.e., `PROPOSAL` messages) for
   the same height and round, and
@@ -81,7 +81,7 @@ Second, in consensus engine implementations, sometimes there are no self-contain
 ### Why not "bad proposer"?
 
 First, by itself it doesn't harm safety, as correct processes will just disregard the produced proposals. 
-Second, we are only interested in "provable evidence". So while in principle it can be proven, much more data, partly on consensus internals, needs to be included in the evidence. Checking that a process was not the proposer of a certain round and height requires knowing the state of the proposer selection algorithm at this specific point. Which is implemented and depends on the state of the application at that point. Again, it doesn't seem to make sense to investigate this, given that there is no value added.
+Second, we are only interested in "provable evidence". So while in principle it can be proven, much more data, partly on consensus internals, needs to be included in the evidence. Checking that a process was not the proposer of a certain round and height requires knowing the state of the proposer selection algorithm at this specific point. Which depends on the state of the application at that point. Again, it doesn't seem to make sense to investigate this, given that there is no value added.
 
 ### Why "double vote"?
 
@@ -97,8 +97,8 @@ Regarding the amnesia attack, there are trade-offs that we would like to start a
   - it would allow us to shield the consensus engine against all attacks on safety, since we could generate evidence for forensics
 - Cons
   - out-of-the-box, Tendermint consensus does not support provable amnesia evidence. However, we have developed a slight adaptations of Tendermint (roughly speaking, it adds one additional round field to votes), that would make amnesia provable. (It doesn't involve extra steps or performance penalties, but this is actually a Pro)
-  - our solution doesn't necessarily help with the "fix misconfigurations" issue as it only produces evidence when we have conflicting commits 
+  - our solution doesn't necessarily help with the "fix misconfigurations" issue, as it only produces evidence when we have conflicting commits 
 
 ## Conclusions
 
-We argue that a mild form of incentivization is useful to stabilize the system and keep it operational. Such incentivization scheme must be based on provable data. Based on these two requirements we suggest that the consensus engines may collect two types of evidence. We strongly are in favor of "double vote" evidence and recommend to the Starknet community to agree on an incentivization scheme that is acceptable for users and node operators. We are also in favor of considering "amnesia" evidence, although this perhaps needs a broader discussion.
+We argue that a mild form of incentivization is useful to stabilize the system and keep it operational. Such incentivization scheme must be based on provable data. Based on these two requirements, we suggest that the consensus engines may collect two types of evidence. We strongly are in favor of "double vote" evidence and recommend to the Starknet community to agree on an incentivization scheme that is acceptable for users and node operators. We are also in favor of considering "amnesia" evidence, although this perhaps needs a broader discussion.
