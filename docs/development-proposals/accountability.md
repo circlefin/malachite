@@ -18,7 +18,7 @@ Thus we propose that also in Starknet such behavior should lead to mild penaltie
 
 Here we give some explanation about attacks on Tendermint. If you are aware of those, and are just interested in our conclusions, just scroll down to the [last section](#what-evidence-to-collect).
 
-Tendermint is a variant of the [seminal
+Tendermint is a variant of the [seminal DLS
 algorithm](https://groups.csail.mit.edu/tds/papers/Lynch/MIT-LCS-TM-270.pdf) by
 Dwork, Lynch and Stockmeyer. It shares the property that if less than a third of
 the processes are faulty, agreement is guaranteed. If there are more than two
