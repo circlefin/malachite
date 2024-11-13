@@ -455,24 +455,26 @@ module driver {
     // currently this is linked in via the state machine. But we can move it into
     // the functional layer
     pure def nextAction(state: NodeState): (NodeState, DriverInput) =
-        val proposalsForCurrentHeight = state.incomingProposals.filter(v => v.height == state.es.cs.height)
+        val proposalsForCurrentHeight = state.incomingProposals.filter(p => p.height == state.es.cs.height)
         val votesForCurrentHeight = state.incomingVotes.filter(v => v.height == state.es.cs.height)
         // take only certificates with consistent height
         val certificatesForCurrentHeight = state.incomingCertificates.filter(cert => cert.forall(v => v.height == state.es.cs.height))
+        val syncCertificatesForCurrentHeight = state.incomingSyncCertificates.filter(cert => cert.forall(v => v.height == state.es.cs.height))
+        val syncProposalsForCurrentHeight = state.incomingSyncProposals.filter(p => p.height == state.es.cs.height)
 
         if (not(state.es.started))
             (state, StartDInput)
 
-        else if (state.incomingSyncCertificates != Set())
-            // val cert = state.incomingCertificates.chooseSome()
-            val cert = state.incomingSyncCertificates.fold (Set(), (sum, y) => y)
+        else if (syncCertificatesForCurrentHeight != Set())
+            // val cert = syncCertificatesForCurrentHeight.chooseSome()
+            val cert = syncCertificatesForCurrentHeight.fold (Set(), (sum, y) => y)
             val newstate = { ...state, incomingSyncCertificates: state.incomingSyncCertificates.exclude(Set(cert))}
             (newstate, CertificateDInput(cert))
 
-        else if (state.incomingSyncProposals != Set())
+        else if (syncProposalsForCurrentHeight != Set())
             // pick proposal, remove it from incoming
-            // val prop = state.incomingProposals.chooseSome()
-            val prop = state.incomingSyncProposals.fold (emptyProposal, (sum, y) => y)
+            // val prop = syncProposalsForCurrentHeight.chooseSome()
+            val prop = syncProposalsForCurrentHeight.fold (emptyProposal, (sum, y) => y)
             val newstate = { ...state, incomingSyncProposals: state.incomingSyncProposals.exclude(Set(prop))}
             (newstate, ProposalDInput(prop))
 
@@ -531,9 +533,12 @@ module driver {
 
     // This function can be used to control test runs better.
     pure def nextActionCommand(state: NodeState, command: Command): (NodeState, DriverInput) =
-        val proposalsForCurrentHeight = state.incomingProposals.filter(v => v.height == state.es.cs.height)
+        val proposalsForCurrentHeight = state.incomingProposals.filter(p => p.height == state.es.cs.height)
         val votesForCurrentHeight = state.incomingVotes.filter(v => v.height == state.es.cs.height)
+        // take only certificates with consistent height
         val certificatesForCurrentHeight = state.incomingCertificates.filter(cert => cert.forall(v => v.height == state.es.cs.height))
+        val syncCertificatesForCurrentHeight = state.incomingSyncCertificates.filter(cert => cert.forall(v => v.height == state.es.cs.height))
+        val syncProposalsForCurrentHeight = state.incomingSyncProposals.filter(p => p.height == state.es.cs.height)
         if (command == StartCmd and not(state.es.started))
             (state, StartDInput)
 
