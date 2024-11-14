@@ -98,10 +98,26 @@ module sync {
 	// Actions for process steps in the sync protocol
 	//
 
+	// update the server state given the node blockchain content
+	action updateServer(v, chain) = all {
+	    val s = serverSystem.get(v)
+	    all {
+	        // FIXME: how much we trust in the equality here?
+	        chain != s.chain,
+	        serverSystem' = serverSystem.put(v, { ...s, chain: chain }),
+	    },
+	    all { // Nothing changes here
+	        statusBuffer' = statusBuffer,
+	        syncResponseBuffer' = syncResponseBuffer,
+	        syncSystem' = syncSystem,
+	        syncRequestBuffer' = syncRequestBuffer,
+	        unchangedAll,
+	    }
+	}
+
 	/// Server v announces its status
 	action syncStatusStep(v) = all {
-	    val chain = system.get(v).es.chain
-	    val server = serverSystem.get(v).updateServer(chain)
+	    val server = serverSystem.get(v)
 	    val newStatus = server.syncStatus()
 	    all {
 	        serverSystem' = serverSystem.put(v, server),
@@ -115,8 +131,7 @@ module sync {
 
 	/// Server v takes a step (checking for requests and responding)
 	action syncStepServer(v) = all {
-	    val chain = system.get(v).es.chain
-	    val server = serverSystem.get(v).updateServer(chain)
+	    val server = serverSystem.get(v)
 	    val result = server.syncServer()
 	    all {
 	        serverSystem' = serverSystem.put(v, result.sync),
@@ -212,12 +227,14 @@ module sync {
 	        syncUnchangedAll
 	    },
 	    nondet v = oneOf(Correct)
+	    val chain = system.get(v).es.chain
 	    any {
 	        syncDeliverReq(v),
 	        syncDeliverResp(v),
 	        syncDeliverStatus(v),
-	        syncStepServer(v),   //looking for a request and sends responses
-	        syncStepClient(v), //   is checking if there are responses and check whether it need to requ
+	        updateServer(v, chain),	// update the server with the latest state of the chain
+	        syncStepServer(v),	// looking for a request and sends responses
+	        syncStepClient(v),	// is checking if there are responses and check whether it need to requ
 	        syncStatusStep(v),
 	        //syncTimeout(v) // TODO:
 	    }
@@ -290,6 +307,9 @@ module sync {
 	run retreat =
 	    nondet heightToReach = 1.to(4).oneOf()
 	    initHeight( q::debug ("Height:", heightToReach))
+	    // FIXME: I had to put it here, instead of syncCycle(h)
+	    // This is not ideal, but it works.
+            .then(updateServer("v2", system.get("v2").es.chain))
 	    .then(heightToReach.reps(i => syncCycle(i)))
 	    .expect(system.get("v4").es.chain == system.get("v2").es.chain)
 	    .then(newHeightActionAll("v4", validatorSet, heightToReach))

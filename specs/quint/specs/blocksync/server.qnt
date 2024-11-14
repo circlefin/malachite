@@ -29,15 +29,6 @@ module server {
 	    // TODO: perhaps we should add to height to the chain entries to capture non-zero bases
 	    { peer: server.id , base: 0, top: server.chain.length() - 1 }
 
-	// update the server state from the node state
-	// at the moment this means updating the server's copy of the chain
-	pure def updateServer(s: Server, chain: List[BlockStoreEntry]) : Server = {
-	    if (chain.length() > s.chain.length())
-		    { ...s, chain: chain }
-	    else // FIXME: can it ever happen?
-		s
-	}
-
 	/// new server state and response messages to be sent
 	type ServerOutput = {
 	    sync: Server,
