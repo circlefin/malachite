@@ -128,4 +128,40 @@ module client {
 	            {   sync: newS,
 	                so: SONoOutput,
 	                req: None}
+
+	// Variables
+
+	var syncSystem: Address -> Synchronizer
+
+	action initClient(nodes) = all {
+	    syncSystem' = nodes.mapBy(v => initSynchronizer(v, nodes.exclude(Set(v)))),
+	}
+
+	action unchangedClient = all {
+	    syncSystem' = syncSystem,
+	}
+
+	// workaround to update the client state
+	action updateClient(node, client) = all {
+	    syncSystem' = syncSystem.put(node, client)
+	}
+
+	action newHeightClient(node, h) = all {
+	    syncSystem' = syncSystem.put(node, syncNewHeight(syncSystem.get(node), h)),
+	}
+
+	// deliver a status message to node
+	action deliverStatus(node, msg) = all {
+	    val client = syncSystem.get(node)
+	    syncSystem' = syncSystem.put(node, {... client,
+	                                statusMsgs: client.statusMsgs.union(Set(msg))}),
+	}
+
+	// deliver a response message to node
+	action deliverResponse(node, msg) = all {
+	    val client = syncSystem.get(node)
+	    syncSystem' = syncSystem.put(node, {... client,
+	                                responses: client.responses.union(Set(msg))}),
+	}
+
 }

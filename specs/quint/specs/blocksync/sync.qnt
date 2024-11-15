@@ -25,9 +25,6 @@ module sync {
 	// initialization and steps, and add the updates to the variables defined below
 	//
 
-	// Variables
-
-	var syncSystem: Address -> Synchronizer
 	var serverSystem: Address -> Server
 
 	var statusBuffer : Address -> Set[SyncStatusMsg]
@@ -53,7 +50,7 @@ module sync {
 
 	/// initializing the variables of the sync part of the state machine
 	action syncInit = all {
-	    syncSystem' = Correct.mapBy(v => initSynchronizer(v, validators)),
+	    initClient(validators),
 	    serverSystem' = Correct.mapBy(v => initServer(v)),
 	    statusBuffer' = Correct.mapBy(v => Set()),
 	    syncResponseBuffer' = Correct.mapBy (v => Set()),
@@ -65,7 +62,7 @@ module sync {
 	    syncRequestBuffer' = syncRequestBuffer,
 	    statusBuffer' = statusBuffer,
 	    syncResponseBuffer' = syncResponseBuffer,
-	    syncSystem' = syncSystem,
+	    unchangedClient,
 	}
 
 	/// initialize consensus and synchronizer
@@ -81,7 +78,7 @@ module sync {
 	/// environment sends the node to the next height.
 	/// initializes synchronizer
 	action newHeightActionSync(v, valset, h) = all {
-	    syncSystem' = syncSystem.put(v, syncNewHeight(syncSystem.get(v), h)),
+	    newHeightClient(v, h),
 	    statusBuffer' = statusBuffer,
 	    syncResponseBuffer' = syncResponseBuffer,
 	    serverSystem' = serverSystem,
@@ -109,7 +106,7 @@ module sync {
 	    all { // Nothing changes here
 	        statusBuffer' = statusBuffer,
 	        syncResponseBuffer' = syncResponseBuffer,
-	        syncSystem' = syncSystem,
+	        unchangedClient,
 	        syncRequestBuffer' = syncRequestBuffer,
 	        unchangedAll,
 	    }
@@ -123,7 +120,7 @@ module sync {
 	        serverSystem' = serverSystem.put(v, server),
 	        statusBuffer' = broadcastStatus(statusBuffer, newStatus),
 	        syncResponseBuffer' = syncResponseBuffer,
-	        syncSystem' = syncSystem,
+	        unchangedClient,
 	        syncRequestBuffer' = syncRequestBuffer,
 	        unchangedAll,
 	    }
@@ -139,7 +136,7 @@ module sync {
 	            | Some(m) => syncResponseBuffer.sendResponse(m) // TODO: fix after broadcast
 	            | None => syncResponseBuffer
 	        },
-	        syncSystem' = syncSystem,
+	        unchangedClient,
 	        syncRequestBuffer' = syncRequestBuffer,
 	        statusBuffer' = statusBuffer,
 	        unchangedAll,
@@ -150,7 +147,7 @@ module sync {
 	action syncStepClient(v) = all {
 	    val result = syncClient(syncSystem.get(v))
 	    all {
-	        syncSystem' = syncSystem.put(v, result.sync),
+		updateClient(v, result.sync),
 	        syncRequestBuffer' = match result.req {
 	            | Some(m) => syncRequestBuffer.put(m.server, syncRequestBuffer.get(m.server).union(Set(m)))
 	            | None => syncRequestBuffer
@@ -178,7 +175,7 @@ module sync {
 	                                inbuffer: serverSystem.get(v).inbuffer.union(Set(req))}),
 	    statusBuffer' = statusBuffer,
 	    syncResponseBuffer' = syncResponseBuffer,
-	    syncSystem' = syncSystem,
+	    unchangedClient,
 	    unchangedAll
 	    }
 	}
@@ -189,8 +186,7 @@ module sync {
 	    syncResponseBuffer.get(v).size() > 0,
 	    nondet resp = syncResponseBuffer.get(v).oneOf()
 	    all {
-	        syncSystem' = syncSystem.put(v, {... syncSystem.get(v),
-	                                responses: syncSystem.get(v).responses.union(Set(resp))}),
+		deliverResponse(v, resp),
 	        syncRequestBuffer' = syncRequestBuffer,
 	        serverSystem' = serverSystem,
 	        statusBuffer' = statusBuffer,
@@ -204,8 +200,7 @@ module sync {
 	    statusBuffer.get(v).size() > 0,
 	    nondet status = statusBuffer.get(v).oneOf()
 	    all {
-	        syncSystem' = syncSystem.put(v, {... syncSystem.get(v),
-	                                statusMsgs: syncSystem.get(v).statusMsgs.union(Set(status))}),
+		deliverStatus(v, status),
 	        syncRequestBuffer' = syncRequestBuffer,
 	        serverSystem' = serverSystem,
 	        statusBuffer' = statusBuffer.put(v, statusBuffer.get(v).exclude(Set(status))),
