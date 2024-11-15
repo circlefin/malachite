@@ -102,7 +102,7 @@ module sync {
 	action syncStepClient(v) = all {
 	    val result = bsyncClient(bsyncClients.get(v))
 	    all {
-		// TODO: this block should be implmented in client.qnt
+		// TODO: this block should be implemented in client.qnt
 		bsyncClients' = bsyncClients.put(v, result.sync),
 	        statusBuffer' = statusBuffer,
 	        requestsBuffer' = match result.req {
