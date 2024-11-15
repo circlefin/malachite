@@ -14,7 +14,7 @@ module sync {
 	    Heights = Set(0) // , 1, 2, 3)
 	    ).* from "../statemachineAsync"
 
-	import client.* from "./client"
+	import bsync_client.* from "./client"
 	import server.* from "./server"
 
 	// ****************************************************************************
@@ -27,7 +27,7 @@ module sync {
 
 	var serverSystem: Address -> Server
 
-	var statusBuffer : Address -> Set[SyncStatusMsg]
+	var statusBuffer : Address -> Set[StatusMsg]
 	var syncResponseBuffer : Address -> Set[ResponseMsg]
 	var syncRequestBuffer : Address -> Set[RequestMsg]
 
@@ -37,7 +37,7 @@ module sync {
 
 	// Auxiliary functions for sending messages
 
-	pure def broadcastStatus(buffer: Address -> Set[SyncStatusMsg], sm: SyncStatusMsg): Address -> Set[SyncStatusMsg] =
+	pure def broadcastStatus(buffer: Address -> Set[StatusMsg], sm: StatusMsg): Address -> Set[StatusMsg] =
 	    buffer.keys().mapBy(x => { ...buffer.get(x).union(Set(sm)) })
 
 	/// put the response message in the buffer of the client
@@ -145,7 +145,7 @@ module sync {
 
 	/// Client v takes a step
 	action syncStepClient(v) = all {
-	    val result = syncClient(syncSystem.get(v))
+	    val result = bsyncClient(bsyncClients.get(v))
 	    all {
 		updateClient(v, result.sync),
 	        syncRequestBuffer' = match result.req {

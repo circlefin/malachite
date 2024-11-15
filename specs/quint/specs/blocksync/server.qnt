@@ -25,7 +25,7 @@ module server {
 	//
 
 	// generate a status message
-	pure def syncStatus (server: Server) : SyncStatusMsg =
+	pure def syncStatus (server: Server) : StatusMsg =
 	    // TODO: perhaps we should add to height to the chain entries to capture non-zero bases
 	    { peer: server.id , base: 0, top: server.chain.length() - 1 }
 

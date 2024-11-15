@@ -1,49 +1,48 @@
 // -*- mode: Bluespec; -*-
-// ****************************************************************************
-// Synchronizer (client side)
-// ****************************************************************************
+//
+// Blocksync protocol: client side.
 
-module client {
+module bsync_client {
 	import blocksync.* from "./blocksync"
 
 	/// The state of the synchronizer
-	type Synchronizer = {
+	type BsyncClient = {
 	    id: Address,
-	    height: Height,
-	    peers: Set[Address],    // MVP: this is going to be the validator set for now
-	                            // so we use addresses. We might use peerID in the future
-	    peerStatus: Address -> SyncStatus,
+
+	    peerStatus: Address -> BlockRange,
 	    openRequests: Set[RequestMsg],
+
+	    height: Height,
 	    lastSyncedHeight: Height,   // "done" if greater than or equal to height
 	                                // TODO: we could add buffers for certificates and values
 	    // inbuffers
-	    statusMsgs: Set[SyncStatusMsg],
-	    responses: Set[ResponseMsg],
+	    statusMsgs: Set[StatusMsg],
+	    responseMsgs: Set[ResponseMsg],
 	}
 
-	type SynchronizerOutput =
+	type BsyncClientOutput =
 	    | SOCertificate(Set[Vote])
 	    | SOBlock(Proposal)
 	    | SONoOutput
 
 	//
-	// Synchronizer functions
+	// BsyncClient functions
 	//
 
 	/// Initialize the synchronizer
-	pure def initSynchronizer(id: Address, peers: Set[Address]) : Synchronizer =
-	    {   id: id,
-	        height: -1,
-	        peers: peers,
+	pure def initBsyncClient(id: Address, peers: Set[Address]) : BsyncClient =
+	    {
+		id: id,
 	        peerStatus: peers.mapBy(x => {base:-1, top:-1}),
 	        openRequests: Set(),
+	        height: -1,
 	        lastSyncedHeight: -1,
 	        statusMsgs: Set(),
-	        responses: Set(),
+	        responseMsgs: Set(),
 	    }
 
 	/// Auxiliary function to iterate over the received status messages
-	pure def updatePeerStatus (ps: Address -> SyncStatus, msgs: Set[SyncStatusMsg]) : Address -> SyncStatus =
+	pure def updatePeerStatus (ps: Address -> BlockRange, msgs: Set[StatusMsg]) : Address -> BlockRange =
 	    msgs.fold(ps, (newStatus , msg) =>
 	        if (newStatus.get(msg.peer).top < msg.top) // TODO: think about base?
 	            newStatus.put(msg.peer, {base: msg.base, top: msg.top})
@@ -52,7 +51,7 @@ module client {
 	    )
 
 	/// inform the synchronizer that consensus has entered height h
-	pure def syncNewHeight (s: Synchronizer, h: Height) : Synchronizer =
+	pure def syncNewHeight (s: BsyncClient, h: Height) : BsyncClient =
 	    if (h <= s.height)
 	        s
 	    else
@@ -61,14 +60,14 @@ module client {
 	/// returned by the synchronizer: sync is the new state, so is the output towards
 	/// the consensus driver, req are messages sent towards peers/servers
 	type ClientResult = {
-	    sync: Synchronizer,
-	    so: SynchronizerOutput,
+	    sync: BsyncClient,
+	    so: BsyncClientOutput,
 	    req: Option[RequestMsg]
 	}
 
 	/// We have received a certificate. now we need to issue the
 	/// corresponding block request  and generate a certificate output.
-	pure def syncHandleCertificate (s: Synchronizer, cert: Set[Vote], peer: str ) : ClientResult =
+	pure def syncHandleCertificate (s: BsyncClient, cert: Set[Vote], peer: str ) : ClientResult =
 	    val blockReq = {    client: s.id,
 	                        server: peer,
 	                        rtype: SyncBlock,
@@ -78,7 +77,7 @@ module client {
 	        req: Some(blockReq)}
 
 	/// we have received a block. now we need to  generate a block output
-	pure def syncHandleBlock (s: Synchronizer, p: Proposal) : ClientResult =
+	pure def syncHandleBlock (s: BsyncClient, p: Proposal) : ClientResult =
 	    {   sync: {...s,    openRequests: Set(), // If we have parallelization we need to remove one element,
 	                        lastSyncedHeight: s.height }, // blockheight,
 	        so: SOBlock(p),
@@ -87,7 +86,7 @@ module client {
 	/// step of a client:
 	/// 1. update peer statuses, 2. if there is no open request, request something
 	/// 3. otherwise check whether we have a response and act accordingly
-	pure def syncClient (s: Synchronizer) : ClientResult =
+	pure def bsyncClient (s: BsyncClient) : ClientResult =
 	    val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
 	    val newS = { ...s, peerStatus: newPeerStates}
 	    if (s.lastSyncedHeight >= s.height)
@@ -96,7 +95,7 @@ module client {
 	            so: SONoOutput,
 	            req: None}
 	    else
-	        val goodPeers = s.peers.filter(p => newPeerStates.get(p).base <= s.height
+	        val goodPeers = s.peerStatus.keys().filter(p => newPeerStates.get(p).base <= s.height
 	                                            and s.height <= newPeerStates.get(p).top )
 	        if (goodPeers.size() > 0)
 	            if (s.openRequests.size() == 0)
@@ -111,8 +110,8 @@ module client {
 	                }
 	            else
 	                // we issued a request before, let's see whether there is a response
-	                if (s.responses.size()> 0)
-	                    val resp = s.responses.fold(emptyResponseMsg, (acc, i) => i) //chooseSome() // in the future there might be parallelization
+	                if (s.responseMsgs.size()> 0)
+	                    val resp = s.responseMsgs.fold(emptyResponseMsg, (acc, i) => i) //chooseSome() // in the future there might be parallelization
 	                    match resp.response {
 	                        | RespBlock(prop) => syncHandleBlock(newS, prop)
 	                        | RespCertificate(cert) => syncHandleCertificate(newS, cert, goodPeers.fold("", (s,x) => x))
@@ -129,39 +128,39 @@ module client {
 	                so: SONoOutput,
 	                req: None}
 
-	// Variables
+	// State machine
 
-	var syncSystem: Address -> Synchronizer
+	var bsyncClients: Address -> BsyncClient
 
 	action initClient(nodes) = all {
-	    syncSystem' = nodes.mapBy(v => initSynchronizer(v, nodes.exclude(Set(v)))),
+	    bsyncClients' = nodes.mapBy(v => initBsyncClient(v, nodes.exclude(Set(v)))),
 	}
 
 	action unchangedClient = all {
-	    syncSystem' = syncSystem,
+	    bsyncClients' = bsyncClients,
 	}
 
 	// workaround to update the client state
 	action updateClient(node, client) = all {
-	    syncSystem' = syncSystem.put(node, client)
+	    bsyncClients' = bsyncClients.put(node, client)
 	}
 
 	action newHeightClient(node, h) = all {
-	    syncSystem' = syncSystem.put(node, syncNewHeight(syncSystem.get(node), h)),
+	    bsyncClients' = bsyncClients.put(node, syncNewHeight(bsyncClients.get(node), h)),
 	}
 
 	// deliver a status message to node
 	action deliverStatus(node, msg) = all {
-	    val client = syncSystem.get(node)
-	    syncSystem' = syncSystem.put(node, {... client,
+	    val client = bsyncClients.get(node)
+	    bsyncClients' = bsyncClients.put(node, {... client,
 	                                statusMsgs: client.statusMsgs.union(Set(msg))}),
 	}
 
 	// deliver a response message to node
 	action deliverResponse(node, msg) = all {
-	    val client = syncSystem.get(node)
-	    syncSystem' = syncSystem.put(node, {... client,
-	                                responses: client.responses.union(Set(msg))}),
+	    val client = bsyncClients.get(node)
+	    bsyncClients' = bsyncClients.put(node, {... client,
+	                                responseMsgs: client.responseMsgs.union(Set(msg))}),
 	}
 
 }

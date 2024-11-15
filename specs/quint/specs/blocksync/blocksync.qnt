@@ -9,13 +9,13 @@ module blocksync {
 	    | Some(a)
 	    | None
 
-	type SyncStatusMsg = {
+	type StatusMsg = {
 	    peer: Address,
 	    base: Height,
 	    top: Height
 	}
 
-	type SyncStatus = {
+	type BlockRange = {
 	    base: Height,
 	    top: Height
 	}
