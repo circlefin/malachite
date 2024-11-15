@@ -1,28 +1,24 @@
 // -*- mode: Bluespec; -*-
-// ****************************************************************************
-// Server
-// ****************************************************************************
+//
+// Blocksync protocol: server side.
 
-module server {
+module bsync_server {
 	import blocksync.* from "./blocksync"
 
 	type Server = {
 	    id: Address,
+
 	    chain: List[BlockStoreEntry],
 
 	    // Incoming requests
-	    inbuffer : Set[RequestMsg]
+	    requestMsgs: Set[RequestMsg]
 	}
 
-	pure def initServer(addr: Address) : Server = {
+	pure def newServer(addr: Address) : Server = {
 		id: addr,
 		chain: List(),
-		inbuffer : Set()
+		requestMsgs: Set()
 	}
-
-	//
-	// Server functions
-	//
 
 	// generate a status message
 	pure def syncStatus (server: Server) : StatusMsg =
@@ -37,8 +33,8 @@ module server {
 
 	// main method: respond to incoming request, if any
 	pure def syncServer (s: Server) : ServerOutput =
-	    if (s.inbuffer.size() > 0)
-	        val m = s.inbuffer.fold(emptyReqMsg, (acc, i) => i) // chooseSome() // TODO: fix
+	    if (s.requestMsgs.size() > 0)
+	        val m = s.requestMsgs.fold(emptyReqMsg, (acc, i) => i) // chooseSome() // TODO: fix
 	        val result =
 	            if (m.height < s.chain.length())
 	                match m.rtype {
@@ -56,9 +52,34 @@ module server {
 	                            Some(bl)
 	                }
 	            else None
-	        {   sync: { ...s, inbuffer: s.inbuffer.exclude(Set(m))},
+	        {   sync: { ...s, requestMsgs: s.requestMsgs.exclude(Set(m))},
 	            msg: result}
 	    else {
 	        sync: s,
 	        msg: None}
+
+	// State machine
+
+	var bsyncServers: Address -> Server
+
+	action initServer(nodes) = all {
+	    bsyncServers' = nodes.mapBy(v => newServer(v)),
+	}
+
+	action unchangedServer = all {
+	    bsyncServers' = bsyncServers,
+	}
+
+	// workaround to update the server state
+	action updateServer(node, server) = all {
+	    bsyncServers' = bsyncServers.put(node, server)
+	}
+
+	// deliver a request message to node
+	action deliverRequest(node, msg) = all {
+	    val server = bsyncServers.get(node)
+	    bsyncServers' = bsyncServers.put(node, {... server,
+	                                requestMsgs: server.requestMsgs.union(Set(msg))}),
+	}
+
 }

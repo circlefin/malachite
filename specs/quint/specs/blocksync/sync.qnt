@@ -15,7 +15,7 @@ module sync {
 	    ).* from "../statemachineAsync"
 
 	import bsync_client.* from "./client"
-	import server.* from "./server"
+	import bsync_server.* from "./server"
 
 	// ****************************************************************************
 	// State machine
@@ -24,8 +24,6 @@ module sync {
 	// The statemachine is put on top of statemachineAsync, that is, we use its
 	// initialization and steps, and add the updates to the variables defined below
 	//
-
-	var serverSystem: Address -> Server
 
 	var statusBuffer : Address -> Set[StatusMsg]
 	var syncResponseBuffer : Address -> Set[ResponseMsg]
@@ -51,17 +49,17 @@ module sync {
 	/// initializing the variables of the sync part of the state machine
 	action syncInit = all {
 	    initClient(validators),
-	    serverSystem' = Correct.mapBy(v => initServer(v)),
+	    initServer(validators),
 	    statusBuffer' = Correct.mapBy(v => Set()),
 	    syncResponseBuffer' = Correct.mapBy (v => Set()),
 	    syncRequestBuffer' = Correct.mapBy(v => Set()),
 	}
 
 	action syncUnchangedAll = all {
-	    serverSystem' = serverSystem,
 	    syncRequestBuffer' = syncRequestBuffer,
 	    statusBuffer' = statusBuffer,
 	    syncResponseBuffer' = syncResponseBuffer,
+	    unchangedServer,
 	    unchangedClient,
 	}
 
@@ -81,8 +79,8 @@ module sync {
 	    newHeightClient(v, h),
 	    statusBuffer' = statusBuffer,
 	    syncResponseBuffer' = syncResponseBuffer,
-	    serverSystem' = serverSystem,
 	    syncRequestBuffer' = syncRequestBuffer,
+	    unchangedServer,
 	}
 
 	/// environment sends the node to the next height.
@@ -96,12 +94,12 @@ module sync {
 	//
 
 	// update the server state given the node blockchain content
-	action updateServer(v, chain) = all {
-	    val s = serverSystem.get(v)
+	action updateServerChain(v, chain) = all {
+	    val s = bsyncServers.get(v)
 	    all {
 	        // FIXME: how much we trust in the equality here?
 	        chain != s.chain,
-	        serverSystem' = serverSystem.put(v, { ...s, chain: chain }),
+	        bsyncServers' = bsyncServers.put(v, { ...s, chain: chain }),
 	    },
 	    all { // Nothing changes here
 	        statusBuffer' = statusBuffer,
@@ -114,10 +112,10 @@ module sync {
 
 	/// Server v announces its status
 	action syncStatusStep(v) = all {
-	    val server = serverSystem.get(v)
+	    val server = bsyncServers.get(v)
 	    val newStatus = server.syncStatus()
 	    all {
-	        serverSystem' = serverSystem.put(v, server),
+		updateServer(v, server),
 	        statusBuffer' = broadcastStatus(statusBuffer, newStatus),
 	        syncResponseBuffer' = syncResponseBuffer,
 	        unchangedClient,
@@ -128,10 +126,10 @@ module sync {
 
 	/// Server v takes a step (checking for requests and responding)
 	action syncStepServer(v) = all {
-	    val server = serverSystem.get(v)
+	    val server = bsyncServers.get(v)
 	    val result = server.syncServer()
 	    all {
-	        serverSystem' = serverSystem.put(v, result.sync),
+		updateServer(v, result.sync),
 	        syncResponseBuffer' = match result.msg {
 	            | Some(m) => syncResponseBuffer.sendResponse(m) // TODO: fix after broadcast
 	            | None => syncResponseBuffer
@@ -156,7 +154,7 @@ module sync {
 	                                                // we need to keep it in stateMachineAsync for now
 	        statusBuffer' = statusBuffer,
 	        syncResponseBuffer' = syncResponseBuffer,
-	        serverSystem' = serverSystem,
+	        unchangedServer,
 	    }
 	}
 
@@ -171,8 +169,7 @@ module sync {
 	    nondet req = syncRequestBuffer.get(v).oneOf()
 	    all {
 	    syncRequestBuffer' = syncRequestBuffer.put(v, syncRequestBuffer.get(v).exclude(Set(req))),
-	    serverSystem' = serverSystem.put(v, {... serverSystem.get(v),
-	                                inbuffer: serverSystem.get(v).inbuffer.union(Set(req))}),
+	    deliverRequest(v, req),
 	    statusBuffer' = statusBuffer,
 	    syncResponseBuffer' = syncResponseBuffer,
 	    unchangedClient,
@@ -188,9 +185,9 @@ module sync {
 	    all {
 		deliverResponse(v, resp),
 	        syncRequestBuffer' = syncRequestBuffer,
-	        serverSystem' = serverSystem,
 	        statusBuffer' = statusBuffer,
 	        syncResponseBuffer' = syncResponseBuffer.put(v, syncResponseBuffer.get(v).exclude(Set(resp))),
+	        unchangedServer,
 	        unchangedAll
 	    }
 	}
@@ -202,9 +199,9 @@ module sync {
 	    all {
 		deliverStatus(v, status),
 	        syncRequestBuffer' = syncRequestBuffer,
-	        serverSystem' = serverSystem,
 	        statusBuffer' = statusBuffer.put(v, statusBuffer.get(v).exclude(Set(status))),
 	        syncResponseBuffer' = syncResponseBuffer,
+	        unchangedServer,
 	        unchangedAll
 	    }
 	}
@@ -227,7 +224,7 @@ module sync {
 	        syncDeliverReq(v),
 	        syncDeliverResp(v),
 	        syncDeliverStatus(v),
-	        updateServer(v, chain),	// update the server with the latest state of the chain
+	        updateServerChain(v, chain),	// update the server with the latest state of the chain
 	        syncStepServer(v),	// looking for a request and sends responses
 	        syncStepClient(v),	// is checking if there are responses and check whether it need to requ
 	        syncStatusStep(v),
@@ -304,7 +301,7 @@ module sync {
 	    initHeight( q::debug ("Height:", heightToReach))
 	    // FIXME: I had to put it here, instead of syncCycle(h)
 	    // This is not ideal, but it works.
-            .then(updateServer("v2", system.get("v2").es.chain))
+            .then(updateServerChain("v2", system.get("v2").es.chain))
 	    .then(heightToReach.reps(i => syncCycle(i)))
 	    .expect(system.get("v4").es.chain == system.get("v2").es.chain)
 	    .then(newHeightActionAll("v4", validatorSet, heightToReach))
