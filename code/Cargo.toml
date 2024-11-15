@@ -80,7 +80,7 @@ malachite-starknet-p2p-types = { version = "0.1.0", path = "crates/starknet/p2p-
 
 # Starknet
 starknet-core   = "0.11.1"
-starknet-crypto = "0.7.1"
+starknet-crypto = "0.7.3"
 
 async-recursion    = "1.1"
 async-trait        = "0.1.83"
