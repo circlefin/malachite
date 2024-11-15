@@ -140,11 +140,6 @@ module bsync_client {
 	    bsyncClients' = bsyncClients,
 	}
 
-	// workaround to update the client state
-	action updateClient(node, client) = all {
-	    bsyncClients' = bsyncClients.put(node, client)
-	}
-
 	action newHeightClient(node, h) = all {
 	    bsyncClients' = bsyncClients.put(node, syncNewHeight(bsyncClients.get(node), h)),
 	}

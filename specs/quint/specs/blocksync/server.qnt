@@ -70,12 +70,7 @@ module bsync_server {
 	    bsyncServers' = bsyncServers,
 	}
 
-	// workaround to update the server state
-	action updateServer(node, server) = all {
-	    bsyncServers' = bsyncServers.put(node, server)
-	}
-
-	// deliver a request message, from requestsBuffer, to node
+	// Deliver a request message, from requestsBuffer, to node
 	action deliverRequest(node) = all {
 	    requestsBuffer.get(node).size() > 0,
 	    val server = bsyncServers.get(node)
@@ -87,6 +82,44 @@ module bsync_server {
 		requestsBuffer' = requestsBuffer.put(node, requestsBuffer.get(node).exclude(Set(msg))),
 		responsesBuffer' = responsesBuffer,
 	   }
+	}
+
+	// Server at node broadcasts its blockchain status
+	action broadcastStatus(node) = all {
+	    val server = bsyncServers.get(node)
+	    val msg = server.syncStatus()
+	    all {
+		bsyncServers' = bsyncServers.put(node, server),
+	        statusBuffer' = broadcastStatusMsg(statusBuffer, msg),
+	        requestsBuffer' = requestsBuffer,
+	        responsesBuffer' = responsesBuffer,
+	    }
+	}
+
+	// Server at node takes a step (checking for requests and responding)
+	action stepServer(node) = all {
+	    val server = bsyncServers.get(node)
+	    val result = server.syncServer()
+	    all {
+		bsyncServers' = bsyncServers.put(node, server),
+	        statusBuffer' = statusBuffer,
+	        requestsBuffer' = requestsBuffer,
+	        responsesBuffer' = match result.msg {
+	            | Some(m) => responsesBuffer.sendResponse(m)
+	            | None => responsesBuffer
+	        },
+	    }
+	}
+
+	// Updates the server status, the latest available blockchain content.
+	// This action must be called by the component that knows the chain.
+	action updateServer(node, chain) = all {
+	    val server = bsyncServers.get(node)
+	    all {
+	        chain != server.chain,
+	        bsyncServers' = bsyncServers.put(node, { ...server, chain: chain }),
+		unchangedBsync,
+	    }
 	}
 
 }

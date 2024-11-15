@@ -25,16 +25,6 @@ module sync {
 	// initialization and steps, and add the updates to the variables defined below
 	//
 
-
-	// ****************************************************************************
-	// State machine
-	// ****************************************************************************
-
-
-	//
-	// Actions
-	//
-
 	/// initializing the variables of the sync part of the state machine
 	action syncInit = all {
 	    initClient(validators),
@@ -76,71 +66,63 @@ module sync {
 	// Actions for process steps in the sync protocol
 	//
 
-	// update the server state given the node blockchain content
-	action updateServerChain(v, chain) = all {
-	    val s = bsyncServers.get(v)
+	// Update server v from the consensus' blockchain
+	action syncUpdateServer(v) = all {
+	    val chain = system.get(v).es.chain
 	    all {
-	        // FIXME: how much we trust in the equality here?
-	        chain != s.chain,
-	        bsyncServers' = bsyncServers.put(v, { ...s, chain: chain }),
-	    },
-	    all { // Nothing changes here
+		updateServer(v, chain),
 	        unchangedClient,
-		unchangedBsync,
 	        unchangedAll,
 	    }
 	}
 
-	/// Server v announces its status
+	// Server v announces its status
 	action syncStatusStep(v) = all {
-	    val server = bsyncServers.get(v)
-	    val newStatus = server.syncStatus()
 	    all {
-		updateServer(v, server),
-	        statusBuffer' = broadcastStatus(statusBuffer, newStatus),
-	        responsesBuffer' = responsesBuffer,
+		broadcastStatus(v),
 	        unchangedClient,
-	        requestsBuffer' = requestsBuffer,
 	        unchangedAll,
 	    }
 	}
 
-	/// Server v takes a step (checking for requests and responding)
+	// Server v takes a step (checking for requests and responding)
 	action syncStepServer(v) = all {
-	    val server = bsyncServers.get(v)
-	    val result = server.syncServer()
 	    all {
-		updateServer(v, result.sync),
-	        responsesBuffer' = match result.msg {
-	            | Some(m) => responsesBuffer.sendResponse(m) // TODO: fix after broadcast
-	            | None => responsesBuffer
-	        },
+		stepServer(v),
 	        unchangedClient,
-	        requestsBuffer' = requestsBuffer,
-	        statusBuffer' = statusBuffer,
 	        unchangedAll,
 	    }
 	}
 
-	/// Client v takes a step
+	// Client v takes a step
+	//
+	// FIXME: here we need to apply the client output to the consensus
+	// state machine. Refactoring this method is much more complex.
+	//
 	action syncStepClient(v) = all {
 	    val result = bsyncClient(bsyncClients.get(v))
 	    all {
-		updateClient(v, result.sync),
+		// TODO: this block should be implmented in client.qnt
+		bsyncClients' = bsyncClients.put(v, result.sync),
+	        statusBuffer' = statusBuffer,
 	        requestsBuffer' = match result.req {
 	            | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
 	            | None => requestsBuffer
 	        },
-	        putSyncOutputIntoNode(v, result.so),    // the logic's code should be here, but due to Quint issues
-	                                                // we need to keep it in stateMachineAsync for now
-	        statusBuffer' = statusBuffer,
 	        responsesBuffer' = responsesBuffer,
+
 	        unchangedServer,
+
+		// This is the part that interacts with the consensus state
+		// machine. Moreover, the logic's code should be here, but due
+		// to Quint issues we need to keep it in stateMachineAsync.
+	        putSyncOutputIntoNode(v, result.so),
 	    }
 	}
 
 	//
 	// Actions for the environment to deliver messages in the sync protocol
+	// Implemented by the blocksync server or client.
 	//
 
 	// deliver a status message to client v
@@ -150,13 +132,6 @@ module sync {
 	   unchangedAll
 	}
 
-	// deliver a request to server v
-	action syncDeliverReq(v) =  all {
-	    deliverRequest(v),
-	    unchangedClient,
-	    unchangedAll
-	}
-
 	// deliver a response to client v
 	action syncDeliverResp(v) =  all {
 	    deliverResponse(v),
@@ -164,8 +139,18 @@ module sync {
 	    unchangedAll
 	}
 
+	// deliver a request to server v
+	action syncDeliverReq(v) =  all {
+	    deliverRequest(v),
+	    unchangedClient,
+	    unchangedAll
+	}
 
-	/// validator step in the system with sync protocol
+	//
+	// Complex actions for a validator: consensus and blocksync
+	//
+
+	// validator step in the system with sync protocol
 	action syncValStep(v) = all {
 	    valStep(v),
 	    syncUnchangedAll
@@ -178,12 +163,11 @@ module sync {
 	        syncUnchangedAll
 	    },
 	    nondet v = oneOf(Correct)
-	    val chain = system.get(v).es.chain
 	    any {
 	        syncDeliverReq(v),
 	        syncDeliverResp(v),
 	        syncDeliverStatus(v),
-	        updateServerChain(v, chain),	// update the server with the latest state of the chain
+	        syncUpdateServer(v),	// update the server with the latest state of the chain
 	        syncStepServer(v),	// looking for a request and sends responses
 	        syncStepClient(v),	// is checking if there are responses and check whether it need to requ
 	        syncStatusStep(v),
@@ -260,7 +244,7 @@ module sync {
 	    initHeight( q::debug ("Height:", heightToReach))
 	    // FIXME: I had to put it here, instead of syncCycle(h)
 	    // This is not ideal, but it works.
-            .then(updateServerChain("v2", system.get("v2").es.chain))
+            .then(syncUpdateServer("v2"))
 	    .then(heightToReach.reps(i => syncCycle(i)))
 	    .expect(system.get("v4").es.chain == system.get("v2").es.chain)
 	    .then(newHeightActionAll("v4", validatorSet, heightToReach))
