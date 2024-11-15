@@ -25,22 +25,11 @@ module sync {
 	// initialization and steps, and add the updates to the variables defined below
 	//
 
-	var statusBuffer : Address -> Set[StatusMsg]
-	var syncResponseBuffer : Address -> Set[ResponseMsg]
-	var syncRequestBuffer : Address -> Set[RequestMsg]
 
 	// ****************************************************************************
 	// State machine
 	// ****************************************************************************
 
-	// Auxiliary functions for sending messages
-
-	pure def broadcastStatus(buffer: Address -> Set[StatusMsg], sm: StatusMsg): Address -> Set[StatusMsg] =
-	    buffer.keys().mapBy(x => { ...buffer.get(x).union(Set(sm)) })
-
-	/// put the response message in the buffer of the client
-	pure def sendResponse(buffer: Address -> Set[ResponseMsg], m: ResponseMsg): Address -> Set[ResponseMsg] =
-	    buffer.put(m.client, { ...buffer.get(m.client).union(Set(m)) })
 
 	//
 	// Actions
@@ -50,17 +39,13 @@ module sync {
 	action syncInit = all {
 	    initClient(validators),
 	    initServer(validators),
-	    statusBuffer' = Correct.mapBy(v => Set()),
-	    syncResponseBuffer' = Correct.mapBy (v => Set()),
-	    syncRequestBuffer' = Correct.mapBy(v => Set()),
+	    initBsync(validators),
 	}
 
 	action syncUnchangedAll = all {
-	    syncRequestBuffer' = syncRequestBuffer,
-	    statusBuffer' = statusBuffer,
-	    syncResponseBuffer' = syncResponseBuffer,
 	    unchangedServer,
 	    unchangedClient,
+	    unchangedBsync,
 	}
 
 	/// initialize consensus and synchronizer
@@ -77,9 +62,7 @@ module sync {
 	/// initializes synchronizer
 	action newHeightActionSync(v, valset, h) = all {
 	    newHeightClient(v, h),
-	    statusBuffer' = statusBuffer,
-	    syncResponseBuffer' = syncResponseBuffer,
-	    syncRequestBuffer' = syncRequestBuffer,
+	    unchangedBsync,
 	    unchangedServer,
 	}
 
@@ -102,10 +85,8 @@ module sync {
 	        bsyncServers' = bsyncServers.put(v, { ...s, chain: chain }),
 	    },
 	    all { // Nothing changes here
-	        statusBuffer' = statusBuffer,
-	        syncResponseBuffer' = syncResponseBuffer,
 	        unchangedClient,
-	        syncRequestBuffer' = syncRequestBuffer,
+		unchangedBsync,
 	        unchangedAll,
 	    }
 	}
@@ -117,9 +98,9 @@ module sync {
 	    all {
 		updateServer(v, server),
 	        statusBuffer' = broadcastStatus(statusBuffer, newStatus),
-	        syncResponseBuffer' = syncResponseBuffer,
+	        responsesBuffer' = responsesBuffer,
 	        unchangedClient,
-	        syncRequestBuffer' = syncRequestBuffer,
+	        requestsBuffer' = requestsBuffer,
 	        unchangedAll,
 	    }
 	}
@@ -130,12 +111,12 @@ module sync {
 	    val result = server.syncServer()
 	    all {
 		updateServer(v, result.sync),
-	        syncResponseBuffer' = match result.msg {
-	            | Some(m) => syncResponseBuffer.sendResponse(m) // TODO: fix after broadcast
-	            | None => syncResponseBuffer
+	        responsesBuffer' = match result.msg {
+	            | Some(m) => responsesBuffer.sendResponse(m) // TODO: fix after broadcast
+	            | None => responsesBuffer
 	        },
 	        unchangedClient,
-	        syncRequestBuffer' = syncRequestBuffer,
+	        requestsBuffer' = requestsBuffer,
 	        statusBuffer' = statusBuffer,
 	        unchangedAll,
 	    }
@@ -146,14 +127,14 @@ module sync {
 	    val result = bsyncClient(bsyncClients.get(v))
 	    all {
 		updateClient(v, result.sync),
-	        syncRequestBuffer' = match result.req {
-	            | Some(m) => syncRequestBuffer.put(m.server, syncRequestBuffer.get(m.server).union(Set(m)))
-	            | None => syncRequestBuffer
+	        requestsBuffer' = match result.req {
+	            | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
+	            | None => requestsBuffer
 	        },
 	        putSyncOutputIntoNode(v, result.so),    // the logic's code should be here, but due to Quint issues
 	                                                // we need to keep it in stateMachineAsync for now
 	        statusBuffer' = statusBuffer,
-	        syncResponseBuffer' = syncResponseBuffer,
+	        responsesBuffer' = responsesBuffer,
 	        unchangedServer,
 	    }
 	}
@@ -162,49 +143,27 @@ module sync {
 	// Actions for the environment to deliver messages in the sync protocol
 	//
 
-	/// deliver a request to server v
-	/// remove the request from the syncRequestBuffer and add it to the server's inbuffer.
+	// deliver a status message to client v
+	action syncDeliverStatus(v) =  all {
+	   deliverStatus(v),
+	   unchangedServer,
+	   unchangedAll
+	}
+
+	// deliver a request to server v
 	action syncDeliverReq(v) =  all {
-	    syncRequestBuffer.get(v).size() > 0,
-	    nondet req = syncRequestBuffer.get(v).oneOf()
-	    all {
-	    syncRequestBuffer' = syncRequestBuffer.put(v, syncRequestBuffer.get(v).exclude(Set(req))),
-	    deliverRequest(v, req),
-	    statusBuffer' = statusBuffer,
-	    syncResponseBuffer' = syncResponseBuffer,
+	    deliverRequest(v),
 	    unchangedClient,
 	    unchangedAll
-	    }
 	}
 
-	/// deliver a response to client v
-	/// remove the response from the syncResponseBuffer and add it to the client's responses buffer.
+	// deliver a response to client v
 	action syncDeliverResp(v) =  all {
-	    syncResponseBuffer.get(v).size() > 0,
-	    nondet resp = syncResponseBuffer.get(v).oneOf()
-	    all {
-		deliverResponse(v, resp),
-	        syncRequestBuffer' = syncRequestBuffer,
-	        statusBuffer' = statusBuffer,
-	        syncResponseBuffer' = syncResponseBuffer.put(v, syncResponseBuffer.get(v).exclude(Set(resp))),
-	        unchangedServer,
-	        unchangedAll
-	    }
+	    deliverResponse(v),
+	    unchangedServer,
+	    unchangedAll
 	}
 
-	/// deliver a status message to client v
-	action syncDeliverStatus(v) =  all {
-	    statusBuffer.get(v).size() > 0,
-	    nondet status = statusBuffer.get(v).oneOf()
-	    all {
-		deliverStatus(v, status),
-	        syncRequestBuffer' = syncRequestBuffer,
-	        statusBuffer' = statusBuffer.put(v, statusBuffer.get(v).exclude(Set(status))),
-	        syncResponseBuffer' = syncResponseBuffer,
-	        unchangedServer,
-	        unchangedAll
-	    }
-	}
 
 	/// validator step in the system with sync protocol
 	action syncValStep(v) = all {

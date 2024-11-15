@@ -149,18 +149,32 @@ module bsync_client {
 	    bsyncClients' = bsyncClients.put(node, syncNewHeight(bsyncClients.get(node), h)),
 	}
 
-	// deliver a status message to node
-	action deliverStatus(node, msg) = all {
+	// deliver a status message, from the statusBuffer, to node
+	action deliverStatus(node) = all {
+	    statusBuffer.get(node).size() > 0,
 	    val client = bsyncClients.get(node)
-	    bsyncClients' = bsyncClients.put(node, {... client,
+	    nondet msg = statusBuffer.get(node).oneOf()
+	    all {
+		bsyncClients' = bsyncClients.put(node, {... client,
 	                                statusMsgs: client.statusMsgs.union(Set(msg))}),
+	        statusBuffer' = statusBuffer.put(node, statusBuffer.get(node).exclude(Set(msg))),
+	        requestsBuffer' = requestsBuffer,
+	        responsesBuffer' = responsesBuffer,
+	    }
 	}
 
-	// deliver a response message to node
-	action deliverResponse(node, msg) = all {
+	// deliver a response message, from responsesBuffer, to node
+	action deliverResponse(node) = all {
+	    responsesBuffer.get(node).size() > 0,
 	    val client = bsyncClients.get(node)
-	    bsyncClients' = bsyncClients.put(node, {... client,
+	    nondet msg = responsesBuffer.get(node).oneOf()
+	    all {
+		bsyncClients' = bsyncClients.put(node, {... client,
 	                                responseMsgs: client.responseMsgs.union(Set(msg))}),
+	        requestsBuffer' = requestsBuffer,
+	        responsesBuffer' = responsesBuffer.put(node, responsesBuffer.get(node).exclude(Set(msg))),
+	        statusBuffer' = statusBuffer,
+	    }
 	}
 
 }

@@ -75,11 +75,18 @@ module bsync_server {
 	    bsyncServers' = bsyncServers.put(node, server)
 	}
 
-	// deliver a request message to node
-	action deliverRequest(node, msg) = all {
+	// deliver a request message, from requestsBuffer, to node
+	action deliverRequest(node) = all {
+	    requestsBuffer.get(node).size() > 0,
 	    val server = bsyncServers.get(node)
-	    bsyncServers' = bsyncServers.put(node, {... server,
+	    nondet msg = requestsBuffer.get(node).oneOf()
+	    all {
+		bsyncServers' = bsyncServers.put(node, {... server,
 	                                requestMsgs: server.requestMsgs.union(Set(msg))}),
+		statusBuffer' = statusBuffer,
+		requestsBuffer' = requestsBuffer.put(node, requestsBuffer.get(node).exclude(Set(msg))),
+		responsesBuffer' = responsesBuffer,
+	   }
 	}
 
 }
