@@ -21,6 +21,7 @@ module types {
             | Val(v) => v
             | Nil => "getVal error" // this should not happen
         }
+
     pure def isValid(value: NonNilValue): bool =
         // for simulation, if the value is "invalid", so is the proposal
         // if this is to become "non-deterministic", we must push it
@@ -83,5 +84,11 @@ module types {
         | Polka(Set[Vote])
         | Commit(Set[Vote])
 
+
+    // Committed blocks store
+    type BlockStoreEntry = {
+        decision: Proposal,
+        commit: Set[Vote]
+    }
 
 }

@@ -17,6 +17,7 @@
 module statemachineAsync {
 
 import types.* from "./types"
+export types.*
 import driver.* from "./driver"
 export driver.* 
 import consensus.* from "./consensus"
@@ -54,6 +55,8 @@ var certBuffer : Address -> Set[Set[Vote]]
 var voteBuffer : Address -> Set[Vote]
 var _hist: { validator: Address, input: DriverInput, output: ConsensusOutput }
 
+
+
 action unchangedAll = all {
     system' = system,
     propBuffer' = propBuffer,
@@ -69,12 +72,14 @@ val AgreementInv = tuples(Correct, Correct).forall(p =>
 
 // Actions
 action init = all {
-    system' = Correct.mapBy(v => initNode(v, validatorSet)),
+    system' = Correct.mapBy(v => initNode(v, validatorSet, 0)),
     propBuffer' = Correct.mapBy(v => Set()),
     voteBuffer' = Correct.mapBy(v => Set()),
     certBuffer' = Correct.mapBy(v => Set()),
     _hist' = { validator: "INIT", input: NoDInput, output: NoConsensusOutput }
 }
+
+
 
 // Put the proposal into the buffers of all validators
 pure def sendProposal(buffer: Address -> Set[Proposal], prop: Proposal): Address -> Set[Proposal] =
@@ -212,7 +217,8 @@ action deliverCertificate(v: Address, c: Set[Vote]) : bool = all {
     voteBuffer' = voteBuffer, 
 }
 
-action deliverSomeCertificate(v: Address) : bool = any {
+action deliverSomeCertificate(v: Address) : bool = all {
+    certBuffer.get(v).size() > 0,
     nondet c = oneOf(certBuffer.get(v))
     deliverCertificate(v, c)
 }
@@ -240,5 +246,35 @@ action step = {
     }
 }
 
+/// environment sends the node to the next height.
+/// checks that we have all the previous blocks in the store.
+action newHeightAction(v, valset, h) = all {
+    system.get(v).es.chain.length() >= system.get(v).es.cs.height,
+    val ns = system.get(v).with("es", initDriver(v, valset, h, system.get(v).es.chain))
+    system' = system.put(v, ns), 
+    _hist' = _hist,
+    propBuffer' = propBuffer,
+    voteBuffer' = voteBuffer,
+    certBuffer' = certBuffer,
+}
+
+/// retreat workaround. TODO: check with Gabriela about Quint flattening
+/// the code should be situation in sync.qnt at action syncStepClient(v)
+action putSyncOutputIntoNode(v, syncOut) = all{
+        system' = match syncOut {
+            // Put the sync output into the consensus engine
+            | SOCertificate(cert) => system.put(v, {... system.get(v), 
+                    incomingSyncCertificates: 
+                        system.get(v).incomingSyncCertificates.union(Set(cert))})
+            | SOBlock(prop) => system.put(v, {... system.get(v), 
+                    incomingSyncProposals: 
+                        system.get(v).incomingSyncProposals.union(Set(prop))})
+            | SONoOutput => system
+        },
+        propBuffer' = propBuffer,
+        voteBuffer' = voteBuffer,
+        certBuffer' = certBuffer,
+        _hist' = _hist,
+}
 
 }

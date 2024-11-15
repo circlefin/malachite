@@ -6,7 +6,7 @@ module driver {
     import types.* from "./types"
     import consensus.* from "./consensus"
     import votekeeper.* from "./votekeeper"
-
+    
     // *************************************************************************
     // State
     // *************************************************************************
@@ -21,13 +21,13 @@ module driver {
         pendingStepChange: Step, // NoStep if last consensus call did not change the step
         started: bool,
         voteKeeperOutput: VoteKeeperOutput,
-        chain: List[{decision: NonNilValue, commit: Set[Vote]}],
+        chain: List[BlockStoreEntry],
         certificates: Set[Certificate], // we store Polkas and Commits we have seen
     }
 
-    pure def initDriver(v: Address, vs: ValidatorSet): DriverState = {
-        bk: initBookKeeper(0, vs),
-        cs: initConsensusState(v, 0),
+    pure def initDriver(v: Address, vs: ValidatorSet, h: Height, chain: List[BlockStoreEntry]): DriverState = {
+        bk: initBookKeeper(h, vs),
+        cs: initConsensusState(v, h),
         proposals: Set(),
         valset: vs,
         executedInputs: List(),
@@ -35,7 +35,7 @@ module driver {
         pendingStepChange: NoStep,
         started: false,
         voteKeeperOutput: NoVKOutput,
-        chain: List(),
+        chain: chain,
         certificates: Set(),
     }
 
@@ -312,7 +312,12 @@ module driver {
             | _ => Set() // This cannot happen
         }
         val v = rv._2
-        val dc = {decision: v, commit: commit}
+        val prop = es.proposals.filter(p => and {   p.height == es.cs.height,
+                                                    p.round == rv._1,
+                                                    p.proposal == rv._2}
+        ).fold(emptyProposal, (acc, i) => i) //chooseSome(),
+        val dc = {decision: prop, commit: commit}
+        // TODO: store proposal in chain instead of value
         toDriverOutput({ ...es, chain: es.chain.append(dc) }, res, c)
 
     // take input out of pending inputs and then call consensus with that input
@@ -407,16 +412,21 @@ module driver {
         incomingVotes: Set[Vote],
         incomingProposals: Set[Proposal],
         incomingCertificates: Set[Set[Vote]],
+        // buffers for sync protocol. We separate them from non-sync buffers to model that they have higher priority
+        incomingSyncProposals: Set[Proposal],
+        incomingSyncCertificates: Set[Set[Vote]],
         getValueRequests: Set[(Height, Round)],
         nextValueToPropose: Value, 
     }
 
-    pure def initNode(v: Address, vs: Address -> Weight): NodeState = {
-        es: initDriver(v,vs),
+    pure def initNode(v: Address, vs: Address -> Weight, height: Height): NodeState = {
+        es: initDriver(v, vs, height, List()),
         timeouts: Set(),
         incomingVotes: Set(),
         incomingProposals: Set(),
         incomingCertificates: Set(),
+        incomingSyncProposals: Set(),
+        incomingSyncCertificates: Set(),
         getValueRequests: Set(),
         nextValueToPropose: Nil, 
     }
@@ -440,8 +450,28 @@ module driver {
     // currently this is linked in via the state machine. But we can move it into
     // the functional layer
     pure def nextAction(state: NodeState): (NodeState, DriverInput) =
+        val proposalsForCurrentHeight = state.incomingProposals.filter(p => p.height == state.es.cs.height)
+        val votesForCurrentHeight = state.incomingVotes.filter(v => v.height == state.es.cs.height)
+        // take only certificates with consistent height
+        val certificatesForCurrentHeight = state.incomingCertificates.filter(cert => cert.forall(v => v.height == state.es.cs.height))
+        val syncCertificatesForCurrentHeight = state.incomingSyncCertificates.filter(cert => cert.forall(v => v.height == state.es.cs.height))
+        val syncProposalsForCurrentHeight = state.incomingSyncProposals.filter(p => p.height == state.es.cs.height)
+
         if (not(state.es.started))
             (state, StartDInput)
+
+        else if (syncCertificatesForCurrentHeight != Set())
+            // val cert = syncCertificatesForCurrentHeight.chooseSome()
+            val cert = syncCertificatesForCurrentHeight.fold (Set(), (sum, y) => y)
+            val newstate = { ...state, incomingSyncCertificates: state.incomingSyncCertificates.exclude(Set(cert))}
+            (newstate, CertificateDInput(cert))
+
+        else if (syncProposalsForCurrentHeight != Set())
+            // pick proposal, remove it from incoming
+            // val prop = syncProposalsForCurrentHeight.chooseSome()
+            val prop = syncProposalsForCurrentHeight.fold (emptyProposal, (sum, y) => y)
+            val newstate = { ...state, incomingSyncProposals: state.incomingSyncProposals.exclude(Set(prop))}
+            (newstate, ProposalDInput(prop))
 
         // This is hard-coded right now. I remove the request when served
         // also this prevents the StepChangeDInput for the proposer of a new round
@@ -460,23 +490,24 @@ module driver {
             // this might be cheating as we look into the "es"
             (state, PendingDInput(input_height_round._1))
 
-        else if (state.incomingCertificates != Set())
-            // val cert = state.incomingCertificates.chooseSome()
-            val cert = state.incomingCertificates.fold (Set(), (sum, y) => y)
+        else if (certificatesForCurrentHeight != Set())
+            // val cert = certificatesForCurrentHeight.chooseSome()
+            val cert = certificatesForCurrentHeight.fold (Set(), (sum, y) => y)
             val newstate = { ...state, incomingCertificates: state.incomingCertificates.exclude(Set(cert))}
             (newstate, CertificateDInput(cert))
 
-        else if (state.incomingProposals != Set())
+        else if (proposalsForCurrentHeight != Set())
             // pick proposal, remove it from incoming
-            // val prop = state.incomingProposals.chooseSome()
-            val prop = state.incomingProposals.fold (emptyProposal, (sum, y) => y)
+            // val prop = proposalsForCurrentHeight.chooseSome()
+            val prop = proposalsForCurrentHeight.fold (emptyProposal, (sum, y) => y)
             val newstate = { ...state, incomingProposals: state.incomingProposals.exclude(Set(prop))}
             (newstate, ProposalDInput(prop))
 
-        else if (state.incomingVotes != Set())
+        else if (votesForCurrentHeight != Set())
             // pick vote, remove it from incoming
-            // val vote = state.incomingVotes.chooseSome()
-            val vote = state.incomingVotes.fold(emptyVote, (sum, y) => y)
+            // val vote = votesForCurrentHeight.chooseSome()
+            // TODO: only take votes for the current round.
+            val vote = votesForCurrentHeight.fold(emptyVote, (sum, y) => y)
             val newstate = { ...state, incomingVotes: state.incomingVotes.exclude(Set(vote))}
             (newstate, VoteDInput(vote))
 
@@ -497,6 +528,12 @@ module driver {
 
     // This function can be used to control test runs better.
     pure def nextActionCommand(state: NodeState, command: Command): (NodeState, DriverInput) =
+        val proposalsForCurrentHeight = state.incomingProposals.filter(p => p.height == state.es.cs.height)
+        val votesForCurrentHeight = state.incomingVotes.filter(v => v.height == state.es.cs.height)
+        // take only certificates with consistent height
+        val certificatesForCurrentHeight = state.incomingCertificates.filter(cert => cert.forall(v => v.height == state.es.cs.height))
+        val syncCertificatesForCurrentHeight = state.incomingSyncCertificates.filter(cert => cert.forall(v => v.height == state.es.cs.height))
+        val syncProposalsForCurrentHeight = state.incomingSyncProposals.filter(p => p.height == state.es.cs.height)
         if (command == StartCmd and not(state.es.started))
             (state, StartDInput)
 
@@ -512,23 +549,23 @@ module driver {
             // this might be cheating as we look into the "es"
             (state, PendingDInput(input_height_round._1))
 
-        else if (command == ProposalCmd and state.incomingProposals != Set())
+        else if (command == ProposalCmd and proposalsForCurrentHeight != Set())
             // pick proposal, remove it from incoming
-            // val prop = state.incomingProposals.chooseSome()
-            val prop = state.incomingProposals.fold (emptyProposal, (sum, y) => y)
+            // val prop = proposalsForCurrentHeight.chooseSome()
+            val prop = proposalsForCurrentHeight.fold (emptyProposal, (sum, y) => y)
             val newstate = { ...state, incomingProposals: state.incomingProposals.exclude(Set(prop))}
             (newstate, ProposalDInput(prop))
 
-        else if (command == VoteCmd and state.incomingVotes != Set())
+        else if (command == VoteCmd and votesForCurrentHeight != Set())
             // pick vote, remove it from incoming
-            // val vote = state.incomingVotes.chooseSome()
-            val vote = state.incomingVotes.fold(emptyVote, (sum, y) => y)
+            // val vote = votesForCurrentHeight.chooseSome()
+            val vote = votesForCurrentHeight.fold(emptyVote, (sum, y) => y)
             val newstate = { ...state, incomingVotes: state.incomingVotes.exclude(Set(vote))}
             (newstate, VoteDInput(vote))
 
-        else if (command == CertificateCmd and state.incomingCertificates != Set())
+        else if (command == CertificateCmd and certificatesForCurrentHeight != Set())
             // val cert = state.incomingCertificates.chooseSome()
-            val cert = state.incomingCertificates.fold (Set(), (sum, y) => y)
+            val cert = certificatesForCurrentHeight.fold (Set(), (sum, y) => y)
             val newstate = { ...state, incomingCertificates: state.incomingCertificates.exclude(Set(cert))}
             (newstate, CertificateDInput(cert))
             
