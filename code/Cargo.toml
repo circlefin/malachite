@@ -131,7 +131,7 @@ signature          = "2.2.0"
 tempfile           = "3.13.0"
 thiserror          = { version = "2.0", default-features = false }
 time               = "0.3"
-tokio              = "1.41.0"
+tokio              = "1.41.1"
 tokio-stream       = "0.1"
 toml               = "0.8.19"
 tikv-jemallocator  = "0.6.0"
