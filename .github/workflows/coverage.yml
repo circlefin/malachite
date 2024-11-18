@@ -43,6 +43,8 @@ jobs:
         with:
           toolchain: nightly
           components: llvm-tools-preview
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
