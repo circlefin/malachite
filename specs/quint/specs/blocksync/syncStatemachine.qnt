@@ -84,9 +84,9 @@ module syncStatemachine {
 	    unchangedClient,
 	}
 
-	/// any blocksync steo independent of consensus. unchange is an action
+	/// any blocksync step independent of consensus. unchange is an action
 	/// that can be used for composition
-	action syncStepNode (v, unchange) = all {
+	action pureSyncStep (v, unchange) = all {
 		any {
 			syncDeliverReq(v),
 			syncDeliverResp(v),
@@ -98,6 +98,18 @@ module syncStatemachine {
   }
 
 
+	// Client v takes a step
+	action syncStepClient(v, outputAction) = all {
+	    val result = bsyncClient(bsyncClients.get(v))
+	    all {
+					// updates the blocksync state
+					applyClientUpdate(v, result),
+					// This is the part that interacts with the consensus.
+					// It can be the driver or the mocked consensus logic.
+	        outputAction(v, result.so), 
+	        unchangedServer,
+	    }
+	}
 
 
 

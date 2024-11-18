@@ -174,4 +174,14 @@ module bsync_client {
 	    }
 	}
 
+	action applyClientUpdate(v, result) = all {
+		bsyncClients' = bsyncClients.put(v, result.sync),
+	  statusBuffer' = statusBuffer,
+	  requestsBuffer' = match result.req {
+	  	| Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
+	    | None => requestsBuffer
+	  },
+	  responsesBuffer' = responsesBuffer,
+	}
+
 }

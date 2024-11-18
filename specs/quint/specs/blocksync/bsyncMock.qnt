@@ -1,10 +1,10 @@
 // -*- mode: Bluespec; -*-
 
 module bsyncMock {
-  import blocksync.* from "./blocksync"
-	import bsync_client.* from "./client"
-	import bsync_server.* from "./server"
 
+  import blocksync.* from "./blocksync"
+  import bsync_client.* from "./client"
+  import bsync_server.* from "./server"
   import syncStatemachine.* from "./syncStatemachine"
 
   val validators = Set("v1", "v2", "v3", "v4")
@@ -20,7 +20,6 @@ module bsyncMock {
 
 	/// initialize consensus and synchronizer
 	action initMockedConsensus = all {
-	    // todo
       outputs' = [],
       chains' = Correct.mapBy(_ => []),
 	    syncInit(validators)
@@ -56,44 +55,20 @@ module bsyncMock {
 	    }
 	}
 
-	// Client v takes a step
-	//
-	// FIXME: here we need to apply the client output to the consensus
-	// state machine. Refactoring this method is much more complex.
-	//
-	action syncStepClient(v, outputAction) = all {
-	    val result = bsyncClient(bsyncClients.get(v))
-	    all {
-					// TODO: this block should be implemented in client.qnt
-					bsyncClients' = bsyncClients.put(v, result.sync),
-	        statusBuffer' = statusBuffer,
-	        requestsBuffer' = match result.req {
-	            | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
-	            | None => requestsBuffer
-	        },
-	        responsesBuffer' = responsesBuffer,
-
-	        unchangedServer,
-
-					// This is the part that interacts with the consensus state
-					// machine. Moreover, the logic's code should be here, but due
-					// to Quint issues we need to keep it in stateMachineAsync.
-	        outputAction(v, result.so),
-	    }
-	}
 
   action writeAction(v, so) = all {
     outputs' = outputs.append({v: v, out: so}),
     chains' = chains,
   }
 
+    
+
   action mockStep(v, act) = all {
     act(v),
     unchangedMock
   }
 
-  action mockStepClient(v) =
-    syncStepClient(v, writeAction)
+
 
   /// For simple repl evaluation
 	action bsyncStep (v, act) = all {
@@ -102,15 +77,13 @@ module bsyncMock {
 	}
 
 
-
-
 	/// main step function: either a consensus state-machine step or a sync protocol step
 	action stepMockedConsensus =
     nondet v = oneOf(Correct)
     any{
-			syncStepNode(v, unchangedMock),
+			pureSyncStep(v, unchangedMock),
 			// consensus-specific steps
-			mockStepClient(v),	// is checking if there are responses and check whether it need to requ
+			syncStepClient(v, writeAction),	// is checking if there are responses and check whether it need to requ
 			mockUpdateServer(v),
       newHeightActionAll(v, validators, chains.get(v).length()),
       decideMock(v),

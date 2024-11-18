@@ -39,31 +39,7 @@ module bsyncWithConsensus {
 	    }
 	}
 
-	// Client v takes a step
-	//
-	// FIXME: here we need to apply the client output to the consensus
-	// state machine. Refactoring this method is much more complex.
-	//
-	action syncStepClient(v, outputAction) = all {
-	    val result = bsyncClient(bsyncClients.get(v))
-	    all {
-					// TODO: this block should be implemented in client.qnt
-					bsyncClients' = bsyncClients.put(v, result.sync),
-	        statusBuffer' = statusBuffer,
-	        requestsBuffer' = match result.req {
-	            | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
-	            | None => requestsBuffer
-	        },
-	        responsesBuffer' = responsesBuffer,
 
-	        unchangedServer,
-
-					// This is the part that interacts with the consensus state
-					// machine. Moreover, the logic's code should be here, but due
-					// to Quint issues we need to keep it in stateMachineAsync.
-	        outputAction(v, result.so),
-	    }
-	}
 
 
 
@@ -87,7 +63,7 @@ module bsyncWithConsensus {
 			any {
 	    	all{
 					unchangedAll,
-					syncStepNode(v, unchangedAll)
+					pureSyncStep(v, unchangedAll)
 				},
 				syncStepClient(v, putSyncOutputIntoNode),	// is checking if there are responses and check whether it need to requ
 				syncUpdateServer(v),
@@ -146,8 +122,8 @@ module bsyncWithConsensus {
 
 	action syncStep =
 		nondet v = oneOf(Correct)
-		syncStepNode(v, unchangedAll)
-
+		pureSyncStep(v, unchangedAll)
+	
 
 
 	/// a simple scenario where v4 starts height h
