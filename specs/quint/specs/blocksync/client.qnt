@@ -83,6 +83,7 @@ module bsync_client {
 	        so: SOBlock(p),
 	        req: None}
 
+
 	/// step of a client:
 	/// 1. update peer statuses, 2. if there is no open request, request something
 	/// 3. otherwise check whether we have a response and act accordingly
@@ -128,6 +129,27 @@ module bsync_client {
 	                so: SONoOutput,
 	                req: None}
 
+
+	/// step of a client upon timeout: We send the same request to a diffenerent server
+	// TODO: what to do if goodPeers is empty?
+	pure def bsyncTimeout(s: BsyncClient, toMsg: RequestMsg) : ClientResult =
+	    val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
+	    
+		  val goodPeers = s.peerStatus.keys().filter(p => newPeerStates.get(p).base <= s.height
+	                                            and s.height <= newPeerStates.get(p).top ).
+																							exclude(Set(toMsg.server))		
+			val req = {... toMsg, server: goodPeers.fold("", (acc, i) => i)}		
+			val newS = { ...s,	peerStatus: newPeerStates,
+													openRequests: s.openRequests.exclude(Set(toMsg))
+																											.union(Set(req))}								
+	        {   sync: newS,
+	            so: SONoOutput,
+	            req: Some(req)}
+
+
+
+
+
 	// State machine
 
 	var bsyncClients: Address -> BsyncClient
@@ -150,7 +172,7 @@ module bsync_client {
 	    val client = bsyncClients.get(node)
 	    nondet msg = statusBuffer.get(node).oneOf()
 	    all {
-		bsyncClients' = bsyncClients.put(node, {... client,
+					bsyncClients' = bsyncClients.put(node, {... client,
 	                                statusMsgs: client.statusMsgs.union(Set(msg))}),
 	        statusBuffer' = statusBuffer.put(node, statusBuffer.get(node).exclude(Set(msg))),
 	        requestsBuffer' = requestsBuffer,
@@ -164,12 +186,27 @@ module bsync_client {
 	    val client = bsyncClients.get(node)
 	    nondet msg = responsesBuffer.get(node).oneOf()
 	    all {
-		bsyncClients' = bsyncClients.put(node, {... client,
+					bsyncClients' = bsyncClients.put(node, {... client,
 	                                responseMsgs: client.responseMsgs.union(Set(msg))}),
 	        requestsBuffer' = requestsBuffer,
 	        responsesBuffer' = responsesBuffer.put(node, responsesBuffer.get(node).exclude(Set(msg))),
 	        statusBuffer' = statusBuffer,
 	    }
+	}
+
+	action clientTimeout(node) = all {
+			bsyncClients.get(node).openRequests.size() > 0,
+			nondet toMsg = bsyncClients.get(node).openRequests.oneOf()
+			val result = bsyncTimeout(bsyncClients.get(node), toMsg)
+			all {
+				bsyncClients' = bsyncClients.put(node, result.sync),
+				requestsBuffer' = match result.req {
+	            | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
+	            | None => requestsBuffer
+	      },
+			},
+			statusBuffer' = statusBuffer,
+			responsesBuffer' = responsesBuffer,
 	}
 
 }
