@@ -1,9 +1,8 @@
-// -*- mode: Bluespec; -*-
-
-module sync {
-
-	// General definitions
-	import blocksync.* from "./blocksync"
+module bsyncWithConsensus {
+  
+  import blocksync.* from "./blocksync"
+	import bsync_client.* from "./client"
+	import bsync_server.* from "./server"
 
 	import statemachineAsync(
 	    validators = Set("v1", "v2", "v3", "v4"),
@@ -14,46 +13,13 @@ module sync {
 	    Heights = Set(0) // , 1, 2, 3)
 	    ).* from "../statemachineAsync"
 
-	import bsync_client.* from "./client"
-	import bsync_server.* from "./server"
-
-	// ****************************************************************************
-	// State machine
-	// ****************************************************************************
-	//
-	// The statemachine is put on top of statemachineAsync, that is, we use its
-	// initialization and steps, and add the updates to the variables defined below
-	//
-
-	/// initializing the variables of the sync part of the state machine
-	action syncInit = all {
-	    initClient(validators),
-	    initServer(validators),
-	    initBsync(validators),
-	}
-
-	action syncUnchangedAll = all {
-	    unchangedServer,
-	    unchangedClient,
-	    unchangedBsync,
-	}
-
+  import syncStatemachine.* from "./syncStatemachine"
+  
+  
 	/// initialize consensus and synchronizer
 	action initAll = all {
 	    init,
-	    syncInit
-	}
-
-	//
-	// Actions for the Environment to send a node to a new height
-	//
-
-	/// environment sends the node to the next height.
-	/// initializes synchronizer
-	action newHeightActionSync(v, valset, h) = all {
-	    newHeightClient(v, h),
-	    unchangedBsync,
-	    unchangedServer,
+	    syncInit(validators)
 	}
 
 	/// environment sends the node to the next height.
@@ -62,33 +28,11 @@ module sync {
 	    newHeightAction(v, valset, h),
 	}
 
-	//
-	// Actions for process steps in the sync protocol
-	//
-
 	// Update server v from the consensus' blockchain
 	action syncUpdateServer(v) = all {
 	    val chain = system.get(v).es.chain
 	    all {
-		updateServer(v, chain),
-	        unchangedClient,
-	        unchangedAll,
-	    }
-	}
-
-	// Server v announces its status
-	action syncStatusStep(v) = all {
-	    all {
-		broadcastStatus(v),
-	        unchangedClient,
-	        unchangedAll,
-	    }
-	}
-
-	// Server v takes a step (checking for requests and responding)
-	action syncStepServer(v) = all {
-	    all {
-		stepServer(v),
+					updateServer(v, chain),
 	        unchangedClient,
 	        unchangedAll,
 	    }
@@ -102,8 +46,8 @@ module sync {
 	action syncStepClient(v) = all {
 	    val result = bsyncClient(bsyncClients.get(v))
 	    all {
-		// TODO: this block should be implemented in client.qnt
-		bsyncClients' = bsyncClients.put(v, result.sync),
+					// TODO: this block should be implemented in client.qnt
+					bsyncClients' = bsyncClients.put(v, result.sync),
 	        statusBuffer' = statusBuffer,
 	        requestsBuffer' = match result.req {
 	            | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
@@ -113,42 +57,14 @@ module sync {
 
 	        unchangedServer,
 
-		// This is the part that interacts with the consensus state
-		// machine. Moreover, the logic's code should be here, but due
-		// to Quint issues we need to keep it in stateMachineAsync.
+					// This is the part that interacts with the consensus state
+					// machine. Moreover, the logic's code should be here, but due
+					// to Quint issues we need to keep it in stateMachineAsync.
 	        putSyncOutputIntoNode(v, result.so),
 	    }
 	}
 
-	//
-	// Actions for the environment to deliver messages in the sync protocol
-	// Implemented by the blocksync server or client.
-	//
 
-	// deliver a status message to client v
-	action syncDeliverStatus(v) =  all {
-	   deliverStatus(v),
-	   unchangedServer,
-	   unchangedAll
-	}
-
-	// deliver a response to client v
-	action syncDeliverResp(v) =  all {
-	    deliverResponse(v),
-	    unchangedServer,
-	    unchangedAll
-	}
-
-	// deliver a request to server v
-	action syncDeliverReq(v) =  all {
-	    deliverRequest(v),
-	    unchangedClient,
-	    unchangedAll
-	}
-
-	//
-	// Complex actions for a validator: consensus and blocksync
-	//
 
 	// validator step in the system with sync protocol
 	action syncValStep(v) = all {
@@ -156,23 +72,25 @@ module sync {
 	    syncUnchangedAll
 	}
 
+
+
 	/// main step function: either a consensus state-machine step or a sync protocol step
 	action stepWithBlockSync = any {
+			// consensus takes a step
 	    all {
 	        step,
 	        syncUnchangedAll
 	    },
-	    nondet v = oneOf(Correct)
-	    any {
-	        syncDeliverReq(v),
-	        syncDeliverResp(v),
-	        syncDeliverStatus(v),
-	        syncUpdateServer(v),	// update the server with the latest state of the chain
-	        syncStepServer(v),	// looking for a request and sends responses
-	        syncStepClient(v),	// is checking if there are responses and check whether it need to requ
-	        syncStatusStep(v),
-	        //syncTimeout(v) // TODO:
-	    }
+	    all{
+				unchangedAll,
+				nondet v = oneOf(Correct)
+				syncStep(v)
+				},
+			// consensus-specific steps
+			nondet v = oneOf(Correct)
+			syncStepClient(v),	// is checking if there are responses and check whether it need to requ
+			nondet v = oneOf(Correct)
+			syncUpdateServer(v)
 	}
 
 	//
@@ -216,24 +134,30 @@ module sync {
 	            voteBuffer' = Correct.mapBy(v => Set()),
 	            certBuffer' = Correct.mapBy(v => Set()),
 	            _hist' = { validator: "INIT", input: NoDInput, output: NoConsensusOutput },
-	            syncInit
+							syncInit(validators)
 	    }
 	}
+
+
+
+
+
+
 
 	/// a simple scenario where v4 starts height h
 	run syncCycle(h) =
 	    newHeightActionAll("v4", validatorSet, h)
-	    .then(syncStatusStep("v2"))
-	    .then(syncDeliverStatus("v4"))
+	    .then(all{unchangedAll, syncStatusStep("v2")})
+	    .then(all{unchangedAll, syncDeliverStatus("v4")})
 	    .then(syncStepClient("v4")) // ask for certificate
-	    .then(syncDeliverReq("v2"))
-	    .then(syncStepServer("v2"))
-	    .then(syncDeliverResp("v4"))
+	    .then(all{unchangedAll, syncDeliverReq("v2")})
+	    .then(all{unchangedAll, syncStepServer("v2")})
+	    .then(all{unchangedAll, syncDeliverResp("v4")})
 	    .then(syncStepClient("v4")) // ask for block and give certificate to node
 	    .expect(system.get("v4").incomingSyncCertificates.size() > 0)
-	    .then(syncDeliverReq("v2"))
-	    .then(syncStepServer("v2"))
-	    .then(syncDeliverResp("v4"))
+	    .then(all{unchangedAll, syncDeliverReq("v2")})
+	    .then(all{unchangedAll, syncStepServer("v2")})
+	    .then(all{unchangedAll, syncDeliverResp("v4")})
 	    .then(syncStepClient("v4"))
 	    .expect(system.get("v4").incomingSyncProposals.size() > 0)
 	    .then(3.reps(_ => syncValStep("v4")))
@@ -251,4 +175,5 @@ module sync {
 	    .expect(system.get("v4").es.cs.height == system.get("v2").es.cs.height)
 	    // and now v4 has synced !
 
-}
+
+  }
