@@ -94,6 +94,8 @@ module syncStatemachine {
 	        //syncTimeout(v) // TODO:
 	}
 
+// TODO: statemachine with newHeight
+
 	//
 	// Complex actions for a validator: consensus and blocksync
 	//

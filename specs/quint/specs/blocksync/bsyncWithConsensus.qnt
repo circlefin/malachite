@@ -24,6 +24,7 @@ module bsyncWithConsensus {
 
 	/// environment sends the node to the next height.
 	action newHeightActionAll(v, valset, h) = all {
+			system.get(v).es.chain.length() == h, // precondition for calling this
 	    newHeightActionSync(v, valset, h),
 	    newHeightAction(v, valset, h),
 	}
@@ -43,7 +44,7 @@ module bsyncWithConsensus {
 	// FIXME: here we need to apply the client output to the consensus
 	// state machine. Refactoring this method is much more complex.
 	//
-	action syncStepClient(v) = all {
+	action syncStepClient(v, outputAction) = all {
 	    val result = bsyncClient(bsyncClients.get(v))
 	    all {
 					// TODO: this block should be implemented in client.qnt
@@ -60,7 +61,7 @@ module bsyncWithConsensus {
 					// This is the part that interacts with the consensus state
 					// machine. Moreover, the logic's code should be here, but due
 					// to Quint issues we need to keep it in stateMachineAsync.
-	        putSyncOutputIntoNode(v, result.so),
+	        outputAction(v, result.so),
 	    }
 	}
 
@@ -75,23 +76,27 @@ module bsyncWithConsensus {
 
 
 	/// main step function: either a consensus state-machine step or a sync protocol step
-	action stepWithBlockSync = any {
+	action stepBSyncWithBlockSync = any {
 			// consensus takes a step
 	    all {
 	        step,
 	        syncUnchangedAll
 	    },
-	    all{
-				unchangedAll,
-				nondet v = oneOf(Correct)
-				syncStep(v)
+			//sync takes a step
+			nondet v = oneOf(Correct)
+			any {
+	    	all{
+					unchangedAll,
+					syncStep(v)
 				},
-			// consensus-specific steps
+				syncStepClient(v, putSyncOutputIntoNode),	// is checking if there are responses and check whether it need to requ
+				syncUpdateServer(v),
+			},
+			// a node goes to next heigt
 			nondet v = oneOf(Correct)
-			syncStepClient(v),	// is checking if there are responses and check whether it need to requ
-			nondet v = oneOf(Correct)
-			syncUpdateServer(v)
+			newHeightActionAll(v, validatorSet, system.get(v).es.chain.length())
 	}
+
 
 	//
 	// Interesting scenarios
@@ -149,16 +154,16 @@ module bsyncWithConsensus {
 	    newHeightActionAll("v4", validatorSet, h)
 	    .then(all{unchangedAll, syncStatusStep("v2")})
 	    .then(all{unchangedAll, syncDeliverStatus("v4")})
-	    .then(syncStepClient("v4")) // ask for certificate
+	    .then(syncStepClient("v4", putSyncOutputIntoNode)) // ask for certificate
 	    .then(all{unchangedAll, syncDeliverReq("v2")})
 	    .then(all{unchangedAll, syncStepServer("v2")})
 	    .then(all{unchangedAll, syncDeliverResp("v4")})
-	    .then(syncStepClient("v4")) // ask for block and give certificate to node
+	    .then(syncStepClient("v4", putSyncOutputIntoNode)) // ask for block and give certificate to node
 	    .expect(system.get("v4").incomingSyncCertificates.size() > 0)
 	    .then(all{unchangedAll, syncDeliverReq("v2")})
 	    .then(all{unchangedAll, syncStepServer("v2")})
 	    .then(all{unchangedAll, syncDeliverResp("v4")})
-	    .then(syncStepClient("v4"))
+	    .then(syncStepClient("v4", putSyncOutputIntoNode))
 	    .expect(system.get("v4").incomingSyncProposals.size() > 0)
 	    .then(3.reps(_ => syncValStep("v4")))
 	    .expect(system.get("v4").es.chain.length() > h)

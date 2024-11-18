@@ -65,6 +65,8 @@ module bsync_client {
 	    req: Option[RequestMsg]
 	}
 
+
+
 	/// We have received a certificate. now we need to issue the
 	/// corresponding block request  and generate a certificate output.
 	pure def syncHandleCertificate (s: BsyncClient, cert: Set[Vote], peer: str ) : ClientResult =
