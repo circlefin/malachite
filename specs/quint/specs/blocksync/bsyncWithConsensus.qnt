@@ -68,7 +68,7 @@ module bsyncWithConsensus {
 				syncStepClient(v, putSyncOutputIntoNode),	// is checking if there are responses and check whether it need to requ
 				syncUpdateServer(v),
 			},
-			// a node goes to next heigt
+			// a node goes to next height
 			nondet v = oneOf(Correct)
 			newHeightActionAll(v, validatorSet, system.get(v).es.chain.length())
 	}
