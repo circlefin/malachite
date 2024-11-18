@@ -84,21 +84,19 @@ module syncStatemachine {
 	    unchangedClient,
 	}
 
-	action syncStep(v) = any {
-	        syncDeliverReq(v),
-	        syncDeliverResp(v),
-	        syncDeliverStatus(v),
-	    //    syncUpdateServer(v),	// update the server with the latest state of the chain
-	        syncStepServer(v),	// looking for a request and sends responses
-	        syncStatusStep(v),
-	        //syncTimeout(v) // TODO:
-	}
+	/// any blocksync steo independent of consensus. unchange is an action
+	/// that can be used for composition
+	action syncStepNode (v, unchange) = all {
+		any {
+			syncDeliverReq(v),
+			syncDeliverResp(v),
+			syncDeliverStatus(v),
+			syncStepServer(v),
+			syncStatusStep(v),
+		},
+    unchange
+  }
 
-// TODO: statemachine with newHeight
-
-	//
-	// Complex actions for a validator: consensus and blocksync
-	//
 
 
 
