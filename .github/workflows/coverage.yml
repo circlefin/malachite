@@ -2,7 +2,7 @@ name: Coverage
 
 on:
   push:
-    branches: main
+    branches: greg/codecov
   pull_request:
     paths:
       - code/**
@@ -59,12 +59,13 @@ jobs:
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: code/lcov.info
           flags: integration
           fail_ci_if_error: false
+          url: https://codecov.informal.systems
 
   mbt:
     name: MBT
@@ -101,9 +102,10 @@ jobs:
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: code/lcov.info
           flags: mbt
           fail_ci_if_error: false
+          url: https://codecov.informal.systems
