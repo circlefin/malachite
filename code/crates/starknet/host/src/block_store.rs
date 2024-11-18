@@ -2,18 +2,22 @@ use std::ops::RangeBounds;
 use std::path::Path;
 use std::sync::Arc;
 
-use malachite_blocksync::SyncedBlock;
-use malachite_common::CommitCertificate;
-use malachite_proto::Protobuf;
-
 use prost::Message;
 use redb::ReadableTable;
 use thiserror::Error;
 
-use crate::codec::{decode_sync_block, encode_synced_block};
+use malachite_blocksync::SyncedBlock;
+use malachite_common::CommitCertificate;
+use malachite_consensus::ProposedValue;
+use malachite_proto::Protobuf;
+
+use crate::codec::{decode_sync_block, encode_proposed_value, encode_synced_block};
 use crate::proto::{self as proto, Error as ProtoError};
 use crate::types::MockContext;
 use crate::types::{Block, Height, Transaction, Transactions};
+
+mod keys;
+use keys::{HeightKey, ProposedValueKey};
 
 #[derive(Clone, Debug)]
 pub struct DecidedBlock {
@@ -68,50 +72,10 @@ pub enum StoreError {
     TaskJoin(#[from] tokio::task::JoinError),
 }
 
-#[derive(Copy, Clone, Debug)]
-struct HeightKey;
-
-impl redb::Value for HeightKey {
-    type SelfType<'a> = Height;
-
-    type AsBytes<'a> = Vec<u8>;
-
-    fn fixed_width() -> Option<usize> {
-        Some(core::mem::size_of::<u64>() * 2)
-    }
-
-    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
-    where
-        Self: 'a,
-    {
-        let (fork_id, block_number) = <(u64, u64) as redb::Value>::from_bytes(data);
-
-        Height {
-            fork_id,
-            block_number,
-        }
-    }
-
-    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
-    where
-        Self: 'a,
-        Self: 'b,
-    {
-        <(u64, u64) as redb::Value>::as_bytes(&(value.fork_id, value.block_number))
-    }
-
-    fn type_name() -> redb::TypeName {
-        redb::TypeName::new("starknet::Height")
-    }
-}
-
-impl redb::Key for HeightKey {
-    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
-        <(u64, u64) as redb::Key>::compare(data1, data2)
-    }
-}
-
 const BLOCK_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> = redb::TableDefinition::new("blocks");
+
+const PROPOSED_VALUE_TABLE: redb::TableDefinition<ProposedValueKey, Vec<u8>> =
+    redb::TableDefinition::new("proposed_values");
 
 struct Db {
     db: redb::Database,
@@ -132,13 +96,25 @@ impl Db {
         Ok(block)
     }
 
-    fn insert(&self, decided_block: DecidedBlock) -> Result<(), StoreError> {
+    fn insert_decided_block(&self, decided_block: DecidedBlock) -> Result<(), StoreError> {
         let height = decided_block.block.height;
 
         let tx = self.db.begin_write()?;
         {
             let mut table = tx.open_table(BLOCK_TABLE)?;
             table.insert(height, decided_block.into_bytes()?)?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    fn insert_proposed_value(&self, value: ProposedValue<MockContext>) -> Result<(), StoreError> {
+        let key = (value.height, value.round, value.value);
+        let value = encode_proposed_value(&value)?;
+        let tx = self.db.begin_write()?;
+        {
+            let mut table = tx.open_table(PROPOSED_VALUE_TABLE)?;
+            table.insert(key, value)?;
         }
         tx.commit()?;
         Ok(())
@@ -190,8 +166,9 @@ impl Db {
 
     fn create_tables(&self) -> Result<(), StoreError> {
         let tx = self.db.begin_write()?;
-        // Implicitly creates the "blocks" table if it does not exists
+        // `open_table` implicitly creates the tables if needed
         let _ = tx.open_table(BLOCK_TABLE)?;
+        let _ = tx.open_table(PROPOSED_VALUE_TABLE)?;
         tx.commit()?;
         Ok(())
     }
@@ -223,7 +200,7 @@ impl BlockStore {
         tokio::task::spawn_blocking(move || db.get(height)).await?
     }
 
-    pub async fn store(
+    pub async fn store_decided_block(
         &self,
         certificate: &CommitCertificate<MockContext>,
         txes: &[Transaction],
@@ -240,7 +217,15 @@ impl BlockStore {
         };
 
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.insert(decided_block)).await?
+        tokio::task::spawn_blocking(move || db.insert_decided_block(decided_block)).await?
+    }
+
+    pub async fn store_proposed_value(
+        &self,
+        value: ProposedValue<MockContext>,
+    ) -> Result<(), StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.insert_proposed_value(value)).await?
     }
 
     pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {

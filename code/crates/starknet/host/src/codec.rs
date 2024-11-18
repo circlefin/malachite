@@ -7,7 +7,7 @@ use malachite_common::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
     SignedProposal, SignedVote,
 };
-use malachite_consensus::SignedConsensusMsg;
+use malachite_consensus::{ProposedValue, SignedConsensusMsg};
 use malachite_gossip_consensus::Bytes;
 
 use crate::proto::consensus_message::Messages;
@@ -198,15 +198,7 @@ pub(crate) fn encode_aggregate_signature(
             Ok(proto::CommitSignature {
                 validator_address: Some(validator_address),
                 signature: Some(signature),
-                extension: s
-                    .extension
-                    .map(|e| -> Result<_, ProtoError> {
-                        Ok(proto::Extension {
-                            data: e.message.data,
-                            signature: Some(e.signature.to_proto()?),
-                        })
-                    })
-                    .transpose()?,
+                extension: s.extension.map(encode_extension).transpose()?,
             })
         })
         .collect::<Result<_, ProtoError>>()?;
@@ -256,18 +248,7 @@ pub(crate) fn decode_aggregated_signature(
                 })
                 .and_then(Address::from_proto)?;
 
-            let extension = s
-                .extension
-                .map(|e| -> Result<_, ProtoError> {
-                    let extension = Extension::from(e.data);
-                    let signature = e
-                        .signature
-                        .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
-                        .and_then(p2p::Signature::from_proto)?;
-
-                    Ok(SignedExtension::new(extension, signature))
-                })
-                .transpose()?;
+            let extension = s.extension.map(decode_extension).transpose()?;
 
             Ok(CommitSignature {
                 address,
@@ -278,6 +259,27 @@ pub(crate) fn decode_aggregated_signature(
         .collect::<Result<Vec<_>, ProtoError>>()?;
 
     Ok(AggregatedSignature { signatures })
+}
+
+pub(crate) fn encode_extension(
+    ext: SignedExtension<MockContext>,
+) -> Result<proto::Extension, ProtoError> {
+    Ok(proto::Extension {
+        data: ext.message.data,
+        signature: Some(ext.signature.to_proto()?),
+    })
+}
+
+pub(crate) fn decode_extension(
+    ext: proto::Extension,
+) -> Result<SignedExtension<MockContext>, ProtoError> {
+    let extension = Extension::from(ext.data);
+    let signature = ext
+        .signature
+        .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
+        .and_then(p2p::Signature::from_proto)?;
+
+    Ok(SignedExtension::new(extension, signature))
 }
 
 pub(crate) fn decode_certificate(
@@ -325,3 +327,46 @@ pub(crate) fn decode_sync_block(
         certificate: decode_certificate(certificate)?,
     })
 }
+
+pub(crate) fn encode_proposed_value(
+    value: &ProposedValue<MockContext>,
+) -> Result<Vec<u8>, ProtoError> {
+    use bytes::Bytes;
+
+    let proto = proto::ProposedValue {
+        fork_id: value.height.fork_id,
+        block_number: value.height.block_number,
+        round: value.round.as_u32().unwrap(),
+        valid_round: value.valid_round.as_u32(),
+        proposer: Some(value.validator_address.to_proto()?),
+        value: Bytes::from(value.value.to_proto()?.encode_to_vec()),
+        validity: value.validity.is_valid(),
+        extension: value.extension.clone().map(encode_extension).transpose()?,
+    };
+
+    Ok(proto.encode_to_vec())
+}
+
+// pub(crate) fn decode_proposed_value(
+//     bytes: &[u8],
+// ) -> Result<ProposedValue<MockContext>, ProtoError> {
+//     let proto = proto::ProposedValue::decode(bytes)?;
+//
+//     let height = Height::new(proto.block_number, proto.fork_id);
+//     let round = Round::from(proto.round);
+//     let valid_round = Round::from(proto.valid_round);
+//     let validator_address = Address::from_proto(proto.proposer.unwrap())?;
+//     let value = BlockHash::from_bytes(proto.value.as_ref())?;
+//     let validity = Validity::from_bool(proto.validity);
+//     let extension = proto.extension.map(decode_extension).transpose()?;
+//
+//     Ok(ProposedValue {
+//         height,
+//         round,
+//         valid_round,
+//         validator_address,
+//         value,
+//         validity,
+//         extension,
+//     })
+// }

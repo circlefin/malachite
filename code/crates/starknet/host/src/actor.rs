@@ -351,6 +351,7 @@ impl Actor for StarknetHost {
 
                 while let Some(part) = rx_part.recv().await {
                     state.host.part_store.store(height, round, part.clone());
+
                     if state.host.params.value_payload.include_parts() {
                         debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
@@ -384,16 +385,21 @@ impl Actor for StarknetHost {
 
                 let parts = state.host.part_store.all_parts(height, round);
 
-                let extension = state.host.generate_vote_extension(height, round);
+                let Some(value) = state.build_value_from_parts(&parts, height, round).await else {
+                    error!(%height, %round, "Failed to build value from parts");
+                    return Ok(());
+                };
 
-                if let Some(value) = state.build_value_from_parts(&parts, height, round).await {
-                    reply_to.send(LocallyProposedValue::new(
-                        value.height,
-                        value.round,
-                        value.value,
-                        extension,
-                    ))?;
+                if let Err(e) = state.block_store.store_proposed_value(value.clone()).await {
+                    error!(%e, %height, %round, "Failed to store the proposed value");
                 }
+
+                reply_to.send(LocallyProposedValue::new(
+                    value.height,
+                    value.round,
+                    value.value,
+                    value.extension,
+                ))?;
 
                 Ok(())
             }
@@ -526,7 +532,11 @@ impl Actor for StarknetHost {
                 }
 
                 // Build the block from transaction parts and certificate, and store it
-                if let Err(e) = state.block_store.store(&certificate, &all_txes).await {
+                if let Err(e) = state
+                    .block_store
+                    .store_decided_block(&certificate, &all_txes)
+                    .await
+                {
                     error!(%e, %height, %round, "Failed to store the block");
                 }
 

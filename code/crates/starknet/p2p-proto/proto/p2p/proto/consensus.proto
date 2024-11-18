@@ -115,3 +115,14 @@ message CommitCertificate {
     Hash block_hash             = 4;
     AggregatedSignature aggregated_signature = 5;
 }
+
+message ProposedValue {
+    uint64 fork_id               = 1;
+    uint64 block_number          = 2;
+    uint32 round                 = 3;
+    optional uint32 valid_round  = 4;
+    Address proposer             = 5;
+    bytes value                  = 6;
+    bool    validity             = 7;
+    optional Extension extension = 8;
+}
