@@ -1,3 +1,5 @@
+// -*- mode: Bluespec; -*-
+
 module bsyncMock {
   import blocksync.* from "./blocksync"
 	import bsync_client.* from "./client"
