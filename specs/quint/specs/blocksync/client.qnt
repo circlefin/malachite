@@ -23,6 +23,7 @@ module bsync_client {
 	type BsyncClientOutput =
 	    | SOCertificate(Set[Vote])
 	    | SOBlock(Proposal)
+			| SOBlockStoreEntry(BlockStoreEntry)
 	    | SONoOutput
 
 	//
@@ -85,6 +86,14 @@ module bsync_client {
 	        so: SOBlock(p),
 	        req: None}
 
+	/// we have received a blockstore entry (block and certificate).
+	/// now we need to  generate a block output
+	pure def syncHandleBlockStoreEntry (s: BsyncClient, b: BlockStoreEntry) : ClientResult =
+	    {   sync: {...s,    openRequests: Set(), // If we have parallelization we need to remove one element,
+	                        lastSyncedHeight: s.height }, // blockheight,
+	        so: SOBlockStoreEntry(b),
+	        req: None}
+
 	/// step of a client:
 	/// 1. update peer statuses, 2. if there is no open request, request something
 	/// 3. otherwise check whether we have a response and act accordingly
@@ -117,6 +126,7 @@ module bsync_client {
 	                    match resp.response {
 	                        | RespBlock(prop) => syncHandleBlock(newS, prop)
 	                        | RespCertificate(cert) => syncHandleCertificate(newS, cert, goodPeers.fold("", (s,x) => x))
+													| RespBlockStoreEntry(b) => syncHandleBlockStoreEntry(newS, b)
 	                    }
 	                else
 	                    // I don't have response
