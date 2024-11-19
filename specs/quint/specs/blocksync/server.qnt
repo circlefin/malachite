@@ -50,6 +50,13 @@ module bsync_server {
 	                                        height: m.height,
 	                                        response: RespBlock(s.chain[m.height].decision)}
 	                            Some(bl)
+											| SyncBlockStoreEntry =>
+	                            val bs = {  client: m.client,
+	                                        server: s.id,
+	                                        height: m.height,
+	                                        response: RespBlockStoreEntry(s.chain[m.height])}
+	                            Some(bs)
+
 	                }
 	            else None
 	        {   sync: { ...s, requestMsgs: s.requestMsgs.exclude(Set(m))},
