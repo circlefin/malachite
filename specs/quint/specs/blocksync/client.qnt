@@ -69,7 +69,7 @@ module bsync_client {
 
 
 	/// We have received a certificate. now we need to issue the
-	/// corresponding block request  and generate a certificate output.
+	/// corresponding block request and generate a certificate output.
 	pure def syncHandleCertificate (s: BsyncClient, cert: Set[Vote], peer: str ) : ClientResult =
 	    val blockReq = {    client: s.id,
 	                        server: peer,
@@ -123,10 +123,15 @@ module bsync_client {
 	                // we issued a request before, let's see whether there is a response
 	                if (s.responseMsgs.size()> 0)
 	                    val resp = s.responseMsgs.fold(emptyResponseMsg, (acc, i) => i) //chooseSome() // in the future there might be parallelization
-	                    match resp.response {
-	                        | RespBlock(prop) => syncHandleBlock(newS, prop)
-	                        | RespCertificate(cert) => syncHandleCertificate(newS, cert, goodPeers.fold("", (s,x) => x))
-													| RespBlockStoreEntry(b) => syncHandleBlockStoreEntry(newS, b)
+	                    // TODO: for a later version, should we check whether we actually asked
+											//       the server who sent the response?
+											// TODO: For later versions, we need to do proper bookkeeping; e.g., 
+											//       which height this response was for
+											val ns = {... newS, responseMsgs: newS.responseMsgs.exclude(Set(resp))}
+											match resp.response {
+	                        | RespBlock(prop) => syncHandleBlock(ns, prop)
+	                        | RespCertificate(cert) => syncHandleCertificate(ns, cert, goodPeers.fold("", (s,x) => x))
+													| RespBlockStoreEntry(b) => syncHandleBlockStoreEntry(ns, b)
 	                    }
 	                else
 	                    // I don't have response
