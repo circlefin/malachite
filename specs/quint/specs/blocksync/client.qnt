@@ -132,6 +132,8 @@ module bsync_client {
 	                        | RespBlock(prop) => syncHandleBlock(ns, prop)
 	                        | RespCertificate(cert) => syncHandleCertificate(ns, cert, goodPeers.fold("", (s,x) => x))
 													| RespBlockStoreEntry(b) => syncHandleBlockStoreEntry(ns, b)
+													// TODO: in the current version, the client is able to process
+													//       blockstore entries, but it doesn't ask for them.
 	                    }
 	                else
 	                    // I don't have response
