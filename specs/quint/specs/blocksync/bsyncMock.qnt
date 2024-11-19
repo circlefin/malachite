@@ -11,23 +11,23 @@ module bsyncMock {
   val Correct = Set("v2", "v3", "v4")
 
   type Output = {
-	  v : Address,
-	  out: BsyncClientOutput
+    v : Address,
+    out: BsyncClientOutput
   }
 
   var outputs: List[Output]
   var chains: Address -> List[BlockStoreEntry]
 
-	/// initialize consensus and synchronizer
-	action initMockedConsensus = all {
-      outputs' = [],
-      chains' = Correct.mapBy(_ => []),
-	    syncInit(validators)
-	}
+  /// initialize consensus and synchronizer
+  action initMockedConsensus = all {
+    outputs' = [],
+    chains' = Correct.mapBy(_ => []),
+    syncInit(validators)
+  }
 
   action unchangedMock = all {
-      outputs' = outputs,
-      chains' = chains,   
+    outputs' = outputs,
+    chains' = chains,   
   }
 
   action decideMock(v) = all {
@@ -39,53 +39,47 @@ module bsyncMock {
     syncUnchangedAll,
   }
 
-	/// environment sends the node to the next height.
-	action newHeightActionAll(v, valset, h) = all {
-			chains.get(v).length() == h, // precondition for calling this
-	    newHeightActionSync(v, valset, h),
+  /// environment sends the node to the next height.
+  action newHeightActionAll(v, valset, h) = all {
+    chains.get(v).length() == h, // precondition for calling this
+    newHeightActionSync(v, valset, h),
+    unchangedMock,
+  }
+
+  // Update server v from the consensus' blockchain
+  action mockUpdateServer(v) = all {
+    all {
+      updateServer(v, chains.get(v)),
+      unchangedClient,
       unchangedMock,
-	}
-
-	// Update server v from the consensus' blockchain
-	action mockUpdateServer(v) = all {
-	    all {
-					updateServer(v, chains.get(v)),
-	        unchangedClient,
-          unchangedMock,
-	    }
-	}
-
+    }
+  }
 
   action writeAction(v, so) = all {
     outputs' = outputs.append({v: v, out: so}),
     chains' = chains,
   }
 
-    
-
   action mockStep(v, act) = all {
     act(v),
     unchangedMock
   }
 
-
-
   /// For simple repl evaluation
-	action bsyncStep (v, act) = all {
-		act(v),
-		unchangedMock
-	}
+  action bsyncStep (v, act) = all {
+    act(v),
+    unchangedMock
+  }
 
-
-	/// main step function: either a consensus state-machine step or a sync protocol step
-	action stepMockedConsensus =
+  /// main step function: either a consensus state-machine step or a sync protocol step
+  action stepMockedConsensus =
     nondet v = oneOf(Correct)
     any{
-			pureSyncStep(v, unchangedMock),
-			// consensus-specific steps
-			syncStepClient(v, writeAction),	// is checking if there are responses and check whether it need to requ
-			mockUpdateServer(v),
+      pureSyncStep(v, unchangedMock),
+      // consensus-specific steps
+      syncStepClient(v, writeAction),  // is checking if there are responses and check whether it need to requ
+      mockUpdateServer(v),
       newHeightActionAll(v, validators, chains.get(v).length()),
       decideMock(v),
     }
-	}
+  }
