@@ -34,7 +34,7 @@ module syncStatemachine {
   //
 
   /// environment sends the node to the next height.
-  /// initializes synchronizer
+  /// initializes client
   action newHeightActionSync(v, valset, h) = all {
     newHeightClient(v, h),
     unchangedBsync,
@@ -102,7 +102,7 @@ module syncStatemachine {
   action syncStepClient(v, outputAction) = all {
     val result = bsyncClient(bsyncClients.get(v))
     all {
-      // updates the blocksync state
+      // updates the client's state
       applyClientUpdate(v, result),
       // This is the part that interacts with the consensus.
       // It can be the driver or the mocked consensus logic.

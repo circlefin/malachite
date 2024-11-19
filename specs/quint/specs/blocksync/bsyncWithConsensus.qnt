@@ -1,3 +1,5 @@
+// -*- mode: Bluespec; -*-
+
 module bsyncWithConsensus {
   
   import blocksync.* from "./blocksync"
@@ -15,7 +17,7 @@ module bsyncWithConsensus {
 
   import syncStatemachine.* from "./syncStatemachine"
   
-  /// initialize consensus and synchronizer
+  /// initialize consensus and block sync
   action initAll = all {
     init,
     syncInit(validators)
@@ -38,27 +40,28 @@ module bsyncWithConsensus {
     }
   }
 
-  // validator step in the system with sync protocol
+  // validator step in the consensus protocol, no changes to block sync
   action syncValStep(v) = all {
     valStep(v),
     syncUnchangedAll
   }
 
-  /// main step function: either a consensus state-machine step or a sync protocol step
-  action stepBSyncWithBlockSync = any {
+  /// main step function: either a consensus state-machine step or a block sync protocol step
+  action stepWithBlockSync = any {
     // consensus takes a step
     all {
       step,
       syncUnchangedAll
     },
-    //sync takes a step
+    // block sync takes a step
     nondet v = oneOf(Correct)
     any {
       all{
         unchangedAll,
         pureSyncStep(v, unchangedAll)
       },
-      syncStepClient(v, putSyncOutputIntoNode),  // is checking if there are responses and check whether it need to requ
+      // Block sync client check if there are responses to apply to consensus
+      syncStepClient(v, putSyncOutputIntoNode),
       syncUpdateServer(v),
     },
     // a node goes to next height
