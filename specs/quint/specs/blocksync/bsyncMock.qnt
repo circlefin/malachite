@@ -74,12 +74,12 @@ module bsyncMock {
   /// main step function: either a consensus state-machine step or a sync protocol step
   action stepMockedConsensus =
     nondet v = oneOf(Correct)
-    any{
+    any {
       pureSyncStep(v, unchangedMock),
       // consensus-specific steps
       syncStepClient(v, writeAction),  // is checking if there are responses and check whether it need to requ
       mockUpdateServer(v),
       newHeightActionAll(v, validators, chains.get(v).length()),
       decideMock(v),
-    }
-  }
+   }
+}
