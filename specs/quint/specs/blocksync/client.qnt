@@ -65,6 +65,23 @@ module bsync_client {
     req: Option[RequestMsg]
   }
 
+  /// We have received a certificate. now we need to issue the
+  /// corresponding block request  and generate a certificate output.
+  pure def syncHandleCertificate (s: BsyncClient, cert: Set[Vote], peer: str ) : ClientResult =
+    val blockReq = {    client: s.id,
+                        server: peer,
+                        rtype: SyncBlock,
+                        height: s.height}
+    {   sync: {...s, openRequests: Set(blockReq)}, // If we have parallelization we need to be more precise here
+        so: SOCertificate(cert),
+        req: Some(blockReq)}
+
+  /// we have received a block. now we need to  generate a block output
+  pure def syncHandleBlock (s: BsyncClient, p: Proposal) : ClientResult =
+      {   sync: {...s,    openRequests: Set(), // If we have parallelization we need to remove one element,
+                          lastSyncedHeight: s.height }, // blockheight,
+          so: SOBlock(p),
+          req: None}
 
   /// step of a client:
   /// 1. update peer statuses, 2. if there is no open request, request something
@@ -126,25 +143,6 @@ module bsync_client {
 	        {   sync: newS,
 	            so: SONoOutput,
 	            req: Some(req)}
-
-  /// We have received a certificate. now we need to issue the
-  /// corresponding block request  and generate a certificate output.
-  pure def syncHandleCertificate (s: BsyncClient, cert: Set[Vote], peer: str ) : ClientResult =
-    val blockReq = {    client: s.id,
-                        server: peer,
-                        rtype: SyncBlock,
-                        height: s.height}
-    {   sync: {...s, openRequests: Set(blockReq)}, // If we have parallelization we need to be more precise here
-        so: SOCertificate(cert),
-        req: Some(blockReq)}
-
-  /// we have received a block. now we need to  generate a block output
-  pure def syncHandleBlock (s: BsyncClient, p: Proposal) : ClientResult =
-      {   sync: {...s,    openRequests: Set(), // If we have parallelization we need to remove one element,
-                          lastSyncedHeight: s.height }, // blockheight,
-          so: SOBlock(p),
-          req: None}
-
 
   // State machine
 
