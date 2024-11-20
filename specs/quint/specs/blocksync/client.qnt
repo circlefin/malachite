@@ -87,14 +87,13 @@ module bsync_client {
           so: SOBlock(p),
           req: None}
 
-	/// we have received a blockstore entry (block and certificate).
-	/// now we need to  generate a block output
-	pure def syncHandleBlockStoreEntry (s: BsyncClient, b: BlockStoreEntry) : ClientResult =
-	    {   sync: {...s,    openRequests: Set(), // If we have parallelization we need to remove one element,
-	                        lastSyncedHeight: s.height }, // blockheight,
-	        so: SOBlockStoreEntry(b),
-	        req: None}
-
+  /// we have received a blockstore entry (block and certificate).
+  /// now we need to  generate a block output
+  pure def syncHandleBlockStoreEntry (s: BsyncClient, b: BlockStoreEntry) : ClientResult =
+    {   sync: {...s,    openRequests: Set(), // If we have parallelization we need to remove one element,
+                        lastSyncedHeight: s.height }, // blockheight,
+        so: SOBlockStoreEntry(b),
+        req: None}
 
   /// step of a client:
   /// 1. update peer statuses, 2. if there is no open request, request something
@@ -147,8 +146,6 @@ module bsync_client {
               {   sync: newS,
                   so: SONoOutput,
                   req: None}
-
-
 
   // State machine
 
@@ -203,6 +200,5 @@ module bsync_client {
     },
     responsesBuffer' = responsesBuffer,
   }
-
 
 }
