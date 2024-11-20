@@ -84,6 +84,16 @@ module syncStatemachine {
     unchangedClient,
   }
 
+  action syncStepClient(v, out) = all {
+    clientLogic(v, out),
+    unchangedServer,
+  }
+  
+  action syncClientTimeOut(v) = all {
+    clientTimeout(v),
+    unchangedServer,
+  }
+
   /// any blocksync step independent of consensus. unchange is an action
   /// that can be used for composition
   action pureSyncStep (v, unchange) = all {
@@ -93,23 +103,12 @@ module syncStatemachine {
       syncDeliverStatus(v),
       syncStepServer(v),
       syncStatusStep(v),
+      syncClientTimeOut(v),
     },
     unchange
   }
 
 
-  // Client v takes a step
-  action syncStepClient(v, outputAction) = all {
-    val result = bsyncClient(bsyncClients.get(v))
-    all {
-      // updates the client's state
-      applyClientUpdate(v, result),
-      // This is the part that interacts with the consensus.
-      // It can be the driver or the mocked consensus logic.
-      outputAction(v, result.so), 
-      unchangedServer,
-    }
-  }
 
 
 

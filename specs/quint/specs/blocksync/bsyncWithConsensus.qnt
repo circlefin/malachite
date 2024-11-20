@@ -46,6 +46,8 @@ module bsyncWithConsensus {
     syncUnchangedAll
   }
 
+
+
   /// main step function: either a consensus state-machine step or a block sync protocol step
   action stepWithBlockSync = any {
     // consensus takes a step
@@ -134,7 +136,7 @@ module bsyncWithConsensus {
     .then(3.reps(_ => syncValStep("v4")))
     .expect(system.get("v4").es.chain.length() > h)
 
-  run retreat =
+  run parisRetreat =
     nondet heightToReach = 1.to(4).oneOf()
     initHeight( q::debug ("Height:", heightToReach))
     // FIXME: I had to put it here, instead of syncCycle(h)
@@ -145,4 +147,23 @@ module bsyncWithConsensus {
     .then(newHeightActionAll("v4", validatorSet, heightToReach))
     .expect(system.get("v4").es.cs.height == system.get("v2").es.cs.height)
     // and now v4 has synced !
+
+  run LausanneRetreat = 
+    initHeight(2)
+    // FIXME: I had to put it here, instead of syncCycle(h)
+    // This is not ideal, but it works.
+    .then(syncUpdateServer("v2"))     
+    .then(newHeightActionAll("v4", validatorSet, 0))
+    .then(all{unchangedAll, syncStatusStep("v2")}) 
+    .then(all{unchangedAll, syncDeliverStatus("v4")})   
+    .then(syncStepClient("v4", putSyncOutputIntoNode)) // ask for certificate
+    .expect(requestsBuffer.get("v2").contains({ client: "v4", height: 0, rtype: SyncCertificate, server: "v2" }))
+    .then(syncUpdateServer("v3"))  
+    .then(all{unchangedAll, syncStatusStep("v3")}) 
+    .then(all{unchangedAll, syncDeliverStatus("v4")}) 
+    .then(all{unchangedAll, syncClientTimeOut("v4")})
+    .expect(requestsBuffer.get("v3").contains({ client: "v4", height: 0, rtype: SyncCertificate, server: "v3" }))
+ 
+  
+
 }
