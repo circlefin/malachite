@@ -95,7 +95,7 @@ impl NetworkCodec<blocksync::Response<MockContext>> for ProtobufCodec {
 
         Ok(blocksync::Response {
             height: Height::new(response.block_number, response.fork_id),
-            block: response.block.map(decode_sync_block).transpose()?,
+            block: response.block.map(decode_synced_block).transpose()?,
         })
     }
 
@@ -309,7 +309,7 @@ pub(crate) fn decode_certificate(
     Ok(certificate)
 }
 
-pub(crate) fn decode_sync_block(
+pub(crate) fn decode_synced_block(
     synced_block: proto::blocksync::SyncedBlock,
 ) -> Result<blocksync::SyncedBlock<MockContext>, ProtoError> {
     let certificate = if let Some(certificate) = synced_block.certificate {
