@@ -30,6 +30,10 @@ module bsyncMock {
     chains' = chains,   
   }
 
+  /// Consensus mocked logic decides the latest height.
+  /// The blockchain increases in size. 
+  /// The server becomes aware of that once `updateServer` is invoked.
+  /// The client becomes aware of that once `newHeightAction` is invoked.
   /// This is an abstract version. We just add a (mocked) block with the right
   /// height on top of the chain. Because of this, implicitly all nodes will
   /// decide on the same block
@@ -43,14 +47,16 @@ module bsyncMock {
     syncUnchangedAll,
   }
 
-  /// environment sends the node to the next height.
+  /// Environment sends the node to the next height.
+  /// This implicitly requires `decideMock(v)` to be previous executed.
   action newHeightActionAll(v, valset, h) = all {
     chains.get(v).length() == h, // precondition for calling this
     newHeightActionSync(v, valset, h),
     unchangedMock,
   }
 
-  // Update server v from the consensus' blockchain
+  /// Update server v from the consensus' blockchain
+  /// This abstracts as pull-based mechanism: the server consults the chain state.
   action mockUpdateServer(v) = all {
     all {
       updateServer(v, chains.get(v)),
