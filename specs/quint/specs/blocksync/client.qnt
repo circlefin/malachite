@@ -222,7 +222,7 @@ module bsync_client {
   action clientTimeout(node) = all {
     bsyncClients.get(node).openRequests.size() > 0,
     nondet toMsg = bsyncClients.get(node).openRequests.oneOf()
-    val result = bsyncClientTimeout(bsyncClients.get(node), q::debug ("timedout:", toMsg))
+    val result = bsyncClientTimeout(bsyncClients.get(node), toMsg)
     all {
       bsyncClients' = bsyncClients.put(node, result.sync),
       requestsBuffer' = match result.req {

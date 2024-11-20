@@ -157,11 +157,15 @@ module bsyncWithConsensus {
     .then(all{unchangedAll, syncStatusStep("v2")}) 
     .then(all{unchangedAll, syncDeliverStatus("v4")})   
     .then(syncStepClient("v4", putSyncOutputIntoNode)) // ask for certificate
+    // request for certificate is sent to v2
     .expect(requestsBuffer.get("v2").contains({ client: "v4", height: 0, rtype: SyncCertificate, server: "v2" }))
+    // v3 wakes up and sends it startus to v4
     .then(syncUpdateServer("v3"))  
     .then(all{unchangedAll, syncStatusStep("v3")}) 
     .then(all{unchangedAll, syncDeliverStatus("v4")}) 
+    // v4's request to v2 times out...
     .then(all{unchangedAll, syncClientTimeOut("v4")})
+    // after handling the timeout a request for certificate is sent to v3
     .expect(requestsBuffer.get("v3").contains({ client: "v4", height: 0, rtype: SyncCertificate, server: "v3" }))
  
   
