@@ -56,10 +56,7 @@ module bsyncWithConsensus {
     // block sync takes a step
     nondet v = oneOf(Correct)
     any {
-      all{
-        unchangedAll,
-        pureSyncStep(v, unchangedAll)
-      },
+      pureSyncStep(v, unchangedAll),
       // Block sync client check if there are responses to apply to consensus
       syncStepClient(v, putSyncOutputIntoNode),
       syncUpdateServer(v),
