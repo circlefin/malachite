@@ -23,7 +23,7 @@ module blocksync {
 	type ReqType =
 	    | SyncCertificate
 	    | SyncBlock
-			| SyncBlockStoreEntry
+	    | SyncBlockStoreEntry
 
 	type RequestMsg = {
 	    client: Address,
@@ -42,7 +42,7 @@ module blocksync {
 	type Response =
 	    | RespBlock(Proposal)
 	    | RespCertificate(Set[Vote])
-			| RespBlockStoreEntry(BlockStoreEntry)
+	    | RespBlockStoreEntry(BlockStoreEntry)
 
 	type ResponseMsg = {
 	    client: Address,
