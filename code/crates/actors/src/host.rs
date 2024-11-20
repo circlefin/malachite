@@ -47,8 +47,11 @@ pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 
 /// Messages that need to be handled by the host actor.
 pub enum HostMsg<Ctx: Context> {
+    /// Consensus is ready
+    ConsensusReady(ConsensusRef<Ctx>),
+
     /// Consensus has started a new round.
-    StartRound {
+    StartedRound {
         height: Ctx::Height,
         round: Round,
         proposer: Ctx::Address,
@@ -89,7 +92,7 @@ pub enum HostMsg<Ctx: Context> {
     },
 
     // Consensus has decided on a value
-    Decide {
+    Decided {
         certificate: CommitCertificate<Ctx>,
         consensus: ConsensusRef<Ctx>,
     },

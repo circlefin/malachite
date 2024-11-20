@@ -312,7 +312,15 @@ impl Actor for StarknetHost {
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            HostMsg::StartRound {
+            HostMsg::ConsensusReady(consensus) => {
+                let latest_block_height = state.block_store.last_height().unwrap_or_default();
+                let start_height = latest_block_height.increment();
+                consensus.cast(ConsensusMsg::StartHeight(start_height))?;
+
+                Ok(())
+            }
+
+            HostMsg::StartedRound {
                 height,
                 round,
                 proposer,
@@ -509,7 +517,7 @@ impl Actor for StarknetHost {
                 }
             }
 
-            HostMsg::Decide {
+            HostMsg::Decided {
                 certificate,
                 consensus,
             } => {

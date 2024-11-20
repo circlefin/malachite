@@ -5,7 +5,7 @@ use std::time::Duration;
 use malachite_starknet_test::{Test, TestNode, TestParams};
 
 #[tokio::test]
-pub async fn crash_restart() {
+pub async fn crash_restart_from_1() {
     const HEIGHT: u64 = 10;
 
     // Node 1 starts with 10 voting power.
@@ -24,10 +24,12 @@ pub async fn crash_restart() {
     let n3 = TestNode::new(3)
         .vp(5)
         .start()
-        // Then the test runner waits until it reaches height 2...
+        // Wait until the node reaches height 2...
         .wait_until(2)
-        // ...and kills the node!
+        // ...and then kills it
         .crash()
+        // Reset the database so that the node has to do BlockSync from height 1
+        .reset_db()
         // After that, it waits 5 seconds before restarting the node
         .restart_after(Duration::from_secs(5))
         // Wait until the node reached the expected height
@@ -47,6 +49,33 @@ pub async fn crash_restart() {
 }
 
 #[tokio::test]
+pub async fn crash_restart_from_latest() {
+    const HEIGHT: u64 = 10;
+
+    let n1 = TestNode::new(1).vp(10).start().wait_until(HEIGHT).success();
+    let n2 = TestNode::new(2).vp(10).start().wait_until(HEIGHT).success();
+    let n3 = TestNode::new(3)
+        .vp(5)
+        .start()
+        .wait_until(2)
+        .crash()
+        // We do not reset the database so that the node can restart from the latest height
+        .restart_after(Duration::from_secs(5))
+        .wait_until(HEIGHT)
+        .success();
+
+    Test::new([n1, n2, n3])
+        .run_with_custom_config(
+            Duration::from_secs(60),
+            TestParams {
+                enable_blocksync: true,
+                ..Default::default()
+            },
+        )
+        .await
+}
+
+#[tokio::test]
 pub async fn aggressive_pruning() {
     const HEIGHT: u64 = 15;
 
@@ -59,6 +88,7 @@ pub async fn aggressive_pruning() {
         .start()
         .wait_until(2)
         .crash()
+        .reset_db()
         .restart_after(Duration::from_secs(5))
         .wait_until(HEIGHT)
         .success();
