@@ -61,10 +61,7 @@ module bsyncWithConsensus {
 			//sync takes a step
 			nondet v = oneOf(Correct)
 			any {
-	    	all{
-					unchangedAll,
-					pureSyncStep(v, unchangedAll)
-				},
+				pureSyncStep(v, unchangedAll),
 				syncStepClient(v, putSyncOutputIntoNode),	// is checking if there are responses and check whether it need to requ
 				syncUpdateServer(v),
 			},
