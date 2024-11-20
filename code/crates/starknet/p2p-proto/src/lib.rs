@@ -2,6 +2,6 @@
 
 include!(concat!(env!("OUT_DIR"), "/p2p.rs"));
 
-pub mod blocksync {
+pub mod sync {
     include!(concat!(env!("OUT_DIR"), "/blocksync.rs"));
 }

@@ -37,7 +37,7 @@ impl DecidedBlock {
     }
 
     fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        let synced_block = proto::blocksync::SyncedBlock::decode(bytes).ok()?;
+        let synced_block = proto::sync::SyncedBlock::decode(bytes).ok()?;
         let synced_block = decode_sync_block(synced_block).ok()?;
         let block = Block::from_bytes(synced_block.block_bytes.as_ref()).ok()?;
 

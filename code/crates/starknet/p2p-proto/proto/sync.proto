@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package blocksync;
+package sync;
 
 import "p2p/proto/common.proto";
 import "p2p/proto/consensus.proto";

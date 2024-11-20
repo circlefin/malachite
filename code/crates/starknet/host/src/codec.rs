@@ -33,12 +33,11 @@ impl NetworkCodec<blocksync::Status<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<blocksync::Status<MockContext>, Self::Error> {
-        let status =
-            proto::blocksync::Status::decode(bytes.as_ref()).map_err(ProtoError::Decode)?;
+        let status = proto::sync::Status::decode(bytes.as_ref()).map_err(ProtoError::Decode)?;
 
         let peer_id = status
             .peer_id
-            .ok_or_else(|| ProtoError::missing_field::<proto::blocksync::Status>("peer_id"))?;
+            .ok_or_else(|| ProtoError::missing_field::<proto::sync::Status>("peer_id"))?;
 
         Ok(blocksync::Status {
             peer_id: libp2p_identity::PeerId::from_bytes(&peer_id.id)
@@ -52,7 +51,7 @@ impl NetworkCodec<blocksync::Status<MockContext>> for ProtobufCodec {
     }
 
     fn encode(&self, status: blocksync::Status<MockContext>) -> Result<Bytes, Self::Error> {
-        let proto = proto::blocksync::Status {
+        let proto = proto::sync::Status {
             peer_id: Some(proto::PeerId {
                 id: Bytes::from(status.peer_id.to_bytes()),
             }),
@@ -70,7 +69,7 @@ impl NetworkCodec<blocksync::Request<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<blocksync::Request<MockContext>, Self::Error> {
-        let request = proto::blocksync::Request::decode(bytes).map_err(ProtoError::Decode)?;
+        let request = proto::sync::Request::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(blocksync::Request {
             height: Height::new(request.block_number, request.fork_id),
@@ -78,7 +77,7 @@ impl NetworkCodec<blocksync::Request<MockContext>> for ProtobufCodec {
     }
 
     fn encode(&self, request: blocksync::Request<MockContext>) -> Result<Bytes, Self::Error> {
-        let proto = proto::blocksync::Request {
+        let proto = proto::sync::Request {
             block_number: request.height.block_number,
             fork_id: request.height.fork_id,
         };
@@ -91,7 +90,7 @@ impl NetworkCodec<blocksync::Response<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<blocksync::Response<MockContext>, Self::Error> {
-        let response = proto::blocksync::Response::decode(bytes).map_err(ProtoError::Decode)?;
+        let response = proto::sync::Response::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(blocksync::Response {
             height: Height::new(response.block_number, response.fork_id),
@@ -100,7 +99,7 @@ impl NetworkCodec<blocksync::Response<MockContext>> for ProtobufCodec {
     }
 
     fn encode(&self, response: blocksync::Response<MockContext>) -> Result<Bytes, Self::Error> {
-        let proto = proto::blocksync::Response {
+        let proto = proto::sync::Response {
             block_number: response.height.block_number,
             fork_id: response.height.fork_id,
             block: response.block.map(encode_synced_block).transpose()?,
@@ -187,7 +186,7 @@ where
 
 pub(crate) fn encode_aggregate_signature(
     aggregated_signature: AggregatedSignature<MockContext>,
-) -> Result<proto::blocksync::AggregatedSignature, ProtoError> {
+) -> Result<proto::sync::AggregatedSignature, ProtoError> {
     let signatures = aggregated_signature
         .signatures
         .into_iter()
@@ -195,7 +194,7 @@ pub(crate) fn encode_aggregate_signature(
             let validator_address = s.address.to_proto()?;
             let signature = s.signature.to_proto()?;
 
-            Ok(proto::blocksync::CommitSignature {
+            Ok(proto::sync::CommitSignature {
                 validator_address: Some(validator_address),
                 signature: Some(signature),
                 extension: s.extension.map(encode_extension).transpose()?,
@@ -203,13 +202,13 @@ pub(crate) fn encode_aggregate_signature(
         })
         .collect::<Result<_, ProtoError>>()?;
 
-    Ok(proto::blocksync::AggregatedSignature { signatures })
+    Ok(proto::sync::AggregatedSignature { signatures })
 }
 
 pub(crate) fn encode_certificate(
     certificate: CommitCertificate<MockContext>,
-) -> Result<proto::blocksync::CommitCertificate, ProtoError> {
-    Ok(proto::blocksync::CommitCertificate {
+) -> Result<proto::sync::CommitCertificate, ProtoError> {
+    Ok(proto::sync::CommitCertificate {
         fork_id: certificate.height.fork_id,
         block_number: certificate.height.block_number,
         round: certificate.round.as_u32().expect("round should not be nil"),
@@ -222,15 +221,15 @@ pub(crate) fn encode_certificate(
 
 pub(crate) fn encode_synced_block(
     synced_block: blocksync::SyncedBlock<MockContext>,
-) -> Result<proto::blocksync::SyncedBlock, ProtoError> {
-    Ok(proto::blocksync::SyncedBlock {
+) -> Result<proto::sync::SyncedBlock, ProtoError> {
+    Ok(proto::sync::SyncedBlock {
         block_bytes: synced_block.block_bytes,
         certificate: Some(encode_certificate(synced_block.certificate)?),
     })
 }
 
 pub(crate) fn decode_aggregated_signature(
-    signature: proto::blocksync::AggregatedSignature,
+    signature: proto::sync::AggregatedSignature,
 ) -> Result<AggregatedSignature<MockContext>, ProtoError> {
     let signatures = signature
         .signatures
@@ -239,16 +238,14 @@ pub(crate) fn decode_aggregated_signature(
             let signature = s
                 .signature
                 .ok_or_else(|| {
-                    ProtoError::missing_field::<proto::blocksync::CommitSignature>("signature")
+                    ProtoError::missing_field::<proto::sync::CommitSignature>("signature")
                 })
                 .and_then(p2p::Signature::from_proto)?;
 
             let address = s
                 .validator_address
                 .ok_or_else(|| {
-                    ProtoError::missing_field::<proto::blocksync::CommitSignature>(
-                        "validator_address",
-                    )
+                    ProtoError::missing_field::<proto::sync::CommitSignature>("validator_address")
                 })
                 .and_then(Address::from_proto)?;
 
@@ -287,22 +284,22 @@ pub(crate) fn decode_extension(
 }
 
 pub(crate) fn decode_certificate(
-    certificate: proto::blocksync::CommitCertificate,
+    certificate: proto::sync::CommitCertificate,
 ) -> Result<CommitCertificate<MockContext>, ProtoError> {
     let value_id = if let Some(block_hash) = certificate.block_hash {
         BlockHash::from_proto(block_hash)?
     } else {
-        return Err(ProtoError::missing_field::<
-            proto::blocksync::CommitCertificate,
-        >("block_hash"));
+        return Err(ProtoError::missing_field::<proto::sync::CommitCertificate>(
+            "block_hash",
+        ));
     };
 
     let aggregated_signature = if let Some(agg_sig) = certificate.aggregated_signature {
         decode_aggregated_signature(agg_sig)?
     } else {
-        return Err(ProtoError::missing_field::<
-            proto::blocksync::CommitCertificate,
-        >("aggregated_signature"));
+        return Err(ProtoError::missing_field::<proto::sync::CommitCertificate>(
+            "aggregated_signature",
+        ));
     };
 
     let certificate = CommitCertificate {
@@ -316,12 +313,12 @@ pub(crate) fn decode_certificate(
 }
 
 pub(crate) fn decode_sync_block(
-    synced_block: proto::blocksync::SyncedBlock,
+    synced_block: proto::sync::SyncedBlock,
 ) -> Result<blocksync::SyncedBlock<MockContext>, ProtoError> {
     let certificate = if let Some(certificate) = synced_block.certificate {
         certificate
     } else {
-        return Err(ProtoError::missing_field::<proto::blocksync::SyncedBlock>(
+        return Err(ProtoError::missing_field::<proto::sync::SyncedBlock>(
             "certificate",
         ));
     };
@@ -337,7 +334,7 @@ pub(crate) fn encode_proposed_value(
 ) -> Result<Vec<u8>, ProtoError> {
     use bytes::Bytes;
 
-    let proto = proto::blocksync::ProposedValue {
+    let proto = proto::sync::ProposedValue {
         fork_id: value.height.fork_id,
         block_number: value.height.block_number,
         round: value.round.as_u32().unwrap(),
