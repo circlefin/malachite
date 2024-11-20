@@ -66,36 +66,38 @@ module syncStatemachine {
   // Implemented by the blocksync server or client.
   //
 
-  // deliver a status message to client v
+  /// Deliver a status message to client v
   action syncDeliverStatus(v) =  all {
      deliverStatus(v),
      unchangedServer,
   }
 
-  // deliver a response to client v
+  /// Deliver a response to client v
   action syncDeliverResp(v) =  all {
     deliverResponse(v),
     unchangedServer,
   }
 
-  // deliver a request to server v
+  /// Deliver a request to server v
   action syncDeliverReq(v) =  all {
     deliverRequest(v),
     unchangedClient,
   }
 
+  /// Client v runs a protocol step
   action syncStepClient(v, out) = all {
     clientLogic(v, out),
     unchangedServer,
   }
-  
-  action syncClientTimeOut(v) = all {
+
+  /// A client v's request times out
+  action syncClientTimeout(v) = all {
     clientTimeout(v),
     unchangedServer,
   }
 
-  /// any blocksync step independent of consensus. unchange is an action
-  /// that can be used for composition
+  /// any blocksync step independent of consensus.
+  /// unchange is an action that can be used for composition
   action pureSyncStep (v, unchange) = all {
     any {
       syncDeliverReq(v),
@@ -103,15 +105,9 @@ module syncStatemachine {
       syncDeliverStatus(v),
       syncStepServer(v),
       syncStatusStep(v),
-      syncClientTimeOut(v),
+      syncClientTimeout(v),
     },
     unchange
   }
-
-
-
-
-
-
 
 }
