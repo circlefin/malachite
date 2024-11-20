@@ -32,7 +32,7 @@ module bsync_client {
   //
 
   /// Initialize the synchronizer
-  pure def initBsyncClient(id: Address, peers: Set[Address]) : BsyncClient = 
+  pure def initBsyncClient(id: Address, peers: Set[Address]) : BsyncClient =
     {
       id: id,
       peerStatus: peers.mapBy(x => {base:-1, top:-1}),
@@ -67,8 +67,6 @@ module bsync_client {
     req: Option[RequestMsg]
   }
 
-
-
   /// We have received a certificate. now we need to issue the
   /// corresponding block request  and generate a certificate output.
   pure def syncHandleCertificate (s: BsyncClient, cert: Set[Vote], peer: str ) : ClientResult =
@@ -98,7 +96,7 @@ module bsync_client {
   /// step of a client:
   /// 1. update peer statuses, 2. if there is no open request, request something
   /// 3. otherwise check whether we have a response and act accordingly
-  pure def bsyncClient (s: BsyncClient, fullEntries: bool) : ClientResult =
+  pure def bsyncClientLogic (s: BsyncClient, fullEntries: bool) : ClientResult =
       val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
       val newS = { ...s, peerStatus: newPeerStates}
       if (s.lastSyncedHeight >= s.height)
@@ -145,6 +143,29 @@ module bsync_client {
                   so: SONoOutput,
                   req: None}
 
+  /// step of a client upon timeout: We send the same request to a different server
+  // FIXME: what to do if goodPeers is empty?
+  pure def bsyncClientTimeout(s: BsyncClient, toMsg: RequestMsg) : ClientResult =
+    val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
+
+    val goodPeers = s.peerStatus.keys().filter(p => newPeerStates.get(p).base <= s.height
+                                            and s.height <= newPeerStates.get(p).top ).
+                                            exclude(Set(toMsg.server))
+    if (goodPeers.size() > 0)
+      val req = {... toMsg, server: goodPeers.fold("", (acc, i) => i)}
+      val newS = { ...s,  peerStatus: newPeerStates,
+                        openRequests: s.openRequests.exclude(Set(toMsg))
+                                                    .union(Set(req))}
+      { sync: newS,
+        so: SONoOutput,
+        req: Some(req)}
+    else
+      { sync:  { ...s,  peerStatus: newPeerStates,
+                        openRequests: s.openRequests.exclude(Set(toMsg))},
+        so: SONoOutput,
+        req: None}
+
+
   // State machine
 
   var bsyncClients: Address -> BsyncClient
@@ -175,6 +196,7 @@ module bsync_client {
     }
   }
 
+
   // deliver a response message, from responsesBuffer, to node
   action deliverResponse(node) = all {
     responsesBuffer.get(node).size() > 0,
@@ -196,6 +218,34 @@ module bsync_client {
       | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
       | None => requestsBuffer
     },
+    responsesBuffer' = responsesBuffer,
+  }
+
+  // Client v takes a step
+  action clientLogic(v, outputAction, full) = all {
+    val result = bsyncClientLogic(bsyncClients.get(v), full)
+    all {
+      // updates the client's state
+      applyClientUpdate(v, result),
+      // This is the part that interacts with the consensus.
+      // It can be the driver or the mocked consensus logic.
+      outputAction(v, result.so),
+    }
+  }
+
+
+  action clientTimeout(node) = all {
+    bsyncClients.get(node).openRequests.size() > 0,
+    nondet toMsg = bsyncClients.get(node).openRequests.oneOf()
+    val result = bsyncClientTimeout(bsyncClients.get(node), toMsg)
+    all {
+      bsyncClients' = bsyncClients.put(node, result.sync),
+      requestsBuffer' = match result.req {
+            | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
+            | None => requestsBuffer
+      },
+    },
+    statusBuffer' = statusBuffer,
     responsesBuffer' = responsesBuffer,
   }
 
