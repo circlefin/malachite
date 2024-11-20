@@ -128,28 +128,28 @@ module bsync_client {
                   so: SONoOutput,
                   req: None}
 
-  /// step of a client upon timeout: We send the same request to a diffenerent server
-  // TODO: what to do if goodPeers is empty?
+  /// step of a client upon timeout: We send the same request to a different server
+  // FIXME: what to do if goodPeers is empty?
   pure def bsyncClientTimeout(s: BsyncClient, toMsg: RequestMsg) : ClientResult =
-      val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
+    val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
 
-      val goodPeers = s.peerStatus.keys().filter(p => newPeerStates.get(p).base <= s.height
-                                              and s.height <= newPeerStates.get(p).top ).
-                                              exclude(Set(toMsg.server))
-      if (goodPeers.size() > 0)    
-        val req = {... toMsg, server: goodPeers.fold("", (acc, i) => i)}
-        val newS = { ...s,  peerStatus: newPeerStates,
-                          openRequests: s.openRequests.exclude(Set(toMsg))
-                                                      .union(Set(req))}  
-        { sync: newS,
-          so: SONoOutput,
-          req: Some(req)}
-      else
-          { sync:  { ...s,  peerStatus: newPeerStates,
-                            openRequests: s.openRequests.exclude(Set(toMsg))},
-            so: SONoOutput,
-            req: None}      
-      
+    val goodPeers = s.peerStatus.keys().filter(p => newPeerStates.get(p).base <= s.height
+                                            and s.height <= newPeerStates.get(p).top ).
+                                            exclude(Set(toMsg.server))
+    if (goodPeers.size() > 0)
+      val req = {... toMsg, server: goodPeers.fold("", (acc, i) => i)}
+      val newS = { ...s,  peerStatus: newPeerStates,
+                        openRequests: s.openRequests.exclude(Set(toMsg))
+                                                    .union(Set(req))}
+      { sync: newS,
+        so: SONoOutput,
+        req: Some(req)}
+    else
+      { sync:  { ...s,  peerStatus: newPeerStates,
+                        openRequests: s.openRequests.exclude(Set(toMsg))},
+        so: SONoOutput,
+        req: None}
+
 
   // State machine
 
@@ -214,7 +214,7 @@ module bsync_client {
       applyClientUpdate(v, result),
       // This is the part that interacts with the consensus.
       // It can be the driver or the mocked consensus logic.
-      outputAction(v, result.so), 
+      outputAction(v, result.so),
     }
   }
 
@@ -232,7 +232,6 @@ module bsync_client {
     },
     statusBuffer' = statusBuffer,
     responsesBuffer' = responsesBuffer,
-}
-
+  }
 
 }
