@@ -11,7 +11,7 @@ use malachite_consensus::{ProposedValue, SignedConsensusMsg};
 use malachite_gossip_consensus::Bytes;
 
 use crate::proto::consensus_message::Messages;
-use crate::proto::{self as proto, ConsensusMessage, Error as ProtoError, Protobuf};
+use crate::proto::{self as proto, Error as ProtoError, Protobuf};
 use crate::types::MockContext;
 use crate::types::{self as p2p, Address, BlockHash, Height, ProposalPart, Vote};
 
@@ -114,15 +114,15 @@ impl NetworkCodec<SignedConsensusMsg<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<SignedConsensusMsg<MockContext>, Self::Error> {
-        let proto = ConsensusMessage::decode(bytes)?;
+        let proto = proto::ConsensusMessage::decode(bytes)?;
 
         let proto_signature = proto
             .signature
-            .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("signature"))?;
+            .ok_or_else(|| ProtoError::missing_field::<proto::ConsensusMessage>("signature"))?;
 
         let message = proto
             .messages
-            .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("messages"))?;
+            .ok_or_else(|| ProtoError::missing_field::<proto::ConsensusMessage>("messages"))?;
 
         let signature = p2p::Signature::from_proto(proto_signature)?;
 
@@ -137,11 +137,11 @@ impl NetworkCodec<SignedConsensusMsg<MockContext>> for ProtobufCodec {
 
     fn encode(&self, msg: SignedConsensusMsg<MockContext>) -> Result<Bytes, Self::Error> {
         let message = match msg {
-            SignedConsensusMsg::Vote(v) => ConsensusMessage {
+            SignedConsensusMsg::Vote(v) => proto::ConsensusMessage {
                 messages: Some(Messages::Vote(v.to_proto()?)),
                 signature: Some(v.signature.to_proto()?),
             },
-            SignedConsensusMsg::Proposal(p) => ConsensusMessage {
+            SignedConsensusMsg::Proposal(p) => proto::ConsensusMessage {
                 messages: Some(Messages::Proposal(p.to_proto()?)),
                 signature: Some(p.signature.to_proto()?),
             },
@@ -187,7 +187,7 @@ where
 
 pub(crate) fn encode_aggregate_signature(
     aggregated_signature: AggregatedSignature<MockContext>,
-) -> Result<proto::AggregatedSignature, ProtoError> {
+) -> Result<proto::blocksync::AggregatedSignature, ProtoError> {
     let signatures = aggregated_signature
         .signatures
         .into_iter()
@@ -195,7 +195,7 @@ pub(crate) fn encode_aggregate_signature(
             let validator_address = s.address.to_proto()?;
             let signature = s.signature.to_proto()?;
 
-            Ok(proto::CommitSignature {
+            Ok(proto::blocksync::CommitSignature {
                 validator_address: Some(validator_address),
                 signature: Some(signature),
                 extension: s.extension.map(encode_extension).transpose()?,
@@ -203,13 +203,13 @@ pub(crate) fn encode_aggregate_signature(
         })
         .collect::<Result<_, ProtoError>>()?;
 
-    Ok(proto::AggregatedSignature { signatures })
+    Ok(proto::blocksync::AggregatedSignature { signatures })
 }
 
 pub(crate) fn encode_certificate(
     certificate: CommitCertificate<MockContext>,
-) -> Result<proto::CommitCertificate, ProtoError> {
-    Ok(proto::CommitCertificate {
+) -> Result<proto::blocksync::CommitCertificate, ProtoError> {
+    Ok(proto::blocksync::CommitCertificate {
         fork_id: certificate.height.fork_id,
         block_number: certificate.height.block_number,
         round: certificate.round.as_u32().expect("round should not be nil"),
@@ -230,7 +230,7 @@ pub(crate) fn encode_synced_block(
 }
 
 pub(crate) fn decode_aggregated_signature(
-    signature: proto::AggregatedSignature,
+    signature: proto::blocksync::AggregatedSignature,
 ) -> Result<AggregatedSignature<MockContext>, ProtoError> {
     let signatures = signature
         .signatures
@@ -238,13 +238,17 @@ pub(crate) fn decode_aggregated_signature(
         .map(|s| {
             let signature = s
                 .signature
-                .ok_or_else(|| ProtoError::missing_field::<proto::CommitSignature>("signature"))
+                .ok_or_else(|| {
+                    ProtoError::missing_field::<proto::blocksync::CommitSignature>("signature")
+                })
                 .and_then(p2p::Signature::from_proto)?;
 
             let address = s
                 .validator_address
                 .ok_or_else(|| {
-                    ProtoError::missing_field::<proto::CommitSignature>("validator_address")
+                    ProtoError::missing_field::<proto::blocksync::CommitSignature>(
+                        "validator_address",
+                    )
                 })
                 .and_then(Address::from_proto)?;
 
@@ -283,22 +287,22 @@ pub(crate) fn decode_extension(
 }
 
 pub(crate) fn decode_certificate(
-    certificate: proto::CommitCertificate,
+    certificate: proto::blocksync::CommitCertificate,
 ) -> Result<CommitCertificate<MockContext>, ProtoError> {
     let value_id = if let Some(block_hash) = certificate.block_hash {
         BlockHash::from_proto(block_hash)?
     } else {
-        return Err(ProtoError::missing_field::<proto::CommitCertificate>(
-            "block_hash",
-        ));
+        return Err(ProtoError::missing_field::<
+            proto::blocksync::CommitCertificate,
+        >("block_hash"));
     };
 
     let aggregated_signature = if let Some(agg_sig) = certificate.aggregated_signature {
         decode_aggregated_signature(agg_sig)?
     } else {
-        return Err(ProtoError::missing_field::<proto::CommitCertificate>(
-            "aggregated_signature",
-        ));
+        return Err(ProtoError::missing_field::<
+            proto::blocksync::CommitCertificate,
+        >("aggregated_signature"));
     };
 
     let certificate = CommitCertificate {
@@ -333,7 +337,7 @@ pub(crate) fn encode_proposed_value(
 ) -> Result<Vec<u8>, ProtoError> {
     use bytes::Bytes;
 
-    let proto = proto::ProposedValue {
+    let proto = proto::blocksync::ProposedValue {
         fork_id: value.height.fork_id,
         block_number: value.height.block_number,
         round: value.round.as_u32().unwrap(),
@@ -346,4 +350,3 @@ pub(crate) fn encode_proposed_value(
 
     Ok(proto.encode_to_vec())
 }
-
