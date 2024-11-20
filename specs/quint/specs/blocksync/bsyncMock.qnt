@@ -30,7 +30,11 @@ module bsyncMock {
     chains' = chains,   
   }
 
+  /// This is an abstract version. We just add a (mocked) block with the right
+  /// height on top of the chain. Because of this, implicitly all nodes will
+  /// decide on the same block
   action decideMock(v) = all {
+    bsyncClients.get(v).height == chains.get(v).length(),
     outputs' = outputs,
     chains' = chains.put(v, chains.get(v).append({
       decision: mkProposal("", chains.get(v).length(), 0, "", -1),
