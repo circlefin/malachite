@@ -347,26 +347,3 @@ pub(crate) fn encode_proposed_value(
     Ok(proto.encode_to_vec())
 }
 
-// pub(crate) fn decode_proposed_value(
-//     bytes: &[u8],
-// ) -> Result<ProposedValue<MockContext>, ProtoError> {
-//     let proto = proto::ProposedValue::decode(bytes)?;
-//
-//     let height = Height::new(proto.block_number, proto.fork_id);
-//     let round = Round::from(proto.round);
-//     let valid_round = Round::from(proto.valid_round);
-//     let validator_address = Address::from_proto(proto.proposer.unwrap())?;
-//     let value = BlockHash::from_bytes(proto.value.as_ref())?;
-//     let validity = Validity::from_bool(proto.validity);
-//     let extension = proto.extension.map(decode_extension).transpose()?;
-//
-//     Ok(ProposedValue {
-//         height,
-//         round,
-//         valid_round,
-//         validator_address,
-//         value,
-//         validity,
-//         extension,
-//     })
-// }
