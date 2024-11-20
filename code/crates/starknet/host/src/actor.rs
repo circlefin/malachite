@@ -5,6 +5,7 @@ use eyre::eyre;
 
 use itertools::Itertools;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
+use rand::{RngCore, SeedableRng};
 use sha3::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, trace, warn};
@@ -39,11 +40,15 @@ pub struct HostState {
     host: MockHost,
     block_store: BlockStore,
     part_streams_map: PartStreamsMap,
-    next_stream_id: StreamId,
+    rng: Box<dyn RngCore + Send + Sync>,
 }
 
 impl HostState {
-    pub fn new(host: MockHost, db_path: impl AsRef<Path>) -> Self {
+    pub fn new(
+        host: MockHost,
+        db_path: impl AsRef<Path>,
+        rng: impl RngCore + Send + Sync + 'static,
+    ) -> Self {
         Self {
             height: Height::new(0, 0),
             round: Round::Nil,
@@ -51,8 +56,13 @@ impl HostState {
             host,
             block_store: BlockStore::new(db_path).unwrap(),
             part_streams_map: PartStreamsMap::default(),
-            next_stream_id: StreamId::default(),
+            rng: Box::new(rng),
         }
+    }
+
+    pub fn next_stream_id(&mut self) -> StreamId {
+        let id = self.rng.next_u64();
+        StreamId::from(id)
     }
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
@@ -241,13 +251,14 @@ impl StarknetHost {
     ) -> Result<HostRef, SpawnErr> {
         let db_dir = home_dir.join("db");
         std::fs::create_dir_all(&db_dir).map_err(|e| SpawnErr::StartupFailed(e.into()))?;
-
         let db_path = db_dir.join("blocks.db");
+
+        let rng = rand::rngs::StdRng::from_entropy();
 
         let (actor_ref, _) = Actor::spawn(
             None,
             Self::new(mempool, gossip_consensus, metrics),
-            HostState::new(host, db_path),
+            HostState::new(host, db_path, rng),
         )
         .await?;
 
@@ -344,8 +355,7 @@ impl Actor for StarknetHost {
                 let (mut rx_part, rx_hash) =
                     state.host.build_new_proposal(height, round, deadline).await;
 
-                let stream_id = state.next_stream_id;
-                state.next_stream_id += 1;
+                let stream_id = state.next_stream_id();
 
                 let mut sequence = 0;
 
@@ -409,8 +419,7 @@ impl Actor for StarknetHost {
 
                 let mut rx_part = state.host.send_known_proposal(value_id).await;
 
-                let stream_id = state.next_stream_id;
-                state.next_stream_id += 1;
+                let stream_id = state.next_stream_id();
 
                 let init = ProposalInit {
                     height,
