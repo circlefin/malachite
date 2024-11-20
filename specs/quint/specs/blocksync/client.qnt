@@ -30,7 +30,7 @@ module bsync_client {
   //
 
   /// Initialize the synchronizer
-  pure def initBsyncClient(id: Address, peers: Set[Address]) : BsyncClient = 
+  pure def initBsyncClient(id: Address, peers: Set[Address]) : BsyncClient =
     {
       id: id,
       peerStatus: peers.mapBy(x => {base:-1, top:-1}),
@@ -128,21 +128,21 @@ module bsync_client {
                   so: SONoOutput,
                   req: None}
 
-	/// step of a client upon timeout: We send the same request to a diffenerent server
-	// TODO: what to do if goodPeers is empty?
-	pure def bsyncTimeout(s: BsyncClient, toMsg: RequestMsg) : ClientResult =
-	    val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
-	    
-		  val goodPeers = s.peerStatus.keys().filter(p => newPeerStates.get(p).base <= s.height
-	                                            and s.height <= newPeerStates.get(p).top ).
-																							exclude(Set(toMsg.server))		
-			val req = {... toMsg, server: goodPeers.fold("", (acc, i) => i)}		
-			val newS = { ...s,	peerStatus: newPeerStates,
-													openRequests: s.openRequests.exclude(Set(toMsg))
-																											.union(Set(req))}								
-	        {   sync: newS,
-	            so: SONoOutput,
-	            req: Some(req)}
+  /// step of a client upon timeout: We send the same request to a diffenerent server
+  // TODO: what to do if goodPeers is empty?
+  pure def bsyncTimeout(s: BsyncClient, toMsg: RequestMsg) : ClientResult =
+      val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
+
+      val goodPeers = s.peerStatus.keys().filter(p => newPeerStates.get(p).base <= s.height
+                                              and s.height <= newPeerStates.get(p).top ).
+                                              exclude(Set(toMsg.server))
+      val req = {... toMsg, server: goodPeers.fold("", (acc, i) => i)}
+      val newS = { ...s,  peerStatus: newPeerStates,
+                          openRequests: s.openRequests.exclude(Set(toMsg))
+                                                      .union(Set(req))}
+          {   sync: newS,
+              so: SONoOutput,
+              req: Some(req)}
 
   // State machine
 
@@ -199,19 +199,19 @@ module bsync_client {
     responsesBuffer' = responsesBuffer,
   }
 
-	action clientTimeout(node) = all {
-			bsyncClients.get(node).openRequests.size() > 0,
-			nondet toMsg = bsyncClients.get(node).openRequests.oneOf()
-			val result = bsyncTimeout(bsyncClients.get(node), toMsg)
-			all {
-				bsyncClients' = bsyncClients.put(node, result.sync),
-				requestsBuffer' = match result.req {
-	            | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
-	            | None => requestsBuffer
-	      },
-			},
-			statusBuffer' = statusBuffer,
-			responsesBuffer' = responsesBuffer,
-	}
-
+  action clientTimeout(node) = all {
+    bsyncClients.get(node).openRequests.size() > 0,
+    nondet toMsg = bsyncClients.get(node).openRequests.oneOf()
+    val result = bsyncTimeout(bsyncClients.get(node), toMsg)
+    all {
+      bsyncClients' = bsyncClients.put(node, result.sync),
+      requestsBuffer' = match result.req {
+            | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
+            | None => requestsBuffer
+      },
+    },
+    statusBuffer' = statusBuffer,
+    responsesBuffer' = responsesBuffer,
 }
+
+
