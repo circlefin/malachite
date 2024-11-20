@@ -99,7 +99,7 @@ module bsync_client {
   /// step of a client:
   /// 1. update peer statuses, 2. if there is no open request, request something
   /// 3. otherwise check whether we have a response and act accordingly
-  pure def bsyncClient (s: BsyncClient) : ClientResult =
+  pure def bsyncClient (s: BsyncClient, fullEntries: bool) : ClientResult =
       val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
       val newS = { ...s, peerStatus: newPeerStates}
       if (s.lastSyncedHeight >= s.height)
@@ -115,7 +115,10 @@ module bsync_client {
                   // we start the sync "round" by asking for a certificate
                   val req = { client: s.id,
                               server: goodPeers.fold("", (acc, i) => i), //chooseSome(),
-                              rtype: SyncCertificate,
+                              rtype:  if (fullEntries)
+                                        SyncBlockStoreEntry
+                                      else
+                                        SyncCertificate,
                               height: s.height}
                   {   sync: {... newS, openRequests: s.openRequests.union(Set(req))},
                       so: SONoOutput,
@@ -144,6 +147,8 @@ module bsync_client {
               {   sync: newS,
                   so: SONoOutput,
                   req: None}
+
+
 
   // State machine
 

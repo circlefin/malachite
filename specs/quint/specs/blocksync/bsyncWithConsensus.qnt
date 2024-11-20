@@ -58,7 +58,8 @@ module bsyncWithConsensus {
     any {
       pureSyncStep(v, unchangedAll),
       // Block sync client check if there are responses to apply to consensus
-      syncStepClient(v, putSyncOutputIntoNode),
+      syncStepClient(v, putSyncOutputIntoNode, false),
+      syncStepClient(v, putSyncOutputIntoNode, true),
       syncUpdateServer(v),
     },
     // a node goes to next height
@@ -120,16 +121,16 @@ module bsyncWithConsensus {
     newHeightActionAll("v4", validatorSet, h)
     .then(all{unchangedAll, syncStatusStep("v2")})
     .then(all{unchangedAll, syncDeliverStatus("v4")})
-    .then(syncStepClient("v4", putSyncOutputIntoNode)) // ask for certificate
+    .then(syncStepClient("v4", putSyncOutputIntoNode, false)) // ask for certificate
     .then(all{unchangedAll, syncDeliverReq("v2")})
     .then(all{unchangedAll, syncStepServer("v2")})
     .then(all{unchangedAll, syncDeliverResp("v4")})
-    .then(syncStepClient("v4", putSyncOutputIntoNode)) // ask for block and give certificate to node
+    .then(syncStepClient("v4", putSyncOutputIntoNode, false)) // ask for block and give certificate to node
     .expect(system.get("v4").incomingSyncCertificates.size() > 0)
     .then(all{unchangedAll, syncDeliverReq("v2")})
     .then(all{unchangedAll, syncStepServer("v2")})
     .then(all{unchangedAll, syncDeliverResp("v4")})
-    .then(syncStepClient("v4", putSyncOutputIntoNode))
+    .then(syncStepClient("v4", putSyncOutputIntoNode, false))
     .expect(system.get("v4").incomingSyncProposals.size() > 0)
     .then(3.reps(_ => syncValStep("v4")))
     .expect(system.get("v4").es.chain.length() > h)

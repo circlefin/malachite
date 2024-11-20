@@ -99,8 +99,8 @@ module syncStatemachine {
 
 
   // Client v takes a step
-  action syncStepClient(v, outputAction) = all {
-    val result = bsyncClient(bsyncClients.get(v))
+  action syncStepClient(v, outputAction, full) = all {
+    val result = bsyncClient(bsyncClients.get(v), full)
     all {
       // updates the client's state
       applyClientUpdate(v, result),
