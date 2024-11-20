@@ -164,10 +164,8 @@ module bsyncWithConsensus {
     .then(all{unchangedAll, syncStatusStep("v3")}) 
     .then(all{unchangedAll, syncDeliverStatus("v4")}) 
     // v4's request to v2 times out...
-    .then(all{unchangedAll, syncClientTimeOut("v4")})
+    .then(all{unchangedAll, syncClientTimeout("v4")})
     // after handling the timeout a request for certificate is sent to v3
     .expect(requestsBuffer.get("v3").contains({ client: "v4", height: 0, rtype: SyncCertificate, server: "v3" }))
- 
-  
 
 }
