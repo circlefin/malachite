@@ -159,7 +159,7 @@ module bsyncWithConsensus {
     .then(syncStepClient("v4", putSyncOutputIntoNode)) // ask for certificate
     // request for certificate is sent to v2
     .expect(requestsBuffer.get("v2").contains({ client: "v4", height: 0, rtype: SyncCertificate, server: "v2" }))
-    // v3 wakes up and sends it startus to v4
+    // v3 wakes up and sends it status to v4
     .then(syncUpdateServer("v3"))  
     .then(all{unchangedAll, syncStatusStep("v3")}) 
     .then(all{unchangedAll, syncDeliverStatus("v4")}) 
