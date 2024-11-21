@@ -57,7 +57,7 @@ module bsyncMock {
 
   /// Update server v from the consensus' blockchain
   /// This abstracts as pull-based mechanism: the server consults the chain state.
-  action mockUpdateServer(v) = all {
+  action syncUpdateServer(v) = all {
     all {
       updateServer(v, chains.get(v)),
       unchangedClient,
@@ -87,8 +87,8 @@ module bsyncMock {
     any {
       pureSyncStep(v, unchangedMock),
       // consensus-specific steps
-      syncStepClient(v, writeAction),  // is checking if there are responses and check whether it need to requ
-      mockUpdateServer(v),
+      syncStepClient(v, writeAction, false),  // is checking if there are responses and check whether it need to requ
+      syncUpdateServer(v),
       newHeightActionAll(v, validators, chains.get(v).length()),
       decideMock(v),
    }
