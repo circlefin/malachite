@@ -2769,20 +2769,14 @@ dependencies = [
 name = "malachite-test"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "base64 0.22.1",
  "bytes",
- "bytesize",
  "ed25519-consensus",
  "hex",
- "malachite-actors",
  "malachite-common",
- "malachite-config",
  "malachite-consensus",
  "malachite-proto",
- "malachite-round",
  "malachite-signing-ed25519",
- "malachite-vote",
  "prost",
  "prost-build",
  "prost-types",
@@ -2790,9 +2784,6 @@ dependencies = [
  "serde",
  "sha3",
  "signature",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
