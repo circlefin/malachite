@@ -6,12 +6,12 @@
 module bsyncStatemachine {
 
   import blocksync.* from "./blocksync"
-  import bsync_client.* from "./client"
-  import bsync_server.* from "./server"
+  import blocksyncClient.* from "./blocksyncClient"
+  import blocksyncServer.* from "./blocksyncServer"
 
   export blocksync.*
-  export bsync_client.*
-  export bsync_server.*
+  export blocksyncClient.*
+  export blocksyncServer.*
 
   // ****************************************************************************
   // State machine
