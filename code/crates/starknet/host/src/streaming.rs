@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, BinaryHeap};
+use std::collections::{BTreeMap, BinaryHeap, HashSet};
 
 use derive_where::derive_where;
 
@@ -57,6 +57,7 @@ impl<T> MinHeap<T> {
 struct StreamState<T> {
     buffer: MinHeap<T>,
     init_info: Option<ProposalInit>,
+    seen_sequences: HashSet<Sequence>,
     next_sequence: Sequence,
     total_messages: usize,
     fin_received: bool,
@@ -114,6 +115,11 @@ impl PartStreamsMap {
     ) -> Option<ProposalParts> {
         let stream_id = msg.stream_id;
         let state = self.streams.entry((peer_id, stream_id)).or_default();
+
+        if !state.seen_sequences.insert(msg.sequence) {
+            // We have already seen a message with this sequence number.
+            return None;
+        }
 
         let result = if msg.is_first() {
             Self::insert_first(state, msg)
