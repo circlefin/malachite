@@ -60,10 +60,6 @@ module driver {
     // New Height Logic
     // *************************************************************************
 
-    type NewHeightAction =
-        | NHDecide(NonNilValue)
-        | NHStartInRound(Round)
-
     pure def maxRound(S: Set[Round]): Round = 
         S.fold(0, (x,agg) => max(x,agg))
 
@@ -80,7 +76,7 @@ module driver {
     // initialize a driver with for a new height, and processing all messages that are already in the message buffers for that height
     //pure def initNodeStateForNewHeight(ns: NodeState, vs: ValidatorSet, h: Height, chain: List[BlockStoreEntry]): NodeState = 
 
-    pure def newHeightAction(ns: NodeState, vs: ValidatorSet, h: Height): (NodeState, NewHeightAction)  = 
+    pure def getNewHeightAction(ns: NodeState, vs: ValidatorSet, h: Height): (NodeState, DriverInput)  = 
         val proposalsForHeight = ns.incomingProposals.filter(v => v.height == h)
         val votesForHeight = ns.incomingVotes.filter(v => v.height == h)
         val maxVotesRound = maxRound(votesForHeight.map( vote => vote.round)) // needed to avoid skip rounds in applyVote
@@ -104,15 +100,15 @@ module driver {
         )
 
         // check if there is a value to decide: decisionVal is a decision value or Nil
-        val decisionVal = vkWithCertificates.rounds.keys().fold(Nil, (agg, rNr) =>
-            if (agg != Nil) agg
+        val decisionValAndRound = vkWithCertificates.rounds.keys().fold((Nil,-1), (agg, rNr) =>
+            if (agg._1 != Nil) agg
             else {
-                vkWithCertificates.rounds.get(rNr).emittedOutputs.fold(Nil, (agg2, output) =>
+                vkWithCertificates.rounds.get(rNr).emittedOutputs.fold((Nil,-1), (agg2, output) =>
                     match output {
                         | PrecommitValueVKOutput(value) => 
                             val validProposals = proposalsForHeight.filter(p => p.proposal.isValid() and p.proposal == value._2 and p.srcAddress == proposer(vs,h,rNr))
                             if (validProposals != Set())
-                                Val(value._2)
+                                (Val(value._2),rNr)
                             else
                                 agg2
                         | _ => agg2
@@ -120,6 +116,8 @@ module driver {
                 )
             }       
         )
+        val decisionVal : NonNilValue = getVal(decisionValAndRound._1)
+        val decisionRound = decisionValAndRound._2
 
         // else compute consensus round to start
         val roundToStart = vkWithCertificates.rounds.keys().fold(0, (agg, rNr) =>
@@ -140,10 +138,12 @@ module driver {
             .with("incomingVotes",ns.incomingVotes.exclude(votesForHeight))
             .with("incomingCertificates",ns.incomingCertificates.exclude(certificatesForHeight))
 
-        val resultAction = if (decisionVal != Nil)
-            NHDecide(getVal(decisionVal))
-        else   
-            NHStartInRound(roundToStart)
+        val resultAction = if (decisionValAndRound._1 != Nil)
+            PendingDInput(ProposalAndCommitAndValidCInput((decisionRound, decisionVal)))
+        else if (roundToStart > 0)
+            PendingDInput(RoundSkipCInput(roundToStart))
+        else 
+            StartDInput
 
         (resultNodeState, resultAction)
 
@@ -559,7 +559,10 @@ module driver {
         val syncProposalsForCurrentHeight = state.incomingSyncProposals.filter(p => p.height == state.es.cs.height)
 
         if (not(state.es.started))
-            (state, StartDInput)
+            val result = getNewHeightAction(state, state.es.valset, state.es.cs.height)
+            val resultState = result._1
+            val resultAction = result._2
+            (resultState, resultAction)
 
         else if (syncCertificatesForCurrentHeight != Set())
             // val cert = syncCertificatesForCurrentHeight.chooseSome()
