@@ -131,7 +131,7 @@ module driver {
 
         val resultDriver = driver.with("bk",vkWithCertificates)
         // Note: proposals messages are not processed / removed
-        // TOOD: which messages can safely be removed in case of StartinInRound(r)???
+        // TODO: which messages can safely be removed in case of StartInRound(r)???
         val resultNodeState = ns
             .removeMessagesFromOlderHeights(h)
             .with("es",resultDriver)
