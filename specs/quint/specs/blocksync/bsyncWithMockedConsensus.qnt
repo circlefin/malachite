@@ -67,7 +67,8 @@ module bsyncWithMockedConsensus {
   }
 
   action writeAction(v, so) = all {
-    outputs' = outputs.put(v, so),
+    val updateOutput = outputs.get(v).append(so)
+    outputs' = outputs.put(v, updateOutput),
     chains' = chains,
   }
 
