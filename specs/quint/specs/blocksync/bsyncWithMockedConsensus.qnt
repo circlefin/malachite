@@ -14,17 +14,14 @@ module bsyncWithMockedConsensus {
   val Correct = Set("v2", "v3", "v4")
   val validatorSet = Set("v1", "v2", "v3", "v4").mapBy(x => 1)
 
-  type Output = {
-    v : Address,
-    out: BsyncClientOutput
-  }
+  // State machine
 
-  var outputs: List[Output]
+  var outputs: Address -> List[BsyncClientOutput]
   var chains: Address -> List[BlockStoreEntry]
 
   /// initialize consensus and synchronizer
   action initMockedConsensus = all {
-    outputs' = [],
+    outputs' = validators.mapBy(_ => []),
     chains' = Correct.mapBy(_ => []),
     syncInit(validators)
   }
@@ -70,7 +67,7 @@ module bsyncWithMockedConsensus {
   }
 
   action writeAction(v, so) = all {
-    outputs' = outputs.append({v: v, out: so}),
+    outputs' = outputs.put(v, so),
     chains' = chains,
   }
 
@@ -107,7 +104,7 @@ module bsyncWithMockedConsensus {
         { decision: mkProposal( "", i, 0, "", 0),
           commit: Set() } ))
     ),
-    outputs' = [],
+    outputs' = validators.mapBy(_ => []),
     syncInit(validators)
    }
 
