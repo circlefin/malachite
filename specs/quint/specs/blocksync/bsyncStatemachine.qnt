@@ -5,11 +5,13 @@
 
 module bsyncStatemachine {
 
-  // General definitions
   import blocksync.* from "./blocksync"
-
   import bsync_client.* from "./client"
   import bsync_server.* from "./server"
+
+  export blocksync.*
+  export bsync_client.*
+  export bsync_server.*
 
   // ****************************************************************************
   // State machine

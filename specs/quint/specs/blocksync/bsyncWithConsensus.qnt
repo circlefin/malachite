@@ -5,10 +5,9 @@
 
 module bsyncWithConsensus {
 
-  import blocksync.* from "./blocksync"
-  import bsync_client.* from "./client"
-  import bsync_server.* from "./server"
+  import bsyncStatemachine.* from "./bsyncStatemachine"
 
+  /// Consensus state machine setup
   import statemachineAsync(
     validators = Set("v1", "v2", "v3", "v4"),
     validatorSet = Set("v1", "v2", "v3", "v4").mapBy(x => 1),
@@ -17,8 +16,6 @@ module bsyncWithConsensus {
     Rounds = Set(0, 1, 2, 3),
     Heights = Set(0) // , 1, 2, 3)
   ).* from "../statemachineAsync"
-
-  import bsyncStatemachine.* from "./bsyncStatemachine"
 
   /// initialize consensus and block sync
   action initAll = all {
