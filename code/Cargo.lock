@@ -2572,9 +2572,22 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "malachite-common",
+ "malachite-driver-test-utils",
  "malachite-round",
+ "malachite-test",
  "malachite-vote",
  "thiserror 2.0.3",
+]
+
+[[package]]
+name = "malachite-driver-test-utils"
+version = "0.1.0"
+dependencies = [
+ "malachite-common",
+ "malachite-driver",
+ "malachite-round",
+ "malachite-test",
+ "malachite-vote",
 ]
 
 [[package]]
@@ -2765,7 +2778,6 @@ dependencies = [
  "malachite-common",
  "malachite-config",
  "malachite-consensus",
- "malachite-driver",
  "malachite-proto",
  "malachite-round",
  "malachite-signing-ed25519",
