@@ -570,7 +570,10 @@ impl Actor for StarknetHost {
                 state.host.decision(certificate).await;
 
                 // Start the next height
-                consensus.cast(ConsensusMsg::StartHeight(state.height.increment()))?;
+                consensus.cast(ConsensusMsg::StartHeight(
+                    state.height.increment(),
+                    state.host.validator_set.clone(),
+                ))?;
 
                 Ok(())
             }
