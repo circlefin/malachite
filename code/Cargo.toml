@@ -24,6 +24,7 @@ members = [
   # Test
   "crates/test",
   "crates/test/mbt",
+  "crates/driver/test-utils",
 
   # Starknet
   "crates/starknet/*",
