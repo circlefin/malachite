@@ -1,6 +1,7 @@
 #![allow(unused_crate_dependencies)]
 
 use core::fmt;
+use std::fs::{create_dir_all, remove_dir_all};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -99,6 +100,7 @@ impl TestParams {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Step {
     Crash,
+    ResetDb,
     Restart(Duration),
     WaitUntil(u64),
     Expect(Expected),
@@ -149,6 +151,11 @@ impl TestNode {
 
     pub fn crash(mut self) -> Self {
         self.steps.push(Step::Crash);
+        self
+    }
+
+    pub fn reset_db(mut self) -> Self {
+        self.steps.push(Step::ResetDb);
         self
     }
 
@@ -380,6 +387,14 @@ async fn run_node(
                     .stop_and_wait(Some("Node must crash".to_string()), None)
                     .await
                     .expect("Node must stop");
+            }
+
+            Step::ResetDb => {
+                info!("Resetting database");
+
+                let db_path = home_dir.join("db");
+                remove_dir_all(&db_path).expect("Database must be removed");
+                create_dir_all(&db_path).expect("Database must be created");
             }
 
             Step::Restart(after) => {
