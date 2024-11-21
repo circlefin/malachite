@@ -7,7 +7,7 @@ mod propose_value;
 mod received_proposed_value;
 mod signature;
 mod start_height;
-mod synced_block;
+mod sync;
 mod timeout;
 mod validator_set;
 mod vote;
@@ -16,7 +16,7 @@ use proposal::on_proposal;
 use propose_value::propose_value;
 use received_proposed_value::on_received_proposed_value;
 use start_height::reset_and_start_height;
-use synced_block::on_received_synced_block;
+use sync::on_commit_certificate;
 use timeout::on_timeout_elapsed;
 use vote::on_vote;
 
@@ -65,8 +65,8 @@ where
         Input::ReceivedProposedValue(value) => {
             on_received_proposed_value(co, state, metrics, value).await
         }
-        Input::ReceivedSyncedBlock(block_bytes, commits) => {
-            on_received_synced_block(co, state, metrics, block_bytes, commits).await
+        Input::CommitCertificate(certificate) => {
+            on_commit_certificate(co, state, metrics, certificate).await
         }
     }
 }

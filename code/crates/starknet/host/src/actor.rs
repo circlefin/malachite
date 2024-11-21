@@ -614,7 +614,7 @@ impl Actor for StarknetHost {
                 Ok(())
             }
 
-            HostMsg::ProcessSyncedBlockBytes {
+            HostMsg::ProcessSyncedBlock {
                 height,
                 round,
                 validator_address,

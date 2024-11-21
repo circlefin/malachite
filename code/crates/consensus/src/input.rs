@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use derive_where::derive_where;
 
 use malachite_common::{
@@ -42,6 +41,6 @@ where
     /// The value corresponding to a proposal has been received
     ReceivedProposedValue(ProposedValue<Ctx>),
 
-    /// A block received via BlockSync
-    ReceivedSyncedBlock(Bytes, CommitCertificate<Ctx>),
+    /// Received a commit certificate from BlockSync
+    CommitCertificate(CommitCertificate<Ctx>),
 }

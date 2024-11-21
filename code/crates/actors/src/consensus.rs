@@ -296,14 +296,24 @@ where
                             return Ok(());
                         };
 
+                        self.host.call_and_forward(
+                            |reply_to| HostMsg::ProcessSyncedBlock {
+                                height: block.certificate.height,
+                                round: block.certificate.round,
+                                validator_address: state.consensus.address().clone(),
+                                block_bytes: block.block_bytes.clone(),
+                                reply_to,
+                            },
+                            &myself,
+                            |proposed| Msg::<Ctx>::ReceivedProposedValue(proposed),
+                            None,
+                        )?;
+
                         if let Err(e) = self
                             .process_input(
                                 &myself,
                                 state,
-                                ConsensusInput::ReceivedSyncedBlock(
-                                    block.block_bytes,
-                                    block.certificate,
-                                ),
+                                ConsensusInput::CommitCertificate(block.certificate),
                             )
                             .await
                         {
@@ -598,30 +608,6 @@ where
                             eyre!("Error when sending decided height to blocksync: {e:?}")
                         })?;
                 }
-
-                Ok(Resume::Continue)
-            }
-
-            Effect::SyncedBlock {
-                height,
-                round,
-                validator_address,
-                block_bytes,
-            } => {
-                debug!(%height, "Consensus received synced block, sending to host");
-
-                self.host.call_and_forward(
-                    |reply_to| HostMsg::ProcessSyncedBlockBytes {
-                        height,
-                        round,
-                        validator_address,
-                        block_bytes,
-                        reply_to,
-                    },
-                    myself,
-                    |proposed| Msg::<Ctx>::ReceivedProposedValue(proposed),
-                    None,
-                )?;
 
                 Ok(Resume::Continue)
             }

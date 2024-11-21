@@ -17,7 +17,6 @@ malachite-driver.workspace  = true
 malachite-metrics.workspace = true
 
 async-recursion = { workspace = true }
-bytes            = { workspace = true, features = ["serde"] }
 genawaiter      = { workspace = true }
 derive-where    = { workspace = true }
 libp2p-identity = { workspace = true, features = ["peerid"] }
