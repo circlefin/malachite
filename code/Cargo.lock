@@ -2534,6 +2534,7 @@ dependencies = [
  "malachite-common",
  "malachite-driver",
  "malachite-metrics",
+ "malachite-test",
  "multiaddr",
  "thiserror 2.0.3",
  "tracing",
