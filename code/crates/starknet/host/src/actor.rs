@@ -5,6 +5,7 @@ use eyre::eyre;
 
 use itertools::Itertools;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
+use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
 use sha3::Digest;
 use tokio::time::Instant;
@@ -40,15 +41,14 @@ pub struct HostState {
     host: MockHost,
     block_store: BlockStore,
     part_streams_map: PartStreamsMap,
-    rng: Box<dyn RngCore + Send + Sync>,
+    next_stream_id: StreamId,
 }
 
 impl HostState {
-    pub fn new(
-        host: MockHost,
-        db_path: impl AsRef<Path>,
-        rng: impl RngCore + Send + Sync + 'static,
-    ) -> Self {
+    pub fn new<R>(host: MockHost, db_path: impl AsRef<Path>, rng: &mut R) -> Self
+    where
+        R: RngCore,
+    {
         Self {
             height: Height::new(0, 0),
             round: Round::Nil,
@@ -56,13 +56,16 @@ impl HostState {
             host,
             block_store: BlockStore::new(db_path).unwrap(),
             part_streams_map: PartStreamsMap::default(),
-            rng: Box::new(rng),
+            next_stream_id: rng.next_u64(),
         }
     }
 
     pub fn next_stream_id(&mut self) -> StreamId {
-        let id = self.rng.next_u64();
-        StreamId::from(id)
+        let stream_id = self.next_stream_id;
+        // Wrap around if we get to u64::MAX, which may happen if the initial
+        // stream id was close to it already.
+        self.next_stream_id = self.next_stream_id.wrapping_add(1);
+        stream_id
     }
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
@@ -253,12 +256,10 @@ impl StarknetHost {
         std::fs::create_dir_all(&db_dir).map_err(|e| SpawnErr::StartupFailed(e.into()))?;
         let db_path = db_dir.join("blocks.db");
 
-        let rng = rand::rngs::StdRng::from_entropy();
-
         let (actor_ref, _) = Actor::spawn(
             None,
             Self::new(mempool, gossip_consensus, metrics),
-            HostState::new(host, db_path, rng),
+            HostState::new(host, db_path, &mut StdRng::from_entropy()),
         )
         .await?;
 
@@ -276,6 +277,7 @@ impl StarknetHost {
             metrics,
         }
     }
+
     async fn prune_block_store(&self, state: &mut HostState) {
         let max_height = state.block_store.last_height().unwrap_or_default();
         let max_retain_blocks = state.host.params.max_retain_blocks as u64;
