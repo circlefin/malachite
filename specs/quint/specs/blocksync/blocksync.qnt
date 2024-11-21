@@ -74,7 +74,10 @@ module blocksync {
 	// Auxiliary functions for sending messages
 
 	pure def broadcastStatusMsg(buffer: Address -> Set[StatusMsg], sm: StatusMsg): Address -> Set[StatusMsg] =
-	    buffer.keys().mapBy(x => { ...buffer.get(x).union(Set(sm)) })
+	    buffer.keys().mapBy(x =>	if (x == sm.peer) // don't send to yourself
+																	buffer.get(x)
+																else
+																	{ ...buffer.get(x).union(Set(sm)) })
 
 	// put the response message in the buffer of the client
 	pure def sendResponse(buffer: Address -> Set[ResponseMsg], m: ResponseMsg): Address -> Set[ResponseMsg] =

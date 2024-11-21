@@ -66,9 +66,26 @@ module blocksyncServer {
       sync: s,
       msg: None}
 
+  //
   // State machine
+  //
 
   var bsyncServers: Address -> Server
+
+  //
+  // Properties
+  //
+
+  /// A request should only be sent to a server who has the requested data
+  val reqInv = bsyncServers.keys().forall(s =>
+    requestsBuffer.get(s).forall(m =>
+      m.height <= bsyncServers.get(s).chain.length())
+  )
+
+
+  //
+  // Actions
+  //
 
   action initServer(nodes) = all {
     bsyncServers' = nodes.mapBy(v => newServer(v)),

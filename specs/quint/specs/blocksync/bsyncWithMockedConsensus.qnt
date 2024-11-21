@@ -11,15 +11,38 @@ module bsyncWithMockedConsensus {
   val Correct = Set("v2", "v3", "v4")
   val validatorSet = Set("v1", "v2", "v3", "v4").mapBy(x => 1)
 
+  //
   // State machine
+  //
 
   var outputs: Address -> List[BsyncClientOutput]
   var chains: Address -> List[BlockStoreEntry]
 
+  //
+  // Properties
+  //
+
+  /// Witness for some data being synced. It is violated if there is a process
+  /// that gets a syncing output that is different from None, that it, it 
+  /// synced a ceertificate or a block (or a blockstoreentry)
+  // quint run --invariant BlockSyncedWitness bsyncWithMockedConsensus.qnt --init initSetup   
+  // [violation] Found an issue (7368ms).
+  // Use --verbosity=3 to show executions.
+  // Use --seed=0x131cbef6acef78 to reproduce.
+  val BlockSyncedWitness = Correct.forall(p =>
+    outputs.get(p).length() > 0 implies
+    outputs.get(p).foldl(Set(), (s, x) => s.union(Set(x))).forall(so =>
+      so == SONoOutput)
+  )
+
+
+  // 
+  // Actions
+  //
   /// initialize consensus and synchronizer
   action initMockedConsensus = all {
     outputs' = validators.mapBy(_ => []),
-    chains' = Correct.mapBy(_ => []),
+    chains' = validators.mapBy(_ => []),
     syncInit(validators)
   }
 
@@ -92,6 +115,9 @@ module bsyncWithMockedConsensus {
       decideMock(v),
    }
 
+  action init = initMockedConsensus
+  action step = stepMockedConsensus
+
 
   /// An action to set up an initial state with some nodes already decided up to height h
   /// this sets up an initial state where v4 starts late, and v2 and v3 have reached
@@ -105,6 +131,18 @@ module bsyncWithMockedConsensus {
     outputs' = validators.mapBy(_ => []),
     syncInit(validators)
    }
+
+  action initSetup = 
+    initHeight(4)
+    .then(syncUpdateServer("v2"))
+    .then(syncUpdateServer("v3"))
+    .then(syncUpdateServer("v4"))
+    .then(all{unchangedMock, syncStatusStep("v2")})
+    .then(all{unchangedMock, syncStatusStep("v3")})    
+    .then(all{unchangedMock, syncStatusStep("v4")})
+    .then(all{unchangedMock, syncDeliverStatus("v4")})
+    .then(all{unchangedMock, syncDeliverStatus("v4")})
+    .then(newHeightActionAll("v4", validatorSet, 0))
 
   run lausanneRetreat =
     initHeight(2)

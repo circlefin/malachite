@@ -1,6 +1,8 @@
 // -*- mode: Bluespec; -*-
 //
 // Blocksync executable model running together with the consensus logic.
+// main init action: initAll
+// main step action: stepWithBlockSync
 //
 
 module bsyncWithConsensus {
@@ -16,6 +18,18 @@ module bsyncWithConsensus {
     Rounds = Set(0, 1, 2, 3),
     Heights = Set(0) // , 1, 2, 3)
   ).* from "../statemachineAsync"
+
+  //
+  // Properties
+  //
+
+  val BlockSyncedWitness = Correct.forall(p =>
+    system.get(p).incomingSyncCertificates == Set())
+
+
+  //
+  // Actions
+  //
 
   /// initialize consensus and block sync
   action initAll = all {
@@ -129,6 +143,7 @@ module bsyncWithConsensus {
     .then(all{unchangedAll, syncDeliverResp("v4")})
     .then(syncStepClient("v4", putSyncOutputIntoNode, false)) // ask for block and give certificate to node
     .expect(system.get("v4").incomingSyncCertificates.size() > 0)
+    .expect(not(BlockSyncedWitness))
     .then(all{unchangedAll, syncDeliverReq("v2")})
     .then(all{unchangedAll, syncStepServer("v2")})
     .then(all{unchangedAll, syncDeliverResp("v4")})
