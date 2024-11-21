@@ -23,10 +23,10 @@ set -x MALACHITE__BLOCKSYNC__REQUEST_TIMEOUT "30s"
 # - the home directory for the nodes configuration folders
 
 function help
-    echo "Usage: spawn.fish [--help] --nodes NODES_COUNT --home NODES_HOME [--app APP_BINARY] [--profile=PROFILE|--debug] [--lldb]"
+    echo "Usage: spawn.fish [--help] --nodes NODES_COUNT --home NODES_HOME [--app APP_BINARY] [--no-reset] [--profile=PROFILE|--debug] [--lldb]"
 end
 
-argparse -n spawn.fish help 'nodes=' 'home=' 'app=' 'profile=' 'debug' -- $argv
+argparse -n spawn.fish help 'nodes=' 'home=' 'app=' 'no-reset' 'profile=' 'debug' 'lldb' -- $argv
 or return
 
 if set -ql _flag_help
@@ -51,6 +51,7 @@ set lldb false
 set build_profile release
 set build_folder release
 set profile_template (string replace -r '^$' 'time' -- $_flag_profile)
+set no_reset false
 
 if set -q _flag_app
     set app_name $_flag_app
@@ -73,6 +74,10 @@ if set -q _flag_lldb
     set lldb true
 end
 
+if set -q _flag_no_reset
+     set no_reset true
+ end
+
 echo "Compiling `$app_name`..."
 cargo build -p $app_name --profile $build_profile
 
@@ -86,13 +91,17 @@ set NODES_HOME  $_flag_home
 for NODE in (seq 0 $(math $NODES_COUNT - 1))
     set NODE_HOME "$NODES_HOME/$NODE"
 
-    rm -rf "$NODE_HOME/db"
-    rm -rf "$NODE_HOME/logs"
-    rm -rf "$NODE_HOME/traces"
+     rm -rf "$NODE_HOME/logs"
+     mkdir -p "$NODE_HOME/logs"
 
-    mkdir -p "$NODE_HOME/db"
-    mkdir -p "$NODE_HOME/logs"
-    mkdir -p "$NODE_HOME/traces"
+     rm -rf "$NODE_HOME/traces"
+     mkdir -p "$NODE_HOME/traces"
+
+     if ! $no_reset
+         echo "[Node $NODE] Resetting database"
+         rm -rf "$NODE_HOME/db"
+         mkdir -p "$NODE_HOME/db"
+     end
 
     set pane $(tmux new-window -P -n "node-$NODE" "$(which fish)")
 
