@@ -8,7 +8,7 @@ module bsyncWithMockedConsensus {
   import blocksync.* from "./blocksync"
   import bsync_client.* from "./client"
   import bsync_server.* from "./server"
-  import syncStatemachine.* from "./syncStatemachine"
+  import bsyncStatemachine.* from "./bsyncStatemachine"
 
   val validators = Set("v1", "v2", "v3", "v4")
   val Correct = Set("v2", "v3", "v4")

@@ -18,7 +18,7 @@ module bsyncWithConsensus {
     Heights = Set(0) // , 1, 2, 3)
   ).* from "../statemachineAsync"
 
-  import syncStatemachine.* from "./syncStatemachine"
+  import bsyncStatemachine.* from "./bsyncStatemachine"
 
   /// initialize consensus and block sync
   action initAll = all {

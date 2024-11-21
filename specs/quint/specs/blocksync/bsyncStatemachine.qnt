@@ -1,6 +1,9 @@
 // -*- mode: Bluespec; -*-
+//
+// State machine for the block sync protocol.
+//
 
-module syncStatemachine {
+module bsyncStatemachine {
 
   // General definitions
   import blocksync.* from "./blocksync"
