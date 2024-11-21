@@ -1,6 +1,9 @@
 // -*- mode: Bluespec; -*-
+//
+// Blocksync executable model running with a mocked consensus logic.
+//
 
-module bsyncMock {
+module bsyncWithMockedConsensus {
 
   import blocksync.* from "./blocksync"
   import bsync_client.* from "./client"
