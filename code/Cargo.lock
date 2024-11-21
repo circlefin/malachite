@@ -2774,7 +2774,6 @@ dependencies = [
  "ed25519-consensus",
  "hex",
  "malachite-common",
- "malachite-consensus",
  "malachite-proto",
  "malachite-signing-ed25519",
  "prost",
