@@ -62,8 +62,8 @@ where
             .await
         }
         Input::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
-        Input::ReceivedProposedValue(value) => {
-            on_received_proposed_value(co, state, metrics, value).await
+        Input::ReceivedProposedValue(value, origin) => {
+            on_received_proposed_value(co, state, metrics, value, origin).await
         }
         Input::ReceivedSyncedBlock(block_bytes, commits) => {
             on_received_synced_block(co, state, metrics, block_bytes, commits).await

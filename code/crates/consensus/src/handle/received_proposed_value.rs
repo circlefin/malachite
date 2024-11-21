@@ -17,6 +17,7 @@ pub async fn on_received_proposed_value<Ctx>(
     state: &mut State<Ctx>,
     metrics: &Metrics,
     proposed_value: ProposedValue<Ctx>,
+    origin: ValueDiseminatingProtocol,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -31,14 +32,14 @@ where
             debug!("Received value for next height, queuing for later");
             state
                 .input_queue
-                .push_back(Input::ReceivedProposedValue(proposed_value));
+                .push_back(Input::ReceivedProposedValue(proposed_value, origin));
         }
         return Ok(());
     }
 
     state.store_value(&proposed_value);
 
-    if state.params.value_payload.parts_only() {
+    if state.params.value_payload.parts_only() || origin == ValueDiseminatingProtocol::BlockSync {
         let proposal = Ctx::new_proposal(
             proposed_value.height,
             proposed_value.round,
