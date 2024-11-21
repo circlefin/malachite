@@ -94,7 +94,7 @@ impl NetworkCodec<blocksync::Response<MockContext>> for ProtobufCodec {
 
         Ok(blocksync::Response {
             height: Height::new(response.block_number, response.fork_id),
-            block: response.block.map(decode_sync_block).transpose()?,
+            block: response.block.map(decode_synced_block).transpose()?,
         })
     }
 
@@ -184,6 +184,30 @@ where
     }
 }
 
+pub(crate) fn encode_synced_block(
+    synced_block: blocksync::SyncedBlock<MockContext>,
+) -> Result<proto::sync::SyncedBlock, ProtoError> {
+    Ok(proto::sync::SyncedBlock {
+        block_bytes: synced_block.block_bytes,
+        certificate: Some(encode_certificate(synced_block.certificate)?),
+    })
+}
+
+pub(crate) fn decode_synced_block(
+    proto: proto::sync::SyncedBlock,
+) -> Result<blocksync::SyncedBlock<MockContext>, ProtoError> {
+    let Some(certificate) = proto.certificate else {
+        return Err(ProtoError::missing_field::<proto::sync::SyncedBlock>(
+            "certificate",
+        ));
+    };
+
+    Ok(blocksync::SyncedBlock {
+        block_bytes: proto.block_bytes,
+        certificate: decode_certificate(certificate)?,
+    })
+}
+
 pub(crate) fn encode_aggregate_signature(
     aggregated_signature: AggregatedSignature<MockContext>,
 ) -> Result<proto::sync::AggregatedSignature, ProtoError> {
@@ -203,29 +227,6 @@ pub(crate) fn encode_aggregate_signature(
         .collect::<Result<_, ProtoError>>()?;
 
     Ok(proto::sync::AggregatedSignature { signatures })
-}
-
-pub(crate) fn encode_certificate(
-    certificate: CommitCertificate<MockContext>,
-) -> Result<proto::sync::CommitCertificate, ProtoError> {
-    Ok(proto::sync::CommitCertificate {
-        fork_id: certificate.height.fork_id,
-        block_number: certificate.height.block_number,
-        round: certificate.round.as_u32().expect("round should not be nil"),
-        block_hash: Some(certificate.value_id.to_proto()?),
-        aggregated_signature: Some(encode_aggregate_signature(
-            certificate.aggregated_signature,
-        )?),
-    })
-}
-
-pub(crate) fn encode_synced_block(
-    synced_block: blocksync::SyncedBlock<MockContext>,
-) -> Result<proto::sync::SyncedBlock, ProtoError> {
-    Ok(proto::sync::SyncedBlock {
-        block_bytes: synced_block.block_bytes,
-        certificate: Some(encode_certificate(synced_block.certificate)?),
-    })
 }
 
 pub(crate) fn decode_aggregated_signature(
@@ -283,6 +284,20 @@ pub(crate) fn decode_extension(
     Ok(SignedExtension::new(extension, signature))
 }
 
+pub(crate) fn encode_certificate(
+    certificate: CommitCertificate<MockContext>,
+) -> Result<proto::sync::CommitCertificate, ProtoError> {
+    Ok(proto::sync::CommitCertificate {
+        fork_id: certificate.height.fork_id,
+        block_number: certificate.height.block_number,
+        round: certificate.round.as_u32().expect("round should not be nil"),
+        block_hash: Some(certificate.value_id.to_proto()?),
+        aggregated_signature: Some(encode_aggregate_signature(
+            certificate.aggregated_signature,
+        )?),
+    })
+}
+
 pub(crate) fn decode_certificate(
     certificate: proto::sync::CommitCertificate,
 ) -> Result<CommitCertificate<MockContext>, ProtoError> {
@@ -310,23 +325,6 @@ pub(crate) fn decode_certificate(
     };
 
     Ok(certificate)
-}
-
-pub(crate) fn decode_sync_block(
-    synced_block: proto::sync::SyncedBlock,
-) -> Result<blocksync::SyncedBlock<MockContext>, ProtoError> {
-    let certificate = if let Some(certificate) = synced_block.certificate {
-        certificate
-    } else {
-        return Err(ProtoError::missing_field::<proto::sync::SyncedBlock>(
-            "certificate",
-        ));
-    };
-
-    Ok(blocksync::SyncedBlock {
-        block_bytes: synced_block.block_bytes,
-        certificate: decode_certificate(certificate)?,
-    })
 }
 
 pub(crate) fn encode_proposed_value(

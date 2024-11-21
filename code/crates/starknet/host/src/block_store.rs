@@ -6,12 +6,11 @@ use prost::Message;
 use redb::ReadableTable;
 use thiserror::Error;
 
-use malachite_blocksync::SyncedBlock;
 use malachite_common::CommitCertificate;
 use malachite_consensus::ProposedValue;
 use malachite_proto::Protobuf;
 
-use crate::codec::{decode_sync_block, encode_proposed_value, encode_synced_block};
+use crate::codec;
 use crate::proto::{self as proto, Error as ProtoError};
 use crate::types::MockContext;
 use crate::types::{Block, Height, Transaction, Transactions};
@@ -25,27 +24,14 @@ pub struct DecidedBlock {
     pub certificate: CommitCertificate<MockContext>,
 }
 
-impl DecidedBlock {
-    fn into_bytes(self) -> Result<Vec<u8>, ProtoError> {
-        let synced_block = SyncedBlock {
-            certificate: self.certificate.clone(),
-            block_bytes: self.block.to_bytes().unwrap(),
-        };
+fn decode_certificate(bytes: &[u8]) -> Result<CommitCertificate<MockContext>, ProtoError> {
+    let proto = proto::sync::CommitCertificate::decode(bytes)?;
+    codec::decode_certificate(proto)
+}
 
-        let proto = encode_synced_block(synced_block)?;
-        Ok(proto.encode_to_vec())
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        let synced_block = proto::sync::SyncedBlock::decode(bytes).ok()?;
-        let synced_block = decode_sync_block(synced_block).ok()?;
-        let block = Block::from_bytes(synced_block.block_bytes.as_ref()).ok()?;
-
-        Some(Self {
-            block,
-            certificate: synced_block.certificate,
-        })
-    }
+fn encode_certificate(certificate: CommitCertificate<MockContext>) -> Result<Vec<u8>, ProtoError> {
+    let proto = codec::encode_certificate(certificate)?;
+    Ok(proto.encode_to_vec())
 }
 
 #[derive(Debug, Error)]
@@ -73,6 +59,8 @@ pub enum StoreError {
 }
 
 const BLOCK_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> = redb::TableDefinition::new("blocks");
+const CERTIFICATE_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> =
+    redb::TableDefinition::new("certificates");
 
 const PROPOSED_VALUE_TABLE: redb::TableDefinition<ProposedValueKey, Vec<u8>> =
     redb::TableDefinition::new("proposed_values");
@@ -90,10 +78,22 @@ impl Db {
 
     fn get(&self, height: Height) -> Result<Option<DecidedBlock>, StoreError> {
         let tx = self.db.begin_read()?;
-        let table = tx.open_table(BLOCK_TABLE)?;
-        let value = table.get(&height)?;
-        let block = value.and_then(|value| DecidedBlock::from_bytes(&value.value()));
-        Ok(block)
+        let block = {
+            let table = tx.open_table(BLOCK_TABLE)?;
+            let value = table.get(&height)?;
+            value.and_then(|value| Block::from_bytes(&value.value()).ok())
+        };
+        let certificate = {
+            let table = tx.open_table(CERTIFICATE_TABLE)?;
+            let value = table.get(&height)?;
+            value.and_then(|value| decode_certificate(&value.value()).ok())
+        };
+
+        let decided_block = block
+            .zip(certificate)
+            .map(|(block, certificate)| DecidedBlock { block, certificate });
+
+        Ok(decided_block)
     }
 
     fn insert_decided_block(&self, decided_block: DecidedBlock) -> Result<(), StoreError> {
@@ -101,16 +101,21 @@ impl Db {
 
         let tx = self.db.begin_write()?;
         {
-            let mut table = tx.open_table(BLOCK_TABLE)?;
-            table.insert(height, decided_block.into_bytes()?)?;
+            let mut blocks = tx.open_table(BLOCK_TABLE)?;
+            blocks.insert(height, decided_block.block.to_bytes()?.to_vec())?;
+        }
+        {
+            let mut certificates = tx.open_table(CERTIFICATE_TABLE)?;
+            certificates.insert(height, encode_certificate(decided_block.certificate)?)?;
         }
         tx.commit()?;
+
         Ok(())
     }
 
     fn insert_proposed_value(&self, value: ProposedValue<MockContext>) -> Result<(), StoreError> {
         let key = (value.height, value.round, value.value);
-        let value = encode_proposed_value(&value)?;
+        let value = codec::encode_proposed_value(&value)?;
         let tx = self.db.begin_write()?;
         {
             let mut table = tx.open_table(PROPOSED_VALUE_TABLE)?;
@@ -138,10 +143,12 @@ impl Db {
     fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
         let tx = self.db.begin_write().unwrap();
         let pruned = {
-            let mut table = tx.open_table(BLOCK_TABLE)?;
-            let keys = self.range(&table, ..retain_height)?;
+            let mut blocks = tx.open_table(BLOCK_TABLE)?;
+            let mut certificates = tx.open_table(CERTIFICATE_TABLE)?;
+            let keys = self.range(&blocks, ..retain_height)?;
             for key in &keys {
-                table.remove(key)?;
+                blocks.remove(key)?;
+                certificates.remove(key)?;
             }
             keys
         };
@@ -166,8 +173,9 @@ impl Db {
 
     fn create_tables(&self) -> Result<(), StoreError> {
         let tx = self.db.begin_write()?;
-        // `open_table` implicitly creates the tables if needed
+        // Implicitly creates the tables if they do not exist yet
         let _ = tx.open_table(BLOCK_TABLE)?;
+        let _ = tx.open_table(CERTIFICATE_TABLE)?;
         let _ = tx.open_table(PROPOSED_VALUE_TABLE)?;
         tx.commit()?;
         Ok(())
@@ -205,12 +213,10 @@ impl BlockStore {
         certificate: &CommitCertificate<MockContext>,
         txes: &[Transaction],
     ) -> Result<(), StoreError> {
-        let block_id = certificate.value_id;
-
         let decided_block = DecidedBlock {
             block: Block {
                 height: certificate.height,
-                block_hash: block_id,
+                block_hash: certificate.value_id,
                 transactions: Transactions::new(txes.to_vec()),
             },
             certificate: certificate.clone(),

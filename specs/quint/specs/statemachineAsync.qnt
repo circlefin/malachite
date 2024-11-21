@@ -269,6 +269,11 @@ action putSyncOutputIntoNode(v, syncOut) = all{
             | SOBlock(prop) => system.put(v, {... system.get(v), 
                     incomingSyncProposals: 
                         system.get(v).incomingSyncProposals.union(Set(prop))})
+            | SOBlockStoreEntry(b) => system.put(v, {... system.get(v), 
+                    incomingSyncProposals: 
+                        system.get(v).incomingSyncProposals.union(Set(b.decision)),
+                    incomingSyncCertificates: 
+                        system.get(v).incomingSyncCertificates.union(Set(b.commit))})
             | SONoOutput => system
         },
         propBuffer' = propBuffer,
