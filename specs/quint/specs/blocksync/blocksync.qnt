@@ -1,4 +1,8 @@
 // -*- mode: Bluespec; -*-
+//
+// General definitions for blocksync protocol and state machine for
+// the client-server communication, namely, the network.
+//
 
 module blocksync {
 
@@ -23,6 +27,7 @@ module blocksync {
 	type ReqType =
 	    | SyncCertificate
 	    | SyncBlock
+	    | SyncBlockStoreEntry
 
 	type RequestMsg = {
 	    client: Address,
@@ -41,6 +46,7 @@ module blocksync {
 	type Response =
 	    | RespBlock(Proposal)
 	    | RespCertificate(Set[Vote])
+	    | RespBlockStoreEntry(BlockStoreEntry)
 
 	type ResponseMsg = {
 	    client: Address,
