@@ -6,8 +6,7 @@ use prost::Message;
 use redb::ReadableTable;
 use thiserror::Error;
 
-use malachite_common::CommitCertificate;
-use malachite_consensus::ProposedValue;
+use malachite_common::{CommitCertificate, Round};
 use malachite_proto::Protobuf;
 
 use crate::codec;
@@ -16,7 +15,7 @@ use crate::types::MockContext;
 use crate::types::{Block, Height, Transaction, Transactions};
 
 mod keys;
-use keys::{HeightKey, ProposedValueKey};
+use keys::{HeightKey, UndecidedBlockKey};
 
 #[derive(Clone, Debug)]
 pub struct DecidedBlock {
@@ -58,12 +57,14 @@ pub enum StoreError {
     TaskJoin(#[from] tokio::task::JoinError),
 }
 
-const BLOCK_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> = redb::TableDefinition::new("blocks");
-const CERTIFICATE_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> =
+const CERTIFICATES_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> =
     redb::TableDefinition::new("certificates");
 
-const PROPOSED_VALUE_TABLE: redb::TableDefinition<ProposedValueKey, Vec<u8>> =
-    redb::TableDefinition::new("proposed_values");
+const DECIDED_BLOCKS_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> =
+    redb::TableDefinition::new("decided_blocks");
+
+const UNDECIDED_BLOCKS_TABLE: redb::TableDefinition<UndecidedBlockKey, Vec<u8>> =
+    redb::TableDefinition::new("undecided_blocks");
 
 struct Db {
     db: redb::Database,
@@ -79,12 +80,12 @@ impl Db {
     fn get(&self, height: Height) -> Result<Option<DecidedBlock>, StoreError> {
         let tx = self.db.begin_read()?;
         let block = {
-            let table = tx.open_table(BLOCK_TABLE)?;
+            let table = tx.open_table(DECIDED_BLOCKS_TABLE)?;
             let value = table.get(&height)?;
             value.and_then(|value| Block::from_bytes(&value.value()).ok())
         };
         let certificate = {
-            let table = tx.open_table(CERTIFICATE_TABLE)?;
+            let table = tx.open_table(CERTIFICATES_TABLE)?;
             let value = table.get(&height)?;
             value.and_then(|value| decode_certificate(&value.value()).ok())
         };
@@ -101,11 +102,11 @@ impl Db {
 
         let tx = self.db.begin_write()?;
         {
-            let mut blocks = tx.open_table(BLOCK_TABLE)?;
+            let mut blocks = tx.open_table(DECIDED_BLOCKS_TABLE)?;
             blocks.insert(height, decided_block.block.to_bytes()?.to_vec())?;
         }
         {
-            let mut certificates = tx.open_table(CERTIFICATE_TABLE)?;
+            let mut certificates = tx.open_table(CERTIFICATES_TABLE)?;
             certificates.insert(height, encode_certificate(decided_block.certificate)?)?;
         }
         tx.commit()?;
@@ -113,12 +114,17 @@ impl Db {
         Ok(())
     }
 
-    fn insert_proposed_value(&self, value: ProposedValue<MockContext>) -> Result<(), StoreError> {
-        let key = (value.height, value.round, value.value);
-        let value = codec::encode_proposed_value(&value)?;
+    fn insert_undecided_block(
+        &self,
+        height: Height,
+        round: Round,
+        block: Block,
+    ) -> Result<(), StoreError> {
+        let key = (height, round, block.block_hash);
+        let value = codec::encode_block(&block)?;
         let tx = self.db.begin_write()?;
         {
-            let mut table = tx.open_table(PROPOSED_VALUE_TABLE)?;
+            let mut table = tx.open_table(UNDECIDED_BLOCKS_TABLE)?;
             table.insert(key, value)?;
         }
         tx.commit()?;
@@ -143,8 +149,8 @@ impl Db {
     fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
         let tx = self.db.begin_write().unwrap();
         let pruned = {
-            let mut blocks = tx.open_table(BLOCK_TABLE)?;
-            let mut certificates = tx.open_table(CERTIFICATE_TABLE)?;
+            let mut blocks = tx.open_table(DECIDED_BLOCKS_TABLE)?;
+            let mut certificates = tx.open_table(CERTIFICATES_TABLE)?;
             let keys = self.range(&blocks, ..retain_height)?;
             for key in &keys {
                 blocks.remove(key)?;
@@ -159,14 +165,14 @@ impl Db {
 
     fn first_key(&self) -> Option<Height> {
         let tx = self.db.begin_read().unwrap();
-        let table = tx.open_table(BLOCK_TABLE).unwrap();
+        let table = tx.open_table(DECIDED_BLOCKS_TABLE).unwrap();
         let (key, _) = table.first().ok()??;
         Some(key.value())
     }
 
     fn last_key(&self) -> Option<Height> {
         let tx = self.db.begin_read().unwrap();
-        let table = tx.open_table(BLOCK_TABLE).unwrap();
+        let table = tx.open_table(DECIDED_BLOCKS_TABLE).unwrap();
         let (key, _) = table.last().ok()??;
         Some(key.value())
     }
@@ -174,9 +180,9 @@ impl Db {
     fn create_tables(&self) -> Result<(), StoreError> {
         let tx = self.db.begin_write()?;
         // Implicitly creates the tables if they do not exist yet
-        let _ = tx.open_table(BLOCK_TABLE)?;
-        let _ = tx.open_table(CERTIFICATE_TABLE)?;
-        let _ = tx.open_table(PROPOSED_VALUE_TABLE)?;
+        let _ = tx.open_table(DECIDED_BLOCKS_TABLE)?;
+        let _ = tx.open_table(CERTIFICATES_TABLE)?;
+        let _ = tx.open_table(UNDECIDED_BLOCKS_TABLE)?;
         tx.commit()?;
         Ok(())
     }
@@ -226,12 +232,14 @@ impl BlockStore {
         tokio::task::spawn_blocking(move || db.insert_decided_block(decided_block)).await?
     }
 
-    pub async fn store_proposed_value(
+    pub async fn store_undecided_block(
         &self,
-        value: ProposedValue<MockContext>,
+        height: Height,
+        round: Round,
+        block: Block,
     ) -> Result<(), StoreError> {
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.insert_proposed_value(value)).await?
+        tokio::task::spawn_blocking(move || db.insert_undecided_block(height, round, block)).await?
     }
 
     pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {

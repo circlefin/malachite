@@ -1,3 +1,4 @@
+use malachite_starknet_p2p_types::Block;
 use prost::Message;
 
 use malachite_actors::util::codec::NetworkCodec;
@@ -7,7 +8,7 @@ use malachite_common::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
     SignedProposal, SignedVote,
 };
-use malachite_consensus::{ProposedValue, SignedConsensusMsg};
+use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Bytes;
 
 use crate::proto::consensus_message::Messages;
@@ -327,20 +328,12 @@ pub(crate) fn decode_certificate(
     Ok(certificate)
 }
 
-pub(crate) fn encode_proposed_value(
-    value: &ProposedValue<MockContext>,
-) -> Result<Vec<u8>, ProtoError> {
-    use bytes::Bytes;
-
-    let proto = proto::sync::ProposedValue {
-        fork_id: value.height.fork_id,
-        block_number: value.height.block_number,
-        round: value.round.as_u32().unwrap(),
-        valid_round: value.valid_round.as_u32(),
-        proposer: Some(value.validator_address.to_proto()?),
-        value: Bytes::from(value.value.to_proto()?.encode_to_vec()),
-        validity: value.validity.is_valid(),
-        extension: value.extension.clone().map(encode_extension).transpose()?,
+pub(crate) fn encode_block(block: &Block) -> Result<Vec<u8>, ProtoError> {
+    let proto = proto::sync::Block {
+        fork_id: block.height.fork_id,
+        block_number: block.height.block_number,
+        transactions: Some(block.transactions.to_proto()?),
+        block_hash: Some(block.block_hash.to_proto()?),
     };
 
     Ok(proto.encode_to_vec())

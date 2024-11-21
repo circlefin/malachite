@@ -56,6 +56,30 @@ impl HostState {
     }
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
+    pub async fn build_block_from_parts(
+        &self,
+        parts: &[Arc<ProposalPart>],
+        height: Height,
+        round: Round,
+    ) -> Option<(ProposedValue<MockContext>, Block)> {
+        let value = self.build_value_from_parts(parts, height, round).await?;
+
+        let txes = parts
+            .iter()
+            .filter_map(|part| part.as_transactions())
+            .flat_map(|txes| txes.to_vec())
+            .collect::<Vec<_>>();
+
+        let block = Block {
+            height,
+            transactions: Transactions::new(txes),
+            block_hash: value.value,
+        };
+
+        Some((value, block))
+    }
+
+    #[tracing::instrument(skip_all, fields(%height, %round))]
     pub async fn build_value_from_parts(
         &self,
         parts: &[Arc<ProposalPart>],
@@ -385,13 +409,19 @@ impl Actor for StarknetHost {
 
                 let parts = state.host.part_store.all_parts(height, round);
 
-                let Some(value) = state.build_value_from_parts(&parts, height, round).await else {
-                    error!(%height, %round, "Failed to build value from parts");
+                let Some((value, block)) =
+                    state.build_block_from_parts(&parts, height, round).await
+                else {
+                    error!(%height, %round, "Failed to build block from parts");
                     return Ok(());
                 };
 
-                if let Err(e) = state.block_store.store_proposed_value(value.clone()).await {
-                    error!(%e, %height, %round, "Failed to store the proposed value");
+                if let Err(e) = state
+                    .block_store
+                    .store_undecided_block(value.height, value.round, block)
+                    .await
+                {
+                    error!(%e, %height, %round, "Failed to store the proposed block");
                 }
 
                 reply_to.send(LocallyProposedValue::new(
