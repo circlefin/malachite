@@ -45,7 +45,7 @@ where
     pub(crate) vote_keeper: VoteKeeper<Ctx>,
 
     /// The certificate keeper
-    pub(crate) certificates: Vec<CommitCertificate<Ctx>>,
+    pub certificates: Vec<CommitCertificate<Ctx>>,
 
     /// The state of the round state machine.
     pub(crate) round_state: RoundState<Ctx>,
