@@ -50,7 +50,7 @@ inherits = "release"
 debug = true
 
 [workspace.lints.rust]
-unused_crate_dependencies = "warn"
+# None for now
 
 [workspace.dependencies]
 malachite-actors           = { version = "0.1.0", path = "crates/actors" }
