@@ -1,22 +1,25 @@
 use crate::prelude::*;
 
 use crate::handle::driver::apply_driver_input;
-use crate::types::ProposedValue;
+use crate::types::{ProposedValue, ValueToPropose};
 
-#[allow(clippy::too_many_arguments)]
-pub async fn propose_value<Ctx>(
+pub async fn on_propose<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    height: Ctx::Height,
-    round: Round,
-    valid_round: Round,
-    value: Ctx::Value,
-    extension: Option<SignedExtension<Ctx>>,
+    value: ValueToPropose<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
+    let ValueToPropose {
+        height,
+        round,
+        valid_round,
+        value,
+        extension,
+    } = value;
+
     if state.driver.height() != height {
         warn!(
             "Ignoring proposal for height {height}, current height: {}",
@@ -41,7 +44,7 @@ where
         height,
         round,
         valid_round,
-        validator_address: state.driver.address().clone(),
+        validator_address: state.address().clone(),
         value: value.clone(),
         validity: Validity::Valid,
         extension,

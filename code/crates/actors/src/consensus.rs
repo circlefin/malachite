@@ -14,7 +14,7 @@ use malachite_common::{
     CommitCertificate, Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet,
 };
 use malachite_config::TimeoutConfig;
-use malachite_consensus::{Effect, Resume};
+use malachite_consensus::{Effect, Resume, ValueToPropose};
 use malachite_metrics::Metrics;
 
 use crate::block_sync::BlockSyncRef;
@@ -233,7 +233,13 @@ where
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::ProposeValue(height, round, Round::Nil, value, extension),
+                        ConsensusInput::Propose(ValueToPropose {
+                            height,
+                            round,
+                            valid_round: Round::Nil,
+                            value,
+                            extension,
+                        }),
                     )
                     .await;
 
@@ -414,7 +420,7 @@ where
 
             Msg::ReceivedProposedValue(value) => {
                 let result = self
-                    .process_input(&myself, state, ConsensusInput::ReceivedProposedValue(value))
+                    .process_input(&myself, state, ConsensusInput::ProposedValue(value))
                     .await;
 
                 if let Err(e) = result {
