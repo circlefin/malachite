@@ -29,8 +29,8 @@ module bsyncWithConsensus {
   //
   // With the default `init` action, it is unlikely to observe this scenario,
   // even with 200 steps (around 30 minutes) execution:
-  // $ quint run --invariant anyClientOuputWitness bsyncWithConsensus.qnt
-  val anyClientOuputWitness = Correct.forall(p =>
+  // $ quint run --invariant anyClientOutputWitness bsyncWithConsensus.qnt
+  val anyClientOutputWitness = Correct.forall(p =>
     system.get(p).incomingSyncCertificates == Set())
 
   //
@@ -147,7 +147,7 @@ module bsyncWithConsensus {
     .then(all{unchangedAll, syncDeliverResp("v4")})
     .then(syncStepClient("v4", putSyncOutputIntoNode, false)) // ask for block and give certificate to node
     .expect(system.get("v4").incomingSyncCertificates.size() > 0)
-    .expect(not(anyClientOuputWitness))
+    .expect(not(anyClientOutputWitness))
     .then(all{unchangedAll, syncDeliverReq("v2")})
     .then(all{unchangedAll, syncStepServer("v2")})
     .then(all{unchangedAll, syncDeliverResp("v4")})

@@ -63,14 +63,11 @@ module bsyncStatemachine {
   )
 
   /// Every request will eventually terminate. 
-  /// We cannot verify it.
+  /// We cannot currently verify it with Apalache.
   temporal terminationRequest = 
     bsyncClients.keys().forall(c => 
       always (bsyncClients.get(c).openRequests.forall(req =>
         eventually (not(bsyncClients.get(c).openRequests.contains(req))))))
-
-
-
 
   //
   // Actions

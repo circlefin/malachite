@@ -27,11 +27,11 @@ module bsyncWithMockedConsensus {
   /// received a certificate, or a block, or both (a block store entry).
   //
   // Use the `initSetup` initialization to have faster runs:
-  // $ quint run --invariant anyClientOuputWitness bsyncWithMockedConsensus.qnt --init initSetup --seed=0x131cbef6acef78
+  // $ quint run --invariant anyClientOutputWitness bsyncWithMockedConsensus.qnt --init initSetup --seed=0x131cbef6acef78
   //
   // With the default `init` action more steps are required, e.g.:
-  // $ quint run --invariant anyClientOuputWitness bsyncWithMockedConsensus.qnt --max-steps 100 --seed=0x4e9afa1aeb815
-  val anyClientOuputWitness = Correct.forall(p =>
+  // $ quint run --invariant anyClientOutputWitness bsyncWithMockedConsensus.qnt --max-steps 100 --seed=0x4e9afa1aeb815
+  val anyClientOutputWitness = Correct.forall(p =>
     outputs.get(p).length() > 0 implies
     outputs.get(p).foldl(Set(), (s, x) => s.union(Set(x))).forall(so =>
       so == SONoOutput)
