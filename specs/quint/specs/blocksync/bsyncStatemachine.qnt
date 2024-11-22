@@ -21,6 +21,58 @@ module bsyncStatemachine {
   // initialization and steps, and add the updates to the variables defined below
   //
 
+  //
+  // Properties
+  //
+
+  /// A request should only be sent to a server who has reported, via status
+  /// message, having data for the requested height.
+  // FIXME: this assume no prunning, namely chain.length() == latestHeight.
+  val validRequestInvariant = bsyncServers.keys().forall(s =>
+    requestsBuffer.get(s).forall(m =>
+      m.height <= bsyncServers.get(s).chain.length()
+    )
+  )
+
+
+  /// No request for past heights active
+  val noOldRequestsInv = bsyncClients.keys().forall(c =>
+    bsyncClients.get(c).openRequests.forall(req =>
+      req.height >= bsyncClients.get(c).height))
+
+
+
+  /// A server only replies to a request received from a client.
+  /// The client request might have timed out.
+  val serverRespondsToRequestingPeersInvariant = bsyncClients.keys().forall(c =>
+    responsesBuffer.get(c).forall(m =>
+      bsyncClients.get(c).openRequests.union(expiredTimeouts.get(c))
+      .exists(req => matchingMessages(req, m))
+    )
+  )
+
+
+  /// A server only replies to a request received from a client.
+  /// This witness should report a scenario where a request timeouts, the
+  /// client submits a new one, and a late response is received.
+  val serverRespondsToRequestingPeersWitness = bsyncClients.keys().forall(c =>
+    responsesBuffer.get(c).forall(m =>
+      bsyncClients.get(c).openRequests.exists(req =>
+        matchingMessages(req, m))
+    )
+  )
+
+  /// Every request will eventually terminate. 
+  /// We cannot currently verify it with Apalache.
+  temporal terminationRequest = 
+    bsyncClients.keys().forall(c => 
+      always (bsyncClients.get(c).openRequests.forall(req =>
+        eventually (not(bsyncClients.get(c).openRequests.contains(req))))))
+
+  //
+  // Actions
+  //
+
   /// initializing the variables of the sync part of the state machine
   action syncInit(validators) = all {
     initClient(validators),

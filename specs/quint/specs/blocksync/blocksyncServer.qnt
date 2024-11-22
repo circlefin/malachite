@@ -66,9 +66,15 @@ module blocksyncServer {
       sync: s,
       msg: None}
 
+  //
   // State machine
+  //
 
   var bsyncServers: Address -> Server
+
+  //
+  // Actions
+  //
 
   action initServer(nodes) = all {
     bsyncServers' = nodes.mapBy(v => newServer(v)),
