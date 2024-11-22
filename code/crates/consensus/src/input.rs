@@ -3,7 +3,7 @@ use derive_where::derive_where;
 
 use malachite_common::{
     CommitCertificate, Context, Round, SignedExtension, SignedProposal, SignedVote, Timeout,
-    ValueDiseminatingProtocol,
+    ValueOrigin,
 };
 
 use crate::types::ProposedValue;
@@ -41,7 +41,7 @@ where
     TimeoutElapsed(Timeout),
 
     /// The value corresponding to a proposal has been received
-    ReceivedProposedValue(ProposedValue<Ctx>, ValueDiseminatingProtocol),
+    ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
     /// A block received via BlockSync
     ReceivedSyncedBlock(Bytes, CommitCertificate<Ctx>),

@@ -12,7 +12,7 @@ use tracing::{debug, error, info, warn};
 use malachite_blocksync as blocksync;
 use malachite_common::{
     CommitCertificate, Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet,
-    ValueDiseminatingProtocol,
+    ValueOrigin,
 };
 use malachite_config::TimeoutConfig;
 use malachite_consensus::{Effect, Resume};
@@ -63,7 +63,7 @@ pub enum Msg<Ctx: Context> {
     ProposeValue(Ctx::Height, Round, Ctx::Value, Option<SignedExtension<Ctx>>),
 
     /// Received and assembled the full value proposed by a validator
-    ReceivedProposedValue(ProposedValue<Ctx>, ValueDiseminatingProtocol),
+    ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
     /// Get the status of the consensus state machine
     GetStatus(RpcReplyPort<Status<Ctx>>),
@@ -376,12 +376,7 @@ where
                                     reply_to,
                                 },
                                 &myself,
-                                |value| {
-                                    Msg::ReceivedProposedValue(
-                                        value,
-                                        ValueDiseminatingProtocol::Consensus,
-                                    )
-                                },
+                                |value| Msg::ReceivedProposedValue(value, ValueOrigin::Consensus),
                                 None,
                             )
                             .map_err(|e| {
@@ -641,12 +636,7 @@ where
                         reply_to,
                     },
                     myself,
-                    |proposed| {
-                        Msg::<Ctx>::ReceivedProposedValue(
-                            proposed,
-                            ValueDiseminatingProtocol::BlockSync,
-                        )
-                    },
+                    |proposed| Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::BlockSync),
                     None,
                 )?;
 
