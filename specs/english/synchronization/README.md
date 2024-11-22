@@ -18,7 +18,7 @@ The rough idea of the protocol is the following
 - Consensus, client and server run in parallel on a node
 - The client observes the height of its local consensus instance
 - The server regularly announces the height of its local consensus instance to the network
-- When a client observes that the local height is smaller than a remote height, it requests a missing height: the commit (a certificate consisting of 2f+1 precommit messages) and the committed block (proposal)
+- When a client observes that the local height is smaller than a remote height, it requests a missing height: the commit (a certificate consisting of 2f+1 Precommit messages) and the committed block (proposal)
 - When a server receives such a request, it obtains the required information from the local block store, and sends it to the client
 - When a client receives a response (certificate or proposal or both), it delivers this information to the consensus logic
 - The consensus logic (driver) handles this incoming information in the same way as it would handle it if it came from "normal" consensus operation.
@@ -116,8 +116,8 @@ The [specification](../../quint/specs/blocksync/) includes:
 
 - Protocol functionality: main complexity in the client, where it maintains statuses,  requests data, and feeds received data into consensus
 - State machine: We have encoded two alternatives
-    - We have put the Blocksync on-top-of the consensus specification. This allows us to simulate consensus and Blocksync in one model.
-    - We have encoded a state machine that abstracts away consensus (`bsyncMock`) that allows us to analyze Blocksynch in isolation.
+    - We have put the Blocksync on-top-of the consensus specification (`bsyncWithConsensus`). This allows us to simulate consensus and Blocksync in one model.
+    - We have encoded a state machine that abstracts away consensus (`bsyncWithMockedConsensus`) that allows us to analyze Blocksync in isolation.
 - Invariants (that have been preliminarily tested) and temporal formulas (that are just written but have not been investigated further)
 
 ### Protocol functionality
@@ -129,7 +129,7 @@ This contains mainly the following functions (and their auxiliary functions):
         1. update peer statuses, 
         2. if there is no open request, request something
         3. otherwise check whether we have a response and act accordingly
-        4. `fullEntries` is used to signal whether complete blockstore entries should be requested (rather than certificate and block separately)
+        4. `fullEntries` is used to signal whether complete block store entries should be requested (rather than certificate and block separately)
 
 - `pure def bsyncClientTimeout (s: BsyncClient) : ClientResult`
     - this encodes what happens when a request timeouts:
@@ -177,14 +177,17 @@ The following to actions interact with consensus and thus there are two versions
 
 
 #### syncStepClient
+
 There are two types of effects this action can have.
 It can lead to a request message being sent to a server, in which case the message is place in the `requestsBuffer` towards the server.
 The second effect is that when the client learns a certificate or a proposal, it will be put into an incoming buffer of a node (from which the consensus logic can later take it out and act on it).
 
 #### syncStatusStep
+
 A status message is broadcast, that is, the message is put into the `statusBuffer` towards all nodes.
 
 #### syncStepServer
+
 I a request is served, the response message is put into the `responsesBuffer` towards the requesting client.
 
 
