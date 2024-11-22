@@ -1,6 +1,6 @@
-# Malachite BlockSync Protocol MVP Specification
+# Malachite Blocksync Protocol MVP Specification
 
-The challenge we address with BlockSync is long-term stability: 
+The challenge we address with Blocksync is long-term stability: 
 When running for a long time, the consensus mechanism alone may not be enough to keep the system alive. 
 If nodes are down or disconnected for some (extended period of) time, they may fall behind several heights. 
 While the consensus algorithm is fault-tolerant, if too many nodes fall behind, and are not able to catch up, eventually we might not have sufficiently many validators synchronized at the top of the chain to make progress.
@@ -8,8 +8,8 @@ While the consensus algorithm is fault-tolerant, if too many nodes fall behind, 
 
 We consider a composition of three components
 - Consensus. The consensus node: Executing consensus iteratively over multiple heights, and storing the decided blocks
-- Client. BlockSync Client: That tries to obtain data (certificates, blocks) in order to decide quickly, in case the node has fallen behind, and other nodes have already decided on blocks.
-- Server. BlockSync Server. Provides data about decided blocks to clients
+- Client. Blocksync Client: That tries to obtain data (certificates, blocks) in order to decide quickly, in case the node has fallen behind, and other nodes have already decided on blocks.
+- Server. Blocksync Server. Provides data about decided blocks to clients
 
 #### Outline of the protocol
 
@@ -35,16 +35,16 @@ This creates a lot of algorithmic complexity as well as complications in the ana
 
 We have thus decided to go for another approach:
 
-- Consensus, client and server run in parallel on a node (we don't need to define switching conditions between consensus and BlockSync as they are always running together)
+- Consensus, client and server run in parallel on a node (we don't need to define switching conditions between consensus and Blocksync as they are always running together)
 - the consensus logic is the single point where decisions are made (i.e., blocks are committed)
-- BlockSync is just an alternative source for certificates and proposals
-- BlockSync can be run as add-on, and doesn't need any change to the consensus mechanism/architecture already implemented/specified in Malachite.
-- Coupling of BlockSync client and server to the consensus logic:
+- Blocksync is just an alternative source for certificates and proposals
+- Blocksync can be run as add-on, and doesn't need any change to the consensus mechanism/architecture already implemented/specified in Malachite.
+- Coupling of Blocksync client and server to the consensus logic:
     - the server needs read access to the block store in order to retrieve the current height, as well as certificates and blocks for committed heights
     - the client needs write access to incoming buffers (for certificates and blocks) of the consensus logic
 
 
-## Central aspects of BlockSync
+## Central aspects of Blocksync
 
 ### Synchronization Messages
 
@@ -110,14 +110,14 @@ In the section on [Issues](#issues) below we will discuss future improvements. W
 
 ## Formalizing the protocol in Quint
 
-We have formalized BlockSync in Quint.
+We have formalized Blocksync in Quint.
 To do so, we abstracted away many details not relevant to the understanding of the protocol. 
 The [specification](../../quint/specs/blocksync/) includes:
 
 - Protocol functionality: main complexity in the client, where it maintains statuses,  requests data, and feeds received data into consensus
 - State machine: We have encoded two alternatives
-    - We have put the BlockSync on-top-of the consensus specification. This allows us to simulate consensus and Blocksync in one model.
-    - We have encoded a state machine that abstracts away consensus (`bsyncMock`) that allows us to analyze BlockSynch in isolation.
+    - We have put the Blocksync on-top-of the consensus specification. This allows us to simulate consensus and Blocksync in one model.
+    - We have encoded a state machine that abstracts away consensus (`bsyncMock`) that allows us to analyze Blocksynch in isolation.
 - Invariants (that have been preliminarily tested) and temporal formulas (that are just written but have not been investigated further)
 
 ### Protocol functionality
@@ -158,7 +158,7 @@ var responsesBuffer : Address -> Set[ResponseMsg]
 ```
 
 We have encoded two different state machines (1) that interacts with the consensus specification and (2) that abstracts consensus. In order to do so, we have separated actions into several modules.
-The specification `syncStatemachine.qnt` encodes all actions that are touching only BlockSync state, that is, the don't interact with consensus. 
+The specification `syncStatemachine.qnt` encodes all actions that are touching only Blocksync state, that is, the don't interact with consensus. 
 These are the actions for a correct process `v`:
 - `syncDeliverReq(v)`
 - `syncDeliverResp(v)`
