@@ -544,7 +544,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> NodeConfig 
             gossip_batch_size: 100,
         },
         blocksync: BlockSyncConfig {
-            enabled: false,
+            enabled: true,
             status_update_interval: Duration::from_secs(2),
             request_timeout: Duration::from_secs(5),
         },
