@@ -84,7 +84,7 @@ module driver {
         val maxCertRound = maxRound(certificatesForHeight.map( cert => maxRound(cert.map(vote => vote.round)))) // needed to avoid skip rounds in applyVote
 
         // init new driver with empty votekeeper
-        val driver = initDriver(ns.es.cs.p, vs, h, ns.es.chain)
+        val driver = ns.es      //initDriver(ns.es.cs.p, vs, h, ns.es.chain)
         val vkEmpty = initBookKeeper(h, vs)
 
         // load votekeeper with votes
