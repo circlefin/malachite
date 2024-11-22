@@ -25,8 +25,10 @@ module bsyncStatemachine {
   // Properties
   //
 
-  /// A request should only be sent to a server who has the requested data
-  val clientRequestsfromKnowingPeersInv = bsyncServers.keys().forall(s =>
+  /// A request should only be sent to a server who has reported, via status
+  /// message, having data for the requested height.
+  // FIXME: this assume no prunning, namely chain.length() == latestHeight.
+  val validRequestInvariant = bsyncServers.keys().forall(s =>
     requestsBuffer.get(s).forall(m =>
       m.height <= bsyncServers.get(s).chain.length()
     )
