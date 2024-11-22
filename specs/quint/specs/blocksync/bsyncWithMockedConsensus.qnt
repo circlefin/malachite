@@ -22,7 +22,7 @@ module bsyncWithMockedConsensus {
   // Properties
   //
 
-  /// Witness for some data being synced. It is triggered if there is a process
+  /// Witness for some data being synced. It is triggered if there is a client
   /// that gets a syncing output that is different from None. That is, it has
   /// received a certificate, or a block, or both (a block store entry).
   //
