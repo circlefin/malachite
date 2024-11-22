@@ -1,11 +1,13 @@
 // -*- mode: Bluespec; -*-
+//
+// Blocksync executable model running together with the consensus logic.
+//
 
 module bsyncWithConsensus {
-  
-  import blocksync.* from "./blocksync"
-  import bsync_client.* from "./client"
-  import bsync_server.* from "./server"
 
+  import bsyncStatemachine.* from "./bsyncStatemachine"
+
+  /// Consensus state machine setup
   import statemachineAsync(
     validators = Set("v1", "v2", "v3", "v4"),
     validatorSet = Set("v1", "v2", "v3", "v4").mapBy(x => 1),
@@ -15,8 +17,6 @@ module bsyncWithConsensus {
     Heights = Set(0) // , 1, 2, 3)
   ).* from "../statemachineAsync"
 
-  import syncStatemachine.* from "./syncStatemachine"
-  
   /// initialize consensus and block sync
   action initAll = all {
     init,
@@ -117,7 +117,7 @@ module bsyncWithConsensus {
   action syncStep =
     nondet v = oneOf(Correct)
     pureSyncStep(v, unchangedAll)
-  
+
   /// a simple scenario where v4 starts height h
   run syncCycle(h) =
     newHeightActionAll("v4", validatorSet, h)
@@ -153,17 +153,17 @@ module bsyncWithConsensus {
     initHeight(2)
     // FIXME: I had to put it here, instead of syncCycle(h)
     // This is not ideal, but it works.
-    .then(syncUpdateServer("v2"))     
+    .then(syncUpdateServer("v2"))
     .then(newHeightActionAll("v4", validatorSet, 0))
-    .then(all{unchangedAll, syncStatusStep("v2")}) 
-    .then(all{unchangedAll, syncDeliverStatus("v4")})   
+    .then(all{unchangedAll, syncStatusStep("v2")})
+    .then(all{unchangedAll, syncDeliverStatus("v4")})
     .then(syncStepClient("v4", putSyncOutputIntoNode, false)) // ask for certificate
     // request for certificate is sent to v2
     .expect(requestsBuffer.get("v2").contains({ client: "v4", height: 0, rtype: SyncCertificate, server: "v2" }))
     // v3 wakes up and sends it status to v4
-    .then(syncUpdateServer("v3"))  
-    .then(all{unchangedAll, syncStatusStep("v3")}) 
-    .then(all{unchangedAll, syncDeliverStatus("v4")}) 
+    .then(syncUpdateServer("v3"))
+    .then(all{unchangedAll, syncStatusStep("v3")})
+    .then(all{unchangedAll, syncDeliverStatus("v4")})
     // v4's request to v2 times out...
     .then(all{unchangedAll, syncClientTimeout("v4")})
     // after handling the timeout a request for certificate is sent to v3

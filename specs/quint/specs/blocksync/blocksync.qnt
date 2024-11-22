@@ -1,4 +1,8 @@
 // -*- mode: Bluespec; -*-
+//
+// General definitions for blocksync protocol and state machine for
+// the client-server communication, namely, the network.
+//
 
 module blocksync {
 

@@ -5,7 +5,8 @@ use std::sync::Arc;
 use bytes::Bytes;
 use bytesize::ByteSize;
 use eyre::eyre;
-use rand::RngCore;
+use rand::rngs::StdRng;
+use rand::{RngCore, SeedableRng};
 use sha3::Digest;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
@@ -151,7 +152,7 @@ async fn run_build_proposal_task(
     // BlockProof
     {
         // TODO: Compute actual "proof"
-        let mut rng = rand::rngs::OsRng;
+        let mut rng = StdRng::from_entropy();
         let mut proof = vec![0; 32];
         rng.fill_bytes(&mut proof);
 

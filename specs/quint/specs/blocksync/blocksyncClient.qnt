@@ -1,8 +1,9 @@
 // -*- mode: Bluespec; -*-
 //
-// Blocksync protocol: client side.
+// Blocksync protocol: client side that requests and downloads decisions.
+//
 
-module bsync_client {
+module blocksyncClient {
 
   import blocksync.* from "./blocksync"
 
