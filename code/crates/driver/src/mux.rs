@@ -119,11 +119,10 @@ where
 
         // We have a valid proposal. Check if there is already a certificate for it.
         // L49
-        if self
-            .certificates
-            .iter()
-            .any(|c| c.value_id == proposal.value().id() && proposal.round() == c.round)
-            && self.round_state.decision.is_none()
+        if self.round_state.decision.is_none()
+            && self
+                .get_certificate(proposal.round(), proposal.value().id())
+                .is_some()
         {
             return Some(RoundInput::ProposalAndPrecommitValue(proposal));
         }
