@@ -17,9 +17,13 @@ debug = ["std", "malachite-round/debug"]
 workspace = true
 
 [dependencies]
-malachite-common = { version = "0.1.0", path = "../common" }
-malachite-round  = { version = "0.1.0", path = "../round" }
-malachite-vote   = { version = "0.1.0", path = "../vote" }
+malachite-common = { workspace = true }
+malachite-round  = { workspace = true }
+malachite-vote   = { workspace = true }
 
 derive-where = { workspace = true }
 thiserror    = { workspace = true, default-features = false }
+
+[dev-dependencies]
+malachite-test              = { workspace = true }
+malachite-driver-test-utils = { workspace = true }

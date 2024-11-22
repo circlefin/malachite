@@ -24,6 +24,7 @@ members = [
   # Test
   "crates/test",
   "crates/test/mbt",
+  "crates/driver/test-utils",
 
   # Starknet
   "crates/starknet/*",
@@ -50,7 +51,7 @@ inherits = "release"
 debug = true
 
 [workspace.lints.rust]
-unused_crate_dependencies = "warn"
+# None for now
 
 [workspace.dependencies]
 malachite-actors           = { version = "0.1.0", path = "crates/actors" }
@@ -67,10 +68,13 @@ malachite-metrics          = { version = "0.1.0", path = "crates/metrics" }
 malachite-node             = { version = "0.1.0", path = "crates/node" }
 malachite-proto            = { version = "0.1.0", path = "crates/proto" }
 malachite-round            = { version = "0.1.0", path = "crates/round" }
-malachite-test             = { version = "0.1.0", path = "crates/test" }
-malachite-test-mbt         = { version = "0.1.0", path = "crates/test/mbt" }
 malachite-vote             = { version = "0.1.0", path = "crates/vote" }
 malachite-signing-ed25519  = { version = "0.1.0", path = "crates/signing-ed25519" }
+
+# Test
+malachite-test              = { version = "0.1.0", path = "crates/test" }
+malachite-test-mbt          = { version = "0.1.0", path = "crates/test/mbt" }
+malachite-driver-test-utils = { version = "0.1.0", path = "crates/driver/test-utils" }
 
 # Starknet
 malachite-starknet-host      = { version = "0.1.0", path = "crates/starknet/host" }
