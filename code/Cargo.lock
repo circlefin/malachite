@@ -2458,6 +2458,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-app-channel"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "libp2p-identity",
+ "malachite-actors",
+ "malachite-blocksync",
+ "malachite-common",
+ "malachite-config",
+ "malachite-consensus",
+ "malachite-gossip-consensus",
+ "malachite-metrics",
+ "malachite-node",
+ "ractor",
+ "tokio",
+]
+
+[[package]]
 name = "malachite-blocksync"
 version = "0.1.0"
 dependencies = [
