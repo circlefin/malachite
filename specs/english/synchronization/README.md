@@ -8,8 +8,8 @@ While the consensus algorithm is fault-tolerant, if too many nodes fall behind, 
 
 We consider a composition of three components
 - Consensus. The consensus node: Executing consensus iteratively over multiple heights, and storing the decided blocks
-- Client. Blocksync Client: That tries to obtain data (certificates, blocks) in order to decide quickly, in case the node has fallen behind, and other nodes have already decided on blocks.
-- Server. Blocksync Server. Provides data about decided blocks to clients
+- Client. Blocksync Client: That tries to obtain data (certificates, blocks) in order to decide quickly, in case the node has fallen behind and other nodes have already decided on blocks.
+- Server. Blocksync Server. Provides data about decided blocks to clients.
 
 #### Outline of the protocol
 
