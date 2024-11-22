@@ -4,7 +4,7 @@ use core::fmt;
 
 use malachite_common::{
     CommitCertificate, Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
-    Validator, ValidatorSet, Validity, Vote,
+    Validator, ValidatorSet, Validity, ValueId, Vote,
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
@@ -38,6 +38,9 @@ where
     /// The validator set at the current height
     validator_set: Ctx::ValidatorSet,
 
+    /// The proposer for the current round, None for round nil.
+    proposer: Option<Ctx::Address>,
+
     /// The proposals to decide on.
     pub(crate) proposal_keeper: ProposalKeeper<Ctx>,
 
@@ -49,9 +52,6 @@ where
 
     /// The state of the round state machine.
     pub(crate) round_state: RoundState<Ctx>,
-
-    /// The proposer for the current round, None for round nil.
-    proposer: Option<Ctx::Address>,
 
     /// The pending inputs to be processed next, if any.
     /// The first element of the tuple is the round at which that input has been emitted.
@@ -174,6 +174,17 @@ where
         } else {
             Err(Error::NoProposer(self.height(), self.round()))
         }
+    }
+
+    /// Get a commit certificate for the given round and value id.
+    pub fn get_certificate(
+        &self,
+        round: Round,
+        value_id: ValueId<Ctx>,
+    ) -> Option<&CommitCertificate<Ctx>> {
+        self.certificates
+            .iter()
+            .find(|c| c.round == round && c.value_id == value_id)
     }
 
     /// Process the given input, returning the outputs to be broadcast to the network.
