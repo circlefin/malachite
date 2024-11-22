@@ -68,10 +68,10 @@ module driver {
         val proposals = ns.incomingProposals.filter(v => v.height >= height)
         val votes = ns.incomingVotes.filter(v => v.height >= height)
         val certificates = ns.incomingCertificates.filter(cert => cert.forall(v => v.height >= height))
-        ns
-            .with("incomingProposals", proposals)
-            .with("incomingVotes", votes)
-            .with("incomingCertificates", certificates)
+        { ... ns,
+            incomingProposals: proposals,
+            incomingVotes: votes,
+            incomingCertificates: certificates }
 
     // initialize a driver with for a new height, and processing all messages that are already in the message buffers for that height
     //pure def initNodeStateForNewHeight(ns: NodeState, vs: ValidatorSet, h: Height, chain: List[BlockStoreEntry]): NodeState = 
