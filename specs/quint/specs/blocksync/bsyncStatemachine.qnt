@@ -150,6 +150,4 @@ module bsyncStatemachine {
     unchange
   }
 
-
-
 }
