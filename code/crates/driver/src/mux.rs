@@ -119,11 +119,10 @@ where
 
         // We have a valid proposal. Check if there is already a certificate for it.
         // L49
-        if self
-            .certificates
-            .iter()
-            .any(|c| c.value_id == proposal.value().id() && proposal.round() == c.round)
-            && self.round_state.decision.is_none()
+        if self.round_state.decision.is_none()
+            && self
+                .get_certificate(proposal.round(), proposal.value().id())
+                .is_some()
         {
             return Some(RoundInput::ProposalAndPrecommitValue(proposal));
         }
@@ -189,15 +188,18 @@ where
         // Should only receive proposals for our height.
         assert_eq!(self.height(), certificate.height);
 
+        let certificate_round = certificate.round;
+        let certificate_value_id = certificate.value_id.clone();
+
         // Store the certificate
-        self.certificates.push(certificate.clone());
+        self.certificates.push(certificate);
 
         if let Some((signed_proposal, validity)) = self
             .proposal_keeper
-            .get_proposal_and_validity_for_round(certificate.round)
+            .get_proposal_and_validity_for_round(certificate_round)
         {
             let proposal = &signed_proposal.message;
-            if proposal.value().id() == certificate.value_id && validity.is_valid() {
+            if proposal.value().id() == certificate_value_id && validity.is_valid() {
                 return Some(RoundInput::ProposalAndPrecommitValue(proposal.clone()));
             }
         }

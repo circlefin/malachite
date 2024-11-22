@@ -5,6 +5,8 @@ use eyre::eyre;
 
 use itertools::Itertools;
 use ractor::{async_trait, Actor, ActorProcessingErr, SpawnErr};
+use rand::rngs::StdRng;
+use rand::{RngCore, SeedableRng};
 use sha3::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, trace, warn};
@@ -43,7 +45,10 @@ pub struct HostState {
 }
 
 impl HostState {
-    pub fn new(host: MockHost, db_path: impl AsRef<Path>) -> Self {
+    pub fn new<R>(host: MockHost, db_path: impl AsRef<Path>, rng: &mut R) -> Self
+    where
+        R: RngCore,
+    {
         Self {
             height: Height::new(0, 0),
             round: Round::Nil,
@@ -51,8 +56,16 @@ impl HostState {
             host,
             block_store: BlockStore::new(db_path).unwrap(),
             part_streams_map: PartStreamsMap::default(),
-            next_stream_id: StreamId::default(),
+            next_stream_id: rng.next_u64(),
         }
+    }
+
+    pub fn next_stream_id(&mut self) -> StreamId {
+        let stream_id = self.next_stream_id;
+        // Wrap around if we get to u64::MAX, which may happen if the initial
+        // stream id was close to it already.
+        self.next_stream_id = self.next_stream_id.wrapping_add(1);
+        stream_id
     }
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
@@ -241,13 +254,12 @@ impl StarknetHost {
     ) -> Result<HostRef, SpawnErr> {
         let db_dir = home_dir.join("db");
         std::fs::create_dir_all(&db_dir).map_err(|e| SpawnErr::StartupFailed(e.into()))?;
-
         let db_path = db_dir.join("blocks.db");
 
         let (actor_ref, _) = Actor::spawn(
             None,
             Self::new(mempool, gossip_consensus, metrics),
-            HostState::new(host, db_path),
+            HostState::new(host, db_path, &mut StdRng::from_entropy()),
         )
         .await?;
 
@@ -265,6 +277,7 @@ impl StarknetHost {
             metrics,
         }
     }
+
     async fn prune_block_store(&self, state: &mut HostState) {
         let max_height = state.block_store.last_height().unwrap_or_default();
         let max_retain_blocks = state.host.params.max_retain_blocks as u64;
@@ -352,8 +365,7 @@ impl Actor for StarknetHost {
                 let (mut rx_part, rx_hash) =
                     state.host.build_new_proposal(height, round, deadline).await;
 
-                let stream_id = state.next_stream_id;
-                state.next_stream_id += 1;
+                let stream_id = state.next_stream_id();
 
                 let mut sequence = 0;
 
@@ -417,8 +429,7 @@ impl Actor for StarknetHost {
 
                 let mut rx_part = state.host.send_known_proposal(value_id).await;
 
-                let stream_id = state.next_stream_id;
-                state.next_stream_id += 1;
+                let stream_id = state.next_stream_id();
 
                 let init = ProposalInit {
                     height,
