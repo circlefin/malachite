@@ -193,7 +193,7 @@ I a request is served, the response message is put into the `responsesBuffer` to
 
 ### Invariants and temporal formulas
 
-TODO for the retreat
+For details we refer to the [state machine in Quint](https://github.com/informalsystems/malachite/blob/main/specs/quint/specs/blocksync/bsyncStatemachine.qnt), and the [analysis documentation](https://github.com/informalsystems/malachite/blob/main/specs/quint/specs/blocksync/README.md).
 
 ## Issues
 
