@@ -6,7 +6,6 @@ state machine and the consensus state machine are combined.
 
 ## Invariants checked with quint run 
 
-
 - `validRequestInvariant`: A request should only be sent to a server who has reported, via status message, having data for the requested height.
 - `noOldRequestsInv`: A client doesn't have open requests for past heights
 - `serverRespondsToRequestingPeersInvariant`: A server only replies to a request received from a client (The client request might have timed out).
