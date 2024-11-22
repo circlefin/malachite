@@ -12,7 +12,7 @@ use malachite_proto::Protobuf;
 use crate::codec;
 use crate::proto::{self as proto, Error as ProtoError};
 use crate::types::MockContext;
-use crate::types::{Block, Height, Transaction, Transactions};
+use crate::types::{Block, BlockHash, Height, Transaction, Transactions};
 
 mod keys;
 use keys::{HeightKey, UndecidedBlockKey};
@@ -131,7 +131,7 @@ impl Db {
         Ok(())
     }
 
-    fn range<Table>(
+    fn height_range<Table>(
         &self,
         table: &Table,
         range: impl RangeBounds<Height>,
@@ -146,14 +146,39 @@ impl Db {
             .collect::<Vec<_>>())
     }
 
+    fn undecided_block_range<Table>(
+        &self,
+        table: &Table,
+        range: impl RangeBounds<(Height, Round, BlockHash)>,
+    ) -> Result<Vec<(Height, Round, BlockHash)>, StoreError>
+    where
+        Table: redb::ReadableTable<UndecidedBlockKey, Vec<u8>>,
+    {
+        Ok(table
+            .range(range)?
+            .flatten()
+            .map(|(key, _)| key.value())
+            .collect::<Vec<_>>())
+    }
+
     fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
         let tx = self.db.begin_write().unwrap();
         let pruned = {
-            let mut blocks = tx.open_table(DECIDED_BLOCKS_TABLE)?;
+            let mut undecided = tx.open_table(UNDECIDED_BLOCKS_TABLE)?;
+            let keys = self.undecided_block_range(
+                &undecided,
+                ..(retain_height, Round::Nil, BlockHash::new([0; 32])),
+            )?;
+            for key in keys {
+                undecided.remove(key)?;
+            }
+
+            let mut decided = tx.open_table(DECIDED_BLOCKS_TABLE)?;
             let mut certificates = tx.open_table(CERTIFICATES_TABLE)?;
-            let keys = self.range(&blocks, ..retain_height)?;
+
+            let keys = self.height_range(&decided, ..retain_height)?;
             for key in &keys {
-                blocks.remove(key)?;
+                decided.remove(key)?;
                 certificates.remove(key)?;
             }
             keys

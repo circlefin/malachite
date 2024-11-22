@@ -317,7 +317,7 @@ impl StarknetHost {
         match state.block_store.prune(retain_height).await {
             Ok(pruned) => {
                 debug!(
-                    %retain_height, pruned = pruned.iter().join(", "),
+                    %retain_height, pruned_heights = pruned.iter().join(", "),
                     "Pruned the block store"
                 );
             }
