@@ -104,7 +104,7 @@ pub enum HostMsg<Ctx: Context> {
     },
 
     // Synced block
-    ProcessSyncedBlockBytes {
+    ProcessSyncedBlock {
         height: Ctx::Height,
         round: Round,
         validator_address: Ctx::Address,

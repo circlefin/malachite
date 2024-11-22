@@ -1,16 +1,13 @@
 use std::borrow::Borrow;
 
-use bytes::Bytes;
-
 use crate::handle::driver::apply_driver_input;
 use crate::handle::validator_set::get_validator_set;
 use crate::prelude::*;
 
-pub async fn on_received_synced_block<Ctx>(
+pub async fn on_commit_certificate<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    block_bytes: Bytes,
     certificate: CommitCertificate<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
@@ -20,16 +17,6 @@ where
         certificate.height = %certificate.height,
         signatures = certificate.aggregated_signature.signatures.len(),
         "Processing certificate"
-    );
-
-    perform!(
-        co,
-        Effect::SyncedBlock {
-            height: certificate.height,
-            round: certificate.round,
-            validator_address: state.driver.address().clone(),
-            block_bytes,
-        }
     );
 
     let Some(validator_set) = get_validator_set(co, state, certificate.height).await? else {

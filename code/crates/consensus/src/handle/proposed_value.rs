@@ -12,7 +12,7 @@ use crate::types::ProposedValue;
         id = %proposed_value.value.id()
     )
 )]
-pub async fn on_received_proposed_value<Ctx>(
+pub async fn on_proposed_value<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -32,7 +32,7 @@ where
             debug!("Received value for next height, queuing for later");
             state
                 .input_queue
-                .push_back(Input::ReceivedProposedValue(proposed_value, origin));
+                .push_back(Input::ProposedValue(proposed_value, origin));
         }
         return Ok(());
     }

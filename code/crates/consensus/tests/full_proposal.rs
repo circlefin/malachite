@@ -66,7 +66,7 @@ fn val_msg(
     value: u64,
     validity: Validity,
 ) -> Input<TestContext> {
-    Input::ReceivedProposedValue(
+    Input::ProposedValue(
         ProposedValue {
             height: Height::new(1),
             round: Round::new(round),
@@ -278,7 +278,7 @@ fn full_proposal_keeper_tests() {
         for m in s.input {
             match m {
                 Input::Proposal(p) => keeper.store_proposal(p),
-                Input::ReceivedProposedValue(v, _) => keeper.store_value(&v),
+                Input::ProposedValue(v, _) => keeper.store_value(&v),
                 _ => continue,
             }
         }

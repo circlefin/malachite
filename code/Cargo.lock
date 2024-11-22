@@ -2527,7 +2527,6 @@ name = "malachite-consensus"
 version = "0.1.0"
 dependencies = [
  "async-recursion",
- "bytes",
  "derive-where",
  "genawaiter",
  "libp2p-identity",
