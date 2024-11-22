@@ -72,8 +72,6 @@ module blocksyncServer {
 
   var bsyncServers: Address -> Server
 
-
-
   //
   // Actions
   //

@@ -25,29 +25,36 @@ module bsyncStatemachine {
   // Properties
   //
 
-  /// A request should only be sent to a server who has the requested data
-  val clientRequestsfromKnowingPeersInv = bsyncServers.keys().forall(s =>
+  /// A request should only be sent to a server who has reported, via status
+  /// message, having data for the requested height.
+  // FIXME: this assume no prunning, namely chain.length() == latestHeight.
+  val validRequestInvariant = bsyncServers.keys().forall(s =>
     requestsBuffer.get(s).forall(m =>
       m.height <= bsyncServers.get(s).chain.length()
     )
   )
+
 
   /// No request for past heights active
   val noOldRequestsInv = bsyncClients.keys().forall(c =>
     bsyncClients.get(c).openRequests.forall(req =>
       req.height >= bsyncClients.get(c).height))
 
-  /// A server only replies to a request (current or timed-out)
-  val serverRespondsToRequestingPeersInv = bsyncClients.keys().forall(c =>
+
+
+  /// A server only replies to a request received from a client.
+  /// The client request might have timed out.
+  val serverRespondsToRequestingPeersInvariant = bsyncClients.keys().forall(c =>
     responsesBuffer.get(c).forall(m =>
       bsyncClients.get(c).openRequests.union(expiredTimeouts.get(c))
       .exists(req => matchingMessages(req, m))
     )
   )
 
-  /// A server only replies to an active request. This generates a witness
-  /// where the requester timed-out, so the request is gone, but the 
-  /// response is in-flight
+
+  /// A server only replies to a request received from a client.
+  /// This witness should report a scenario where a request timeouts, the
+  /// client submits a new one, and a late response is received.
   val serverRespondsToRequestingPeersWitness = bsyncClients.keys().forall(c =>
     responsesBuffer.get(c).forall(m =>
       bsyncClients.get(c).openRequests.exists(req =>
@@ -68,7 +75,6 @@ module bsyncStatemachine {
   //
   // Actions
   //
-
 
   /// initializing the variables of the sync part of the state machine
   action syncInit(validators) = all {
@@ -163,7 +169,5 @@ module bsyncStatemachine {
     },
     unchange
   }
-
-
 
 }
