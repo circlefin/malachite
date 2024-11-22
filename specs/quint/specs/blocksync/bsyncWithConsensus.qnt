@@ -30,6 +30,10 @@ module bsyncWithConsensus {
   // With the default `init` action, it is unlikely to observe this scenario,
   // even with 200 steps (around 30 minutes) execution:
   // $ quint run --invariant anyClientOutputWitness bsyncWithConsensus.qnt
+  // Therefore we have a special init action
+  // quint run --invariant anyClientOutputWitness bsyncWithConsensus.qnt --init initSetup --step stepWithBlockSync --maxSteps 60
+  // Use --seed=0x1060f6cddc9cb5 to reproduce.
+
   val anyClientOutputWitness = Correct.forall(p =>
     system.get(p).incomingSyncCertificates == Set())
 
@@ -131,6 +135,18 @@ module bsyncWithConsensus {
       syncInit(validators)
     }
   }
+
+  /// initSetup setups two servers (v2, v3) at height 4, which broadcast their
+  /// status. Client v4 learns the status and starts syncing from height 0.
+  action initSetup =
+    initHeight(4)
+    .then(syncUpdateServer("v2"))
+    .then(syncUpdateServer("v3"))
+    .then(all{unchangedAll, syncStatusStep("v2")})
+    .then(all{unchangedAll, syncStatusStep("v3")})
+    .then(all{unchangedAll, syncDeliverStatus("v4")})
+    .then(all{unchangedAll, syncDeliverStatus("v4")})
+    .then(newHeightActionAll("v4", validatorSet, 0))
 
   action syncStep =
     nondet v = oneOf(Correct)
