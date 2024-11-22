@@ -1,6 +1,8 @@
 // -*- mode: Bluespec; -*-
 //
 // Blocksync executable model running together with the consensus logic.
+// main init action: initAll
+// main step action: stepWithBlockSync
 //
 
 module bsyncWithConsensus {
@@ -17,20 +19,38 @@ module bsyncWithConsensus {
     Heights = Set(0) // , 1, 2, 3)
   ).* from "../statemachineAsync"
 
+  //
+  // Properties
+  //
+
+  /// Witness for some data being synced. It is triggered if there is a client
+  /// that gets a syncing output that is different from None. That is, it has
+  /// received a certificate, or a block, or both (a block store entry).
+  //
+  // With the default `init` action, it is unlikely to observe this scenario,
+  // even with 200 steps (around 30 minutes) execution:
+  // $ quint run --invariant anyClientOutputWitness bsyncWithConsensus.qnt
+  val anyClientOutputWitness = Correct.forall(p =>
+    system.get(p).incomingSyncCertificates == Set())
+
+  //
+  // Actions
+  //
+
   /// initialize consensus and block sync
   action initAll = all {
     init,
     syncInit(validators)
   }
 
-  /// environment sends the node to the next height.
+  /// Environment sends the node to the next height.
   action newHeightActionAll(v, valset, h) = all {
     system.get(v).es.chain.length() == h, // precondition for calling this
     newHeightActionSync(v, valset, h),
     newHeightAction(v, valset, h),
   }
 
-  // Update server v from the consensus' blockchain
+  /// Update server v from the consensus' blockchain
   action syncUpdateServer(v) = all {
     val chain = system.get(v).es.chain
     all {
@@ -40,15 +60,14 @@ module bsyncWithConsensus {
     }
   }
 
-  // validator step in the consensus protocol, no changes to block sync
+  /// Validator step in the consensus protocol, no changes to block sync
   action syncValStep(v) = all {
     valStep(v),
     syncUnchangedAll
   }
 
-
-
-  /// main step function: either a consensus state-machine step or a block sync protocol step
+  /// Main step function: either a consensus state-machine step or
+  /// a block sync protocol step.
   action stepWithBlockSync = any {
     // consensus takes a step
     all {
@@ -74,7 +93,6 @@ module bsyncWithConsensus {
   //
 
   /// auxiliary function for initHeight
-  /// sets the chain
   pure def setChain(s: DriverState, c: List[{decision: Proposal, commit: Set[Vote]}]): DriverState =
     {... s, chain: c}
 
@@ -83,9 +101,9 @@ module bsyncWithConsensus {
   pure def commitSet (h: Height, v: Value) : Set[Vote] =
     Set("v1", "v2", "v3").map(n => mkVote(Precommit, n, h, 0, v))
 
-  /// An action to set up an initial state with some nodes already decided up to height h
-  /// this sets up an initial state where v4 starts late, and v2 and v3 have reached
-  /// height h
+  /// An action to set up an initial state with some nodes already decided up
+  /// to height h. Sets up an initial state where v4 starts late, and v2 and v3
+  /// have already reached height h. v1 is not correct, so not modelled.
   action initHeight(h) = all {
     val special = "v4" // TODO proper selection from correct set
     val initsystem = Correct.mapBy(v =>
@@ -129,6 +147,7 @@ module bsyncWithConsensus {
     .then(all{unchangedAll, syncDeliverResp("v4")})
     .then(syncStepClient("v4", putSyncOutputIntoNode, false)) // ask for block and give certificate to node
     .expect(system.get("v4").incomingSyncCertificates.size() > 0)
+    .expect(not(anyClientOutputWitness))
     .then(all{unchangedAll, syncDeliverReq("v2")})
     .then(all{unchangedAll, syncStepServer("v2")})
     .then(all{unchangedAll, syncDeliverResp("v4")})

@@ -1,7 +1,7 @@
 //! Driver for the state machine of the Malachite consensus engine
 
 #![forbid(unsafe_code)]
-#![deny(unused_crate_dependencies, trivial_casts, trivial_numeric_casts)]
+#![deny(trivial_casts, trivial_numeric_casts)]
 #![warn(
     missing_docs,
     rustdoc::broken_intra_doc_links,

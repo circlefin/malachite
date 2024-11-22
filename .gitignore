@@ -18,3 +18,6 @@ lcov.info
 
 # JetBrains projects
 .idea
+
+# Vim temporary files
+*.swp

@@ -271,19 +271,7 @@ where
                         if connected_peers == total_peers {
                             info!(count = %connected_peers, "Enough peers connected to start consensus");
 
-                            let height = state.consensus.driver.height();
-
-                            let result = self
-                                .process_input(
-                                    &myself,
-                                    state,
-                                    ConsensusInput::StartHeight(height, validator_set.clone()),
-                                )
-                                .await;
-
-                            if let Err(e) = result {
-                                error!("Error when starting height {height}: {e:?}");
-                            }
+                            self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
                         }
                     }
 
@@ -527,7 +515,7 @@ where
             }
 
             Effect::StartRound(height, round, proposer) => {
-                self.host.cast(HostMsg::StartRound {
+                self.host.cast(HostMsg::StartedRound {
                     height,
                     round,
                     proposer,
@@ -602,7 +590,7 @@ where
                 let height = certificate.height;
 
                 self.host
-                    .cast(HostMsg::Decide {
+                    .cast(HostMsg::Decided {
                         certificate,
                         consensus: myself.clone(),
                     })

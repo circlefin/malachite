@@ -2534,6 +2534,7 @@ dependencies = [
  "malachite-common",
  "malachite-driver",
  "malachite-metrics",
+ "malachite-test",
  "multiaddr",
  "thiserror 2.0.3",
  "tracing",
@@ -2572,9 +2573,22 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "malachite-common",
+ "malachite-driver-test-utils",
  "malachite-round",
+ "malachite-test",
  "malachite-vote",
  "thiserror 2.0.3",
+]
+
+[[package]]
+name = "malachite-driver-test-utils"
+version = "0.1.0"
+dependencies = [
+ "malachite-common",
+ "malachite-driver",
+ "malachite-round",
+ "malachite-test",
+ "malachite-vote",
 ]
 
 [[package]]
@@ -2755,21 +2769,13 @@ dependencies = [
 name = "malachite-test"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "base64 0.22.1",
  "bytes",
- "bytesize",
  "ed25519-consensus",
  "hex",
- "malachite-actors",
  "malachite-common",
- "malachite-config",
- "malachite-consensus",
- "malachite-driver",
  "malachite-proto",
- "malachite-round",
  "malachite-signing-ed25519",
- "malachite-vote",
  "prost",
  "prost-build",
  "prost-types",
@@ -2777,9 +2783,6 @@ dependencies = [
  "serde",
  "sha3",
  "signature",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -2808,6 +2811,7 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "malachite-common",
+ "malachite-test",
  "thiserror 2.0.3",
 ]
 

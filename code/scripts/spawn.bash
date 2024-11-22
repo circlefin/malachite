@@ -5,7 +5,7 @@
 # - the home directory for the nodes configuration folders
 
 function help {
-    echo "Usage: spawn.sh [--help] --nodes NODES_COUNT --home NODES_HOME [--app APP_BINARY]"
+    echo "Usage: spawn.sh [--help] --nodes NODES_COUNT --home NODES_HOME [--app APP_BINARY] [--no-reset]"
 }
 
 # Parse arguments
@@ -15,6 +15,7 @@ while [[ "$#" -gt 0 ]]; do
         --nodes) NODES_COUNT="$2"; shift ;;
         --home) NODES_HOME="$2"; shift ;;
         --app) APP_BINARY="$2"; shift ;;
+        --no-reset) NO_RESET=1; shift ;;
         *) echo "Unknown parameter passed: $1"; help; exit 1 ;;
     esac
     shift
@@ -59,12 +60,16 @@ cargo build -p $APP_BINARY --release
 
 # Create nodes and logs directories, run nodes
 for NODE in $(seq 0 $((NODES_COUNT - 1))); do
-    rm -rf "$NODES_HOME/$NODE/db"
-    rm -rf "$NODES_HOME/$NODE/logs"
-    rm -rf "$NODES_HOME/$NODE/traces"
+    if [[ -z "$NO_RESET" ]]; then
+        echo "[Node $NODE] Resetting the database..."
+        rm -rf "$NODES_HOME/$NODE/db"
+        mkdir -p "$NODES_HOME/$NODE/db"
+    fi
 
-    mkdir -p "$NODES_HOME/$NODE/db"
+    rm -rf "$NODES_HOME/$NODE/logs"
     mkdir -p "$NODES_HOME/$NODE/logs"
+
+    rm -rf "$NODES_HOME/$NODE/traces"
     mkdir -p "$NODES_HOME/$NODE/traces"
 
     echo "[Node $NODE] Spawning node..."
