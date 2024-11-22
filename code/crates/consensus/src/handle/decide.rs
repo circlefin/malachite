@@ -14,8 +14,8 @@ where
     let proposal_round = proposal.round();
     let value = proposal.value();
 
-    // Restore the commits. Note that they will be removed from `state`
-    let commits = state.restore_precommits(height, proposal_round, value);
+    // We only decide proposals for the current height
+    assert_eq!(height, state.driver.height());
 
     // Clean proposals and values
     state.remove_full_proposals(height);
@@ -46,7 +46,17 @@ where
         }
     }
 
-    let certificate = CommitCertificate::new(height, proposal_round, value.id(), commits);
+    // Look for an existing certificate
+    let certificate = state
+        .driver
+        .get_certificate(proposal_round, value.id())
+        .cloned()
+        .unwrap_or_else(|| {
+            // Restore the commits. Note that they will be removed from `state`
+            let commits = state.restore_precommits(height, proposal_round, value);
+            // TODO: should we verify we have 2/3rd commits?
+            CommitCertificate::new(height, proposal_round, value.id(), commits)
+        });
 
     perform!(co, Effect::Decide { certificate });
 

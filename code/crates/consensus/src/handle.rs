@@ -3,20 +3,20 @@ use crate::prelude::*;
 mod decide;
 mod driver;
 mod proposal;
-mod propose_value;
-mod received_proposed_value;
+mod propose;
+mod proposed_value;
 mod signature;
 mod start_height;
-mod synced_block;
+mod sync;
 mod timeout;
 mod validator_set;
 mod vote;
 
 use proposal::on_proposal;
-use propose_value::propose_value;
-use received_proposed_value::on_received_proposed_value;
+use propose::on_propose;
+use proposed_value::on_proposed_value;
 use start_height::reset_and_start_height;
-use synced_block::on_received_synced_block;
+use sync::on_commit_certificate;
 use timeout::on_timeout_elapsed;
 use vote::on_vote;
 
@@ -48,25 +48,11 @@ where
         }
         Input::Vote(vote) => on_vote(co, state, metrics, vote).await,
         Input::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
-        Input::ProposeValue(height, round, valid_round, value, extension) => {
-            propose_value(
-                co,
-                state,
-                metrics,
-                height,
-                round,
-                valid_round,
-                value,
-                extension,
-            )
-            .await
-        }
+        Input::Propose(value) => on_propose(co, state, metrics, value).await,
         Input::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
-        Input::ReceivedProposedValue(value) => {
-            on_received_proposed_value(co, state, metrics, value).await
-        }
-        Input::ReceivedSyncedBlock(block_bytes, commits) => {
-            on_received_synced_block(co, state, metrics, block_bytes, commits).await
+        Input::ProposedValue(value) => on_proposed_value(co, state, metrics, value).await,
+        Input::CommitCertificate(certificate) => {
+            on_commit_certificate(co, state, metrics, certificate).await
         }
     }
 }

@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use derive_where::derive_where;
 
 use malachite_common::*;
@@ -62,15 +61,6 @@ where
     /// Consensus has decided on a value
     /// Resume with: [`Resume::Continue`]
     Decide { certificate: CommitCertificate<Ctx> },
-
-    /// Consensus has received a synced decided block
-    /// Resume with: [`Resume::Continue`]
-    SyncedBlock {
-        height: Ctx::Height,
-        round: Round,
-        validator_address: Ctx::Address,
-        block_bytes: Bytes,
-    },
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].

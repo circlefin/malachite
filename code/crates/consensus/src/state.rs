@@ -61,6 +61,10 @@ where
         }
     }
 
+    pub fn address(&self) -> &Ctx::Address {
+        self.driver.address()
+    }
+
     pub fn get_proposer(&self, height: Ctx::Height, round: Round) -> &Ctx::Address {
         self.ctx
             .select_proposer(self.driver.validator_set(), height, round)

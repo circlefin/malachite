@@ -14,7 +14,7 @@ use malachite_common::{
     CommitCertificate, Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet,
 };
 use malachite_config::TimeoutConfig;
-use malachite_consensus::{Effect, Resume};
+use malachite_consensus::{Effect, Resume, ValueToPropose};
 use malachite_metrics::Metrics;
 
 use crate::block_sync::BlockSyncRef;
@@ -233,7 +233,13 @@ where
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::ProposeValue(height, round, Round::Nil, value, extension),
+                        ConsensusInput::Propose(ValueToPropose {
+                            height,
+                            round,
+                            valid_round: Round::Nil,
+                            value,
+                            extension,
+                        }),
                     )
                     .await;
 
@@ -270,19 +276,7 @@ where
                         if connected_peers == total_peers {
                             info!(count = %connected_peers, "Enough peers connected to start consensus");
 
-                            let height = state.consensus.driver.height();
-
-                            let result = self
-                                .process_input(
-                                    &myself,
-                                    state,
-                                    ConsensusInput::StartHeight(height, validator_set.clone()),
-                                )
-                                .await;
-
-                            if let Err(e) = result {
-                                error!("Error when starting height {height}: {e:?}");
-                            }
+                            self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
                         }
                     }
 
@@ -308,14 +302,24 @@ where
                             return Ok(());
                         };
 
+                        self.host.call_and_forward(
+                            |reply_to| HostMsg::ProcessSyncedBlock {
+                                height: block.certificate.height,
+                                round: block.certificate.round,
+                                validator_address: state.consensus.address().clone(),
+                                block_bytes: block.block_bytes.clone(),
+                                reply_to,
+                            },
+                            &myself,
+                            |proposed| Msg::<Ctx>::ReceivedProposedValue(proposed),
+                            None,
+                        )?;
+
                         if let Err(e) = self
                             .process_input(
                                 &myself,
                                 state,
-                                ConsensusInput::ReceivedSyncedBlock(
-                                    block.block_bytes,
-                                    block.certificate,
-                                ),
+                                ConsensusInput::CommitCertificate(block.certificate),
                             )
                             .await
                         {
@@ -416,7 +420,7 @@ where
 
             Msg::ReceivedProposedValue(value) => {
                 let result = self
-                    .process_input(&myself, state, ConsensusInput::ReceivedProposedValue(value))
+                    .process_input(&myself, state, ConsensusInput::ProposedValue(value))
                     .await;
 
                 if let Err(e) = result {
@@ -522,7 +526,7 @@ where
             }
 
             Effect::StartRound(height, round, proposer) => {
-                self.host.cast(HostMsg::StartRound {
+                self.host.cast(HostMsg::StartedRound {
                     height,
                     round,
                     proposer,
@@ -597,7 +601,7 @@ where
                 let height = certificate.height;
 
                 self.host
-                    .cast(HostMsg::Decide {
+                    .cast(HostMsg::Decided {
                         certificate,
                         consensus: myself.clone(),
                     })
@@ -610,30 +614,6 @@ where
                             eyre!("Error when sending decided height to blocksync: {e:?}")
                         })?;
                 }
-
-                Ok(Resume::Continue)
-            }
-
-            Effect::SyncedBlock {
-                height,
-                round,
-                validator_address,
-                block_bytes,
-            } => {
-                debug!(%height, "Consensus received synced block, sending to host");
-
-                self.host.call_and_forward(
-                    |reply_to| HostMsg::ProcessSyncedBlockBytes {
-                        height,
-                        round,
-                        validator_address,
-                        block_bytes,
-                        reply_to,
-                    },
-                    myself,
-                    |proposed| Msg::<Ctx>::ReceivedProposedValue(proposed),
-                    None,
-                )?;
 
                 Ok(Resume::Continue)
             }

@@ -14,3 +14,6 @@ malachite-common = { version = "0.1.0", path = "../common" }
 
 derive-where = { workspace = true }
 thiserror    = { workspace = true, default-features = false }
+
+[dev-dependencies]
+malachite-test = { workspace = true }

@@ -1,11 +1,9 @@
-use bytes::Bytes;
 use derive_where::derive_where;
 
-use malachite_common::{
-    CommitCertificate, Context, Round, SignedExtension, SignedProposal, SignedVote, Timeout,
-};
+use malachite_common::{CommitCertificate, Context, SignedProposal, SignedVote, Timeout};
 
 use crate::types::ProposedValue;
+use crate::ValueToPropose;
 
 /// Inputs to be handled by the consensus process.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -23,25 +21,14 @@ where
     Proposal(SignedProposal<Ctx>),
 
     /// Propose a value
-    ProposeValue(
-        /// Height
-        Ctx::Height,
-        /// Round
-        Round,
-        /// Valid round
-        Round,
-        /// Value
-        Ctx::Value,
-        /// Signed vote extension
-        Option<SignedExtension<Ctx>>,
-    ),
+    Propose(ValueToPropose<Ctx>),
 
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),
 
-    /// The value corresponding to a proposal has been received
-    ReceivedProposedValue(ProposedValue<Ctx>),
+    /// Received the full proposed value corresponding to a proposal
+    ProposedValue(ProposedValue<Ctx>),
 
-    /// A block received via BlockSync
-    ReceivedSyncedBlock(Bytes, CommitCertificate<Ctx>),
+    /// Received a commit certificate from BlockSync
+    CommitCertificate(CommitCertificate<Ctx>),
 }
