@@ -12,7 +12,7 @@ use crate::types::ProposedValue;
         id = %proposed_value.value.id()
     )
 )]
-pub async fn on_received_proposed_value<Ctx>(
+pub async fn on_proposed_value<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -28,10 +28,7 @@ where
 
     if state.driver.height() < proposed_value.height {
         debug!("Received value for next height, queuing for later");
-        state.buffer_input(
-            proposed_value.height,
-            Input::ReceivedProposedValue(proposed_value),
-        );
+        state.buffer_input(proposed_value.height, Input::ProposedValue(proposed_value));
 
         return Ok(());
     }
