@@ -58,7 +58,8 @@ module blocksyncClient {
     if (h <= s.height)
         s
     else
-        s.with("height", h)
+        { ... s,  height: h, 
+                  openRequests: s.openRequests.filter(req => req.height >= h)}
 
   /// returned by the synchronizer: sync is the new state, so is the output towards
   /// the consensus driver, req are messages sent towards peers/servers
@@ -170,7 +171,7 @@ module blocksyncClient {
   // State machine
 
   var bsyncClients: Address -> BsyncClient
-  var expiredTimeouts: Address -> Set[RequestMsg]
+  var expiredTimeouts: Address -> Set[RequestMsg] // to check invariants we need to store past requests
 
   action initClient(nodes) = all {
     bsyncClients' = nodes.mapBy(v => initBsyncClient(v, nodes.exclude(Set(v)))),

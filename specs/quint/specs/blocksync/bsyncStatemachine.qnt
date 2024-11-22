@@ -32,14 +32,10 @@ module bsyncStatemachine {
     )
   )
 
-  /// A server only replies to a request
-  // Should be braken due to timeouts
-  val serverRespondsToRequestingPeersWitness = bsyncClients.keys().forall(c =>
-    responsesBuffer.get(c).forall(m =>
-      bsyncClients.get(c).openRequests.exists(req =>
-        matchingMessages(req, m))
-    )
-  )
+  /// No request for past heights active
+  val noOldRequestsInv = bsyncClients.keys().forall(c =>
+    bsyncClients.get(c).openRequests.forall(req =>
+      req.height >= bsyncClients.get(c).height))
 
   /// A server only replies to a request (current or timed-out)
   val serverRespondsToRequestingPeersInv = bsyncClients.keys().forall(c =>
@@ -48,6 +44,24 @@ module bsyncStatemachine {
       .exists(req => matchingMessages(req, m))
     )
   )
+
+  /// A server only replies to an active request. This generates a witness
+  /// where the requester timed-out, so the request is gone, but the 
+  /// response is in-flight
+  val serverRespondsToRequestingPeersWitness = bsyncClients.keys().forall(c =>
+    responsesBuffer.get(c).forall(m =>
+      bsyncClients.get(c).openRequests.exists(req =>
+        matchingMessages(req, m))
+    )
+  )
+
+  /// Every request will eventually terminate. 
+  /// We cannot verify it.
+  temporal terminationRequest = 
+    bsyncClients.keys().forall(c => 
+      always (bsyncClients.get(c).openRequests.forall(req =>
+        eventually (not(bsyncClients.get(c).openRequests.contains(req))))))
+
 
 
 

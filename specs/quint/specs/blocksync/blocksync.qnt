@@ -62,6 +62,7 @@ module blocksync {
 			req.height == resp.height,
 		}
 
+
 	pure val emptyResponseMsg = {
 	    client: "",
 	    server: "",
