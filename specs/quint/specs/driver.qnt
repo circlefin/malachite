@@ -129,7 +129,7 @@ module driver {
             )
         )
 
-        val resultDriver = driver.with("bk",vkWithCertificates)
+        val resultDriver = { ... driver, bk: vkWithCertificates }
         // Note: proposals messages are not processed / removed
         // TODO: which messages can safely be removed in case of StartInRound(r)???
         val resultNodeState = ns
