@@ -34,8 +34,9 @@ module bsyncStatemachine {
     )
   )
 
-  /// A server only replies to a request
-  // Should be braken due to timeouts
+  /// A server only replies to a request received from a client.
+  /// This witness should report a scenario where a request timeouts, the
+  /// client submits a new one, and a late response is received.
   val serverRespondsToRequestingPeersWitness = bsyncClients.keys().forall(c =>
     responsesBuffer.get(c).forall(m =>
       bsyncClients.get(c).openRequests.exists(req =>
@@ -43,20 +44,18 @@ module bsyncStatemachine {
     )
   )
 
-  /// A server only replies to a request (current or timed-out)
-  val serverRespondsToRequestingPeersInv = bsyncClients.keys().forall(c =>
+  /// A server only replies to a request received from a client.
+  /// The client request might have timed out.
+  val serverRespondsToRequestingPeersInvariant = bsyncClients.keys().forall(c =>
     responsesBuffer.get(c).forall(m =>
       bsyncClients.get(c).openRequests.union(expiredTimeouts.get(c))
       .exists(req => matchingMessages(req, m))
     )
   )
 
-
-
   //
   // Actions
   //
-
 
   /// initializing the variables of the sync part of the state machine
   action syncInit(validators) = all {
