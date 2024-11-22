@@ -559,10 +559,7 @@ module driver {
         val syncProposalsForCurrentHeight = state.incomingSyncProposals.filter(p => p.height == state.es.cs.height)
 
         if (not(state.es.started))
-            val result = getNewHeightAction(state, state.es.valset, state.es.cs.height)
-            val resultState = result._1
-            val resultAction = result._2
-            (resultState, resultAction)
+            getNewHeightAction(state, state.es.valset, state.es.cs.height)
 
         else if (syncCertificatesForCurrentHeight != Set())
             // val cert = syncCertificatesForCurrentHeight.chooseSome()
