@@ -170,17 +170,21 @@ module blocksyncClient {
   // State machine
 
   var bsyncClients: Address -> BsyncClient
+  var expiredTimeouts: Address -> Set[RequestMsg]
 
   action initClient(nodes) = all {
     bsyncClients' = nodes.mapBy(v => initBsyncClient(v, nodes.exclude(Set(v)))),
+    expiredTimeouts' = nodes.mapBy(v => Set()),
   }
 
   action unchangedClient = all {
     bsyncClients' = bsyncClients,
+    expiredTimeouts' = expiredTimeouts
   }
 
   action newHeightClient(node, h) = all {
     bsyncClients' = bsyncClients.put(node, syncNewHeight(bsyncClients.get(node), h)),
+    expiredTimeouts' = expiredTimeouts,
   }
 
   // deliver a status message, from the statusBuffer, to node
@@ -194,6 +198,7 @@ module blocksyncClient {
       statusBuffer' = statusBuffer.put(node, statusBuffer.get(node).exclude(Set(msg))),
       requestsBuffer' = requestsBuffer,
       responsesBuffer' = responsesBuffer,
+      expiredTimeouts' = expiredTimeouts,
     }
   }
 
@@ -209,6 +214,7 @@ module blocksyncClient {
       requestsBuffer' = requestsBuffer,
       responsesBuffer' = responsesBuffer.put(node, responsesBuffer.get(node).exclude(Set(msg))),
       statusBuffer' = statusBuffer,
+      expiredTimeouts' = expiredTimeouts,
     }
   }
 
@@ -220,6 +226,7 @@ module blocksyncClient {
       | None => requestsBuffer
     },
     responsesBuffer' = responsesBuffer,
+    expiredTimeouts' = expiredTimeouts,
   }
 
   // Client v takes a step
@@ -241,6 +248,7 @@ module blocksyncClient {
     val result = bsyncClientTimeout(bsyncClients.get(node), toMsg)
     all {
       bsyncClients' = bsyncClients.put(node, result.sync),
+      expiredTimeouts' = expiredTimeouts.put(node, expiredTimeouts.get(node).union(Set(toMsg))),
       requestsBuffer' = match result.req {
             | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
             | None => requestsBuffer

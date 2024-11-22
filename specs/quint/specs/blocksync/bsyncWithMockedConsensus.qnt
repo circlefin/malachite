@@ -25,7 +25,7 @@ module bsyncWithMockedConsensus {
   /// Witness for some data being synced. It is violated if there is a process
   /// that gets a syncing output that is different from None, that it, it 
   /// synced a ceertificate or a block (or a blockstoreentry)
-  // quint run --invariant BlockSyncedWitness bsyncWithMockedConsensus.qnt --init initSetup   
+  //quint run --invariant BlockSyncedWitness bsyncWithMockedConsensus.qnt --init initSetup   
   // [violation] Found an issue (7368ms).
   // Use --verbosity=3 to show executions.
   // Use --seed=0x131cbef6acef78 to reproduce.
@@ -87,8 +87,11 @@ module bsyncWithMockedConsensus {
   }
 
   action writeAction(v, so) = all {
-    val updateOutput = outputs.get(v).append(so)
-    outputs' = outputs.put(v, updateOutput),
+    outputs' = 
+      if (not(so == SONoOutput))
+        outputs.put(v, outputs.get(v).append(so))
+      else 
+        outputs,
     chains' = chains,
   }
 

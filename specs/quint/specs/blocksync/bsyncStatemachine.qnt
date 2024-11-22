@@ -21,6 +21,41 @@ module bsyncStatemachine {
   // initialization and steps, and add the updates to the variables defined below
   //
 
+  //
+  // Properties
+  //
+
+  /// A request should only be sent to a server who has the requested data
+  val clientRequestsfromKnowingPeersInv = bsyncServers.keys().forall(s =>
+    requestsBuffer.get(s).forall(m =>
+      m.height <= bsyncServers.get(s).chain.length()
+    )
+  )
+
+  /// A server only replies to a request
+  // Should be braken due to timeouts
+  val serverRespondsToRequestingPeersWitness = bsyncClients.keys().forall(c =>
+    responsesBuffer.get(c).forall(m =>
+      bsyncClients.get(c).openRequests.exists(req =>
+        matchingMessages(req, m))
+    )
+  )
+
+  /// A server only replies to a request (current or timed-out)
+  val serverRespondsToRequestingPeersInv = bsyncClients.keys().forall(c =>
+    responsesBuffer.get(c).forall(m =>
+      bsyncClients.get(c).openRequests.union(expiredTimeouts.get(c))
+      .exists(req => matchingMessages(req, m))
+    )
+  )
+
+
+
+  //
+  // Actions
+  //
+
+
   /// initializing the variables of the sync part of the state machine
   action syncInit(validators) = all {
     initClient(validators),

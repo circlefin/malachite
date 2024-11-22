@@ -55,7 +55,14 @@ module blocksync {
 	    response: Response,
 	}
 
-	pure def emptyResponseMsg = {
+	pure def matchingMessages(req: RequestMsg, resp: ResponseMsg): bool = 
+		and {
+			req.client == resp.client,
+			req.server == resp.server,
+			req.height == resp.height,
+		}
+
+	pure val emptyResponseMsg = {
 	    client: "",
 	    server: "",
 	    height: -1,
