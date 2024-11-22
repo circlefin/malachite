@@ -30,6 +30,10 @@ module bsyncWithConsensus {
   // With the default `init` action, it is unlikely to observe this scenario,
   // even with 200 steps (around 30 minutes) execution:
   // $ quint run --invariant anyClientOutputWitness bsyncWithConsensus.qnt
+  // Therefore we have a special init action:
+  // $ quint run --invariant anyClientOutputWitness bsyncWithConsensus.qnt --init initSetup --step stepWithBlockSync --maxSteps 60
+  // Use --seed=0x1060f6cddc9cb5 to reproduce.
+
   val anyClientOutputWitness = Correct.forall(p =>
     system.get(p).incomingSyncCertificates == Set())
 
@@ -88,6 +92,10 @@ module bsyncWithConsensus {
     newHeightActionAll(v, validatorSet, system.get(v).es.chain.length())
   }
 
+  action syncStep =
+    nondet v = oneOf(Correct)
+    pureSyncStep(v, unchangedAll)
+
   //
   // Interesting scenarios
   //
@@ -132,10 +140,6 @@ module bsyncWithConsensus {
     }
   }
 
-  action syncStep =
-    nondet v = oneOf(Correct)
-    pureSyncStep(v, unchangedAll)
-
   /// a simple scenario where v4 starts height h
   run syncCycle(h) =
     newHeightActionAll("v4", validatorSet, h)
@@ -167,6 +171,18 @@ module bsyncWithConsensus {
     .then(newHeightActionAll("v4", validatorSet, heightToReach))
     .expect(system.get("v4").es.cs.height == system.get("v2").es.cs.height)
     // and now v4 has synced !
+
+  /// initSetup setups two servers (v2, v3) at height 4, which broadcast their
+  /// status. Client v4 learns the status and starts syncing from height 0.
+  action initSetup =
+    initHeight(4)
+    .then(syncUpdateServer("v2"))
+    .then(syncUpdateServer("v3"))
+    .then(all{unchangedAll, syncStatusStep("v2")})
+    .then(all{unchangedAll, syncStatusStep("v3")})
+    .then(all{unchangedAll, syncDeliverStatus("v4")})
+    .then(all{unchangedAll, syncDeliverStatus("v4")})
+    .then(newHeightActionAll("v4", validatorSet, 0))
 
   run lausanneRetreat =
     initHeight(2)
