@@ -15,10 +15,10 @@ use tokio::sync::mpsc::Receiver;
 // Todo: Remove clippy exception when the function signature is finalized
 #[allow(clippy::too_many_arguments)]
 pub async fn run<N, Ctx, Codec>(
-    cfg: NodeConfig, // KEEP IT: metrics registry uses moniker gossip_consensus_actor use p2p settings
-    start_height: Option<Ctx::Height>, // keep it or set it to default. maybe add it to config? blocksync and consensus actors use it
+    cfg: NodeConfig,
+    start_height: Option<Ctx::Height>,
     ctx: Ctx,
-    _node: N, // we will neeed it to get private/public key, address and eventually KeyPair
+    _node: N, // we will need it to get private/public key, address and eventually KeyPair
     codec: Codec,
     keypair: Keypair,      // Todo: see note in code
     address: Ctx::Address, // Todo: remove it when Node was properly implemented
