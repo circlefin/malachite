@@ -60,13 +60,13 @@ where
         _state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match message {
-            HostMsg::StartRound {
+            HostMsg::StartedRound {
                 height,
                 round,
                 proposer,
             } => {
                 self.sender
-                    .send(ChannelMsg::StartRound {
+                    .send(ChannelMsg::StartedRound {
                         height,
                         round,
                         proposer,
@@ -135,8 +135,10 @@ where
                     .send(ChannelMsg::GetValidatorSet { height, reply_to })
                     .await?;
             }
-            HostMsg::Decide { certificate, .. } => {
-                self.sender.send(ChannelMsg::Decide { certificate }).await?
+            HostMsg::Decided { certificate, .. } => {
+                self.sender
+                    .send(ChannelMsg::Decided { certificate })
+                    .await?
             }
             HostMsg::GetDecidedBlock { height, reply_to } => {
                 let reply_to = create_reply_channel(reply_to).await?;
@@ -144,7 +146,7 @@ where
                     .send(ChannelMsg::GetDecidedBlock { height, reply_to })
                     .await?;
             }
-            HostMsg::ProcessSyncedBlockBytes {
+            HostMsg::ProcessSyncedBlock {
                 height,
                 round,
                 validator_address,
@@ -153,7 +155,7 @@ where
             } => {
                 let reply_to = create_reply_channel(reply_to).await?;
                 self.sender
-                    .send(ChannelMsg::ProcessSyncedBlockBytes {
+                    .send(ChannelMsg::ProcessSyncedBlock {
                         height,
                         round,
                         validator_address,
@@ -161,6 +163,9 @@ where
                         reply_to,
                     })
                     .await?;
+            }
+            HostMsg::ConsensusReady(_) => {
+                self.sender.send(ChannelMsg::ConsensusReady {}).await?;
             }
         };
         Ok(())

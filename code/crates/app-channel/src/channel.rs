@@ -11,7 +11,7 @@ use tokio::sync::oneshot::Sender;
 /// Messages that will be sent on the channel.
 pub enum ChannelMsg<Ctx: Context> {
     /// Consensus has started a new round.
-    StartRound {
+    StartedRound {
         height: Ctx::Height,
         round: Round,
         proposer: Ctx::Address,
@@ -54,7 +54,7 @@ pub enum ChannelMsg<Ctx: Context> {
     },
 
     // Consensus has decided on a value
-    Decide {
+    Decided {
         certificate: CommitCertificate<Ctx>,
     },
 
@@ -65,11 +65,14 @@ pub enum ChannelMsg<Ctx: Context> {
     },
 
     // Synced block
-    ProcessSyncedBlockBytes {
+    ProcessSyncedBlock {
         height: Ctx::Height,
         round: Round,
         validator_address: Ctx::Address,
         block_bytes: Bytes,
         reply_to: Sender<ProposedValue<Ctx>>,
     },
+
+    /// Consensus is ready
+    ConsensusReady {},
 }
