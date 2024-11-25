@@ -58,7 +58,7 @@ pub enum Input<Ctx: Context> {
     StartHeight(Ctx::Height),
 
     /// Consensus just decided on a new block
-    Decided(Ctx::Height),
+    UpdateHeight(Ctx::Height),
 
     /// A BlockSync request has been received from a peer
     Request(InboundRequestId, PeerId, Request<Ctx>),
@@ -222,7 +222,7 @@ where
     Ok(())
 }
 
-pub async fn on_decided<Ctx>(
+pub async fn on_update_height<Ctx>(
     _co: Co<Ctx>,
     state: &mut State<Ctx>,
     _metrics: &Metrics,
@@ -231,10 +231,12 @@ pub async fn on_decided<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(%height, "Decided on a block");
+    if state.tip_height < height {
+        debug!(%height, "Update height");
 
-    state.tip_height = height;
-    state.remove_pending_request(height);
+        state.tip_height = height;
+        state.remove_pending_request(height);
+    }
 
     Ok(())
 }
