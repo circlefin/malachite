@@ -29,7 +29,7 @@ FAILED=0
 FAILED_FILES=()
 
 # Read input files, one per line
-while IFS="" read -r file || [ -n "$file" ]; do
+while IFS="" read -r file; do
 	info "Running: quint $CMD ${UNDERLINE}$file"
 	if ! time npx @informalsystems/quint $CMD "$file"; then
 		FAILED_FILES+=("$file")
