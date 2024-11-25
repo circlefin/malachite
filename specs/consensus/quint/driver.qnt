@@ -2,7 +2,7 @@
 
 
 module driver {
-    import extraSpells.* from "../spells/extra"
+    import extraSpells.* from "./spells/extra"
     import types.* from "./types"
     import consensus.* from "./consensus"
     import votekeeper.* from "./votekeeper"

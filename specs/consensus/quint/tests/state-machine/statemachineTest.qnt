@@ -12,11 +12,11 @@
 
 module statemachineTest {
 
-import types.* from "../../specs/types"
+import types.* from "../../types"
 import extraSpells.* from "../../spells/extra"
-import driver.* from "../../specs/driver"
-import consensus.* from "../../specs/consensus"
-import votekeeper.* from "../../specs/votekeeper"
+import driver.* from "../../driver"
+import consensus.* from "../../consensus"
+import votekeeper.* from "../../votekeeper"
 
 val validators = Set("v1", "v2", "v3", "v4")
 val validatorSet = validators.mapBy(x => 1)

@@ -2,7 +2,7 @@
 
 module line26run {
 
-import TendermintDSL.* from "../../specs/TendermintDSL"
+import TendermintDSL.* from "../../TendermintDSL"
 export TendermintDSL.*
 
 const otherSet : Set[Address]

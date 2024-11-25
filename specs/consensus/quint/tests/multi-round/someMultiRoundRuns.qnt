@@ -2,7 +2,7 @@
 
 module someMultiRoundRuns {
 
-import TendermintDSL.* from "../../specs/TendermintDSL"
+import TendermintDSL.* from "../../TendermintDSL"
 export TendermintDSL.*
 
 const slow : Address

@@ -2,7 +2,7 @@
 
 module hiddenLockrun {
 
-import TendermintDSL.* from "../../specs/TendermintDSL"
+import TendermintDSL.* from "../../TendermintDSL"
 export TendermintDSL.*
 
 

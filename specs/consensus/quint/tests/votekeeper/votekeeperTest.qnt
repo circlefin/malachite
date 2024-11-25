@@ -2,8 +2,8 @@
 
 module votekeeperTest {
 
-    import types.* from "../../specs/types"
-    import votekeeper.* from "../../specs/votekeeper"
+    import types.* from "../../types"
+    import votekeeper.* from "../../votekeeper"
 
     // ****************************************************************************
     // Tests

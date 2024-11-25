@@ -2,8 +2,8 @@
 
 module consensusTest {
 
-    import types.* from "../../specs/types"
-    import consensus.* from "../../specs/consensus"
+    import types.* from "../../types"
+    import consensus.* from "../../consensus"
 
     // *************************************************************************
     // Consensus state machine

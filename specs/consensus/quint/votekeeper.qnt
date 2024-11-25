@@ -3,8 +3,8 @@
 module votekeeper {
 
     import types.* from "./types"
-    import basicSpells.* from "../spells/basic"
-    import extraSpells.* from "../spells/extra"
+    import basicSpells.* from "./spells/basic"
+    import extraSpells.* from "./spells/extra"
 
     // ****************************************************************************
     // Types

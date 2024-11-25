@@ -2,7 +2,7 @@
 
 module parameterizedTest {
 
-import types.* from "../../specs/types"
+import types.* from "../../types"
 import extraSpells.* from "../../spells/extra"
 import statemachineAsync(
     validators = Set("v1", "v2", "v3", "v4"),
@@ -11,7 +11,7 @@ import statemachineAsync(
     Values = Set("a", "b"),
     Rounds = Set(0, 1, 2, 3),
     Heights = Set(0) // , 1, 2, 3)
-) as N4F0 from "../../specs/statemachineAsync"
+) as N4F0 from "../../statemachineAsync"
 
 val validatorList = N4F0::validators.fold(List(), (s, x) => s.append(x))
 

@@ -2,7 +2,7 @@
 
 module disagreementRun {
 
-import TendermintDSL.* from "../../specs/TendermintDSL"
+import TendermintDSL.* from "../../TendermintDSL"
 export TendermintDSL.*
 
 const groupA : Set[Address]

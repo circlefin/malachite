@@ -2,7 +2,7 @@
 
 module line32run {
 
-import TendermintDSL.* from "../../specs/TendermintDSL"
+import TendermintDSL.* from "../../TendermintDSL"
 export TendermintDSL.*
 
 const testedVal : Address

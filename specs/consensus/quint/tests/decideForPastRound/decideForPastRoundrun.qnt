@@ -2,7 +2,7 @@
 
 module decideForPastRound {
 
-import TendermintDSL.* from "../../specs/TendermintDSL"
+import TendermintDSL.* from "../../TendermintDSL"
 export TendermintDSL.*
 
 const testedVal : Address
