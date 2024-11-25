@@ -128,17 +128,20 @@ pub enum TransportProtocol {
 #[derive(Clone, Debug)]
 pub enum Event {
     Listening(Multiaddr),
-    Message(Channel, PeerId, Bytes),
-    BlockSync(blocksync::RawMessage),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
+    Message(Channel, PeerId, Bytes),
+    BlockSync(blocksync::RawMessage),
 }
 
 #[derive(Debug)]
 pub enum CtrlMsg {
     Publish(Channel, Bytes),
+    Broadcast(Channel, Bytes),
+
     BlockSyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
     BlockSyncReply(InboundRequestId, Bytes),
+
     Shutdown,
 }
 
@@ -270,6 +273,18 @@ async fn handle_ctrl_msg(
 
             match result {
                 Ok(()) => debug!(%channel, size = %msg_size, "Published message"),
+                Err(e) => error!(%channel, "Error publishing message: {e}"),
+            }
+
+            ControlFlow::Continue(())
+        }
+
+        CtrlMsg::Broadcast(channel, data) => {
+            let msg_size = data.len();
+            let result = pubsub::publish(swarm, PubSubProtocol::Broadcast, channel, data);
+
+            match result {
+                Ok(()) => debug!(%channel, size = %msg_size, "Broadcasted message"),
                 Err(e) => error!(%channel, "Error broadcasting message: {e}"),
             }
 

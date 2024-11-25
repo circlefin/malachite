@@ -33,8 +33,8 @@ impl<Ctx: Context> Default for Resume<Ctx> {
 
 #[derive_where(Debug)]
 pub enum Effect<Ctx: Context> {
-    /// Publish our status to the network
-    PublishStatus(Ctx::Height),
+    /// Broadcast our status to our direct peers
+    BroadcastStatus(Ctx::Height),
 
     /// Send a BlockSync request to a peer
     SendRequest(PeerId, Request<Ctx>),
@@ -89,7 +89,7 @@ where
         Input::Tick => on_tick(co, state, metrics).await,
         Input::Status(status) => on_status(co, state, metrics, status).await,
         Input::StartHeight(height) => on_start_height(co, state, metrics, height).await,
-        Input::Decided(height) => on_decided(co, state, metrics, height).await,
+        Input::UpdateHeight(height) => on_update_height(co, state, metrics, height).await,
         Input::Request(request_id, peer_id, request) => {
             on_request(co, state, metrics, request_id, peer_id, request).await
         }
@@ -117,9 +117,9 @@ pub async fn on_tick<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(height = %state.tip_height, "Publishing status");
+    debug!(height = %state.tip_height, "Broadcasting status");
 
-    perform!(co, Effect::PublishStatus(state.tip_height));
+    perform!(co, Effect::BroadcastStatus(state.tip_height));
 
     Ok(())
 }

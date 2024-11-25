@@ -179,11 +179,11 @@ where
         use blocksync::Effect;
 
         match effect {
-            Effect::PublishStatus(height) => {
+            Effect::BroadcastStatus(height) => {
                 let earliest_block_height = self.get_earliest_block_height().await?;
 
                 self.gossip
-                    .cast(GossipConsensusMsg::PublishStatus(Status::new(
+                    .cast(GossipConsensusMsg::BroadcastStatus(Status::new(
                         height,
                         earliest_block_height,
                     )))?;
