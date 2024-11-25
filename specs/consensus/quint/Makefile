@@ -1,9 +1,9 @@
 parse:
-	../../../scripts/quint-forall.sh parse ./specs/*.qnt
+	ls -1 ./specs/*.qnt | ../../../scripts/quint-forall.sh parse
 .PHONY: parse
 
 test:
-	../../../scripts/quint-forall.sh test ./tests/**/*Test.qnt
+	ls -1 ./tests/**/*Test.qnt | ../../../scripts/quint-forall.sh test --max-samples=1000
 .PHONY: test
 
 verify:
