@@ -227,8 +227,14 @@ async fn run(
             .add_to_dial_queue(&swarm, ConnectionData::new(None, persistent_peer.clone()));
     }
 
-    if let Err(e) = pubsub::subscribe(&mut swarm, config.pubsub_protocol, Channel::all()) {
-        error!("Error subscribing to channels: {e}");
+    if let Err(e) = pubsub::subscribe(&mut swarm, config.pubsub_protocol, Channel::consensus()) {
+        error!("Error subscribing to consensus channels: {e}");
+        return;
+    };
+
+    if let Err(e) = pubsub::subscribe(&mut swarm, PubSubProtocol::Broadcast, &[Channel::BlockSync])
+    {
+        error!("Error subscribing to BlockSync channel: {e}");
         return;
     };
 
