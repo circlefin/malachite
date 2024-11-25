@@ -6,7 +6,7 @@
 
 module blocksync {
 
-  import types.* from "../types"
+  import types.* from "./consensus/specs/types"
   export types.*
 
   type Option[a] =
