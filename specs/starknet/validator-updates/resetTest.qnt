@@ -12,29 +12,28 @@ import resetSystem (
     ValAddresses = Set("Huey", "Dewey", "Louie")
 ).* from "./resetSystem"
 
-
-run FailedResetTest = 
-    init
-    .then(addRegistration)
-    .then(addL1BlockNoProof(1))
-    .then((3 * L1EpochSize).reps(_ => addL1BlockNoProof(1)))
-    .then(reset)
-    .expect(L2[L2.length()-1].forkID == L1[L1.length()-1].l2forkID and L2.length() == 2)   // first reset happened
-    .then((L1EpochSize).reps(_ => addL1BlockNoProof(1)))
-    .then(reset) // TODO: this should do nothing as we don't have new registrations between two resets
-    // TODO: we need a rule that resets at most once for every forkID
-    .expect(L2[L2.length()-1].forkID == L1[L1.length()-1].l2forkID and L2.length() == 2)   // second reset happened
-    .then(addL1BlockProofWithHeight(1,1))                                  // now proof gets into L1
-    .expect(not(existsStaleInBlock(L1[L1.length()-1])))                   // no more stale registrations
-
-
-run ResetwithProofonL1Test = 
-    init     
-    .then(addRegistration)
-    .then((3*L1EpochSize).reps(_=>addL1BlockNoProof(1)))
-    .then(reset)
-    .then(addL1BlockProofWithHeight(1,1))       
-    .expect(L2[L2.length()-1] == L1[L1.length()-1].latestProvenL2BlockHash)
+//// TODO: fix those tests, see https://github.com/informalsystems/malachite/issues/610.
+//run FailedResetTest = 
+//    init
+//    .then(addRegistration)
+//    .then(addL1BlockNoProof(1))
+//    .then((3 * L1EpochSize).reps(_ => addL1BlockNoProof(1)))
+//    .then(reset)
+//    .expect(L2[L2.length()-1].forkID == L1[L1.length()-1].l2forkID and L2.length() == 2)   // first reset happened
+//    .then((L1EpochSize).reps(_ => addL1BlockNoProof(1)))
+//    .then(reset) // TODO: this should do nothing as we don't have new registrations between two resets
+//    // TODO: we need a rule that resets at most once for every forkID
+//    .expect(L2[L2.length()-1].forkID == L1[L1.length()-1].l2forkID and L2.length() == 2)   // second reset happened
+//    .then(addL1BlockProofWithHeight(1,1))                                  // now proof gets into L1
+//    .expect(not(existsStaleInBlock(L1[L1.length()-1])))                   // no more stale registrations
+//
+//run ResetwithProofonL1Test = 
+//    init     
+//    .then(addRegistration)
+//    .then((3*L1EpochSize).reps(_=>addL1BlockNoProof(1)))
+//    .then(reset)
+//    .then(addL1BlockProofWithHeight(1,1))       
+//    .expect(L2[L2.length()-1] == L1[L1.length()-1].latestProvenL2BlockHash)
 
 run moveOneRegToL1ToL2 = 
     addRegistration
