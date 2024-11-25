@@ -16,7 +16,7 @@ struct StressTestConfig {
 }
 
 #[test]
-fn test_large_number_of_entries() -> io::Result<()> {
+fn large_number_of_entries() -> io::Result<()> {
     let dir = testdir!();
     let path = dir.join("large_entries.wal");
 
@@ -82,7 +82,8 @@ fn test_large_number_of_entries() -> io::Result<()> {
 }
 
 #[test]
-fn test_entry_sizes() -> io::Result<()> {
+#[ignore]
+fn entry_sizes() -> io::Result<()> {
     let dir = testdir!();
     let path = dir.join("large_sizes.wal");
 

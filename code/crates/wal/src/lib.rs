@@ -1,3 +1,5 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 //! Write-Ahead Log (WAL) implementation
 
 mod ext;

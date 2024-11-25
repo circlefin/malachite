@@ -6,7 +6,9 @@
 use std::io::{self, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-use crate::ext::{read_u32, read_u64, write_u32, write_u64};
+use cfg_if::cfg_if;
+
+use crate::ext::{read_u32, read_u64, read_u8, write_u32, write_u64, write_u8};
 use crate::{Storage, Version};
 
 /// Represents a single entry in the Write-Ahead Log (WAL).
@@ -14,10 +16,10 @@ use crate::{Storage, Version};
 /// Each entry has the following format on disk:
 ///
 /// ```text
-/// +-----------------+----------------+-----------------+
-/// |     Length      |      CRC       |      Data       |
-/// |    (4 bytes)    |   (4 bytes)    | ($length bytes) |
-/// +-----------------+----------------+-----------------+
+/// +-----------------|-----------------+----------------+-----------------+
+/// |  Is compressed  |     Length      |      CRC       |      Data       |
+/// |     (1 byte)    |    (4 bytes)    |   (4 bytes)    | ($length bytes) |
+/// +-----------------|-----------------+----------------+-----------------+
 /// ```
 pub struct LogEntry<'a, S> {
     /// Reference to the parent WAL
@@ -28,13 +30,18 @@ impl<S> LogEntry<'_, S>
 where
     S: Storage,
 {
+    /// Reads the compression flag of the current entry
+    fn read_compression_flag(&mut self) -> io::Result<bool> {
+        read_u8(&mut self.log.storage).map(|byte| byte != 0)
+    }
+
     /// Reads the length field of the current entry
-    fn length(&mut self) -> io::Result<u64> {
+    fn read_length(&mut self) -> io::Result<u64> {
         read_u64(&mut self.log.storage)
     }
 
     /// Reads the CRC field of the current entry
-    fn crc(&mut self) -> io::Result<u32> {
+    fn read_crc(&mut self) -> io::Result<u32> {
         read_u32(&mut self.log.storage)
     }
 
@@ -49,11 +56,30 @@ where
     /// * `Ok(None)` - If this was the last entry
     /// * `Err` - If an I/O error occurs or the CRC check fails
     pub fn read_to_next<W: Write>(mut self, writer: &mut W) -> io::Result<Option<Self>> {
-        let length = self.length()? as usize;
-        let expected_crc = self.crc()?;
+        let is_compressed = self.read_compression_flag()?;
+        let length = self.read_length()? as usize;
+        let expected_crc = self.read_crc()?;
 
         let mut data = vec![0; length];
         self.log.storage.read_exact(&mut data)?;
+
+        #[cfg(not(feature = "compression"))]
+        if is_compressed {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Entry is compressed but compression is disabled",
+            ));
+        }
+
+        #[cfg(feature = "compression")]
+        if is_compressed {
+            data = lz4_flex::decompress_size_prepended(&data).map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Failed to decompress entry: {e}"),
+                )
+            })?;
+        }
 
         let actual_crc = compute_crc(&data);
 
@@ -96,14 +122,67 @@ pub struct Log<S> {
     len: usize,
 }
 
-const VERSION_LENGTH: u64 = size_of::<Version>() as u64;
-const SEQUENCE_LENGTH: u64 = size_of::<u64>() as u64;
+const VERSION_SIZE: u64 = size_of::<Version>() as u64;
+const SEQUENCE_SIZE: u64 = size_of::<u64>() as u64;
+const HEADER_SIZE: u64 = VERSION_SIZE + SEQUENCE_SIZE;
 
-/// Length of the WAL header in bytes (version + sequence)
-const HEADER_LENGTH: u64 = VERSION_LENGTH + SEQUENCE_LENGTH;
+const VERSION_OFFSET: u64 = 0;
+const SEQUENCE_OFFSET: u64 = VERSION_OFFSET + VERSION_SIZE;
+const FIRST_ENTRY_OFFSET: u64 = HEADER_SIZE;
 
-const U32_SIZE: u64 = size_of::<u32>() as u64;
-const U64_SIZE: u64 = size_of::<u64>() as u64;
+const ENTRY_LENGTH_SIZE: u64 = size_of::<u64>() as u64;
+const ENTRY_CRC_SIZE: u64 = size_of::<u32>() as u64;
+const ENTRY_COMPRESSION_FLAG_SIZE: u64 = size_of::<u8>() as u64;
+const ENTRY_HEADER_SIZE: u64 = ENTRY_COMPRESSION_FLAG_SIZE + ENTRY_LENGTH_SIZE + ENTRY_CRC_SIZE;
+
+enum WriteEntry<'a> {
+    Raw(&'a [u8]),
+
+    #[cfg(feature = "compression")]
+    Compressed {
+        compressed: &'a [u8],
+        uncompressed: &'a [u8],
+    },
+}
+
+impl<'a> WriteEntry<'a> {
+    fn data(&self) -> &[u8] {
+        match self {
+            WriteEntry::Raw(data) => data,
+
+            #[cfg(feature = "compression")]
+            WriteEntry::Compressed { compressed, .. } => compressed,
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            WriteEntry::Raw(data) => data.len(),
+
+            #[cfg(feature = "compression")]
+            WriteEntry::Compressed { compressed, .. } => compressed.len(),
+        }
+    }
+
+    fn uncompressed_crc(&self) -> u32 {
+        match self {
+            WriteEntry::Raw(data) => compute_crc(data),
+
+            #[cfg(feature = "compression")]
+            WriteEntry::Compressed { uncompressed, .. } => compute_crc(uncompressed),
+        }
+    }
+
+    fn is_compressed(&self) -> bool {
+        cfg_if! {
+            if #[cfg(feature = "compression")] {
+                matches!(self, WriteEntry::Compressed { .. })
+            } else {
+                false
+            }
+        }
+    }
+}
 
 impl<S> Log<S>
 where
@@ -162,16 +241,19 @@ where
             })?;
 
             // Track current position and entry count
-            let mut pos = HEADER_LENGTH; // Start after header
+            let mut pos = FIRST_ENTRY_OFFSET; // Start after header
             let mut len = 0;
 
             // Scan through entries to validate and count them
-            while size.saturating_sub(pos) > U64_SIZE {
+            while size.saturating_sub(pos) > ENTRY_HEADER_SIZE - ENTRY_CRC_SIZE {
+                // Skip over compression flag
+                read_u8(&mut storage)?;
+
                 // Read entry length
                 let data_length = read_u64(&mut storage)?;
 
                 // Calculate total entry size including CRC
-                let Some(entry_length) = data_length.checked_add(U32_SIZE) else {
+                let Some(entry_length) = data_length.checked_add(ENTRY_CRC_SIZE) else {
                     break; // Integer overflow, file is corrupt
                 };
 
@@ -208,7 +290,7 @@ where
         write_u64(&mut storage, 0)?;
 
         // Ensure file is exactly header size
-        storage.truncate_to(HEADER_LENGTH)?;
+        storage.truncate_to(HEADER_SIZE)?;
 
         // Ensure header is persisted to disk
         storage.sync_all()?;
@@ -227,6 +309,8 @@ where
     /// The entry is appended to the end of the log with length, CRC and data.
     /// If writing fails, the WAL is truncated to remove the partial write.
     ///
+    /// If the `force-compression` feature is enabled, all entries will be compressed.
+    ///
     /// # Arguments
     /// * `data` - The data to write as a new WAL entry
     ///
@@ -234,20 +318,76 @@ where
     /// * `Ok(())` - Entry was successfully written
     /// * `Err` - If writing fails
     pub fn write(&mut self, data: impl AsRef<[u8]>) -> io::Result<()> {
+        cfg_if! {
+            if #[cfg(feature = "force-compression")] {
+                self.write_compressed(data)
+            } else {
+                self.write_raw(data)
+            }
+        }
+    }
+
+    /// Writes a new entry to the WAL, without compressing it.
+    ///
+    /// The entry is appended to the end of the log with length, CRC and data.
+    /// If writing fails, the WAL is truncated to remove the partial write.
+    ///
+    /// # Arguments
+    /// * `data` - The data to write as a new WAL entry
+    ///
+    /// # Returns
+    /// * `Ok(())` - Entry was successfully written
+    /// * `Err` - If writing fails
+    pub fn write_raw(&mut self, data: impl AsRef<[u8]>) -> io::Result<()> {
+        self.write_entry(WriteEntry::Raw(data.as_ref()))
+    }
+
+    /// Writes a new entry to the WAL, compressing it with the LZ4 algorithm.
+    ///
+    /// The entry is appended to the end of the log with length, CRC and data.
+    /// If writing fails, the WAL is truncated to remove the partial write.
+    ///
+    /// # Arguments
+    /// * `data` - The data to write as a new WAL entry
+    ///
+    /// # Returns
+    /// * `Ok(())` - Entry was successfully written
+    /// * `Err` - If writing fails
+    #[cfg(feature = "compression")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "compression")))]
+    pub fn write_compressed(&mut self, data: impl AsRef<[u8]>) -> io::Result<()> {
+        let data = data.as_ref();
+        let compressed = lz4_flex::compress_prepend_size(data);
+
+        // Only use compression if it actually helps
+        let entry = if compressed.len() < data.len() {
+            WriteEntry::Compressed {
+                compressed: &compressed,
+                uncompressed: data,
+            }
+        } else {
+            WriteEntry::Raw(data)
+        };
+
+        // Rest of write logic...
+        self.write_entry(entry)
+    }
+
+    fn write_entry(&mut self, entry: WriteEntry<'_>) -> io::Result<()> {
         let pos = self.storage.seek(SeekFrom::End(0))?;
 
-        let data = data.as_ref();
-        let len = data.len();
-
         let result = || -> io::Result<()> {
-            // Write entry length
-            write_u64(&mut self.storage, len as u64)?;
+            // Write compression flag
+            write_u8(&mut self.storage, entry.is_compressed() as u8)?;
 
-            // Write entry CRC
-            write_u32(&mut self.storage, compute_crc(data))?;
+            // Write length of (compressed) data
+            write_u64(&mut self.storage, entry.len() as u64)?;
 
-            // Write entry data
-            self.storage.write_all(data)?;
+            // Write CRC of (uncompressed) data
+            write_u32(&mut self.storage, entry.uncompressed_crc())?;
+
+            // Write (compressed) entry data
+            self.storage.write_all(entry.data())?;
 
             Ok(())
         }();
@@ -282,7 +422,7 @@ where
         }
 
         // Seek to the first entry after the header
-        self.storage.seek(SeekFrom::Start(HEADER_LENGTH))?;
+        self.storage.seek(SeekFrom::Start(FIRST_ENTRY_OFFSET))?;
 
         Ok(Some(LogEntry { log: self }))
     }
@@ -315,13 +455,13 @@ where
         self.len = 0;
 
         // Seek to start of sequence number
-        self.storage.seek(SeekFrom::Start(4))?;
+        self.storage.seek(SeekFrom::Start(SEQUENCE_OFFSET))?;
 
         // Write new sequence number
         write_u64(&mut self.storage, sequence)?;
 
         // Truncate all entries
-        self.storage.truncate_to(HEADER_LENGTH)?;
+        self.storage.truncate_to(HEADER_SIZE)?;
 
         // Sync changes to disk
         self.storage.sync_all()?;
@@ -362,6 +502,11 @@ where
             sequence,
             len,
         }
+    }
+
+    /// Returns the size in bytes of the underlying storage
+    pub fn size_bytes(&self) -> io::Result<u64> {
+        self.storage.size_bytes()
     }
 }
 

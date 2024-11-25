@@ -28,11 +28,12 @@ fn corrupted_crc() -> io::Result<()> {
 
         // Skip version (4 bytes) + sequence (8 bytes) + first entry
         file.seek(SeekFrom::Start(12))?;
+        read_u8(&mut file)?; // Skip compression flag
         let first_entry_len = read_u64(&mut file)?;
         file.seek(SeekFrom::Current(first_entry_len as i64 + 4))?; // +4 for CRC
 
-        // Now at the start of second entry, skip length
-        file.seek(SeekFrom::Current(8))?;
+        // Now at the start of second entry, skip compression flag and length
+        file.seek(SeekFrom::Current(1 + 8))?;
 
         // Write incorrect CRC
         write_u32(&mut file, 0xdeadbeef)?;
@@ -75,10 +76,11 @@ fn incomplete_entries() -> io::Result<()> {
         // Skip header
         file.seek(SeekFrom::Start(12))?;
 
+        read_u8(&mut file)?; // Skip compression flag
         let first_entry_len = read_u64(&mut file)?;
 
-        // header + length + CRC + data + partial second entry
-        let truncate_pos = 12 + 8 + 4 + first_entry_len + 3;
+        // header + compression flag + length + CRC + data + partial second entry
+        let truncate_pos = 12 + 1 + 8 + 4 + first_entry_len + 3;
 
         // Seek to middle of second entry
         file.set_len(truncate_pos)?;
@@ -178,11 +180,11 @@ fn multiple_corruptions() -> io::Result<()> {
         write_u64(&mut file, u64::MAX)?;
 
         // Corrupt entry length
-        file.seek(SeekFrom::Start(12))?;
+        file.seek(SeekFrom::Start(12 + 1))?;
         write_u64(&mut file, u64::MAX - 1)?;
 
         // Corrupt CRC of another entry
-        file.seek(SeekFrom::Start(50))?;
+        file.seek(SeekFrom::Start(50 + 1))?;
         write_u32(&mut file, 0xdeadbeef)?;
     }
 

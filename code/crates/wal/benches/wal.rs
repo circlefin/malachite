@@ -12,6 +12,12 @@ struct BenchConfig {
     sync_interval: usize,
 }
 
+impl BenchConfig {
+    fn total_size(&self) -> usize {
+        self.entry_size * self.batch_size
+    }
+}
+
 fn wal_benchmarks(c: &mut Criterion) {
     let dir = tempdir().unwrap();
 
@@ -35,7 +41,7 @@ fn wal_benchmarks(c: &mut Criterion) {
             sync_interval: 100,
         };
 
-        read_group.throughput(Throughput::Bytes(*size as u64));
+        read_group.throughput(Throughput::Bytes(config.total_size() as u64));
         read_group.bench_with_input(BenchmarkId::new("sequential_read", size), size, |b, _| {
             let path = get_temp_wal_path(&dir);
             setup_wal_for_reading(&path, &config);
@@ -56,7 +62,7 @@ fn wal_benchmarks(c: &mut Criterion) {
             sync_interval: 100,
         };
 
-        write_group.throughput(Throughput::Bytes(*size as u64));
+        write_group.throughput(Throughput::Bytes(config.total_size() as u64));
         write_group.bench_with_input(BenchmarkId::new("sequential_write", size), size, |b, _| {
             let path = get_temp_wal_path(&dir);
             b.iter(|| bench_sequential_write(&path, &config));
@@ -73,7 +79,7 @@ fn wal_benchmarks(c: &mut Criterion) {
             sync_interval: *batch_size,
         };
 
-        write_group.throughput(Throughput::Elements(*batch_size as u64));
+        write_group.throughput(Throughput::Bytes(config.total_size() as u64));
         write_group.bench_with_input(
             BenchmarkId::new("batch_write", batch_size),
             batch_size,
@@ -94,6 +100,7 @@ fn wal_benchmarks(c: &mut Criterion) {
             sync_interval: *interval,
         };
 
+        write_group.throughput(Throughput::Bytes(config.total_size() as u64));
         write_group.bench_with_input(
             BenchmarkId::new("sync_interval", interval),
             interval,
@@ -182,6 +189,7 @@ fn bench_small_writes_frequent_sync(c: &mut Criterion) {
     let mut group = c.benchmark_group("small_writes_frequent_sync");
     let dir = tempdir().unwrap();
 
+    group.throughput(Throughput::Bytes(64 * 100));
     group.bench_function("write_sync_every", |b| {
         b.iter(|| {
             let path = get_temp_wal_path(&dir);

@@ -8,16 +8,6 @@ pub enum Version {
     V1 = 1,
 }
 
-impl Version {
-    /// Converts the WAL version to its raw u32 representation
-    ///
-    /// # Returns
-    /// The version number as a u32 value
-    pub fn as_u32(self) -> u32 {
-        self as u32
-    }
-}
-
 impl TryFrom<u32> for Version {
     type Error = ();
 
