@@ -4,10 +4,10 @@ on:
     branches:
       - main
     paths:
-      - specs/**
+      - specs/consensus/quint/**
   pull_request:
     paths:
-      - specs/**
+      - specs/consensus/quint/**
 
 name: Quint
 
@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
-      - run: bash scripts/quint-forall.sh typecheck specs/**/*.qnt
+      - run: bash scripts/quint-forall.sh typecheck specs/consensus/quint/**/*.qnt
 
   quint-test:
     name: Test
@@ -34,4 +34,4 @@ jobs:
         with:
           node-version: "18"
       - run: npm install -g @informalsystems/quint
-      - run: bash scripts/quint-forall.sh "test --max-samples $MAX_SAMPLES" specs/**/*Test.qnt
+      - run: bash scripts/quint-forall.sh "test --max-samples $MAX_SAMPLES" specs/consensus/quint/tests/**/*Test.qnt
