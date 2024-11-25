@@ -1,9 +1,9 @@
 use std::time::Duration;
 
+use malachite_config::ValuePayload;
 use malachite_starknet_test::{Test, TestNode, TestParams};
 
-#[tokio::test]
-pub async fn crash_restart_from_1() {
+pub async fn crash_restart_from_start(params: TestParams) {
     const HEIGHT: u64 = 10;
 
     // Node 1 starts with 10 voting power.
@@ -40,10 +40,40 @@ pub async fn crash_restart_from_1() {
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
                 enable_blocksync: true, // Enable BlockSync
-                ..Default::default()
+                ..params
             },
         )
         .await
+}
+
+#[tokio::test]
+pub async fn crash_restart_from_start_parts_only() {
+    let params = TestParams {
+        value_payload: ValuePayload::PartsOnly,
+        ..Default::default()
+    };
+
+    crash_restart_from_start(params).await
+}
+
+#[tokio::test]
+pub async fn crash_restart_from_start_proposal_only() {
+    let params = TestParams {
+        value_payload: ValuePayload::ProposalOnly,
+        ..Default::default()
+    };
+
+    crash_restart_from_start(params).await
+}
+
+#[tokio::test]
+pub async fn crash_restart_from_start_proposal_and_parts() {
+    let params = TestParams {
+        value_payload: ValuePayload::ProposalAndParts,
+        ..Default::default()
+    };
+
+    crash_restart_from_start(params).await
 }
 
 #[tokio::test]

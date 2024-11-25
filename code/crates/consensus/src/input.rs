@@ -1,6 +1,8 @@
 use derive_where::derive_where;
 
-use malachite_common::{CommitCertificate, Context, SignedProposal, SignedVote, Timeout};
+use malachite_common::{
+    CommitCertificate, Context, SignedProposal, SignedVote, Timeout, ValueOrigin,
+};
 
 use crate::types::ProposedValue;
 use crate::ValueToPropose;
@@ -26,8 +28,9 @@ where
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),
 
-    /// Received the full proposed value corresponding to a proposal
-    ProposedValue(ProposedValue<Ctx>),
+    /// Received the full proposed value corresponding to a proposal.
+    /// The origin denotes whether the value was received via consensus or BlockSync.
+    ProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
     /// Received a commit certificate from BlockSync
     CommitCertificate(CommitCertificate<Ctx>),
