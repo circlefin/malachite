@@ -122,7 +122,7 @@ An epoch `e` is a sequence of heights, with predefined length `E`, during which
 the validator set adopted in consensus remains unchanged.
 Moreover, the validator set to be adopted in epoch `e + 2` is defined when the
 last block of epoch `e` is committed, i.e., when epoch `e + 1` is about to start.
-More details it this [document](./forced-updates/README.md).
+More details it this [document](../validator-updates/README.md).
 
 For the sake of proof scheduling, when a block at height `H` of epoch `e` is
 committed, the validator set adopted in all heights of epoch `e` is known, and

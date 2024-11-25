@@ -1,6 +1,6 @@
 # Analysis of the "Starknet Forced Staking Updates" Specification
 
-This document contains a report on analysis of the protocol specification of "Starknet Forced Staking Updates". See the [English specification](https://github.com/informalsystems/malachite/blob/main/specs/english/forced-updates/README.md) for an overview, and the Quint specifications in this directory for details. The specification follows [design document](https://docs.google.com/document/d/1OaYLh9o10DIsGpW0GTRhWl-IJiVyjRsy7UttHs9_1Fw/edit#heading=h.hvyiqqxvuqzo) prepared by Starkware.
+This document contains a report on analysis of the protocol specification of "Starknet Forced Staking Updates". See the [English specification](./README.md) for an overview, and the Quint specifications in this directory for details. The specification follows [design document](https://docs.google.com/document/d/1OaYLh9o10DIsGpW0GTRhWl-IJiVyjRsy7UttHs9_1Fw/edit#heading=h.hvyiqqxvuqzo) prepared by Starkware.
 
 When not indicated differently, we used `quint run resetTest.qnt` to conduct random simulation, and check properties for the default state machine (`init` and `step` actions). For some properties we used different transition relations (that is, different `step` actions.)
 
