@@ -151,7 +151,6 @@ where
             "Received proposal from a non-proposer"
         );
 
-        // TODO - why when we replay proposals the proposer is wrong
         return Ok(false);
     };
 

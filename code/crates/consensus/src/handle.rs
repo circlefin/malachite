@@ -50,7 +50,9 @@ where
         Input::Proposal(proposal) => on_proposal(co, state, metrics, proposal).await,
         Input::Propose(value) => on_propose(co, state, metrics, value).await,
         Input::TimeoutElapsed(timeout) => on_timeout_elapsed(co, state, metrics, timeout).await,
-        Input::ProposedValue(value) => on_proposed_value(co, state, metrics, value).await,
+        Input::ProposedValue(value, origin) => {
+            on_proposed_value(co, state, metrics, value, origin).await
+        }
         Input::CommitCertificate(certificate) => {
             on_commit_certificate(co, state, metrics, certificate).await
         }
