@@ -1,9 +1,9 @@
 parse:
-	../../Scripts/quint-forall.sh parse ./specs/*.qnt
+	../../../scripts/quint-forall.sh parse ./specs/*.qnt
 .PHONY: parse
 
 test:
-	../../Scripts/quint-forall.sh test ./tests/**/*Test.qnt
+	../../../scripts/quint-forall.sh test ./tests/**/*Test.qnt
 .PHONY: test
 
 verify:
@@ -14,11 +14,12 @@ verify:
 .PHONY: verify
 
 # Generate traces by random simulation from properties describing the last desired state.
+# FIXME: at the moment no useful traces are produced, even with longer executions
 traces-sim:
-	./scripts/gen-traces.sh tests/votekeeper/votekeeperTest.qnt emitPrecommitValue 30
-	./scripts/gen-traces.sh tests/votekeeper/votekeeperTest.qnt emitPolkaAny 30
-	./scripts/gen-traces.sh tests/votekeeper/votekeeperTest.qnt emitPolkaNil 30
-	./scripts/gen-traces.sh tests/votekeeper/votekeeperTest.qnt emitSkip 30
+	./scripts/gen-traces.sh tests/votekeeper/votekeeperModels.qnt emitPrecommitValue 30
+	./scripts/gen-traces.sh tests/votekeeper/votekeeperModels.qnt emitPolkaAny 30
+	./scripts/gen-traces.sh tests/votekeeper/votekeeperModels.qnt emitPolkaNil 30
+	./scripts/gen-traces.sh tests/votekeeper/votekeeperModels.qnt emitSkip 30
 .PHONY: traces-sim
 
 # Generate traces from `run` statements.
