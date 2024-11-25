@@ -112,7 +112,7 @@ In the section on [Issues](#issues) below we will discuss future improvements. W
 
 We have formalized Blocksync in Quint.
 To do so, we abstracted away many details not relevant to the understanding of the protocol. 
-The [specification](../../quint/specs/blocksync/) includes:
+The [specification](./quint/) includes:
 
 - Protocol functionality: main complexity in the client, where it maintains statuses,  requests data, and feeds received data into consensus
 - State machine: We have encoded two alternatives
@@ -193,7 +193,7 @@ I a request is served, the response message is put into the `responsesBuffer` to
 
 ### Invariants and temporal formulas
 
-For details we refer to the [state machine in Quint](https://github.com/informalsystems/malachite/blob/main/specs/quint/specs/blocksync/bsyncStatemachine.qnt), and the [analysis documentation](https://github.com/informalsystems/malachite/blob/main/specs/quint/specs/blocksync/README.md).
+For details we refer to the [state machine in Quint](./quint/bsyncStatemachine.qnt), and the [analysis documentation](./quint/README.md).
 
 ## Issues
 
