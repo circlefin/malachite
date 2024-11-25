@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# Accepts optional parameters to `quint`, e.g., `--max-samples 100`.
+# Accepts optional parameters to `quint`, default: `--max-samples 100`.
 
-QUINT_PARAMS=$@
+QUINT_PARAMS=${@-"--max-samples 100"}
 
 for TEST_FILE in */*Test.qnt
 do
