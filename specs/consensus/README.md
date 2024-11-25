@@ -26,4 +26,4 @@ The specification of the consensus algorithm and its implementation is organized
 [accountable-tendermint]: ./misbehavior.md#misbehavior-detection-and-verification-in-accountable-tendermint
 [tendermint-arxiv]: https://arxiv.org/abs/1807.04938
 [tendermint-pdf]: https://arxiv.org/pdf/1807.04938
-[quint-spec]: ../quint/README.md
+[quint-spec]: ./quint/README.md
