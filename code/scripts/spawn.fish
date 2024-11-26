@@ -101,6 +101,10 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
          echo "[Node $NODE] Resetting database"
          rm -rf "$NODE_HOME/db"
          mkdir -p "$NODE_HOME/db"
+
+         echo "[Node $NODE] Resetting WAL"
+         rm -rf "$NODE_HOME/wal"
+         mkdir -p "$NODE_HOME/wal"
      end
 
     set pane $(tmux new-window -P -n "node-$NODE" "$(which fish)")
