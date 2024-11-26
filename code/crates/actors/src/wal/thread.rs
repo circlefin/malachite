@@ -1,8 +1,9 @@
 use std::thread::JoinHandle;
 use std::{io, thread};
 
+use eyre::Result;
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, trace};
+use tracing::{debug, error, warn};
 
 use malachite_common::{Context, Height};
 use malachite_consensus::SignedConsensusMsg;
@@ -12,13 +13,13 @@ use crate::util::codec::NetworkCodec;
 
 use super::entry::WalEntry;
 
-pub type ReplyTo<T> = oneshot::Sender<Result<T, io::Error>>;
+pub type ReplyTo<T> = oneshot::Sender<Result<T>>;
 
 pub enum WalMsg<Ctx: Context> {
-    StartedHeight(Ctx::Height, ReplyTo<()>),
+    StartedHeight(Ctx::Height, ReplyTo<Vec<WalEntry<Ctx>>>),
     Append(WalEntry<Ctx>, ReplyTo<()>),
     Sync(ReplyTo<()>),
-    GetSequence(ReplyTo<u64>),
+    Shutdown,
 }
 
 pub fn spawn<Ctx, Codec>(
@@ -32,10 +33,13 @@ where
 {
     thread::spawn(move || loop {
         if let Err(e) = task(&mut wal, &codec, &mut rx) {
-            error!("Error: {e}");
+            // Task failed, log the error and continue
+            error!("WAL error: {e}");
+
             continue;
         }
 
+        // Task finished normally, stop the thread
         break;
     })
 }
@@ -44,7 +48,7 @@ fn task<Ctx, Codec>(
     log: &mut wal::Log,
     codec: &Codec,
     rx: &mut mpsc::Receiver<WalMsg<Ctx>>,
-) -> io::Result<()>
+) -> Result<()>
 where
     Ctx: Context,
     Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
@@ -56,11 +60,20 @@ where
                 let sequence = height.as_u64();
 
                 if sequence == log.sequence() {
-                    trace!(%height, "WAL already at height");
-                }
+                    // WAL is already at that sequence
+                    // Let's check if there are any entries to replay
+                    let entries = fetch_entries(log, codec);
+                    reply.send(entries).unwrap(); // FIXME
+                } else {
+                    // WAL is at different sequence, restart it
+                    // No entries to replay
+                    let result = log
+                        .restart(sequence)
+                        .map(|_| Vec::new())
+                        .map_err(Into::into);
 
-                let result = log.restart(sequence);
-                reply.send(result).unwrap(); // FIXME
+                    reply.send(result).unwrap(); // FIXME
+                }
             }
 
             WalMsg::Append(entry, reply) => {
@@ -69,13 +82,13 @@ where
                 let mut buf = Vec::new();
                 entry.encode(codec, &mut buf)?;
 
-                let result = log.write(&buf);
+                let result = log.write(&buf).map_err(Into::into);
 
                 if let Err(e) = &result {
                     error!("ATTENTION: Failed to write entry to WAL: {e}");
                 }
 
-                if let Err(_) = reply.send(result) {
+                if reply.send(result).is_err() {
                     error!("ATTENTION: Failed to send WAL write reply");
                 }
 
@@ -83,18 +96,49 @@ where
             }
 
             WalMsg::Sync(reply) => {
-                let result = log.sync();
+                let result = log.sync().map_err(Into::into);
                 reply.send(result).unwrap(); // FIXME
 
                 debug!("Flushed WAL to disk");
             }
 
-            WalMsg::GetSequence(reply) => {
-                let seq = log.sequence();
-                reply.send(Ok(seq)).unwrap(); // DIXME
+            WalMsg::Shutdown => {
+                break;
             }
         }
     }
 
     Ok(())
+}
+
+fn fetch_entries<Ctx, Codec>(log: &mut wal::Log, codec: &Codec) -> Result<Vec<WalEntry<Ctx>>>
+where
+    Ctx: Context,
+    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
+{
+    if log.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let entries = log
+        .iter()?
+        .filter_map(|result| match result {
+            Ok(entry) => Some(entry),
+            Err(e) => {
+                warn!("Failed to retrieve a WAL entry: {e}");
+                None
+            }
+        })
+        .filter_map(
+            |bytes| match WalEntry::decode(codec, io::Cursor::new(bytes)) {
+                Ok(entry) => Some(entry),
+                Err(e) => {
+                    error!("Failed to decode WAL entry: {e}");
+                    None
+                }
+            },
+        )
+        .collect::<Vec<_>>();
+
+    Ok(entries)
 }

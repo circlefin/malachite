@@ -98,11 +98,10 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
      mkdir -p "$NODE_HOME/traces"
 
      if ! $no_reset
-         echo "[Node $NODE] Resetting database"
+         echo "[Node $NODE] Resetting state"
+
          rm -rf "$NODE_HOME/db"
          mkdir -p "$NODE_HOME/db"
-
-         echo "[Node $NODE] Resetting WAL"
          rm -rf "$NODE_HOME/wal"
          mkdir -p "$NODE_HOME/wal"
      end

@@ -197,6 +197,11 @@ where
         }
 
         DriverOutput::Decide(consensus_round, proposal) => {
+            if std::env::var("MALACHITE_FAIL").ok().as_deref() == Some("1") {
+                tracing::error!("Everyone stops right here!");
+                std::process::exit(1);
+            };
+
             info!(
                 round = %consensus_round,
                 height = %proposal.height(),

@@ -1,11 +1,11 @@
-use std::io;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
+use derive_where::derive_where;
 use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, SpawnErr};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, trace};
+use tracing::{debug, error};
 
 use malachite_common::{Context, Timeout};
 use malachite_consensus::SignedConsensusMsg;
@@ -17,10 +17,11 @@ use crate::util::codec::NetworkCodec;
 mod entry;
 mod thread;
 
-use entry::WalEntry;
+pub use entry::WalEntry;
 
 pub type WalRef<Ctx> = ActorRef<Msg<Ctx>>;
 
+#[derive_where(Default)]
 pub struct Wal<Ctx, Codec> {
     _marker: PhantomData<(Ctx, Codec)>,
 }
@@ -31,9 +32,7 @@ where
     Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
 {
     pub fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
+        Self::default()
     }
 
     pub async fn spawn(
@@ -47,13 +46,13 @@ where
     }
 }
 
-pub type WalReply = RpcReplyPort<Result<(), io::Error>>;
+pub type WalReply<T> = RpcReplyPort<eyre::Result<T>>;
 
 pub enum Msg<Ctx: Context> {
-    StartedHeight(Ctx::Height),
-    WriteMsg(SignedConsensusMsg<Ctx>, WalReply),
-    WriteTimeout(Ctx::Height, Timeout, WalReply),
-    Sync(WalReply),
+    StartedHeight(Ctx::Height, WalReply<Option<Vec<WalEntry<Ctx>>>>),
+    WriteMsg(SignedConsensusMsg<Ctx>, WalReply<()>),
+    WriteTimeout(Ctx::Height, Timeout, WalReply<()>),
+    Sync(WalReply<()>),
 }
 
 pub struct Args<Codec> {
@@ -64,7 +63,7 @@ pub struct Args<Codec> {
 pub struct State<Ctx: Context> {
     height: Ctx::Height,
     wal_sender: mpsc::Sender<self::thread::WalMsg<Ctx>>,
-    handle: std::thread::JoinHandle<()>,
+    _handle: std::thread::JoinHandle<()>,
 }
 
 impl<Ctx, Codec> Wal<Ctx, Codec>
@@ -79,8 +78,7 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            // TODO: Add reply logic?
-            Msg::StartedHeight(height) => {
+            Msg::StartedHeight(height, reply_to) => {
                 if state.height == height {
                     debug!(%height, "WAL already at height, ignoring");
                     return Ok(());
@@ -88,7 +86,7 @@ where
 
                 state.height = height;
 
-                self.started_height(state, height).await?;
+                self.started_height(state, height, reply_to).await?;
             }
 
             Msg::WriteMsg(msg, reply_to) => {
@@ -130,6 +128,7 @@ where
         &self,
         state: &mut State<Ctx>,
         height: <Ctx as Context>::Height,
+        reply_to: WalReply<Option<Vec<WalEntry<Ctx>>>>,
     ) -> Result<(), ActorProcessingErr> {
         let (tx, rx) = oneshot::channel();
 
@@ -138,8 +137,13 @@ where
             .send(self::thread::WalMsg::StartedHeight(height, tx))
             .await?;
 
-        // FIXME: Send
-        let _ = rx.await?;
+        let to_replay = rx
+            .await?
+            .map(|entries| Some(entries).filter(|entries| !entries.is_empty()));
+
+        reply_to
+            .send(to_replay)
+            .map_err(|e| eyre!("Failed to send reply: {e}"))?;
 
         Ok(())
     }
@@ -148,7 +152,7 @@ where
         &self,
         state: &mut State<Ctx>,
         msg: impl Into<WalEntry<Ctx>>,
-        reply_to: WalReply,
+        reply_to: WalReply<()>,
     ) -> Result<(), ActorProcessingErr> {
         let entry = msg.into();
         let (tx, rx) = oneshot::channel();
@@ -170,7 +174,7 @@ where
     async fn sync_log(
         &self,
         state: &mut State<Ctx>,
-        reply_to: WalReply,
+        reply_to: WalReply<()>,
     ) -> Result<(), ActorProcessingErr> {
         let (tx, rx) = oneshot::channel();
 
@@ -211,7 +215,7 @@ where
         Ok(State {
             height: Ctx::Height::default(),
             wal_sender: tx,
-            handle,
+            _handle: handle,
         })
     }
 
@@ -224,6 +228,16 @@ where
         if let Err(e) = self.handle_msg(myself, msg, state).await {
             error!("Failed to handle WAL message: {e}");
         }
+
+        Ok(())
+    }
+
+    async fn post_stop(
+        &self,
+        _: WalRef<Ctx>,
+        state: &mut Self::State,
+    ) -> Result<(), ActorProcessingErr> {
+        let _ = state.wal_sender.send(self::thread::WalMsg::Shutdown).await;
 
         Ok(())
     }
