@@ -25,7 +25,7 @@ fn decode_certificate(bytes: &[u8]) -> Result<CommitCertificate<MockContext>, Pr
     codec::decode_certificate(proto)
 }
 
-fn encode_certificate(certificate: CommitCertificate<MockContext>) -> Result<Vec<u8>, ProtoError> {
+fn encode_certificate(certificate: &CommitCertificate<MockContext>) -> Result<Vec<u8>, ProtoError> {
     let proto = codec::encode_certificate(certificate)?;
     Ok(proto.encode_to_vec())
 }
@@ -132,7 +132,7 @@ impl Db {
         Ok(decided_block)
     }
 
-    fn insert(&self, decided_block: DecidedBlock) -> Result<(), StoreError> {
+    fn insert(&self, decided_block: &DecidedBlock) -> Result<(), StoreError> {
         let height = decided_block.block.height;
 
         let tx = self.db.begin_write()?;
@@ -142,7 +142,7 @@ impl Db {
         }
         {
             let mut certificates = tx.open_table(CERTIFICATE_TABLE)?;
-            certificates.insert(height, encode_certificate(decided_block.certificate)?)?;
+            certificates.insert(height, encode_certificate(&decided_block.certificate)?)?;
         }
         tx.commit()?;
 
@@ -246,7 +246,7 @@ impl BlockStore {
         };
 
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.insert(decided_block)).await?
+        tokio::task::spawn_blocking(move || db.insert(&decided_block)).await?
     }
 
     pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {

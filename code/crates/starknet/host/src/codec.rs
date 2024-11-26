@@ -24,7 +24,7 @@ impl NetworkCodec<ProposalPart> for ProtobufCodec {
         ProposalPart::from_bytes(bytes.as_ref())
     }
 
-    fn encode(&self, msg: ProposalPart) -> Result<Bytes, Self::Error> {
+    fn encode(&self, msg: &ProposalPart) -> Result<Bytes, Self::Error> {
         msg.to_bytes()
     }
 }
@@ -51,7 +51,7 @@ impl NetworkCodec<blocksync::Status<MockContext>> for ProtobufCodec {
         })
     }
 
-    fn encode(&self, status: blocksync::Status<MockContext>) -> Result<Bytes, Self::Error> {
+    fn encode(&self, status: &blocksync::Status<MockContext>) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Status {
             peer_id: Some(proto::PeerId {
                 id: Bytes::from(status.peer_id.to_bytes()),
@@ -77,7 +77,7 @@ impl NetworkCodec<blocksync::Request<MockContext>> for ProtobufCodec {
         })
     }
 
-    fn encode(&self, request: blocksync::Request<MockContext>) -> Result<Bytes, Self::Error> {
+    fn encode(&self, request: &blocksync::Request<MockContext>) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Request {
             block_number: request.height.block_number,
             fork_id: request.height.fork_id,
@@ -99,11 +99,15 @@ impl NetworkCodec<blocksync::Response<MockContext>> for ProtobufCodec {
         })
     }
 
-    fn encode(&self, response: blocksync::Response<MockContext>) -> Result<Bytes, Self::Error> {
+    fn encode(&self, response: &blocksync::Response<MockContext>) -> Result<Bytes, Self::Error> {
         let proto = proto::blocksync::Response {
             block_number: response.height.block_number,
             fork_id: response.height.fork_id,
-            block: response.block.map(encode_synced_block).transpose()?,
+            block: response
+                .block
+                .as_ref()
+                .map(encode_synced_block)
+                .transpose()?,
         };
 
         Ok(Bytes::from(proto.encode_to_vec()))
@@ -135,7 +139,7 @@ impl NetworkCodec<SignedConsensusMsg<MockContext>> for ProtobufCodec {
         }
     }
 
-    fn encode(&self, msg: SignedConsensusMsg<MockContext>) -> Result<Bytes, Self::Error> {
+    fn encode(&self, msg: &SignedConsensusMsg<MockContext>) -> Result<Bytes, Self::Error> {
         let message = match msg {
             SignedConsensusMsg::Vote(v) => ConsensusMessage {
                 messages: Some(Messages::Vote(v.to_proto()?)),
@@ -171,13 +175,13 @@ where
         })
     }
 
-    fn encode(&self, msg: StreamMessage<T>) -> Result<Bytes, Self::Error> {
+    fn encode(&self, msg: &StreamMessage<T>) -> Result<Bytes, Self::Error> {
         let p2p_msg = p2p::StreamMessage {
             id: msg.stream_id,
             sequence: msg.sequence,
-            content: match msg.content {
+            content: match &msg.content {
                 StreamContent::Data(data) => p2p::StreamContent::Data(data.to_bytes()?),
-                StreamContent::Fin(fin) => p2p::StreamContent::Fin(fin),
+                StreamContent::Fin(fin) => p2p::StreamContent::Fin(*fin),
             },
         };
 
@@ -185,12 +189,27 @@ where
     }
 }
 
+impl NetworkCodec<AggregatedSignature<MockContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<AggregatedSignature<MockContext>, Self::Error> {
+        let proto = proto::AggregatedSignature::decode(bytes).map_err(ProtoError::Decode)?;
+        decode_aggregated_signature(proto)
+    }
+
+    fn encode(&self, msg: &AggregatedSignature<MockContext>) -> Result<Bytes, Self::Error> {
+        Ok(Bytes::from(
+            encode_aggregate_signature(msg)?.encode_to_vec(),
+        ))
+    }
+}
+
 pub(crate) fn encode_aggregate_signature(
-    aggregated_signature: AggregatedSignature<MockContext>,
+    aggregated_signature: &AggregatedSignature<MockContext>,
 ) -> Result<proto::AggregatedSignature, ProtoError> {
     let signatures = aggregated_signature
         .signatures
-        .into_iter()
+        .iter()
         .map(|s| {
             let validator_address = s.address.to_proto()?;
             let signature = s.signature.to_proto()?;
@@ -200,9 +219,10 @@ pub(crate) fn encode_aggregate_signature(
                 signature: Some(signature),
                 extension: s
                     .extension
+                    .as_ref()
                     .map(|e| -> Result<_, ProtoError> {
                         Ok(proto::Extension {
-                            data: e.message.data,
+                            data: e.message.data.clone(),
                             signature: Some(e.signature.to_proto()?),
                         })
                     })
@@ -212,29 +232,6 @@ pub(crate) fn encode_aggregate_signature(
         .collect::<Result<_, ProtoError>>()?;
 
     Ok(proto::AggregatedSignature { signatures })
-}
-
-pub(crate) fn encode_certificate(
-    certificate: CommitCertificate<MockContext>,
-) -> Result<proto::CommitCertificate, ProtoError> {
-    Ok(proto::CommitCertificate {
-        fork_id: certificate.height.fork_id,
-        block_number: certificate.height.block_number,
-        round: certificate.round.as_u32().expect("round should not be nil"),
-        block_hash: Some(certificate.value_id.to_proto()?),
-        aggregated_signature: Some(encode_aggregate_signature(
-            certificate.aggregated_signature,
-        )?),
-    })
-}
-
-pub(crate) fn encode_synced_block(
-    synced_block: blocksync::SyncedBlock<MockContext>,
-) -> Result<proto::blocksync::SyncedBlock, ProtoError> {
-    Ok(proto::blocksync::SyncedBlock {
-        block_bytes: synced_block.block_bytes,
-        certificate: Some(encode_certificate(synced_block.certificate)?),
-    })
 }
 
 pub(crate) fn decode_aggregated_signature(
@@ -280,6 +277,33 @@ pub(crate) fn decode_aggregated_signature(
     Ok(AggregatedSignature { signatures })
 }
 
+impl NetworkCodec<CommitCertificate<MockContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<CommitCertificate<MockContext>, Self::Error> {
+        let proto = proto::CommitCertificate::decode(bytes).map_err(ProtoError::Decode)?;
+        decode_certificate(proto)
+    }
+
+    fn encode(&self, msg: &CommitCertificate<MockContext>) -> Result<Bytes, Self::Error> {
+        Ok(Bytes::from(encode_certificate(msg)?.encode_to_vec()))
+    }
+}
+
+pub(crate) fn encode_certificate(
+    certificate: &CommitCertificate<MockContext>,
+) -> Result<proto::CommitCertificate, ProtoError> {
+    Ok(proto::CommitCertificate {
+        fork_id: certificate.height.fork_id,
+        block_number: certificate.height.block_number,
+        round: certificate.round.as_u32().expect("round should not be nil"),
+        block_hash: Some(certificate.value_id.to_proto()?),
+        aggregated_signature: Some(encode_aggregate_signature(
+            &certificate.aggregated_signature,
+        )?),
+    })
+}
+
 pub(crate) fn decode_certificate(
     certificate: proto::CommitCertificate,
 ) -> Result<CommitCertificate<MockContext>, ProtoError> {
@@ -307,6 +331,28 @@ pub(crate) fn decode_certificate(
     };
 
     Ok(certificate)
+}
+
+impl NetworkCodec<blocksync::SyncedBlock<MockContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<blocksync::SyncedBlock<MockContext>, Self::Error> {
+        let proto = proto::blocksync::SyncedBlock::decode(bytes).map_err(ProtoError::Decode)?;
+        decode_synced_block(proto)
+    }
+
+    fn encode(&self, msg: &blocksync::SyncedBlock<MockContext>) -> Result<Bytes, Self::Error> {
+        Ok(Bytes::from(encode_synced_block(msg)?.encode_to_vec()))
+    }
+}
+
+pub(crate) fn encode_synced_block(
+    synced_block: &blocksync::SyncedBlock<MockContext>,
+) -> Result<proto::blocksync::SyncedBlock, ProtoError> {
+    Ok(proto::blocksync::SyncedBlock {
+        block_bytes: synced_block.block_bytes.clone(),
+        certificate: Some(encode_certificate(&synced_block.certificate)?),
+    })
 }
 
 pub(crate) fn decode_synced_block(

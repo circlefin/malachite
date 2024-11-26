@@ -1,7 +1,8 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
+use malachite_actors::wal::{Wal, WalRef};
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 
@@ -57,7 +58,7 @@ pub async fn spawn_node_actor(
 
     // Spawn the host actor
     let host = spawn_host_actor(
-        home_dir,
+        &home_dir,
         &cfg,
         &address,
         &private_key,
@@ -78,6 +79,8 @@ pub async fn spawn_node_actor(
     )
     .await;
 
+    let wal = spawn_wal_actor(&ctx, ProtobufCodec, &home_dir, &registry).await;
+
     // Spawn consensus
     let consensus = spawn_consensus_actor(
         start_height,
@@ -87,6 +90,7 @@ pub async fn spawn_node_actor(
         cfg,
         gossip_consensus.clone(),
         host.clone(),
+        wal.clone(),
         block_sync.clone(),
         metrics,
         tx_decision,
@@ -99,6 +103,7 @@ pub async fn spawn_node_actor(
         gossip_consensus,
         consensus,
         gossip_mempool,
+        wal,
         block_sync,
         mempool.get_cell(),
         host,
@@ -108,6 +113,20 @@ pub async fn spawn_node_actor(
     let (actor_ref, handle) = node.spawn().await.unwrap();
 
     (actor_ref, handle)
+}
+
+async fn spawn_wal_actor(
+    ctx: &MockContext,
+    codec: ProtobufCodec,
+    home_dir: &Path,
+    registry: &SharedRegistry,
+) -> WalRef<MockContext> {
+    let wal_dir = home_dir.join("wal");
+    std::fs::create_dir_all(&wal_dir).unwrap();
+    let wal_file = wal_dir.join("consensus.wal");
+    Wal::spawn(ctx, codec, wal_file, registry.clone())
+        .await
+        .unwrap()
 }
 
 async fn spawn_block_sync_actor(
@@ -143,6 +162,7 @@ async fn spawn_consensus_actor(
     cfg: NodeConfig,
     gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
+    wal: WalRef<MockContext>,
     block_sync: Option<BlockSyncRef<MockContext>>,
     metrics: Metrics,
     tx_decision: Option<broadcast::Sender<CommitCertificate<MockContext>>>,
@@ -167,6 +187,7 @@ async fn spawn_consensus_actor(
         cfg.consensus.timeouts,
         gossip_consensus,
         host,
+        wal,
         block_sync,
         metrics,
         tx_decision,
@@ -255,7 +276,7 @@ async fn spawn_gossip_mempool_actor(
 
 #[allow(clippy::too_many_arguments)]
 async fn spawn_host_actor(
-    home_dir: PathBuf,
+    home_dir: &Path,
     cfg: &NodeConfig,
     address: &Address,
     private_key: &PrivateKey,
@@ -289,7 +310,13 @@ async fn spawn_host_actor(
         initial_validator_set.clone(),
     );
 
-    StarknetHost::spawn(home_dir, mock_host, mempool, gossip_consensus, metrics)
-        .await
-        .unwrap()
+    StarknetHost::spawn(
+        home_dir.to_owned(),
+        mock_host,
+        mempool,
+        gossip_consensus,
+        metrics,
+    )
+    .await
+    .unwrap()
 }

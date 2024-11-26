@@ -2620,6 +2620,7 @@ name = "malachite-actors"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "byteorder",
  "bytes",
  "derive-where",
  "eyre",
@@ -2631,6 +2632,7 @@ dependencies = [
  "malachite-gossip-consensus",
  "malachite-gossip-mempool",
  "malachite-metrics",
+ "malachite-wal",
  "ractor",
  "rand",
  "tokio",

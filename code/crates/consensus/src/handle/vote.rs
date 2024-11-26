@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, SignedConsensusMsg};
 
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
@@ -56,6 +56,7 @@ where
         );
 
         state.input_queue.push_back(Input::Vote(signed_vote));
+
         return Ok(());
     }
 
@@ -70,10 +71,17 @@ where
 
             state.input_queue.push_back(Input::Vote(signed_vote));
         }
+
         return Ok(());
     }
 
-    assert_eq!(consensus_height, vote_height);
+    debug_assert_eq!(consensus_height, vote_height);
+
+    // Persist the proposal in the Write-ahead Log
+    perform!(
+        co,
+        Effect::PersistMessage(SignedConsensusMsg::Vote(signed_vote.clone()))
+    );
 
     // Store the non-nil Precommits.
     if signed_vote.vote_type() == VoteType::Precommit && signed_vote.value().is_val() {

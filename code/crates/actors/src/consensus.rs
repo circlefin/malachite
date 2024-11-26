@@ -24,6 +24,7 @@ use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipCons
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::forward::forward;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
+use crate::wal::{Msg as WalMsg, WalRef};
 
 pub use malachite_consensus::Error as ConsensusError;
 pub use malachite_consensus::Params as ConsensusParams;
@@ -42,6 +43,7 @@ where
     timeout_config: TimeoutConfig,
     gossip_consensus: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
+    wal: WalRef<Ctx>,
     block_sync: Option<BlockSyncRef<Ctx>>,
     metrics: Metrics,
     tx_decision: Option<TxDecision<Ctx>>,
@@ -126,6 +128,15 @@ pub struct State<Ctx: Context> {
     connected_peers: BTreeSet<PeerId>,
 }
 
+impl<Ctx> State<Ctx>
+where
+    Ctx: Context,
+{
+    pub fn height(&self) -> Ctx::Height {
+        self.consensus.height()
+    }
+}
+
 impl<Ctx> Consensus<Ctx>
 where
     Ctx: Context,
@@ -137,6 +148,7 @@ where
         timeout_config: TimeoutConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
+        wal: WalRef<Ctx>,
         block_sync: Option<BlockSyncRef<Ctx>>,
         metrics: Metrics,
         tx_decision: Option<TxDecision<Ctx>>,
@@ -147,6 +159,7 @@ where
             timeout_config,
             gossip_consensus,
             host,
+            wal,
             block_sync,
             metrics,
             tx_decision,
@@ -160,6 +173,7 @@ where
         timeout_config: TimeoutConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
+        wal: WalRef<Ctx>,
         block_sync: Option<BlockSyncRef<Ctx>>,
         metrics: Metrics,
         tx_decision: Option<TxDecision<Ctx>>,
@@ -170,6 +184,7 @@ where
             timeout_config,
             gossip_consensus,
             host,
+            wal,
             block_sync,
             metrics,
             tx_decision,
@@ -185,21 +200,14 @@ where
         state: &mut State<Ctx>,
         input: ConsensusInput<Ctx>,
     ) -> Result<(), ConsensusError<Ctx>> {
-        // Notify the BlockSync actor that we have started a new height
-        if let (ConsensusInput::StartHeight(height, _), Some(block_sync)) =
-            (&input, &self.block_sync)
-        {
-            let _ = block_sync
-                .cast(BlockSyncMsg::StartHeight(*height))
-                .inspect_err(|e| error!("Error when sending start height to BlockSync: {e:?}"));
-        }
+        let height = state.height();
 
         malachite_consensus::process!(
             input: input,
             state: &mut state.consensus,
             metrics: &self.metrics,
             with: effect => {
-                self.handle_effect(myself, &mut state.timers, &mut state.timeouts, effect).await
+                self.handle_effect(myself, height, &mut state.timers, &mut state.timeouts, effect).await
             }
         )
     }
@@ -212,6 +220,16 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::StartHeight(height) => {
+                if let Err(e) = self.wal.cast(WalMsg::StartedHeight(height)) {
+                    error!(%height, "Error when notifying WAL of started height: {e}");
+                }
+
+                if let Some(block_sync) = &self.block_sync {
+                    if let Err(e) = block_sync.cast(BlockSyncMsg::StartHeight(height)) {
+                        error!(%height, "Error when notifying BlockSync of started height: {e}")
+                    }
+                }
+
                 let validator_set = self.get_validator_set(height).await?;
 
                 let result = self
@@ -223,7 +241,7 @@ where
                     .await;
 
                 if let Err(e) = result {
-                    error!("Error when starting height {height}: {e:?}");
+                    error!(%height, "Error when starting height: {e}");
                 }
 
                 Ok(())
@@ -501,6 +519,7 @@ where
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
+        height: Ctx::Height,
         timers: &mut Timers<Ctx>,
         timeouts: &mut Timeouts,
         effect: Effect<Ctx>,
@@ -529,6 +548,11 @@ where
             }
 
             Effect::StartRound(height, round, proposer) => {
+                // FIXME: Handle error in ok case
+                if let Err(e) = ractor::call!(self.wal, WalMsg::Sync) {
+                    error!("Failed to flush WAL to disk: {e}");
+                }
+
                 self.host.cast(HostMsg::StartedRound {
                     height,
                     round,
@@ -555,9 +579,19 @@ where
                 Ok(Resume::SignatureValidity(valid))
             }
 
-            Effect::Broadcast(gossip_msg) => {
+            Effect::Broadcast(msg) => {
+                // FIXME: Handle error in ok case
+                if let Err(e) = ractor::call!(self.wal, WalMsg::WriteMsg, msg.clone()) {
+                    error!("Failed to persist message to WAL: {e}");
+                }
+
+                // FIXME: Handle error in ok case
+                if let Err(e) = ractor::call!(self.wal, WalMsg::Sync) {
+                    error!("Failed to flush WAL to disk: {e}");
+                }
+
                 self.gossip_consensus
-                    .cast(GossipConsensusMsg::Publish(gossip_msg))
+                    .cast(GossipConsensusMsg::Publish(msg))
                     .map_err(|e| eyre!("Error when broadcasting gossip message: {e:?}"))?;
 
                 Ok(Resume::Continue)
@@ -603,6 +637,10 @@ where
 
                 let height = certificate.height;
 
+                if let Err(e) = ractor::call!(self.wal, WalMsg::Sync) {
+                    error!("Failed to flush WAL to disk: {e}");
+                }
+
                 self.host
                     .cast(HostMsg::Decided {
                         certificate,
@@ -616,6 +654,30 @@ where
                         .map_err(|e| {
                             eyre!("Error when sending decided height to blocksync: {e:?}")
                         })?;
+                }
+
+                Ok(Resume::Continue)
+            }
+
+            Effect::PersistMessage(msg) => {
+                let result = ractor::call!(self.wal, WalMsg::WriteMsg, msg);
+
+                match result {
+                    Ok(Ok(_)) => (),
+                    Ok(Err(e)) => error!("Failed to persist message to WAL: {e}"),
+                    Err(e) => error!("Failed to send message to WAL actor: {e}"),
+                }
+
+                Ok(Resume::Continue)
+            }
+
+            Effect::PersistTimeout(timeout) => {
+                let result = ractor::call!(self.wal, WalMsg::WriteTimeout, height, timeout);
+
+                match result {
+                    Ok(Ok(_)) => (),
+                    Ok(Err(e)) => error!("Failed to persist timeout to WAL: {e}"),
+                    Err(e) => error!("Failed to send timeout to WAL actor: {e}"),
                 }
 
                 Ok(Resume::Continue)

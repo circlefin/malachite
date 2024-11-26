@@ -94,6 +94,7 @@ async-trait        = "0.1.83"
 axum               = "0.7"
 base64             = "0.22.0"
 bytes              = { version = "1", default-features = false }
+byteorder          = "1.5"
 bytesize           = "1.3"
 clap               = "4.5"
 color-eyre         = "0.6"

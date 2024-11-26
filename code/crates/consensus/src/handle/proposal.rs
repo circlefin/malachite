@@ -2,10 +2,10 @@ use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
 use crate::handle::validator_set::get_validator_set;
 use crate::input::Input;
-use crate::prelude::*;
 use crate::types::ConsensusMsg;
 use crate::util::pretty::PrettyProposal;
 use crate::ProposedValue;
+use crate::{prelude::*, SignedConsensusMsg};
 
 pub async fn on_proposal<Ctx>(
     co: &Co<Ctx>,
@@ -67,7 +67,13 @@ where
         return Ok(());
     }
 
-    assert_eq!(proposal_height, consensus_height);
+    debug_assert_eq!(proposal_height, consensus_height);
+
+    // Persist the proposal in the Write-ahead Log
+    perform!(
+        co,
+        Effect::PersistMessage(SignedConsensusMsg::Proposal(signed_proposal.clone()))
+    );
 
     state.store_proposal(signed_proposal.clone());
 
