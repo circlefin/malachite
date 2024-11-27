@@ -23,6 +23,7 @@ pub enum WalMsg<Ctx: Context> {
 }
 
 pub fn spawn<Ctx, Codec>(
+    moniker: String,
     mut wal: wal::Log,
     codec: Codec,
     mut rx: mpsc::Receiver<WalMsg<Ctx>>,
@@ -32,7 +33,7 @@ where
     Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
 {
     thread::spawn(move || loop {
-        if let Err(e) = task(&mut wal, &codec, &mut rx) {
+        if let Err(e) = task(moniker.clone(), &mut wal, &codec, &mut rx) {
             // Task failed, log the error and continue
             error!("WAL error: {e}");
 
@@ -44,7 +45,9 @@ where
     })
 }
 
+#[tracing::instrument(name = "wal", skip_all, fields(%moniker))]
 fn task<Ctx, Codec>(
+    moniker: String,
     log: &mut wal::Log,
     codec: &Codec,
     rx: &mut mpsc::Receiver<WalMsg<Ctx>>,
@@ -71,6 +74,8 @@ where
                         .restart(sequence)
                         .map(|_| Vec::new())
                         .map_err(Into::into);
+
+                    debug!(%height, "Reset WAL");
 
                     reply.send(result).unwrap(); // FIXME
                 }

@@ -79,7 +79,7 @@ pub async fn spawn_node_actor(
     )
     .await;
 
-    let wal = spawn_wal_actor(&ctx, ProtobufCodec, &home_dir, &registry).await;
+    let wal = spawn_wal_actor(&ctx, &cfg.moniker, ProtobufCodec, &home_dir, &registry).await;
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(
@@ -117,6 +117,7 @@ pub async fn spawn_node_actor(
 
 async fn spawn_wal_actor(
     ctx: &MockContext,
+    moniker: &str,
     codec: ProtobufCodec,
     home_dir: &Path,
     registry: &SharedRegistry,
@@ -124,7 +125,7 @@ async fn spawn_wal_actor(
     let wal_dir = home_dir.join("wal");
     std::fs::create_dir_all(&wal_dir).unwrap();
     let wal_file = wal_dir.join("consensus.wal");
-    Wal::spawn(ctx, codec, wal_file, registry.clone())
+    Wal::spawn(ctx, moniker.to_string(), codec, wal_file, registry.clone())
         .await
         .unwrap()
 }

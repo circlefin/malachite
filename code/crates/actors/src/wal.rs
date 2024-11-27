@@ -37,11 +37,21 @@ where
 
     pub async fn spawn(
         _ctx: &Ctx,
+        moniker: String,
         codec: Codec,
         path: PathBuf,
         _metrics: SharedRegistry,
     ) -> Result<WalRef<Ctx>, SpawnErr> {
-        let (actor_ref, _) = Actor::spawn(None, Self::new(), Args { path, codec }).await?;
+        let (actor_ref, _) = Actor::spawn(
+            None,
+            Self::new(),
+            Args {
+                moniker,
+                path,
+                codec,
+            },
+        )
+        .await?;
         Ok(actor_ref)
     }
 }
@@ -56,6 +66,7 @@ pub enum Msg<Ctx: Context> {
 }
 
 pub struct Args<Codec> {
+    pub moniker: String,
     pub path: PathBuf,
     pub codec: Codec,
 }
@@ -210,7 +221,7 @@ where
     ) -> Result<Self::State, ActorProcessingErr> {
         let log = wal::Log::open(&args.path)?;
         let (tx, rx) = mpsc::channel(100);
-        let handle = self::thread::spawn(log, args.codec, rx);
+        let handle = self::thread::spawn(args.moniker, log, args.codec, rx);
 
         Ok(State {
             height: Ctx::Height::default(),
