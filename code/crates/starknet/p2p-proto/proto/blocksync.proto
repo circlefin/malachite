@@ -36,3 +36,10 @@ message Block {
   Transactions transactions = 3;
   Hash block_hash = 4;
 }
+
+
+message ProposedValue {
+  Proposal proposal = 1;
+  bool validity = 2;
+  optional Extension extension = 3;
+}

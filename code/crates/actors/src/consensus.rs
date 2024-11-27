@@ -267,18 +267,16 @@ where
             }
 
             Msg::ProposeValue(height, round, value, extension) => {
+                let value_to_propose = ValueToPropose {
+                    height,
+                    round,
+                    valid_round: Round::Nil,
+                    value,
+                    extension,
+                };
+
                 let result = self
-                    .process_input(
-                        &myself,
-                        state,
-                        ConsensusInput::Propose(ValueToPropose {
-                            height,
-                            round,
-                            valid_round: Round::Nil,
-                            value,
-                            extension,
-                        }),
-                    )
+                    .process_input(&myself, state, ConsensusInput::Propose(value_to_propose))
                     .await;
 
                 if let Err(e) = result {
@@ -447,6 +445,13 @@ where
             }
 
             Msg::ReceivedProposedValue(value, origin) => {
+                self.wal_append(
+                    value.height,
+                    WalEntry::ProposedValue(value.clone(), origin),
+                    state.phase,
+                )
+                .await?;
+
                 let result = self
                     .process_input(&myself, state, ConsensusInput::ProposedValue(value, origin))
                     .await;
@@ -559,6 +564,15 @@ where
                 WalEntry::Timeout(timeout) => {
                     if let Err(e) = self.timeout_elapsed(myself, state, timeout).await {
                         error!("Error when replaying TimeoutElapsed: {e}");
+                    }
+                }
+
+                WalEntry::ProposedValue(value, origin) => {
+                    if let Err(e) = self
+                        .process_input(myself, state, ConsensusInput::ProposedValue(value, origin))
+                        .await
+                    {
+                        error!("Error when replaying ProposedValue: {e}");
                     }
                 }
             }

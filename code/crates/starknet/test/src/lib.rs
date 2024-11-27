@@ -99,7 +99,7 @@ impl TestParams {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Step {
-    Crash,
+    Crash(Duration),
     ResetDb,
     Restart(Duration),
     WaitUntil(u64),
@@ -150,7 +150,12 @@ impl TestNode {
     }
 
     pub fn crash(mut self) -> Self {
-        self.steps.push(Step::Crash);
+        self.steps.push(Step::Crash(Duration::from_secs(0)));
+        self
+    }
+
+    pub fn crash_after(mut self, duration: Duration) -> Self {
+        self.steps.push(Step::Crash(duration));
         self
     }
 
@@ -379,14 +384,13 @@ async fn run_node(
                 }
             }
 
-            Step::Crash => {
+            Step::Crash(after) => {
                 let height = decisions.load(Ordering::SeqCst);
-                info!("Node crashes at height {height}");
+                info!("Node crashes at height {height} after {after:?}");
 
-                actor_ref
-                    .stop_and_wait(Some("Node must crash".to_string()), None)
-                    .await
-                    .expect("Node must stop");
+                sleep(after).await;
+
+                actor_ref.kill_and_wait(None).await.expect("Node must stop");
             }
 
             Step::ResetDb => {

@@ -6,12 +6,9 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info, warn};
 
 use malachite_common::{Context, Height};
-use malachite_consensus::SignedConsensusMsg;
 use malachite_wal as wal;
 
-use crate::util::codec::NetworkCodec;
-
-use super::entry::WalEntry;
+use super::entry::{WalCodec, WalEntry};
 
 pub type ReplyTo<T> = oneshot::Sender<Result<T>>;
 
@@ -30,7 +27,7 @@ pub fn spawn<Ctx, Codec>(
 ) -> JoinHandle<()>
 where
     Ctx: Context,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
+    Codec: WalCodec<Ctx>,
 {
     thread::spawn(move || loop {
         if let Err(e) = task(moniker.clone(), &mut wal, &codec, &mut rx) {
@@ -55,7 +52,7 @@ fn task<Ctx, Codec>(
 ) -> Result<()>
 where
     Ctx: Context,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
+    Codec: WalCodec<Ctx>,
 {
     while let Some(msg) = rx.blocking_recv() {
         match msg {
@@ -121,7 +118,7 @@ where
 fn fetch_entries<Ctx, Codec>(log: &mut wal::Log, codec: &Codec) -> Result<Vec<WalEntry<Ctx>>>
 where
     Ctx: Context,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
+    Codec: WalCodec<Ctx>,
 {
     if log.is_empty() {
         return Ok(Vec::new());

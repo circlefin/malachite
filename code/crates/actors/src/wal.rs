@@ -2,17 +2,15 @@ use std::marker::PhantomData;
 use std::path::PathBuf;
 
 use derive_where::derive_where;
+use entry::WalCodec;
 use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, SpawnErr};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use malachite_common::Context;
-use malachite_consensus::SignedConsensusMsg;
 use malachite_metrics::SharedRegistry;
 use malachite_wal as wal;
-
-use crate::util::codec::NetworkCodec;
 
 mod entry;
 mod thread;
@@ -29,7 +27,7 @@ pub struct Wal<Ctx, Codec> {
 impl<Ctx, Codec> Wal<Ctx, Codec>
 where
     Ctx: Context,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
+    Codec: WalCodec<Ctx>,
 {
     pub fn new() -> Self {
         Self::default()
@@ -79,7 +77,7 @@ pub struct State<Ctx: Context> {
 impl<Ctx, Codec> Wal<Ctx, Codec>
 where
     Ctx: Context,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
+    Codec: WalCodec<Ctx>,
 {
     async fn handle_msg(
         &self,
@@ -189,7 +187,7 @@ where
 impl<Ctx, Codec> Actor for Wal<Ctx, Codec>
 where
     Ctx: Context,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
+    Codec: WalCodec<Ctx>,
 {
     type Msg = Msg<Ctx>;
     type Arguments = Args<Codec>;
@@ -201,6 +199,8 @@ where
         args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
         let log = wal::Log::open(&args.path)?;
+        info!("Opened WAL at {}", args.path.display());
+
         let (tx, rx) = mpsc::channel(100);
         let handle = self::thread::spawn(args.moniker, log, args.codec, rx);
 

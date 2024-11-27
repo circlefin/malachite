@@ -5,9 +5,9 @@ use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_blocksync as blocksync;
 use malachite_common::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
-    SignedProposal, SignedVote,
+    SignedProposal, SignedVote, Validity,
 };
-use malachite_consensus::SignedConsensusMsg;
+use malachite_consensus::{ProposedValue, SignedConsensusMsg};
 use malachite_gossip_consensus::Bytes;
 
 use crate::proto::consensus_message::Messages;
@@ -16,6 +16,127 @@ use crate::types::MockContext;
 use crate::types::{self as p2p, Address, BlockHash, Height, ProposalPart, Vote};
 
 pub struct ProtobufCodec;
+
+impl NetworkCodec<Address> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<Address, Self::Error> {
+        Address::from_bytes(&bytes)
+    }
+
+    fn encode(&self, address: &Address) -> Result<Bytes, Self::Error> {
+        address.to_bytes()
+    }
+}
+
+impl NetworkCodec<BlockHash> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<BlockHash, Self::Error> {
+        BlockHash::from_bytes(&bytes)
+    }
+
+    fn encode(&self, block_hash: &BlockHash) -> Result<Bytes, Self::Error> {
+        block_hash.to_bytes()
+    }
+}
+
+impl NetworkCodec<SignedExtension<MockContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<SignedExtension<MockContext>, Self::Error> {
+        let proto = proto::Extension::decode(bytes).map_err(ProtoError::Decode)?;
+        let extension = Extension::from(proto.data);
+        let signature = proto
+            .signature
+            .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
+            .and_then(p2p::Signature::from_proto)?;
+
+        Ok(SignedExtension::new(extension, signature))
+    }
+
+    fn encode(&self, msg: &SignedExtension<MockContext>) -> Result<Bytes, Self::Error> {
+        let proto = proto::Extension {
+            data: msg.message.data.clone(),
+            signature: Some(msg.signature.to_proto()?),
+        };
+
+        Ok(Bytes::from(proto.encode_to_vec()))
+    }
+}
+
+impl NetworkCodec<ProposedValue<MockContext>> for ProtobufCodec {
+    type Error = ProtoError;
+
+    fn decode(&self, bytes: Bytes) -> Result<ProposedValue<MockContext>, Self::Error> {
+        let proto = proto::blocksync::ProposedValue::decode(bytes)?;
+        let proposal = proto.proposal.ok_or_else(|| {
+            ProtoError::missing_field::<proto::blocksync::ProposedValue>("proposal")
+        })?;
+
+        let block_hash = proposal
+            .block_hash
+            .ok_or_else(|| ProtoError::missing_field::<proto::Proposal>("block_hash"))?;
+
+        let proposer = proposal
+            .proposer
+            .ok_or_else(|| ProtoError::missing_field::<proto::Proposal>("proposer"))?;
+
+        let extension = proto
+            .extension
+            .map(|e| -> Result<_, ProtoError> {
+                let extension = Extension::from(e.data);
+                let signature = e
+                    .signature
+                    .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
+                    .and_then(p2p::Signature::from_proto)?;
+
+                Ok(SignedExtension::new(extension, signature))
+            })
+            .transpose()?;
+
+        Ok(ProposedValue {
+            height: Height::new(proposal.block_number, proposal.fork_id),
+            round: Round::from(proposal.round),
+            value: BlockHash::from_proto(block_hash)?,
+            valid_round: Round::from(proposal.pol_round),
+            validator_address: Address::from_proto(proposer)?,
+            validity: Validity::from_bool(proto.validity),
+            extension,
+        })
+    }
+
+    fn encode(&self, msg: &ProposedValue<MockContext>) -> Result<Bytes, Self::Error> {
+        let proposal = proto::Proposal {
+            fork_id: msg.height.fork_id,
+            block_number: msg.height.block_number,
+            round: msg.round.as_u32().expect("round should not be nil"),
+            block_hash: Some(msg.value.to_proto()?),
+            pol_round: msg.valid_round.as_u32(),
+            proposer: Some(msg.validator_address.to_proto()?),
+        };
+
+        let proto = proto::blocksync::ProposedValue {
+            proposal: Some(proposal),
+            validity: match msg.validity {
+                Validity::Valid => true,
+                Validity::Invalid => false,
+            },
+            extension: msg
+                .extension
+                .as_ref()
+                .map(|e| -> Result<_, ProtoError> {
+                    Ok(proto::Extension {
+                        data: e.message.data.clone(),
+                        signature: Some(e.signature.to_proto()?),
+                    })
+                })
+                .transpose()?,
+        };
+
+        Ok(Bytes::from(proto.encode_to_vec()))
+    }
+}
 
 impl NetworkCodec<ProposalPart> for ProtobufCodec {
     type Error = ProtoError;
