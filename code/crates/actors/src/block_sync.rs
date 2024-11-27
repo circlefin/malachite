@@ -10,11 +10,11 @@ use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use rand::SeedableRng;
 use tokio::task::JoinHandle;
+use tracing::{debug, error, info, warn};
 
 use malachite_blocksync::{self as blocksync, OutboundRequestId, Response};
 use malachite_blocksync::{Request, SyncedBlock};
-use malachite_common::{CertificateError, CommitCertificate, Context, Round};
-use tracing::{debug, error, info, warn};
+use malachite_common::{CertificateError, CommitCertificate, Context, Height, Round};
 
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
 use crate::host::{HostMsg, HostRef};
@@ -89,7 +89,7 @@ pub struct Params {
 impl Default for Params {
     fn default() -> Self {
         Self {
-            status_update_interval: Duration::from_secs(10),
+            status_update_interval: Duration::from_secs(5),
             request_timeout: Duration::from_secs(10),
         }
     }
@@ -182,11 +182,11 @@ where
         use blocksync::Effect;
 
         match effect {
-            Effect::PublishStatus(height) => {
+            Effect::BroadcastStatus(height) => {
                 let earliest_block_height = self.get_earliest_block_height().await?;
 
                 self.gossip
-                    .cast(GossipConsensusMsg::PublishStatus(Status::new(
+                    .cast(GossipConsensusMsg::BroadcastStatus(Status::new(
                         height,
                         earliest_block_height,
                     )))?;
@@ -346,11 +346,16 @@ where
             }
 
             Msg::Decided(height) => {
-                self.process_input(&myself, state, blocksync::Input::Decided(height))
+                self.process_input(&myself, state, blocksync::Input::UpdateHeight(height))
                     .await?;
             }
 
             Msg::StartHeight(height) => {
+                if let Some(height) = height.decrement() {
+                    self.process_input(&myself, state, blocksync::Input::UpdateHeight(height))
+                        .await?;
+                }
+
                 self.process_input(&myself, state, blocksync::Input::StartHeight(height))
                     .await?;
             }

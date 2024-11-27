@@ -38,6 +38,11 @@ impl CtrlHandle {
         Ok(())
     }
 
+    pub async fn broadcast(&self, channel: Channel, data: Bytes) -> Result<(), eyre::Report> {
+        self.tx_ctrl.send(CtrlMsg::Broadcast(channel, data)).await?;
+        Ok(())
+    }
+
     pub async fn blocksync_request(
         &self,
         peer_id: PeerId,

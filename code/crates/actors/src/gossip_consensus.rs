@@ -133,8 +133,8 @@ pub enum Msg<Ctx: Context> {
     /// Publish a proposal part
     PublishProposalPart(StreamMessage<Ctx::ProposalPart>),
 
-    /// Publish status
-    PublishStatus(Status<Ctx>),
+    /// Broadcast status to all direct peers
+    BroadcastStatus(Status<Ctx>),
 
     /// Send a request to a peer, returning the outbound request ID
     OutgoingRequest(PeerId, Request<Ctx>, RpcReplyPort<OutboundRequestId>),
@@ -240,7 +240,7 @@ where
                 }
             }
 
-            Msg::PublishStatus(status) => {
+            Msg::BroadcastStatus(status) => {
                 let status = blocksync::Status {
                     peer_id: ctrl_handle.peer_id(),
                     height: status.height,
@@ -249,7 +249,7 @@ where
 
                 let data = self.codec.encode(status);
                 match data {
-                    Ok(data) => ctrl_handle.publish(Channel::BlockSync, data).await?,
+                    Ok(data) => ctrl_handle.broadcast(Channel::BlockSync, data).await?,
                     Err(e) => error!("Failed to encode status message: {e:?}"),
                 }
             }

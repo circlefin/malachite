@@ -69,6 +69,30 @@ impl HostState {
     }
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
+    pub async fn build_block_from_parts(
+        &self,
+        parts: &[Arc<ProposalPart>],
+        height: Height,
+        round: Round,
+    ) -> Option<(ProposedValue<MockContext>, Block)> {
+        let value = self.build_value_from_parts(parts, height, round).await?;
+
+        let txes = parts
+            .iter()
+            .filter_map(|part| part.as_transactions())
+            .flat_map(|txes| txes.to_vec())
+            .collect::<Vec<_>>();
+
+        let block = Block {
+            height,
+            transactions: Transactions::new(txes),
+            block_hash: value.value,
+        };
+
+        Some((value, block))
+    }
+
+    #[tracing::instrument(skip_all, fields(%height, %round))]
     pub async fn build_value_from_parts(
         &self,
         parts: &[Arc<ProposalPart>],
@@ -293,7 +317,7 @@ impl StarknetHost {
         match state.block_store.prune(retain_height).await {
             Ok(pruned) => {
                 debug!(
-                    %retain_height, pruned = pruned.iter().join(", "),
+                    %retain_height, pruned_heights = pruned.iter().join(", "),
                     "Pruned the block store"
                 );
             }
@@ -371,6 +395,7 @@ impl Actor for StarknetHost {
 
                 while let Some(part) = rx_part.recv().await {
                     state.host.part_store.store(height, round, part.clone());
+
                     if state.host.params.value_payload.include_parts() {
                         debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
@@ -404,16 +429,27 @@ impl Actor for StarknetHost {
 
                 let parts = state.host.part_store.all_parts(height, round);
 
-                let extension = state.host.generate_vote_extension(height, round);
+                let Some((value, block)) =
+                    state.build_block_from_parts(&parts, height, round).await
+                else {
+                    error!(%height, %round, "Failed to build block from parts");
+                    return Ok(());
+                };
 
-                if let Some(value) = state.build_value_from_parts(&parts, height, round).await {
-                    reply_to.send(LocallyProposedValue::new(
-                        value.height,
-                        value.round,
-                        value.value,
-                        extension,
-                    ))?;
+                if let Err(e) = state
+                    .block_store
+                    .store_undecided_block(value.height, value.round, block)
+                    .await
+                {
+                    error!(%e, %height, %round, "Failed to store the proposed block");
                 }
+
+                reply_to.send(LocallyProposedValue::new(
+                    value.height,
+                    value.round,
+                    value.value,
+                    value.extension,
+                ))?;
 
                 Ok(())
             }
@@ -545,7 +581,11 @@ impl Actor for StarknetHost {
                 }
 
                 // Build the block from transaction parts and certificate, and store it
-                if let Err(e) = state.block_store.store(&certificate, &all_txes).await {
+                if let Err(e) = state
+                    .block_store
+                    .store_decided_block(&certificate, &all_txes)
+                    .await
+                {
                     error!(%e, %height, %round, "Failed to store the block");
                 }
 
