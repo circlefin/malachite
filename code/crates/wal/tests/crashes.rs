@@ -120,8 +120,8 @@ fn system_crash_during_write() -> io::Result<()> {
 
         // Attempt to write entries
         let result = (|| -> io::Result<()> {
-            wal.write(b"entry1")?;
-            wal.write(b"entry2")?;
+            wal.append(b"entry1")?;
+            wal.append(b"entry2")?;
             Ok(())
         })();
 
@@ -211,9 +211,9 @@ fn power_failure_simulation() -> io::Result<()> {
         let storage = FailingSync::open_with(&path, true)?;
         let mut wal = FailingSyncLog::from_raw_parts(storage, path.to_owned(), Version::V1, 0, 0);
 
-        wal.write(b"entry1")?;
+        wal.append(b"entry1")?;
 
-        assert!(wal.sync().is_err());
+        assert!(wal.flush().is_err());
     }
 
     // Verify recovery after power failure
@@ -264,8 +264,8 @@ fn wal_write_test() {
             let mut wal = FileLog::open(path).unwrap();
             loop {
                 // Continuously write entries until terminated
-                wal.write(b"test entry").unwrap();
-                wal.sync().unwrap();
+                wal.append(b"test entry").unwrap();
+                wal.flush().unwrap();
                 thread::sleep(Duration::from_millis(10));
             }
         }
@@ -285,8 +285,8 @@ fn concurrent_crash_recovery() -> io::Result<()> {
         let mut wal = FileLog::open(&path_clone)?;
 
         while running_clone.load(Ordering::SeqCst) {
-            wal.write(b"test entry")?;
-            wal.sync()?;
+            wal.append(b"test entry")?;
+            wal.flush()?;
             thread::sleep(Duration::from_millis(10));
         }
 

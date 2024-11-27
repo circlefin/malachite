@@ -34,13 +34,13 @@ fn setup_wal(path: &Path, entries: &[&str]) -> io::Result<Log> {
     assert_eq!(sequence, 0);
 
     for entry in entries {
-        wal.write(entry)?;
+        wal.append(entry)?;
     }
 
     assert_eq!(wal.len(), entries.len());
     assert_eq!(wal.is_empty(), entries.is_empty());
 
-    wal.sync()?;
+    wal.flush()?;
 
     Ok(wal)
 }
@@ -111,10 +111,10 @@ fn restart() -> io::Result<()> {
         assert_eq!(wal.len(), 0);
 
         for entry in ENTRIES_2 {
-            wal.write(entry)?;
+            wal.append(entry)?;
         }
 
-        wal.sync()?;
+        wal.flush()?;
     }
 
     let mut wal = Log::open(&path)?;
@@ -137,9 +137,9 @@ fn corrupted_wal() -> io::Result<()> {
     // Create and write some entries
     {
         let mut wal = Log::open(&path)?;
-        wal.write(b"entry1")?;
-        wal.write(b"entry2")?;
-        wal.sync()?;
+        wal.append(b"entry1")?;
+        wal.append(b"entry2")?;
+        wal.flush()?;
     }
 
     // Corrupt the file by truncating it in the middle
@@ -180,8 +180,8 @@ fn concurrent_access() -> io::Result<()> {
     let path_clone = path.clone();
     let write_thread = thread::spawn(move || -> io::Result<()> {
         let mut wal = Log::open(&path_clone)?;
-        wal.write(b"thread1")?;
-        wal.sync()?;
+        wal.append(b"thread1")?;
+        wal.flush()?;
         std::thread::sleep(Duration::from_millis(100));
 
         Ok(())

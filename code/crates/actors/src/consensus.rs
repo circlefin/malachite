@@ -25,8 +25,7 @@ use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipCons
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::forward::forward;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
-use crate::wal::WalEntry;
-use crate::wal::{Msg as WalMsg, WalRef};
+use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
 
 pub use malachite_consensus::Error as ConsensusError;
 pub use malachite_consensus::Params as ConsensusParams;
@@ -621,6 +620,55 @@ where
         .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
     }
 
+    async fn wal_append(
+        &self,
+        height: Ctx::Height,
+        entry: WalEntry<Ctx>,
+        phase: Phase,
+    ) -> Result<(), ActorProcessingErr> {
+        if phase == Phase::Recovering {
+            return Ok(());
+        }
+
+        let result = ractor::call!(self.wal, WalMsg::Append, height, entry);
+
+        match result {
+            Ok(Ok(())) => {
+                // Success
+            }
+            Ok(Err(e)) => {
+                error!("Failed to append entry to WAL: {e}");
+            }
+            Err(e) => {
+                error!("Failed to send Append command to WAL actor: {e}");
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn wal_flush(&self, phase: Phase) -> Result<(), ActorProcessingErr> {
+        if phase == Phase::Recovering {
+            return Ok(());
+        }
+
+        let result = ractor::call!(self.wal, WalMsg::Flush);
+
+        match result {
+            Ok(Ok(())) => {
+                // Success
+            }
+            Ok(Err(e)) => {
+                error!("Failed to flush WAL to disk: {e}");
+            }
+            Err(e) => {
+                error!("Failed to send Flush command to WAL: {e}");
+            }
+        }
+
+        Ok(())
+    }
+
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
@@ -654,12 +702,7 @@ where
             }
 
             Effect::StartRound(height, round, proposer) => {
-                if phase != Phase::Recovering {
-                    // FIXME: Handle error in ok case
-                    if let Err(e) = ractor::call!(self.wal, WalMsg::Sync) {
-                        error!("Failed to flush WAL to disk: {e}");
-                    }
-                }
+                self.wal_flush(phase).await?;
 
                 self.host.cast(HostMsg::StartedRound {
                     height,
@@ -688,15 +731,11 @@ where
             }
 
             Effect::Broadcast(msg) => {
-                // FIXME: Handle error in ok case
-                if let Err(e) = ractor::call!(self.wal, WalMsg::WriteMsg, msg.clone()) {
-                    error!("Failed to persist message to WAL: {e}");
-                }
+                // FIXME: Avoid cloning
+                self.wal_append(msg.msg_height(), WalEntry::ConsensusMsg(msg.clone()), phase)
+                    .await?;
 
-                // FIXME: Handle error in ok case
-                if let Err(e) = ractor::call!(self.wal, WalMsg::Sync) {
-                    error!("Failed to flush WAL to disk: {e}");
-                }
+                self.wal_flush(phase).await?;
 
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Publish(msg))
@@ -739,15 +778,13 @@ where
             }
 
             Effect::Decide { certificate } => {
+                self.wal_flush(phase).await?;
+
                 if let Some(tx_decision) = &self.tx_decision {
                     let _ = tx_decision.send(certificate.clone());
                 }
 
                 let height = certificate.height;
-
-                if let Err(e) = ractor::call!(self.wal, WalMsg::Sync) {
-                    error!("Failed to flush WAL to disk: {e}");
-                }
 
                 self.host
                     .cast(HostMsg::Decided {
@@ -768,33 +805,15 @@ where
             }
 
             Effect::PersistMessage(msg) => {
-                if phase == Phase::Recovering {
-                    return Ok(Resume::Continue);
-                }
-
-                let result = ractor::call!(self.wal, WalMsg::WriteMsg, msg);
-
-                match result {
-                    Ok(Ok(_)) => (),
-                    Ok(Err(e)) => error!("Failed to persist message to WAL: {e}"),
-                    Err(e) => error!("Failed to send message to WAL actor: {e}"),
-                }
+                self.wal_append(height, WalEntry::ConsensusMsg(msg), phase)
+                    .await?;
 
                 Ok(Resume::Continue)
             }
 
             Effect::PersistTimeout(timeout) => {
-                if phase == Phase::Recovering {
-                    return Ok(Resume::Continue);
-                }
-
-                let result = ractor::call!(self.wal, WalMsg::WriteTimeout, height, timeout);
-
-                match result {
-                    Ok(Ok(_)) => (),
-                    Ok(Err(e)) => error!("Failed to persist timeout to WAL: {e}"),
-                    Err(e) => error!("Failed to send timeout to WAL actor: {e}"),
-                }
+                self.wal_append(height, WalEntry::Timeout(timeout), phase)
+                    .await?;
 
                 Ok(Resume::Continue)
             }

@@ -7,7 +7,7 @@ use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, Spa
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error};
 
-use malachite_common::{Context, Timeout};
+use malachite_common::Context;
 use malachite_consensus::SignedConsensusMsg;
 use malachite_metrics::SharedRegistry;
 use malachite_wal as wal;
@@ -60,9 +60,8 @@ pub type WalReply<T> = RpcReplyPort<eyre::Result<T>>;
 
 pub enum Msg<Ctx: Context> {
     StartedHeight(Ctx::Height, WalReply<Option<Vec<WalEntry<Ctx>>>>),
-    WriteMsg(SignedConsensusMsg<Ctx>, WalReply<()>),
-    WriteTimeout(Ctx::Height, Timeout, WalReply<()>),
-    Sync(WalReply<()>),
+    Append(Ctx::Height, WalEntry<Ctx>, WalReply<()>),
+    Flush(WalReply<()>),
 }
 
 pub struct Args<Codec> {
@@ -100,35 +99,17 @@ where
                 self.started_height(state, height, reply_to).await?;
             }
 
-            Msg::WriteMsg(msg, reply_to) => {
-                if msg.msg_height() != state.height {
-                    debug!(
-                        "Ignoring message with height {} != {}",
-                        msg.msg_height(),
-                        state.height
-                    );
-
-                    return Ok(());
-                }
-
-                self.write_log(state, msg, reply_to).await?;
-            }
-
-            Msg::WriteTimeout(height, timeout, reply_to) => {
+            Msg::Append(height, entry, reply_to) => {
                 if height != state.height {
-                    debug!(
-                        "Ignoring timeout with height {} != {}",
-                        height, state.height
-                    );
-
+                    debug!("Ignoring append at height {} != {}", height, state.height);
                     return Ok(());
                 }
 
-                self.write_log(state, timeout, reply_to).await?;
+                self.write_log(state, entry, reply_to).await?;
             }
 
-            Msg::Sync(reply_to) => {
-                self.sync_log(state, reply_to).await?;
+            Msg::Flush(reply_to) => {
+                self.flush_log(state, reply_to).await?;
             }
         }
 
@@ -182,7 +163,7 @@ where
         Ok(())
     }
 
-    async fn sync_log(
+    async fn flush_log(
         &self,
         state: &mut State<Ctx>,
         reply_to: WalReply<()>,
@@ -191,7 +172,7 @@ where
 
         state
             .wal_sender
-            .send(self::thread::WalMsg::Sync(tx))
+            .send(self::thread::WalMsg::Flush(tx))
             .await?;
 
         let result = rx.await?;

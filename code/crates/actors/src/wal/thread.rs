@@ -18,7 +18,7 @@ pub type ReplyTo<T> = oneshot::Sender<Result<T>>;
 pub enum WalMsg<Ctx: Context> {
     StartedHeight(Ctx::Height, ReplyTo<Vec<WalEntry<Ctx>>>),
     Append(WalEntry<Ctx>, ReplyTo<()>),
-    Sync(ReplyTo<()>),
+    Flush(ReplyTo<()>),
     Shutdown,
 }
 
@@ -87,21 +87,21 @@ where
                 let mut buf = Vec::new();
                 entry.encode(codec, &mut buf)?;
 
-                let result = log.write(&buf).map_err(Into::into);
+                let result = log.append(&buf).map_err(Into::into);
 
                 if let Err(e) = &result {
-                    error!("ATTENTION: Failed to write entry to WAL: {e}");
+                    error!("ATTENTION: Failed to append entry to WAL: {e}");
                 }
 
                 if reply.send(result).is_err() {
-                    error!("ATTENTION: Failed to send WAL write reply");
+                    error!("ATTENTION: Failed to send WAL append reply");
                 }
 
                 debug!("Wrote log entry: type = {tpe}, log size = {}", log.len());
             }
 
-            WalMsg::Sync(reply) => {
-                let result = log.sync().map_err(Into::into);
+            WalMsg::Flush(reply) => {
+                let result = log.flush().map_err(Into::into);
                 reply.send(result).unwrap(); // FIXME
 
                 debug!("Flushed WAL to disk");
