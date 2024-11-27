@@ -7,7 +7,6 @@ use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::sync::broadcast;
 use tokio::time::Instant;
-use tracing::trace;
 use tracing::{debug, error, info, warn};
 
 use malachite_blocksync as blocksync;
@@ -508,7 +507,7 @@ where
         match result {
             Ok(None) => {
                 // Nothing to replay
-                trace!(%height, "No WAL entries to replay");
+                info!(%height, "No WAL entries to replay");
             }
             Ok(Some(entries)) => {
                 info!("Found {} WAL entries to replay", entries.len());

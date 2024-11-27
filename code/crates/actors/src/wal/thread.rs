@@ -3,7 +3,7 @@ use std::{io, thread};
 
 use eyre::Result;
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use malachite_common::{Context, Height};
 use malachite_consensus::SignedConsensusMsg;
@@ -41,6 +41,7 @@ where
         }
 
         // Task finished normally, stop the thread
+        drop(wal);
         break;
     })
 }
@@ -108,6 +109,7 @@ where
             }
 
             WalMsg::Shutdown => {
+                info!("Shutting down WAL thread");
                 break;
             }
         }
