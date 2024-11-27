@@ -20,6 +20,10 @@ impl Channel {
         ]
     }
 
+    pub fn consensus() -> &'static [Channel] {
+        &[Channel::Consensus, Channel::ProposalParts]
+    }
+
     pub fn to_gossipsub_topic(self) -> gossipsub::IdentTopic {
         gossipsub::IdentTopic::new(self.as_str())
     }

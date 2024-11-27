@@ -1,23 +1,29 @@
 use bytes::Bytes;
-use either::Either;
 use libp2p::swarm;
 
 use crate::behaviour::Behaviour;
-use crate::Channel;
+use crate::{Channel, PubSubProtocol};
 
 pub fn subscribe(
     swarm: &mut swarm::Swarm<Behaviour>,
+    protocol: PubSubProtocol,
     channels: &[Channel],
 ) -> Result<(), eyre::Report> {
-    match &mut swarm.behaviour_mut().pubsub {
-        Either::Left(gossipsub) => {
+    match protocol {
+        PubSubProtocol::GossipSub => {
             for channel in channels {
-                gossipsub.subscribe(&channel.to_gossipsub_topic())?;
+                swarm
+                    .behaviour_mut()
+                    .gossipsub
+                    .subscribe(&channel.to_gossipsub_topic())?;
             }
         }
-        Either::Right(broadcast) => {
+        PubSubProtocol::Broadcast => {
             for channel in channels {
-                broadcast.subscribe(channel.to_broadcast_topic());
+                swarm
+                    .behaviour_mut()
+                    .broadcast
+                    .subscribe(channel.to_broadcast_topic());
             }
         }
     }
@@ -27,15 +33,22 @@ pub fn subscribe(
 
 pub fn publish(
     swarm: &mut swarm::Swarm<Behaviour>,
+    protocol: PubSubProtocol,
     channel: Channel,
     data: Bytes,
 ) -> Result<(), eyre::Report> {
-    match &mut swarm.behaviour_mut().pubsub {
-        Either::Left(gossipsub) => {
-            gossipsub.publish(channel.to_gossipsub_topic(), data)?;
+    match protocol {
+        PubSubProtocol::GossipSub => {
+            swarm
+                .behaviour_mut()
+                .gossipsub
+                .publish(channel.to_gossipsub_topic(), data)?;
         }
-        Either::Right(broadcast) => {
-            broadcast.broadcast(&channel.to_broadcast_topic(), data);
+        PubSubProtocol::Broadcast => {
+            swarm
+                .behaviour_mut()
+                .broadcast
+                .broadcast(&channel.to_broadcast_topic(), data);
         }
     }
 
