@@ -2897,6 +2897,7 @@ dependencies = [
  "ractor",
  "rand",
  "redb",
+ "serde",
  "serde_json",
  "sha3",
  "tempfile",

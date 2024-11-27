@@ -34,6 +34,7 @@ ractor.workspace          = true
 rand.workspace            = true
 redb.workspace            = true
 sha3.workspace            = true
+serde.workspace           = true
 serde_json.workspace      = true
 tokio.workspace           = true
 tracing.workspace         = true
