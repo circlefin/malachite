@@ -55,21 +55,20 @@ where
             "Received vote at round -1, queuing for later"
         );
 
-        state.input_queue.push_back(Input::Vote(signed_vote));
+        state.buffer_input(vote_height, Input::Vote(signed_vote));
         return Ok(());
     }
 
     if consensus_height < vote_height {
-        if consensus_height.increment() == vote_height {
-            debug!(
-                consensus.height = %consensus_height,
-                vote.height = %vote_height,
-                validator = %validator_address,
-                "Received vote for next height, queuing for later"
-            );
+        debug!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
+            validator = %validator_address,
+            "Received vote for higher height, queuing for later"
+        );
 
-            state.input_queue.push_back(Input::Vote(signed_vote));
-        }
+        state.buffer_input(vote_height, Input::Vote(signed_vote));
+
         return Ok(());
     }
 

@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use either::Either;
 use libp2p::request_response::{OutboundRequestId, ResponseChannel};
 use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
@@ -14,7 +13,7 @@ use malachite_blocksync as blocksync;
 use malachite_discovery as discovery;
 use malachite_metrics::Registry;
 
-use crate::{Config, GossipSubConfig, PubSubProtocol, PROTOCOL};
+use crate::{Config, GossipSubConfig, PROTOCOL};
 
 #[derive(Debug)]
 pub enum NetworkEvent {
@@ -62,25 +61,13 @@ impl From<discovery::Event> for NetworkEvent {
     }
 }
 
-impl<A, B> From<Either<A, B>> for NetworkEvent
-where
-    A: Into<NetworkEvent>,
-    B: Into<NetworkEvent>,
-{
-    fn from(event: Either<A, B>) -> Self {
-        match event {
-            Either::Left(event) => event.into(),
-            Either::Right(event) => event.into(),
-        }
-    }
-}
-
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "NetworkEvent")]
 pub struct Behaviour {
     pub identify: identify::Behaviour,
     pub ping: ping::Behaviour,
-    pub pubsub: Either<gossipsub::Behaviour, broadcast::Behaviour>,
+    pub gossipsub: gossipsub::Behaviour,
+    pub broadcast: broadcast::Behaviour,
     pub blocksync: blocksync::Behaviour,
     pub discovery: Toggle<discovery::Behaviour>,
 }
@@ -140,23 +127,20 @@ impl Behaviour {
 
         let ping = ping::Behaviour::new(ping::Config::new().with_interval(Duration::from_secs(5)));
 
-        let pubsub = match config.protocol {
-            PubSubProtocol::GossipSub(cfg) => Either::Left(
-                gossipsub::Behaviour::new_with_metrics(
-                    gossipsub::MessageAuthenticity::Signed(keypair.clone()),
-                    gossipsub_config(cfg, config.pubsub_max_size),
-                    registry.sub_registry_with_prefix("gossipsub"),
-                    Default::default(),
-                )
-                .unwrap(),
-            ),
-            PubSubProtocol::Broadcast => Either::Right(broadcast::Behaviour::new_with_metrics(
-                broadcast::Config {
-                    max_buf_size: config.pubsub_max_size,
-                },
-                registry.sub_registry_with_prefix("broadcast"),
-            )),
-        };
+        let gossipsub = gossipsub::Behaviour::new_with_metrics(
+            gossipsub::MessageAuthenticity::Signed(keypair.clone()),
+            gossipsub_config(config.gossipsub, config.pubsub_max_size),
+            registry.sub_registry_with_prefix("gossipsub"),
+            Default::default(),
+        )
+        .unwrap();
+
+        let broadcast = broadcast::Behaviour::new_with_metrics(
+            broadcast::Config {
+                max_buf_size: config.pubsub_max_size,
+            },
+            registry.sub_registry_with_prefix("broadcast"),
+        );
 
         let blocksync = blocksync::Behaviour::new_with_metrics(
             blocksync::Config::default().with_max_response_size(config.rpc_max_size),
@@ -168,7 +152,8 @@ impl Behaviour {
         Self {
             identify,
             ping,
-            pubsub,
+            gossipsub,
+            broadcast,
             blocksync,
             discovery,
         }
