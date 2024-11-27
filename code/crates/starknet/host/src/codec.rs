@@ -1,3 +1,4 @@
+use malachite_starknet_p2p_types::Block;
 use prost::Message;
 
 use malachite_actors::util::codec::NetworkCodec;
@@ -11,7 +12,7 @@ use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Bytes;
 
 use crate::proto::consensus_message::Messages;
-use crate::proto::{self as proto, ConsensusMessage, Error as ProtoError, Protobuf};
+use crate::proto::{self as proto, Error as ProtoError, Protobuf};
 use crate::types::MockContext;
 use crate::types::{self as p2p, Address, BlockHash, Height, ProposalPart, Vote};
 
@@ -33,12 +34,11 @@ impl NetworkCodec<blocksync::Status<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<blocksync::Status<MockContext>, Self::Error> {
-        let status =
-            proto::blocksync::Status::decode(bytes.as_ref()).map_err(ProtoError::Decode)?;
+        let status = proto::sync::Status::decode(bytes.as_ref()).map_err(ProtoError::Decode)?;
 
         let peer_id = status
             .peer_id
-            .ok_or_else(|| ProtoError::missing_field::<proto::blocksync::Status>("peer_id"))?;
+            .ok_or_else(|| ProtoError::missing_field::<proto::sync::Status>("peer_id"))?;
 
         Ok(blocksync::Status {
             peer_id: libp2p_identity::PeerId::from_bytes(&peer_id.id)
@@ -52,7 +52,7 @@ impl NetworkCodec<blocksync::Status<MockContext>> for ProtobufCodec {
     }
 
     fn encode(&self, status: blocksync::Status<MockContext>) -> Result<Bytes, Self::Error> {
-        let proto = proto::blocksync::Status {
+        let proto = proto::sync::Status {
             peer_id: Some(proto::PeerId {
                 id: Bytes::from(status.peer_id.to_bytes()),
             }),
@@ -70,7 +70,7 @@ impl NetworkCodec<blocksync::Request<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<blocksync::Request<MockContext>, Self::Error> {
-        let request = proto::blocksync::Request::decode(bytes).map_err(ProtoError::Decode)?;
+        let request = proto::sync::Request::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(blocksync::Request {
             height: Height::new(request.block_number, request.fork_id),
@@ -78,7 +78,7 @@ impl NetworkCodec<blocksync::Request<MockContext>> for ProtobufCodec {
     }
 
     fn encode(&self, request: blocksync::Request<MockContext>) -> Result<Bytes, Self::Error> {
-        let proto = proto::blocksync::Request {
+        let proto = proto::sync::Request {
             block_number: request.height.block_number,
             fork_id: request.height.fork_id,
         };
@@ -91,7 +91,7 @@ impl NetworkCodec<blocksync::Response<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<blocksync::Response<MockContext>, Self::Error> {
-        let response = proto::blocksync::Response::decode(bytes).map_err(ProtoError::Decode)?;
+        let response = proto::sync::Response::decode(bytes).map_err(ProtoError::Decode)?;
 
         Ok(blocksync::Response {
             height: Height::new(response.block_number, response.fork_id),
@@ -100,7 +100,7 @@ impl NetworkCodec<blocksync::Response<MockContext>> for ProtobufCodec {
     }
 
     fn encode(&self, response: blocksync::Response<MockContext>) -> Result<Bytes, Self::Error> {
-        let proto = proto::blocksync::Response {
+        let proto = proto::sync::Response {
             block_number: response.height.block_number,
             fork_id: response.height.fork_id,
             block: response.block.map(encode_synced_block).transpose()?,
@@ -114,15 +114,15 @@ impl NetworkCodec<SignedConsensusMsg<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<SignedConsensusMsg<MockContext>, Self::Error> {
-        let proto = ConsensusMessage::decode(bytes)?;
+        let proto = proto::ConsensusMessage::decode(bytes)?;
 
         let proto_signature = proto
             .signature
-            .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("signature"))?;
+            .ok_or_else(|| ProtoError::missing_field::<proto::ConsensusMessage>("signature"))?;
 
         let message = proto
             .messages
-            .ok_or_else(|| ProtoError::missing_field::<ConsensusMessage>("messages"))?;
+            .ok_or_else(|| ProtoError::missing_field::<proto::ConsensusMessage>("messages"))?;
 
         let signature = p2p::Signature::from_proto(proto_signature)?;
 
@@ -137,11 +137,11 @@ impl NetworkCodec<SignedConsensusMsg<MockContext>> for ProtobufCodec {
 
     fn encode(&self, msg: SignedConsensusMsg<MockContext>) -> Result<Bytes, Self::Error> {
         let message = match msg {
-            SignedConsensusMsg::Vote(v) => ConsensusMessage {
+            SignedConsensusMsg::Vote(v) => proto::ConsensusMessage {
                 messages: Some(Messages::Vote(v.to_proto()?)),
                 signature: Some(v.signature.to_proto()?),
             },
-            SignedConsensusMsg::Proposal(p) => ConsensusMessage {
+            SignedConsensusMsg::Proposal(p) => proto::ConsensusMessage {
                 messages: Some(Messages::Proposal(p.to_proto()?)),
                 signature: Some(p.signature.to_proto()?),
             },
@@ -185,9 +185,33 @@ where
     }
 }
 
+pub(crate) fn encode_synced_block(
+    synced_block: blocksync::SyncedBlock<MockContext>,
+) -> Result<proto::sync::SyncedBlock, ProtoError> {
+    Ok(proto::sync::SyncedBlock {
+        block_bytes: synced_block.block_bytes,
+        certificate: Some(encode_certificate(synced_block.certificate)?),
+    })
+}
+
+pub(crate) fn decode_synced_block(
+    proto: proto::sync::SyncedBlock,
+) -> Result<blocksync::SyncedBlock<MockContext>, ProtoError> {
+    let Some(certificate) = proto.certificate else {
+        return Err(ProtoError::missing_field::<proto::sync::SyncedBlock>(
+            "certificate",
+        ));
+    };
+
+    Ok(blocksync::SyncedBlock {
+        block_bytes: proto.block_bytes,
+        certificate: decode_certificate(certificate)?,
+    })
+}
+
 pub(crate) fn encode_aggregate_signature(
     aggregated_signature: AggregatedSignature<MockContext>,
-) -> Result<proto::AggregatedSignature, ProtoError> {
+) -> Result<proto::sync::AggregatedSignature, ProtoError> {
     let signatures = aggregated_signature
         .signatures
         .into_iter()
@@ -195,50 +219,19 @@ pub(crate) fn encode_aggregate_signature(
             let validator_address = s.address.to_proto()?;
             let signature = s.signature.to_proto()?;
 
-            Ok(proto::CommitSignature {
+            Ok(proto::sync::CommitSignature {
                 validator_address: Some(validator_address),
                 signature: Some(signature),
-                extension: s
-                    .extension
-                    .map(|e| -> Result<_, ProtoError> {
-                        Ok(proto::Extension {
-                            data: e.message.data,
-                            signature: Some(e.signature.to_proto()?),
-                        })
-                    })
-                    .transpose()?,
+                extension: s.extension.map(encode_extension).transpose()?,
             })
         })
         .collect::<Result<_, ProtoError>>()?;
 
-    Ok(proto::AggregatedSignature { signatures })
-}
-
-pub(crate) fn encode_certificate(
-    certificate: CommitCertificate<MockContext>,
-) -> Result<proto::CommitCertificate, ProtoError> {
-    Ok(proto::CommitCertificate {
-        fork_id: certificate.height.fork_id,
-        block_number: certificate.height.block_number,
-        round: certificate.round.as_u32().expect("round should not be nil"),
-        block_hash: Some(certificate.value_id.to_proto()?),
-        aggregated_signature: Some(encode_aggregate_signature(
-            certificate.aggregated_signature,
-        )?),
-    })
-}
-
-pub(crate) fn encode_synced_block(
-    synced_block: blocksync::SyncedBlock<MockContext>,
-) -> Result<proto::blocksync::SyncedBlock, ProtoError> {
-    Ok(proto::blocksync::SyncedBlock {
-        block_bytes: synced_block.block_bytes,
-        certificate: Some(encode_certificate(synced_block.certificate)?),
-    })
+    Ok(proto::sync::AggregatedSignature { signatures })
 }
 
 pub(crate) fn decode_aggregated_signature(
-    signature: proto::AggregatedSignature,
+    signature: proto::sync::AggregatedSignature,
 ) -> Result<AggregatedSignature<MockContext>, ProtoError> {
     let signatures = signature
         .signatures
@@ -246,28 +239,19 @@ pub(crate) fn decode_aggregated_signature(
         .map(|s| {
             let signature = s
                 .signature
-                .ok_or_else(|| ProtoError::missing_field::<proto::CommitSignature>("signature"))
+                .ok_or_else(|| {
+                    ProtoError::missing_field::<proto::sync::CommitSignature>("signature")
+                })
                 .and_then(p2p::Signature::from_proto)?;
 
             let address = s
                 .validator_address
                 .ok_or_else(|| {
-                    ProtoError::missing_field::<proto::CommitSignature>("validator_address")
+                    ProtoError::missing_field::<proto::sync::CommitSignature>("validator_address")
                 })
                 .and_then(Address::from_proto)?;
 
-            let extension = s
-                .extension
-                .map(|e| -> Result<_, ProtoError> {
-                    let extension = Extension::from(e.data);
-                    let signature = e
-                        .signature
-                        .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
-                        .and_then(p2p::Signature::from_proto)?;
-
-                    Ok(SignedExtension::new(extension, signature))
-                })
-                .transpose()?;
+            let extension = s.extension.map(decode_extension).transpose()?;
 
             Ok(CommitSignature {
                 address,
@@ -280,13 +264,48 @@ pub(crate) fn decode_aggregated_signature(
     Ok(AggregatedSignature { signatures })
 }
 
+pub(crate) fn encode_extension(
+    ext: SignedExtension<MockContext>,
+) -> Result<proto::Extension, ProtoError> {
+    Ok(proto::Extension {
+        data: ext.message.data,
+        signature: Some(ext.signature.to_proto()?),
+    })
+}
+
+pub(crate) fn decode_extension(
+    ext: proto::Extension,
+) -> Result<SignedExtension<MockContext>, ProtoError> {
+    let extension = Extension::from(ext.data);
+    let signature = ext
+        .signature
+        .ok_or_else(|| ProtoError::missing_field::<proto::Extension>("signature"))
+        .and_then(p2p::Signature::from_proto)?;
+
+    Ok(SignedExtension::new(extension, signature))
+}
+
+pub(crate) fn encode_certificate(
+    certificate: CommitCertificate<MockContext>,
+) -> Result<proto::sync::CommitCertificate, ProtoError> {
+    Ok(proto::sync::CommitCertificate {
+        fork_id: certificate.height.fork_id,
+        block_number: certificate.height.block_number,
+        round: certificate.round.as_u32().expect("round should not be nil"),
+        block_hash: Some(certificate.value_id.to_proto()?),
+        aggregated_signature: Some(encode_aggregate_signature(
+            certificate.aggregated_signature,
+        )?),
+    })
+}
+
 pub(crate) fn decode_certificate(
-    certificate: proto::CommitCertificate,
+    certificate: proto::sync::CommitCertificate,
 ) -> Result<CommitCertificate<MockContext>, ProtoError> {
     let value_id = if let Some(block_hash) = certificate.block_hash {
         BlockHash::from_proto(block_hash)?
     } else {
-        return Err(ProtoError::missing_field::<proto::CommitCertificate>(
+        return Err(ProtoError::missing_field::<proto::sync::CommitCertificate>(
             "block_hash",
         ));
     };
@@ -294,7 +313,7 @@ pub(crate) fn decode_certificate(
     let aggregated_signature = if let Some(agg_sig) = certificate.aggregated_signature {
         decode_aggregated_signature(agg_sig)?
     } else {
-        return Err(ProtoError::missing_field::<proto::CommitCertificate>(
+        return Err(ProtoError::missing_field::<proto::sync::CommitCertificate>(
             "aggregated_signature",
         ));
     };
@@ -309,19 +328,13 @@ pub(crate) fn decode_certificate(
     Ok(certificate)
 }
 
-pub(crate) fn decode_synced_block(
-    synced_block: proto::blocksync::SyncedBlock,
-) -> Result<blocksync::SyncedBlock<MockContext>, ProtoError> {
-    let certificate = if let Some(certificate) = synced_block.certificate {
-        certificate
-    } else {
-        return Err(ProtoError::missing_field::<proto::blocksync::SyncedBlock>(
-            "certificate",
-        ));
+pub(crate) fn encode_block(block: &Block) -> Result<Vec<u8>, ProtoError> {
+    let proto = proto::sync::Block {
+        fork_id: block.height.fork_id,
+        block_number: block.height.block_number,
+        transactions: Some(block.transactions.to_proto()?),
+        block_hash: Some(block.block_hash.to_proto()?),
     };
 
-    Ok(blocksync::SyncedBlock {
-        block_bytes: synced_block.block_bytes,
-        certificate: decode_certificate(certificate)?,
-    })
+    Ok(proto.encode_to_vec())
 }

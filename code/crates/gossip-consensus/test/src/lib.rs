@@ -161,7 +161,8 @@ impl<const N: usize> Test<N> {
             },
             idle_connection_timeout: Duration::from_secs(60),
             transport: malachite_gossip_consensus::TransportProtocol::Quic,
-            protocol: malachite_gossip_consensus::PubSubProtocol::default(),
+            gossipsub: malachite_gossip_consensus::GossipSubConfig::default(),
+            pubsub_protocol: malachite_gossip_consensus::PubSubProtocol::default(),
             rpc_max_size: 10 * 1024 * 1024,   // 10 MiB
             pubsub_max_size: 4 * 1024 * 1024, // 4 MiB
         })
