@@ -91,9 +91,6 @@ pub enum Input<Ctx: Context> {
 
     /// Got a response from consensus for our `GetVoteSet` request
     GotVoteSet(InboundRequestId, VoteSet<Ctx>),
-
-    /// A request timed out
-    VoteSetRequestTimedOut(PeerId, VoteSetRequest<Ctx>),
 }
 
 pub async fn handle<Ctx>(
@@ -109,11 +106,10 @@ where
         Input::Tick => on_tick(co, state, metrics).await,
         Input::Status(status) => on_status(co, state, metrics, status).await,
         Input::StartHeight(height) => on_start_height(co, state, metrics, height).await,
+        Input::UpdateHeight(height) => on_update_height(co, state, metrics, height).await,
         Input::BlockRequest(request_id, peer_id, request) => {
             on_block_request(co, state, metrics, request_id, peer_id, request).await
         }
-        Input::UpdateHeight(height) => on_update_height(co, state, metrics, height).await,
-
         Input::BlockResponse(request_id, peer_id, response) => {
             on_block_response(co, state, metrics, request_id, peer_id, response).await
         }
@@ -134,9 +130,6 @@ where
         }
         Input::GotVoteSet(request_id, local_vote_set) => {
             on_vote_set(co, state, metrics, request_id, local_vote_set).await
-        }
-        Input::VoteSetRequestTimedOut(peer_id, request) => {
-            on_vote_set_request_timed_out(co, state, metrics, peer_id, request).await
         }
     }
 }
