@@ -22,3 +22,7 @@ The specification of the consensus algorithm and its implementation is organized
 - ["The latest gossip on BFT consensus"][tendermint-arxiv],
   by _Ethan Buchman, Jae Kwon, and Zarko Milosevic_. 2018.
   ([PDF][tendermint-pdf])
+
+[tendermint-arxiv]: https://arxiv.org/abs/1807.04938
+[tendermint-pdf]: https://arxiv.org/pdf/1807.04938
+[quint-spec]: ../quint/README.md
