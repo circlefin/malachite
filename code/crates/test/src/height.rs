@@ -43,6 +43,10 @@ impl malachite_common::Height for Height {
         Self(self.0 + n)
     }
 
+    fn decrement_by(&self, n: u64) -> Option<Self> {
+        Some(self.0.saturating_sub(n)).filter(|&n| n > 0).map(Self)
+    }
+
     fn as_u64(&self) -> u64 {
         self.0
     }
