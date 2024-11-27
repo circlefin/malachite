@@ -53,7 +53,7 @@ module blocksyncClientTest {
       outputs' = outputs,
       unchangedBsync,
     })
-    // We don't react to new height immediatelly
+    // We don't react to new height immediately
     .expect(length(outputs) == 0)
     .expect(requestsBuffer.keys().forall(x => requestsBuffer.get(x).size() == 0))
     .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
@@ -155,7 +155,7 @@ module blocksyncClientTest {
       unchangedBsync,
     })
     .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
-    // We don't react to new height immediatelly
+    // We don't react to new height immediately
     .expect(length(outputs) == 0)
     .expect(requestsBuffer.keys().forall(x => requestsBuffer.get(x).size() == 0))
 
