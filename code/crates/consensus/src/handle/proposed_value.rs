@@ -28,12 +28,13 @@ where
     }
 
     if state.driver.height() < proposed_value.height {
-        if state.driver.height().increment() == proposed_value.height {
-            debug!("Received value for next height, queuing for later");
-            state
-                .input_queue
-                .push_back(Input::ProposedValue(proposed_value, origin));
-        }
+        debug!("Received value for higher height, queuing for later");
+
+        state.buffer_input(
+            proposed_value.height,
+            Input::ProposedValue(proposed_value, origin),
+        );
+
         return Ok(());
     }
 

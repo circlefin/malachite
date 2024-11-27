@@ -14,12 +14,12 @@ use malachite_actors::node::{Node, NodeRef};
 use malachite_blocksync as blocksync;
 use malachite_common::CommitCertificate;
 use malachite_config::{
-    BlockSyncConfig, Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig,
+    self as config, BlockSyncConfig, Config as NodeConfig, MempoolConfig, TestConfig,
     TransportProtocol,
 };
 use malachite_consensus::ValuePayload;
 use malachite_gossip_consensus::{
-    Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
+    Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair, PubSubProtocol,
 };
 use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
@@ -192,16 +192,18 @@ async fn spawn_gossip_consensus_actor(
             TransportProtocol::Tcp => malachite_gossip_consensus::TransportProtocol::Tcp,
             TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
         },
-        protocol: match cfg.consensus.p2p.protocol {
-            PubSubProtocol::GossipSub(config) => {
-                malachite_gossip_consensus::PubSubProtocol::GossipSub(GossipSubConfig {
-                    mesh_n: config.mesh_n(),
-                    mesh_n_high: config.mesh_n_high(),
-                    mesh_n_low: config.mesh_n_low(),
-                    mesh_outbound_min: config.mesh_outbound_min(),
-                })
-            }
-            PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
+        pubsub_protocol: match cfg.consensus.p2p.protocol {
+            config::PubSubProtocol::GossipSub(_) => PubSubProtocol::GossipSub,
+            config::PubSubProtocol::Broadcast => PubSubProtocol::Broadcast,
+        },
+        gossipsub: match cfg.consensus.p2p.protocol {
+            config::PubSubProtocol::GossipSub(config) => GossipSubConfig {
+                mesh_n: config.mesh_n(),
+                mesh_n_high: config.mesh_n_high(),
+                mesh_n_low: config.mesh_n_low(),
+                mesh_outbound_min: config.mesh_outbound_min(),
+            },
+            config::PubSubProtocol::Broadcast => GossipSubConfig::default(),
         },
         rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
