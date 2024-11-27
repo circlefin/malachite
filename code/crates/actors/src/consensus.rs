@@ -479,13 +479,19 @@ where
         state: &mut State<Ctx>,
         timeout: Timeout,
     ) -> Result<(), ActorProcessingErr> {
+        // Make sure the associated timer is cancelled
+        state.timers.cancel(&timeout);
+
+        // Increase the timeout for the next round
         state.timeouts.increase_timeout(timeout.step);
 
+        // Print debug information if the timeout is for a prevote or precommit
         if matches!(timeout.step, TimeoutStep::Prevote | TimeoutStep::Precommit) {
             warn!(step = ?timeout.step, "Timeout elapsed");
             state.consensus.print_state();
         }
 
+        // Process the timeout event
         self.process_input(myself, state, ConsensusInput::TimeoutElapsed(timeout))
             .await?;
 
