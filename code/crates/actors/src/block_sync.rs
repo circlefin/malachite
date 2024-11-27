@@ -11,10 +11,10 @@ use ractor::{Actor, ActorProcessingErr, ActorRef};
 use rand::SeedableRng;
 use tokio::task::JoinHandle;
 
-use malachite_blocksync::{self as blocksync, OutboundRequestId};
+use malachite_blocksync::{self as blocksync, OutboundRequestId, Response};
 use malachite_blocksync::{Request, SyncedBlock};
-use malachite_common::{CertificateError, CommitCertificate, Context};
-use tracing::{debug, error, warn};
+use malachite_common::{CertificateError, CommitCertificate, Context, Round};
+use tracing::{debug, error, info, warn};
 
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
 use crate::host::{HostMsg, HostRef};
@@ -69,6 +69,9 @@ pub enum Msg<Ctx: Context> {
 
     /// We received an invalid [`CommitCertificate`] from a peer
     InvalidCertificate(PeerId, CommitCertificate<Ctx>, CertificateError<Ctx>),
+
+    /// Consensus needs vote set from peers
+    GetVoteSet(Ctx::Height, Round),
 }
 
 impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
@@ -189,9 +192,10 @@ where
                     )))?;
             }
 
-            Effect::SendRequest(peer_id, request) => {
+            Effect::SendBlockRequest(peer_id, block_request) => {
+                let request = Request::BlockRequest(block_request);
                 let result = ractor::call!(self.gossip, |reply_to| {
-                    GossipConsensusMsg::OutgoingBlockSyncRequest(peer_id, request.clone(), reply_to)
+                    GossipConsensusMsg::OutgoingRequest(peer_id, request.clone(), reply_to)
                 });
 
                 match result {
@@ -214,11 +218,10 @@ where
                 }
             }
 
-            Effect::SendResponse(request_id, response) => {
+            Effect::SendBlockResponse(request_id, block_response) => {
+                let response = Response::BlockResponse(block_response);
                 self.gossip
-                    .cast(GossipConsensusMsg::OutgoingBlockSyncResponse(
-                        request_id, response,
-                    ))?;
+                    .cast(GossipConsensusMsg::OutgoingResponse(request_id, response))?;
             }
 
             Effect::GetBlock(request_id, height) => {
@@ -228,6 +231,38 @@ where
                     move |block| Msg::<Ctx>::GotDecidedBlock(height, request_id, block),
                     None,
                 )?;
+            }
+            Effect::SendVoteSetRequest(peer_id, vote_set_request) => {
+                debug!("VS5 - send the vote set request to peer");
+                let request = Request::VoteSetRequest(vote_set_request);
+
+                let result = ractor::call!(self.gossip, |reply_to| {
+                    GossipConsensusMsg::OutgoingRequest(peer_id, request.clone(), reply_to)
+                });
+                match result {
+                    Ok(request_id) => {
+                        timers
+                            .start_timer(Timeout::Request(request_id), self.params.request_timeout);
+
+                        inflight.insert(
+                            request_id,
+                            InflightRequest {
+                                peer_id,
+                                request_id,
+                                request,
+                            },
+                        );
+                    }
+                    Err(e) => {
+                        error!("Failed to send request to gossip layer: {e}");
+                    }
+                }
+            }
+
+            Effect::SendVoteSetResponse(request_id, vote_set_response) => {
+                let response = Response::VoteSetResponse(vote_set_response);
+                self.gossip
+                    .cast(GossipConsensusMsg::OutgoingResponse(request_id, response))?;
             }
         }
 
@@ -241,9 +276,23 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
+            Msg::GetVoteSet(height, round) => {
+                debug!(%height, %round, "VS3 - make a vote set request to one of the peers, keep track of it, timeout, retry, etc");
+                self.process_input(&myself, state, blocksync::Input::GetVoteSet(height, round))
+                    .await?;
+            }
+
             Msg::Tick => {
                 self.process_input(&myself, state, blocksync::Input::Tick)
                     .await?;
+            }
+
+            Msg::GossipEvent(GossipEvent::PeerDisconnected(peer_id)) => {
+                info!(%peer_id, "Disconnected from peer");
+
+                if state.blocksync.peers.remove(&peer_id).is_some() {
+                    debug!(%peer_id, "Removed disconnected peer");
+                }
             }
 
             Msg::GossipEvent(GossipEvent::Status(peer_id, status)) => {
@@ -257,25 +306,39 @@ where
                     .await?;
             }
 
-            Msg::GossipEvent(GossipEvent::BlockSyncRequest(request_id, from, request)) => {
-                self.process_input(
-                    &myself,
-                    state,
-                    blocksync::Input::Request(request_id, from, request),
-                )
-                .await?;
+            Msg::GossipEvent(GossipEvent::Request(request_id, from, request)) => {
+                if let Request::BlockRequest(block_request) = request {
+                    self.process_input(
+                        &myself,
+                        state,
+                        blocksync::Input::BlockRequest(request_id, from, block_request),
+                    )
+                    .await?;
+                }
             }
 
-            Msg::GossipEvent(GossipEvent::BlockSyncResponse(request_id, peer, response)) => {
-                // Cancel the timer associated with the request for which we just received a response
+            Msg::GossipEvent(GossipEvent::Response(request_id, peer, response)) => {
+                // Cancel the timer associated with the request for which we just received a respons
                 state.timers.cancel(&Timeout::Request(request_id));
 
-                self.process_input(
-                    &myself,
-                    state,
-                    blocksync::Input::Response(request_id, peer, response),
-                )
-                .await?;
+                match response {
+                    Response::BlockResponse(block_response) => {
+                        self.process_input(
+                            &myself,
+                            state,
+                            blocksync::Input::BlockResponse(request_id, peer, block_response),
+                        )
+                        .await?;
+                    }
+                    Response::VoteSetResponse(vote_set_response) => {
+                        self.process_input(
+                            &myself,
+                            state,
+                            blocksync::Input::VoteSetResponse(request_id, peer, vote_set_response),
+                        )
+                        .await?;
+                    }
+                }
             }
 
             Msg::GossipEvent(_) => {
@@ -324,7 +387,7 @@ where
                             self.process_input(
                                 &myself,
                                 state,
-                                blocksync::Input::RequestTimedOut(
+                                blocksync::Input::SyncRequestTimedOut(
                                     inflight.peer_id,
                                     inflight.request,
                                 ),

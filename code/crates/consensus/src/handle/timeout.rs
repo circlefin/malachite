@@ -1,5 +1,6 @@
 use crate::handle::decide::decide;
 use crate::handle::driver::apply_driver_input;
+use crate::handle::step_timeout::on_step_limit_timeout;
 use crate::prelude::*;
 
 pub async fn on_timeout_elapsed<Ctx>(
@@ -34,13 +35,19 @@ where
 
     apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
 
-    if timeout.step == TimeoutStep::Commit {
-        let proposal = state
-            .decision
-            .remove(&(height, round))
-            .ok_or_else(|| Error::DecidedValueNotFound(height, round))?;
+    match timeout.step {
+        TimeoutStep::PrevoteTimeLimit | TimeoutStep::PrecommitTimeLimit => {
+            on_step_limit_timeout(co, state, metrics, timeout.round).await?;
+        }
+        TimeoutStep::Commit => {
+            let proposal = state
+                .decision
+                .remove(&(height, round))
+                .ok_or_else(|| Error::DecidedValueNotFound(height, round))?;
 
-        decide(co, state, metrics, round, proposal).await?;
+            decide(co, state, metrics, round, proposal).await?;
+        }
+        _ => {}
     }
 
     Ok(())

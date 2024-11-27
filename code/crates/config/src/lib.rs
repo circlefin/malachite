@@ -356,6 +356,11 @@ pub struct TimeoutConfig {
     /// though we already have +2/3).
     #[serde(with = "humantime_serde")]
     pub timeout_commit: Duration,
+
+    /// How long we stay in preovte or precommit steps before starting
+    /// the vote synchronization protocol.
+    #[serde(with = "humantime_serde")]
+    pub timeout_step: Duration,
 }
 
 impl TimeoutConfig {
@@ -365,6 +370,8 @@ impl TimeoutConfig {
             TimeoutStep::Prevote => self.timeout_prevote,
             TimeoutStep::Precommit => self.timeout_precommit,
             TimeoutStep::Commit => self.timeout_commit,
+            TimeoutStep::PrevoteTimeLimit => self.timeout_step,
+            TimeoutStep::PrecommitTimeLimit => self.timeout_step,
         }
     }
 
@@ -374,6 +381,8 @@ impl TimeoutConfig {
             TimeoutStep::Prevote => Some(self.timeout_prevote_delta),
             TimeoutStep::Precommit => Some(self.timeout_precommit_delta),
             TimeoutStep::Commit => None,
+            TimeoutStep::PrevoteTimeLimit => None,
+            TimeoutStep::PrecommitTimeLimit => None,
         }
     }
 }
@@ -388,6 +397,7 @@ impl Default for TimeoutConfig {
             timeout_precommit: Duration::from_secs(1),
             timeout_precommit_delta: Duration::from_millis(500),
             timeout_commit: Duration::from_secs(0),
+            timeout_step: Duration::from_secs(30),
         }
     }
 }

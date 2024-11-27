@@ -3,6 +3,7 @@ use core::fmt;
 use crate::Round;
 
 /// The round step for which the timeout is for.
+/// TODO - change to TimeoutType?
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TimeoutStep {
     /// Timeout for the propose step.
@@ -11,8 +12,14 @@ pub enum TimeoutStep {
     /// Timeout for the prevote step.
     Prevote,
 
+    /// Timeout for detecting consensus being in the prevote step for too long.
+    PrevoteTimeLimit,
+
     /// Timeout for the precommit step.
     Precommit,
+
+    /// Timeout for detecting consensus being in the precommit step for too long.
+    PrecommitTimeLimit,
 
     /// Timeout for the commit step.
     Commit,
@@ -25,6 +32,7 @@ pub struct Timeout {
     pub round: Round,
 
     /// The round step for which the timeout is for.
+    /// TODO - change to identifier or name?
     pub step: TimeoutStep,
 }
 
@@ -44,9 +52,18 @@ impl Timeout {
         Self::new(round, TimeoutStep::Prevote)
     }
 
+    /// Create a new timeout for the prevote step of the given round.
+    pub const fn prevote_time_limit(round: Round) -> Self {
+        Self::new(round, TimeoutStep::PrevoteTimeLimit)
+    }
+
     /// Create a new timeout for the precommit step of the given round.
     pub const fn precommit(round: Round) -> Self {
         Self::new(round, TimeoutStep::Precommit)
+    }
+    /// Create a new timeout for the precommit step of the given round.
+    pub const fn precommit_time_limit(round: Round) -> Self {
+        Self::new(round, TimeoutStep::PrecommitTimeLimit)
     }
 
     /// Create a new timeout for the commit step of the given round.

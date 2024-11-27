@@ -44,6 +44,12 @@ where
         self.peers.insert(status.peer_id, status);
     }
 
+    /// Select at random a peer
+    pub fn random_peer_for_votes(&mut self) -> Option<PeerId> {
+        // TODO - maybe get a few peers
+        self.peers.keys().choose_stable(&mut self.rng).cloned()
+    }
+
     /// Select at random a peer that that we know is at or above the given height.
     pub fn random_peer_with_block(&mut self, height: Ctx::Height) -> Option<PeerId> {
         self.peers

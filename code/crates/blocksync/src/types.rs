@@ -3,7 +3,7 @@ use derive_where::derive_where;
 use displaydoc::Display;
 use serde::{Deserialize, Serialize};
 
-use malachite_common::{CommitCertificate, Context};
+use malachite_common::{CommitCertificate, Context, Round, VoteSet};
 
 pub use libp2p::identity::PeerId;
 pub use libp2p::request_response::{InboundRequestId, OutboundRequestId};
@@ -20,23 +20,35 @@ pub struct Status<Ctx: Context> {
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct Request<Ctx: Context> {
+pub enum Request<Ctx: Context> {
+    BlockRequest(BlockRequest<Ctx>),
+    VoteSetRequest(VoteSetRequest<Ctx>),
+}
+
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub enum Response<Ctx: Context> {
+    BlockResponse(BlockResponse<Ctx>),
+    VoteSetResponse(VoteSetResponse<Ctx>),
+}
+
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct BlockRequest<Ctx: Context> {
     pub height: Ctx::Height,
 }
 
-impl<Ctx: Context> Request<Ctx> {
+impl<Ctx: Context> BlockRequest<Ctx> {
     pub fn new(height: Ctx::Height) -> Self {
         Self { height }
     }
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct Response<Ctx: Context> {
+pub struct BlockResponse<Ctx: Context> {
     pub height: Ctx::Height,
     pub block: Option<SyncedBlock<Ctx>>,
 }
 
-impl<Ctx: Context> Response<Ctx> {
+impl<Ctx: Context> BlockResponse<Ctx> {
     pub fn new(height: Ctx::Height, block: Option<SyncedBlock<Ctx>>) -> Self {
         Self { height, block }
     }
@@ -67,3 +79,26 @@ pub struct RawRequest(pub Bytes);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawResponse(pub Bytes);
+
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct VoteSetRequest<Ctx: Context> {
+    pub height: Ctx::Height,
+    pub round: Round,
+}
+
+impl<Ctx: Context> VoteSetRequest<Ctx> {
+    pub fn new(height: Ctx::Height, round: Round) -> Self {
+        Self { height, round }
+    }
+}
+
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct VoteSetResponse<Ctx: Context> {
+    pub vote_set: VoteSet<Ctx>,
+}
+
+impl<Ctx: Context> VoteSetResponse<Ctx> {
+    pub fn new(vote_set: VoteSet<Ctx>) -> Self {
+        Self { vote_set }
+    }
+}

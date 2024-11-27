@@ -8,7 +8,7 @@ use malachite_common::{
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
-use malachite_round::state::Step::Propose;
+use malachite_round::state::Step::*;
 use malachite_round::state::{RoundValue, State as RoundState, Step};
 use malachite_round::state_machine::Info;
 use malachite_vote::keeper::VoteKeeper;
@@ -130,6 +130,21 @@ where
     /// Returns true if the current step is propose.
     pub fn step_is_propose(&self) -> bool {
         self.round_state.step == Propose
+    }
+
+    /// Returns true if the current step is propose.
+    pub fn step_is_prevote(&self) -> bool {
+        self.round_state.step == Prevote
+    }
+
+    /// Returns true if the current step is propose.
+    pub fn step_is_precommit(&self) -> bool {
+        self.round_state.step == Precommit
+    }
+
+    /// Returns true if the current step is propose.
+    pub fn step_is_commit(&self) -> bool {
+        self.round_state.step == Commit
     }
 
     /// Return the valid value (the value for which we saw a polka) for the current round, if any.
@@ -352,8 +367,10 @@ where
             TimeoutStep::Prevote => RoundInput::TimeoutPrevote,
             TimeoutStep::Precommit => RoundInput::TimeoutPrecommit,
 
-            // The driver never receives a commit timeout, so we can just ignore it.
+            // The driver never receives a commit or time limit timeout, so we can just ignore it.
             TimeoutStep::Commit => return Ok(None),
+            TimeoutStep::PrevoteTimeLimit => return Ok(None),
+            TimeoutStep::PrecommitTimeLimit => return Ok(None),
         };
 
         self.apply_input(timeout.round, input)

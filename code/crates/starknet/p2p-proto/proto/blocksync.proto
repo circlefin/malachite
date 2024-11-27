@@ -14,12 +14,12 @@ message Status {
   uint64 earliest_fork_id = 5;
 }
 
-message Request {
+message BlockRequest {
   uint64 block_number = 1;
   uint64 fork_id = 2;
 }
 
-message Response {
+message BlockResponse {
   uint64 block_number = 1;
   uint64 fork_id = 2;
   SyncedBlock block = 3;
@@ -35,4 +35,32 @@ message Block {
   uint64 block_number = 2;
   Transactions transactions = 3;
   Hash block_hash = 4;
+}
+
+message VoteSetRequest {
+  uint64 fork_id = 1;
+  uint64 block_number = 2;
+  uint32 round = 3;
+}
+
+message VoteSetResponse {
+  VoteSet vote_set = 1;
+}
+
+message VoteSet {
+  repeated ConsensusMessage signed_votes = 1;
+}
+
+message SyncRequest {
+  oneof messages {
+    BlockRequest block_request = 1;
+    VoteSetRequest vote_set_request = 2;
+  }
+}
+
+message SyncResponse {
+  oneof messages {
+    BlockResponse block_response = 1;
+    VoteSetResponse vote_set_response = 2;
+  }
 }

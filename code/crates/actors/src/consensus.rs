@@ -9,7 +9,9 @@ use tokio::sync::broadcast;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
-use malachite_blocksync as blocksync;
+use malachite_blocksync::{
+    self as blocksync, BlockResponse, Response, VoteSetRequest, VoteSetResponse,
+};
 use malachite_common::{
     CommitCertificate, Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet,
     ValueOrigin,
@@ -98,6 +100,8 @@ impl Timeouts {
             TimeoutStep::Prevote => self.config.timeout_prevote,
             TimeoutStep::Precommit => self.config.timeout_precommit,
             TimeoutStep::Commit => self.config.timeout_commit,
+            TimeoutStep::PrevoteTimeLimit => self.config.timeout_step,
+            TimeoutStep::PrecommitTimeLimit => self.config.timeout_step,
         }
     }
 
@@ -108,6 +112,8 @@ impl Timeouts {
             TimeoutStep::Prevote => c.timeout_prevote += c.timeout_prevote_delta,
             TimeoutStep::Precommit => c.timeout_precommit += c.timeout_precommit_delta,
             TimeoutStep::Commit => (),
+            TimeoutStep::PrevoteTimeLimit => (),
+            TimeoutStep::PrecommitTimeLimit => (),
         };
     }
 }
@@ -291,10 +297,10 @@ where
                         }
                     }
 
-                    GossipEvent::BlockSyncResponse(
+                    GossipEvent::Response(
                         request_id,
                         peer,
-                        blocksync::Response { height, block },
+                        blocksync::Response::BlockResponse(BlockResponse { height, block }),
                     ) => {
                         debug!(%height, %request_id, "Received BlockSync response");
 
@@ -342,6 +348,49 @@ where
                                         )
                                     })?;
                             }
+                        }
+                    }
+
+                    GossipEvent::Request(
+                        request_id,
+                        peer,
+                        blocksync::Request::VoteSetRequest(VoteSetRequest { height, round }),
+                    ) => {
+                        debug!(%height, %round, %request_id, "VS7 - Received VoteSetRequest request");
+
+                        if let Err(e) = self
+                            .process_input(
+                                &myself,
+                                state,
+                                ConsensusInput::VoteSetRequest(request_id, height, round),
+                            )
+                            .await
+                        {
+                            error!(%peer, %height, %round, "Error when processing vote set request: {e:?}");
+                        }
+                    }
+
+                    GossipEvent::Response(
+                        request_id,
+                        _peer,
+                        blocksync::Response::VoteSetResponse(VoteSetResponse { vote_set }),
+                    ) => {
+                        debug!(%request_id, "VS10 Received VoteSet response");
+
+                        if vote_set.vote_set.is_empty() {
+                            error!(%request_id, "VS11 Received empty vote set response");
+                            return Ok(());
+                        };
+
+                        if let Err(e) = self
+                            .process_input(
+                                &myself,
+                                state,
+                                ConsensusInput::VoteSetResponse(vote_set),
+                            )
+                            .await
+                        {
+                            error!(%request_id, "Error when processing received vote set: {e:?}");
                         }
                     }
 
@@ -404,7 +453,13 @@ where
 
                 state.timeouts.increase_timeout(timeout.step);
 
-                if matches!(timeout.step, TimeoutStep::Prevote | TimeoutStep::Precommit) {
+                if matches!(
+                    timeout.step,
+                    TimeoutStep::Prevote
+                        | TimeoutStep::Precommit
+                        | TimeoutStep::PrevoteTimeLimit
+                        | TimeoutStep::PrecommitTimeLimit
+                ) {
                     warn!(step = ?timeout.step, "Timeout elapsed");
 
                     state.consensus.print_state();
@@ -617,6 +672,28 @@ where
                             eyre!("Error when sending decided height to blocksync: {e:?}")
                         })?;
                 }
+
+                Ok(Resume::Continue)
+            }
+
+            Effect::GetVoteSet(height, round) => {
+                debug!("VS2 - Ask blocksync to send a vote set request");
+                if let Some(block_sync) = &self.block_sync {
+                    block_sync
+                        .cast(BlockSyncMsg::GetVoteSet(height, round))
+                        .map_err(|e| {
+                            eyre!("Error when sending vote set request to blocksync: {e:?}")
+                        })?;
+                }
+
+                Ok(Resume::Continue)
+            }
+
+            Effect::SendVoteSetResponse(request_id, vote_set) => {
+                debug!("VS9 - consensus sends vote set response to gossip");
+                let response = Response::VoteSetResponse(VoteSetResponse::new(vote_set));
+                self.gossip_consensus
+                    .cast(GossipConsensusMsg::OutgoingResponse(request_id, response))?;
 
                 Ok(Resume::Continue)
             }

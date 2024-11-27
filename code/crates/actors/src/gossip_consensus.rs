@@ -9,8 +9,7 @@ use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
 
-use malachite_blocksync::{self as blocksync, Response};
-use malachite_blocksync::{RawMessage, Request};
+use malachite_blocksync::{self as blocksync, RawMessage, Request, Response};
 use malachite_common::{Context, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
@@ -94,8 +93,8 @@ pub enum GossipEvent<Ctx: Context> {
 
     Status(PeerId, Status<Ctx>),
 
-    BlockSyncRequest(InboundRequestId, PeerId, Request<Ctx>),
-    BlockSyncResponse(OutboundRequestId, PeerId, Response<Ctx>),
+    Request(InboundRequestId, PeerId, Request<Ctx>),
+    Response(OutboundRequestId, PeerId, Response<Ctx>),
 }
 
 pub enum State<Ctx: Context> {
@@ -138,10 +137,10 @@ pub enum Msg<Ctx: Context> {
     PublishStatus(Status<Ctx>),
 
     /// Send a request to a peer, returning the outbound request ID
-    OutgoingBlockSyncRequest(PeerId, Request<Ctx>, RpcReplyPort<OutboundRequestId>),
+    OutgoingRequest(PeerId, Request<Ctx>, RpcReplyPort<OutboundRequestId>),
 
-    /// Send a response for a blocks request to a peer
-    OutgoingBlockSyncResponse(InboundRequestId, Response<Ctx>),
+    /// Send a response for a request to a peer
+    OutgoingResponse(InboundRequestId, Response<Ctx>),
 
     /// Request for number of peers from gossip
     GetState { reply: RpcReplyPort<usize> },
@@ -255,7 +254,7 @@ where
                 }
             }
 
-            Msg::OutgoingBlockSyncRequest(peer_id, request, reply_to) => {
+            Msg::OutgoingRequest(peer_id, request, reply_to) => {
                 let request = self.codec.encode(request);
                 match request {
                     Ok(data) => {
@@ -266,16 +265,15 @@ where
                 }
             }
 
-            Msg::OutgoingBlockSyncResponse(request_id, response) => {
-                let msg = match self.codec.encode(response) {
-                    Ok(msg) => msg,
+            Msg::OutgoingResponse(request_id, response) => {
+                let response = self.codec.encode(response);
+                match response {
+                    Ok(data) => ctrl_handle.blocksync_reply(request_id, data).await?,
                     Err(e) => {
-                        error!(%request_id, "Failed to encode block response message: {e:?}");
+                        error!(%request_id, "Failed to encode response message: {e:?}");
                         return Ok(());
                     }
                 };
-
-                ctrl_handle.blocksync_reply(request_id, msg).await?
             }
 
             Msg::NewEvent(Event::Listening(addr)) => {
@@ -353,7 +351,7 @@ where
                 );
             }
 
-            Msg::NewEvent(Event::BlockSync(raw_msg)) => match raw_msg {
+            Msg::NewEvent(Event::Sync(raw_msg)) => match raw_msg {
                 RawMessage::Request {
                     request_id,
                     peer,
@@ -362,15 +360,12 @@ where
                     let request: blocksync::Request<Ctx> = match self.codec.decode(body) {
                         Ok(request) => request,
                         Err(e) => {
-                            error!(%peer, "Failed to decode BlockSync request: {e:?}");
+                            error!(%peer, "Failed to decode sync request: {e:?}");
                             return Ok(());
                         }
                     };
 
-                    self.publish(
-                        GossipEvent::BlockSyncRequest(request_id, peer, request),
-                        subscribers,
-                    );
+                    self.publish(GossipEvent::Request(request_id, peer, request), subscribers);
                 }
 
                 RawMessage::Response {
@@ -381,13 +376,13 @@ where
                     let response: blocksync::Response<Ctx> = match self.codec.decode(body) {
                         Ok(response) => response,
                         Err(e) => {
-                            error!(%peer, "Failed to decode BlockSync response: {e:?}");
+                            error!(%peer, "Failed to decode sync response: {e:?}");
                             return Ok(());
                         }
                     };
 
                     self.publish(
-                        GossipEvent::BlockSyncResponse(request_id, peer, response),
+                        GossipEvent::Response(request_id, peer, response),
                         subscribers,
                     );
                 }

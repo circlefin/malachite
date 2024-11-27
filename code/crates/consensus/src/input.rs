@@ -1,7 +1,8 @@
 use derive_where::derive_where;
+use libp2p::request_response::InboundRequestId;
 
 use malachite_common::{
-    CommitCertificate, Context, SignedProposal, SignedVote, Timeout, ValueOrigin,
+    CommitCertificate, Context, Round, SignedProposal, SignedVote, Timeout, ValueOrigin, VoteSet,
 };
 
 use crate::types::ProposedValue;
@@ -34,4 +35,10 @@ where
 
     /// Received a commit certificate from BlockSync
     CommitCertificate(CommitCertificate<Ctx>),
+
+    /// Peer needs vote set
+    VoteSetRequest(InboundRequestId, Ctx::Height, Round),
+
+    /// Vote set to be sent to peer
+    VoteSetResponse(VoteSet<Ctx>),
 }

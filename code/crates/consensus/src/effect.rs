@@ -1,5 +1,6 @@
 use derive_where::derive_where;
 
+use libp2p::request_response::InboundRequestId;
 use malachite_common::*;
 
 use crate::types::SignedConsensusMsg;
@@ -61,6 +62,14 @@ where
     /// Consensus has decided on a value
     /// Resume with: [`Resume::Continue`]
     Decide { certificate: CommitCertificate<Ctx> },
+
+    /// Consensus has been stuck in Prevote or Precommit step,
+    /// ask for vote sets from peers
+    /// Resume with: [`Resume::Continue`]
+    GetVoteSet(Ctx::Height, Round),
+
+    /// A peer has required our vote set, send the response
+    SendVoteSetResponse(InboundRequestId, VoteSet<Ctx>),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].

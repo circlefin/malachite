@@ -46,7 +46,7 @@ impl CtrlHandle {
         let (tx, rx) = oneshot::channel();
 
         self.tx_ctrl
-            .send(CtrlMsg::BlockSyncRequest(peer_id, data, tx))
+            .send(CtrlMsg::SyncRequest(peer_id, data, tx))
             .await?;
 
         Ok(rx.await?)
@@ -58,7 +58,7 @@ impl CtrlHandle {
         data: Bytes,
     ) -> Result<(), eyre::Report> {
         self.tx_ctrl
-            .send(CtrlMsg::BlockSyncReply(request_id, data))
+            .send(CtrlMsg::SyncReply(request_id, data))
             .await?;
         Ok(())
     }

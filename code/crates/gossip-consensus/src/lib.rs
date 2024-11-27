@@ -123,17 +123,20 @@ pub enum TransportProtocol {
 
 /// Blocksync event details:
 ///
-/// peer1: blocksync              peer2: gossip_consensus        peer2: blocksync                peer1: gossip_consensus
-/// CtrlMsg::BlockSyncRequest --> Event::BlockSync  -----------> CtrlMsg::BlockSyncReply ------> Event::BlockSync
-/// (peer_id, height)             (RawMessage::Request           (request_id, height)            RawMessage::Response
-///                             {request_id, peer_id, height}                                    {request_id, block}
+/// peer1: blocksync               peer2: gossip_consensus       peer2: blocksync           peer1: gossip_consensus
+///                                                                or consensus
+/// CtrlMsg::SyncRequest       --> Event::Sync      -----------> CtrlMsg::SyncReply ------> Event::Sync
+/// (peer_id, height)             (RawMessage::Request           (request_id, height)       RawMessage::Response
+///                           {request_id, peer_id, request}                                {request_id, response}
+///
+/// - request can be for a block or vote set
 ///
 /// An event that can be emitted by the gossip layer
 #[derive(Clone, Debug)]
 pub enum Event {
     Listening(Multiaddr),
     Message(Channel, PeerId, Bytes),
-    BlockSync(blocksync::RawMessage),
+    Sync(blocksync::RawMessage),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
 }
@@ -141,8 +144,8 @@ pub enum Event {
 #[derive(Debug)]
 pub enum CtrlMsg {
     Publish(Channel, Bytes),
-    BlockSyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
-    BlockSyncReply(InboundRequestId, Bytes),
+    SyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
+    SyncReply(InboundRequestId, Bytes),
     Shutdown,
 }
 
@@ -279,7 +282,7 @@ async fn handle_ctrl_msg(
             ControlFlow::Continue(())
         }
 
-        CtrlMsg::BlockSyncRequest(peer_id, request, reply_to) => {
+        CtrlMsg::SyncRequest(peer_id, request, reply_to) => {
             let request_id = swarm
                 .behaviour_mut()
                 .blocksync
@@ -292,7 +295,7 @@ async fn handle_ctrl_msg(
             ControlFlow::Continue(())
         }
 
-        CtrlMsg::BlockSyncReply(request_id, data) => {
+        CtrlMsg::SyncReply(request_id, data) => {
             let Some(channel) = state.blocksync_channels.remove(&request_id) else {
                 error!(%request_id, "Received BlockSync reply for unknown request ID");
                 return ControlFlow::Continue(());
@@ -587,7 +590,7 @@ async fn handle_blocksync_event(
                     state.blocksync_channels.insert(request_id, channel);
 
                     let _ = tx_event
-                        .send(Event::BlockSync(blocksync::RawMessage::Request {
+                        .send(Event::Sync(blocksync::RawMessage::Request {
                             request_id,
                             peer,
                             body: request.0,
@@ -603,7 +606,7 @@ async fn handle_blocksync_event(
                     response,
                 } => {
                     let _ = tx_event
-                        .send(Event::BlockSync(blocksync::RawMessage::Response {
+                        .send(Event::Sync(blocksync::RawMessage::Response {
                             request_id,
                             peer,
                             body: response.0,

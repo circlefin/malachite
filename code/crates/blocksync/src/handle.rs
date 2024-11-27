@@ -5,11 +5,13 @@ use libp2p::request_response::OutboundRequestId;
 use thiserror::Error;
 use tracing::{debug, error, info, trace, warn};
 
-use malachite_common::{CertificateError, CommitCertificate, Context, Height};
+use malachite_common::{CertificateError, CommitCertificate, Context, Height, Round, VoteSet};
 
 use crate::co::Co;
-use crate::perform;
-use crate::{InboundRequestId, Metrics, PeerId, Request, Response, State, Status, SyncedBlock};
+use crate::{perform, Request, VoteSetRequest, VoteSetResponse};
+use crate::{
+    BlockRequest, BlockResponse, InboundRequestId, Metrics, PeerId, State, Status, SyncedBlock,
+};
 
 #[derive_where(Debug)]
 #[derive(Error)]
@@ -37,13 +39,19 @@ pub enum Effect<Ctx: Context> {
     PublishStatus(Ctx::Height),
 
     /// Send a BlockSync request to a peer
-    SendRequest(PeerId, Request<Ctx>),
+    SendBlockRequest(PeerId, BlockRequest<Ctx>),
 
     /// Send a response to a BlockSync request
-    SendResponse(InboundRequestId, Response<Ctx>),
+    SendBlockResponse(InboundRequestId, BlockResponse<Ctx>),
 
     /// Retrieve a block from the application
     GetBlock(InboundRequestId, Ctx::Height),
+
+    /// Send a VoteSet request to a peer
+    SendVoteSetRequest(PeerId, VoteSetRequest<Ctx>),
+
+    /// Send a response to a VoteSet request
+    SendVoteSetResponse(InboundRequestId, VoteSetResponse<Ctx>),
 }
 
 #[derive_where(Debug)]
@@ -61,19 +69,31 @@ pub enum Input<Ctx: Context> {
     Decided(Ctx::Height),
 
     /// A BlockSync request has been received from a peer
-    Request(InboundRequestId, PeerId, Request<Ctx>),
+    BlockRequest(InboundRequestId, PeerId, BlockRequest<Ctx>),
 
     /// A BlockSync response has been received
-    Response(OutboundRequestId, PeerId, Response<Ctx>),
+    BlockResponse(OutboundRequestId, PeerId, BlockResponse<Ctx>),
 
     /// Got a response from the application to our `GetBlock` request
     GotBlock(InboundRequestId, Ctx::Height, Option<SyncedBlock<Ctx>>),
 
-    /// A request timed out
-    RequestTimedOut(PeerId, Request<Ctx>),
+    /// A request for a block timed out
+    SyncRequestTimedOut(PeerId, Request<Ctx>),
 
     /// We received an invalid [`CommitCertificate`]
     InvalidCertificate(PeerId, CommitCertificate<Ctx>, CertificateError<Ctx>),
+
+    /// Get the vote set for the height at or above round
+    GetVoteSet(Ctx::Height, Round),
+
+    /// A VoteSet response has been received
+    VoteSetResponse(OutboundRequestId, PeerId, VoteSetResponse<Ctx>),
+
+    /// Got a response from consensus for our `GetVoteSet` request
+    GotVoteSet(InboundRequestId, VoteSet<Ctx>),
+
+    /// A request timed out
+    VoteSetRequestTimedOut(PeerId, VoteSetRequest<Ctx>),
 }
 
 pub async fn handle<Ctx>(
@@ -90,20 +110,32 @@ where
         Input::Status(status) => on_status(co, state, metrics, status).await,
         Input::StartHeight(height) => on_start_height(co, state, metrics, height).await,
         Input::Decided(height) => on_decided(co, state, metrics, height).await,
-        Input::Request(request_id, peer_id, request) => {
-            on_request(co, state, metrics, request_id, peer_id, request).await
+        Input::BlockRequest(request_id, peer_id, request) => {
+            on_block_request(co, state, metrics, request_id, peer_id, request).await
         }
-        Input::Response(request_id, peer_id, response) => {
-            on_response(co, state, metrics, request_id, peer_id, response).await
+        Input::BlockResponse(request_id, peer_id, response) => {
+            on_block_response(co, state, metrics, request_id, peer_id, response).await
         }
         Input::GotBlock(request_id, height, block) => {
             on_block(co, state, metrics, request_id, height, block).await
         }
-        Input::RequestTimedOut(peer_id, request) => {
-            on_request_timed_out(co, state, metrics, peer_id, request).await
+        Input::SyncRequestTimedOut(peer_id, request) => {
+            on_sync_request_timed_out(co, state, metrics, peer_id, request).await
         }
         Input::InvalidCertificate(peer, certificate, error) => {
             on_invalid_certificate(co, state, metrics, peer, certificate, error).await
+        }
+        Input::GetVoteSet(height, round) => {
+            on_get_vote_set(co, state, metrics, height, round).await
+        }
+        Input::VoteSetResponse(request_id, peer_id, response) => {
+            on_vote_set_response(co, state, metrics, request_id, peer_id, response).await
+        }
+        Input::GotVoteSet(request_id, local_vote_set) => {
+            on_vote_set(co, state, metrics, request_id, local_vote_set).await
+        }
+        Input::VoteSetRequestTimedOut(peer_id, request) => {
+            on_vote_set_request_timed_out(co, state, metrics, peer_id, request).await
         }
     }
 }
@@ -156,20 +188,20 @@ where
 
         // We are lagging behind one of our peer at least,
         // request sync from any peer already at or above that peer's height.
-        request_sync(co, state, metrics).await?;
+        request_block(co, state, metrics).await?;
     }
 
     Ok(())
 }
 
 #[tracing::instrument(skip_all)]
-pub async fn on_request<Ctx>(
+pub async fn on_block_request<Ctx>(
     co: Co<Ctx>,
     _state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: InboundRequestId,
     peer: PeerId,
-    request: Request<Ctx>,
+    request: BlockRequest<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -184,13 +216,13 @@ where
 }
 
 #[tracing::instrument(skip_all)]
-pub async fn on_response<Ctx>(
+pub async fn on_block_response<Ctx>(
     _co: Co<Ctx>,
     _state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: OutboundRequestId,
     peer: PeerId,
-    response: Response<Ctx>,
+    response: BlockResponse<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
@@ -217,7 +249,7 @@ where
 
     // Check if there is any peer already at or above the height we just started,
     // and request sync from that peer in order to catch up.
-    request_sync(co, state, metrics).await?;
+    request_block(co, state, metrics).await?;
 
     Ok(())
 }
@@ -270,7 +302,7 @@ where
 
     perform!(
         co,
-        Effect::SendResponse(request_id, Response::new(height, response))
+        Effect::SendBlockResponse(request_id, BlockResponse::new(height, response))
     );
 
     metrics.response_sent(height.as_u64());
@@ -278,7 +310,7 @@ where
     Ok(())
 }
 
-pub async fn on_request_timed_out<Ctx>(
+pub async fn on_sync_request_timed_out<Ctx>(
     _co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -288,11 +320,15 @@ pub async fn on_request_timed_out<Ctx>(
 where
     Ctx: Context,
 {
-    warn!(%peer_id, %request.height, "Request timed out");
+    let height = match request {
+        Request::BlockRequest(block_request) => block_request.height,
+        Request::VoteSetRequest(vote_set_request) => vote_set_request.height,
+    };
+    warn!(%peer_id, %height, "Request timed out");
 
-    metrics.request_timed_out(request.height.as_u64());
+    metrics.request_timed_out(height.as_u64());
 
-    state.remove_pending_request(request.height);
+    state.remove_pending_request(height);
 
     Ok(())
 }
@@ -300,7 +336,7 @@ where
 /// If there are no pending requests for the sync height,
 /// and there is peer at a higher height than our sync height,
 /// then sync from that peer.
-async fn request_sync<Ctx>(
+async fn request_block<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -316,13 +352,13 @@ where
     }
 
     if let Some(peer) = state.random_peer_with_block(sync_height) {
-        request_sync_from_peer(co, state, metrics, sync_height, peer).await?;
+        request_block_from_peer(co, state, metrics, sync_height, peer).await?;
     }
 
     Ok(())
 }
 
-async fn request_sync_from_peer<Ctx>(
+async fn request_block_from_peer<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -334,7 +370,10 @@ where
 {
     debug!(sync.height = %height, %peer, "Requesting block from peer");
 
-    perform!(co, Effect::SendRequest(peer, Request::new(height)));
+    perform!(
+        co,
+        Effect::SendBlockRequest(peer, BlockRequest::new(height))
+    );
 
     metrics.request_sent(height.as_u64());
     state.store_pending_request(height, peer);
@@ -364,5 +403,112 @@ where
         return Ok(());
     };
 
-    request_sync_from_peer(co, state, metrics, certificate.height, peer).await
+    request_block_from_peer(co, state, metrics, certificate.height, peer).await
+}
+
+pub async fn on_get_vote_set<Ctx>(
+    co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    height: Ctx::Height,
+    round: Round,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    if state.has_pending_request(&height) {
+        debug!(vote_set.height = %height, "Already have a pending vote set request for this height");
+        return Ok(());
+    }
+
+    debug!(
+        "VS4 - send vote set request to peer, number of peers {}",
+        state.peers.len()
+    );
+
+    if let Some(peer) = state.random_peer_for_votes() {
+        request_vote_set_from_peer(co, state, metrics, height, round, peer).await?;
+    }
+    Ok(())
+}
+
+async fn request_vote_set_from_peer<Ctx>(
+    co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    _metrics: &Metrics,
+    height: Ctx::Height,
+    round: Round,
+    peer: PeerId,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    debug!(vote_set.height = %height, vote_set.round = %round, %peer, "Requesting vote set from peer");
+
+    perform!(
+        co,
+        Effect::SendVoteSetRequest(peer, VoteSetRequest::new(height, round))
+    );
+
+    // TODO - metrics
+    //metrics.request_sent(height.as_u64());
+
+    // TODO - vote request has round, currently it conflicts with block reqs, they should co-exist for same height
+    state.store_pending_request(height, peer);
+
+    Ok(())
+}
+
+#[tracing::instrument(skip_all)]
+pub async fn on_vote_set_response<Ctx>(
+    _co: Co<Ctx>,
+    _state: &mut State<Ctx>,
+    _metrics: &Metrics,
+    request_id: OutboundRequestId,
+    peer: PeerId,
+    _response: VoteSetResponse<Ctx>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    debug!(%request_id, %peer, "Received vote set response");
+
+    Ok(())
+}
+
+pub async fn on_vote_set_request_timed_out<Ctx>(
+    _co: Co<Ctx>,
+    state: &mut State<Ctx>,
+    metrics: &Metrics,
+    peer_id: PeerId,
+    request: VoteSetRequest<Ctx>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    warn!(%peer_id, %request.height, "Vote set request timed out");
+
+    metrics.request_timed_out(request.height.as_u64());
+
+    state.remove_pending_request(request.height);
+
+    Ok(())
+}
+
+pub async fn on_vote_set<Ctx>(
+    co: Co<Ctx>,
+    _state: &mut State<Ctx>,
+    _metrics: &Metrics,
+    request_id: InboundRequestId,
+    vote_set: VoteSet<Ctx>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    perform!(
+        co,
+        Effect::SendVoteSetResponse(request_id, VoteSetResponse::new(vote_set))
+    );
+
+    Ok(())
 }
