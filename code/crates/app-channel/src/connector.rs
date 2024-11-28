@@ -39,30 +39,17 @@ where
     }
 }
 
-#[async_trait]
-impl<Ctx> Actor for Connector<Ctx>
+impl<Ctx> Connector<Ctx>
 where
     Ctx: Context,
 {
-    type Msg = HostMsg<Ctx>;
-    type State = ();
-    type Arguments = ();
-
-    async fn pre_start(
+    async fn handle_msg(
         &self,
-        _myself: ActorRef<Self::Msg>,
-        _args: Self::Arguments,
-    ) -> Result<Self::State, ActorProcessingErr> {
-        Ok(())
-    }
-
-    async fn handle(
-        &self,
-        _myself: ActorRef<Self::Msg>,
-        message: Self::Msg,
-        _state: &mut Self::State,
+        _myself: ActorRef<HostMsg<Ctx>>,
+        msg: HostMsg<Ctx>,
+        _state: &mut (),
     ) -> Result<(), ActorProcessingErr> {
-        match message {
+        match msg {
             HostMsg::ConsensusReady(consensus_ref) => {
                 let (tx, rx) = oneshot::channel();
 
@@ -219,6 +206,37 @@ where
                 reply_to.send(rx.await?)?;
             }
         };
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl<Ctx> Actor for Connector<Ctx>
+where
+    Ctx: Context,
+{
+    type Msg = HostMsg<Ctx>;
+    type State = ();
+    type Arguments = ();
+
+    async fn pre_start(
+        &self,
+        _myself: ActorRef<Self::Msg>,
+        _args: Self::Arguments,
+    ) -> Result<Self::State, ActorProcessingErr> {
+        Ok(())
+    }
+
+    async fn handle(
+        &self,
+        myself: ActorRef<Self::Msg>,
+        msg: Self::Msg,
+        state: &mut Self::State,
+    ) -> Result<(), ActorProcessingErr> {
+        if let Err(e) = self.handle_msg(myself, msg, state).await {
+            tracing::error!("Error processing message: {e}");
+        }
 
         Ok(())
     }

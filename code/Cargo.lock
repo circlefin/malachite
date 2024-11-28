@@ -2473,6 +2473,7 @@ dependencies = [
  "malachite-node",
  "ractor",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
