@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::time::Duration;
 
 use tokio::sync::broadcast;
@@ -8,6 +9,7 @@ use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::util::codec::NetworkCodec;
 use malachite_actors::util::streaming::StreamMessage;
+use malachite_actors::wal::{Wal, WalCodec, WalRef};
 use malachite_common::{CommitCertificate, Context};
 use malachite_config::{BlockSyncConfig, Config as NodeConfig, PubSubProtocol, TransportProtocol};
 use malachite_consensus::{SignedConsensusMsg, ValuePayload};
@@ -34,7 +36,7 @@ where
     Codec: NetworkCodec<malachite_blocksync::Request<Ctx>>,
     Codec: NetworkCodec<malachite_blocksync::Response<Ctx>>,
 {
-    let config_gossip = GossipConsensusConfig {
+    let config = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
         discovery: DiscoveryConfig {
@@ -62,6 +64,7 @@ where
         rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
     };
+    let config_gossip = config;
 
     GossipConsensus::spawn(keypair, config_gossip, registry.clone(), codec)
         .await
@@ -77,6 +80,7 @@ pub async fn spawn_consensus_actor<Ctx>(
     cfg: NodeConfig,
     gossip_consensus: GossipConsensusRef<Ctx>,
     host: malachite_actors::host::HostRef<Ctx>,
+    wal: WalRef<Ctx>,
     block_sync: Option<BlockSyncRef<Ctx>>,
     metrics: Metrics,
     tx_decision: Option<broadcast::Sender<CommitCertificate<Ctx>>>,
@@ -100,16 +104,39 @@ where
 
     Consensus::spawn(
         ctx,
+        cfg.moniker.clone(),
         consensus_params,
         cfg.consensus.timeouts,
         gossip_consensus,
         host,
+        wal,
         block_sync,
         metrics,
         tx_decision,
     )
     .await
     .unwrap()
+}
+
+pub async fn spawn_wal_actor<Ctx, Codec>(
+    ctx: &Ctx,
+    moniker: &str,
+    codec: Codec,
+    home_dir: &Path,
+    registry: &SharedRegistry,
+) -> WalRef<Ctx>
+where
+    Ctx: Context,
+    Codec: WalCodec<Ctx>,
+{
+    let wal_dir = home_dir.join("wal");
+    std::fs::create_dir_all(&wal_dir).unwrap();
+
+    let wal_file = wal_dir.join("consensus.wal");
+
+    Wal::spawn(ctx, moniker.to_string(), codec, wal_file, registry.clone())
+        .await
+        .unwrap()
 }
 
 pub async fn spawn_block_sync_actor<Ctx>(

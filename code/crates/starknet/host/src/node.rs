@@ -51,6 +51,10 @@ impl Node for StarknetNode {
     type PrivateKeyFile = PrivateKeyFile;
     type Genesis = Genesis;
 
+    fn get_home_dir(&self) -> PathBuf {
+        self.home_dir.to_owned()
+    }
+
     fn generate_private_key<R>(&self, rng: R) -> PrivateKey
     where
         R: RngCore + CryptoRng,

@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 use std::path::PathBuf;
 
 use derive_where::derive_where;
-use entry::WalCodec;
 use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, SpawnErr};
 use tokio::sync::{mpsc, oneshot};
@@ -15,6 +14,7 @@ use malachite_wal as wal;
 mod entry;
 mod thread;
 
+pub use entry::WalCodec;
 pub use entry::WalEntry;
 
 pub type WalRef<Ctx> = ActorRef<Msg<Ctx>>;
