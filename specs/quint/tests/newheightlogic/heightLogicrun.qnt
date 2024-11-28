@@ -14,7 +14,7 @@ def threeProcessesHaveDecided() : bool = {
 
 run fastProcessesDecidesAtHeight0SlowOneCatchesUp = {
     // all processes are correct, v4 is slow
-    // the fast proceses decide in round 0
+    // the fast process decide in round 0
     // then the slow process starts at height 0, round 0
     // it is expected that 
     val round0proposer = proposer(validatorSet, 0, 0)
