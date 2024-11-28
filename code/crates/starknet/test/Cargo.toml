@@ -9,6 +9,7 @@ license.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
+malachite-actors.workspace           = true
 malachite-common.workspace           = true
 malachite-config.workspace           = true
 malachite-metrics.workspace          = true

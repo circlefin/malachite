@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
+use malachite_actors::util::events::TxEvent;
 use malachite_actors::wal::{Wal, WalRef};
-use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 
 use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
@@ -13,7 +13,6 @@ use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
 use malachite_blocksync as blocksync;
-use malachite_common::CommitCertificate;
 use malachite_config::{
     self as config, BlockSyncConfig, Config as NodeConfig, MempoolConfig, TestConfig,
     TransportProtocol,
@@ -39,7 +38,7 @@ pub async fn spawn_node_actor(
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
     start_height: Option<Height>,
-    tx_decision: Option<broadcast::Sender<CommitCertificate<MockContext>>>,
+    tx_event: TxEvent<MockContext>,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(private_key);
 
@@ -93,7 +92,7 @@ pub async fn spawn_node_actor(
         wal.clone(),
         block_sync.clone(),
         metrics,
-        tx_decision,
+        tx_event,
     )
     .await;
 
@@ -166,7 +165,7 @@ async fn spawn_consensus_actor(
     wal: WalRef<MockContext>,
     block_sync: Option<BlockSyncRef<MockContext>>,
     metrics: Metrics,
-    tx_decision: Option<broadcast::Sender<CommitCertificate<MockContext>>>,
+    tx_event: TxEvent<MockContext>,
 ) -> ConsensusRef<MockContext> {
     let value_payload = match cfg.consensus.value_payload {
         malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
@@ -192,7 +191,7 @@ async fn spawn_consensus_actor(
         wal,
         block_sync,
         metrics,
-        tx_decision,
+        tx_event,
     )
     .await
     .unwrap()
