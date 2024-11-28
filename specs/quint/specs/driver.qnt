@@ -129,14 +129,16 @@ module driver {
             )
         )
 
-        val resultDriver = { ... driver, bk: vkWithCertificates }
+        val resultInput = if (decisionValAndRound._1 != Nil)
+            Set((ProposalAndCommitAndValidCInput((decisionRound, decisionVal)),h, decisionRound))
+        else if (roundToStart > 0)
+            Set((RoundSkipCInput(roundToStart),h,roundToStart))
+        else 
+            Set()
+
+        val resultDriver = { ...driver, bk: vkWithCertificates, pendingInputs: resultInput, started: true }
         // Note: proposals messages are not processed / removed
         // TODO: which messages can safely be removed in case of StartInRound(r)???
-        val resultNodeState = ns
-            .removeMessagesFromOlderHeights(h)
-            .with("es",resultDriver)
-            .with("incomingVotes",ns.incomingVotes.exclude(votesForHeight))
-            .with("incomingCertificates",ns.incomingCertificates.exclude(certificatesForHeight))
 
         val resultAction = if (decisionValAndRound._1 != Nil)
             PendingDInput(ProposalAndCommitAndValidCInput((decisionRound, decisionVal)))
@@ -144,6 +146,12 @@ module driver {
             PendingDInput(RoundSkipCInput(roundToStart))
         else 
             StartDInput
+
+        val resultNodeState = {...ns.removeMessagesFromOlderHeights(h),
+            debug: ns.debug.append(resultAction),
+            es: resultDriver,
+            incomingVotes: ns.incomingVotes.exclude(votesForHeight),
+            incomingCertificates: ns.incomingCertificates.exclude(certificatesForHeight) }
 
         (resultNodeState, resultAction)
 
@@ -518,6 +526,7 @@ module driver {
         incomingSyncCertificates: Set[Set[Vote]],
         getValueRequests: Set[(Height, Round)],
         nextValueToPropose: Value, 
+        debug: List[DriverInput]
     }
 
     pure def initNode(v: Address, vs: Address -> Weight, height: Height): NodeState = {
@@ -529,7 +538,8 @@ module driver {
         incomingSyncProposals: Set(),
         incomingSyncCertificates: Set(),
         getValueRequests: Set(),
-        nextValueToPropose: Nil, 
+        nextValueToPropose: Nil,
+        debug: List() 
     }
 
     pure def existsTimeout(state: NodeState): bool =
