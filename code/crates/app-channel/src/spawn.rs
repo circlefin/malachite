@@ -1,5 +1,5 @@
-use crate::actor::Connector;
-use crate::channel::ChannelMsg;
+use crate::channel::AppMsg;
+use crate::connector::Connector;
 use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
@@ -139,10 +139,7 @@ where
 #[allow(clippy::too_many_arguments)]
 pub async fn spawn_host_actor<Ctx>(
     metrics: Metrics,
-) -> (
-    malachite_actors::host::HostRef<Ctx>,
-    Receiver<ChannelMsg<Ctx>>,
-)
+) -> (malachite_actors::host::HostRef<Ctx>, Receiver<AppMsg<Ctx>>)
 where
     Ctx: Context,
 {

@@ -1,4 +1,4 @@
-use crate::channel::ChannelMsg;
+use crate::channel::AppMsg;
 use crate::spawn::{
     spawn_block_sync_actor, spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_host_actor,
 };
@@ -23,7 +23,7 @@ pub async fn run<N, Ctx, Codec>(
     keypair: Keypair,      // Todo: see note in code
     address: Ctx::Address, // Todo: remove it when Node was properly implemented
     initial_validator_set: Ctx::ValidatorSet,
-) -> Result<Receiver<ChannelMsg<Ctx>>, String>
+) -> Result<Receiver<AppMsg<Ctx>>, String>
 where
     N: Node<Context = Ctx>,
     Ctx: Context,

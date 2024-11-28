@@ -9,7 +9,10 @@ use std::time::Duration;
 use tokio::sync::oneshot::Sender;
 
 /// Messages that will be sent on the channel.
-pub enum ChannelMsg<Ctx: Context> {
+pub enum AppMsg<Ctx: Context> {
+    /// Consensus is ready
+    ConsensusReady { reply_to: Sender<ConsensusMsg<Ctx>> },
+
     /// Consensus has started a new round.
     StartedRound {
         height: Ctx::Height,
@@ -36,9 +39,7 @@ pub enum ChannelMsg<Ctx: Context> {
     },
 
     /// Request the earliest block height in the block store
-    GetEarliestBlockHeight {
-        reply_to: Sender<Ctx::Height>,
-    },
+    GetEarliestBlockHeight { reply_to: Sender<Ctx::Height> },
 
     /// ProposalPart received <-- consensus <-- gossip
     ReceivedProposalPart {
@@ -56,6 +57,7 @@ pub enum ChannelMsg<Ctx: Context> {
     // Consensus has decided on a value
     Decided {
         certificate: CommitCertificate<Ctx>,
+        reply_to: Sender<ConsensusMsg<Ctx>>,
     },
 
     // Retrieve decided block from the block store
@@ -72,7 +74,8 @@ pub enum ChannelMsg<Ctx: Context> {
         block_bytes: Bytes,
         reply_to: Sender<ProposedValue<Ctx>>,
     },
+}
 
-    /// Consensus is ready
-    ConsensusReady {},
+pub enum ConsensusMsg<Ctx: Context> {
+    StartHeight(Ctx::Height),
 }
