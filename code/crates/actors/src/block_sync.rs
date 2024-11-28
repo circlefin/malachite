@@ -318,7 +318,7 @@ where
             }
 
             Msg::GossipEvent(GossipEvent::Response(request_id, peer, response)) => {
-                // Cancel the timer associated with the request for which we just received a respons
+                // Cancel the timer associated with the request for which we just received a response
                 state.timers.cancel(&Timeout::Request(request_id));
 
                 match response {
