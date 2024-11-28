@@ -115,7 +115,7 @@ itertools          = "0.13"
 itf                = "0.2.3"
 libp2p             = { version = "0.54.1", features = ["macros", "identify", "tokio", "ed25519", "ecdsa", "tcp", "quic", "noise", "yamux", "gossipsub", "dns", "ping", "metrics", "request-response", "cbor", "serde"] }
 libp2p-identity    = "0.2.10"
-libp2p-broadcast   = { version = "0.12.0", git = "https://github.com/romac/libp2p-broadcast.git" }
+libp2p-broadcast   = { version = "0.1.0", package = "libp2p-scatter" }
 multiaddr          = "0.18.2"
 num-bigint         = "0.4.4"
 num-traits         = "0.2.17"

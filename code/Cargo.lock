@@ -1971,19 +1971,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "libp2p-broadcast"
-version = "0.12.0"
-source = "git+https://github.com/romac/libp2p-broadcast.git#6975d67ad4621893fc5de34c68885c5b311f0fb1"
-dependencies = [
- "bytes",
- "fnv",
- "futures",
- "libp2p",
- "prometheus-client",
- "unsigned-varint 0.8.0",
-]
-
-[[package]]
 name = "libp2p-connection-limits"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2273,6 +2260,20 @@ dependencies = [
  "tracing",
  "void",
  "web-time",
+]
+
+[[package]]
+name = "libp2p-scatter"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2930693ddb135900c3efb19b26493495ad8fa422b01d72375ddfa879ba306e78"
+dependencies = [
+ "bytes",
+ "fnv",
+ "futures",
+ "libp2p",
+ "prometheus-client",
+ "unsigned-varint 0.8.0",
 ]
 
 [[package]]
@@ -2618,7 +2619,7 @@ dependencies = [
  "eyre",
  "futures",
  "libp2p",
- "libp2p-broadcast",
+ "libp2p-scatter",
  "malachite-blocksync",
  "malachite-discovery",
  "malachite-metrics",
