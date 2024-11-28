@@ -1,5 +1,3 @@
-#![allow(unused_crate_dependencies)]
-
 use core::fmt;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::net::SocketAddr;
@@ -10,12 +8,12 @@ use std::sync::Arc;
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use tokio::sync::broadcast;
 use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
-use tracing::{error, error_span, info, Instrument};
+use tracing::{debug, error, error_span, info, Instrument};
 
-use malachite_common::{CommitCertificate, VotingPower};
+use malachite_actors::util::events::{Event, RxEvent, TxEvent};
+use malachite_common::VotingPower;
 use malachite_config::{
     BlockSyncConfig, Config as NodeConfig, Config, LoggingConfig, PubSubProtocol, TestConfig,
     TransportProtocol,
@@ -105,7 +103,7 @@ pub enum Step {
     WaitUntil(u64),
     Expect(Expected),
     Success,
-    Pause,
+    // Pause,
 }
 
 pub type NodeId = usize;
@@ -184,10 +182,10 @@ impl TestNode {
         self
     }
 
-    pub fn pause(mut self) -> Self {
-        self.steps.push(Step::Pause);
-        self
-    }
+    // pub fn pause(mut self) -> Self {
+    //     self.steps.push(Step::Pause);
+    //     self
+    // }
 }
 
 fn unique_id() -> usize {
@@ -275,7 +273,7 @@ impl<const N: usize> Test<N> {
                     let result = run_node(node, home_dir, config, validator_set, private_key).await;
                     (id, result)
                 }
-                .instrument(tracing::Span::current()),
+                .in_current_span(),
             );
         }
 
@@ -327,8 +325,6 @@ pub enum TestResult {
     Unknown,
 }
 
-type RxDecision = broadcast::Receiver<CommitCertificate<MockContext>>;
-
 #[tracing::instrument("node", skip_all, fields(id = %node.id))]
 async fn run_node(
     node: TestNode,
@@ -341,39 +337,51 @@ async fn run_node(
 
     info!("Spawning node with voting power {}", node.voting_power);
 
-    let (tx, mut rx) = broadcast::channel(100);
+    let tx_event = TxEvent::new();
+    let mut rx_event = tx_event.subscribe();
+    let rx_event_bg = tx_event.subscribe();
+
     let (mut actor_ref, mut handle) = spawn_node_actor(
         config.clone(),
         home_dir.clone(),
         validator_set.clone(),
         private_key,
         Some(node.start_height),
-        Some(tx.clone()),
+        tx_event,
     )
     .await;
 
     let decisions = Arc::new(AtomicUsize::new(0));
 
-    let spawn_bg = |mut rx: RxDecision| {
+    let spawn_bg = |mut rx: RxEvent<MockContext>| {
         tokio::spawn({
             let decisions = Arc::clone(&decisions);
 
             async move {
-                while let Ok(_decision) = rx.recv().await {
-                    decisions.fetch_add(1, Ordering::SeqCst);
+                while let Ok(event) = rx.recv().await {
+                    if let Event::Decided(_) = &event {
+                        decisions.fetch_add(1, Ordering::SeqCst);
+                    }
+
+                    debug!("Event: {event:?}");
                 }
             }
+            .in_current_span()
         })
     };
 
-    let mut bg = spawn_bg(tx.subscribe());
+    let mut bg = spawn_bg(rx_event_bg);
 
     for step in node.steps {
         match step {
             Step::WaitUntil(target_height) => {
                 info!("Waiting until node reaches height {target_height}");
 
-                'inner: while let Ok(decision) = rx.recv().await {
+                'inner: while let Ok(event) = rx_event.recv().await {
+                    let Event::Decided(decision) = event else {
+                        continue;
+                    };
+
                     let height = decision.height.as_u64();
                     info!("Node reached height {height}");
 
@@ -409,29 +417,31 @@ async fn run_node(
                 bg.abort();
                 handle.abort();
 
-                let (new_tx, new_rx) = broadcast::channel(100);
+                let tx_event = TxEvent::new();
+                let new_rx_event = tx_event.subscribe();
+                let new_rx_event_bg = tx_event.subscribe();
+
                 let (new_actor_ref, new_handle) = spawn_node_actor(
                     config.clone(),
                     home_dir.clone(),
                     validator_set.clone(),
                     private_key,
                     Some(node.start_height),
-                    Some(new_tx.clone()),
+                    tx_event,
                 )
                 .await;
 
-                bg = spawn_bg(new_tx.subscribe());
+                bg = spawn_bg(new_rx_event_bg);
 
                 actor_ref = new_actor_ref;
                 handle = new_handle;
-                rx = new_rx;
+                rx_event = new_rx_event;
             }
 
-            Step::Pause => {
-                info!("Pausing");
-                while rx.recv().await.is_ok() {}
-            }
-
+            // Step::Pause => {
+            //     info!("Pausing");
+            //     while rx_event.recv().await.is_ok() {}
+            // }
             Step::Expect(expected) => {
                 let actual = decisions.load(Ordering::SeqCst);
 

@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use malachite_actors::util::events::TxEvent;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use tracing::{info, Instrument};
@@ -117,7 +118,7 @@ impl Node for StarknetNode {
             genesis.validator_set,
             private_key,
             start_height,
-            None,
+            TxEvent::new(),
         )
         .await;
 

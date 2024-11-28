@@ -5,14 +5,12 @@ use async_trait::async_trait;
 use eyre::eyre;
 use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
-use tokio::sync::broadcast;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
 use malachite_blocksync as blocksync;
 use malachite_common::{
-    CommitCertificate, Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet,
-    ValueOrigin,
+    Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet, ValueOrigin,
 };
 use malachite_config::TimeoutConfig;
 use malachite_consensus::{Effect, Resume, SignedConsensusMsg, ValueToPropose};
@@ -22,6 +20,7 @@ use crate::block_sync::BlockSyncRef;
 use crate::block_sync::Msg as BlockSyncMsg;
 use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg, Status};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
+use crate::util::events::{Event, TxEvent};
 use crate::util::forward::forward;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
@@ -31,8 +30,6 @@ pub use malachite_consensus::Params as ConsensusParams;
 pub use malachite_consensus::State as ConsensusState;
 
 pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
-
-pub type TxDecision<Ctx> = broadcast::Sender<CommitCertificate<Ctx>>;
 
 pub struct Consensus<Ctx>
 where
@@ -47,7 +44,7 @@ where
     wal: WalRef<Ctx>,
     block_sync: Option<BlockSyncRef<Ctx>>,
     metrics: Metrics,
-    tx_decision: Option<TxDecision<Ctx>>,
+    tx_event: TxEvent<Ctx>,
 }
 
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
@@ -163,7 +160,7 @@ where
         wal: WalRef<Ctx>,
         block_sync: Option<BlockSyncRef<Ctx>>,
         metrics: Metrics,
-        tx_decision: Option<TxDecision<Ctx>>,
+        tx_event: TxEvent<Ctx>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let node = Self {
             ctx,
@@ -175,7 +172,7 @@ where
             wal,
             block_sync,
             metrics,
-            tx_decision,
+            tx_event,
         };
 
         let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
@@ -219,6 +216,8 @@ where
 
                 let validator_set = self.get_validator_set(height).await?;
 
+                self.tx_event.send(|| Event::StartedHeight(height));
+
                 let result = self
                     .process_input(
                         &myself,
@@ -254,8 +253,15 @@ where
                 };
 
                 let result = self
-                    .process_input(&myself, state, ConsensusInput::Propose(value_to_propose))
+                    .process_input(
+                        &myself,
+                        state,
+                        ConsensusInput::Propose(value_to_propose.clone()),
+                    )
                     .await;
+
+                self.tx_event
+                    .send(|| Event::ProposedValue(value_to_propose));
 
                 if std::env::var("MALACHITE_FAIL").ok().as_deref() == Some(&self.moniker) {
                     tracing::error!("Just proposed: {value:?}");
@@ -437,11 +443,18 @@ where
                 .await?;
 
                 let result = self
-                    .process_input(&myself, state, ConsensusInput::ProposedValue(value, origin))
+                    .process_input(
+                        &myself,
+                        state,
+                        ConsensusInput::ProposedValue(value.clone(), origin),
+                    )
                     .await;
 
+                self.tx_event
+                    .send(|| Event::ReceivedProposedValue(value, origin));
+
                 if let Err(e) = result {
-                    error!("Error when processing GossipEvent message: {e}");
+                    error!("Error when processing ReceivedProposedValue message: {e}");
                 }
 
                 Ok(())
@@ -707,6 +720,8 @@ where
                     proposer,
                 })?;
 
+                self.tx_event.send(|| Event::StartedRound(height, round));
+
                 Ok(Resume::Continue)
             }
 
@@ -733,6 +748,8 @@ where
                     .await?;
 
                 self.wal_flush(phase).await?;
+
+                self.tx_event.send(|| Event::Published(msg.clone()));
 
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::Publish(msg))
@@ -777,9 +794,7 @@ where
             Effect::Decide { certificate } => {
                 self.wal_flush(phase).await?;
 
-                if let Some(tx_decision) = &self.tx_decision {
-                    let _ = tx_decision.send(certificate.clone());
-                }
+                self.tx_event.send(|| Event::Decided(certificate.clone()));
 
                 let height = certificate.height;
 
