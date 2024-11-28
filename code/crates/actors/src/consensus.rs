@@ -39,6 +39,7 @@ where
     Ctx: Context,
 {
     ctx: Ctx,
+    moniker: String,
     params: ConsensusParams<Ctx>,
     timeout_config: TimeoutConfig,
     gossip_consensus: GossipConsensusRef<Ctx>,
@@ -152,33 +153,9 @@ where
     Ctx: Context,
 {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        ctx: Ctx,
-        params: ConsensusParams<Ctx>,
-        timeout_config: TimeoutConfig,
-        gossip_consensus: GossipConsensusRef<Ctx>,
-        host: HostRef<Ctx>,
-        wal: WalRef<Ctx>,
-        block_sync: Option<BlockSyncRef<Ctx>>,
-        metrics: Metrics,
-        tx_decision: Option<TxDecision<Ctx>>,
-    ) -> Self {
-        Self {
-            ctx,
-            params,
-            timeout_config,
-            gossip_consensus,
-            host,
-            wal,
-            block_sync,
-            metrics,
-            tx_decision,
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
     pub async fn spawn(
         ctx: Ctx,
+        moniker: String,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
@@ -188,8 +165,9 @@ where
         metrics: Metrics,
         tx_decision: Option<TxDecision<Ctx>>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
-        let node = Self::new(
+        let node = Self {
             ctx,
+            moniker,
             params,
             timeout_config,
             gossip_consensus,
@@ -198,7 +176,7 @@ where
             block_sync,
             metrics,
             tx_decision,
-        );
+        };
 
         let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
         Ok(actor_ref)
@@ -271,13 +249,19 @@ where
                     height,
                     round,
                     valid_round: Round::Nil,
-                    value,
+                    value: value.clone(),
                     extension,
                 };
 
                 let result = self
                     .process_input(&myself, state, ConsensusInput::Propose(value_to_propose))
                     .await;
+
+                if std::env::var("MALACHITE_FAIL").ok().as_deref() == Some(&self.moniker) {
+                    tracing::error!("Just proposed: {value:?}");
+                    tracing::error!("Everyone stops right here!");
+                    std::process::exit(1);
+                };
 
                 if let Err(e) = result {
                     error!("Error when processing ProposeValue message: {e}");

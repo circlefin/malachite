@@ -382,6 +382,15 @@ impl Actor for StarknetHost {
                 address: _,
                 reply_to,
             } => {
+                // If we have already built a block for this height and round, return it
+                // This may happen when we are restarting after a crash and replaying the WAL.
+                if let Some(block) = state.block_store.get_undecided_block(height, round).await? {
+                    let value = LocallyProposedValue::new(height, round, block.block_hash, None);
+                    reply_to.send(value)?;
+
+                    return Ok(());
+                }
+
                 let deadline = Instant::now() + timeout_duration;
 
                 debug!(%height, %round, "Building new proposal...");

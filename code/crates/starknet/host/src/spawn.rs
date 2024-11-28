@@ -184,6 +184,7 @@ async fn spawn_consensus_actor(
 
     Consensus::spawn(
         ctx,
+        cfg.moniker.clone(),
         consensus_params,
         cfg.consensus.timeouts,
         gossip_consensus,
