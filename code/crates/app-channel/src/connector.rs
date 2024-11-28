@@ -1,17 +1,20 @@
-use crate::channel::{AppMsg, ConsensusMsg};
-use malachite_actors::consensus::Msg;
+use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, SpawnErr};
+use tokio::sync::mpsc;
+use tokio::sync::oneshot;
+
 use malachite_actors::host::HostMsg;
 use malachite_common::Context;
 use malachite_metrics::Metrics;
-use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, SpawnErr};
-use tokio::sync::mpsc::Sender;
+
+use crate::channel::AppMsg;
 
 pub struct Connector<Ctx>
 where
     Ctx: Context,
 {
-    sender: Sender<AppMsg<Ctx>>,
-    // Todo: add some metrics
+    sender: mpsc::Sender<AppMsg<Ctx>>,
+
+    // TODO: add some metrics
     #[allow(dead_code)]
     metrics: Metrics,
 }
@@ -20,12 +23,12 @@ impl<Ctx> Connector<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(sender: Sender<AppMsg<Ctx>>, metrics: Metrics) -> Self {
+    pub fn new(sender: mpsc::Sender<AppMsg<Ctx>>, metrics: Metrics) -> Self {
         Connector { sender, metrics }
     }
 
     pub async fn spawn(
-        sender: Sender<AppMsg<Ctx>>,
+        sender: mpsc::Sender<AppMsg<Ctx>>,
         metrics: Metrics,
     ) -> Result<ActorRef<HostMsg<Ctx>>, SpawnErr>
     where
@@ -61,14 +64,15 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match message {
             HostMsg::ConsensusReady(consensus_ref) => {
-                let (tx, rx) = tokio::sync::oneshot::channel();
+                let (tx, rx) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::ConsensusReady { reply_to: tx })
                     .await?;
 
-                consensus_ref.cast(translate_consensus_msg(rx.await?))?;
+                consensus_ref.cast(rx.await?.into())?;
             }
+
             HostMsg::StartedRound {
                 height,
                 round,
@@ -82,6 +86,7 @@ where
                     })
                     .await?
             }
+
             HostMsg::GetValue {
                 height,
                 round,
@@ -89,7 +94,7 @@ where
                 address,
                 reply_to,
             } => {
-                let (tx, rx) = tokio::sync::oneshot::channel();
+                let (tx, rx) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::GetValue {
@@ -103,6 +108,7 @@ where
 
                 reply_to.send(rx.await?)?;
             }
+
             HostMsg::RestreamValue {
                 height,
                 round,
@@ -120,8 +126,9 @@ where
                     })
                     .await?
             }
+
             HostMsg::GetEarliestBlockHeight { reply_to } => {
-                let (tx, rx) = tokio::sync::oneshot::channel();
+                let (tx, rx) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::GetEarliestBlockHeight { reply_to: tx })
@@ -129,12 +136,13 @@ where
 
                 reply_to.send(rx.await?)?;
             }
+
             HostMsg::ReceivedProposalPart {
                 from,
                 part,
                 reply_to,
             } => {
-                let (tx, rx) = tokio::sync::oneshot::channel();
+                let (tx, rx) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::ReceivedProposalPart {
@@ -146,8 +154,9 @@ where
 
                 reply_to.send(rx.await?)?;
             }
+
             HostMsg::GetValidatorSet { height, reply_to } => {
-                let (tx, rx) = tokio::sync::oneshot::channel();
+                let (tx, rx) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::GetValidatorSet {
@@ -158,11 +167,12 @@ where
 
                 reply_to.send(rx.await?)?;
             }
+
             HostMsg::Decided {
                 certificate,
                 consensus: consensus_ref,
             } => {
-                let (tx, rx) = tokio::sync::oneshot::channel();
+                let (tx, rx) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::Decided {
@@ -171,10 +181,11 @@ where
                     })
                     .await?;
 
-                consensus_ref.cast(translate_consensus_msg(rx.await?))?;
+                consensus_ref.cast(rx.await?.into())?;
             }
+
             HostMsg::GetDecidedBlock { height, reply_to } => {
-                let (tx, rx) = tokio::sync::oneshot::channel();
+                let (tx, rx) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::GetDecidedBlock {
@@ -185,6 +196,7 @@ where
 
                 reply_to.send(rx.await?)?;
             }
+
             HostMsg::ProcessSyncedBlock {
                 height,
                 round,
@@ -192,7 +204,7 @@ where
                 block_bytes,
                 reply_to,
             } => {
-                let (tx, rx) = tokio::sync::oneshot::channel();
+                let (tx, rx) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::ProcessSyncedBlock {
@@ -207,15 +219,7 @@ where
                 reply_to.send(rx.await?)?;
             }
         };
-        Ok(())
-    }
-}
 
-fn translate_consensus_msg<Ctx>(consensus_msg: ConsensusMsg<Ctx>) -> Msg<Ctx>
-where
-    Ctx: Context + Send + 'static,
-{
-    match consensus_msg {
-        ConsensusMsg::StartHeight(height) => Msg::StartHeight(height),
+        Ok(())
     }
 }

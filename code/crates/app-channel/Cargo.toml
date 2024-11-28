@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 bytes.workspace = true
+derive-where.workspace = true
 libp2p-identity.workspace = true
 ractor.workspace = true
 tokio.workspace = true

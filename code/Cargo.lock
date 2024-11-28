@@ -2461,6 +2461,7 @@ name = "malachite-app-channel"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "derive-where",
  "libp2p-identity",
  "malachite-actors",
  "malachite-blocksync",

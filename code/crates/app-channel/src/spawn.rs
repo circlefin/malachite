@@ -1,5 +1,8 @@
-use crate::channel::AppMsg;
-use crate::connector::Connector;
+use std::time::Duration;
+
+use tokio::sync::broadcast;
+use tokio::sync::mpsc;
+
 use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
@@ -8,15 +11,13 @@ use malachite_actors::util::streaming::StreamMessage;
 use malachite_common::{CommitCertificate, Context};
 use malachite_config::{BlockSyncConfig, Config as NodeConfig, PubSubProtocol, TransportProtocol};
 use malachite_consensus::{SignedConsensusMsg, ValuePayload};
-use malachite_gossip_consensus::Keypair;
 use malachite_gossip_consensus::{
-    Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig,
+    Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
 };
 use malachite_metrics::{Metrics, SharedRegistry};
-use std::time::Duration;
-use tokio::sync::broadcast;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Receiver;
+
+use crate::channel::AppMsg;
+use crate::connector::Connector;
 
 pub async fn spawn_gossip_consensus_actor<Ctx, Codec>(
     cfg: &NodeConfig,
@@ -141,7 +142,10 @@ where
 #[allow(clippy::too_many_arguments)]
 pub async fn spawn_host_actor<Ctx>(
     metrics: Metrics,
-) -> (malachite_actors::host::HostRef<Ctx>, Receiver<AppMsg<Ctx>>)
+) -> (
+    malachite_actors::host::HostRef<Ctx>,
+    mpsc::Receiver<AppMsg<Ctx>>,
+)
 where
     Ctx: Context,
 {
