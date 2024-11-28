@@ -50,20 +50,15 @@ where
     // Drop all others.
     if state.driver.round() == Round::Nil {
         debug!("Received proposal at round -1, queuing for later");
-        state
-            .input_queue
-            .push_back(Input::Proposal(signed_proposal));
+        state.buffer_input(signed_proposal.height(), Input::Proposal(signed_proposal));
+
         return Ok(());
     }
 
     if proposal_height > consensus_height {
-        if consensus_height.increment() == proposal_height {
-            debug!("Received proposal for next height, queuing for later");
+        debug!("Received proposal for higher height, queuing for later");
+        state.buffer_input(signed_proposal.height(), Input::Proposal(signed_proposal));
 
-            state
-                .input_queue
-                .push_back(Input::Proposal(signed_proposal));
-        }
         return Ok(());
     }
 

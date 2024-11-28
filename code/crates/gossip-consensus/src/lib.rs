@@ -39,10 +39,11 @@ const PROTOCOL: &str = "/malachite-consensus/v1beta1";
 const METRICS_PREFIX: &str = "malachite_gossip_consensus";
 const DISCOVERY_METRICS_PREFIX: &str = "malachite_discovery";
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub enum PubSubProtocol {
     /// GossipSub: a pubsub protocol based on epidemic broadcast trees
-    GossipSub(GossipSubConfig),
+    #[default]
+    GossipSub,
 
     /// Broadcast: a simple broadcast protocol
     Broadcast,
@@ -50,17 +51,11 @@ pub enum PubSubProtocol {
 
 impl PubSubProtocol {
     pub fn is_gossipsub(&self) -> bool {
-        matches!(self, Self::GossipSub(_))
+        matches!(self, Self::GossipSub)
     }
 
     pub fn is_broadcast(&self) -> bool {
         matches!(self, Self::Broadcast)
-    }
-}
-
-impl Default for PubSubProtocol {
-    fn default() -> Self {
-        Self::GossipSub(GossipSubConfig::default())
     }
 }
 
@@ -95,7 +90,8 @@ pub struct Config {
     pub discovery: DiscoveryConfig,
     pub idle_connection_timeout: Duration,
     pub transport: TransportProtocol,
-    pub protocol: PubSubProtocol,
+    pub gossipsub: GossipSubConfig,
+    pub pubsub_protocol: PubSubProtocol,
     pub rpc_max_size: usize,
     pub pubsub_max_size: usize,
 }
@@ -132,17 +128,20 @@ pub enum TransportProtocol {
 #[derive(Clone, Debug)]
 pub enum Event {
     Listening(Multiaddr),
-    Message(Channel, PeerId, Bytes),
-    BlockSync(blocksync::RawMessage),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
+    Message(Channel, PeerId, Bytes),
+    BlockSync(blocksync::RawMessage),
 }
 
 #[derive(Debug)]
 pub enum CtrlMsg {
     Publish(Channel, Bytes),
+    Broadcast(Channel, Bytes),
+
     BlockSyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
     BlockSyncReply(InboundRequestId, Bytes),
+
     Shutdown,
 }
 
@@ -222,14 +221,20 @@ async fn run(
         return;
     };
 
-    for persistent_peer in config.persistent_peers {
+    for persistent_peer in &config.persistent_peers {
         state
             .discovery
-            .add_to_dial_queue(&swarm, ConnectionData::new(None, persistent_peer));
+            .add_to_dial_queue(&swarm, ConnectionData::new(None, persistent_peer.clone()));
     }
 
-    if let Err(e) = pubsub::subscribe(&mut swarm, Channel::all()) {
-        error!("Error subscribing to channels: {e}");
+    if let Err(e) = pubsub::subscribe(&mut swarm, config.pubsub_protocol, Channel::consensus()) {
+        error!("Error subscribing to consensus channels: {e}");
+        return;
+    };
+
+    if let Err(e) = pubsub::subscribe(&mut swarm, PubSubProtocol::Broadcast, &[Channel::BlockSync])
+    {
+        error!("Error subscribing to BlockSync channel: {e}");
         return;
     };
 
@@ -250,7 +255,7 @@ async fn run(
             }
 
             Some(ctrl) = rx_ctrl.recv() => {
-                handle_ctrl_msg(ctrl, &mut swarm, &mut state).await
+                handle_ctrl_msg(&mut swarm, &mut state, &config, ctrl).await
             }
         };
 
@@ -262,17 +267,30 @@ async fn run(
 }
 
 async fn handle_ctrl_msg(
-    msg: CtrlMsg,
     swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,
+    config: &Config,
+    msg: CtrlMsg,
 ) -> ControlFlow<()> {
     match msg {
         CtrlMsg::Publish(channel, data) => {
             let msg_size = data.len();
-            let result = pubsub::publish(swarm, channel, data);
+            let result = pubsub::publish(swarm, config.pubsub_protocol, channel, data);
 
             match result {
                 Ok(()) => debug!(%channel, size = %msg_size, "Published message"),
+                Err(e) => error!(%channel, "Error publishing message: {e}"),
+            }
+
+            ControlFlow::Continue(())
+        }
+
+        CtrlMsg::Broadcast(channel, data) => {
+            let msg_size = data.len();
+            let result = pubsub::publish(swarm, PubSubProtocol::Broadcast, channel, data);
+
+            match result {
+                Ok(()) => debug!(%channel, size = %msg_size, "Broadcasted message"),
                 Err(e) => error!(%channel, "Error broadcasting message: {e}"),
             }
 
