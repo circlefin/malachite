@@ -45,16 +45,18 @@ where
             TransportProtocol::Tcp => malachite_gossip_consensus::TransportProtocol::Tcp,
             TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
         },
-        protocol: match cfg.consensus.p2p.protocol {
-            PubSubProtocol::GossipSub(config) => {
-                malachite_gossip_consensus::PubSubProtocol::GossipSub(GossipSubConfig {
-                    mesh_n: config.mesh_n(),
-                    mesh_n_high: config.mesh_n_high(),
-                    mesh_n_low: config.mesh_n_low(),
-                    mesh_outbound_min: config.mesh_outbound_min(),
-                })
-            }
+        pubsub_protocol: match cfg.consensus.p2p.protocol {
+            PubSubProtocol::GossipSub(_) => malachite_gossip_consensus::PubSubProtocol::GossipSub,
             PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
+        },
+        gossipsub: match cfg.consensus.p2p.protocol {
+            PubSubProtocol::GossipSub(config) => GossipSubConfig {
+                mesh_n: config.mesh_n(),
+                mesh_n_high: config.mesh_n_high(),
+                mesh_n_low: config.mesh_n_low(),
+                mesh_outbound_min: config.mesh_outbound_min(),
+            },
+            PubSubProtocol::Broadcast => GossipSubConfig::default(),
         },
         rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
