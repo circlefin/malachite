@@ -41,6 +41,8 @@ module blocksyncServerTest {
     .then(deliverRequest(s))
     .then(stepServer(s))
 
+  // A server is created with no state. No responses should be produced.
+  // This run can be used as initialization for other tests.
   run blocksyncServerInitTest =
     all {
       initServer(Set(s)),
@@ -63,6 +65,8 @@ module blocksyncServerTest {
     .expect(bsyncServers.get(s).requestMsgs.size() == 0)
     .expect(responsesBuffer.get(c).size() == 0)
 
+  // The server knows a chain with 1 element (height 0).
+  // It replies to request to height 0, but not for height 1.
   run blocksyncServerSingleHeightTest =
     blocksyncServerInitTest
 
@@ -109,10 +113,12 @@ module blocksyncServerTest {
     .expect(bsyncServers.get(s).requestMsgs.size() == 0)
     .expect(responsesBuffer.get(c).size() == 0)
 
+  // The server knows a chain with 2 elements (heights 0 and 1).
+  // It replies properly to requests to heights 0 and 1.
   run blocksyncServerTwoHeightsTest =
     blocksyncServerInitTest
 
-    // Now the server knows height 0
+    // Now the server knows heights 0 and 1
     .then(updateServer(s, chain.slice(0, 2)))
 
     .then(broadcastStatus(s))

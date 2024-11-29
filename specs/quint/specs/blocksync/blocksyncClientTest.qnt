@@ -8,8 +8,14 @@ module blocksyncClientTest {
   import blocksync.* from "./blocksync"
 
   val nodes = Set("v1", "v2", "v3")
-  val proposals = List(mkProposal("v3", 1, 0, "block1", -1))
-  val certificates = List(Set())
+  val chain = List(
+    { decision: mkProposal("v3", 0, 0, "block1", -1),
+      commit: Set()
+    },
+    { decision: mkProposal("v2", 1, 1, "block2", 0),
+      commit: Set()
+    }
+  )
 
   var outputs: List[BsyncClientOutput]
 
@@ -101,7 +107,7 @@ module blocksyncClientTest {
       client: "v1",
       server: "v2",
       height: 1,
-      response: RespCertificate(certificates[0]),
+      response: RespCertificate(chain[0].commit),
     }))
     .then(all {
       deliverResponse("v1"),
@@ -112,7 +118,7 @@ module blocksyncClientTest {
     // (ii) send a block request to v2.
     .then(clientLogic("v1", addOutput, false))
     .expect(length(outputs) == 1)
-    .expect(outputs[0] == SOCertificate(certificates[0])) 
+    .expect(outputs[0] == SOCertificate(chain[0].commit))
     .expect(requestsBuffer.keys().forall(x =>
       if (x != "v2") requestsBuffer.get(x).size() == 0
       else requestsBuffer.get(x).size() == 2))
@@ -129,7 +135,7 @@ module blocksyncClientTest {
       client: "v1",
       server: "v2",
       height: 1,
-      response: RespBlock(proposals[0]),
+      response: RespBlock(chain[0].decision),
     }))
     .then(all {
       deliverResponse("v1"),
@@ -138,7 +144,7 @@ module blocksyncClientTest {
 
     .then(clientLogic("v1", addOutput, false))
     .expect(length(outputs) == 2)
-    .expect(outputs[1] == SOBlock(proposals[0]))
+    .expect(outputs[1] == SOBlock(chain[0].decision))
     .expect(bsyncClients.get("v1").lastSyncedHeight == 1)
 
   // Test clientLogic with "full == true"
@@ -202,7 +208,7 @@ module blocksyncClientTest {
       client: "v1",
       server: "v2",
       height: 1,
-      response: RespBlockStoreEntry({decision: proposals[0], commit: certificates[0]} ),
+      response: RespBlockStoreEntry(chain[0]),
     }))
     .then(all {
       deliverResponse("v1"),
@@ -213,7 +219,7 @@ module blocksyncClientTest {
     // Then we produce two outputs and no message
     .then(clientLogic("v1", addOutput, true))
     .expect(length(outputs) == 1)
-    .expect(outputs[0] == SOBlockStoreEntry({decision: proposals[0], commit: certificates[0]}))
+    .expect(outputs[0] == SOBlockStoreEntry(chain[0]))
     .expect(requestsBuffer.keys().forall(x =>
       if (x != "v2") requestsBuffer.get(x).size() == 0
       else requestsBuffer.get(x).size() == 1))
