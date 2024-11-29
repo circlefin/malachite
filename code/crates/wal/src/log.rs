@@ -145,7 +145,7 @@ enum WriteEntry<'a> {
     },
 }
 
-impl<'a> WriteEntry<'a> {
+impl WriteEntry<'_> {
     fn data(&self) -> &[u8] {
         match self {
             WriteEntry::Raw(data) => data,
