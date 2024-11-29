@@ -10,11 +10,24 @@ import heightLogicrun (
     slow = "v4"
 ) as SLOW1 from "./heightLogicrun"
 
-run fastProcessesDecidesAtHeight0 = {
-    SLOW1::fastProcessesDecidesAtHeight0
+run fastProcessesDecidesAtHeight0SlowOneCatchesUp = {
+    SLOW1::fastProcessesDecidesAtHeight0SlowOneCatchesUp
 }
 
-run deliverProposalForFast = {
-    SLOW1::deliverProposalForFast
+run everyoneIsFastInRound0 = {
+    SLOW1::everyoneIsFastInRound0
 }
+
+run multiHeightRun = {
+    SLOW1::multiHeightRun
+}
+
+run slowProcessAtHeight1 = {
+    SLOW1::slowProcessAtHeight1
+}
+
+run catchUpToHigherRound = {
+    SLOW1::catchUpToHigherRound
+}
+
 }

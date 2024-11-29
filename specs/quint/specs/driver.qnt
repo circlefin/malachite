@@ -193,11 +193,14 @@ module driver {
     // a function, that is, any two validators need to agree on this
     pure def proposer(valset: Address -> Weight, height: Height, round: Round): Address = {
         // Here: rotating coordinator. We can do something more clever actually using the valset
-        val prop = (round + 1) % 4
-        if (prop == 0) "v1"
-        else if  (prop == 1) "v2"
-        else if  (prop == 2) "v3"
-        else "v4"
+        // Update: generalized to aribtrary validator set, different proposer at different heights
+        val valList = valset.keys().fold(List(), (s, x) => s.append(x))
+        val prop = (round + height + 1) % length(valList) // start with v2 as before
+        valList[prop]
+        // if (prop == 0) "v1"
+        // else if  (prop == 1) "v2"
+        // else if  (prop == 2) "v3"
+        // else "v4"
     }
 
     pure def getValue(state: NodeState): Value = state.nextValueToPropose
