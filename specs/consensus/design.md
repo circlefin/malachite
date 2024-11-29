@@ -112,56 +112,44 @@ The original algorithm is modified to allow for asynchronous `getValue()`. The d
 <tr >
 <td>
 
-```
-function StartRound(round) {
- round_p ← round
- step_p ← propose
- if proposer(h_p, round_p) = p {
-  if validValue_p != nil {
-   proposal ← validValue_p
+```go
+11: Function StartRound(round):
+12:    round_p ← round
+13:    step_p ← propose
+14:    if proposer(h_p, round_p) = p then
+15:       if validValue_p != nil then
+16:          proposal ← validValue_p
 
 
+17:       else
+18:          proposal ← getValue()
 
-  } else {
-   proposal ← getValue()
-
-  }
-
-
-  broadcast ⟨PROPOSAL, h_p, round_p, proposal, validRound_p⟩
- } else {
-  schedule OnTimeoutPropose(h_p,round_p) to
-   be executed after timeoutPropose(round_p)
- }
-}
+19:       broadcast ⟨PROPOSAL, h_p, round_p, proposal, validRound_p⟩
+20:    else
+21:       schedule OnTimeoutPropose(h_p, round_p) 
+             to be executed after timeoutPropose(round_p)
 ```
 
 </td>
 
 <td>
 
-```
-function StartRound(round) {
- round_p ← round
- step_p ← propose
- if proposer(h_p, round_p) = p {
-  if validValue_p != nil {
-   proposal ← validValue_p
+```go
+11: Function StartRound(round):
+12:    round_p ← round
+13:    step_p ← propose
+14:    if proposer(h_p, round_p) = p then
+15:       if validValue_p != nil then
+16:          proposal ← validValue_p
 
-   broadcast ⟨PROPOSAL, h_p, round_p, proposal, validRound_p⟩
-
-  } else {
-   getValue() // async
-   schedule OnTimeoutPropose(h_p,round_p) to
-     be executed after timeoutPropose(round_p)
-  }
-
-
- } else {
-  schedule OnTimeoutPropose(h_p,round_p) to
-   be executed after timeoutPropose(round_p)
- }
-}
+             broadcast ⟨PROPOSAL, h_p, round_p, proposal, validRound_p⟩
+17:       else
+             getValue() // async
+             schedule OnTimeoutPropose(h_p, round_p) 
+                to be executed after timeoutPropose(round_p)
+20:    else
+21:       schedule OnTimeoutPropose(h_p, round_p) 
+             to be executed after timeoutPropose(round_p)
 ```
 
 </td>
@@ -186,11 +174,10 @@ function StartRound(round) {
 
 <td>
 
-```
-upon PROPOSEVALUE (h_p, round_p, v) {
-   proposal ← v
-   broadcast ⟨PROPOSAL, h_p, round_p, proposal, -1⟩
-}
+```go
+68: upon PROPOSEVALUE (h_p, round_p, v)
+69:     proposal ← v
+70:     broadcast ⟨PROPOSAL, h_p, round_p, proposal, -1⟩
 ```
 
 </td>
