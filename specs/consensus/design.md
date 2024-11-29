@@ -33,7 +33,7 @@ The diagram below offers a visual representation of the state machine. It shows 
 and red for the complex events (e.g. `ProposalAndPolkaCurrent` is sent to the state machine when a valid proposal and a polka of prevotes have been received).
 The actions are shown in italics (blue) and the output messages are shown in blue.
 
-![Consensus SM Diagram](../english/assets/sm_diagram.jpeg)
+![Consensus SM Diagram](./assets/sm_diagram.jpeg)
 
 The set of states can be summarized as:
 
@@ -89,7 +89,7 @@ round steps `Propose`, `Prevote`, and `Precommit`, represented in the table.
 The conditions for concluding a round of consensus, therefore for leaving the
 `InProgress` state, are presented in the previous subsection.
 
-#### Validity Checks
+### Validity Checks
 
 The pseudocode of the algorithm includes validity checks for the messages. These checks have been moved out of the state machine and are now performed by the `driver` module.
 For this reason:
@@ -99,7 +99,7 @@ For this reason:
 
 TODO - show the full algorithm with all the changes
 
-#### Asynchronous getValue() and ProposeValue(v)
+### Asynchronous getValue() and ProposeValue(v)
 
 The original algorithm is modified to allow for asynchronous `getValue()`. The details are described below.
 
