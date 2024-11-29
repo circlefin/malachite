@@ -1,1 +1,0 @@
-# Malachite Consensus Design
