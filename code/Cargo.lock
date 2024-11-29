@@ -1971,19 +1971,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "libp2p-broadcast"
-version = "0.12.0"
-source = "git+https://github.com/romac/libp2p-broadcast.git#6975d67ad4621893fc5de34c68885c5b311f0fb1"
-dependencies = [
- "bytes",
- "fnv",
- "futures",
- "libp2p",
- "prometheus-client",
- "unsigned-varint 0.8.0",
-]
-
-[[package]]
 name = "libp2p-connection-limits"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2097,9 +2084,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-identity"
-version = "0.2.9"
+version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55cca1eb2bc1fd29f099f3daaab7effd01e1a54b7c577d0ed082521034d912e8"
+checksum = "257b5621d159b32282eac446bed6670c39c7dc68a200a992d8f056afa0066f6d"
 dependencies = [
  "bs58",
  "ed25519-dalek",
@@ -2113,7 +2100,6 @@ dependencies = [
  "sha2 0.10.8",
  "thiserror 1.0.68",
  "tracing",
- "void",
  "zeroize",
 ]
 
@@ -2274,6 +2260,20 @@ dependencies = [
  "tracing",
  "void",
  "web-time",
+]
+
+[[package]]
+name = "libp2p-scatter"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2930693ddb135900c3efb19b26493495ad8fa422b01d72375ddfa879ba306e78"
+dependencies = [
+ "bytes",
+ "fnv",
+ "futures",
+ "libp2p",
+ "prometheus-client",
+ "unsigned-varint 0.8.0",
 ]
 
 [[package]]
@@ -2458,6 +2458,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-app-channel"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "derive-where",
+ "libp2p-identity",
+ "malachite-actors",
+ "malachite-blocksync",
+ "malachite-common",
+ "malachite-config",
+ "malachite-consensus",
+ "malachite-gossip-consensus",
+ "malachite-metrics",
+ "malachite-node",
+ "ractor",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "malachite-blocksync"
 version = "0.1.0"
 dependencies = [
@@ -2599,7 +2619,7 @@ dependencies = [
  "eyre",
  "futures",
  "libp2p",
- "libp2p-broadcast",
+ "libp2p-scatter",
  "malachite-blocksync",
  "malachite-discovery",
  "malachite-metrics",
@@ -3764,9 +3784,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.15"
+version = "0.23.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fbb44d7acc4e873d613422379f69f237a1b141928c02f6bc6ccfddddc2d7993"
+checksum = "934b404430bb06b3fae2cba809eb45a1ab1aecd64491213d7c3301b88393f8d1"
 dependencies = [
  "once_cell",
  "ring 0.17.8",
