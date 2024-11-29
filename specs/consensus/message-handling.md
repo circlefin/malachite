@@ -9,16 +9,16 @@ However, due to the network asynchrony, different processes speeds, a process
 may have to handle messages that belong to rounds or even heights different
 from its current ones, as described in this document.
 
-### Different rounds
+## Different rounds
 
-Messages matching the current height and round of a validator produce most of
+Messages matching the current height and round of a process produce most of
 the relevant events for the consensus state machine.
 Messages from different rounds, however, also trigger relevant events.
 
-This section assumes that a validator is at round `r` of height `h` of
+This section assumes that a process is at round `r` of height `h` of
 consensus, or in short, at round `(h, r)`.
 
-#### Previous rounds
+### Previous rounds
 
 The consensus state machine has events requiring messages from previous rounds
 `(h, r')` with `r' < r`:
@@ -33,18 +33,18 @@ The consensus state machine has events requiring messages from previous rounds
    messages which, together with a `PROPOSAL(h, r', v, *)` message,
   leads to the decision of `v` at round `r'` (L49).
 
-As a result, a validator needs to keep track of messages from previous
+As a result, a process needs to keep track of messages from previous
 rounds to produce the enumerated events:
 
-1. `PROPOSAL` messages should be maintained when a validator moves to higher rounds,
+1. `PROPOSAL` messages should be maintained when a process moves to higher rounds,
    as well as new `PROPOSAL` messages from previous rounds should be stored.
    - Reason I: a `2f + 1` threshold of `⟨PRECOMMIT, h, r', id(v)⟩` messages
      could still be obtained, and an existing proposal message for `v` in the
-     previous round `r' < r` enables the validator to decide `v`.
+     previous round `r' < r` enables the process to decide `v`.
    - Reason II: a `2f + 1` threshold of `⟨PRECOMMIT, h, r', id(v)⟩` messages
      was already obtained, but the proposal message for `v` at round `r'`
-     is missing. Once received, the validator can decide `v`.
-2. `PREVOTE` messages should be maintained when a validator moves to higher rounds,
+     is missing. Once received, the process can decide `v`.
+2. `PREVOTE` messages should be maintained when a process moves to higher rounds,
    as well as new `PREVOTE` messages from previous rounds should be stored.
    - Reason I: a `PROPOSAL(h, r, v, vr)` with `0 ≤ vr < r` can be received in
      the current round, requiring an existing `2f + 1` threshold of `⟨PREVOTE, h, vr, id(v)⟩` messages.
@@ -52,17 +52,17 @@ rounds to produce the enumerated events:
      can still be obtained and unblock the processing of `PROPOSAL(h, r, v, vr)`
      received in the current round.
    - Observe that `PREVOTE` messages for `nil` do not need to be maintained for previous rounds.
-3. `PRECOMMIT` messages should be maintained when a validator moves to higher rounds,
+3. `PRECOMMIT` messages should be maintained when a process moves to higher rounds,
    as well as new `PRECOMMIT` messages from previous rounds should be stored.
    - Reason I: a `2f + 1` threshold of `⟨PRECOMMIT, h, r', id(v)⟩` messages
      can be obtained, and there is a proposal message for `v` in round
-     `r'`, leading the validator to decide `v`.
+     `r'`, leading the process to decide `v`.
    - Reason II: a `2f + 1` threshold of `⟨PRECOMMIT, h, r', id(v)⟩` messages
      can be obtained, but there is no proposal message for `v` in round
      `r'`. This enables Reason II of 1., i.e., receiving a late proposal.
    - Observe that `PRECOMMIT` messages for `nil` do not need to be maintained for previous rounds.
 
-#### Future rounds
+### Future rounds
 
 The consensus state machine requires receiving and processing messages from
 future rounds `(h, r')` with `r' > r` for enabling the _round skipping_ mechanism.
@@ -92,25 +92,26 @@ first interpretation has been adopted.
 Namely, the senders of both `PREVOTE` and `PRECOMMIT` messages of a round `r' > r`
 are counted together towards the `f + 1` threshold.
 
-#### Attack vectors
+### Attack vectors
 
-In addition to the attack vectors induced by equivocating validators,
-for [proposal messages](#proposals) and [vote messages](#counting-votes),
+In addition to the attack vectors induced by equivocating processes,
+for [proposal messages](./overview.md#proposals) and
+[vote messages](./overview.md#votes),
 the need of storing message referring to previous or future rounds introduces
 new attack vectors.
 
 In the case of messages of [previous rounds](#previous-rounds), the attack
 vectors are the same as for messages matching the current round, as the
-validator is supposed in any case to store all messages of previous rounds.
+process is supposed in any case to store all messages of previous rounds.
 A possible mitigation is the observation that vote messages for `nil` have no
 use when they refer to previous rounds.
 
 In the case of messages of [future rounds](#future-rounds) `r' > r`,
 in addition to tracking message senders to enable round skipping,
-a validator _must_ store the (early) received messages so that they can be
-processed and produce relevant events once the validator starts the future
+a process _must_ store the (early) received messages so that they can be
+processed and produce relevant events once the process starts the future
 round `r'`.
-This constitutes an important attack vector, as Byzantine validators could
+This constitutes an important attack vector, as Byzantine processes could
 broadcast messages referring to an arbitrary number of future rounds.
 
 There is no trivial solution for preventing the attack derived from the need of
@@ -123,28 +124,28 @@ effects of this attack:
    - For instance,  CometBFT only tracks messages of a single future round,
      i.e., `r_max = r + 1`.
 2. Assume that the communication subsystem (p2p) is able to retrieve messages
-   from a future round `r' > r` once the validator reaches round `r'`.
-   Since validators keep track of messages of both the current and previous
+   from a future round `r' > r` once the process reaches round `r'`.
+   Since processes keep track of messages of both the current and previous
    rounds, they should be able to transmit those messages to their lagging peers.
 
-### Different heights
+## Different heights
 
 Heights in Tendermint consensus algorithm are communication-closed.
-This means that if a validator is at height `h`, messages from either `h' < h`
+This means that if a process is at height `h`, messages from either `h' < h`
 (past) or `h' > h` (future) heights have no effect on the operation of height `h`.
 
-However, due to asynchrony, different validators can be at different heights.
+However, due to asynchrony, different processes can be at different heights.
 More specifically, assuming a lock-step operation for heights (i.e., a
-validator only starts height `h + 1` once height `h` is decided), some
-validators can be trying to decide a value for height `h` while others have
+process only starts height `h + 1` once height `h` is decided), some
+processes can be trying to decide a value for height `h` while others have
 already transitioned to heights `h' > h`.
 
 An open question is whether the consensus protocol should be in charge of
-handling lagging validators.
+handling lagging processes.
 This is probably easier to be implement by a separate or auxiliary component,
 which implements a syncing protocol.
 
-#### Past heights
+### Past heights
 
 The consensus state machine is not affected by messages from past heights.
 However, the reception of such messages from a peer indicates that the peer may
@@ -156,41 +157,42 @@ a `2f + 1` threshold of `Precommit` messages of the decision round for `id(v)`.
 These messages, forming a _decision certificate_, should be stored for a given
 number of previous heights.
 
-#### Future heights
+### Future heights
 
 The consensus state machine is not able to process message from future heights
-in a proper way, as the validator set for for a future height may not be known
+in a proper way, as the process set for for a future height may not be known
 until the future height is started.
-However, once the validator reaches the future height, messages belonging to
+However, once the process reaches the future height, messages belonging to
 that height that were early received are **required** for proper operation.
 
 An additional complication when handling messages from future heights is that,
 contrarily to what happens with messages of [future rounds](#future-rounds),
-there is no mechanism that allows the validator to switch to the future height
+there is no mechanism that allows the process to switch to the future height
 when it receives a given set of messages from that height.
 In fact, considering the lock-step operation of the consensus algorithm, a
 node can only start height `h` once height `h - 1` is decided.
 Moreover, messages of future heights `h' > h` do not enable, in any way, a
 node to reach a decision in its current height `h`.
 
-#### Attack vectors
+### Attack vectors
 
-In addition to the attack vectors induced by equivocating validators,
-for [proposal messages](#proposals) and [vote messages](#counting-votes),
+In addition to the attack vectors induced by equivocating processes,
+for [proposal messages](./overview.md#proposals) and
+[vote messages](./overview.md#votes),
 the need of storing message referring to previous or future heights introduces
 new attack vectors.
 
-If messages from [previous heights](#previous-heights) from a peer trigger a different node to
+If messages from [previous heights](#past-heights) from a peer trigger a different node to
 execute procedures for trying to catch up that peer, a Byzantine peer may
 indefinitely claim to be stuck in a previous height, or that it is behind by
 several heights.
 In both cases the node will consume resources to catchup a peer that possibly
 does not need to be caught up.
 
-The fact that a validator needs to store messages from [future heights](#future-heights),
-so that they can be processed and produce relevant events once the validator
+The fact that a process needs to store messages from [future heights](#future-heights),
+so that they can be processed and produce relevant events once the process
 eventually starts the corresponding heights,
-constitutes a very important attack vector, as Byzantine validators could
+constitutes a very important attack vector, as Byzantine processes could
 broadcast messages referring to an arbitrary number of future heights.
 
 There is no trivial solution for preventing the attack derived from the need of
@@ -201,9 +203,7 @@ effects of this attack:
 1. Buffer messages for a limited number of future heights, say heights
    `h'` where `h < h' ≤ h_max`.
 2. Assume that the communication subsystem (p2p) is able to retrieve messages
-   from future heights `h' > h` once the validator reaches height `h'`.
-   Notice that this option implies that validators keep a minimal set of
+   from future heights `h' > h` once the process reaches height `h'`.
+   Notice that this option implies that processes keep a minimal set of
    consensus messages from [previous heights](#past-heights) so that to enable
 peers lagging behind to decide a past height.
-
-
