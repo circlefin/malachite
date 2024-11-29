@@ -7,27 +7,22 @@ use malachite_config::Config as NodeConfig;
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Keypair;
 use malachite_metrics::{Metrics, SharedRegistry};
-use malachite_node::Node;
 
 use crate::channel::AppMsg;
 use crate::spawn::{
     spawn_block_sync_actor, spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_host_actor,
 };
 
-// Todo: Remove clippy exception when the function signature is finalized
-#[allow(clippy::too_many_arguments)]
-pub async fn run<N, Ctx, Codec>(
+pub async fn run<Ctx, Codec>(
     cfg: NodeConfig,
     start_height: Option<Ctx::Height>,
     ctx: Ctx,
-    _node: N, // we will need it to get private/public key, address and eventually KeyPair
     codec: Codec,
     keypair: Keypair,      // Todo: see note in code
     address: Ctx::Address, // Todo: remove it when Node was properly implemented
     initial_validator_set: Ctx::ValidatorSet,
 ) -> Result<mpsc::Receiver<AppMsg<Ctx>>, String>
 where
-    N: Node<Context = Ctx>,
     Ctx: Context,
     Codec: NetworkCodec<Ctx::ProposalPart>,
     Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
