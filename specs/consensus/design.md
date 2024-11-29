@@ -1,21 +1,20 @@
-# Malachite Documentation
+# Malachite Consensus Design
 
-Malachite is an implementation of the [Tendermint consensus algorithm][arxiv] in Rust.
-It comes together with an executable specification in [Quint][quint-spec]. We use
-model-based testing to make sure that the implementation corresponds to the
-specification.
+[Tendermint consensus algorithm](./overview.md) works by a set of processes
+exchanging messages over a network, and the local consensus instances act on
+the incoming messages if certain conditions are met (e.g., if a threshold
+number of specific messages is received a state transition should happen).
 
-Tendermint consensus algorithm works by a set of validator nodes exchanging messages over a
-network, and the local consensus instances act on the incoming messages if
-certain conditions are met (e.g., if a threshold number of specific messages is
-received a state transition should happen).
 The architecture of Malachite separates:
 
-- counting messages in a *vote keeper* ([Quint][quint-votekeeper]),
-- creating consensus inputs in a *driver* ([Quint][quint-driver]), e.g., if a threshold is reached
-- doing the state transition depending on the consensus input in the *state machine* ([Quint][quint-sm])
+- counting messages in a **vote keeper** ([Quint][quint-votekeeper]),
+- creating consensus inputs in a **driver** ([Quint][quint-driver]),
+  e.g., if a threshold is reached
+- doing the state transition depending on the consensus input in the
+  **state machine** ([Quint][quint-sm])
 
-A detailed executable specification of these functionalities are given in Quint.
+A detailed executable specification of these functionalities are given in
+[Quint][quint-spec].
 In this (English) document we discuss some underlying principles, namely,
 
 - [Message handling](#message-handling): How to treat incoming messages. Which messages to store,
@@ -24,11 +23,11 @@ and on what conditions to generate consensus inputs.
 - [Round state machine](#round-state-machine): How to change state depending on the
 current state and a consensus input.
 
-- [Misbehavior detection and handling](../../consensus/misbehavior.md): How Faulty nodes can misbehave, how it can be detected, and how objective proof of misbehavior can be computed that can be soundly used to incentivize nodes to behave nicely (penalties, slashing, etc. are not in the scope of the consensus engine, and will thus not be discussed here).
+- [Misbehavior detection and handling](./misbehavior.md): How Faulty nodes can misbehave, how it can be detected, and how objective proof of misbehavior can be computed that can be soundly used to incentivize nodes to behave nicely (penalties, slashing, etc. are not in the scope of the consensus engine, and will thus not be discussed here).
 
 ## Message Handling
 
-Most of this content has been moved into the [Consensus algorithm overview](../../consensus/README.md#messages)
+Most of this content has been moved into the [Consensus algorithm overview](./overview.md#messages).
 
 ### Different rounds
 
@@ -420,7 +419,7 @@ There are however exceptions that have to be handled properly:
 * ["The latest gossip on BFT consensus"][arxiv], by _Buchman, Kwon, Milosevic_. 2018.
 
 [arxiv]: https://arxiv.org/pdf/1807.04938.pdf
-[quint-spec]: ../../quint/README.md
-[quint-votekeeper]: ../../quint/specs/votekeeper.qnt
-[quint-driver]: ../../quint/specs/driver.qnt
-[quint-sm]: ../../quint/specs/consensus.qnt
+[quint-spec]: ./quint/README.md
+[quint-votekeeper]: ./quint/votekeeper.qnt
+[quint-driver]: ./quint/driver.qnt
+[quint-sm]: ./quint/consensus.qnt
