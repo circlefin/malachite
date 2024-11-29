@@ -24,11 +24,8 @@ what conditions to generate consensus inputs.
 
 ## Round state machine
 
-- [Round state machine](#round-state-machine): How to change state depending on the
-current state and a consensus input.
-
-The consensus state-machine operates on complex `Event`s that reflect the
-reception of one or multiple `Message`s, combined with state elements and the
+The consensus state-machine operates on complex **events** that reflect the
+reception of one or multiple **messages**, combined with state elements and the
 interaction with other modules.
 
 The state machine represents the operation of consensus at a single `Height(h)` and `Round(r)`.
@@ -36,24 +33,24 @@ The diagram below offers a visual representation of the state machine. It shows 
 and red for the complex events (e.g. `ProposalAndPolkaCurrent` is sent to the state machine when a valid proposal and a polka of prevotes have been received).
 The actions are shown in italics (blue) and the output messages are shown in blue.
 
-![Consensus SM Diagram](../assets/sm_diagram.jpeg)
+![Consensus SM Diagram](../english/assets/sm_diagram.jpeg)
 
 The set of states can be summarized as:
 
 - `Unstarted`
   - Initial state
   - Can be used to store messages early received for this round
-  - In the algorithm when `roundp < r`, where `roundp` is the node's current round
+  - In the algorithm when `round_p < r`, where `round_p` is the process' current round
 - InProgress (`Propose`, `Prevote`, `Precommit`)
   - Actual consensus single-round execution
-  - In the algorithm when `roundp == r`
+  - In the algorithm when `round_p == r`
 - `Commit`
   - Final state for a successful round
 
 ### Exit transitions
 
 The table below summarizes the major state transitions in the `Round(r)` state machine.
-The transactions from state `InProgress` consider that node can be at any of
+The transactions from state `InProgress` consider that process can be at any of
 the `Propose`, `Prevote`, `Precommit` states.
 The `Ref` column refers to the line of the pseudocode where the events can be found.
 
@@ -96,7 +93,7 @@ The conditions for concluding a round of consensus, therefore for leaving the
 
 The pseudocode of the algorithm includes validity checks for the messages. These checks have been moved out of the state machine and are now performed by the `driver` module.
 For this reason:
-- `L22` is covered by `Proposal(v, -1) and `InvalidProposal(v, -1)`
+- `L22` is covered by `Proposal(v, -1)` and `InvalidProposal(v, -1)`
 - `L28` is covered by `ProposalAndPolkaPrevious(v, vr)` and `InvalidProposalAndPolkaPrevious(v, vr)`
 - `L36` and `L49` are only called with valid proposal
 
@@ -204,19 +201,14 @@ upon PROPOSEVALUE (h_p, round_p, v) {
 ### Notes
 
 Most of the state transitions represented in the previous tables consider message and
-events referring to the node's current round `r`.
-In the pseudocode this current round of a node is referred as `round_p`.
+events referring to the process' current round `r`.
+In the pseudocode this current round of a process is referred as `round_p`.
 
 There are however exceptions that have to be handled properly:
-- the transition `L28` requires the node to have access to `PREVOTE` messages from a previous round `r' < r`.
-- the transition `L49` requires the node to have access to `PRECOMMIT` messages from different round `r' != r`.
-- the transition `L55` requires the node to have access to all messages from a future round `r' > r`.
+- the transition `L28` requires the process to have access to `PREVOTE` messages from a previous round `r' < r`.
+- the transition `L49` requires the process to have access to `PRECOMMIT` messages from different round `r' != r`.
+- the transition `L55` requires the process to have access to all messages from a future round `r' > r`.
 
-## References
-
-* ["The latest gossip on BFT consensus"][arxiv], by _Buchman, Kwon, Milosevic_. 2018.
-
-[arxiv]: https://arxiv.org/pdf/1807.04938.pdf
 [quint-spec]: ./quint/README.md
 [quint-votekeeper]: ./quint/votekeeper.qnt
 [quint-driver]: ./quint/driver.qnt
