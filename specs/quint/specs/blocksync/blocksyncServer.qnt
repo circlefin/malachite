@@ -115,7 +115,7 @@ module blocksyncServer {
     val server = bsyncServers.get(node)
     val result = server.syncServer()
     all {
-      bsyncServers' = bsyncServers.put(node, server),
+      bsyncServers' = bsyncServers.put(node, result.sync),
       statusBuffer' = statusBuffer,
       requestsBuffer' = requestsBuffer,
       responsesBuffer' = match result.msg {
