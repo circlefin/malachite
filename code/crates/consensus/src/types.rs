@@ -30,8 +30,18 @@ pub enum ConsensusMsg<Ctx: Context> {
     Proposal(Ctx::Proposal),
 }
 
+/// A value to propose by the current node.
+/// Used only when the node is the proposer.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct ValueToPropose<Ctx: Context> {
+    pub height: Ctx::Height,
+    pub round: Round,
+    pub valid_round: Round,
+    pub value: Ctx::Value,
+    pub extension: Option<SignedExtension<Ctx>>,
+}
+
 /// A value proposed by a validator
-/// Called at non-proposer only.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct ProposedValue<Ctx: Context> {
     pub height: Ctx::Height,

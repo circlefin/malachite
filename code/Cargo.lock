@@ -278,9 +278,9 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
 name = "axum"
-version = "0.7.7"
+version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "504e3947307ac8326a5437504c517c4b56716c9d98fac0028c2acc7ca47d70ae"
+checksum = "edca88bc138befd0323b20752846e6587272d3b03b0343c8ea28a6f819e6e71f"
 dependencies = [
  "async-trait",
  "axum-core",
@@ -557,9 +557,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.20"
+version = "4.5.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b97f376d85a664d5837dbae44bf546e6477a679ff6610010f17276f686d867e8"
+checksum = "fb3b4b9e5a7c7514dfa52869339ee98b3156b0bfb4e8a77c4ff4babb64b1604f"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -567,9 +567,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.20"
+version = "4.5.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19bc80abd44e4bed93ca373a0704ccbd1b710dc5749406201bb018272808dc54"
+checksum = "b17a95aa67cc7b5ebd32aa5370189aa0d79069ef1c64ce893bd30fb24bff20ec"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1971,19 +1971,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "libp2p-broadcast"
-version = "0.12.0"
-source = "git+https://github.com/romac/libp2p-broadcast.git#6975d67ad4621893fc5de34c68885c5b311f0fb1"
-dependencies = [
- "bytes",
- "fnv",
- "futures",
- "libp2p",
- "prometheus-client",
- "unsigned-varint 0.8.0",
-]
-
-[[package]]
 name = "libp2p-connection-limits"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2097,9 +2084,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-identity"
-version = "0.2.9"
+version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55cca1eb2bc1fd29f099f3daaab7effd01e1a54b7c577d0ed082521034d912e8"
+checksum = "257b5621d159b32282eac446bed6670c39c7dc68a200a992d8f056afa0066f6d"
 dependencies = [
  "bs58",
  "ed25519-dalek",
@@ -2113,7 +2100,6 @@ dependencies = [
  "sha2 0.10.8",
  "thiserror 1.0.68",
  "tracing",
- "void",
  "zeroize",
 ]
 
@@ -2275,6 +2261,20 @@ dependencies = [
  "tracing",
  "void",
  "web-time",
+]
+
+[[package]]
+name = "libp2p-scatter"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2930693ddb135900c3efb19b26493495ad8fa422b01d72375ddfa879ba306e78"
+dependencies = [
+ "bytes",
+ "fnv",
+ "futures",
+ "libp2p",
+ "prometheus-client",
+ "unsigned-varint 0.8.0",
 ]
 
 [[package]]
@@ -2459,6 +2459,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-app-channel"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "derive-where",
+ "libp2p-identity",
+ "malachite-actors",
+ "malachite-blocksync",
+ "malachite-common",
+ "malachite-config",
+ "malachite-consensus",
+ "malachite-gossip-consensus",
+ "malachite-metrics",
+ "malachite-node",
+ "ractor",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "malachite-blocksync"
 version = "0.1.0"
 dependencies = [
@@ -2473,7 +2493,7 @@ dependencies = [
  "malachite-metrics",
  "rand",
  "serde",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
  "tracing",
 ]
 
@@ -2493,7 +2513,7 @@ dependencies = [
  "malachite-node",
  "rand",
  "serde_json",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
  "tokio",
  "toml",
  "tracing",
@@ -2507,7 +2527,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "derive-where",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
 ]
 
 [[package]]
@@ -2528,15 +2548,15 @@ name = "malachite-consensus"
 version = "0.1.0"
 dependencies = [
  "async-recursion",
- "bytes",
  "derive-where",
  "genawaiter",
  "libp2p-identity",
  "malachite-common",
  "malachite-driver",
  "malachite-metrics",
+ "malachite-test",
  "multiaddr",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
  "tracing",
 ]
 
@@ -2576,9 +2596,22 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "malachite-common",
+ "malachite-driver-test-utils",
  "malachite-round",
+ "malachite-test",
  "malachite-vote",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
+]
+
+[[package]]
+name = "malachite-driver-test-utils"
+version = "0.1.0"
+dependencies = [
+ "malachite-common",
+ "malachite-driver",
+ "malachite-round",
+ "malachite-test",
+ "malachite-vote",
 ]
 
 [[package]]
@@ -2590,7 +2623,7 @@ dependencies = [
  "eyre",
  "futures",
  "libp2p",
- "libp2p-broadcast",
+ "libp2p-scatter",
  "malachite-blocksync",
  "malachite-discovery",
  "malachite-metrics",
@@ -2639,7 +2672,7 @@ version = "0.1.0"
 dependencies = [
  "prost",
  "prost-types",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
 ]
 
 [[package]]
@@ -2709,7 +2742,7 @@ dependencies = [
  "serde_json",
  "sha3",
  "tempfile",
- "thiserror 2.0.0",
+ "thiserror 2.0.3",
  "tokio",
  "tracing",
 ]
@@ -2759,21 +2792,13 @@ dependencies = [
 name = "malachite-test"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "base64 0.22.1",
  "bytes",
- "bytesize",
  "ed25519-consensus",
  "hex",
- "malachite-actors",
  "malachite-common",
- "malachite-config",
- "malachite-consensus",
- "malachite-driver",
  "malachite-proto",
- "malachite-round",
  "malachite-signing-ed25519",
- "malachite-vote",
  "prost",
  "prost-build",
  "prost-types",
@@ -2781,9 +2806,6 @@ dependencies = [
  "serde",
  "sha3",
  "signature",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -2812,7 +2834,8 @@ version = "0.1.0"
 dependencies = [
  "derive-where",
  "malachite-common",
- "thiserror 2.0.0",
+ "malachite-test",
+ "thiserror 2.0.3",
 ]
 
 [[package]]
@@ -3765,9 +3788,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.15"
+version = "0.23.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fbb44d7acc4e873d613422379f69f237a1b141928c02f6bc6ccfddddc2d7993"
+checksum = "934b404430bb06b3fae2cba809eb45a1ab1aecd64491213d7c3301b88393f8d1"
 dependencies = [
  "once_cell",
  "ring 0.17.8",
@@ -3861,18 +3884,18 @@ checksum = "61697e0a1c7e512e84a621326239844a24d8207b4669b41bc18b32ea5cbf988b"
 
 [[package]]
 name = "serde"
-version = "1.0.214"
+version = "1.0.215"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f55c3193aca71c12ad7890f1785d2b73e1b9f63a0bbc353c08ef26fe03fc56b5"
+checksum = "6513c1ad0b11a9376da888e3e0baa0077f1aed55c17f50e7b2397136129fb88f"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.214"
+version = "1.0.215"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de523f781f095e28fa605cdce0f8307e451cc0fd14e2eb4cd2e98a355b147766"
+checksum = "ad1e866f866923f252f05c889987993144fb74e722403468a4ebd70c3cd756c0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3881,9 +3904,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.132"
+version = "1.0.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d726bfaff4b320266d395898905d0eba0345aae23b54aee3a737e260fd46db03"
+checksum = "c7fceb2473b9166b2294ef05efcb65a3db80803f0b03ef86a5fc88a2b85ee377"
 dependencies = [
  "itoa",
  "memchr",
@@ -4143,9 +4166,9 @@ dependencies = [
 
 [[package]]
 name = "starknet-crypto"
-version = "0.7.2"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60a5064173a8e8d2675e67744fd07f310de44573924b6b7af225a6bdd8102913"
+checksum = "ded22ccf4cb9e572ce3f77de6066af53560cd2520d508876c83bb1e6b29d5cbc"
 dependencies = [
  "crypto-bigint",
  "hex",
@@ -4319,11 +4342,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.0"
+version = "2.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15291287e9bff1bc6f9ff3409ed9af665bec7a5fc8ac079ea96be07bca0e2668"
+checksum = "c006c85c7651b3cf2ada4584faa36773bd07bac24acfb39f3c431b36d7e667aa"
 dependencies = [
- "thiserror-impl 2.0.0",
+ "thiserror-impl 2.0.3",
 ]
 
 [[package]]
@@ -4339,9 +4362,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.0"
+version = "2.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22efd00f33f93fa62848a7cab956c3d38c8d43095efda1decfc2b3a5dc0b8972"
+checksum = "f077553d607adc1caf65430528a576c757a71ed73944b66ebb58ef2bbd243568"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4426,9 +4449,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.41.0"
+version = "1.41.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "145f3413504347a2be84393cc8a7d2fb4d863b375909ea59f2158261aa258bbb"
+checksum = "22cfb5bee7a6a52939ca9224d6ac897bb669134078daa8735560897f69de4d33"
 dependencies = [
  "backtrace",
  "bytes",

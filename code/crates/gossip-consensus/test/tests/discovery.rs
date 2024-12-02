@@ -1,5 +1,3 @@
-#![allow(unused_crate_dependencies)]
-
 use std::{time::Duration, vec};
 
 use malachite_discovery_test::{Expected, Test, TestNode};

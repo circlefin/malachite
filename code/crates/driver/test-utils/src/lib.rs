@@ -1,8 +1,7 @@
 use malachite_common::{NilOrVal, Round, SignedProposal, SignedVote, Timeout, Validity};
 use malachite_driver::{Input, Output};
 use malachite_round::state::{RoundValue, State, Step};
-
-use crate::{Address, Height, Proposal, Signature, TestContext, Value, Vote};
+use malachite_test::{Address, Height, Proposal, Signature, TestContext, Value, Vote};
 
 pub fn new_round_input(round: Round, proposer: Address) -> Input<TestContext> {
     Input::NewRound(Height::new(1), round, proposer)

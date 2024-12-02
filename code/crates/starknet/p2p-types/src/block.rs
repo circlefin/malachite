@@ -11,7 +11,7 @@ pub struct Block {
 }
 
 impl Protobuf for Block {
-    type Proto = proto::blocksync::Block;
+    type Proto = proto::sync::Block;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         let transactions = proto

@@ -1,6 +1,6 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let protos = &[
-        "./proto/blocksync.proto",
+        "./proto/sync.proto",
         "./proto/p2p/proto/common.proto",
         "./proto/p2p/proto/header.proto",
         "./proto/p2p/proto/transaction.proto",

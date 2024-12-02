@@ -1,0 +1,28 @@
+[package]
+name = "malachite-app-channel"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bytes.workspace = true
+derive-where.workspace = true
+libp2p-identity.workspace = true
+ractor.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+malachite-actors.workspace = true
+malachite-blocksync.workspace = true
+malachite-common.workspace  = true
+malachite-config.workspace  = true
+malachite-consensus.workspace = true
+malachite-gossip-consensus.workspace = true
+malachite-metrics.workspace = true
+malachite-node.workspace = true
+
+[lints]
+workspace = true
