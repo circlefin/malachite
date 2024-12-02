@@ -5,8 +5,9 @@ use std::time::Duration;
 use either::Either;
 use libp2p::identity::Keypair;
 use libp2p::kad::store::MemoryStore;
-use libp2p::kad::{Addresses, KBucketKey, KBucketRef, Mode};
+use libp2p::kad::{Addresses, KBucketKey, KBucketRef, Mode, RoutingUpdate};
 use libp2p::request_response::{self, OutboundRequestId, ProtocolSupport, ResponseChannel};
+use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{kad, Multiaddr, PeerId, StreamProtocol};
 use serde::{Deserialize, Serialize};
@@ -17,11 +18,13 @@ const DISCOVERY_REQRES_PROTOCOL: &str = "/malachite-discovery/reqres/v1beta1";
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Request {
     Peers(HashSet<(Option<PeerId>, Multiaddr)>),
+    Connect(),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Response {
     Peers(HashSet<(Option<PeerId>, Multiaddr)>),
+    Connect(bool),
 }
 
 #[derive(Debug)]
@@ -58,14 +61,15 @@ where
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "NetworkEvent")]
 pub struct Behaviour {
-    pub kademlia: kad::Behaviour<MemoryStore>,
+    pub kademlia: Toggle<kad::Behaviour<MemoryStore>>,
     pub request_response: request_response::cbor::Behaviour<Request, Response>,
 }
 
 fn kademlia_config() -> kad::Config {
-    let config = kad::Config::new(StreamProtocol::new(&DISCOVERY_KAD_PROTOCOL));
+    let mut config = kad::Config::new(StreamProtocol::new(&DISCOVERY_KAD_PROTOCOL));
 
-    // TODO: adjust config if needed
+    // In production, one might set this to a high value to keep a fresh view of the network
+    config.set_periodic_bootstrap_interval(None);
 
     config
 }
@@ -82,15 +86,18 @@ fn request_response_config() -> request_response::Config {
 }
 
 impl Behaviour {
-    pub fn new(keypair: &Keypair) -> Self {
-        let mut kademlia = kad::Behaviour::with_config(
-            keypair.public().to_peer_id(),
-            MemoryStore::new(keypair.public().to_peer_id()),
-            kademlia_config(),
-        );
-        // TODO: this is only for local testing
-        // TODO: with real IP addresses, this switch is made automatically
-        kademlia.set_mode(Some(Mode::Server));
+    pub fn new(keypair: &Keypair, is_enabled: bool) -> Self {
+        let kademlia = Toggle::from(is_enabled.then(|| {
+            let mut kademlia = kad::Behaviour::with_config(
+                keypair.public().to_peer_id(),
+                MemoryStore::new(keypair.public().to_peer_id()),
+                kademlia_config(),
+            );
+
+            kademlia.set_mode(Some(Mode::Server));
+
+            kademlia
+        }));
 
         let request_response = request_response::cbor::Behaviour::new(
             request_response_protocol(),
@@ -105,6 +112,8 @@ impl Behaviour {
 }
 
 pub trait DiscoveryClient: NetworkBehaviour {
+    fn add_address(&mut self, peer: &PeerId, address: Multiaddr) -> RoutingUpdate;
+
     fn kbuckets(&mut self) -> impl Iterator<Item = KBucketRef<'_, KBucketKey<PeerId>, Addresses>>;
 
     fn send_request(&mut self, peer_id: &PeerId, req: Request) -> OutboundRequestId;

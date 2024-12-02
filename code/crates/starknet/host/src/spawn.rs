@@ -185,6 +185,9 @@ async fn spawn_gossip_consensus_actor(
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
         discovery: DiscoveryConfig {
             enabled: cfg.consensus.p2p.discovery.enabled,
+            num_outbound_peers: cfg.consensus.p2p.discovery.num_outbound_peers,
+            num_inbound_peers: cfg.consensus.p2p.discovery.num_inbound_peers,
+            ephemeral_connection_timeout: cfg.consensus.p2p.discovery.ephemeral_connection_timeout,
             ..Default::default()
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),

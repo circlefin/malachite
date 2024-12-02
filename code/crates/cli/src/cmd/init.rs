@@ -20,6 +20,20 @@ pub struct InitCmd {
     /// If enabled, the node will attempt to discover other nodes in the network
     #[clap(long, default_value = "true")]
     pub enable_discovery: bool,
+
+    /// Number of outbound peers
+    #[clap(long, default_value = "20", verbatim_doc_comment)]
+    pub num_outbound_peers: usize,
+
+    /// Number of inbound peers
+    /// Must be greater than or equal to the number of outbound peers
+    #[clap(long, default_value = "20", verbatim_doc_comment)]
+    pub num_inbound_peers: usize,
+
+    /// Ephemeral connection timeout
+    /// The duration in milliseconds an ephemeral connection is kept alive
+    #[clap(long, default_value = "5000", verbatim_doc_comment)]
+    pub ephemeral_connection_timeout_ms: u64,
 }
 
 impl InitCmd {
@@ -40,6 +54,9 @@ impl InitCmd {
             1,
             RuntimeConfig::SingleThreaded,
             self.enable_discovery,
+            self.num_outbound_peers,
+            self.num_inbound_peers,
+            self.ephemeral_connection_timeout_ms,
             TransportProtocol::Tcp,
             logging,
         );

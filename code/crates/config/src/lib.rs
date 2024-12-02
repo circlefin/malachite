@@ -100,6 +100,18 @@ pub struct DiscoveryConfig {
     /// Enable peer discovery
     #[serde(default)]
     pub enabled: bool,
+
+    /// Number of outbound peers
+    #[serde(default)]
+    pub num_outbound_peers: usize,
+
+    /// Number of inbound peers
+    #[serde(default)]
+    pub num_inbound_peers: usize,
+
+    /// Ephemeral connection timeout
+    #[serde(default)]
+    pub ephemeral_connection_timeout: Duration,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]

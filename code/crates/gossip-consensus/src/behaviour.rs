@@ -3,7 +3,6 @@ use std::time::Duration;
 use either::Either;
 use libp2p::kad::{Addresses, KBucketKey, KBucketRef};
 use libp2p::request_response::{OutboundRequestId, ResponseChannel};
-use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::swarm::NetworkBehaviour;
 use libp2p::{gossipsub, identify, ping};
 use libp2p_broadcast as broadcast;
@@ -83,24 +82,28 @@ pub struct Behaviour {
     pub ping: ping::Behaviour,
     pub pubsub: Either<gossipsub::Behaviour, broadcast::Behaviour>,
     pub blocksync: blocksync::Behaviour,
-    pub discovery: Toggle<discovery::Behaviour>,
+    pub discovery: discovery::Behaviour,
 }
 
 impl discovery::DiscoveryClient for Behaviour {
+    fn add_address(&mut self, peer: &PeerId, address: Multiaddr) -> libp2p::kad::RoutingUpdate {
+        self.discovery
+            .kademlia
+            .as_mut()
+            .expect("Kademlia behaviour should be available")
+            .add_address(peer, address)
+    }
+
     fn kbuckets(&mut self) -> impl Iterator<Item = KBucketRef<'_, KBucketKey<PeerId>, Addresses>> {
         self.discovery
-            .as_mut()
-            .expect("Discovery behaviour should be available")
             .kademlia
+            .as_mut()
+            .expect("Kademlia behaviour should be available")
             .kbuckets()
     }
 
     fn send_request(&mut self, peer_id: &PeerId, req: discovery::Request) -> OutboundRequestId {
-        self.discovery
-            .as_mut()
-            .expect("Discovery behaviour should be available")
-            .request_response
-            .send_request(peer_id, req)
+        self.discovery.request_response.send_request(peer_id, req)
     }
 
     fn send_response(
@@ -108,11 +111,7 @@ impl discovery::DiscoveryClient for Behaviour {
         ch: ResponseChannel<discovery::Response>,
         rs: discovery::Response,
     ) -> Result<(), discovery::Response> {
-        self.discovery
-            .as_mut()
-            .expect("Discovery behaviour should be available")
-            .request_response
-            .send_response(ch, rs)
+        self.discovery.request_response.send_response(ch, rs)
     }
 }
 
@@ -174,13 +173,7 @@ impl Behaviour {
             registry.sub_registry_with_prefix("blocksync"),
         );
 
-        let discovery = Toggle::from(
-            config
-                .discovery
-                .enabled
-                // TODO: new() needs to be FnOnce, the closure is a workaround for now
-                .then(|| discovery::Behaviour::new(keypair)),
-        );
+        let discovery = discovery::Behaviour::new(keypair, config.discovery.enabled);
 
         Self {
             identify,

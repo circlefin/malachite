@@ -1,26 +1,67 @@
-use crate::util::RangeInclusive;
+use std::time::Duration;
 
-pub const DEFAULT_MIN_PEERS: usize = 100;
-pub const DEFAULT_MAX_PEERS: usize = usize::MAX;
+const DEFAULT_NUM_OUTBOUND_PEERS: usize = 20;
+const DEFAULT_NUM_INBOUND_PEERS: usize = 20;
 
-pub const DEFAULT_DIAL_MAX_RETRIES: usize = 5;
-pub const DEFAULT_REQUEST_MAX_RETRIES: usize = 5;
+const DEFAULT_EPHEMERAL_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
+
+const DEFAULT_DIAL_MAX_RETRIES: usize = 5;
+const DEFAULT_PEERS_REQUEST_MAX_RETRIES: usize = 5;
+const DEFAULT_CONNECT_REQUEST_MAX_RETRIES: usize = 0;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Config {
     pub enabled: bool,
-    pub peers_range: RangeInclusive,
+
+    pub num_outbound_peers: usize,
+    pub num_inbound_peers: usize,
+
+    pub ephemeral_connection_timeout: Duration,
+
     pub dial_max_retries: usize,
     pub request_max_retries: usize,
+    pub connect_request_max_retries: usize,
 }
 
 impl Default for Config {
     fn default() -> Self {
+        if DEFAULT_NUM_INBOUND_PEERS < DEFAULT_NUM_OUTBOUND_PEERS {
+            panic!("Number of inbound peers should be greater than or equal to number of outbound peers");
+        }
+
         Self {
             enabled: true,
-            peers_range: RangeInclusive::new(DEFAULT_MIN_PEERS, DEFAULT_MAX_PEERS),
+
+            num_outbound_peers: DEFAULT_NUM_OUTBOUND_PEERS,
+            num_inbound_peers: DEFAULT_NUM_INBOUND_PEERS,
+
+            ephemeral_connection_timeout: DEFAULT_EPHEMERAL_CONNECTION_TIMEOUT,
+
             dial_max_retries: DEFAULT_DIAL_MAX_RETRIES,
-            request_max_retries: DEFAULT_REQUEST_MAX_RETRIES,
+            request_max_retries: DEFAULT_PEERS_REQUEST_MAX_RETRIES,
+            connect_request_max_retries: DEFAULT_CONNECT_REQUEST_MAX_RETRIES,
         }
+    }
+}
+
+impl Config {
+    pub fn new(enabled: bool) -> Self {
+        Self {
+            enabled,
+            ..Default::default()
+        }
+    }
+
+    pub fn set_peers_bounds(&mut self, num_outbound_peers: usize, num_inbound_peers: usize) {
+        if num_inbound_peers < num_outbound_peers {
+            panic!("Number of inbound peers should be greater than or equal to number of outbound peers");
+        }
+
+        self.num_outbound_peers = num_outbound_peers;
+        self.num_inbound_peers = num_inbound_peers;
+    }
+
+    pub fn set_ephemeral_connection_timeout(&mut self, timeout: Duration) {
+        self.ephemeral_connection_timeout = timeout;
     }
 }

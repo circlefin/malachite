@@ -2,50 +2,187 @@ use std::time::{Duration, Instant};
 
 use malachite_metrics::prometheus::metrics::counter::Counter;
 
+use malachite_metrics::prometheus::metrics::gauge::Gauge;
 use malachite_metrics::Registry;
 
 #[derive(Debug)]
 pub struct Metrics {
-    /// Total number of times we dialed a peer.
-    total_dialed: Counter,
-    // Total number of times we failed to dial a peer.
-    total_failed: Counter,
     /// Time at which discovery started
     start_time: Instant,
+    /// Time at which initial discovery process finished
+    initial_discovery_finished: Option<Instant>,
+
+    /// Total number of discovered peers
+    total_discovered: Counter,
+
+    /// Number of active connections
+    num_active_connections: Gauge,
+    /// Number of outbound connections
+    num_outbound_connections: Gauge,
+    /// Number of inbound connections
+    num_inbound_connections: Gauge,
+    /// Number of ephemeral connections
+    num_ephemeral_connections: Gauge,
+
+    /// Total number of dial attempts
+    total_dials: Counter,
+    /// Total number of failed dial attempts
+    total_failed_dials: Counter,
+    /// Total number of peers request attempts
+    total_peer_requests: Counter,
+    /// Total number of failed peer request attempts
+    total_failed_peer_requests: Counter,
+    /// Total number of connect request attempts
+    total_connect_requests: Counter,
+    /// Total number of failed connect request attempts
+    total_failed_connect_requests: Counter,
 }
 
 impl Metrics {
-    pub fn new(registry: &mut Registry) -> Self {
+    pub fn new(registry: &mut Registry, set_finished: bool) -> Self {
+        let now = Instant::now();
+
         let this = Self {
-            total_dialed: Counter::default(),
-            total_failed: Counter::default(),
-            start_time: Instant::now(),
+            start_time: now,
+            initial_discovery_finished: if set_finished { Some(now) } else { None },
+
+            total_discovered: Counter::default(),
+
+            num_active_connections: Gauge::default(),
+            num_outbound_connections: Gauge::default(),
+            num_inbound_connections: Gauge::default(),
+            num_ephemeral_connections: Gauge::default(),
+
+            total_dials: Counter::default(),
+            total_failed_dials: Counter::default(),
+            total_peer_requests: Counter::default(),
+            total_failed_peer_requests: Counter::default(),
+            total_connect_requests: Counter::default(),
+            total_failed_connect_requests: Counter::default(),
         };
 
         registry.register(
-            "total_dialed",
-            "Total number of times we dialed a peer",
-            this.total_dialed.clone(),
+            "total_discovered",
+            "Total number of discovered peers",
+            this.total_discovered.clone(),
         );
 
         registry.register(
-            "total_failed",
-            "Total number of times we failed to dial a peer",
-            this.total_failed.clone(),
+            "num_active_connections",
+            "Number of active connections",
+            this.num_active_connections.clone(),
+        );
+
+        registry.register(
+            "num_outbound_connections",
+            "Number of outbound connections",
+            this.num_outbound_connections.clone(),
+        );
+
+        registry.register(
+            "num_inbound_connections",
+            "Number of inbound connections",
+            this.num_inbound_connections.clone(),
+        );
+
+        registry.register(
+            "num_ephemeral_connections",
+            "Number of ephemeral connections",
+            this.num_ephemeral_connections.clone(),
+        );
+
+        registry.register(
+            "total_dials",
+            "Total number of dial attempts",
+            this.total_dials.clone(),
+        );
+
+        registry.register(
+            "total_failed_dials",
+            "Total number of failed dial attempts",
+            this.total_failed_dials.clone(),
+        );
+
+        registry.register(
+            "total_peer_requests",
+            "Total number of peer request attempts",
+            this.total_peer_requests.clone(),
+        );
+
+        registry.register(
+            "total_failed_peer_requests",
+            "Total number of failed peer request attempts",
+            this.total_failed_peer_requests.clone(),
+        );
+
+        registry.register(
+            "total_connect_requests",
+            "Total number of connect request attempts",
+            this.total_connect_requests.clone(),
+        );
+
+        registry.register(
+            "total_failed_connect_requests",
+            "Total number of failed connect request attempts",
+            this.total_failed_connect_requests.clone(),
         );
 
         this
     }
 
-    pub fn increment_dial(&mut self) {
-        self.total_dialed.inc();
-    }
-
-    pub fn increment_failure(&mut self) {
-        self.total_failed.inc();
-    }
-
     pub fn elapsed(&self) -> Duration {
         self.start_time.elapsed()
+    }
+
+    pub fn initial_discovery_finished(&mut self) {
+        self.initial_discovery_finished
+            .get_or_insert(Instant::now());
+    }
+
+    pub fn initial_discovery_duration(&self) -> Duration {
+        self.initial_discovery_finished
+            .unwrap_or(self.start_time)
+            .duration_since(self.start_time)
+    }
+
+    pub fn increment_total_discovered(&self) {
+        self.total_discovered.inc();
+    }
+
+    pub fn set_connections_status(
+        &self,
+        num_active: usize,
+        num_outbound: usize,
+        num_inbound: usize,
+        num_ephemeral: usize,
+    ) {
+        self.num_active_connections.set(num_active as i64);
+        self.num_outbound_connections.set(num_outbound as i64);
+        self.num_inbound_connections.set(num_inbound as i64);
+        self.num_ephemeral_connections.set(num_ephemeral as i64);
+    }
+
+    pub fn increment_total_dials(&self) {
+        self.total_dials.inc();
+    }
+
+    pub fn increment_total_failed_dials(&self) {
+        self.total_failed_dials.inc();
+    }
+
+    pub fn increment_total_peer_requests(&self) {
+        self.total_peer_requests.inc();
+    }
+
+    pub fn increment_total_failed_peer_requests(&self) {
+        self.total_failed_peer_requests.inc();
+    }
+
+    pub fn increment_total_connect_requests(&self) {
+        self.total_connect_requests.inc();
+    }
+
+    pub fn increment_total_failed_connect_requests(&self) {
+        self.total_failed_connect_requests.inc();
     }
 }

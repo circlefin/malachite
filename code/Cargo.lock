@@ -2547,7 +2547,9 @@ dependencies = [
  "either",
  "libp2p",
  "malachite-metrics",
+ "rand",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
 ]

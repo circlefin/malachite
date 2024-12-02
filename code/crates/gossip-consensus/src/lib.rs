@@ -14,7 +14,7 @@ use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, quic, SwarmBuilder};
 use libp2p_broadcast as broadcast;
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, error_span, trace, Instrument};
+use tracing::{debug, error, error_span, trace, warn, Instrument};
 
 use malachite_blocksync::{self as blocksync, OutboundRequestId};
 use malachite_discovery::{self as discovery};
@@ -235,13 +235,23 @@ async fn run(
                 handle_swarm_event(event, &metrics, &mut swarm, &mut state, &tx_event).await
             }
 
-            Some(connection_data) = state.discovery.rx_dial.recv(), if state.discovery.can_dial() => {
+            Some(connection_data) = state.discovery.controller.dial.recv(), if state.discovery.can_dial() => {
                 state.discovery.dial_peer(&mut swarm, connection_data);
                 ControlFlow::Continue(())
             }
 
-            Some(request_data) = state.discovery.rx_request.recv(), if state.discovery.can_request() => {
-                state.discovery.request_peer(&mut swarm, request_data);
+            Some(request_data) = state.discovery.controller.peers_request.recv(), if state.discovery.can_peers_request() => {
+                state.discovery.peers_request_peer(&mut swarm, request_data);
+                ControlFlow::Continue(())
+            }
+
+            Some(request_data) = state.discovery.controller.connect_request.recv(), if state.discovery.can_connect_request() => {
+                state.discovery.connect_request_peer(&mut swarm, request_data);
+                ControlFlow::Continue(())
+            }
+
+            Some((peer_id, connection_id)) = state.discovery.controller.close.recv(), if state.discovery.can_close() => {
+                state.discovery.close_connection(&mut swarm, peer_id, connection_id);
                 ControlFlow::Continue(())
             }
 
@@ -359,8 +369,13 @@ async fn handle_swarm_event(
             cause,
             ..
         } => {
-            error!("Connection closed with {peer_id}: {:?}", cause);
-            state.discovery.remove_peer(peer_id, connection_id);
+            warn!(
+                "Connection {connection_id} closed with {peer_id}: {:?}",
+                cause
+            );
+            state
+                .discovery
+                .handle_closed_connection(swarm, peer_id, connection_id);
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent {

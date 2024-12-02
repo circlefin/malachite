@@ -89,6 +89,9 @@ pub fn main() -> color_eyre::Result<()> {
         Commands::Testnet(cmd) => cmd
             .run(node, &args.get_home_dir().unwrap(), logging)
             .map_err(|error| eyre!("Failed to run testnet command {:?}", error)),
+        Commands::DistributedTestnet(cmd) => cmd
+            .run(node, &args.get_home_dir().unwrap(), logging)
+            .map_err(|error| eyre!("Failed to run distributed testnet command {:?}", error)),
     }
 }
 

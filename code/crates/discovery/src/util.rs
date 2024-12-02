@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
-pub struct FibonacciBackoff {
+struct FibonacciBackoff {
     current: u64,
     next: u64,
 }
@@ -28,31 +28,31 @@ impl Iterator for FibonacciBackoff {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct RangeInclusive {
-    pub min: usize,
-    pub max: usize,
+#[derive(Debug, Clone)]
+pub struct Retry {
+    count: usize,
+    backoff: FibonacciBackoff,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum RangeCmp {
-    Less,
-    Inclusive,
-    Greater,
-}
-
-impl RangeInclusive {
-    pub fn new(min: usize, max: usize) -> Self {
-        Self { min, max }
+impl Retry {
+    pub fn new() -> Self {
+        Self {
+            count: 0,
+            backoff: FibonacciBackoff::new(),
+        }
     }
 
-    pub fn cmp(&self, val: usize) -> RangeCmp {
-        if val < self.min {
-            RangeCmp::Less
-        } else if val > self.max {
-            RangeCmp::Greater
-        } else {
-            RangeCmp::Inclusive
-        }
+    pub fn count(&self) -> usize {
+        self.count
+    }
+
+    pub fn inc_count(&mut self) {
+        self.count += 1;
+    }
+
+    pub fn next_delay(&mut self) -> Duration {
+        self.backoff
+            .next()
+            .expect("FibonacciBackoff is an infinite iterator")
     }
 }

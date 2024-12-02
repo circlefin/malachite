@@ -1,15 +1,12 @@
-use std::time::Duration;
-
 use libp2p::{swarm::dial_opts::DialOpts, Multiaddr, PeerId};
 
-use crate::util::FibonacciBackoff;
+use crate::util::Retry;
 
 #[derive(Debug, Clone)]
 pub struct ConnectionData {
     peer_id: Option<PeerId>,
     multiaddr: Multiaddr,
-    retries: usize,
-    backoff: FibonacciBackoff,
+    pub retry: Retry,
 }
 
 impl ConnectionData {
@@ -17,8 +14,7 @@ impl ConnectionData {
         Self {
             peer_id,
             multiaddr,
-            retries: 0,
-            backoff: FibonacciBackoff::new(),
+            retry: Retry::new(),
         }
     }
 
@@ -32,20 +28,6 @@ impl ConnectionData {
 
     pub fn multiaddr(&self) -> Multiaddr {
         self.multiaddr.clone()
-    }
-
-    pub fn retries(&self) -> usize {
-        self.retries
-    }
-
-    pub fn inc_retries(&mut self) {
-        self.retries += 1;
-    }
-
-    pub fn next_delay(&mut self) -> Duration {
-        self.backoff
-            .next()
-            .expect("FibonacciBackoff is an infinite iterator")
     }
 
     pub fn build_dial_opts(&self) -> DialOpts {
