@@ -1,7 +1,6 @@
 use core::fmt;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::net::SocketAddr;
-use std::ops::ControlFlow;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -109,27 +108,41 @@ pub enum Step<S> {
 
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
+#[derive(Copy, Clone, Debug)]
+pub enum HandlerResult {
+    WaitForNextEvent,
+    ContinueTest,
+}
+
 pub type EventHandler<S> =
-    Box<dyn Fn(Event<MockContext>, &mut S) -> Result<ControlFlow<()>, BoxError> + Send + Sync>;
+    Box<dyn Fn(Event<MockContext>, &mut S) -> Result<HandlerResult, BoxError> + Send + Sync>;
 
 pub type NodeId = usize;
 
-pub struct TestNode<S> {
+pub struct TestNode<State = ()> {
     pub id: NodeId,
     pub voting_power: VotingPower,
     pub start_height: Height,
     pub start_delay: Duration,
-    pub steps: Vec<Step<S>>,
+    pub steps: Vec<Step<State>>,
+    pub state: State,
 }
 
-impl<S> TestNode<S> {
+impl TestNode<()> {
     pub fn new(id: usize) -> Self {
+        Self::with_state(id, ())
+    }
+}
+
+impl<State> TestNode<State> {
+    pub fn with_state(id: usize, state: State) -> Self {
         Self {
             id,
             voting_power: 1,
             start_height: Height::new(1, 1),
             start_delay: Duration::from_secs(0),
             steps: vec![],
+            state,
         }
     }
 
@@ -179,7 +192,7 @@ impl<S> TestNode<S> {
 
     pub fn on_event<F>(mut self, on_event: F) -> Self
     where
-        F: Fn(Event<MockContext>, &mut S) -> Result<ControlFlow<()>, BoxError>
+        F: Fn(Event<MockContext>, &mut State) -> Result<HandlerResult, BoxError>
             + Send
             + Sync
             + 'static,
@@ -215,7 +228,10 @@ pub struct Test<const N: usize, S> {
     pub metrics_base_port: usize,
 }
 
-impl<const N: usize, S> Test<N, S> {
+impl<const N: usize, S> Test<N, S>
+where
+    S: Send + Sync + 'static,
+{
     pub fn new(nodes: [TestNode<S>; N]) -> Self {
         let vals_and_keys = make_validators(voting_powers(&nodes));
         let (validators, private_keys): (Vec<_>, Vec<_>) = vals_and_keys.into_iter().unzip();
@@ -248,26 +264,17 @@ impl<const N: usize, S> Test<N, S> {
         configs
     }
 
-    pub async fn run(self, state: S, timeout: Duration)
-    where
-        S: Clone + Send + Sync + 'static,
-    {
+    pub async fn run(self, timeout: Duration) {
         let configs = self.generate_default_configs();
-        self.run_with_config(configs, state, timeout).await
+        self.run_with_config(configs, timeout).await
     }
 
-    pub async fn run_with_custom_config(self, state: S, timeout: Duration, params: TestParams)
-    where
-        S: Clone + Send + Sync + 'static,
-    {
+    pub async fn run_with_custom_config(self, timeout: Duration, params: TestParams) {
         let configs = self.generate_custom_configs(params);
-        self.run_with_config(configs, state, timeout).await
+        self.run_with_config(configs, timeout).await
     }
 
-    pub async fn run_with_config(self, configs: [Config; N], state: S, timeout: Duration)
-    where
-        S: Clone + Send + Sync + 'static,
-    {
+    pub async fn run_with_config(self, configs: [Config; N], timeout: Duration) {
         let _span = error_span!("test", id = %self.id).entered();
 
         let mut set = JoinSet::new();
@@ -285,13 +292,10 @@ impl<const N: usize, S> Test<N, S> {
                     .unwrap()
                     .into_path();
 
-            let state = state.clone();
-
             set.spawn(
                 async move {
                     let id = node.id;
-                    let result =
-                        run_node(node, home_dir, config, validator_set, private_key, state).await;
+                    let result = run_node(node, home_dir, config, validator_set, private_key).await;
                     (id, result)
                 }
                 .in_current_span(),
@@ -348,12 +352,11 @@ pub enum TestResult {
 
 #[tracing::instrument("node", skip_all, fields(id = %node.id))]
 async fn run_node<S>(
-    node: TestNode<S>,
+    mut node: TestNode<S>,
     home_dir: PathBuf,
     config: Config,
     validator_set: ValidatorSet,
     private_key: PrivateKey,
-    mut state: S,
 ) -> TestResult {
     sleep(node.start_delay).await;
 
@@ -460,11 +463,11 @@ async fn run_node<S>(
 
             Step::OnEvent(on_event) => {
                 'inner: while let Ok(event) = rx_event.recv().await {
-                    match on_event(event, &mut state) {
-                        Ok(ControlFlow::Continue(_)) => {
+                    match on_event(event, &mut node.state) {
+                        Ok(HandlerResult::WaitForNextEvent) => {
                             continue 'inner;
                         }
-                        Ok(ControlFlow::Break(_)) => {
+                        Ok(HandlerResult::ContinueTest) => {
                             break 'inner;
                         }
                         Err(e) => {
