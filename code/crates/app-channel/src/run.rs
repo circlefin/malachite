@@ -1,3 +1,4 @@
+use malachite_actors::util::events::TxEvent;
 use malachite_actors::wal::WalCodec;
 use tokio::sync::mpsc;
 
@@ -87,7 +88,7 @@ where
         wal,
         block_sync.clone(),
         metrics,
-        None, // tx_decision
+        TxEvent::new(),
     )
     .await;
 

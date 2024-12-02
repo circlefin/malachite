@@ -1,6 +1,7 @@
 use core::fmt;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::net::SocketAddr;
+use std::ops::ControlFlow;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -10,7 +11,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
-use tracing::{debug, error, error_span, info, Instrument};
+use tracing::{debug, error, error_span, info, warn, Instrument};
 
 use malachite_actors::util::events::{Event, RxEvent, TxEvent};
 use malachite_common::VotingPower;
@@ -95,29 +96,33 @@ impl TestParams {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Step {
+pub enum Step<S> {
     Crash(Duration),
     ResetDb,
     Restart(Duration),
     WaitUntil(u64),
+    OnEvent(EventHandler<S>),
     Expect(Expected),
     Success,
-    // Pause,
+    Fail(String),
 }
+
+pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
+pub type EventHandler<S> =
+    Box<dyn Fn(Event<MockContext>, &mut S) -> Result<ControlFlow<()>, BoxError> + Send + Sync>;
 
 pub type NodeId = usize;
 
-#[derive(Clone)]
-pub struct TestNode {
+pub struct TestNode<S> {
     pub id: NodeId,
     pub voting_power: VotingPower,
     pub start_height: Height,
     pub start_delay: Duration,
-    pub steps: Vec<Step>,
+    pub steps: Vec<Step<S>>,
 }
 
-impl TestNode {
+impl<S> TestNode<S> {
     pub fn new(id: usize) -> Self {
         Self {
             id,
@@ -194,9 +199,9 @@ fn unique_id() -> usize {
     ID.fetch_add(1, Ordering::SeqCst)
 }
 
-pub struct Test<const N: usize> {
+pub struct Test<const N: usize, S> {
     pub id: usize,
-    pub nodes: [TestNode; N],
+    pub nodes: [TestNode<S>; N],
     pub private_keys: [PrivateKey; N],
     pub validator_set: ValidatorSet,
     pub consensus_base_port: usize,
@@ -204,8 +209,8 @@ pub struct Test<const N: usize> {
     pub metrics_base_port: usize,
 }
 
-impl<const N: usize> Test<N> {
-    pub fn new(nodes: [TestNode; N]) -> Self {
+impl<const N: usize, S> Test<N, S> {
+    pub fn new(nodes: [TestNode<S>; N]) -> Self {
         let vals_and_keys = make_validators(voting_powers(&nodes));
         let (validators, private_keys): (Vec<_>, Vec<_>) = vals_and_keys.into_iter().unzip();
         let private_keys = private_keys.try_into().expect("N private keys");
@@ -237,17 +242,26 @@ impl<const N: usize> Test<N> {
         configs
     }
 
-    pub async fn run(self, timeout: Duration) {
+    pub async fn run(self, state: S, timeout: Duration)
+    where
+        S: Clone + Send + Sync + 'static,
+    {
         let configs = self.generate_default_configs();
-        self.run_with_config(configs, timeout).await
+        self.run_with_config(configs, state, timeout).await
     }
 
-    pub async fn run_with_custom_config(self, timeout: Duration, params: TestParams) {
+    pub async fn run_with_custom_config(self, state: S, timeout: Duration, params: TestParams)
+    where
+        S: Clone + Send + Sync + 'static,
+    {
         let configs = self.generate_custom_configs(params);
-        self.run_with_config(configs, timeout).await
+        self.run_with_config(configs, state, timeout).await
     }
 
-    pub async fn run_with_config(self, configs: [Config; N], timeout: Duration) {
+    pub async fn run_with_config(self, configs: [Config; N], state: S, timeout: Duration)
+    where
+        S: Clone + Send + Sync + 'static,
+    {
         init_logging();
 
         let _span = error_span!("test", id = %self.id).entered();
@@ -267,10 +281,13 @@ impl<const N: usize> Test<N> {
                     .unwrap()
                     .into_path();
 
+            let state = state.clone();
+
             set.spawn(
                 async move {
                     let id = node.id;
-                    let result = run_node(node, home_dir, config, validator_set, private_key).await;
+                    let result =
+                        run_node(node, home_dir, config, validator_set, private_key, state).await;
                     (id, result)
                 }
                 .in_current_span(),
@@ -299,16 +316,16 @@ fn check_results(results: Vec<(NodeId, TestResult)>) {
     for (id, result) in results {
         let _span = tracing::error_span!("node", %id).entered();
         match result {
-            TestResult::Success(actual, expected) => {
-                info!("Correct number of decisions: got {actual}, expected: {expected}",);
+            TestResult::Success(reason) => {
+                info!("Test succeeded: {reason}");
             }
-            TestResult::Failure(actual, expected) => {
+            TestResult::Failure(reason) => {
                 errors += 1;
-                error!("Incorrect number of decisions: got {actual}, expected {expected}",);
+                error!("Test failed: {reason}");
             }
             TestResult::Unknown => {
                 errors += 1;
-                error!("Unknown test result");
+                warn!("Test result is unknown");
             }
         }
     }
@@ -320,18 +337,19 @@ fn check_results(results: Vec<(NodeId, TestResult)>) {
 }
 
 pub enum TestResult {
-    Success(usize, Expected),
-    Failure(usize, Expected),
+    Success(String),
+    Failure(String),
     Unknown,
 }
 
 #[tracing::instrument("node", skip_all, fields(id = %node.id))]
-async fn run_node(
-    node: TestNode,
+async fn run_node<S>(
+    node: TestNode<S>,
     home_dir: PathBuf,
     config: Config,
     validator_set: ValidatorSet,
     private_key: PrivateKey,
+    mut state: S,
 ) -> TestResult {
     sleep(node.start_delay).await;
 
@@ -438,10 +456,26 @@ async fn run_node(
                 rx_event = new_rx_event;
             }
 
-            // Step::Pause => {
-            //     info!("Pausing");
-            //     while rx_event.recv().await.is_ok() {}
-            // }
+            Step::OnEvent(on_event) => {
+                'inner: while let Ok(event) = rx_event.recv().await {
+                    match on_event(event, &mut state) {
+                        Ok(ControlFlow::Continue(_)) => {
+                            continue 'inner;
+                        }
+                        Ok(ControlFlow::Break(_)) => {
+                            break 'inner;
+                        }
+                        Err(e) => {
+                            actor_ref.stop(Some("Test failed".to_string()));
+                            handle.abort();
+                            bg.abort();
+
+                            return TestResult::Failure(e.to_string());
+                        }
+                    }
+                }
+            }
+
             Step::Expect(expected) => {
                 let actual = decisions.load(Ordering::SeqCst);
 
@@ -450,19 +484,30 @@ async fn run_node(
                 bg.abort();
 
                 if expected.check(actual) {
-                    return TestResult::Success(actual, expected);
+                    return TestResult::Success(format!(
+                        "Correct number of decisions: got {actual}, expected: {expected}"
+                    ));
                 } else {
-                    return TestResult::Failure(actual, expected);
+                    return TestResult::Failure(format!(
+                        "Incorrect number of decisions: got {actual}, expected: {expected}"
+                    ));
                 }
             }
 
             Step::Success => {
-                actor_ref.stop(Some("Test is over".to_string()));
+                actor_ref.stop(Some("Test succeeded".to_string()));
                 handle.abort();
                 bg.abort();
 
-                let actual = decisions.load(Ordering::SeqCst);
-                return TestResult::Success(actual, Expected::Exactly(actual));
+                return TestResult::Success("OK".to_string());
+            }
+
+            Step::Fail(reason) => {
+                actor_ref.stop(Some("Test failed".to_string()));
+                handle.abort();
+                bg.abort();
+
+                return TestResult::Failure(reason);
             }
         }
     }
@@ -521,7 +566,7 @@ fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     }
 }
 
-pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> NodeConfig {
+pub fn make_node_config<const N: usize, S>(test: &Test<N, S>, i: usize) -> NodeConfig {
     let transport = transport_from_env(TransportProtocol::Tcp);
     let protocol = PubSubProtocol::default();
 
@@ -573,7 +618,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> NodeConfig 
     }
 }
 
-fn voting_powers<const N: usize>(nodes: &[TestNode; N]) -> [VotingPower; N] {
+fn voting_powers<const N: usize, S>(nodes: &[TestNode<S>; N]) -> [VotingPower; N] {
     let mut voting_powers = [0; N];
     for (i, node) in nodes.iter().enumerate() {
         voting_powers[i] = node.voting_power;
