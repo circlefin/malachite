@@ -365,6 +365,8 @@ async fn handle_swarm_event(
             endpoint,
             ..
         } => {
+            trace!("Connected to {peer_id} with connection id {connection_id}",);
+
             state
                 .discovery
                 .handle_connection(swarm, peer_id, connection_id, endpoint);
@@ -376,6 +378,7 @@ async fn handle_swarm_event(
             ..
         } => {
             error!("Error dialing peer: {error}");
+
             state
                 .discovery
                 .handle_failed_connection(swarm, connection_id);
@@ -391,6 +394,7 @@ async fn handle_swarm_event(
                 "Connection {connection_id} closed with {peer_id}: {:?}",
                 cause
             );
+
             state
                 .discovery
                 .handle_closed_connection(swarm, peer_id, connection_id);
