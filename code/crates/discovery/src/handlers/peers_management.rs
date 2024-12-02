@@ -149,7 +149,7 @@ impl Discovery {
             return;
         }
 
-        info!("Reparing an outbound connection");
+        info!("Repairing an outbound connection");
 
         // Upgrade any inbound connection to outbound if any is available
         if let Some((peer_id, connection_id)) = self
