@@ -1,9 +1,11 @@
 use std::time::Duration;
 
 use malachite_config::ValuePayload;
-use malachite_starknet_test::{Test, TestNode, TestParams};
+use malachite_starknet_test::{init_logging, Test, TestNode, TestParams};
 
 pub async fn crash_restart_from_start(params: TestParams) {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 10;
 
     // Node 1 starts with 10 voting power.
@@ -79,6 +81,8 @@ pub async fn crash_restart_from_start_proposal_and_parts() {
 
 #[tokio::test]
 pub async fn crash_restart_from_latest() {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 10;
 
     let n1 = TestNode::new(1).vp(10).start().wait_until(HEIGHT).success();
@@ -107,6 +111,8 @@ pub async fn crash_restart_from_latest() {
 
 #[tokio::test]
 pub async fn aggressive_pruning() {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 15;
 
     // Node 1 starts with 10 voting power.

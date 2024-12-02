@@ -268,8 +268,6 @@ impl<const N: usize, S> Test<N, S> {
     where
         S: Clone + Send + Sync + 'static,
     {
-        init_logging();
-
         let _span = error_span!("test", id = %self.id).entered();
 
         let mut set = JoinSet::new();
@@ -519,14 +517,14 @@ async fn run_node<S>(
     return TestResult::Unknown;
 }
 
-fn init_logging() {
+pub fn init_logging(test_module: &str) {
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
     let directive = if matches!(std::env::var("TEST_DEBUG").as_deref(), Ok("1")) {
-        "malachite=debug,malachite_starknet_test=debug,ractor=error"
+        format!("{test_module}=debug,malachite=debug,malachite_starknet_test=debug,ractor=error")
     } else {
-        "malachite=error,malachite_starknet_test=debug,ractor=error"
+        format!("{test_module}=debug,malachite=error,malachite_starknet_test=debug,ractor=error")
     };
 
     let filter = EnvFilter::builder().parse(directive).unwrap();
@@ -540,7 +538,7 @@ fn init_logging() {
     let builder = FmtSubscriber::builder()
         .with_target(false)
         .with_env_filter(filter)
-        .with_writer(std::io::stdout)
+        .with_test_writer()
         .with_ansi(enable_ansi())
         .with_thread_ids(false);
 

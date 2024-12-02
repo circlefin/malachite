@@ -1,9 +1,11 @@
 use std::time::Duration;
 
-use malachite_starknet_test::{Test, TestNode};
+use malachite_starknet_test::{init_logging, Test, TestNode};
 
 #[tokio::test]
 pub async fn all_correct_nodes() {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 5;
 
     let n1 = TestNode::new(1).start().wait_until(HEIGHT).success();
