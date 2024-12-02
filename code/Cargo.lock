@@ -2958,6 +2958,7 @@ dependencies = [
  "malachite-actors",
  "malachite-common",
  "malachite-config",
+ "malachite-consensus",
  "malachite-metrics",
  "malachite-starknet-host",
  "ractor",

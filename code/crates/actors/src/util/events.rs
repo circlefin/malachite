@@ -1,10 +1,10 @@
 use core::fmt;
 
 use derive_where::derive_where;
-use malachite_consensus::{ProposedValue, SignedConsensusMsg, ValueToPropose};
 use tokio::sync::broadcast;
 
 use malachite_common::{CommitCertificate, Context, Round, ValueOrigin};
+use malachite_consensus::{ProposedValue, SignedConsensusMsg, ValueToPropose};
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
 
