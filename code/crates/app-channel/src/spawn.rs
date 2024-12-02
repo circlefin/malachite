@@ -1,16 +1,16 @@
 use std::path::Path;
 use std::time::Duration;
 
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
 use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::util::codec::NetworkCodec;
+use malachite_actors::util::events::TxEvent;
 use malachite_actors::util::streaming::StreamMessage;
 use malachite_actors::wal::{Wal, WalCodec, WalRef};
-use malachite_common::{CommitCertificate, Context};
+use malachite_common::Context;
 use malachite_config::{BlockSyncConfig, Config as NodeConfig, PubSubProtocol, TransportProtocol};
 use malachite_consensus::{SignedConsensusMsg, ValuePayload};
 use malachite_gossip_consensus::{
@@ -83,7 +83,7 @@ pub async fn spawn_consensus_actor<Ctx>(
     wal: WalRef<Ctx>,
     block_sync: Option<BlockSyncRef<Ctx>>,
     metrics: Metrics,
-    tx_decision: Option<broadcast::Sender<CommitCertificate<Ctx>>>,
+    tx_event: TxEvent<Ctx>,
 ) -> ConsensusRef<Ctx>
 where
     Ctx: Context,
@@ -112,7 +112,7 @@ where
         wal,
         block_sync,
         metrics,
-        tx_decision,
+        tx_event,
     )
     .await
     .unwrap()
