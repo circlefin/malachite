@@ -261,6 +261,7 @@ where
                 match event {
                     GossipEvent::Listening(address) => {
                         info!(%address, "Listening");
+                        self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
                     }
 
                     GossipEvent::PeerConnected(peer_id) => {
@@ -278,13 +279,6 @@ where
                         debug!(connected = %connected_peers, total = %total_peers, "Connected to another peer");
 
                         self.metrics.connected_peers.inc();
-
-                        // TODO: change logic
-                        if connected_peers == total_peers {
-                            info!(count = %connected_peers, "Enough peers connected to start consensus");
-
-                            self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
-                        }
                     }
 
                     GossipEvent::PeerDisconnected(peer_id) => {
@@ -292,8 +286,6 @@ where
 
                         if state.connected_peers.remove(&peer_id) {
                             self.metrics.connected_peers.dec();
-
-                            // TODO: pause/stop consensus, if necessary
                         }
                     }
 
