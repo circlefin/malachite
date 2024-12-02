@@ -1,9 +1,11 @@
 use std::time::Duration;
 
-use malachite_starknet_test::{Test, TestNode};
+use malachite_starknet_test::{init_logging, Test, TestNode};
 
 #[tokio::test]
 pub async fn proposer_fails_to_start() {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 5;
 
     let n1 = TestNode::new(1).vp(1).success();
@@ -17,6 +19,8 @@ pub async fn proposer_fails_to_start() {
 
 #[tokio::test]
 pub async fn one_node_fails_to_start() {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 5;
 
     let n1 = TestNode::new(1).vp(5).start().wait_until(HEIGHT).success();
@@ -30,6 +34,8 @@ pub async fn one_node_fails_to_start() {
 
 #[tokio::test]
 pub async fn proposer_crashes_at_height_2() {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 5;
 
     let n1 = TestNode::new(1).vp(5).start().wait_until(HEIGHT).success();
@@ -48,6 +54,8 @@ pub async fn proposer_crashes_at_height_2() {
 
 #[tokio::test]
 pub async fn one_node_crashes_at_height_3() {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 5;
 
     let n1 = TestNode::new(1).vp(5).start().wait_until(HEIGHT).success();

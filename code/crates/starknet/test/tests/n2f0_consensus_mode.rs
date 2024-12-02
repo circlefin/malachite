@@ -1,9 +1,11 @@
 use std::time::Duration;
 
 use malachite_config::ValuePayload;
-use malachite_starknet_test::{Test, TestNode, TestParams};
+use malachite_starknet_test::{init_logging, Test, TestNode, TestParams};
 
 async fn run_test(params: TestParams) {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 5;
 
     let n1 = TestNode::new(1).start().wait_until(HEIGHT).success();
