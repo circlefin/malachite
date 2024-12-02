@@ -652,7 +652,7 @@ impl Discovery {
             self.update_connections_metrics(swarm);
 
             if self.is_enabled() {
-                self.repare_outbound_connection(swarm);
+                self.repair_outbound_connection(swarm);
             }
         } else if self.inbound_connections.get(&peer_id) == Some(&connection_id) {
             warn!("Inbound connection to peer {peer_id} closed");
@@ -810,7 +810,7 @@ impl Discovery {
         }
     }
 
-    fn repare_outbound_connection(&mut self, swarm: &mut Swarm<impl DiscoveryClient>) {
+    fn repair_outbound_connection(&mut self, swarm: &mut Swarm<impl DiscoveryClient>) {
         if !self.is_enabled() || self.outbound_connections.len() >= self.config.num_outbound_peers {
             return;
         }
@@ -851,7 +851,7 @@ impl Discovery {
                 .filter(|peer_id| !self.controller.connect_request.is_done_on(peer_id))
                 .collect();
             if let Some(new_peer_id) = available_peers.iter().next() {
-                info!("Trying to connect to peer {new_peer_id} to repare outbound connections");
+                info!("Trying to connect to peer {new_peer_id} to repair outbound connections");
                 if let Some(connection_ids) = self.active_connections.get(new_peer_id) {
                     if connection_ids.len() > 1 {
                         warn!("Peer {new_peer_id} has more than one connection");
@@ -887,7 +887,7 @@ impl Discovery {
                     .cloned()
                     .collect();
                 if let Some(new_peer_id) = available_peers.iter().next() {
-                    info!("Trying to connect to peer {new_peer_id} to repare outbound connections");
+                    info!("Trying to connect to peer {new_peer_id} to repair outbound connections");
                     if let Some(connection_ids) = self.active_connections.get(new_peer_id) {
                         if connection_ids.len() > 1 {
                             warn!("Peer {new_peer_id} has more than one connection");
@@ -908,7 +908,7 @@ impl Discovery {
                 } else {
                     // This is very unlikely to happen, but it is possible if the network is too small
                     // or the outbound and inbound parameters are too restrictive.
-                    warn!("No available peers to repare outbound connections, triggering discovery extension");
+                    warn!("No available peers to repair outbound connections, triggering discovery extension");
                     self.state = State::Extending;
                     self.check_extension_status(swarm); // trigger extension
                 }
@@ -1217,7 +1217,7 @@ impl Discovery {
                                 info!("Peer {peer} rejected connection upgrade to outbound connection");
 
                                 self.outbound_connections.remove(&peer);
-                                self.repare_outbound_connection(swarm);
+                                self.repair_outbound_connection(swarm);
                             }
                         }
                     },

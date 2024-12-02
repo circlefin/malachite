@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use either::Either;
 use libp2p::kad::{Addresses, KBucketKey, KBucketRef};
 use libp2p::request_response::{OutboundRequestId, ResponseChannel};
 use libp2p::swarm::NetworkBehaviour;
