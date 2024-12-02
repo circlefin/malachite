@@ -177,6 +177,17 @@ impl<S> TestNode<S> {
         self
     }
 
+    pub fn on_event<F>(mut self, on_event: F) -> Self
+    where
+        F: Fn(Event<MockContext>, &mut S) -> Result<ControlFlow<()>, BoxError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.steps.push(Step::OnEvent(Box::new(on_event)));
+        self
+    }
+
     pub fn expect(mut self, expected: Expected) -> Self {
         self.steps.push(Step::Expect(expected));
         self
@@ -186,11 +197,6 @@ impl<S> TestNode<S> {
         self.steps.push(Step::Success);
         self
     }
-
-    // pub fn pause(mut self) -> Self {
-    //     self.steps.push(Step::Pause);
-    //     self
-    // }
 }
 
 fn unique_id() -> usize {
@@ -396,15 +402,13 @@ async fn run_node<S>(
                 info!("Waiting until node reaches height {target_height}");
 
                 'inner: while let Ok(event) = rx_event.recv().await {
-                    let Event::Decided(decision) = event else {
+                    let Event::StartedHeight(height) = event else {
                         continue;
                     };
 
-                    let height = decision.height.as_u64();
-                    info!("Node reached height {height}");
+                    info!("Node started height {height}");
 
-                    if height == target_height {
-                        sleep(Duration::from_millis(100)).await;
+                    if height.as_u64() == target_height {
                         break 'inner;
                     }
                 }
@@ -412,8 +416,8 @@ async fn run_node<S>(
 
             Step::Crash(after) => {
                 let height = decisions.load(Ordering::SeqCst);
-                info!("Node crashes at height {height} after {after:?}");
 
+                info!("Node will crash at height {height}");
                 sleep(after).await;
 
                 actor_ref.kill_and_wait(None).await.expect("Node must stop");
@@ -495,10 +499,6 @@ async fn run_node<S>(
             }
 
             Step::Success => {
-                actor_ref.stop(Some("Test succeeded".to_string()));
-                handle.abort();
-                bg.abort();
-
                 return TestResult::Success("OK".to_string());
             }
 
