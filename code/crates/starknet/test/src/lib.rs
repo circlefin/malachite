@@ -10,7 +10,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
-use tracing::{debug, error, error_span, info, warn, Instrument};
+use tracing::{debug, error, error_span, info, Instrument};
 
 use malachite_actors::util::events::{Event, RxEvent, TxEvent};
 use malachite_common::VotingPower;
@@ -331,10 +331,6 @@ fn check_results(results: Vec<(NodeId, TestResult)>) {
                 errors += 1;
                 error!("Test failed: {reason}");
             }
-            TestResult::Unknown => {
-                errors += 1;
-                warn!("Test result is unknown");
-            }
         }
     }
 
@@ -347,7 +343,6 @@ fn check_results(results: Vec<(NodeId, TestResult)>) {
 pub enum TestResult {
     Success(String),
     Failure(String),
-    Unknown,
 }
 
 #[tracing::instrument("node", skip_all, fields(id = %node.id))]
@@ -500,7 +495,7 @@ async fn run_node<S>(
             }
 
             Step::Success => {
-                return TestResult::Success("OK".to_string());
+                break;
             }
 
             Step::Fail(reason) => {
@@ -513,11 +508,7 @@ async fn run_node<S>(
         }
     }
 
-    actor_ref.stop(Some("Test is over".to_string()));
-    handle.abort();
-    bg.abort();
-
-    return TestResult::Unknown;
+    return TestResult::Success("OK".to_string());
 }
 
 pub fn init_logging(test_module: &str) {

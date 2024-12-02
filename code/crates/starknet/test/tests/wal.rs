@@ -16,9 +16,20 @@ pub async fn proposer_crashes_after_proposing() {
         block_hash: Option<BlockHash>,
     }
 
-    let n1 = TestNode::with_state(1, State::default())
+    let n1 = TestNode::with_state(2, State::default())
+        .vp(10)
+        .start()
+        .success();
+
+    let n2 = TestNode::with_state(3, State::default())
+        .vp(10)
+        .start()
+        .success();
+
+    let n3 = TestNode::with_state(3, State::default())
         .vp(40)
         .start()
+        .wait_until(3)
         // Wait until this node proposes a value
         .on_event(|event, state| match event {
             Event::ProposedValue(value) => {
@@ -56,15 +67,6 @@ pub async fn proposer_crashes_after_proposing() {
         })
         .success();
 
-    let n2 = TestNode::with_state(2, State::default())
-        .vp(10)
-        .start()
-        .success();
-    let n3 = TestNode::with_state(3, State::default())
-        .vp(10)
-        .start()
-        .success();
-
     Test::new([n1, n2, n3])
         .run_with_custom_config(
             Duration::from_secs(30),
@@ -86,9 +88,19 @@ pub async fn non_proposer_crashes_after_voting() {
     }
 
     let n1 = TestNode::with_state(1, State::default())
+        .vp(10)
+        .start()
+        .success();
+
+    let n2 = TestNode::with_state(2, State::default())
+        .vp(10)
+        .start()
+        .success();
+
+    let n3 = TestNode::with_state(3, State::default())
         .vp(40)
         .start()
-        .wait_until(1)
+        .wait_until(3)
         // Wait until this node proposes a value
         .on_event(|event, state| match event {
             Event::Published(SignedConsensusMsg::Vote(vote)) => {
@@ -124,16 +136,6 @@ pub async fn non_proposer_crashes_after_voting() {
                 Ok(HandlerResult::WaitForNextEvent)
             }
         })
-        .success();
-
-    let n2 = TestNode::with_state(2, State::default())
-        .vp(10)
-        .start()
-        .success();
-
-    let n3 = TestNode::with_state(3, State::default())
-        .vp(10)
-        .start()
         .success();
 
     Test::new([n1, n2, n3])
