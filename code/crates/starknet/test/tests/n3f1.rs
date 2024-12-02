@@ -12,9 +12,7 @@ pub async fn proposer_fails_to_start() {
     let n2 = TestNode::new(2).vp(5).start().wait_until(HEIGHT).success();
     let n3 = TestNode::new(3).vp(5).start().wait_until(HEIGHT).success();
 
-    Test::new([n1, n2, n3])
-        .run((), Duration::from_secs(30))
-        .await
+    Test::new([n1, n2, n3]).run(Duration::from_secs(30)).await
 }
 
 #[tokio::test]
@@ -27,9 +25,7 @@ pub async fn one_node_fails_to_start() {
     let n2 = TestNode::new(2).vp(5).start().wait_until(HEIGHT).success();
     let n3 = TestNode::new(3).vp(1).success();
 
-    Test::new([n1, n2, n3])
-        .run((), Duration::from_secs(30))
-        .await
+    Test::new([n1, n2, n3]).run(Duration::from_secs(30)).await
 }
 
 #[tokio::test]
@@ -47,9 +43,7 @@ pub async fn proposer_crashes_at_height_2() {
         .success();
     let n3 = TestNode::new(3).vp(5).start().wait_until(HEIGHT).success();
 
-    Test::new([n1, n2, n3])
-        .run((), Duration::from_secs(30))
-        .await
+    Test::new([n1, n2, n3]).run(Duration::from_secs(30)).await
 }
 
 #[tokio::test]
@@ -67,7 +61,5 @@ pub async fn one_node_crashes_at_height_3() {
         .crash()
         .success();
 
-    Test::new([n1, n2, n3])
-        .run((), Duration::from_secs(30))
-        .await
+    Test::new([n1, n2, n3]).run(Duration::from_secs(30)).await
 }

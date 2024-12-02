@@ -39,7 +39,6 @@ pub async fn crash_restart_from_start(params: TestParams) {
 
     Test::new([n1, n2, n3])
         .run_with_custom_config(
-            (),                      // No state
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
                 enable_blocksync: true, // Enable BlockSync
@@ -87,6 +86,7 @@ pub async fn crash_restart_from_latest() {
 
     let n1 = TestNode::new(1).vp(10).start().wait_until(HEIGHT).success();
     let n2 = TestNode::new(2).vp(10).start().wait_until(HEIGHT).success();
+
     let n3 = TestNode::new(3)
         .vp(5)
         .start()
@@ -99,7 +99,6 @@ pub async fn crash_restart_from_latest() {
 
     Test::new([n1, n2, n3])
         .run_with_custom_config(
-            (), // No state
             Duration::from_secs(60),
             TestParams {
                 enable_blocksync: true,
@@ -131,7 +130,6 @@ pub async fn aggressive_pruning() {
 
     Test::new([n1, n2, n3])
         .run_with_custom_config(
-            (),                      // No state
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
                 enable_blocksync: true, // Enable BlockSync
