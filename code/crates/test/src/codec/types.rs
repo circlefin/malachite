@@ -1,5 +1,6 @@
 use crate::{Address, Height, Proposal, ProposalPart, RoundDef, TestContext, ValueId, Vote};
 use bytes::Bytes;
+use ed25519_consensus::Signature;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_blocksync::{PeerId, Request, Response, Status, SyncedBlock};
 use malachite_common::{
@@ -8,43 +9,12 @@ use malachite_common::{
 };
 use malachite_consensus::SignedConsensusMsg;
 use malachite_proto::Protobuf;
-use malachite_signing_ed25519::Signature;
 use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct RawSignature {
-    pub high: [u8; 32],
-    pub low: [u8; 32],
-}
-
-impl RawSignature {
-    pub fn to_vec(&self) -> Vec<u8> {
-        [self.high, self.low].concat()
-    }
-    pub fn to_bytes(&self) -> Bytes {
-        self.to_vec().into()
-    }
-}
-
-impl From<Signature> for RawSignature {
-    fn from(value: Signature) -> Self {
-        Self {
-            high: value.to_bytes().to_vec().try_into().unwrap(),
-            low: value.to_bytes().to_vec().try_into().unwrap(),
-        }
-    }
-}
-
-impl From<RawSignature> for Signature {
-    fn from(value: RawSignature) -> Self {
-        Signature::from_bytes(value.to_vec()[..64].try_into().unwrap())
-    }
-}
 
 #[derive(Serialize, Deserialize)]
 pub struct RawSignedMessage {
     message: Bytes,
-    signature: RawSignature,
+    signature: Signature,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -58,11 +28,11 @@ impl From<SignedConsensusMsg<TestContext>> for RawSignedConsensusMsg {
         match value {
             SignedConsensusMsg::Vote(vote) => Self::Vote(RawSignedMessage {
                 message: vote.message.to_bytes(),
-                signature: vote.signature.into(),
+                signature: *vote.signature.inner(),
             }),
             SignedConsensusMsg::Proposal(proposal) => Self::Proposal(RawSignedMessage {
                 message: proposal.message.to_bytes(),
-                signature: proposal.signature.into(),
+                signature: *proposal.signature.inner(),
             }),
         }
     }
@@ -180,13 +150,13 @@ pub struct RawExtension {
 #[derive(Serialize, Deserialize)]
 pub struct RawSignedExtension {
     pub extension: RawExtension,
-    pub signature: RawSignature,
+    pub signature: Signature,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct RawCommitSignature {
     pub address: Address,
-    pub signature: RawSignature,
+    pub signature: Signature,
     pub extension: Option<RawSignedExtension>,
 }
 
@@ -234,12 +204,12 @@ impl From<Response<TestContext>> for RawResponse {
                             .iter()
                             .map(|sig| RawCommitSignature {
                                 address: sig.address,
-                                signature: sig.signature.into(),
+                                signature: *sig.signature.inner(),
                                 extension: sig.extension.as_ref().map(|ext| RawSignedExtension {
                                     extension: RawExtension {
                                         data: ext.message.data.clone(),
                                     },
-                                    signature: ext.signature.into(),
+                                    signature: *ext.signature.inner(),
                                 }),
                             })
                             .collect(),
@@ -268,12 +238,12 @@ impl From<RawResponse> for Response<TestContext> {
                             .iter()
                             .map(|sig| CommitSignature {
                                 address: sig.address,
-                                signature: sig.signature.clone().into(),
+                                signature: sig.signature.into(),
                                 extension: sig.extension.as_ref().map(|ext| SignedExtension {
                                     message: Extension {
                                         data: ext.extension.data.clone(),
                                     },
-                                    signature: ext.signature.clone().into(),
+                                    signature: ext.signature.into(),
                                 }),
                             })
                             .collect(),

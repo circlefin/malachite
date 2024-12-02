@@ -6,7 +6,6 @@
 
 mod address;
 mod codec;
-mod codec_types;
 mod context;
 mod height;
 mod proposal;
@@ -21,7 +20,7 @@ pub mod proto;
 pub mod utils;
 
 pub use crate::address::*;
-pub use crate::codec::*;
+pub use crate::codec::testcodec::*;
 pub use crate::context::*;
 pub use crate::height::*;
 pub use crate::proposal::*;

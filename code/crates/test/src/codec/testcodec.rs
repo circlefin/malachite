@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use malachite_actors::util::codec::NetworkCodec;
 
-use crate::codec_types::{
+use crate::codec::types::{
     RawRequest, RawResponse, RawSignedConsensusMsg, RawStatus, RawStreamMessage,
 };
 use crate::{ProposalPart, TestContext};
