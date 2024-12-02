@@ -202,6 +202,8 @@ where
         info!("Opened WAL at {}", args.path.display());
 
         let (tx, rx) = mpsc::channel(100);
+
+        // Spawn a system thread to perform blocking WAL operations.
         let handle = self::thread::spawn(args.moniker, log, args.codec, rx);
 
         Ok(State {
