@@ -8,7 +8,33 @@ use malachite_starknet_test::{init_logging, HandlerResult, Test, TestNode, TestP
 use tracing::info;
 
 #[tokio::test]
-pub async fn proposer_crashes_after_proposing() {
+async fn proposer_crashes_after_proposing_parts_only() {
+    proposer_crashes_after_proposing(TestParams {
+        value_payload: malachite_config::ValuePayload::PartsOnly,
+        ..TestParams::default()
+    })
+    .await
+}
+
+#[tokio::test]
+async fn proposer_crashes_after_proposing_proposal_and_parts() {
+    proposer_crashes_after_proposing(TestParams {
+        value_payload: malachite_config::ValuePayload::ProposalAndParts,
+        ..TestParams::default()
+    })
+    .await
+}
+
+#[tokio::test]
+async fn proposer_crashes_after_proposing_proposal_only() {
+    proposer_crashes_after_proposing(TestParams {
+        value_payload: malachite_config::ValuePayload::ProposalOnly,
+        ..TestParams::default()
+    })
+    .await
+}
+
+async fn proposer_crashes_after_proposing(params: TestParams) {
     init_logging(module_path!());
 
     #[derive(Clone, Debug, Default)]
@@ -72,14 +98,40 @@ pub async fn proposer_crashes_after_proposing() {
             Duration::from_secs(30),
             TestParams {
                 enable_blocksync: false,
-                ..Default::default()
+                ..params
             },
         )
         .await
 }
 
 #[tokio::test]
-pub async fn non_proposer_crashes_after_voting() {
+async fn non_proposer_crashes_after_voting_parts_only() {
+    non_proposer_crashes_after_voting(TestParams {
+        value_payload: malachite_config::ValuePayload::PartsOnly,
+        ..TestParams::default()
+    })
+    .await
+}
+
+#[tokio::test]
+async fn non_proposer_crashes_after_voting_proposal_and_parts() {
+    non_proposer_crashes_after_voting(TestParams {
+        value_payload: malachite_config::ValuePayload::ProposalAndParts,
+        ..TestParams::default()
+    })
+    .await
+}
+
+#[tokio::test]
+async fn non_proposer_crashes_after_voting_proposal_only() {
+    non_proposer_crashes_after_voting(TestParams {
+        value_payload: malachite_config::ValuePayload::ProposalOnly,
+        ..TestParams::default()
+    })
+    .await
+}
+
+async fn non_proposer_crashes_after_voting(params: TestParams) {
     init_logging(module_path!());
 
     #[derive(Clone, Debug, Default)]
@@ -143,7 +195,7 @@ pub async fn non_proposer_crashes_after_voting() {
             Duration::from_secs(30),
             TestParams {
                 enable_blocksync: false,
-                ..Default::default()
+                ..params
             },
         )
         .await
