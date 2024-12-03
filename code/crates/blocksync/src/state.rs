@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use libp2p::PeerId;
 
-use malachite_common::Context;
+use malachite_common::{Context, Round};
 use rand::seq::IteratorRandom;
 
 use crate::Status;
@@ -19,10 +19,14 @@ where
     /// Height currently syncing.
     pub sync_height: Ctx::Height,
 
-    /// Requests for these heights have been sent out to peers.
-    pub pending_requests: BTreeMap<Ctx::Height, PeerId>,
+    /// Decided block requests for these heights have been sent out to peers.
+    pub pending_decided_block_requests: BTreeMap<Ctx::Height, PeerId>,
 
-    /// The set of peers we are connected to in order to get blocks and certificates.
+    /// Vote set requests for these heights and rounds have been sent out to peers.
+    pub pending_vote_set_requests: BTreeMap<(Ctx::Height, Round), PeerId>,
+
+    /// The set of peers we are connected to in order to get blocks, certificates and votes.
+    /// TODO - For now block and vote sync peers are the same. Might need to revise in the future.
     pub peers: BTreeMap<PeerId, Status<Ctx>>,
 }
 
@@ -35,7 +39,8 @@ where
             rng,
             tip_height,
             sync_height: tip_height,
-            pending_requests: BTreeMap::new(),
+            pending_decided_block_requests: BTreeMap::new(),
+            pending_vote_set_requests: BTreeMap::new(),
             peers: BTreeMap::new(),
         }
     }
@@ -72,15 +77,32 @@ where
             .choose_stable(&mut self.rng)
     }
 
-    pub fn store_pending_request(&mut self, height: Ctx::Height, peer: PeerId) {
-        self.pending_requests.insert(height, peer);
+    pub fn store_pending_decided_block_request(&mut self, height: Ctx::Height, peer: PeerId) {
+        self.pending_decided_block_requests.insert(height, peer);
     }
 
-    pub fn remove_pending_request(&mut self, height: Ctx::Height) {
-        self.pending_requests.remove(&height);
+    pub fn remove_pending_decided_block_request(&mut self, height: Ctx::Height) {
+        self.pending_decided_block_requests.remove(&height);
     }
 
-    pub fn has_pending_request(&self, height: &Ctx::Height) -> bool {
-        self.pending_requests.contains_key(height)
+    pub fn has_pending_decided_block_request(&self, height: &Ctx::Height) -> bool {
+        self.pending_decided_block_requests.contains_key(height)
+    }
+    pub fn store_pending_vote_set_request(
+        &mut self,
+        height: Ctx::Height,
+        round: Round,
+        peer: PeerId,
+    ) {
+        self.pending_vote_set_requests.insert((height, round), peer);
+    }
+
+    pub fn remove_pending_vote_set_request(&mut self, height: Ctx::Height, round: Round) {
+        self.pending_vote_set_requests.remove(&(height, round));
+    }
+
+    pub fn has_pending_vote_set_request(&self, height: Ctx::Height, round: Round) -> bool {
+        self.pending_vote_set_requests
+            .contains_key(&(height, round))
     }
 }

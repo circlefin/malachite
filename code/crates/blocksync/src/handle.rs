@@ -261,7 +261,7 @@ where
         debug!(%height, "Update height");
 
         state.tip_height = height;
-        state.remove_pending_request(height);
+        state.remove_pending_decided_block_request(height);
     }
 
     Ok(())
@@ -316,15 +316,22 @@ pub async fn on_sync_request_timed_out<Ctx>(
 where
     Ctx: Context,
 {
-    let height = match request {
-        Request::BlockRequest(block_request) => block_request.height,
-        Request::VoteSetRequest(vote_set_request) => vote_set_request.height,
+    match request {
+        Request::BlockRequest(block_request) => {
+            let height = block_request.height;
+            warn!(%peer_id, %height, "Block request timed out");
+            state.remove_pending_decided_block_request(height);
+            metrics.request_timed_out(height.as_u64());
+        }
+        Request::VoteSetRequest(vote_set_request) => {
+            let height = vote_set_request.height;
+            let round = vote_set_request.round;
+            warn!(%peer_id, %height, %round, "Vote set request timed out");
+            state.remove_pending_vote_set_request(height, round);
+            // TODO
+            //metrics.request_timed_out(height.as_u64());
+        }
     };
-    warn!(%peer_id, %height, "Request timed out");
-
-    metrics.request_timed_out(height.as_u64());
-
-    state.remove_pending_request(height);
 
     Ok(())
 }
@@ -342,8 +349,8 @@ where
 {
     let sync_height = state.sync_height;
 
-    if state.has_pending_request(&sync_height) {
-        debug!(sync.height = %sync_height, "Already have a pending request for this height");
+    if state.has_pending_decided_block_request(&sync_height) {
+        debug!(sync.height = %sync_height, "Already have a pending block request for this height");
         return Ok(());
     }
 
@@ -372,7 +379,7 @@ where
     );
 
     metrics.request_sent(height.as_u64());
-    state.store_pending_request(height, peer);
+    state.store_pending_decided_block_request(height, peer);
 
     Ok(())
 }
@@ -392,7 +399,7 @@ where
     trace!("Certificate: {certificate:#?}");
 
     info!("Requesting sync from another peer");
-    state.remove_pending_request(certificate.height);
+    state.remove_pending_decided_block_request(certificate.height);
 
     let Some(peer) = state.random_peer_with_block_except(certificate.height, from) else {
         error!("No other peer to request sync from");
@@ -412,7 +419,7 @@ pub async fn on_get_vote_set<Ctx>(
 where
     Ctx: Context,
 {
-    if state.has_pending_request(&height) {
+    if state.has_pending_vote_set_request(height, round) {
         debug!(vote_set.height = %height, "Already have a pending vote set request for this height");
         return Ok(());
     }
@@ -449,8 +456,7 @@ where
     // TODO - metrics
     //metrics.request_sent(height.as_u64());
 
-    // TODO - vote request has round, currently it conflicts with block reqs, they should co-exist for same height
-    state.store_pending_request(height, peer);
+    state.store_pending_vote_set_request(height, round, peer);
 
     Ok(())
 }
@@ -468,25 +474,6 @@ where
     Ctx: Context,
 {
     debug!(%request_id, %peer, "Received vote set response");
-
-    Ok(())
-}
-
-pub async fn on_vote_set_request_timed_out<Ctx>(
-    _co: Co<Ctx>,
-    state: &mut State<Ctx>,
-    metrics: &Metrics,
-    peer_id: PeerId,
-    request: VoteSetRequest<Ctx>,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    warn!(%peer_id, %request.height, "Vote set request timed out");
-
-    metrics.request_timed_out(request.height.as_u64());
-
-    state.remove_pending_request(request.height);
 
     Ok(())
 }
