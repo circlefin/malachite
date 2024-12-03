@@ -67,19 +67,35 @@ run everyoneIsFastInRound(h: Height, r: Round, value: NonNilValue) : bool = {
 }
 
 run fastProcessesDoNotDecide(h: Height, r: Round, value: NonNilValue) : bool = {
-    val prop = proposer(validatorSet, h, r)
-    setNextValueToPropose(prop, value)
-    .then(reps(2, _ => ListTakeAStep(fastList)))
-    .then(ListDeliverProposal(validatorList,mkProposal(prop, h, 0, value, -1)))
-    .then(ListTakeAStep(fastList))
-    .then(ListDeliverAllVotes (Prevote, fastList, validatorList, validatorSet, h, r, Val(value)))
-    .then(reps(length(fastList) + 2, _ => ListTakeAStep(fastList)))
-    // all prevotes delivered and processed at fast processes
-    .expect(system.get(fastList[0]).existsTimeout())
-
-
-    // WIP, continue HERE
-
+    val nextProposer = proposer(validatorSet, 0, 1)
+    val thisProposer = proposer(validatorSet, 0, 0)
+    init
+    .then(onlyProposerReceivesProposal(fastList, validatorList, validatorSet, 0, 0, "a"))
+    .then(ListDeliverAllVotes(Prevote, List(thisProposer), fastList, validatorSet, 0, 0, Val("a")))
+    .then(ListDeliverAllVotes(Prevote, fastList.select(x => x != thisProposer), fastList, validatorSet, 0, 0, Nil)) 
+    .then(fastList.length().reps(_ => ListTakeAStep(fastList)))   
+    .then(all{
+         assert(SetFromList(fastList).forall(proc => system.get(proc).timeouts.contains((PrevoteTimeout, 0, 0)))),
+         ListTakeAStep(fastList)
+    })
+    .then(all{ 
+        assert(SetFromList(fastList).forall(proc => system.get(proc).es.pendingStepChange == PrecommitStep)),
+        ListTakeAStep(fastList)
+    })
+    .then(ListDeliverAllVotes(Precommit, fastList, fastList, validatorSet, 0, 0, Nil))
+    .then(fastList.length().reps(_ => ListTakeAStep(fastList)))   
+    // FastList now go to next round on timeoutPrecommit
+    .then(all{
+        assert(SetFromList(fastList).forall(proc => system.get(proc).timeouts.contains((PrecommitTimeout, 0, 0)))),
+        everyoneReceivesProposal (fastList, validatorList, validatorSet, 0, 1, "b")
+    })        
+    .then(fromPrevoteToPrecommit(fastList, fastList, validatorList, validatorSet, 0, 1, Val("b")))
+    .then(ListDeliverAllVotes(Precommit, fastList, fastList, validatorSet, 0, 1, Val("b")))
+    .then(fastList.length().reps(_ => ListTakeAStep(fastList)))
+    .then(all {
+        assert(SetFromList(fastList).forall(proc => system.get(proc).es.chain.head().decision.proposal == "b")),
+        unchangedAll
+    })       
 }
 
 // *************************************************************************
@@ -138,18 +154,15 @@ run slowProcessAtHeight1 = {
 run catchUpToHigherRound = {
     init
     .then(fastProcessesDoNotDecide(0, 0, ValueList[0]))
-
+    // deliver all prevotes of round 0 and 1
+    .then(ListDeliverAllVotes(Prevote, ["v1", "v3"], [slow], validatorSet, 0, 0, Nil))
+    .then(ListDeliverAllVotes(Prevote, ["v2"], [slow], validatorSet, 0, 0, Val("a")))
+    .then(ListDeliverAllVotes(Prevote, fastList, [slow], validatorSet, 0, 1, Val("b")))
+    .then(valStep(slow))
+    .then(valStep(slow))
+    .then(valStep(slow))
+    // TODO: consensus does not go to round 1 !
 }
-
-
-// catch up to higher round (new height)
-
-
-
-// no catch-up, preload votekeeper
-
-
-
 
 }
 

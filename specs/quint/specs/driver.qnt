@@ -123,6 +123,11 @@ module driver {
         val roundToStart = vkWithCertificates.rounds.keys().fold(0, (agg, rNr) =>
             vkWithCertificates.rounds.get(rNr).emittedOutputs.fold(0, (agg2, output) =>
                 match output {
+                    | PolkaAnyVKOutput(round) => max(round,agg2)
+                    | PolkaNilVKOutput(round) => max(round,agg2)
+                    | PolkaValueVKOutput(output) => max(output._1,agg2)
+                    | PrecommitAnyVKOutput(round) => max(round,agg2)
+                    | PrecommitValueVKOutput(output) => max(output._1,agg2)
                     | SkipVKOutput(round) => max(round,agg2)
                     | _ => agg2
                 }
@@ -193,7 +198,7 @@ module driver {
     // a function, that is, any two validators need to agree on this
     pure def proposer(valset: Address -> Weight, height: Height, round: Round): Address = {
         // Here: rotating coordinator. We can do something more clever actually using the valset
-        // Update: generalized to aribtrary validator set, different proposer at different heights
+        // Update: generalized to arbitrary validator set, different proposer at different heights
         val valList = valset.keys().fold(List(), (s, x) => s.append(x))
         val prop = (round + height + 1) % length(valList) // start with v2 as before
         valList[prop]
