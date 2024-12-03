@@ -240,7 +240,7 @@ where
         }
 
         DriverOutput::ScheduleTimeout(timeout) => {
-            info!(round = %timeout.round, step = ?timeout.step, "Scheduling timeout");
+            info!(round = %timeout.round, step = ?timeout.kind, "Scheduling timeout");
 
             perform!(co, Effect::ScheduleTimeout(timeout));
 

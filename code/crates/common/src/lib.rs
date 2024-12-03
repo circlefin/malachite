@@ -64,7 +64,7 @@ pub use round::Round;
 pub use signed_message::SignedMessage;
 pub use signing::SigningScheme;
 pub use threshold::{Threshold, ThresholdParam, ThresholdParams};
-pub use timeout::{Timeout, TimeoutStep};
+pub use timeout::{Timeout, TimeoutKind};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::{NilOrVal, Value, ValueOrigin};
 pub use vote::{Extension, Vote, VoteType};

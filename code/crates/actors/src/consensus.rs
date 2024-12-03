@@ -13,7 +13,7 @@ use malachite_blocksync::{
     self as blocksync, BlockResponse, Response, VoteSetRequest, VoteSetResponse,
 };
 use malachite_common::{
-    CommitCertificate, Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet,
+    CommitCertificate, Context, Round, SignedExtension, Timeout, TimeoutKind, ValidatorSet,
     ValueOrigin,
 };
 use malachite_config::TimeoutConfig;
@@ -94,26 +94,26 @@ impl Timeouts {
         self.config = config;
     }
 
-    fn duration_for(&self, step: TimeoutStep) -> Duration {
+    fn duration_for(&self, step: TimeoutKind) -> Duration {
         match step {
-            TimeoutStep::Propose => self.config.timeout_propose,
-            TimeoutStep::Prevote => self.config.timeout_prevote,
-            TimeoutStep::Precommit => self.config.timeout_precommit,
-            TimeoutStep::Commit => self.config.timeout_commit,
-            TimeoutStep::PrevoteTimeLimit => self.config.timeout_step,
-            TimeoutStep::PrecommitTimeLimit => self.config.timeout_step,
+            TimeoutKind::Propose => self.config.timeout_propose,
+            TimeoutKind::Prevote => self.config.timeout_prevote,
+            TimeoutKind::Precommit => self.config.timeout_precommit,
+            TimeoutKind::Commit => self.config.timeout_commit,
+            TimeoutKind::PrevoteTimeLimit => self.config.timeout_step,
+            TimeoutKind::PrecommitTimeLimit => self.config.timeout_step,
         }
     }
 
-    fn increase_timeout(&mut self, step: TimeoutStep) {
+    fn increase_timeout(&mut self, step: TimeoutKind) {
         let c = &mut self.config;
         match step {
-            TimeoutStep::Propose => c.timeout_propose += c.timeout_propose_delta,
-            TimeoutStep::Prevote => c.timeout_prevote += c.timeout_prevote_delta,
-            TimeoutStep::Precommit => c.timeout_precommit += c.timeout_precommit_delta,
-            TimeoutStep::Commit => (),
-            TimeoutStep::PrevoteTimeLimit => (),
-            TimeoutStep::PrecommitTimeLimit => (),
+            TimeoutKind::Propose => c.timeout_propose += c.timeout_propose_delta,
+            TimeoutKind::Prevote => c.timeout_prevote += c.timeout_prevote_delta,
+            TimeoutKind::Precommit => c.timeout_precommit += c.timeout_precommit_delta,
+            TimeoutKind::Commit => (),
+            TimeoutKind::PrevoteTimeLimit => (),
+            TimeoutKind::PrecommitTimeLimit => (),
         };
     }
 }
@@ -443,16 +443,16 @@ where
                     return Ok(());
                 };
 
-                state.timeouts.increase_timeout(timeout.step);
+                state.timeouts.increase_timeout(timeout.kind);
 
                 if matches!(
-                    timeout.step,
-                    TimeoutStep::Prevote
-                        | TimeoutStep::Precommit
-                        | TimeoutStep::PrevoteTimeLimit
-                        | TimeoutStep::PrecommitTimeLimit
+                    timeout.kind,
+                    TimeoutKind::Prevote
+                        | TimeoutKind::Precommit
+                        | TimeoutKind::PrevoteTimeLimit
+                        | TimeoutKind::PrecommitTimeLimit
                 ) {
-                    warn!(step = ?timeout.step, "Timeout elapsed");
+                    warn!(step = ?timeout.kind, "Timeout elapsed");
 
                     state.consensus.print_state();
                 }
@@ -569,7 +569,7 @@ where
             }
 
             Effect::ScheduleTimeout(timeout) => {
-                let duration = timeouts.duration_for(timeout.step);
+                let duration = timeouts.duration_for(timeout.kind);
                 timers.start_timer(timeout, duration);
 
                 Ok(Resume::Continue)
@@ -611,7 +611,7 @@ where
             }
 
             Effect::GetValue(height, round, timeout) => {
-                let timeout_duration = timeouts.duration_for(timeout.step);
+                let timeout_duration = timeouts.duration_for(timeout.kind);
 
                 self.get_value(myself, height, round, timeout_duration)
                     .map_err(|e| eyre!("Error when asking for value to be built: {e:?}"))?;

@@ -165,4 +165,3 @@ pub async fn blocksync_start_late() {
         )
         .await
 }
-

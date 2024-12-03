@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use malachite_common::{
-    NilOrVal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep, Validity,
+    NilOrVal, Round, SignedProposal, SignedVote, Timeout, TimeoutKind, Validity,
 };
 use malachite_driver::{Driver, Error, Input, Output};
 use malachite_round::state::{RoundValue, State, Step};
@@ -99,11 +99,11 @@ fn driver_steps_proposer() {
             desc: "Start round 0, we are proposer, ask for a value to propose",
             input: Some(Input::NewRound(Height::new(1), Round::new(0), my_addr)),
             expected_outputs: vec![
-                Output::ScheduleTimeout(Timeout::new(Round::new(0), TimeoutStep::Propose)),
+                Output::ScheduleTimeout(Timeout::new(Round::new(0), TimeoutKind::Propose)),
                 Output::GetValue(
                     Height::new(1),
                     Round::new(0),
-                    Timeout::new(Round::new(0), TimeoutStep::Propose),
+                    Timeout::new(Round::new(0), TimeoutKind::Propose),
                 ),
             ],
             expected_round: Round::new(0),
@@ -295,11 +295,11 @@ fn driver_steps_proposer_timeout_get_value() {
             desc: "Start round 0, we are proposer, ask for a value to propose",
             input: Some(Input::NewRound(Height::new(1), Round::new(0), my_addr)),
             expected_outputs: vec![
-                Output::ScheduleTimeout(Timeout::new(Round::new(0), TimeoutStep::Propose)),
+                Output::ScheduleTimeout(Timeout::new(Round::new(0), TimeoutKind::Propose)),
                 Output::GetValue(
                     Height::new(1),
                     Round::new(0),
-                    Timeout::new(Round::new(0), TimeoutStep::Propose),
+                    Timeout::new(Round::new(0), TimeoutKind::Propose),
                 ),
             ],
             expected_round: Round::new(0),
@@ -953,7 +953,7 @@ fn driver_steps_no_value_to_propose() {
     assert_eq!(
         outputs,
         vec!(
-            Output::ScheduleTimeout(Timeout::new(Round::new(0), TimeoutStep::Propose)),
+            Output::ScheduleTimeout(Timeout::new(Round::new(0), TimeoutKind::Propose)),
             Output::GetValue(
                 Height::new(1),
                 Round::new(0),

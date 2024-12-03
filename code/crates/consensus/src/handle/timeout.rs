@@ -15,7 +15,7 @@ where
     let height = state.driver.height();
     let round = state.driver.round();
 
-    if timeout.round != round && timeout.step != TimeoutStep::Commit {
+    if timeout.round != round && timeout.kind != TimeoutKind::Commit {
         debug!(
             %height,
             %round,
@@ -27,7 +27,7 @@ where
     }
 
     info!(
-        step = ?timeout.step,
+        step = ?timeout.kind,
         %timeout.round,
         %height,
         %round,
@@ -35,11 +35,11 @@ where
 
     apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
 
-    match timeout.step {
-        TimeoutStep::PrevoteTimeLimit | TimeoutStep::PrecommitTimeLimit => {
+    match timeout.kind {
+        TimeoutKind::PrevoteTimeLimit | TimeoutKind::PrecommitTimeLimit => {
             on_step_limit_timeout(co, state, metrics, timeout.round).await?;
         }
-        TimeoutStep::Commit => {
+        TimeoutKind::Commit => {
             let proposal = state
                 .decision
                 .remove(&(height, round))

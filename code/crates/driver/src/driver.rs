@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use core::fmt;
 
 use malachite_common::{
-    CommitCertificate, Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
+    CommitCertificate, Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutKind,
     Validator, ValidatorSet, Validity, ValueId, Vote,
 };
 use malachite_round::input::Input as RoundInput;
@@ -362,15 +362,15 @@ where
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        let input = match timeout.step {
-            TimeoutStep::Propose => RoundInput::TimeoutPropose,
-            TimeoutStep::Prevote => RoundInput::TimeoutPrevote,
-            TimeoutStep::Precommit => RoundInput::TimeoutPrecommit,
+        let input = match timeout.kind {
+            TimeoutKind::Propose => RoundInput::TimeoutPropose,
+            TimeoutKind::Prevote => RoundInput::TimeoutPrevote,
+            TimeoutKind::Precommit => RoundInput::TimeoutPrecommit,
 
             // The driver never receives a commit or time limit timeout, so we can just ignore it.
-            TimeoutStep::Commit => return Ok(None),
-            TimeoutStep::PrevoteTimeLimit => return Ok(None),
-            TimeoutStep::PrecommitTimeLimit => return Ok(None),
+            TimeoutKind::Commit => return Ok(None),
+            TimeoutKind::PrevoteTimeLimit => return Ok(None),
+            TimeoutKind::PrecommitTimeLimit => return Ok(None),
         };
 
         self.apply_input(timeout.round, input)
