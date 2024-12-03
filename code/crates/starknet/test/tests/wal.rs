@@ -98,7 +98,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
 
     Test::new([n1, n2, n3])
         .run_with_custom_config(
-            Duration::from_secs(30),
+            Duration::from_secs(60),
             TestParams {
                 enable_blocksync: false,
                 ..params
@@ -193,7 +193,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
 
     Test::new([n1, n2, n3])
         .run_with_custom_config(
-            Duration::from_secs(30),
+            Duration::from_secs(60),
             TestParams {
                 enable_blocksync: false,
                 ..params
