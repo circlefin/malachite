@@ -571,7 +571,12 @@ pub fn init_logging(test_module: &str) {
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
-    let directive = if matches!(std::env::var("TEST_DEBUG").as_deref(), Ok("1")) {
+    let debug_vars = &[("ACTIONS_RUNNER_DEBUG", "true"), ("MALACHITE_DEBUG", "1")];
+    let enable_debug = debug_vars
+        .iter()
+        .any(|(k, v)| std::env::var(k).as_deref() == Ok(v));
+
+    let directive = if enable_debug {
         format!("{test_module}=debug,malachite=debug,malachite_starknet_test=debug,ractor=error")
     } else {
         format!("{test_module}=debug,malachite=error,malachite_starknet_test=debug,ractor=error")
