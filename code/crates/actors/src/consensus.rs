@@ -213,6 +213,9 @@ where
         match msg {
             Msg::StartHeight(height, validator_set) => {
                 state.phase = Phase::Running;
+
+                self.tx_event.send(|| Event::StartedHeight(height));
+
                 let result = self
                     .process_input(
                         &myself,
@@ -224,8 +227,6 @@ where
                 if let Err(e) = result {
                     error!(%height, "Error when starting height: {e}");
                 }
-
-                self.tx_event.send(|| Event::StartedHeight(height));
 
                 if let Err(e) = self.check_and_replay_wal(&myself, state, height).await {
                     error!(%height, "Error when checking and replaying WAL: {e}");
@@ -433,12 +434,12 @@ where
             }
 
             Msg::ReceivedProposedValue(value, origin) => {
-                self.wal_append(
-                    value.height,
-                    WalEntry::ProposedValue(value.clone(), origin),
-                    state.phase,
-                )
-                .await?;
+                // self.wal_append(
+                //     value.height,
+                //     WalEntry::ProposedValue(value.clone(), origin),
+                //     state.phase,
+                // )
+                // .await?;
 
                 self.tx_event
                     .send(|| Event::ReceivedProposedValue(value.clone(), origin));

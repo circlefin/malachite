@@ -1,4 +1,3 @@
-use malachite_starknet_p2p_types::Block;
 use prost::Message;
 
 use malachite_actors::util::codec::NetworkCodec;
@@ -10,6 +9,7 @@ use malachite_common::{
 };
 use malachite_consensus::{ProposedValue, SignedConsensusMsg};
 use malachite_gossip_consensus::Bytes;
+use malachite_starknet_p2p_types::{Block, Transactions};
 
 use crate::proto::consensus_message::Messages;
 use crate::proto::{self as proto, Error as ProtoError, Protobuf};
@@ -461,13 +461,84 @@ impl NetworkCodec<blocksync::SyncedBlock<MockContext>> for ProtobufCodec {
     }
 }
 
-pub(crate) fn encode_block(block: &Block) -> Result<Vec<u8>, ProtoError> {
-    let proto = proto::sync::Block {
+pub(crate) fn encode_block(
+    value: &ProposedValue<MockContext>,
+    block: &Block,
+) -> Result<Vec<u8>, ProtoError> {
+    let block = proto::sync::Block {
         fork_id: block.height.fork_id,
         block_number: block.height.block_number,
         transactions: Some(block.transactions.to_proto()?),
         block_hash: Some(block.block_hash.to_proto()?),
     };
 
+    let value = proto::sync::ProposedValue {
+        fork_id: value.height.fork_id,
+        block_number: value.height.block_number,
+        round: value.round.as_u32().expect("round should not be nil"),
+        valid_round: value.valid_round.as_u32(),
+        value: value.value.to_bytes()?,
+        proposer: Some(value.validator_address.to_proto()?),
+        validity: match value.validity {
+            Validity::Valid => true,
+            Validity::Invalid => false,
+        },
+        extension: value.extension.as_ref().map(encode_extension).transpose()?,
+    };
+
+    let proto = proto::sync::BlockAndValue {
+        block: Some(block),
+        value: Some(value),
+    };
+
     Ok(proto.encode_to_vec())
+}
+
+pub(crate) fn decode_block(
+    bytes: Bytes,
+) -> Result<(ProposedValue<MockContext>, Block), ProtoError> {
+    let proto = proto::sync::BlockAndValue::decode(bytes)?;
+
+    let proto_block = proto
+        .block
+        .ok_or_else(|| ProtoError::missing_field::<proto::sync::BlockAndValue>("block"))?;
+
+    let proto_value = proto
+        .value
+        .ok_or_else(|| ProtoError::missing_field::<proto::sync::BlockAndValue>("value"))?;
+
+    let block = Block {
+        height: Height {
+            fork_id: proto_block.fork_id,
+            block_number: proto_block.block_number,
+        },
+        transactions: Transactions::from_proto(
+            proto_block
+                .transactions
+                .ok_or_else(|| ProtoError::missing_field::<proto::sync::Block>("transactions"))?,
+        )?,
+        block_hash: BlockHash::from_proto(
+            proto_block
+                .block_hash
+                .ok_or_else(|| ProtoError::missing_field::<proto::sync::Block>("block_hash"))?,
+        )?,
+    };
+
+    let value =
+        ProposedValue {
+            height: Height {
+                fork_id: proto_value.fork_id,
+                block_number: proto_value.block_number,
+            },
+            round: Round::new(proto_value.round),
+            valid_round: Round::from(proto_value.valid_round),
+            value: BlockHash::from_bytes(&proto_value.value)?,
+            validator_address: Address::from_proto(proto_value.proposer.ok_or_else(|| {
+                ProtoError::missing_field::<proto::sync::ProposedValue>("proposer")
+            })?)?,
+            validity: Validity::from_bool(proto_value.validity),
+            extension: proto_value.extension.map(decode_extension).transpose()?,
+        };
+
+    Ok((value, block))
 }

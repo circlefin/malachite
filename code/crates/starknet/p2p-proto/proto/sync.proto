@@ -66,3 +66,8 @@ message ProposedValue {
     bool validity = 7;
     optional Extension extension = 8;
 }
+
+message BlockAndValue {
+    Block block = 1;
+    ProposedValue value = 2;
+}

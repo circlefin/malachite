@@ -2,6 +2,8 @@ use std::ops::RangeBounds;
 use std::path::Path;
 use std::sync::Arc;
 
+use bytes::Bytes;
+use malachite_consensus::ProposedValue;
 use prost::Message;
 use redb::ReadableTable;
 use thiserror::Error;
@@ -118,7 +120,7 @@ impl Db {
         &self,
         height: Height,
         round: Round,
-    ) -> Result<Option<Block>, StoreError> {
+    ) -> Result<Option<(ProposedValue<MockContext>, Block)>, StoreError> {
         let tx = self.db.begin_read()?;
 
         let from = (height, round, BlockHash::new([0; 32]));
@@ -128,7 +130,7 @@ impl Db {
         let keys = self.undecided_block_range(&table, from..to)?;
         for key in keys {
             if let Ok(Some(value)) = table.get(&key) {
-                return Ok(Block::from_bytes(&value.value()).ok());
+                return Ok(codec::decode_block(Bytes::from(value.value())).ok());
             }
         }
 
@@ -137,12 +139,11 @@ impl Db {
 
     fn insert_undecided_block(
         &self,
-        height: Height,
-        round: Round,
+        value: ProposedValue<MockContext>,
         block: Block,
     ) -> Result<(), StoreError> {
-        let key = (height, round, block.block_hash);
-        let value = codec::encode_block(&block)?;
+        let key = (value.height, value.round, block.block_hash);
+        let value = codec::encode_block(&value, &block)?;
         let tx = self.db.begin_write()?;
         {
             let mut table = tx.open_table(UNDECIDED_BLOCKS_TABLE)?;
@@ -280,19 +281,18 @@ impl BlockStore {
 
     pub async fn store_undecided_block(
         &self,
-        height: Height,
-        round: Round,
+        value: ProposedValue<MockContext>,
         block: Block,
     ) -> Result<(), StoreError> {
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.insert_undecided_block(height, round, block)).await?
+        tokio::task::spawn_blocking(move || db.insert_undecided_block(value, block)).await?
     }
 
     pub async fn get_undecided_block(
         &self,
         height: Height,
         round: Round,
-    ) -> Result<Option<Block>, StoreError> {
+    ) -> Result<Option<(ProposedValue<MockContext>, Block)>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.get_undecided_block(height, round)).await?
     }

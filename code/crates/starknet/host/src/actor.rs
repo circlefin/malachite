@@ -11,12 +11,12 @@ use sha3::Digest;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
-use malachite_actors::consensus::ConsensusMsg;
+use malachite_actors::consensus::{ConsensusMsg, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_actors::util::streaming::{StreamContent, StreamId, StreamMessage};
 use malachite_blocksync::SyncedBlock;
-use malachite_common::{Round, SignedExtension, Validity};
+use malachite_common::{Round, SignedExtension, Validity, ValueOrigin};
 use malachite_metrics::Metrics;
 use malachite_starknet_p2p_types::{Block, PartType};
 
@@ -39,6 +39,7 @@ pub struct HostState {
     round: Round,
     proposer: Option<Address>,
     host: MockHost,
+    consensus: Option<ConsensusRef<MockContext>>,
     block_store: BlockStore,
     part_streams_map: PartStreamsMap,
     next_stream_id: StreamId,
@@ -54,6 +55,7 @@ impl HostState {
             round: Round::Nil,
             proposer: None,
             host,
+            consensus: None,
             block_store: BlockStore::new(db_path).unwrap(),
             part_streams_map: PartStreamsMap::default(),
             next_stream_id: rng.next_u64(),
@@ -353,6 +355,8 @@ impl Actor for StarknetHost {
                 let latest_block_height = state.block_store.last_height().unwrap_or_default();
                 let start_height = latest_block_height.increment();
 
+                state.consensus = Some(consensus.clone());
+
                 consensus.cast(ConsensusMsg::StartHeight(
                     start_height,
                     state.host.validator_set.clone(),
@@ -369,6 +373,25 @@ impl Actor for StarknetHost {
                 state.height = height;
                 state.round = round;
                 state.proposer = Some(proposer);
+
+                // If we have already built a block for this height and round, feed it to consensus.
+                // This may happen when we are restarting after a crash and replaying the WAL.
+                if let Some((value, block)) =
+                    state.block_store.get_undecided_block(height, round).await?
+                {
+                    info!(%height, %round, hash = %block.block_hash, "Replaying already built block");
+
+                    state
+                        .consensus
+                        .as_ref()
+                        .unwrap()
+                        .cast(ConsensusMsg::ReceivedProposedValue(
+                            value,
+                            ValueOrigin::Consensus,
+                        ))?;
+
+                    return Ok(());
+                }
 
                 Ok(())
             }
@@ -388,11 +411,17 @@ impl Actor for StarknetHost {
             } => {
                 // If we have already built a block for this height and round, return it
                 // This may happen when we are restarting after a crash and replaying the WAL.
-                if let Some(block) = state.block_store.get_undecided_block(height, round).await? {
+                if let Some((value, block)) =
+                    state.block_store.get_undecided_block(height, round).await?
+                {
                     info!(%height, %round, hash = %block.block_hash, "Returning previously built block");
 
-                    let value = LocallyProposedValue::new(height, round, block.block_hash, None);
-                    reply_to.send(value)?;
+                    reply_to.send(LocallyProposedValue::new(
+                        value.height,
+                        value.round,
+                        value.value,
+                        value.extension,
+                    ))?;
 
                     return Ok(());
                 }
@@ -453,7 +482,7 @@ impl Actor for StarknetHost {
 
                 if let Err(e) = state
                     .block_store
-                    .store_undecided_block(value.height, value.round, block)
+                    .store_undecided_block(value.clone(), block)
                     .await
                 {
                     error!(%e, %height, %round, "Failed to store the proposed block");
