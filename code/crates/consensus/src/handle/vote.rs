@@ -75,7 +75,7 @@ where
 
     debug_assert_eq!(consensus_height, vote_height);
 
-    // Persist the proposal in the Write-ahead Log
+    // Append the vote to the Write-ahead Log
     perform!(
         co,
         Effect::PersistMessage(SignedConsensusMsg::Vote(signed_vote.clone()))

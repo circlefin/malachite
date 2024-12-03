@@ -64,13 +64,17 @@ where
 
     debug_assert_eq!(proposal_height, consensus_height);
 
-    // Persist the proposal in the Write-ahead Log
-    perform!(
-        co,
-        Effect::PersistMessage(SignedConsensusMsg::Proposal(signed_proposal.clone()))
-    );
-
+    // Store the proposal in the full proposal keeper
     state.store_proposal(signed_proposal.clone());
+
+    // If consensus runs in a mode where it publishes proposals over the network,
+    // we need to persist in the Write-Ahead Log before we actually send it over the network.
+    if state.params.value_payload.include_proposal() {
+        perform!(
+            co,
+            Effect::PersistMessage(SignedConsensusMsg::Proposal(signed_proposal.clone()))
+        );
+    }
 
     if state.params.value_payload.proposal_only() {
         // TODO - pass the received value up to the host that will verify and give back validity and extension.
