@@ -216,8 +216,6 @@ where
 
                 let validator_set = self.get_validator_set(height).await?;
 
-                self.tx_event.send(|| Event::StartedHeight(height));
-
                 let result = self
                     .process_input(
                         &myself,
@@ -229,6 +227,8 @@ where
                 if let Err(e) = result {
                     error!(%height, "Error when starting height: {e}");
                 }
+
+                self.tx_event.send(|| Event::StartedHeight(height));
 
                 if let Err(e) = self.check_and_replay_wal(&myself, state, height).await {
                     error!(%height, "Error when checking and replaying WAL: {e}");
@@ -442,16 +442,12 @@ where
                 )
                 .await?;
 
-                let result = self
-                    .process_input(
-                        &myself,
-                        state,
-                        ConsensusInput::ProposedValue(value.clone(), origin),
-                    )
-                    .await;
-
                 self.tx_event
-                    .send(|| Event::ReceivedProposedValue(value, origin));
+                    .send(|| Event::ReceivedProposedValue(value.clone(), origin));
+
+                let result = self
+                    .process_input(&myself, state, ConsensusInput::ProposedValue(value, origin))
+                    .await;
 
                 if let Err(e) = result {
                     error!("Error when processing ReceivedProposedValue message: {e}");
@@ -538,6 +534,11 @@ where
     ) -> Result<(), ActorProcessingErr> {
         use SignedConsensusMsg::*;
 
+        debug_assert!(!entries.is_empty());
+
+        self.tx_event
+            .send(|| Event::WalReplayBegin(state.height(), entries.len()));
+
         for entry in entries {
             match entry {
                 WalEntry::ConsensusMsg(Vote(vote)) => {
@@ -574,6 +575,8 @@ where
                 }
             }
         }
+
+        self.tx_event.send(|| Event::WalReplayDone(state.height()));
 
         Ok(())
     }
