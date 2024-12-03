@@ -1,14 +1,14 @@
 use std::time::Duration;
 
 use eyre::bail;
-use malachite_config::ValuePayload;
 use tracing::info;
 
 use malachite_actors::util::events::Event;
 use malachite_common::SignedVote;
+use malachite_config::ValuePayload;
 use malachite_consensus::ValueToPropose;
 use malachite_starknet_host::types::MockContext;
-use malachite_starknet_test::{init_logging, HandlerResult, Test, TestNode, TestParams};
+use malachite_starknet_test::{init_logging, HandlerResult, TestBuilder, TestParams};
 
 #[tokio::test]
 async fn proposer_crashes_after_proposing_parts_only() {
@@ -47,18 +47,13 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
 
     const CRASH_HEIGHT: u64 = 4;
 
-    let n1 = TestNode::with_state(1, State::default())
-        .vp(10)
-        .start()
-        .success();
+    let mut test = TestBuilder::<State>::new();
 
-    let n2 = TestNode::with_state(3, State::default())
-        .vp(10)
-        .start()
-        .success();
+    test.add_node().with_voting_power(10).start().success();
+    test.add_node().with_voting_power(10).start().success();
 
-    let n3 = TestNode::with_state(3, State::default())
-        .vp(40)
+    test.add_node()
+        .with_voting_power(40)
         .start()
         .wait_until(CRASH_HEIGHT)
         // Wait until this node proposes a value
@@ -96,7 +91,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
         })
         .success();
 
-    Test::new([n1, n2, n3])
+    test.build()
         .run_with_custom_config(
             Duration::from_secs(60),
             TestParams {
@@ -144,18 +139,10 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
 
     const CRASH_HEIGHT: u64 = 3;
 
-    let n1 = TestNode::with_state(1, State::default())
-        .vp(10)
-        .start()
-        .success();
+    let mut test = TestBuilder::<State>::new();
 
-    let n2 = TestNode::with_state(2, State::default())
-        .vp(10)
-        .start()
-        .success();
-
-    let n3 = TestNode::with_state(3, State::default())
-        .vp(40)
+    test.add_node()
+        .with_voting_power(40)
         .start()
         .wait_until(CRASH_HEIGHT)
         // Wait until this node proposes a value
@@ -191,7 +178,10 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
         })
         .success();
 
-    Test::new([n1, n2, n3])
+    test.add_node().with_voting_power(10).start().success();
+    test.add_node().with_voting_power(10).start().success();
+
+    test.build()
         .run_with_custom_config(
             Duration::from_secs(60),
             TestParams {
