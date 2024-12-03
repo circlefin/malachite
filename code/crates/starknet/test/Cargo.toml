@@ -18,6 +18,7 @@ malachite-starknet-host.workspace    = true
 
 axum.workspace                       = true
 bytesize.workspace                   = true
+eyre.workspace                       = true
 rand.workspace                       = true
 ractor.workspace                     = true
 tokio.workspace                      = true

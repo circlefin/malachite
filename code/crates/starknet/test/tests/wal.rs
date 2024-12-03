@@ -1,11 +1,13 @@
 use std::time::Duration;
 
-use malachite_actors::util::events::Event;
-use malachite_common::NilOrVal;
-use malachite_consensus::SignedConsensusMsg;
-use malachite_starknet_host::types::BlockHash;
-use malachite_starknet_test::{init_logging, HandlerResult, Test, TestNode, TestParams};
+use eyre::bail;
 use tracing::info;
+
+use malachite_actors::util::events::Event;
+use malachite_common::SignedVote;
+use malachite_consensus::ValueToPropose;
+use malachite_starknet_host::types::MockContext;
+use malachite_starknet_test::{init_logging, HandlerResult, Test, TestNode, TestParams};
 
 #[tokio::test]
 async fn proposer_crashes_after_proposing_parts_only() {
@@ -39,7 +41,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
 
     #[derive(Clone, Debug, Default)]
     struct State {
-        block_hash: Option<BlockHash>,
+        first_proposed_value: Option<ValueToPropose<MockContext>>,
     }
 
     const CRASH_HEIGHT: u64 = 4;
@@ -62,7 +64,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
         .on_event(|event, state| match event {
             Event::ProposedValue(value) => {
                 info!("Proposer proposed block: {:?}", value.value);
-                state.block_hash = Some(value.value);
+                state.first_proposed_value = Some(value);
                 Ok(HandlerResult::ContinueTest)
             }
             _ => Ok(HandlerResult::WaitForNextEvent),
@@ -72,41 +74,23 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
         // Restart after 5 seconds
         .restart_after(Duration::from_secs(5))
         // Check that we replay messages from the WAL
-        .on_event(|event, _state| {
-            if let Event::WalReplayBegin(height, count) = event {
-                info!("Replaying WAL at height {height} with {count} messages");
-                if height.as_u64() == CRASH_HEIGHT {
-                    Ok(HandlerResult::ContinueTest)
-                } else {
-                    Err(format!(
-                        "Unexpected WAL replay at height {height}, expected {CRASH_HEIGHT}"
-                    )
-                    .into())
-                }
-            } else {
-                Ok(HandlerResult::WaitForNextEvent)
-            }
-        })
+        .expect_wal_replay(CRASH_HEIGHT, 2)
         // Wait until it proposes a value again, while replaying WAL
         // Check that it is the same value as the first time
-        .on_event(|event, state| {
-            let Some(first_value) = state.block_hash.as_ref() else {
-                return Err("Proposer did not propose a block".into());
+        .on_proposed_value(|value, state| {
+            let Some(first_value) = state.first_proposed_value.as_ref() else {
+                bail!("Proposer did not propose a block");
             };
 
-            if let Event::ProposedValue(value) = event {
-                if first_value == &value.value {
-                    info!("Proposer re-proposed the same block: {:?}", value.value);
-                    Ok(HandlerResult::ContinueTest)
-                } else {
-                    Err(format!(
-                        "Proposer just equivocated: expected {:?}, got {:?}",
-                        first_value, value.value
-                    )
-                    .into())
-                }
+            if first_value.value == value.value {
+                info!("Proposer re-proposed the same block: {:?}", value.value);
+                Ok(HandlerResult::ContinueTest)
             } else {
-                Ok(HandlerResult::WaitForNextEvent)
+                bail!(
+                    "Proposer just equivocated: expected {:?}, got {:?}",
+                    first_value,
+                    value.value
+                )
             }
         })
         .success();
@@ -154,7 +138,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
 
     #[derive(Clone, Debug, Default)]
     struct State {
-        voted_for: Option<NilOrVal<BlockHash>>,
+        first_vote: Option<SignedVote<MockContext>>,
     }
 
     const CRASH_HEIGHT: u64 = 3;
@@ -174,54 +158,34 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
         .start()
         .wait_until(CRASH_HEIGHT)
         // Wait until this node proposes a value
-        .on_event(|event, state| match event {
-            Event::Published(SignedConsensusMsg::Vote(vote)) => {
-                info!("Non-proposer voted");
-                state.voted_for = Some(vote.block_hash);
-                Ok(HandlerResult::ContinueTest)
-            }
-            _ => Ok(HandlerResult::WaitForNextEvent),
+        .on_vote(|vote, state| {
+            info!("Non-proposer voted");
+            state.first_vote = Some(vote);
+
+            Ok(HandlerResult::ContinueTest)
         })
         // Crash right after
         .crash()
         // Restart after 5 seconds
         .restart_after(Duration::from_secs(5))
         // Check that we replay messages from the WAL
-        .on_event(|event, _state| {
-            if let Event::WalReplayBegin(height, count) = event {
-                info!("Replaying WAL at height {height} with {count} messages");
-                if height.as_u64() == CRASH_HEIGHT {
-                    Ok(HandlerResult::ContinueTest)
-                } else {
-                    Err(format!(
-                        "Unexpected WAL replay at height {height}, expected {CRASH_HEIGHT}"
-                    )
-                    .into())
-                }
-            } else {
-                Ok(HandlerResult::WaitForNextEvent)
-            }
-        })
+        .expect_wal_replay(CRASH_HEIGHT, 2)
         // Wait until it proposes a value again, while replaying WAL
         // Check that it is the same value as the first time
-        .on_event(|event, state| {
-            let Some(first_vote) = state.voted_for.as_ref() else {
-                return Err("Non-proposer did not vote".into());
+        .on_vote(|vote, state| {
+            let Some(first_vote) = state.first_vote.as_ref() else {
+                bail!("Non-proposer did not vote")
             };
 
-            if let Event::Published(SignedConsensusMsg::Vote(second_vote)) = event {
-                if first_vote == &second_vote.block_hash {
-                    info!("Non-proposer voted the same way: {first_vote:?}");
-                    Ok(HandlerResult::ContinueTest)
-                } else {
-                    Err(format!(
-                        "Non-proposer just equivocated: expected {:?}, got {:?}",
-                        first_vote, second_vote.block_hash
-                    )
-                    .into())
-                }
+            if first_vote.block_hash == vote.block_hash {
+                info!("Non-proposer voted the same way: {first_vote:?}");
+                Ok(HandlerResult::ContinueTest)
             } else {
-                Ok(HandlerResult::WaitForNextEvent)
+                bail!(
+                    "Non-proposer just equivocated: expected {:?}, got {:?}",
+                    first_vote,
+                    vote.block_hash
+                )
             }
         })
         .success();

@@ -6,6 +6,8 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use eyre::bail;
+use malachite_consensus::ValueToPropose;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tokio::task::JoinSet;
@@ -13,7 +15,7 @@ use tokio::time::{sleep, Duration};
 use tracing::{debug, error, error_span, info, Instrument};
 
 use malachite_actors::util::events::{Event, RxEvent, TxEvent};
-use malachite_common::VotingPower;
+use malachite_common::{SignedVote, VotingPower};
 use malachite_config::{
     BlockSyncConfig, Config as NodeConfig, Config, LoggingConfig, PubSubProtocol, TestConfig,
     TransportProtocol,
@@ -106,8 +108,6 @@ pub enum Step<S> {
     Fail(String),
 }
 
-pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
-
 #[derive(Copy, Clone, Debug)]
 pub enum HandlerResult {
     WaitForNextEvent,
@@ -115,7 +115,7 @@ pub enum HandlerResult {
 }
 
 pub type EventHandler<S> =
-    Box<dyn Fn(Event<MockContext>, &mut S) -> Result<HandlerResult, BoxError> + Send + Sync>;
+    Box<dyn Fn(Event<MockContext>, &mut S) -> Result<HandlerResult, eyre::Report> + Send + Sync>;
 
 pub type NodeId = usize;
 
@@ -192,13 +192,63 @@ impl<State> TestNode<State> {
 
     pub fn on_event<F>(mut self, on_event: F) -> Self
     where
-        F: Fn(Event<MockContext>, &mut State) -> Result<HandlerResult, BoxError>
+        F: Fn(Event<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
             + Send
             + Sync
             + 'static,
     {
         self.steps.push(Step::OnEvent(Box::new(on_event)));
         self
+    }
+
+    pub fn expect_wal_replay(self, height: u64, count: usize) -> Self {
+        self.on_event(move |event, _| {
+            if let Event::WalReplayBegin(h, c) = event {
+                info!("Replaying WAL at height {height} with {count} messages");
+
+                if h.as_u64() != height {
+                    bail!("Unexpected WAL replay at height {h}, expected {height}")
+                } else if c != count {
+                    bail!("Unexpected WAL replay count {c}, expected {count}")
+                } else {
+                    Ok(HandlerResult::ContinueTest)
+                }
+            } else {
+                Ok(HandlerResult::WaitForNextEvent)
+            }
+        })
+    }
+
+    pub fn on_proposed_value<F>(self, f: F) -> Self
+    where
+        F: Fn(ValueToPropose<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.on_event(move |event, state| {
+            if let Event::ProposedValue(value) = event {
+                f(value, state)
+            } else {
+                Ok(HandlerResult::WaitForNextEvent)
+            }
+        })
+    }
+
+    pub fn on_vote<F>(self, f: F) -> Self
+    where
+        F: Fn(SignedVote<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.on_event(move |event, state| {
+            if let Event::Published(malachite_consensus::SignedConsensusMsg::Vote(vote)) = event {
+                f(vote, state)
+            } else {
+                Ok(HandlerResult::WaitForNextEvent)
+            }
+        })
     }
 
     pub fn expect(mut self, expected: Expected) -> Self {
