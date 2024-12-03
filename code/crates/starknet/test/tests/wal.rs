@@ -1,11 +1,11 @@
 use std::time::Duration;
 
 use eyre::bail;
-use malachite_config::ValuePayload;
 use tracing::info;
 
 use malachite_actors::util::events::Event;
 use malachite_common::SignedVote;
+use malachite_config::ValuePayload;
 use malachite_consensus::ValueToPropose;
 use malachite_starknet_host::types::MockContext;
 use malachite_starknet_test::{init_logging, HandlerResult, Test, TestNode, TestParams};
