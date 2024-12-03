@@ -1,6 +1,5 @@
-use malachite_actors::host::ProposedValue;
-use malachite_common::{Context, Round, SignedProposal, Validity};
-use malachite_consensus::{FullProposal, FullProposalKeeper, Input};
+use malachite_common::{Context, Round, SignedProposal, Validity, ValueOrigin};
+use malachite_consensus::{FullProposal, FullProposalKeeper, Input, ProposedValue};
 use malachite_test::utils::validators::make_validators;
 use malachite_test::{Address, Proposal, Value};
 use malachite_test::{Height, TestContext};
@@ -67,15 +66,18 @@ fn val_msg(
     value: u64,
     validity: Validity,
 ) -> Input<TestContext> {
-    Input::ReceivedProposedValue(ProposedValue {
-        height: Height::new(1),
-        round: Round::new(round),
-        valid_round: Round::Nil,
-        value: Value::new(value),
-        validity,
-        validator_address,
-        extension: Default::default(),
-    })
+    Input::ProposedValue(
+        ProposedValue {
+            height: Height::new(1),
+            round: Round::new(round),
+            valid_round: Round::Nil,
+            value: Value::new(value),
+            validity,
+            validator_address,
+            extension: Default::default(),
+        },
+        ValueOrigin::Consensus,
+    )
 }
 
 fn prop_at_round_and_value(
@@ -276,7 +278,7 @@ fn full_proposal_keeper_tests() {
         for m in s.input {
             match m {
                 Input::Proposal(p) => keeper.store_proposal(p),
-                Input::ReceivedProposedValue(v) => keeper.store_value(&v),
+                Input::ProposedValue(v, _) => keeper.store_value(&v),
                 _ => continue,
             }
         }

@@ -1,5 +1,3 @@
-#![allow(unused_crate_dependencies)]
-
 use std::time::Duration;
 
 use malachite_starknet_test::{Test, TestNode};

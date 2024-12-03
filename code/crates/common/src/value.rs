@@ -66,3 +66,12 @@ where
     /// The ID of the value.
     fn id(&self) -> Self::Id;
 }
+
+/// Protocols that diseminate `Value`
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ValueOrigin {
+    /// Block Synchronization protocol
+    BlockSync,
+    /// Consensus protocol
+    Consensus,
+}

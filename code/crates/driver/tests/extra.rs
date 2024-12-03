@@ -2,7 +2,7 @@ use malachite_common::{Round, Validity};
 use malachite_driver::{Driver, Input, Output};
 use malachite_round::state::State;
 
-use malachite_test::utils::driver::*;
+use malachite_driver_test_utils::*;
 use malachite_test::utils::validators::make_validators;
 use malachite_test::{Height, Proposal, TestContext, ValidatorSet, Value};
 

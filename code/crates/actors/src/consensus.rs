@@ -12,9 +12,10 @@ use tracing::{debug, error, info, warn};
 use malachite_blocksync as blocksync;
 use malachite_common::{
     CommitCertificate, Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet,
+    ValueOrigin,
 };
 use malachite_config::TimeoutConfig;
-use malachite_consensus::{Effect, Resume};
+use malachite_consensus::{Effect, Resume, ValueToPropose};
 use malachite_metrics::Metrics;
 
 use crate::block_sync::BlockSyncRef;
@@ -62,7 +63,7 @@ pub enum Msg<Ctx: Context> {
     ProposeValue(Ctx::Height, Round, Ctx::Value, Option<SignedExtension<Ctx>>),
 
     /// Received and assembled the full value proposed by a validator
-    ReceivedProposedValue(ProposedValue<Ctx>),
+    ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
     /// Get the status of the consensus state machine
     GetStatus(RpcReplyPort<Status<Ctx>>),
@@ -231,7 +232,13 @@ where
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::ProposeValue(height, round, Round::Nil, value, extension),
+                        ConsensusInput::Propose(ValueToPropose {
+                            height,
+                            round,
+                            valid_round: Round::Nil,
+                            value,
+                            extension,
+                        }),
                     )
                     .await;
 
@@ -268,19 +275,7 @@ where
                         if connected_peers == total_peers {
                             info!(count = %connected_peers, "Enough peers connected to start consensus");
 
-                            let height = state.consensus.driver.height();
-
-                            let result = self
-                                .process_input(
-                                    &myself,
-                                    state,
-                                    ConsensusInput::StartHeight(height, validator_set.clone()),
-                                )
-                                .await;
-
-                            if let Err(e) = result {
-                                error!("Error when starting height {height}: {e:?}");
-                            }
+                            self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
                         }
                     }
 
@@ -306,14 +301,26 @@ where
                             return Ok(());
                         };
 
+                        self.host.call_and_forward(
+                            |reply_to| HostMsg::ProcessSyncedBlock {
+                                height: block.certificate.height,
+                                round: block.certificate.round,
+                                validator_address: state.consensus.address().clone(),
+                                block_bytes: block.block_bytes.clone(),
+                                reply_to,
+                            },
+                            &myself,
+                            |proposed| {
+                                Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::BlockSync)
+                            },
+                            None,
+                        )?;
+
                         if let Err(e) = self
                             .process_input(
                                 &myself,
                                 state,
-                                ConsensusInput::ReceivedSyncedBlock(
-                                    block.block_bytes,
-                                    block.certificate,
-                                ),
+                                ConsensusInput::CommitCertificate(block.certificate),
                             )
                             .await
                         {
@@ -373,7 +380,7 @@ where
                                     reply_to,
                                 },
                                 &myself,
-                                |value| Msg::ReceivedProposedValue(value),
+                                |value| Msg::ReceivedProposedValue(value, ValueOrigin::Consensus),
                                 None,
                             )
                             .map_err(|e| {
@@ -412,9 +419,9 @@ where
                 Ok(())
             }
 
-            Msg::ReceivedProposedValue(value) => {
+            Msg::ReceivedProposedValue(value, origin) => {
                 let result = self
-                    .process_input(&myself, state, ConsensusInput::ReceivedProposedValue(value))
+                    .process_input(&myself, state, ConsensusInput::ProposedValue(value, origin))
                     .await;
 
                 if let Err(e) = result {
@@ -520,7 +527,7 @@ where
             }
 
             Effect::StartRound(height, round, proposer) => {
-                self.host.cast(HostMsg::StartRound {
+                self.host.cast(HostMsg::StartedRound {
                     height,
                     round,
                     proposer,
@@ -595,7 +602,7 @@ where
                 let height = certificate.height;
 
                 self.host
-                    .cast(HostMsg::Decide {
+                    .cast(HostMsg::Decided {
                         certificate,
                         consensus: myself.clone(),
                     })
@@ -608,30 +615,6 @@ where
                             eyre!("Error when sending decided height to blocksync: {e:?}")
                         })?;
                 }
-
-                Ok(Resume::Continue)
-            }
-
-            Effect::SyncedBlock {
-                height,
-                round,
-                validator_address,
-                block_bytes,
-            } => {
-                debug!(%height, "Consensus received synced block, sending to host");
-
-                self.host.call_and_forward(
-                    |reply_to| HostMsg::ProcessSyncedBlockBytes {
-                        height,
-                        round,
-                        validator_address,
-                        block_bytes,
-                        reply_to,
-                    },
-                    myself,
-                    |proposed| Msg::<Ctx>::ReceivedProposedValue(proposed),
-                    None,
-                )?;
 
                 Ok(Resume::Continue)
             }
