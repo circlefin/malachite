@@ -84,8 +84,40 @@ impl Discovery {
             candidates.extend(
                 active_connections_candidates.choose_multiple(&mut rng, n - candidates.len()),
             );
+
+            return candidates;
+        }
+
+        candidates.extend(active_connections_candidates);
+
+        // If we still need more candidates, select from the discovered peers
+        // NOTE: this case is more likely to happen when repairing outbound connections,
+        // as, during the initial discovery, all discovered peers still have an active connection
+        let discovery_peers_candidates: Vec<PeerId> = self
+            .discovered_peers
+            .keys()
+            // Remove already selected peers from the routing table
+            .filter(|peer_id| !candidates.contains(peer_id))
+            // Remove already selected outbound connections
+            .filter(|peer_id| !self.outbound_connections.contains_key(peer_id))
+            // Remove peers to which a connect request has already been done
+            .filter(|peer_id| !self.controller.connect_request.is_done_on(peer_id))
+            .cloned()
+            .collect();
+
+        debug!(
+            "Discovered peers candidates: {}",
+            discovery_peers_candidates.len(),
+        );
+
+        // Peers from the routing table and active connections are prioritized
+        if discovery_peers_candidates.len() >= n - candidates.len() {
+            let mut rng = rand::thread_rng();
+
+            candidates
+                .extend(discovery_peers_candidates.choose_multiple(&mut rng, n - candidates.len()));
         } else {
-            candidates.extend(active_connections_candidates);
+            candidates.extend(discovery_peers_candidates);
         }
 
         if candidates.len() < n {

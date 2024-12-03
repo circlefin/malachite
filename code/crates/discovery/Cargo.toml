@@ -14,7 +14,7 @@ malachite-metrics  = { workspace = true }
 libp2p             = { workspace = true }
 serde              = { workspace = true }
 tracing            = { workspace = true }
-tokio              = { workspace = true, features = ["full"] }
+tokio              = { workspace = true }
 either             = { workspace = true }
 serde_json         = { workspace = true }
 rand               = { workspace = true }
