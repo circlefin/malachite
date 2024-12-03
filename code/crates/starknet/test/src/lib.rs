@@ -372,15 +372,23 @@ async fn run_node<S>(
     .await;
 
     let decisions = Arc::new(AtomicUsize::new(0));
+    let current_height = Arc::new(AtomicUsize::new(0));
 
     let spawn_bg = |mut rx: RxEvent<MockContext>| {
         tokio::spawn({
             let decisions = Arc::clone(&decisions);
+            let current_height = Arc::clone(&current_height);
 
             async move {
                 while let Ok(event) = rx.recv().await {
-                    if let Event::Decided(_) = &event {
-                        decisions.fetch_add(1, Ordering::SeqCst);
+                    match &event {
+                        Event::StartedHeight(height) => {
+                            current_height.store(height.as_u64() as usize, Ordering::SeqCst);
+                        }
+                        Event::Decided(_) => {
+                            decisions.fetch_add(1, Ordering::SeqCst);
+                        }
+                        _ => (),
                     }
 
                     debug!("Event: {event:?}");
@@ -411,7 +419,7 @@ async fn run_node<S>(
             }
 
             Step::Crash(after) => {
-                let height = decisions.load(Ordering::SeqCst);
+                let height = current_height.load(Ordering::SeqCst);
 
                 info!("Node will crash at height {height}");
                 sleep(after).await;

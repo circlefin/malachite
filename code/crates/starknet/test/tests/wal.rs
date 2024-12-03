@@ -42,7 +42,9 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
         block_hash: Option<BlockHash>,
     }
 
-    let n1 = TestNode::with_state(2, State::default())
+    const CRASH_HEIGHT: u64 = 4;
+
+    let n1 = TestNode::with_state(1, State::default())
         .vp(10)
         .start()
         .success();
@@ -55,7 +57,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
     let n3 = TestNode::with_state(3, State::default())
         .vp(40)
         .start()
-        .wait_until(3)
+        .wait_until(CRASH_HEIGHT)
         // Wait until this node proposes a value
         .on_event(|event, state| match event {
             Event::ProposedValue(value) => {
@@ -69,6 +71,22 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
         .crash()
         // Restart after 5 seconds
         .restart_after(Duration::from_secs(5))
+        // Check that we replay messages from the WAL
+        .on_event(|event, _state| {
+            if let Event::WalReplayBegin(height, count) = event {
+                info!("Replaying WAL at height {height} with {count} messages");
+                if height.as_u64() == CRASH_HEIGHT {
+                    Ok(HandlerResult::ContinueTest)
+                } else {
+                    Err(format!(
+                        "Unexpected WAL replay at height {height}, expected {CRASH_HEIGHT}"
+                    )
+                    .into())
+                }
+            } else {
+                Ok(HandlerResult::WaitForNextEvent)
+            }
+        })
         // Wait until it proposes a value again, while replaying WAL
         // Check that it is the same value as the first time
         .on_event(|event, state| {
@@ -139,6 +157,8 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
         voted_for: Option<NilOrVal<BlockHash>>,
     }
 
+    const CRASH_HEIGHT: u64 = 3;
+
     let n1 = TestNode::with_state(1, State::default())
         .vp(10)
         .start()
@@ -152,7 +172,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
     let n3 = TestNode::with_state(3, State::default())
         .vp(40)
         .start()
-        .wait_until(3)
+        .wait_until(CRASH_HEIGHT)
         // Wait until this node proposes a value
         .on_event(|event, state| match event {
             Event::Published(SignedConsensusMsg::Vote(vote)) => {
@@ -166,6 +186,22 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
         .crash()
         // Restart after 5 seconds
         .restart_after(Duration::from_secs(5))
+        // Check that we replay messages from the WAL
+        .on_event(|event, _state| {
+            if let Event::WalReplayBegin(height, count) = event {
+                info!("Replaying WAL at height {height} with {count} messages");
+                if height.as_u64() == CRASH_HEIGHT {
+                    Ok(HandlerResult::ContinueTest)
+                } else {
+                    Err(format!(
+                        "Unexpected WAL replay at height {height}, expected {CRASH_HEIGHT}"
+                    )
+                    .into())
+                }
+            } else {
+                Ok(HandlerResult::WaitForNextEvent)
+            }
+        })
         // Wait until it proposes a value again, while replaying WAL
         // Check that it is the same value as the first time
         .on_event(|event, state| {
