@@ -7,7 +7,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use eyre::bail;
-use malachite_consensus::ValueToPropose;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tokio::task::JoinSet;
@@ -20,6 +19,7 @@ use malachite_config::{
     BlockSyncConfig, Config as NodeConfig, Config, LoggingConfig, PubSubProtocol, TestConfig,
     TransportProtocol,
 };
+use malachite_consensus::{SignedConsensusMsg, ValueToPropose};
 use malachite_starknet_host::spawn::spawn_node_actor;
 use malachite_starknet_host::types::MockContext;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
@@ -201,21 +201,19 @@ impl<State> TestNode<State> {
         self
     }
 
-    pub fn expect_wal_replay(self, height: u64, count: usize) -> Self {
+    pub fn expect_wal_replay(self, at_height: u64) -> Self {
         self.on_event(move |event, _| {
-            if let Event::WalReplayBegin(h, c) = event {
-                info!("Replaying WAL at height {height} with {count} messages");
+            let Event::WalReplayBegin(height, count) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
 
-                if h.as_u64() != height {
-                    bail!("Unexpected WAL replay at height {h}, expected {height}")
-                } else if c != count {
-                    bail!("Unexpected WAL replay count {c}, expected {count}")
-                } else {
-                    Ok(HandlerResult::ContinueTest)
-                }
-            } else {
-                Ok(HandlerResult::WaitForNextEvent)
+            info!("Replaying WAL at height {height} with {count} messages");
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected WAL replay at height {height}, expected {at_height}")
             }
+
+            Ok(HandlerResult::ContinueTest)
         })
     }
 
@@ -243,7 +241,7 @@ impl<State> TestNode<State> {
             + 'static,
     {
         self.on_event(move |event, state| {
-            if let Event::Published(malachite_consensus::SignedConsensusMsg::Vote(vote)) = event {
+            if let Event::Published(SignedConsensusMsg::Vote(vote)) = event {
                 f(vote, state)
             } else {
                 Ok(HandlerResult::WaitForNextEvent)

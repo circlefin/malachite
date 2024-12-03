@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use eyre::bail;
+use malachite_config::ValuePayload;
 use tracing::info;
 
 use malachite_actors::util::events::Event;
@@ -12,7 +13,7 @@ use malachite_starknet_test::{init_logging, HandlerResult, Test, TestNode, TestP
 #[tokio::test]
 async fn proposer_crashes_after_proposing_parts_only() {
     proposer_crashes_after_proposing(TestParams {
-        value_payload: malachite_config::ValuePayload::PartsOnly,
+        value_payload: ValuePayload::PartsOnly,
         ..TestParams::default()
     })
     .await
@@ -21,7 +22,7 @@ async fn proposer_crashes_after_proposing_parts_only() {
 #[tokio::test]
 async fn proposer_crashes_after_proposing_proposal_and_parts() {
     proposer_crashes_after_proposing(TestParams {
-        value_payload: malachite_config::ValuePayload::ProposalAndParts,
+        value_payload: ValuePayload::ProposalAndParts,
         ..TestParams::default()
     })
     .await
@@ -30,7 +31,7 @@ async fn proposer_crashes_after_proposing_proposal_and_parts() {
 #[tokio::test]
 async fn proposer_crashes_after_proposing_proposal_only() {
     proposer_crashes_after_proposing(TestParams {
-        value_payload: malachite_config::ValuePayload::ProposalOnly,
+        value_payload: ValuePayload::ProposalOnly,
         ..TestParams::default()
     })
     .await
@@ -74,7 +75,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
         // Restart after 5 seconds
         .restart_after(Duration::from_secs(5))
         // Check that we replay messages from the WAL
-        .expect_wal_replay(CRASH_HEIGHT, 2)
+        .expect_wal_replay(CRASH_HEIGHT)
         // Wait until it proposes a value again, while replaying WAL
         // Check that it is the same value as the first time
         .on_proposed_value(|value, state| {
@@ -109,7 +110,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
 #[tokio::test]
 async fn non_proposer_crashes_after_voting_parts_only() {
     non_proposer_crashes_after_voting(TestParams {
-        value_payload: malachite_config::ValuePayload::PartsOnly,
+        value_payload: ValuePayload::PartsOnly,
         ..TestParams::default()
     })
     .await
@@ -118,7 +119,7 @@ async fn non_proposer_crashes_after_voting_parts_only() {
 #[tokio::test]
 async fn non_proposer_crashes_after_voting_proposal_and_parts() {
     non_proposer_crashes_after_voting(TestParams {
-        value_payload: malachite_config::ValuePayload::ProposalAndParts,
+        value_payload: ValuePayload::ProposalAndParts,
         ..TestParams::default()
     })
     .await
@@ -127,7 +128,7 @@ async fn non_proposer_crashes_after_voting_proposal_and_parts() {
 #[tokio::test]
 async fn non_proposer_crashes_after_voting_proposal_only() {
     non_proposer_crashes_after_voting(TestParams {
-        value_payload: malachite_config::ValuePayload::ProposalOnly,
+        value_payload: ValuePayload::ProposalOnly,
         ..TestParams::default()
     })
     .await
@@ -169,7 +170,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
         // Restart after 5 seconds
         .restart_after(Duration::from_secs(5))
         // Check that we replay messages from the WAL
-        .expect_wal_replay(CRASH_HEIGHT, 2)
+        .expect_wal_replay(CRASH_HEIGHT)
         // Wait until it proposes a value again, while replaying WAL
         // Check that it is the same value as the first time
         .on_vote(|vote, state| {
