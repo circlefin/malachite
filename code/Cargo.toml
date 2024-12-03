@@ -141,6 +141,6 @@ tokio              = "1.41.1"
 tokio-stream       = "0.1"
 toml               = "0.8.19"
 tikv-jemallocator  = "0.6.0"
-tracing            = "0.1.40"
+tracing            = "0.1.41"
 tracing-appender   = "0.2.3"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
