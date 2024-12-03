@@ -743,12 +743,11 @@ where
             }
 
             Effect::Broadcast(msg) => {
-                // FIXME: Avoid cloning
-                self.wal_append(msg.msg_height(), WalEntry::ConsensusMsg(msg.clone()), phase)
-                    .await?;
-
+                // Sync the WAL to disk before we broadcast the message
+                // NOTE: The message has already been append to the WAL by the `PersistMessage` effect.
                 self.wal_flush(phase).await?;
 
+                // Notify any subscribers that we are about to publish a message
                 self.tx_event.send(|| Event::Published(msg.clone()));
 
                 self.gossip_consensus
