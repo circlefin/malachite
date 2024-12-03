@@ -89,7 +89,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
             } else {
                 bail!(
                     "Proposer just equivocated: expected {:?}, got {:?}",
-                    first_value,
+                    first_value.value,
                     value.value
                 )
             }
@@ -184,7 +184,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
             } else {
                 bail!(
                     "Non-proposer just equivocated: expected {:?}, got {:?}",
-                    first_vote,
+                    first_vote.block_hash,
                     vote.block_hash
                 )
             }
