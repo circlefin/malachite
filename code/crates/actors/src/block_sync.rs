@@ -73,7 +73,7 @@ pub enum Msg<Ctx: Context> {
     /// Consensus needs vote set from peers
     GetVoteSet(Ctx::Height, Round),
 
-    /// Consensus has sent a vote set resonse to a peer
+    /// Consensus has sent a vote set response to a peer
     GotVoteSet(InboundRequestId, Ctx::Height, Round),
 }
 
