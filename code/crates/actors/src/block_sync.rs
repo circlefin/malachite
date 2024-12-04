@@ -5,14 +5,13 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use derive_where::derive_where;
 use eyre::eyre;
-use libp2p::request_response::InboundRequestId;
 use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use rand::SeedableRng;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 
-use malachite_blocksync::{self as blocksync, OutboundRequestId, Response};
+use malachite_blocksync::{self as blocksync, InboundRequestId, OutboundRequestId, Response};
 use malachite_blocksync::{Request, SyncedBlock};
 use malachite_common::{CertificateError, CommitCertificate, Context, Height, Round};
 
@@ -22,7 +21,7 @@ use crate::util::forward::forward;
 use crate::util::ticker::ticker;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Timeout {
     Request(OutboundRequestId),
 }
@@ -203,11 +202,15 @@ where
 
                 match result {
                     Ok(request_id) => {
-                        timers
-                            .start_timer(Timeout::Request(request_id), self.params.request_timeout);
+                        let request_id = OutboundRequestId::new(request_id);
+
+                        timers.start_timer(
+                            Timeout::Request(request_id.clone()),
+                            self.params.request_timeout,
+                        );
 
                         inflight.insert(
-                            request_id,
+                            request_id.clone(),
                             InflightRequest {
                                 peer_id,
                                 request_id,
@@ -244,11 +247,13 @@ where
                 });
                 match result {
                     Ok(request_id) => {
-                        timers
-                            .start_timer(Timeout::Request(request_id), self.params.request_timeout);
+                        timers.start_timer(
+                            Timeout::Request(request_id.clone()),
+                            self.params.request_timeout,
+                        );
 
                         inflight.insert(
-                            request_id,
+                            request_id.clone(),
                             InflightRequest {
                                 peer_id,
                                 request_id,
@@ -335,7 +340,7 @@ where
 
             Msg::GossipEvent(GossipEvent::Response(request_id, peer, response)) => {
                 // Cancel the timer associated with the request for which we just received a response
-                state.timers.cancel(&Timeout::Request(request_id));
+                state.timers.cancel(&Timeout::Request(request_id.clone()));
 
                 match response {
                     Response::BlockResponse(block_response) => {

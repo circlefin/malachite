@@ -2870,7 +2870,6 @@ dependencies = [
  "async-recursion",
  "derive-where",
  "genawaiter",
- "libp2p",
  "libp2p-identity",
  "malachite-common",
  "malachite-driver",

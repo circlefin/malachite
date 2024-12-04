@@ -1,16 +1,15 @@
 use core::marker::PhantomData;
 
 use derive_where::derive_where;
-use libp2p::request_response::OutboundRequestId;
 use thiserror::Error;
 use tracing::{debug, error, info, trace, warn};
 
 use malachite_common::{CertificateError, CommitCertificate, Context, Height, Round};
 
 use crate::co::Co;
-use crate::{perform, Request, VoteSetRequest, VoteSetResponse};
 use crate::{
-    BlockRequest, BlockResponse, InboundRequestId, Metrics, PeerId, State, Status, SyncedBlock,
+    perform, BlockRequest, BlockResponse, InboundRequestId, Metrics, OutboundRequestId, PeerId,
+    Request, State, Status, SyncedBlock, VoteSetRequest, VoteSetResponse,
 };
 
 #[derive_where(Debug)]
@@ -441,6 +440,7 @@ where
         error!("No other peer to request vote set from");
         return Ok(());
     };
+
     request_vote_set_from_peer(co, state, metrics, height, round, peer).await?;
 
     Ok(())

@@ -4,6 +4,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use eyre::eyre;
 use libp2p::PeerId;
+use malachite_blocksync::InboundRequestId;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::sync::broadcast;
 use tokio::time::Instant;
@@ -354,7 +355,11 @@ where
                             .process_input(
                                 &myself,
                                 state,
-                                ConsensusInput::VoteSetRequest(request_id, height, round),
+                                ConsensusInput::VoteSetRequest(
+                                    request_id.to_string(),
+                                    height,
+                                    round,
+                                ),
                             )
                             .await
                         {
@@ -670,6 +675,7 @@ where
 
             Effect::GetVoteSet(height, round) => {
                 debug!("VS2 - Ask blocksync to send a vote set request");
+
                 if let Some(block_sync) = &self.block_sync {
                     block_sync
                         .cast(BlockSyncMsg::GetVoteSet(height, round))
@@ -683,18 +689,15 @@ where
 
             Effect::SendVoteSetResponse(request_id, height, round, vote_set) => {
                 debug!("VS9 - consensus sends vote set response to gossip");
+
                 let response =
                     Response::VoteSetResponse(VoteSetResponse::new(height, round, vote_set));
-                self.gossip_consensus
-                    .cast(GossipConsensusMsg::OutgoingResponse(request_id, response))?;
 
-                if let Some(block_sync) = &self.block_sync {
-                    block_sync
-                        .cast(BlockSyncMsg::GotVoteSet(request_id, height, round))
-                        .map_err(|e| {
-                            eyre!("Error when sending vote set response to blocksync: {e:?}")
-                        })?;
-                }
+                self.gossip_consensus
+                    .cast(GossipConsensusMsg::OutgoingResponse(
+                        InboundRequestId::new(request_id),
+                        response,
+                    ))?;
 
                 Ok(Resume::Continue)
             }
