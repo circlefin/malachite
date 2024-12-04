@@ -51,7 +51,7 @@ where
 
     /// Select at random a peer
     pub fn random_peer_for_votes(&mut self) -> Option<PeerId> {
-        // TODO - maybe get a few peers
+        // TODO optimization - get vote sets from more than one peer
         self.peers.keys().choose_stable(&mut self.rng).cloned()
     }
 

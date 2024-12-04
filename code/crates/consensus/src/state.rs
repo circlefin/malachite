@@ -115,7 +115,7 @@ where
     }
 
     pub fn restore_votes(&mut self, height: Ctx::Height, round: Round) -> Vec<SignedVote<Ctx>> {
-        // TODO get votes for all rounds??
+        // TODO optimization - get votes for all rounds higher than or equal to `round`
         if height != self.driver.height() {
             return vec![];
         }
