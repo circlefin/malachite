@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use libp2p::PeerId;
+use rand::seq::IteratorRandom;
 
 use malachite_common::Context;
-use rand::seq::IteratorRandom;
+use malachite_peer::PeerId;
 
 use crate::Status;
 

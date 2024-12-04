@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::eyre;
-use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
@@ -13,7 +12,7 @@ use malachite_common::{
     Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet, ValueOrigin,
 };
 use malachite_config::TimeoutConfig;
-use malachite_consensus::{Effect, Resume, SignedConsensusMsg, ValueToPropose};
+use malachite_consensus::{Effect, PeerId, Resume, SignedConsensusMsg, ValueToPropose};
 use malachite_metrics::Metrics;
 
 use crate::block_sync::BlockSyncRef;

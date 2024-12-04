@@ -2,14 +2,13 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
-use libp2p_identity::PeerId;
 use tokio::sync::oneshot;
 
 use malachite_actors::host::LocallyProposedValue;
 use malachite_actors::util::streaming::StreamMessage;
 use malachite_blocksync::SyncedBlock;
 use malachite_common::{CommitCertificate, Context, Round, ValueId};
-use malachite_consensus::ProposedValue;
+use malachite_consensus::{PeerId, ProposedValue};
 
 /// Messages that will be sent on the channel.
 #[derive_where(Debug)]

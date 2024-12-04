@@ -2647,7 +2647,6 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "derive-where",
- "libp2p-identity",
  "malachite-actors",
  "malachite-blocksync",
  "malachite-codec",
@@ -2657,6 +2656,7 @@ dependencies = [
  "malachite-gossip-consensus",
  "malachite-metrics",
  "malachite-node",
+ "malachite-peer",
  "ractor",
  "tokio",
  "tracing",
@@ -2675,6 +2675,7 @@ dependencies = [
  "libp2p",
  "malachite-common",
  "malachite-metrics",
+ "malachite-peer",
  "rand",
  "serde",
  "thiserror 2.0.3",
@@ -2718,6 +2719,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "derive-where",
+ "multihash",
  "thiserror 2.0.3",
 ]
 
@@ -2741,10 +2743,10 @@ dependencies = [
  "async-recursion",
  "derive-where",
  "genawaiter",
- "libp2p-identity",
  "malachite-common",
  "malachite-driver",
  "malachite-metrics",
+ "malachite-peer",
  "malachite-test",
  "multiaddr",
  "thiserror 2.0.3",
@@ -2815,6 +2817,7 @@ dependencies = [
  "malachite-blocksync",
  "malachite-discovery",
  "malachite-metrics",
+ "malachite-peer",
  "seahash",
  "serde",
  "tokio",
@@ -2852,6 +2855,17 @@ dependencies = [
  "malachite-common",
  "rand",
  "serde",
+]
+
+[[package]]
+name = "malachite-peer"
+version = "0.1.0"
+dependencies = [
+ "bs58",
+ "multihash",
+ "rand",
+ "serde",
+ "thiserror 2.0.3",
 ]
 
 [[package]]
@@ -3148,13 +3162,13 @@ dependencies = [
 
 [[package]]
 name = "multihash"
-version = "0.19.1"
+version = "0.19.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "076d548d76a0e2a0d4ab471d0b1c36c577786dfc4471242035d97a12a735c492"
+checksum = "cc41f430805af9d1cf4adae4ed2149c759b877b01d909a1f40256188d09345d2"
 dependencies = [
  "core2",
  "serde",
- "unsigned-varint 0.7.2",
+ "unsigned-varint 0.8.0",
 ]
 
 [[package]]

@@ -20,10 +20,12 @@ use malachite_blocksync::{self as blocksync, OutboundRequestId};
 use malachite_discovery::{self as discovery, ConnectionData};
 use malachite_metrics::SharedRegistry;
 
+pub use malachite_peer::PeerId;
+
 pub use bytes::Bytes;
 pub use libp2p::gossipsub::MessageId;
 pub use libp2p::identity::Keypair;
-pub use libp2p::{Multiaddr, PeerId};
+pub use libp2p::Multiaddr;
 
 pub mod behaviour;
 pub mod handle;
@@ -200,7 +202,7 @@ pub async fn spawn(
 
     let state = State::new(discovery);
 
-    let peer_id = *swarm.local_peer_id();
+    let peer_id = PeerId::from_libp2p(swarm.local_peer_id());
     let span = error_span!("gossip.consensus", peer = %peer_id);
     let task_handle =
         tokio::task::spawn(run(config, metrics, state, swarm, rx_ctrl, tx_event).instrument(span));
@@ -301,7 +303,7 @@ async fn handle_ctrl_msg(
             let request_id = swarm
                 .behaviour_mut()
                 .blocksync
-                .send_request(peer_id, request);
+                .send_request(peer_id.to_libp2p(), request);
 
             if let Err(e) = reply_to.send(request_id) {
                 error!(%peer_id, "Error sending BlockSync request: {e}");
@@ -475,7 +477,10 @@ async fn handle_gossipsub_event(
 
             trace!("Peer {peer_id} subscribed to {topic}");
 
-            if let Err(e) = tx_event.send(Event::PeerConnected(peer_id)).await {
+            if let Err(e) = tx_event
+                .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
+                .await
+            {
                 error!("Error sending peer connected event to handle: {e}");
                 return ControlFlow::Break(());
             }
@@ -489,7 +494,10 @@ async fn handle_gossipsub_event(
 
             trace!("Peer {peer_id} unsubscribed from {topic}");
 
-            if let Err(e) = tx_event.send(Event::PeerDisconnected(peer_id)).await {
+            if let Err(e) = tx_event
+                .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
+                .await
+            {
                 error!("Error sending peer disconnected event to handle: {e}");
                 return ControlFlow::Break(());
             }
@@ -518,7 +526,11 @@ async fn handle_gossipsub_event(
                 message.data.len()
             );
 
-            let event = Event::Message(channel, peer_id, Bytes::from(message.data));
+            let event = Event::Message(
+                channel,
+                PeerId::from_libp2p(&peer_id),
+                Bytes::from(message.data),
+            );
 
             if let Err(e) = tx_event.send(event).await {
                 error!("Error sending message to handle: {e}");
@@ -549,7 +561,10 @@ async fn handle_broadcast_event(
 
             trace!("Peer {peer_id} subscribed to {topic:?}");
 
-            if let Err(e) = tx_event.send(Event::PeerConnected(peer_id)).await {
+            if let Err(e) = tx_event
+                .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
+                .await
+            {
                 error!("Error sending peer connected event to handle: {e}");
                 return ControlFlow::Break(());
             }
@@ -563,7 +578,10 @@ async fn handle_broadcast_event(
 
             trace!("Peer {peer_id} unsubscribed from {topic:?}");
 
-            if let Err(e) = tx_event.send(Event::PeerDisconnected(peer_id)).await {
+            if let Err(e) = tx_event
+                .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
+                .await
+            {
                 error!("Error sending peer disconnected event to handle: {e}");
                 return ControlFlow::Break(());
             }
@@ -580,7 +598,11 @@ async fn handle_broadcast_event(
                 message.len()
             );
 
-            let event = Event::Message(channel, peer_id, Bytes::copy_from_slice(message.as_ref()));
+            let event = Event::Message(
+                channel,
+                PeerId::from_libp2p(&peer_id),
+                Bytes::copy_from_slice(message.as_ref()),
+            );
 
             if let Err(e) = tx_event.send(event).await {
                 error!("Error sending message to handle: {e}");
@@ -612,7 +634,7 @@ async fn handle_blocksync_event(
                     let _ = tx_event
                         .send(Event::BlockSync(blocksync::RawMessage::Request {
                             request_id,
-                            peer,
+                            peer: PeerId::from_libp2p(&peer),
                             body: request.0,
                         }))
                         .await
@@ -628,7 +650,7 @@ async fn handle_blocksync_event(
                     let _ = tx_event
                         .send(Event::BlockSync(blocksync::RawMessage::Response {
                             request_id,
-                            peer,
+                            peer: PeerId::from_libp2p(&peer),
                             body: response.0,
                         }))
                         .await
@@ -663,5 +685,20 @@ async fn handle_blocksync_event(
             let _ = (peer, request_id, error);
             ControlFlow::Continue(())
         }
+    }
+}
+
+pub trait PeerIdExt {
+    fn to_libp2p(&self) -> libp2p::PeerId;
+    fn from_libp2p(peer_id: &libp2p::PeerId) -> Self;
+}
+
+impl PeerIdExt for PeerId {
+    fn to_libp2p(&self) -> libp2p::PeerId {
+        libp2p::PeerId::from_bytes(&self.to_bytes()).expect("valid PeerId")
+    }
+
+    fn from_libp2p(peer_id: &libp2p::PeerId) -> Self {
+        Self::from_bytes(&peer_id.to_bytes()).expect("valid PeerId")
     }
 }
