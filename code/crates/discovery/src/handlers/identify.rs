@@ -17,6 +17,15 @@ impl Discovery {
         peer_id: PeerId,
         info: identify::Info,
     ) {
+        // Ignore identify intervals
+        if self
+            .active_connections
+            .get(&peer_id)
+            .map_or(false, |connections| connections.contains(&connection_id))
+        {
+            return;
+        }
+
         if self
             .controller
             .dial
@@ -50,7 +59,7 @@ impl Discovery {
 
         if let Some(connection_ids) = self.active_connections.get_mut(&peer_id) {
             warn!(
-                "Additional connection to peer {peer_id}, total connections: {}",
+                "Additional connection {connection_id} to peer {peer_id}, total connections: {}",
                 connection_ids.len() + 1
             );
 
@@ -68,18 +77,20 @@ impl Discovery {
                 // This case happens when the peer was selected to be part of the outbound connections
                 // but no connection was established yet. No need to trigger a connect request, it
                 // was already done during the selection process.
-                info!("Connection from peer {peer_id} is outbound (pending connect request)");
+                info!("Connection {connection_id} from peer {peer_id} is outbound (pending connect request)");
 
                 self.outbound_connections
                     .get_mut(&peer_id)
                     .map(|out_conn| out_conn.connection_id = Some(connection_id));
             } else if self.state == State::Idle
                 && self.outbound_connections.len() < self.config.num_outbound_peers
+                // Not already an outbound connection
+                && self.outbound_connections.get(&peer_id).is_none()
             {
                 // If the initial discovery process is done and did not find enough peers,
                 // the connection is outbound, otherwise it is ephemeral, except if later
                 // the connection is requested to be persistent (inbound).
-                info!("Connection from peer {peer_id} is outbound (incomplete initial discovery)");
+                info!("Connection {connection_id} from peer {peer_id} is outbound (incomplete initial discovery)");
 
                 self.outbound_connections.insert(
                     peer_id,
@@ -97,7 +108,7 @@ impl Discovery {
                     info!("Minimum number of peers reached");
                 }
             } else {
-                info!("Connection from peer {peer_id} is ephemeral");
+                info!("Connection {connection_id} from peer {peer_id} is ephemeral");
 
                 self.controller.close.add_to_queue(
                     (peer_id, connection_id),
@@ -118,7 +129,7 @@ impl Discovery {
             // and all other connections are ephemeral, except if later the connections
             // are requested to be persistent (inbound).
             if self.is_bootstrap_node(&peer_id) {
-                info!("Connection from bootstrap node {peer_id} is outbound, requesting persistent connection");
+                info!("Connection {connection_id} from bootstrap node {peer_id} is outbound, requesting persistent connection");
 
                 self.outbound_connections.insert(
                     peer_id,
@@ -132,7 +143,7 @@ impl Discovery {
                     .connect_request
                     .add_to_queue(RequestData::new(peer_id), None);
             } else {
-                info!("Connection from peer {peer_id} is ephemeral");
+                info!("Connection {connection_id} from peer {peer_id} is ephemeral");
 
                 self.controller.close.add_to_queue(
                     (peer_id, connection_id),

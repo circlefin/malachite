@@ -6,9 +6,11 @@ use malachite_metrics::prometheus::metrics::gauge::Gauge;
 use malachite_metrics::Registry;
 
 #[derive(Debug)]
-pub struct Metrics {
+pub(crate) struct Metrics {
     /// Time at which discovery started
     start_time: Instant,
+    /// Time at which the Kademlia bootstrap process finished
+    initial_bootstrap_finished: Option<Instant>,
     /// Time at which initial discovery process finished
     initial_discovery_finished: Option<Instant>,
 
@@ -36,14 +38,17 @@ pub struct Metrics {
     total_connect_requests: Counter,
     /// Total number of failed connect request attempts
     total_failed_connect_requests: Counter,
+    /// Total number of rejected connect request attempts
+    total_rejected_connect_requests: Counter,
 }
 
 impl Metrics {
-    pub fn new(registry: &mut Registry, set_finished: bool) -> Self {
+    pub(crate) fn new(registry: &mut Registry, set_finished: bool) -> Self {
         let now = Instant::now();
 
         let this = Self {
             start_time: now,
+            initial_bootstrap_finished: if set_finished { Some(now) } else { None },
             initial_discovery_finished: if set_finished { Some(now) } else { None },
 
             total_discovered: Counter::default(),
@@ -59,6 +64,7 @@ impl Metrics {
             total_failed_peer_requests: Counter::default(),
             total_connect_requests: Counter::default(),
             total_failed_connect_requests: Counter::default(),
+            total_rejected_connect_requests: Counter::default(),
         };
 
         registry.register(
@@ -127,29 +133,46 @@ impl Metrics {
             this.total_failed_connect_requests.clone(),
         );
 
+        registry.register(
+            "total_rejected_connect_requests",
+            "Total number of rejected connect request attempts",
+            this.total_rejected_connect_requests.clone(),
+        );
+
         this
     }
 
-    pub fn elapsed(&self) -> Duration {
+    pub(crate) fn elapsed(&self) -> Duration {
         self.start_time.elapsed()
     }
 
-    pub fn initial_discovery_finished(&mut self) {
+    pub(crate) fn initial_bootstrap_finished(&mut self) {
+        self.initial_bootstrap_finished
+            .get_or_insert(Instant::now());
+    }
+
+    pub(crate) fn initial_bootstrap_duration(&self) -> Duration {
+        self.initial_bootstrap_finished
+            .unwrap_or(self.start_time)
+            .duration_since(self.start_time)
+    }
+
+    pub(crate) fn initial_discovery_finished(&mut self) {
         self.initial_discovery_finished
             .get_or_insert(Instant::now());
     }
 
-    pub fn initial_discovery_duration(&self) -> Duration {
+    pub(crate) fn initial_discovery_duration(&self) -> Duration {
         self.initial_discovery_finished
             .unwrap_or(self.start_time)
             .duration_since(self.start_time)
     }
 
-    pub fn increment_total_discovered(&self) {
+    pub(crate) fn increment_total_discovered(&self) {
         self.total_discovered.inc();
     }
 
-    pub fn set_connections_status(
+    pub(crate) fn set_connections_status(
         &self,
         num_active: usize,
         num_outbound: usize,
@@ -162,27 +185,37 @@ impl Metrics {
         self.num_ephemeral_connections.set(num_ephemeral as i64);
     }
 
-    pub fn increment_total_dials(&self) {
+    pub(crate) fn increment_total_dials(&self) {
         self.total_dials.inc();
     }
 
-    pub fn increment_total_failed_dials(&self) {
+    pub(crate) fn increment_total_failed_dials(&self) {
         self.total_failed_dials.inc();
     }
 
-    pub fn increment_total_peer_requests(&self) {
+    pub(crate) fn increment_total_peer_requests(&self) {
         self.total_peer_requests.inc();
     }
 
-    pub fn increment_total_failed_peer_requests(&self) {
+    pub(crate) fn increment_total_failed_peer_requests(&self) {
         self.total_failed_peer_requests.inc();
     }
 
-    pub fn increment_total_connect_requests(&self) {
+    pub(crate) fn increment_total_connect_requests(&self) {
         self.total_connect_requests.inc();
     }
 
-    pub fn increment_total_failed_connect_requests(&self) {
+    pub(crate) fn increment_total_failed_connect_requests(&self) {
         self.total_failed_connect_requests.inc();
+        // A failure is also considered a rejection
+        self.total_rejected_connect_requests.inc();
+    }
+
+    pub(crate) fn increment_total_rejected_connect_requests(&self) {
+        self.total_rejected_connect_requests.inc();
+    }
+
+    pub(crate) fn get_total_rejected_connect_requests(&self) -> u64 {
+        self.total_rejected_connect_requests.get()
     }
 }

@@ -4,6 +4,13 @@ use tracing::info;
 use crate::{Discovery, DiscoveryClient};
 
 impl Discovery {
+    fn active_connections_num_duplicates(&self) -> usize {
+        self.active_connections
+            .values()
+            .map(|ids| ids.len() - 1)
+            .sum()
+    }
+
     pub(crate) fn update_connections_metrics(&mut self, swarm: &mut Swarm<impl DiscoveryClient>) {
         let num_active_connections = self.active_connections_len();
         let num_outbound_connections = self.outbound_connections.len();
@@ -12,8 +19,9 @@ impl Discovery {
             .saturating_sub(num_outbound_connections + num_inbound_connections);
 
         info!(
-            "Active connections: {}, Outbound connections: {}, Inbound connections: {}, Ephemeral connections: {}",
+            "Active connections: {} (duplicates: {}), Outbound connections: {}, Inbound connections: {}, Ephemeral connections: {}",
             num_active_connections,
+            self.active_connections_num_duplicates(),
             num_outbound_connections,
             num_inbound_connections,
             num_ephemeral_connections,
@@ -38,10 +46,12 @@ impl Discovery {
         let kbuckets: Vec<(u32, Vec<PeerId>)> = self.get_routing_table(swarm);
 
         let mut json = serde_json::json!({
+            "timeBootstrap": self.metrics.initial_bootstrap_duration().as_millis(),
             "time": self.metrics.initial_discovery_duration().as_millis(),
             "localPeerId": swarm.local_peer_id(),
             "totalPeers": kbuckets.iter().map(|(_, peers)| peers.len()).sum::<usize>(),
             "subset": self.outbound_connections.keys().cloned().collect::<Vec<_>>(),
+            "rejections": self.metrics.get_total_rejected_connect_requests(),
             "kbuckets": {}
         });
 

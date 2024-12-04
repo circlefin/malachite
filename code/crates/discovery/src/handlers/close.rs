@@ -36,10 +36,10 @@ impl Discovery {
             if swarm.close_connection(connection_id) {
                 info!("Closing connection {connection_id} to peer {peer_id}");
             } else {
-                error!("Error closing connection to peer {peer_id}");
+                error!("Error closing connection {connection_id} to peer {peer_id}");
             }
         } else {
-            warn!("Tried to close an unknown connection to peer {peer_id}: {connection_id}");
+            warn!("Tried to close an unknown connection {connection_id} to peer {peer_id}");
         }
     }
 
@@ -57,7 +57,7 @@ impl Discovery {
                     self.active_connections.remove(&peer_id);
                 }
             } else {
-                warn!("Non-established connection to peer {peer_id} closed: {connection_id}");
+                warn!("Non-established connection {connection_id} to peer {peer_id} closed");
             }
         }
 
@@ -71,7 +71,7 @@ impl Discovery {
                 out_conn.connection_id == Some(connection_id)
             })
         {
-            warn!("Outbound connection to peer {peer_id} closed");
+            warn!("Outbound connection {connection_id} to peer {peer_id} closed");
 
             self.outbound_connections.remove(&peer_id);
 
@@ -79,7 +79,7 @@ impl Discovery {
                 self.repair_outbound_connection(swarm);
             }
         } else if self.inbound_connections.get(&peer_id) == Some(&connection_id) {
-            warn!("Inbound connection to peer {peer_id} closed");
+            warn!("Inbound connection {connection_id} to peer {peer_id} closed");
 
             self.inbound_connections.remove(&peer_id);
         }

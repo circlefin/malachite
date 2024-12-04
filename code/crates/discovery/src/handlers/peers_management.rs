@@ -192,7 +192,7 @@ impl Discovery {
             .find(|(peer_id, _)| !self.outbound_connections.contains_key(peer_id))
             .map(|(peer_id, connection_id)| (*peer_id, *connection_id))
         {
-            info!("Upgrading connection of peer {peer_id} to outbound connection");
+            info!("Upgrading connection {connection_id} of peer {peer_id} to outbound connection");
 
             self.inbound_connections.remove(&peer_id);
             self.outbound_connections.insert(

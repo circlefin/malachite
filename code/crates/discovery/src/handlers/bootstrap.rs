@@ -19,6 +19,8 @@ impl Discovery {
                 self.active_connections_len()
             );
 
+            self.metrics.initial_bootstrap_finished();
+
             if self.active_connections_len() < self.config.num_outbound_peers {
                 info!("Not enough active connections (got {}, expected {}) to select outbound peers, initiating discovery extension",
                     self.active_connections_len(),

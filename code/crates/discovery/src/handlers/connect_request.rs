@@ -2,7 +2,7 @@ use libp2p::{
     request_response::{OutboundRequestId, ResponseChannel},
     PeerId, Swarm,
 };
-use tracing::{error, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::{
     behaviour::{self, Response},
@@ -79,6 +79,7 @@ impl Discovery {
                 }
                 match connection_ids.first() {
                     Some(connection_id) => {
+                        debug!("Upgrading connection {connection_id} to inbound connection");
                         self.inbound_connections.insert(peer, *connection_id);
                     }
                     None => {
@@ -135,6 +136,8 @@ impl Discovery {
             }
         } else {
             info!("Peer {peer} rejected connection upgrade to outbound connection");
+
+            self.metrics.increment_total_rejected_connect_requests();
 
             self.handle_connect_rejection(swarm, peer);
         }

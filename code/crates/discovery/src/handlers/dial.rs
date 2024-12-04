@@ -86,10 +86,12 @@ impl Discovery {
     ) {
         match endpoint {
             ConnectedPoint::Dialer { .. } => {
-                debug!("Connected to {peer_id} with connection id {connection_id}");
+                debug!("Connected to {peer_id} with connection {connection_id}");
             }
             ConnectedPoint::Listener { .. } => {
-                debug!("Accepted incoming connection from {peer_id} with connection id {connection_id}");
+                debug!(
+                    "Accepted incoming connection from {peer_id} with connection {connection_id}"
+                );
             }
         }
 
