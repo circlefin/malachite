@@ -1,11 +1,12 @@
-use crate::{handle::vote::on_vote, prelude::*};
-use libp2p::request_response::InboundRequestId;
+use crate::handle::vote::on_vote;
+use crate::input::RequestId;
+use crate::prelude::*;
 
 pub async fn on_vote_set_request<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     _metrics: &Metrics,
-    request_id: InboundRequestId,
+    request_id: RequestId,
     height: Ctx::Height,
     round: Round,
 ) -> Result<(), Error<Ctx>>
@@ -15,7 +16,8 @@ where
     // TODO
 
     debug!(%height, %round, "VS8 - consensus gets the request, builds the set and response");
-    let votes: Vec<SignedVote<Ctx>> = state.restore_votes(height, round);
+
+    let votes = state.restore_votes(height, round);
 
     if !votes.is_empty() {
         let vote_set = VoteSet::new(votes);
@@ -25,6 +27,7 @@ where
             Effect::SendVoteSetResponse(request_id, height, round, vote_set)
         );
     }
+
     Ok(())
 }
 

@@ -1,12 +1,12 @@
 use derive_where::derive_where;
-use libp2p::request_response::InboundRequestId;
-
 use malachite_common::{
     CommitCertificate, Context, Round, SignedProposal, SignedVote, Timeout, ValueOrigin, VoteSet,
 };
 
 use crate::types::ProposedValue;
 use crate::ValueToPropose;
+
+pub type RequestId = String;
 
 /// Inputs to be handled by the consensus process.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -37,7 +37,7 @@ where
     CommitCertificate(CommitCertificate<Ctx>),
 
     /// Peer needs vote set
-    VoteSetRequest(InboundRequestId, Ctx::Height, Round),
+    VoteSetRequest(RequestId, Ctx::Height, Round),
 
     /// Vote set to be sent to peer
     VoteSetResponse(VoteSet<Ctx>),

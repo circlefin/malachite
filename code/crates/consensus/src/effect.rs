@@ -1,8 +1,8 @@
 use derive_where::derive_where;
 
-use libp2p::request_response::InboundRequestId;
 use malachite_common::*;
 
+use crate::input::RequestId;
 use crate::types::SignedConsensusMsg;
 use crate::ConsensusMsg;
 
@@ -69,7 +69,7 @@ where
     GetVoteSet(Ctx::Height, Round),
 
     /// A peer has required our vote set, send the response
-    SendVoteSetResponse(InboundRequestId, Ctx::Height, Round, VoteSet<Ctx>),
+    SendVoteSetResponse(RequestId, Ctx::Height, Round, VoteSet<Ctx>),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].

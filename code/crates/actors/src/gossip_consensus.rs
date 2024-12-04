@@ -1,15 +1,18 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
 use derive_where::derive_where;
+use eyre::eyre;
 use libp2p::identity::Keypair;
-use libp2p::request_response::{InboundRequestId, OutboundRequestId};
+use libp2p::request_response;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
 
-use malachite_blocksync::{self as blocksync, RawMessage, Request, Response};
+use malachite_blocksync::{
+    self as blocksync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
+};
 use malachite_common::{Context, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
@@ -104,7 +107,7 @@ pub enum State<Ctx: Context> {
         subscribers: Vec<ActorRef<GossipEvent<Ctx>>>,
         ctrl_handle: CtrlHandle,
         recv_task: JoinHandle<()>,
-        marker: PhantomData<Ctx>,
+        inbound_requests: HashMap<InboundRequestId, request_response::InboundRequestId>,
     },
 }
 
@@ -190,7 +193,7 @@ where
             subscribers: Vec::new(),
             ctrl_handle,
             recv_task,
-            marker: PhantomData,
+            inbound_requests: HashMap::new(),
         })
     }
 
@@ -212,6 +215,7 @@ where
             peers,
             subscribers,
             ctrl_handle,
+            inbound_requests,
             ..
         } = state
         else {
@@ -256,10 +260,11 @@ where
 
             Msg::OutgoingRequest(peer_id, request, reply_to) => {
                 let request = self.codec.encode(request);
+
                 match request {
                     Ok(data) => {
-                        let request_id = ctrl_handle.blocksync_request(peer_id, data).await?;
-                        reply_to.send(request_id)?;
+                        let p2p_request_id = ctrl_handle.blocksync_request(peer_id, data).await?;
+                        reply_to.send(OutboundRequestId::new(p2p_request_id))?;
                     }
                     Err(e) => error!("Failed to encode request message: {e:?}"),
                 }
@@ -267,8 +272,15 @@ where
 
             Msg::OutgoingResponse(request_id, response) => {
                 let response = self.codec.encode(response);
+
                 match response {
-                    Ok(data) => ctrl_handle.blocksync_reply(request_id, data).await?,
+                    Ok(data) => {
+                        let request_id = inbound_requests
+                            .remove(&request_id)
+                            .ok_or_else(|| eyre!("Unknown inbound request ID: {request_id}"))?;
+
+                        ctrl_handle.blocksync_reply(request_id, data).await?
+                    }
                     Err(e) => {
                         error!(%request_id, "Failed to encode response message: {e:?}");
                         return Ok(());
@@ -365,7 +377,12 @@ where
                         }
                     };
 
-                    self.publish(GossipEvent::Request(request_id, peer, request), subscribers);
+                    inbound_requests.insert(InboundRequestId::new(request_id), request_id);
+
+                    self.publish(
+                        GossipEvent::Request(InboundRequestId::new(request_id), peer, request),
+                        subscribers,
+                    );
                 }
 
                 RawMessage::Response {
@@ -382,7 +399,7 @@ where
                     };
 
                     self.publish(
-                        GossipEvent::Response(request_id, peer, response),
+                        GossipEvent::Response(OutboundRequestId::new(request_id), peer, response),
                         subscribers,
                     );
                 }

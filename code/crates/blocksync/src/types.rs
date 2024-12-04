@@ -1,14 +1,34 @@
 use bytes::Bytes;
 use derive_where::derive_where;
 use displaydoc::Display;
+use libp2p::request_response;
 use serde::{Deserialize, Serialize};
 
 use malachite_common::{CommitCertificate, Context, Round, VoteSet};
 
 pub use libp2p::identity::PeerId;
-pub use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 
-pub type ResponseChannel = libp2p::request_response::ResponseChannel<RawResponse>;
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
+#[displaydoc("{0}")]
+pub struct InboundRequestId(String);
+
+impl InboundRequestId {
+    pub fn new(id: impl ToString) -> Self {
+        Self(id.to_string())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
+#[displaydoc("{0}")]
+pub struct OutboundRequestId(String);
+
+impl OutboundRequestId {
+    pub fn new(id: impl ToString) -> Self {
+        Self(id.to_string())
+    }
+}
+
+pub type ResponseChannel = request_response::ResponseChannel<RawResponse>;
 
 #[derive(Display)]
 #[displaydoc("Status {{ peer_id: {peer_id}, height: {height} }}")]
@@ -63,12 +83,12 @@ pub struct SyncedBlock<Ctx: Context> {
 #[derive(Clone, Debug)]
 pub enum RawMessage {
     Request {
-        request_id: InboundRequestId,
+        request_id: request_response::InboundRequestId,
         peer: PeerId,
         body: Bytes,
     },
     Response {
-        request_id: OutboundRequestId,
+        request_id: request_response::OutboundRequestId,
         peer: PeerId,
         body: Bytes,
     },

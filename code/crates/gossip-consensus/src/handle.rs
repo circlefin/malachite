@@ -1,7 +1,6 @@
 use bytes::Bytes;
-use libp2p::request_response::InboundRequestId;
+use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use libp2p::PeerId;
-use malachite_blocksync::OutboundRequestId;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
 

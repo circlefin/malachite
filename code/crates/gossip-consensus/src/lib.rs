@@ -10,13 +10,14 @@ use std::time::Duration;
 use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::request_response::InboundRequestId;
+use libp2p::request_response::OutboundRequestId;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, quic, SwarmBuilder};
 use libp2p_broadcast as broadcast;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, error_span, trace, Instrument};
 
-use malachite_blocksync::{self as blocksync, OutboundRequestId};
+use malachite_blocksync::{self as blocksync};
 use malachite_discovery::{self as discovery, ConnectionData};
 use malachite_metrics::SharedRegistry;
 
