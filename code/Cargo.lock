@@ -2627,6 +2627,7 @@ dependencies = [
  "eyre",
  "libp2p",
  "malachite-blocksync",
+ "malachite-codec",
  "malachite-common",
  "malachite-config",
  "malachite-consensus",
@@ -2649,6 +2650,7 @@ dependencies = [
  "libp2p-identity",
  "malachite-actors",
  "malachite-blocksync",
+ "malachite-codec",
  "malachite-common",
  "malachite-config",
  "malachite-consensus",
@@ -2701,6 +2703,13 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "malachite-codec"
+version = "0.1.0"
+dependencies = [
+ "bytes",
 ]
 
 [[package]]
@@ -2904,6 +2913,7 @@ dependencies = [
  "malachite-actors",
  "malachite-blocksync",
  "malachite-cli",
+ "malachite-codec",
  "malachite-common",
  "malachite-config",
  "malachite-consensus",

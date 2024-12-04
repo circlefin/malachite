@@ -2,8 +2,8 @@ use malachite_actors::util::events::TxEvent;
 use malachite_actors::wal::WalCodec;
 use tokio::sync::mpsc;
 
-use malachite_actors::util::codec::NetworkCodec;
 use malachite_actors::util::streaming::StreamMessage;
+use malachite_codec as codec;
 use malachite_common::Context;
 use malachite_config::Config as NodeConfig;
 use malachite_consensus::SignedConsensusMsg;
@@ -33,12 +33,12 @@ where
     Ctx: Context,
     Node: node::Node<Context = Ctx>,
     Codec: WalCodec<Ctx> + Clone,
-    Codec: NetworkCodec<Ctx::ProposalPart>,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
-    Codec: NetworkCodec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: NetworkCodec<malachite_blocksync::Status<Ctx>>,
-    Codec: NetworkCodec<malachite_blocksync::Request<Ctx>>,
-    Codec: NetworkCodec<malachite_blocksync::Response<Ctx>>,
+    Codec: codec::Codec<Ctx::ProposalPart>,
+    Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+    Codec: codec::Codec<malachite_blocksync::Status<Ctx>>,
+    Codec: codec::Codec<malachite_blocksync::Request<Ctx>>,
+    Codec: codec::Codec<malachite_blocksync::Response<Ctx>>,
 {
     let start_height = start_height.unwrap_or_default();
 
