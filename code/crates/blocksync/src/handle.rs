@@ -337,8 +337,7 @@ where
             let round = vote_set_request.round;
             warn!(%peer_id, %height, %round, "Vote set request timed out");
             state.remove_pending_vote_set_request(height, round);
-            // TODO
-            //metrics.request_timed_out(height.as_u64());
+            metrics.vote_set_request_timed_out(height.as_u64(), round.as_i64());
         }
     };
 
