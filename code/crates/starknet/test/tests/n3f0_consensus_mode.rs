@@ -8,8 +8,9 @@ async fn run_test(params: TestParams) {
 
     let n1 = TestNode::new(1).start().wait_until(HEIGHT).success();
     let n2 = TestNode::new(2).start().wait_until(HEIGHT).success();
+    let n3 = TestNode::new(3).start().wait_until(HEIGHT).success();
 
-    Test::new([n1, n2])
+    Test::new([n1, n2, n3])
         .run_with_custom_config(Duration::from_secs(30), params)
         .await
 }
