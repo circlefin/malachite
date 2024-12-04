@@ -128,14 +128,15 @@ pub struct TestNode<State = ()> {
     pub state: State,
 }
 
-impl TestNode<()> {
-    pub fn new(id: usize) -> Self {
-        Self::with_state(id, ())
-    }
-}
-
 impl<State> TestNode<State> {
-    pub fn with_state(id: usize, state: State) -> Self {
+    pub fn new(id: usize) -> Self
+    where
+        State: Default,
+    {
+        Self::new_with_state(id, State::default())
+    }
+
+    pub fn new_with_state(id: usize, state: State) -> Self {
         Self {
             id,
             voting_power: 1,
@@ -146,51 +147,56 @@ impl<State> TestNode<State> {
         }
     }
 
-    pub fn vp(mut self, power: VotingPower) -> Self {
+    pub fn with_state(&mut self, state: State) -> &mut Self {
+        self.state = state;
+        self
+    }
+
+    pub fn with_voting_power(&mut self, power: VotingPower) -> &mut Self {
         self.voting_power = power;
         self
     }
 
-    pub fn start(self) -> Self {
+    pub fn start(&mut self) -> &mut Self {
         self.start_at(1)
     }
 
-    pub fn start_at(self, height: u64) -> Self {
+    pub fn start_at(&mut self, height: u64) -> &mut Self {
         self.start_after(height, Duration::from_secs(0))
     }
 
-    pub fn start_after(mut self, height: u64, delay: Duration) -> Self {
+    pub fn start_after(&mut self, height: u64, delay: Duration) -> &mut Self {
         self.start_height.block_number = height;
         self.start_delay = delay;
         self
     }
 
-    pub fn crash(mut self) -> Self {
+    pub fn crash(&mut self) -> &mut Self {
         self.steps.push(Step::Crash(Duration::from_secs(0)));
         self
     }
 
-    pub fn crash_after(mut self, duration: Duration) -> Self {
+    pub fn crash_after(&mut self, duration: Duration) -> &mut Self {
         self.steps.push(Step::Crash(duration));
         self
     }
 
-    pub fn reset_db(mut self) -> Self {
+    pub fn reset_db(&mut self) -> &mut Self {
         self.steps.push(Step::ResetDb);
         self
     }
 
-    pub fn restart_after(mut self, delay: Duration) -> Self {
+    pub fn restart_after(&mut self, delay: Duration) -> &mut Self {
         self.steps.push(Step::Restart(delay));
         self
     }
 
-    pub fn wait_until(mut self, height: u64) -> Self {
+    pub fn wait_until(&mut self, height: u64) -> &mut Self {
         self.steps.push(Step::WaitUntil(height));
         self
     }
 
-    pub fn on_event<F>(mut self, on_event: F) -> Self
+    pub fn on_event<F>(&mut self, on_event: F) -> &mut Self
     where
         F: Fn(Event<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
             + Send
@@ -201,7 +207,7 @@ impl<State> TestNode<State> {
         self
     }
 
-    pub fn expect_wal_replay(self, at_height: u64) -> Self {
+    pub fn expect_wal_replay(&mut self, at_height: u64) -> &mut Self {
         self.on_event(move |event, _| {
             let Event::WalReplayBegin(height, count) = event else {
                 return Ok(HandlerResult::WaitForNextEvent);
@@ -217,7 +223,7 @@ impl<State> TestNode<State> {
         })
     }
 
-    pub fn on_proposed_value<F>(self, f: F) -> Self
+    pub fn on_proposed_value<F>(&mut self, f: F) -> &mut Self
     where
         F: Fn(ValueToPropose<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
             + Send
@@ -233,7 +239,7 @@ impl<State> TestNode<State> {
         })
     }
 
-    pub fn on_vote<F>(self, f: F) -> Self
+    pub fn on_vote<F>(&mut self, f: F) -> &mut Self
     where
         F: Fn(SignedVote<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
             + Send
@@ -249,12 +255,12 @@ impl<State> TestNode<State> {
         })
     }
 
-    pub fn expect(mut self, expected: Expected) -> Self {
+    pub fn expect_decisions(&mut self, expected: Expected) -> &mut Self {
         self.steps.push(Step::Expect(expected));
         self
     }
 
-    pub fn success(mut self) -> Self {
+    pub fn success(&mut self) -> &mut Self {
         self.steps.push(Step::Success);
         self
     }
@@ -266,24 +272,55 @@ fn unique_id() -> usize {
     ID.fetch_add(1, Ordering::SeqCst)
 }
 
-pub struct Test<const N: usize, S> {
+pub struct TestBuilder<S> {
+    nodes: Vec<TestNode<S>>,
+}
+
+impl<S> Default for TestBuilder<S> {
+    fn default() -> Self {
+        Self { nodes: Vec::new() }
+    }
+}
+
+impl<S> TestBuilder<S>
+where
+    S: Send + Sync + 'static,
+{
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn add_node(&mut self) -> &mut TestNode<S>
+    where
+        S: Default,
+    {
+        let node = TestNode::new(self.nodes.len() + 1);
+        self.nodes.push(node);
+        self.nodes.last_mut().unwrap()
+    }
+
+    pub fn build(self) -> Test<S> {
+        Test::new(self.nodes)
+    }
+}
+
+pub struct Test<S> {
     pub id: usize,
-    pub nodes: [TestNode<S>; N],
-    pub private_keys: [PrivateKey; N],
+    pub nodes: Vec<TestNode<S>>,
+    pub private_keys: Vec<PrivateKey>,
     pub validator_set: ValidatorSet,
     pub consensus_base_port: usize,
     pub mempool_base_port: usize,
     pub metrics_base_port: usize,
 }
 
-impl<const N: usize, S> Test<N, S>
+impl<S> Test<S>
 where
     S: Send + Sync + 'static,
 {
-    pub fn new(nodes: [TestNode<S>; N]) -> Self {
+    pub fn new(nodes: Vec<TestNode<S>>) -> Self {
         let vals_and_keys = make_validators(voting_powers(&nodes));
         let (validators, private_keys): (Vec<_>, Vec<_>) = vals_and_keys.into_iter().unzip();
-        let private_keys = private_keys.try_into().expect("N private keys");
         let validator_set = ValidatorSet::new(validators);
         let id = unique_id();
         let base_port = 20_000 + id * 1000;
@@ -299,12 +336,13 @@ where
         }
     }
 
-    pub fn generate_default_configs(&self) -> [Config; N] {
-        let configs: Vec<_> = (0..N).map(|i| make_node_config(self, i)).collect();
-        configs.try_into().expect("N configs")
+    pub fn generate_default_configs(&self) -> Vec<Config> {
+        (0..self.nodes.len())
+            .map(|i| make_node_config(self, i))
+            .collect()
     }
 
-    pub fn generate_custom_configs(&self, params: TestParams) -> [Config; N] {
+    pub fn generate_custom_configs(&self, params: TestParams) -> Vec<Config> {
         let mut configs = self.generate_default_configs();
         for config in &mut configs {
             params.apply_to_config(config);
@@ -322,7 +360,7 @@ where
         self.run_with_config(configs, timeout).await
     }
 
-    pub async fn run_with_config(self, configs: [Config; N], timeout: Duration) {
+    pub async fn run_with_config(self, configs: Vec<Config>, timeout: Duration) {
         let _span = error_span!("test", id = %self.id).entered();
 
         let mut set = JoinSet::new();
@@ -619,7 +657,7 @@ fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     }
 }
 
-pub fn make_node_config<const N: usize, S>(test: &Test<N, S>, i: usize) -> NodeConfig {
+pub fn make_node_config<S>(test: &Test<S>, i: usize) -> NodeConfig {
     let transport = transport_from_env(TransportProtocol::Tcp);
     let protocol = PubSubProtocol::default();
 
@@ -634,7 +672,7 @@ pub fn make_node_config<const N: usize, S>(test: &Test<N, S>, i: usize) -> NodeC
                 transport,
                 protocol,
                 listen_addr: transport.multiaddr("127.0.0.1", test.consensus_base_port + i),
-                persistent_peers: (0..N)
+                persistent_peers: (0..test.nodes.len())
                     .filter(|j| i != *j)
                     .map(|j| transport.multiaddr("127.0.0.1", test.consensus_base_port + j))
                     .collect(),
@@ -646,7 +684,7 @@ pub fn make_node_config<const N: usize, S>(test: &Test<N, S>, i: usize) -> NodeC
                 transport,
                 protocol,
                 listen_addr: transport.multiaddr("127.0.0.1", test.mempool_base_port + i),
-                persistent_peers: (0..N)
+                persistent_peers: (0..test.nodes.len())
                     .filter(|j| i != *j)
                     .map(|j| transport.multiaddr("127.0.0.1", test.mempool_base_port + j))
                     .collect(),
@@ -671,20 +709,14 @@ pub fn make_node_config<const N: usize, S>(test: &Test<N, S>, i: usize) -> NodeC
     }
 }
 
-fn voting_powers<const N: usize, S>(nodes: &[TestNode<S>; N]) -> [VotingPower; N] {
-    let mut voting_powers = [0; N];
-    for (i, node) in nodes.iter().enumerate() {
-        voting_powers[i] = node.voting_power;
-    }
-    voting_powers
+fn voting_powers<S>(nodes: &[TestNode<S>]) -> Vec<VotingPower> {
+    nodes.iter().map(|node| node.voting_power).collect()
 }
 
-pub fn make_validators<const N: usize>(
-    voting_powers: [VotingPower; N],
-) -> [(Validator, PrivateKey); N] {
+pub fn make_validators(voting_powers: Vec<VotingPower>) -> Vec<(Validator, PrivateKey)> {
     let mut rng = StdRng::seed_from_u64(0x42);
 
-    let mut validators = Vec::with_capacity(N);
+    let mut validators = Vec::with_capacity(voting_powers.len());
 
     for vp in voting_powers {
         let sk = PrivateKey::generate(&mut rng);
@@ -692,7 +724,7 @@ pub fn make_validators<const N: usize>(
         validators.push((val, sk));
     }
 
-    validators.try_into().expect("N validators")
+    validators
 }
 
 use axum::routing::get;
