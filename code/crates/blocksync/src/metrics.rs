@@ -7,11 +7,14 @@ use malachite_metrics::prometheus::metrics::counter::Counter;
 use malachite_metrics::prometheus::metrics::histogram::{exponential_buckets, Histogram};
 use malachite_metrics::SharedRegistry;
 
+pub type DecidedBlocksMetrics = Inner;
+pub type VoteSetMetrics = Inner;
+
 #[derive(Clone, Debug)]
-pub struct Metrics(Arc<Inner>);
+pub struct Metrics(Arc<(DecidedBlocksMetrics, VoteSetMetrics)>);
 
 impl Deref for Metrics {
-    type Target = Inner;
+    type Target = (Inner, Inner);
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -28,8 +31,8 @@ pub struct Inner {
     server_latency: Histogram,
     request_timeouts: Counter,
 
-    instant_request_sent: Arc<DashMap<u64, Instant>>,
-    instant_request_received: Arc<DashMap<u64, Instant>>,
+    instant_request_sent: Arc<DashMap<(u64, i64), Instant>>,
+    instant_request_received: Arc<DashMap<(u64, i64), Instant>>,
 }
 
 impl Inner {
@@ -56,88 +59,210 @@ impl Default for Inner {
 
 impl Metrics {
     pub fn new() -> Self {
-        Self(Arc::new(Inner::new()))
+        Self(Arc::new((
+            DecidedBlocksMetrics::new(),
+            VoteSetMetrics::new(),
+        )))
+    }
+
+    fn decided_blocks(&self) -> &DecidedBlocksMetrics {
+        &self.0 .0
+    }
+
+    fn vote_set(&self) -> &VoteSetMetrics {
+        &self.0 .1
     }
 
     pub fn register(registry: &SharedRegistry) -> Self {
         let metrics = Self::new();
 
         registry.with_prefix("malachite_blocksync", |registry| {
+            // Block sync related metrics
             registry.register(
-                "requests_sent",
+                "block_requests_sent",
                 "Number of BlockSync requests sent",
-                metrics.requests_sent.clone(),
+                metrics.decided_blocks().requests_sent.clone(),
             );
 
             registry.register(
-                "requests_received",
+                "block_requests_received",
                 "Number of BlockSync requests received",
-                metrics.requests_received.clone(),
+                metrics.decided_blocks().requests_received.clone(),
             );
 
             registry.register(
-                "responses_sent",
+                "block_responses_sent",
                 "Number of BlockSync responses sent",
-                metrics.responses_sent.clone(),
+                metrics.decided_blocks().responses_sent.clone(),
             );
 
             registry.register(
-                "responses_received",
+                "block_responses_received",
                 "Number of BlockSync responses received",
-                metrics.responses_received.clone(),
+                metrics.decided_blocks().responses_received.clone(),
             );
 
             registry.register(
-                "client_latency",
+                "block_client_latency",
                 "Interval of time between when request was sent and response was received",
-                metrics.client_latency.clone(),
+                metrics.decided_blocks().client_latency.clone(),
             );
 
             registry.register(
-                "server_latency",
+                "block_server_latency",
                 "Interval of time between when request was received and response was sent",
-                metrics.server_latency.clone(),
+                metrics.decided_blocks().server_latency.clone(),
             );
 
             registry.register(
-                "timeouts",
+                "block_request_timeouts",
                 "Number of BlockSync request timeouts",
-                metrics.request_timeouts.clone(),
+                metrics.decided_blocks().request_timeouts.clone(),
+            );
+
+            registry.register(
+                "vote_set_requests_sent",
+                "Number of BlockSync requests sent",
+                metrics.decided_blocks().requests_sent.clone(),
+            );
+
+            // Vote set sync related metrics
+            registry.register(
+                "vote_set_requests_received",
+                "Number of BlockSync requests received",
+                metrics.vote_set().requests_received.clone(),
+            );
+
+            registry.register(
+                "vote_set_responses_sent",
+                "Number of BlockSync responses sent",
+                metrics.vote_set().responses_sent.clone(),
+            );
+
+            registry.register(
+                "vote_set_responses_received",
+                "Number of BlockSync responses received",
+                metrics.vote_set().responses_received.clone(),
+            );
+
+            registry.register(
+                "vote_set_client_latency",
+                "Interval of time between when request was sent and response was received",
+                metrics.vote_set().client_latency.clone(),
+            );
+
+            registry.register(
+                "vote_set_server_latency",
+                "Interval of time between when request was received and response was sent",
+                metrics.vote_set().server_latency.clone(),
+            );
+
+            registry.register(
+                "vote_set_timeouts",
+                "Number of BlockSync request timeouts",
+                metrics.vote_set().request_timeouts.clone(),
             );
         });
 
         metrics
     }
 
-    pub fn request_sent(&self, height: u64) {
-        self.requests_sent.inc();
-        self.instant_request_sent.insert(height, Instant::now());
+    pub fn decided_block_request_sent(&self, height: u64) {
+        self.decided_blocks().requests_sent.inc();
+        self.decided_blocks()
+            .instant_request_sent
+            .insert((height, -1), Instant::now());
     }
 
-    pub fn response_received(&self, height: u64) {
-        self.responses_received.inc();
+    pub fn decided_block_request_received(&self, height: u64) {
+        self.decided_blocks().requests_received.inc();
+        self.decided_blocks()
+            .instant_request_received
+            .insert((height, -1), Instant::now());
+    }
 
-        if let Some((_, instant)) = self.instant_request_sent.remove(&height) {
-            self.client_latency.observe(instant.elapsed().as_secs_f64());
+    pub fn decided_block_response_sent(&self, height: u64) {
+        self.decided_blocks().responses_sent.inc();
+
+        if let Some((_, instant)) = self
+            .decided_blocks()
+            .instant_request_received
+            .remove(&(height, -1))
+        {
+            self.decided_blocks()
+                .server_latency
+                .observe(instant.elapsed().as_secs_f64());
         }
     }
 
-    pub fn request_received(&self, height: u64) {
-        self.requests_received.inc();
-        self.instant_request_received.insert(height, Instant::now());
-    }
+    pub fn decided_block_response_received(&self, height: u64) {
+        self.decided_blocks().responses_received.inc();
 
-    pub fn response_sent(&self, height: u64) {
-        self.responses_sent.inc();
-
-        if let Some((_, instant)) = self.instant_request_received.remove(&height) {
-            self.server_latency.observe(instant.elapsed().as_secs_f64());
+        if let Some((_, instant)) = self
+            .decided_blocks()
+            .instant_request_sent
+            .remove(&(height, -1))
+        {
+            self.decided_blocks()
+                .client_latency
+                .observe(instant.elapsed().as_secs_f64());
         }
     }
 
-    pub fn request_timed_out(&self, height: u64) {
-        self.request_timeouts.inc();
-        self.instant_request_sent.remove(&height);
+    pub fn decided_block_request_timed_out(&self, height: u64) {
+        self.decided_blocks().request_timeouts.inc();
+        self.decided_blocks()
+            .instant_request_sent
+            .remove(&(height, 0));
+    }
+
+    pub fn vote_set_request_sent(&self, height: u64, round: i64) {
+        self.vote_set().requests_sent.inc();
+        self.vote_set()
+            .instant_request_sent
+            .insert((height, round), Instant::now());
+    }
+
+    pub fn vote_set_request_received(&self, height: u64, round: i64) {
+        self.vote_set().requests_received.inc();
+        self.vote_set()
+            .instant_request_received
+            .insert((height, round), Instant::now());
+    }
+
+    pub fn vote_set_response_sent(&self, height: u64, round: i64) {
+        self.vote_set().responses_sent.inc();
+
+        if let Some((_, instant)) = self
+            .vote_set()
+            .instant_request_received
+            .remove(&(height, round))
+        {
+            self.vote_set()
+                .server_latency
+                .observe(instant.elapsed().as_secs_f64());
+        }
+    }
+
+    pub fn vote_set_response_received(&self, height: u64, round: i64) {
+        self.vote_set().responses_received.inc();
+
+        if let Some((_, instant)) = self
+            .vote_set()
+            .instant_request_sent
+            .remove(&(height, round))
+        {
+            self.vote_set()
+                .client_latency
+                .observe(instant.elapsed().as_secs_f64());
+        }
+    }
+
+    pub fn vote_set_request_timed_out(&self, height: u64, round: i64) {
+        self.vote_set().request_timeouts.inc();
+        self.vote_set()
+            .instant_request_sent
+            .remove(&(height, round));
     }
 }
 

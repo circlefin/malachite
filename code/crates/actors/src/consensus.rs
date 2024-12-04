@@ -365,7 +365,7 @@ where
                     GossipEvent::Response(
                         request_id,
                         _peer,
-                        blocksync::Response::VoteSetResponse(VoteSetResponse { vote_set }),
+                        blocksync::Response::VoteSetResponse(VoteSetResponse { vote_set, .. }),
                     ) => {
                         debug!(%request_id, "VS10 Received VoteSet response");
 
@@ -681,11 +681,20 @@ where
                 Ok(Resume::Continue)
             }
 
-            Effect::SendVoteSetResponse(request_id, vote_set) => {
+            Effect::SendVoteSetResponse(request_id, height, round, vote_set) => {
                 debug!("VS9 - consensus sends vote set response to gossip");
-                let response = Response::VoteSetResponse(VoteSetResponse::new(vote_set));
+                let response =
+                    Response::VoteSetResponse(VoteSetResponse::new(height, round, vote_set));
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::OutgoingResponse(request_id, response))?;
+
+                if let Some(block_sync) = &self.block_sync {
+                    block_sync
+                        .cast(BlockSyncMsg::GotVoteSet(request_id, height, round))
+                        .map_err(|e| {
+                            eyre!("Error when sending vote set response to blocksync: {e:?}")
+                        })?;
+                }
 
                 Ok(Resume::Continue)
             }

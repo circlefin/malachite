@@ -20,7 +20,10 @@ where
     if !votes.is_empty() {
         let vote_set = VoteSet::new(votes);
 
-        perform!(co, Effect::SendVoteSetResponse(request_id, vote_set));
+        perform!(
+            co,
+            Effect::SendVoteSetResponse(request_id, height, round, vote_set)
+        );
     }
     Ok(())
 }

@@ -74,7 +74,10 @@ message VoteSetRequest {
 }
 
 message VoteSetResponse {
-  VoteSet vote_set = 1;
+  uint64 fork_id = 1;
+  uint64 block_number = 2;
+  uint32 round = 3;
+  VoteSet vote_set = 4;
 }
 
 message VoteSet {

@@ -5,7 +5,7 @@ use libp2p::request_response::OutboundRequestId;
 use thiserror::Error;
 use tracing::{debug, error, info, trace, warn};
 
-use malachite_common::{CertificateError, CommitCertificate, Context, Height, Round, VoteSet};
+use malachite_common::{CertificateError, CommitCertificate, Context, Height, Round};
 
 use crate::co::Co;
 use crate::{perform, Request, VoteSetRequest, VoteSetResponse};
@@ -49,9 +49,6 @@ pub enum Effect<Ctx: Context> {
 
     /// Send a VoteSet request to a peer
     SendVoteSetRequest(PeerId, VoteSetRequest<Ctx>),
-
-    /// Send a response to a VoteSet request
-    SendVoteSetResponse(InboundRequestId, VoteSetResponse<Ctx>),
 }
 
 #[derive_where(Debug)]
@@ -77,20 +74,23 @@ pub enum Input<Ctx: Context> {
     /// Got a response from the application to our `GetBlock` request
     GotBlock(InboundRequestId, Ctx::Height, Option<SyncedBlock<Ctx>>),
 
-    /// A request for a block timed out
+    /// A request for a block or vote set timed out
     SyncRequestTimedOut(PeerId, Request<Ctx>),
 
     /// We received an invalid [`CommitCertificate`]
     InvalidCertificate(PeerId, CommitCertificate<Ctx>, CertificateError<Ctx>),
 
-    /// Get the vote set for the height at or above round
+    /// Consensus needs a vote set for the height and round for recovery.
     GetVoteSet(Ctx::Height, Round),
+
+    /// A VoteSet request has been received from a peer
+    VoteSetRequest(InboundRequestId, PeerId, VoteSetRequest<Ctx>),
+
+    /// Got a response from consensus for an incoming request
+    GotVoteSet(InboundRequestId, Ctx::Height, Round),
 
     /// A VoteSet response has been received
     VoteSetResponse(OutboundRequestId, PeerId, VoteSetResponse<Ctx>),
-
-    /// Got a response from consensus for our `GetVoteSet` request
-    GotVoteSet(InboundRequestId, VoteSet<Ctx>),
 }
 
 pub async fn handle<Ctx>(
@@ -104,9 +104,13 @@ where
 {
     match input {
         Input::Tick => on_tick(co, state, metrics).await,
+
         Input::Status(status) => on_status(co, state, metrics, status).await,
+
         Input::StartHeight(height) => on_start_height(co, state, metrics, height).await,
+
         Input::UpdateHeight(height) => on_update_height(co, state, metrics, height).await,
+
         Input::BlockRequest(request_id, peer_id, request) => {
             on_block_request(co, state, metrics, request_id, peer_id, request).await
         }
@@ -125,11 +129,16 @@ where
         Input::GetVoteSet(height, round) => {
             on_get_vote_set(co, state, metrics, height, round).await
         }
+        Input::VoteSetRequest(request_id, peer_id, request) => {
+            on_vote_set_request(co, state, metrics, request_id, peer_id, request).await
+        }
+
         Input::VoteSetResponse(request_id, peer_id, response) => {
             on_vote_set_response(co, state, metrics, request_id, peer_id, response).await
         }
-        Input::GotVoteSet(request_id, local_vote_set) => {
-            on_vote_set(co, state, metrics, request_id, local_vote_set).await
+
+        Input::GotVoteSet(request_id, height, round) => {
+            on_vote_set(co, state, metrics, request_id, height, round).await
         }
     }
 }
@@ -202,7 +211,7 @@ where
 {
     debug!(height = %request.height, %peer, "Received request for block");
 
-    metrics.request_received(request.height.as_u64());
+    metrics.decided_block_request_received(request.height.as_u64());
 
     perform!(co, Effect::GetBlock(request_id, request.height));
 
@@ -223,7 +232,7 @@ where
 {
     debug!(height = %response.height, %request_id, %peer, "Received response");
 
-    metrics.response_received(response.height.as_u64());
+    metrics.decided_block_response_received(response.height.as_u64());
 
     Ok(())
 }
@@ -301,7 +310,7 @@ where
         Effect::SendBlockResponse(request_id, BlockResponse::new(height, response))
     );
 
-    metrics.response_sent(height.as_u64());
+    metrics.decided_block_response_sent(height.as_u64());
 
     Ok(())
 }
@@ -321,7 +330,7 @@ where
             let height = block_request.height;
             warn!(%peer_id, %height, "Block request timed out");
             state.remove_pending_decided_block_request(height);
-            metrics.request_timed_out(height.as_u64());
+            metrics.decided_block_request_timed_out(height.as_u64());
         }
         Request::VoteSetRequest(vote_set_request) => {
             let height = vote_set_request.height;
@@ -378,7 +387,7 @@ where
         Effect::SendBlockRequest(peer, BlockRequest::new(height))
     );
 
-    metrics.request_sent(height.as_u64());
+    metrics.decided_block_request_sent(height.as_u64());
     state.store_pending_decided_block_request(height, peer);
 
     Ok(())
@@ -429,16 +438,19 @@ where
         state.peers.len()
     );
 
-    if let Some(peer) = state.random_peer_for_votes() {
-        request_vote_set_from_peer(co, state, metrics, height, round, peer).await?;
-    }
+    let Some(peer) = state.random_peer_for_votes() else {
+        error!("No other peer to request vote set from");
+        return Ok(());
+    };
+    request_vote_set_from_peer(co, state, metrics, height, round, peer).await?;
+
     Ok(())
 }
 
 async fn request_vote_set_from_peer<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
     height: Ctx::Height,
     round: Round,
     peer: PeerId,
@@ -453,10 +465,46 @@ where
         Effect::SendVoteSetRequest(peer, VoteSetRequest::new(height, round))
     );
 
-    // TODO - metrics
-    //metrics.request_sent(height.as_u64());
+    metrics.vote_set_request_sent(height.as_u64(), round.as_i64());
 
     state.store_pending_vote_set_request(height, round, peer);
+
+    Ok(())
+}
+
+#[tracing::instrument(skip_all)]
+pub async fn on_vote_set_request<Ctx>(
+    _co: Co<Ctx>,
+    _state: &mut State<Ctx>,
+    metrics: &Metrics,
+    request_id: InboundRequestId,
+    peer: PeerId,
+    request: VoteSetRequest<Ctx>,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    debug!(%request_id, %peer, height = %request.height, round = %request.round, "Received request for vote set");
+
+    metrics.vote_set_request_received(request.height.as_u64(), request.round.as_i64());
+
+    Ok(())
+}
+
+pub async fn on_vote_set<Ctx>(
+    _co: Co<Ctx>,
+    _state: &mut State<Ctx>,
+    metrics: &Metrics,
+    request_id: InboundRequestId,
+    height: Ctx::Height,
+    round: Round,
+) -> Result<(), Error<Ctx>>
+where
+    Ctx: Context,
+{
+    debug!(%request_id, %height, %round, "Vote set response sent");
+
+    metrics.vote_set_response_sent(height.as_u64(), round.as_i64());
 
     Ok(())
 }
@@ -465,33 +513,17 @@ where
 pub async fn on_vote_set_response<Ctx>(
     _co: Co<Ctx>,
     _state: &mut State<Ctx>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
     request_id: OutboundRequestId,
     peer: PeerId,
-    _response: VoteSetResponse<Ctx>,
+    response: VoteSetResponse<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    debug!(%request_id, %peer, "Received vote set response");
+    debug!(%request_id, %peer, height = %response.height, round = %response.round, "Received vote set response");
 
-    Ok(())
-}
-
-pub async fn on_vote_set<Ctx>(
-    co: Co<Ctx>,
-    _state: &mut State<Ctx>,
-    _metrics: &Metrics,
-    request_id: InboundRequestId,
-    vote_set: VoteSet<Ctx>,
-) -> Result<(), Error<Ctx>>
-where
-    Ctx: Context,
-{
-    perform!(
-        co,
-        Effect::SendVoteSetResponse(request_id, VoteSetResponse::new(vote_set))
-    );
+    metrics.vote_set_response_received(response.height.as_u64(), response.round.as_i64());
 
     Ok(())
 }

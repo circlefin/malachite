@@ -140,13 +140,17 @@ impl NetworkCodec<blocksync::Response<MockContext>> for ProtobufCodec {
                 ))
             }
             proto::sync::sync_response::Messages::VoteSetResponse(vote_set_response) => {
+                let height = Height::new(vote_set_response.block_number, vote_set_response.fork_id);
+                let round = Round::new(vote_set_response.round);
                 let vote_set = vote_set_response
                     .vote_set
                     .ok_or_else(|| ProtoError::missing_field::<proto::sync::VoteSet>("vote_set"))?;
 
-                blocksync::Response::VoteSetResponse(VoteSetResponse::new(decode_vote_set(
-                    vote_set,
-                )?))
+                blocksync::Response::VoteSetResponse(VoteSetResponse::new(
+                    height,
+                    round,
+                    decode_vote_set(vote_set)?,
+                ))
             }
         };
         Ok(response)
@@ -166,6 +170,12 @@ impl NetworkCodec<blocksync::Response<MockContext>> for ProtobufCodec {
             blocksync::Response::VoteSetResponse(vote_set_response) => proto::sync::SyncResponse {
                 messages: Some(proto::sync::sync_response::Messages::VoteSetResponse(
                     proto::sync::VoteSetResponse {
+                        fork_id: vote_set_response.height.fork_id,
+                        block_number: vote_set_response.height.block_number,
+                        round: vote_set_response
+                            .round
+                            .as_u32()
+                            .expect("round should not be nil"),
                         vote_set: Some(encode_vote_set(vote_set_response.vote_set)?),
                     },
                 )),

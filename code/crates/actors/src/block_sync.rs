@@ -62,7 +62,7 @@ pub enum Msg<Ctx: Context> {
     StartHeight(Ctx::Height),
 
     /// Host has a response for the blocks request
-    GotDecidedBlock(Ctx::Height, InboundRequestId, Option<SyncedBlock<Ctx>>),
+    GotDecidedBlock(InboundRequestId, Ctx::Height, Option<SyncedBlock<Ctx>>),
 
     /// A timeout has elapsed
     TimeoutElapsed(TimeoutElapsed<Timeout>),
@@ -72,6 +72,9 @@ pub enum Msg<Ctx: Context> {
 
     /// Consensus needs vote set from peers
     GetVoteSet(Ctx::Height, Round),
+
+    /// Consensus has sent a vote set resonse to a peer
+    GotVoteSet(InboundRequestId, Ctx::Height, Round),
 }
 
 impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
@@ -228,7 +231,7 @@ where
                 self.host.call_and_forward(
                     |reply_to| HostMsg::GetDecidedBlock { height, reply_to },
                     myself,
-                    move |block| Msg::<Ctx>::GotDecidedBlock(height, request_id, block),
+                    move |block| Msg::<Ctx>::GotDecidedBlock(request_id, height, block),
                     None,
                 )?;
             }
@@ -258,12 +261,6 @@ where
                     }
                 }
             }
-
-            Effect::SendVoteSetResponse(request_id, vote_set_response) => {
-                let response = Response::VoteSetResponse(vote_set_response);
-                self.gossip
-                    .cast(GossipConsensusMsg::OutgoingResponse(request_id, response))?;
-            }
         }
 
         Ok(blocksync::Resume::default())
@@ -280,6 +277,15 @@ where
                 debug!(%height, %round, "VS3 - make a vote set request to one of the peers, keep track of it, timeout, retry, etc");
                 self.process_input(&myself, state, blocksync::Input::GetVoteSet(height, round))
                     .await?;
+            }
+
+            Msg::GotVoteSet(request_id, height, round) => {
+                self.process_input(
+                    &myself,
+                    state,
+                    blocksync::Input::GotVoteSet(request_id, height, round),
+                )
+                .await?;
             }
 
             Msg::Tick => {
@@ -307,14 +313,24 @@ where
             }
 
             Msg::GossipEvent(GossipEvent::Request(request_id, from, request)) => {
-                if let Request::BlockRequest(block_request) = request {
-                    self.process_input(
-                        &myself,
-                        state,
-                        blocksync::Input::BlockRequest(request_id, from, block_request),
-                    )
-                    .await?;
-                }
+                match request {
+                    Request::BlockRequest(block_request) => {
+                        self.process_input(
+                            &myself,
+                            state,
+                            blocksync::Input::BlockRequest(request_id, from, block_request),
+                        )
+                        .await?;
+                    }
+                    Request::VoteSetRequest(vote_set_request) => {
+                        self.process_input(
+                            &myself,
+                            state,
+                            blocksync::Input::VoteSetRequest(request_id, from, vote_set_request),
+                        )
+                        .await?;
+                    }
+                };
             }
 
             Msg::GossipEvent(GossipEvent::Response(request_id, peer, response)) => {
@@ -360,7 +376,7 @@ where
                     .await?;
             }
 
-            Msg::GotDecidedBlock(height, request_id, block) => {
+            Msg::GotDecidedBlock(request_id, height, block) => {
                 self.process_input(
                     &myself,
                     state,

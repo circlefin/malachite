@@ -69,7 +69,7 @@ where
     GetVoteSet(Ctx::Height, Round),
 
     /// A peer has required our vote set, send the response
-    SendVoteSetResponse(InboundRequestId, VoteSet<Ctx>),
+    SendVoteSetResponse(InboundRequestId, Ctx::Height, Round, VoteSet<Ctx>),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].

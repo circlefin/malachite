@@ -94,11 +94,17 @@ impl<Ctx: Context> VoteSetRequest<Ctx> {
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct VoteSetResponse<Ctx: Context> {
+    pub height: Ctx::Height,
+    pub round: Round,
     pub vote_set: VoteSet<Ctx>,
 }
 
 impl<Ctx: Context> VoteSetResponse<Ctx> {
-    pub fn new(vote_set: VoteSet<Ctx>) -> Self {
-        Self { vote_set }
+    pub fn new(height: Ctx::Height, round: Round, vote_set: VoteSet<Ctx>) -> Self {
+        Self {
+            height,
+            round,
+            vote_set,
+        }
     }
 }
