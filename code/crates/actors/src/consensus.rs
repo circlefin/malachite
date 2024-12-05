@@ -50,8 +50,8 @@ where
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
 pub enum Msg<Ctx: Context> {
-    /// Start consensus for the given height
-    StartHeight(Ctx::Height),
+    /// Start consensus for the given height with the given validator set
+    StartHeight(Ctx::Height, Ctx::ValidatorSet),
 
     /// Received an event from the gossip layer
     GossipEvent(GossipEvent<Ctx>),
@@ -211,11 +211,8 @@ where
         msg: Msg<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            Msg::StartHeight(height) => {
+            Msg::StartHeight(height, validator_set) => {
                 state.phase = Phase::Running;
-
-                let validator_set = self.get_validator_set(height).await?;
-
                 let result = self
                     .process_input(
                         &myself,
@@ -234,8 +231,9 @@ where
                     error!(%height, "Error when checking and replaying WAL: {e}");
                 }
 
+                // Notify the BlockSync actor that we have started a new height
                 if let Some(block_sync) = &self.block_sync {
-                    if let Err(e) = block_sync.cast(BlockSyncMsg::StartHeight(height)) {
+                    if let Err(e) = block_sync.cast(BlockSyncMsg::StartedHeight(height)) {
                         error!(%height, "Error when notifying BlockSync of started height: {e}")
                     }
                 }

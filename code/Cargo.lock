@@ -2435,15 +2435,16 @@ dependencies = [
 
 [[package]]
 name = "libp2p-scatter"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2930693ddb135900c3efb19b26493495ad8fa422b01d72375ddfa879ba306e78"
+checksum = "14fe352c950cea000ecc697e2e71ce22a3586b607d74104ec6aaf22deaef1883"
 dependencies = [
  "bytes",
  "fnv",
  "futures",
  "libp2p",
  "prometheus-client",
+ "tracing",
  "unsigned-varint 0.8.0",
 ]
 
