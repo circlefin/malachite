@@ -77,7 +77,7 @@ where
             HostMsg::GetValue {
                 height,
                 round,
-                timeout_duration,
+                timeout: timeout_duration,
                 address,
                 reply_to,
             } => {
