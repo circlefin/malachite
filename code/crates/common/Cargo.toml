@@ -12,12 +12,7 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
-[features]
-peerid = ["dep:multihash"]
-
-
 [dependencies]
 bytes = { workspace = true, default-features = false }
 derive-where = { workspace = true }
 thiserror = { workspace = true, default-features = false }
-multihash = { workspace = true, default-features = false, optional = true }
