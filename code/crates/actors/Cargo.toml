@@ -12,6 +12,7 @@ workspace = true
 [dependencies]
 malachite-common.workspace           = true
 malachite-config.workspace           = true
+malachite-codec.workspace            = true
 malachite-blocksync.workspace        = true
 malachite-consensus.workspace        = true
 malachite-gossip-consensus.workspace = true

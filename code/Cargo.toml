@@ -6,6 +6,7 @@ members = [
   "crates/app-channel",
   "crates/blocksync",
   "crates/cli",
+  "crates/codec",
   "crates/common",
   "crates/config",
   "crates/consensus",
@@ -59,6 +60,7 @@ debug = true
 malachite-actors           = { version = "0.1.0", path = "crates/actors" }
 malachite-app-channel      = { version = "0.1.0", path = "crates/app-channel" }
 malachite-blocksync        = { version = "0.1.0", path = "crates/blocksync" }
+malachite-codec            = { version = "0.1.0", path = "crates/codec" }
 malachite-cli              = { version = "0.1.0", path = "crates/cli" }
 malachite-common           = { version = "0.1.0", path = "crates/common" }
 malachite-config           = { version = "0.1.0", path = "crates/config" }
