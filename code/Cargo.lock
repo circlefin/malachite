@@ -2993,6 +2993,7 @@ dependencies = [
  "hex",
  "malachite-actors",
  "malachite-blocksync",
+ "malachite-codec",
  "malachite-common",
  "malachite-consensus",
  "malachite-proto",

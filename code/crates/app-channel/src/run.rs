@@ -9,6 +9,7 @@ use malachite_config::Config as NodeConfig;
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Keypair;
 use malachite_metrics::{Metrics, SharedRegistry};
+use malachite_node as node;
 
 use crate::channel::AppMsg;
 use crate::spawn::{
@@ -16,11 +17,13 @@ use crate::spawn::{
     spawn_wal_actor,
 };
 
-pub async fn run<Ctx, Codec>(
+#[allow(clippy::too_many_arguments)]
+pub async fn run<Node, Ctx, Codec>(
     cfg: NodeConfig,
     start_height: Option<Ctx::Height>,
     ctx: Ctx,
     codec: Codec,
+    node: Node,
     keypair: Keypair,      // Todo: see note in code
     address: Ctx::Address, // Todo: remove it when Node was properly implemented
     initial_validator_set: Ctx::ValidatorSet,
