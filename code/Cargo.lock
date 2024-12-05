@@ -3006,7 +3006,7 @@ dependencies = [
  "multihash",
  "rand",
  "serde",
- "thiserror 2.0.3",
+ "thiserror 2.0.4",
 ]
 
 [[package]]

@@ -18,6 +18,7 @@ use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_blocksync::SyncedBlock;
 use malachite_common::{CommitCertificate, Round, Validity};
+use malachite_consensus::PeerId;
 use malachite_metrics::Metrics;
 
 use crate::host::proposal::compute_proposal_signature;
@@ -420,7 +421,7 @@ async fn on_get_decided_block(
 async fn on_received_proposal_part(
     state: &mut HostState,
     part: StreamMessage<ProposalPart>,
-    from: libp2p_identity::PeerId,
+    from: PeerId,
     reply_to: RpcReplyPort<ProposedValue<MockContext>>,
 ) -> Result<(), ActorProcessingErr> {
     // TODO - use state.host.receive_proposal() and move some of the logic below there
