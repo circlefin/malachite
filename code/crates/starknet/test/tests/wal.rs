@@ -11,7 +11,6 @@ use malachite_starknet_host::types::MockContext;
 use malachite_starknet_test::{init_logging, HandlerResult, TestBuilder, TestParams};
 
 #[tokio::test]
-#[ignore] // Test fails on CI but passes locally
 async fn proposer_crashes_after_proposing_parts_only() {
     proposer_crashes_after_proposing(TestParams {
         value_payload: ValuePayload::PartsOnly,
