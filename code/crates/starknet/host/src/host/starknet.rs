@@ -11,16 +11,15 @@ use malachite_common::{CommitCertificate, Extension, Round, SignedExtension, Sig
 use malachite_config::VoteExtensionsConfig;
 use malachite_consensus::ValuePayload;
 
+use crate::host::Host;
 use crate::mempool::MempoolRef;
 use crate::part_store::PartStore;
 use crate::types::*;
-use crate::Host;
 
-mod build_proposal;
-use build_proposal::{build_proposal_task, repropose_task};
+use super::proposal::{build_proposal_task, repropose_task};
 
 #[derive(Copy, Clone, Debug)]
-pub struct MockParams {
+pub struct StarknetParams {
     pub max_block_size: ByteSize,
     pub value_payload: ValuePayload,
     pub tx_size: ByteSize,
@@ -31,8 +30,8 @@ pub struct MockParams {
     pub vote_extensions: VoteExtensionsConfig,
 }
 
-pub struct MockHost {
-    pub params: MockParams,
+pub struct StarknetHost {
+    pub params: StarknetParams,
     pub mempool: MempoolRef,
     pub address: Address,
     pub private_key: PrivateKey,
@@ -40,9 +39,9 @@ pub struct MockHost {
     pub part_store: PartStore<MockContext>,
 }
 
-impl MockHost {
+impl StarknetHost {
     pub fn new(
-        params: MockParams,
+        params: StarknetParams,
         mempool: MempoolRef,
         address: Address,
         private_key: PrivateKey,
@@ -85,7 +84,7 @@ impl MockHost {
 }
 
 #[async_trait]
-impl Host for MockHost {
+impl Host for StarknetHost {
     type Height = Height;
     type BlockHash = BlockHash;
     type MessageHash = MessageHash;
@@ -203,32 +202,4 @@ impl Host for MockHost {
     /// - height     - The height of the decision.
     #[tracing::instrument(skip_all, fields(height = %_certificate.height, block_hash = %_certificate.value_id))]
     async fn decision(&self, _certificate: CommitCertificate<MockContext>) {}
-}
-
-pub fn compute_proposal_hash(init: &ProposalInit, block_hash: &BlockHash) -> Hash {
-    use sha3::Digest;
-
-    let mut hasher = sha3::Keccak256::new();
-
-    // 1. Block number
-    hasher.update(init.height.block_number.to_be_bytes());
-    // 2. Fork id
-    hasher.update(init.height.fork_id.to_be_bytes());
-    // 3. Proposal round
-    hasher.update(init.proposal_round.as_i64().to_be_bytes());
-    // 4. Valid round
-    hasher.update(init.valid_round.as_i64().to_be_bytes());
-    // 5. Block hash
-    hasher.update(block_hash.as_bytes());
-
-    Hash::new(hasher.finalize().into())
-}
-
-pub fn compute_proposal_signature(
-    init: &ProposalInit,
-    block_hash: &BlockHash,
-    private_key: &PrivateKey,
-) -> Signature {
-    let hash = compute_proposal_hash(init, block_hash);
-    private_key.sign(&hash.as_felt())
 }
