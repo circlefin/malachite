@@ -119,7 +119,7 @@ itertools          = "0.13"
 itf                = "0.2.3"
 libp2p             = { version = "0.54.1", features = ["macros", "identify", "tokio", "ed25519", "ecdsa", "tcp", "quic", "noise", "yamux", "gossipsub", "dns", "ping", "metrics", "request-response", "cbor", "serde"] }
 libp2p-identity    = "0.2.10"
-libp2p-broadcast   = { version = "0.1.0", package = "libp2p-scatter" }
+libp2p-broadcast   = { version = "0.1.1", package = "libp2p-scatter" }
 multiaddr          = "0.18.2"
 nix                = { version = "0.29.0", features = ["signal"] }
 num-bigint         = "0.4.4"
