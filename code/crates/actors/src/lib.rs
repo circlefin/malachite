@@ -9,3 +9,4 @@ pub mod gossip_mempool;
 pub mod host;
 pub mod node;
 pub mod util;
+pub mod wal;

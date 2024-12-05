@@ -61,6 +61,12 @@ where
     /// Consensus has decided on a value
     /// Resume with: [`Resume::Continue`]
     Decide { certificate: CommitCertificate<Ctx> },
+
+    /// Persist a consensus message in the Write-Ahead Log for crash recovery
+    PersistMessage(SignedConsensusMsg<Ctx>),
+
+    /// Persist a timeout in the Write-Ahead Log for crash recovery
+    PersistTimeout(Timeout),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].

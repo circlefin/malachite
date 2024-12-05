@@ -29,7 +29,7 @@ module blocksyncServer {
 
   /// new server state and response messages to be sent
   type ServerOutput = {
-    sync: Server,
+    server: Server,
     msg: Option[ResponseMsg],
   }
 
@@ -60,10 +60,10 @@ module blocksyncServer {
                           Some(bs)
               }
           else None
-      {   sync: { ...s, requestMsgs: s.requestMsgs.exclude(Set(m))},
+      {   server: { ...s, requestMsgs: s.requestMsgs.exclude(Set(m))},
           msg: result}
     else {
-      sync: s,
+      server: s,
       msg: None}
 
   //
@@ -115,7 +115,7 @@ module blocksyncServer {
     val server = bsyncServers.get(node)
     val result = server.syncServer()
     all {
-      bsyncServers' = bsyncServers.put(node, server),
+      bsyncServers' = bsyncServers.put(node, result.server),
       statusBuffer' = statusBuffer,
       requestsBuffer' = requestsBuffer,
       responsesBuffer' = match result.msg {

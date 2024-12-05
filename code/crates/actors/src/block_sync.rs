@@ -59,7 +59,7 @@ pub enum Msg<Ctx: Context> {
     Decided(Ctx::Height),
 
     /// Consensus has started a new height
-    StartHeight(Ctx::Height),
+    StartedHeight(Ctx::Height),
 
     /// Host has a response for the blocks request
     GotDecidedBlock(Ctx::Height, InboundRequestId, Option<SyncedBlock<Ctx>>),
@@ -287,7 +287,7 @@ where
                     .await?;
             }
 
-            Msg::StartHeight(height) => {
+            Msg::StartedHeight(height) => {
                 if let Some(height) = height.decrement() {
                     self.process_input(&myself, state, blocksync::Input::UpdateHeight(height))
                         .await?;

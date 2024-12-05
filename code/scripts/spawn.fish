@@ -8,10 +8,10 @@ set -x MALACHITE__CONSENSUS__TIMEOUT_PRECOMMIT "3s"
 set -x MALACHITE__CONSENSUS__TIMEOUT_COMMIT "0s"
 set -x MALACHITE__MEMPOOL__MAX_TX_COUNT 1000
 set -x MALACHITE__MEMPOOL__GOSSIP_BATCH_SIZE 0
-set -x MALACHITE__TEST__TX_SIZE "10 KiB"
+set -x MALACHITE__TEST__TX_SIZE "1 KiB"
 set -x MALACHITE__TEST__TXS_PER_PART 1024
 set -x MALACHITE__TEST__TIME_ALLOWANCE_FACTOR 0.5
-set -x MALACHITE__TEST__EXEC_TIME_PER_TX "100us"
+set -x MALACHITE__TEST__EXEC_TIME_PER_TX "1ms"
 set -x MALACHITE__TEST__MAX_RETAIN_BLOCKS 50
 set -x MALACHITE__TEST__VOTE_EXTENSIONS__ENABLED false
 set -x MALACHITE__TEST__VOTE_EXTENSIONS__SIZE "1KiB"
@@ -98,9 +98,12 @@ for NODE in (seq 0 $(math $NODES_COUNT - 1))
      mkdir -p "$NODE_HOME/traces"
 
      if ! $no_reset
-         echo "[Node $NODE] Resetting database"
+         echo "[Node $NODE] Resetting state"
+
          rm -rf "$NODE_HOME/db"
          mkdir -p "$NODE_HOME/db"
+         rm -rf "$NODE_HOME/wal"
+         mkdir -p "$NODE_HOME/wal"
      end
 
     set pane $(tmux new-window -P -n "node-$NODE" "$(which fish)")

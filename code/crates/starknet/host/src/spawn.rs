@@ -1,8 +1,9 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
-use tokio::sync::broadcast;
+use malachite_actors::util::events::TxEvent;
+use malachite_actors::wal::{Wal, WalRef};
 use tokio::task::JoinHandle;
 
 use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
@@ -12,7 +13,6 @@ use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
 use malachite_blocksync as blocksync;
-use malachite_common::CommitCertificate;
 use malachite_config::{
     self as config, BlockSyncConfig, Config as NodeConfig, MempoolConfig, TestConfig,
     TransportProtocol,
@@ -38,7 +38,7 @@ pub async fn spawn_node_actor(
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
     start_height: Option<Height>,
-    tx_decision: Option<broadcast::Sender<CommitCertificate<MockContext>>>,
+    tx_event: TxEvent<MockContext>,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(private_key);
 
@@ -57,7 +57,7 @@ pub async fn spawn_node_actor(
 
     // Spawn the host actor
     let host = spawn_host_actor(
-        home_dir,
+        &home_dir,
         &cfg,
         &address,
         &private_key,
@@ -78,6 +78,8 @@ pub async fn spawn_node_actor(
     )
     .await;
 
+    let wal = spawn_wal_actor(&ctx, &cfg.moniker, ProtobufCodec, &home_dir, &registry).await;
+
     // Spawn consensus
     let consensus = spawn_consensus_actor(
         start_height,
@@ -87,9 +89,10 @@ pub async fn spawn_node_actor(
         cfg,
         gossip_consensus.clone(),
         host.clone(),
+        wal.clone(),
         block_sync.clone(),
         metrics,
-        tx_decision,
+        tx_event,
     )
     .await;
 
@@ -99,6 +102,7 @@ pub async fn spawn_node_actor(
         gossip_consensus,
         consensus,
         gossip_mempool,
+        wal,
         block_sync,
         mempool.get_cell(),
         host,
@@ -108,6 +112,21 @@ pub async fn spawn_node_actor(
     let (actor_ref, handle) = node.spawn().await.unwrap();
 
     (actor_ref, handle)
+}
+
+async fn spawn_wal_actor(
+    ctx: &MockContext,
+    moniker: &str,
+    codec: ProtobufCodec,
+    home_dir: &Path,
+    registry: &SharedRegistry,
+) -> WalRef<MockContext> {
+    let wal_dir = home_dir.join("wal");
+    std::fs::create_dir_all(&wal_dir).unwrap();
+    let wal_file = wal_dir.join("consensus.wal");
+    Wal::spawn(ctx, moniker.to_string(), codec, wal_file, registry.clone())
+        .await
+        .unwrap()
 }
 
 async fn spawn_block_sync_actor(
@@ -143,9 +162,10 @@ async fn spawn_consensus_actor(
     cfg: NodeConfig,
     gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
+    wal: WalRef<MockContext>,
     block_sync: Option<BlockSyncRef<MockContext>>,
     metrics: Metrics,
-    tx_decision: Option<broadcast::Sender<CommitCertificate<MockContext>>>,
+    tx_event: TxEvent<MockContext>,
 ) -> ConsensusRef<MockContext> {
     let value_payload = match cfg.consensus.value_payload {
         malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
@@ -163,13 +183,15 @@ async fn spawn_consensus_actor(
 
     Consensus::spawn(
         ctx,
+        cfg.moniker.clone(),
         consensus_params,
         cfg.consensus.timeouts,
         gossip_consensus,
         host,
+        wal,
         block_sync,
         metrics,
-        tx_decision,
+        tx_event,
     )
     .await
     .unwrap()
@@ -257,7 +279,7 @@ async fn spawn_gossip_mempool_actor(
 
 #[allow(clippy::too_many_arguments)]
 async fn spawn_host_actor(
-    home_dir: PathBuf,
+    home_dir: &Path,
     cfg: &NodeConfig,
     address: &Address,
     private_key: &PrivateKey,
@@ -291,7 +313,13 @@ async fn spawn_host_actor(
         initial_validator_set.clone(),
     );
 
-    StarknetHost::spawn(home_dir, mock_host, mempool, gossip_consensus, metrics)
-        .await
-        .unwrap()
+    StarknetHost::spawn(
+        home_dir.to_owned(),
+        mock_host,
+        mempool,
+        gossip_consensus,
+        metrics,
+    )
+    .await
+    .unwrap()
 }

@@ -30,7 +30,11 @@ where
         %timeout.round,
         %height,
         %round,
-        "Timeout elapsed");
+        "Timeout elapsed"
+    );
+
+    // Persist the timeout in the Write-ahead Log
+    perform!(co, Effect::PersistTimeout(timeout));
 
     apply_driver_input(co, state, metrics, DriverInput::TimeoutElapsed(timeout)).await?;
 
