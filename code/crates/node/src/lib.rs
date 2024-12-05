@@ -3,17 +3,20 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 use std::future::Future;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use malachite_common::{Context, PrivateKey, PublicKey, VotingPower};
 use rand::{CryptoRng, RngCore};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+
+use malachite_common::{Context, PrivateKey, PublicKey, VotingPower};
 
 pub trait Node {
     type Context: Context;
     type Genesis: Serialize + DeserializeOwned;
     type PrivateKeyFile: Serialize + DeserializeOwned;
+
+    fn get_home_dir(&self) -> PathBuf;
 
     fn generate_private_key<R>(&self, rng: R) -> PrivateKey<Self::Context>
     where

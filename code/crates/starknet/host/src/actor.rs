@@ -9,7 +9,7 @@ use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
 use sha3::Digest;
 use tokio::time::Instant;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use malachite_actors::consensus::ConsensusMsg;
 use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
@@ -352,7 +352,11 @@ impl Actor for StarknetHost {
             HostMsg::ConsensusReady(consensus) => {
                 let latest_block_height = state.block_store.last_height().unwrap_or_default();
                 let start_height = latest_block_height.increment();
-                consensus.cast(ConsensusMsg::StartHeight(start_height))?;
+
+                consensus.cast(ConsensusMsg::StartHeight(
+                    start_height,
+                    state.host.validator_set.clone(),
+                ))?;
 
                 Ok(())
             }
@@ -382,6 +386,17 @@ impl Actor for StarknetHost {
                 address: _,
                 reply_to,
             } => {
+                // If we have already built a block for this height and round, return it
+                // This may happen when we are restarting after a crash and replaying the WAL.
+                if let Some(block) = state.block_store.get_undecided_block(height, round).await? {
+                    info!(%height, %round, hash = %block.block_hash, "Returning previously built block");
+
+                    let value = LocallyProposedValue::new(height, round, block.block_hash, None);
+                    reply_to.send(value)?;
+
+                    return Ok(());
+                }
+
                 let deadline = Instant::now() + timeout_duration;
 
                 debug!(%height, %round, "Building new proposal...");
@@ -629,7 +644,10 @@ impl Actor for StarknetHost {
                 state.host.decision(certificate).await;
 
                 // Start the next height
-                consensus.cast(ConsensusMsg::StartHeight(state.height.increment()))?;
+                consensus.cast(ConsensusMsg::StartHeight(
+                    state.height.increment(),
+                    state.host.validator_set.clone(),
+                ))?;
 
                 Ok(())
             }

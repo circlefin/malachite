@@ -28,7 +28,7 @@ fn decode_certificate(bytes: &[u8]) -> Result<CommitCertificate<MockContext>, Pr
     codec::decode_certificate(proto)
 }
 
-fn encode_certificate(certificate: CommitCertificate<MockContext>) -> Result<Vec<u8>, ProtoError> {
+fn encode_certificate(certificate: &CommitCertificate<MockContext>) -> Result<Vec<u8>, ProtoError> {
     let proto = codec::encode_certificate(certificate)?;
     Ok(proto.encode_to_vec())
 }
@@ -77,7 +77,7 @@ impl Db {
         })
     }
 
-    fn get(&self, height: Height) -> Result<Option<DecidedBlock>, StoreError> {
+    fn get_decided_block(&self, height: Height) -> Result<Option<DecidedBlock>, StoreError> {
         let tx = self.db.begin_read()?;
         let block = {
             let table = tx.open_table(DECIDED_BLOCKS_TABLE)?;
@@ -107,11 +107,32 @@ impl Db {
         }
         {
             let mut certificates = tx.open_table(CERTIFICATES_TABLE)?;
-            certificates.insert(height, encode_certificate(decided_block.certificate)?)?;
+            certificates.insert(height, encode_certificate(&decided_block.certificate)?)?;
         }
         tx.commit()?;
 
         Ok(())
+    }
+
+    pub fn get_undecided_block(
+        &self,
+        height: Height,
+        round: Round,
+    ) -> Result<Option<Block>, StoreError> {
+        let tx = self.db.begin_read()?;
+
+        let from = (height, round, BlockHash::new([0; 32]));
+        let to = (height, round, BlockHash::new([255; 32]));
+
+        let table = tx.open_table(UNDECIDED_BLOCKS_TABLE)?;
+        let keys = self.undecided_block_range(&table, from..to)?;
+        for key in keys {
+            if let Ok(Some(value)) = table.get(&key) {
+                return Ok(Block::from_bytes(&value.value()).ok());
+            }
+        }
+
+        Ok(None)
     }
 
     fn insert_undecided_block(
@@ -236,7 +257,7 @@ impl BlockStore {
 
     pub async fn get(&self, height: Height) -> Result<Option<DecidedBlock>, StoreError> {
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.get(height)).await?
+        tokio::task::spawn_blocking(move || db.get_decided_block(height)).await?
     }
 
     pub async fn store_decided_block(
@@ -265,6 +286,15 @@ impl BlockStore {
     ) -> Result<(), StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.insert_undecided_block(height, round, block)).await?
+    }
+
+    pub async fn get_undecided_block(
+        &self,
+        height: Height,
+        round: Round,
+    ) -> Result<Option<Block>, StoreError> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.get_undecided_block(height, round)).await?
     }
 
     pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {

@@ -222,7 +222,7 @@ where
         match msg {
             Msg::Subscribe(subscriber) => subscribers.push(subscriber),
 
-            Msg::Publish(msg) => match self.codec.encode(msg) {
+            Msg::Publish(msg) => match self.codec.encode(&msg) {
                 Ok(data) => ctrl_handle.publish(Channel::Consensus, data).await?,
                 Err(e) => error!("Failed to encode gossip message: {e:?}"),
             },
@@ -234,7 +234,7 @@ where
                     "Broadcasting proposal part"
                 );
 
-                let data = self.codec.encode(msg);
+                let data = self.codec.encode(&msg);
                 match data {
                     Ok(data) => ctrl_handle.publish(Channel::ProposalParts, data).await?,
                     Err(e) => error!("Failed to encode proposal part: {e:?}"),
@@ -248,7 +248,7 @@ where
                     earliest_block_height: status.earliest_block_height,
                 };
 
-                let data = self.codec.encode(status);
+                let data = self.codec.encode(&status);
                 match data {
                     Ok(data) => ctrl_handle.broadcast(Channel::BlockSync, data).await?,
                     Err(e) => error!("Failed to encode status message: {e:?}"),
@@ -256,7 +256,7 @@ where
             }
 
             Msg::OutgoingBlockSyncRequest(peer_id, request, reply_to) => {
-                let request = self.codec.encode(request);
+                let request = self.codec.encode(&request);
                 match request {
                     Ok(data) => {
                         let request_id = ctrl_handle.blocksync_request(peer_id, data).await?;
@@ -267,7 +267,7 @@ where
             }
 
             Msg::OutgoingBlockSyncResponse(request_id, response) => {
-                let msg = match self.codec.encode(response) {
+                let msg = match self.codec.encode(&response) {
                     Ok(msg) => msg,
                     Err(e) => {
                         error!(%request_id, "Failed to encode block response message: {e:?}");

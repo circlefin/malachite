@@ -379,7 +379,12 @@ async fn handle_swarm_event(
             cause,
             ..
         } => {
-            error!("Connection closed with {peer_id}: {:?}", cause);
+            if let Some(cause) = cause {
+                error!("Connection closed with {peer_id}, reason: {cause}");
+            } else {
+                error!("Connection closed with {peer_id}, reason: unknown");
+            }
+
             state.discovery.remove_peer(peer_id, connection_id);
         }
 

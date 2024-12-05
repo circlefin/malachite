@@ -17,9 +17,11 @@ malachite-consensus.workspace        = true
 malachite-gossip-consensus.workspace = true
 malachite-gossip-mempool.workspace   = true
 malachite-metrics.workspace          = true
+malachite-wal.workspace              = true
 
 async-trait        = { workspace = true }
 bytes              = { workspace = true, features = ["serde"] }
+byteorder          = { workspace = true }
 derive-where       = { workspace = true }
 eyre               = { workspace = true }
 libp2p             = { workspace = true }
