@@ -3,14 +3,12 @@ use crate::prelude::*;
 pub async fn on_step_limit_timeout<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
-    _metrics: &Metrics,
+    metrics: &Metrics,
     round: Round,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    // TODO - Update metrics
-
     debug!(
         "on_step_limit_timeout {:?} {} {}",
         state.driver.step(),
@@ -19,6 +17,7 @@ where
     );
 
     perform!(co, Effect::GetVoteSet(state.driver.height(), round));
+    metrics.step_timeouts.inc();
 
     if state.driver.step_is_prevote() {
         debug!("VS1 - node has stayed too long in the prevote step");
