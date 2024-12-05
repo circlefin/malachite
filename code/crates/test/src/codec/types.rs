@@ -96,7 +96,7 @@ impl From<RawStreamMessage> for StreamMessage<ProposalPart> {
 
 #[derive(Serialize, Deserialize)]
 pub struct RawStatus {
-    pub peer_id: PeerId,
+    pub peer_id: Vec<u8>,
     pub height: Height,
     pub earliest_block_height: Height,
 }
@@ -104,7 +104,7 @@ pub struct RawStatus {
 impl From<Status<TestContext>> for RawStatus {
     fn from(value: Status<TestContext>) -> Self {
         Self {
-            peer_id: value.peer_id,
+            peer_id: value.peer_id.to_bytes(),
             height: value.height,
             earliest_block_height: value.earliest_block_height,
         }
@@ -114,7 +114,7 @@ impl From<Status<TestContext>> for RawStatus {
 impl From<RawStatus> for Status<TestContext> {
     fn from(value: RawStatus) -> Self {
         Self {
-            peer_id: value.peer_id,
+            peer_id: PeerId::from_bytes(&value.peer_id).unwrap(),
             height: value.height,
             earliest_block_height: value.earliest_block_height,
         }
