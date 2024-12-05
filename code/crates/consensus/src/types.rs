@@ -4,7 +4,7 @@ use malachite_common::{
     Context, Proposal, Round, SignedExtension, SignedProposal, SignedVote, Validity, Vote,
 };
 
-pub use libp2p_identity::PeerId;
+pub use malachite_peer::PeerId;
 pub use multiaddr::Multiaddr;
 
 /// A signed consensus message, ie. a signed vote or a signed proposal.

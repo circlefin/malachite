@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use libp2p_identity::PeerId;
 use prost::Message;
 
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
@@ -9,7 +8,7 @@ use malachite_common::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
     SignedProposal, SignedVote, Validity,
 };
-use malachite_consensus::{ProposedValue, SignedConsensusMsg};
+use malachite_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
 
 use crate::proto::consensus_message::Messages;
 use crate::proto::{self as proto, Error as ProtoError, Protobuf};
