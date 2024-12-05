@@ -352,7 +352,11 @@ impl Actor for StarknetHost {
             HostMsg::ConsensusReady(consensus) => {
                 let latest_block_height = state.block_store.last_height().unwrap_or_default();
                 let start_height = latest_block_height.increment();
-                consensus.cast(ConsensusMsg::StartHeight(start_height))?;
+
+                consensus.cast(ConsensusMsg::StartHeight(
+                    start_height,
+                    state.host.validator_set.clone(),
+                ))?;
 
                 Ok(())
             }
@@ -629,7 +633,10 @@ impl Actor for StarknetHost {
                 state.host.decision(certificate).await;
 
                 // Start the next height
-                consensus.cast(ConsensusMsg::StartHeight(state.height.increment()))?;
+                consensus.cast(ConsensusMsg::StartHeight(
+                    state.height.increment(),
+                    state.host.validator_set.clone(),
+                ))?;
 
                 Ok(())
             }

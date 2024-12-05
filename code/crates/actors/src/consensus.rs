@@ -53,8 +53,8 @@ where
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
 
 pub enum Msg<Ctx: Context> {
-    /// Start consensus for the given height
-    StartHeight(Ctx::Height),
+    /// Start consensus for the given height with the given validator set
+    StartHeight(Ctx::Height, Ctx::ValidatorSet),
 
     /// Received an event from the gossip layer
     GossipEvent(GossipEvent<Ctx>),
@@ -192,15 +192,6 @@ where
         state: &mut State<Ctx>,
         input: ConsensusInput<Ctx>,
     ) -> Result<(), ConsensusError<Ctx>> {
-        // Notify the BlockSync actor that we have started a new height
-        if let (ConsensusInput::StartHeight(height, _), Some(block_sync)) =
-            (&input, &self.block_sync)
-        {
-            let _ = block_sync
-                .cast(BlockSyncMsg::StartHeight(*height))
-                .inspect_err(|e| error!("Error when sending start height to BlockSync: {e:?}"));
-        }
-
         malachite_consensus::process!(
             input: input,
             state: &mut state.consensus,
@@ -218,9 +209,7 @@ where
         msg: Msg<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            Msg::StartHeight(height) => {
-                let validator_set = self.get_validator_set(height).await?;
-
+            Msg::StartHeight(height, validator_set) => {
                 let result = self
                     .process_input(
                         &myself,
@@ -230,7 +219,16 @@ where
                     .await;
 
                 if let Err(e) = result {
-                    error!("Error when starting height {height}: {e:?}");
+                    error!(%height, "Error when starting height: {e:?}");
+                }
+
+                // Notify the BlockSync actor that we have started a new height
+                if let Some(block_sync) = &self.block_sync {
+                    let _ = block_sync
+                        .cast(BlockSyncMsg::StartedHeight(height))
+                        .inspect_err(|e| {
+                            error!("Error when sending start height to BlockSync: {e:?}")
+                        });
                 }
 
                 Ok(())
