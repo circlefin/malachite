@@ -2798,8 +2798,8 @@ dependencies = [
  "malachite-gossip-consensus",
  "malachite-metrics",
  "malachite-node",
- "malachite-test",
  "malachite-peer",
+ "malachite-test",
  "ractor",
  "rand",
  "tokio",
@@ -3008,7 +3008,7 @@ dependencies = [
  "multihash",
  "rand",
  "serde",
- "thiserror 2.0.3",
+ "thiserror 2.0.4",
 ]
 
 [[package]]
