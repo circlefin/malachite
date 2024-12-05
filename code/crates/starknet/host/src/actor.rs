@@ -11,7 +11,9 @@ use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
 use malachite_actors::consensus::{ConsensusMsg, ConsensusRef};
-use malachite_actors::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef};
+use malachite_actors::gossip_consensus::{
+    GossipConsensusMsg as GossipMsg, GossipConsensusRef as GossipRef,
+};
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_blocksync::SyncedBlock;
@@ -27,7 +29,7 @@ use crate::types::*;
 
 pub struct Host {
     mempool: MempoolRef,
-    gossip: GossipConsensusRef<MockContext>,
+    gossip: GossipRef<MockContext>,
     metrics: Metrics,
 }
 
@@ -39,7 +41,7 @@ impl Host {
         home_dir: PathBuf,
         host: StarknetHost,
         mempool: MempoolRef,
-        gossip: GossipConsensusRef<MockContext>,
+        gossip: GossipRef<MockContext>,
         metrics: Metrics,
     ) -> Result<HostRef, SpawnErr> {
         let db_dir = home_dir.join("db");
@@ -56,11 +58,7 @@ impl Host {
         Ok(actor_ref)
     }
 
-    pub fn new(
-        mempool: MempoolRef,
-        gossip: GossipConsensusRef<MockContext>,
-        metrics: Metrics,
-    ) -> Self {
+    pub fn new(mempool: MempoolRef, gossip: GossipRef<MockContext>, metrics: Metrics) -> Self {
         Self {
             mempool,
             gossip,
@@ -208,6 +206,7 @@ fn on_get_earliest_block_height(
 ) -> Result<(), ActorProcessingErr> {
     let earliest_block_height = state.block_store.first_height().unwrap_or_default();
     reply_to.send(earliest_block_height)?;
+
     Ok(())
 }
 
@@ -216,17 +215,17 @@ async fn on_get_validator_set(
     height: Height,
     reply_to: RpcReplyPort<ValidatorSet>,
 ) -> Result<(), ActorProcessingErr> {
-    if let Some(validators) = state.host.validators(height).await {
-        reply_to.send(ValidatorSet::new(validators))?;
-        Ok(())
-    } else {
-        Err(eyre!("No validator set found for the given height {height}").into())
-    }
+    let Some(validators) = state.host.validators(height).await else {
+        return Err(eyre!("No validator set found for the given height {height}").into());
+    };
+
+    reply_to.send(ValidatorSet::new(validators))?;
+    Ok(())
 }
 
 async fn on_get_value(
     state: &mut HostState,
-    gossip: &GossipConsensusRef<MockContext>,
+    gossip: &GossipRef<MockContext>,
     height: Height,
     round: Round,
     timeout: Duration,
@@ -260,7 +259,7 @@ async fn on_get_value(
             debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
             let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(part.clone()));
-            gossip.cast(GossipConsensusMsg::PublishProposalPart(msg))?;
+            gossip.cast(GossipMsg::PublishProposalPart(msg))?;
         }
 
         sequence += 1;
@@ -268,7 +267,7 @@ async fn on_get_value(
 
     if state.host.params.value_payload.include_parts() {
         let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin(true));
-        gossip.cast(GossipConsensusMsg::PublishProposalPart(msg))?;
+        gossip.cast(GossipMsg::PublishProposalPart(msg))?;
     }
 
     let block_hash = rx_hash.await?;
@@ -306,7 +305,7 @@ async fn on_get_value(
 
 async fn on_restream_value(
     state: &mut HostState,
-    gossip: &GossipConsensusRef<MockContext>,
+    gossip: &GossipRef<MockContext>,
     height: Height,
     round: Round,
     value_id: Hash,
@@ -349,7 +348,7 @@ async fn on_restream_value(
 
             let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(new_part));
 
-            gossip.cast(GossipConsensusMsg::PublishProposalPart(msg))?;
+            gossip.cast(GossipMsg::PublishProposalPart(msg))?;
 
             sequence += 1;
         }
