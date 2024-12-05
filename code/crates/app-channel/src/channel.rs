@@ -86,7 +86,7 @@ pub enum AppMsg<Ctx: Context> {
 
 #[derive_where(Debug)]
 pub enum ConsensusMsg<Ctx: Context> {
-    StartHeight(Ctx::Height),
+    StartHeight(Ctx::Height, Ctx::ValidatorSet),
 }
 
 use malachite_actors::consensus::Msg as ConsensusActorMsg;
@@ -94,7 +94,9 @@ use malachite_actors::consensus::Msg as ConsensusActorMsg;
 impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {
     fn from(msg: ConsensusMsg<Ctx>) -> ConsensusActorMsg<Ctx> {
         match msg {
-            ConsensusMsg::StartHeight(height) => ConsensusActorMsg::StartHeight(height),
+            ConsensusMsg::StartHeight(height, validator_set) => {
+                ConsensusActorMsg::StartHeight(height, validator_set)
+            }
         }
     }
 }

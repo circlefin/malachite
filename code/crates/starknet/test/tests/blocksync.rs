@@ -1,14 +1,18 @@
 use std::time::Duration;
 
 use malachite_config::ValuePayload;
-use malachite_starknet_test::{Test, TestNode, TestParams};
+use malachite_starknet_test::{init_logging, TestBuilder, TestParams};
 
 pub async fn crash_restart_from_start(params: TestParams) {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 10;
 
+    let mut test = TestBuilder::<()>::new();
+
     // Node 1 starts with 10 voting power.
-    let n1 = TestNode::new(1)
-        .vp(10)
+    test.add_node()
+        .with_voting_power(10)
         .start()
         // Wait until it reaches height 10
         .wait_until(HEIGHT)
@@ -16,11 +20,15 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .success();
 
     // Node 2 starts with 10 voting power, in parallel with node 1 and with the same behaviour
-    let n2 = TestNode::new(2).vp(10).start().wait_until(HEIGHT).success();
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
 
     // Node 3 starts with 5 voting power, in parallel with node 1 and 2.
-    let n3 = TestNode::new(3)
-        .vp(5)
+    test.add_node()
+        .with_voting_power(5)
         .start()
         // Wait until the node reaches height 2...
         .wait_until(2)
@@ -35,7 +43,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         // Record a successful test for this node
         .success();
 
-    Test::new([n1, n2, n3])
+    test.build()
         .run_with_custom_config(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
@@ -78,12 +86,25 @@ pub async fn crash_restart_from_start_proposal_and_parts() {
 
 #[tokio::test]
 pub async fn crash_restart_from_latest() {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 10;
 
-    let n1 = TestNode::new(1).vp(10).start().wait_until(HEIGHT).success();
-    let n2 = TestNode::new(2).vp(10).start().wait_until(HEIGHT).success();
-    let n3 = TestNode::new(3)
-        .vp(5)
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    test.add_node()
+        .with_voting_power(5)
         .start()
         .wait_until(2)
         .crash()
@@ -92,7 +113,7 @@ pub async fn crash_restart_from_latest() {
         .wait_until(HEIGHT)
         .success();
 
-    Test::new([n1, n2, n3])
+    test.build()
         .run_with_custom_config(
             Duration::from_secs(60),
             TestParams {
@@ -105,14 +126,26 @@ pub async fn crash_restart_from_latest() {
 
 #[tokio::test]
 pub async fn aggressive_pruning() {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 15;
 
-    // Node 1 starts with 10 voting power.
-    let n1 = TestNode::new(1).vp(10).start().wait_until(HEIGHT).success();
-    let n2 = TestNode::new(2).vp(10).start().wait_until(HEIGHT).success();
+    let mut test = TestBuilder::<()>::new();
 
-    let n3 = TestNode::new(3)
-        .vp(5)
+    // Node 1 starts with 10 voting power.
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+    test.add_node()
+        .with_voting_power(10)
+        .start()
+        .wait_until(HEIGHT)
+        .success();
+
+    test.add_node()
+        .with_voting_power(5)
         .start()
         .wait_until(2)
         .crash()
@@ -121,7 +154,7 @@ pub async fn aggressive_pruning() {
         .wait_until(HEIGHT)
         .success();
 
-    Test::new([n1, n2, n3])
+    test.build()
         .run_with_custom_config(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {

@@ -1,40 +1,44 @@
+use malachite_actors::util::events::TxEvent;
+use malachite_actors::wal::WalCodec;
 use tokio::sync::mpsc;
 
-use malachite_actors::util::codec::NetworkCodec;
 use malachite_actors::util::streaming::StreamMessage;
+use malachite_codec as codec;
 use malachite_common::Context;
 use malachite_config::Config as NodeConfig;
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::Keypair;
 use malachite_metrics::{Metrics, SharedRegistry};
-use malachite_node::Node;
+use malachite_node as node;
 
 use crate::channel::AppMsg;
 use crate::spawn::{
     spawn_block_sync_actor, spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_host_actor,
+    spawn_wal_actor,
 };
 
 // Todo: Remove clippy exception when the function signature is finalized
 #[allow(clippy::too_many_arguments)]
-pub async fn run<N, Ctx, Codec>(
+pub async fn run<Ctx, Node, Codec>(
     cfg: NodeConfig,
     start_height: Option<Ctx::Height>,
     ctx: Ctx,
-    _node: N, // we will need it to get private/public key, address and eventually KeyPair
+    node: Node,
     codec: Codec,
     keypair: Keypair,      // Todo: see note in code
     address: Ctx::Address, // Todo: remove it when Node was properly implemented
     initial_validator_set: Ctx::ValidatorSet,
 ) -> Result<mpsc::Receiver<AppMsg<Ctx>>, String>
 where
-    N: Node<Context = Ctx>,
     Ctx: Context,
-    Codec: NetworkCodec<Ctx::ProposalPart>,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
-    Codec: NetworkCodec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: NetworkCodec<malachite_blocksync::Status<Ctx>>,
-    Codec: NetworkCodec<malachite_blocksync::Request<Ctx>>,
-    Codec: NetworkCodec<malachite_blocksync::Response<Ctx>>,
+    Node: node::Node<Context = Ctx>,
+    Codec: WalCodec<Ctx> + Clone,
+    Codec: codec::Codec<Ctx::ProposalPart>,
+    Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+    Codec: codec::Codec<malachite_blocksync::Status<Ctx>>,
+    Codec: codec::Codec<malachite_blocksync::Request<Ctx>>,
+    Codec: codec::Codec<malachite_blocksync::Response<Ctx>>,
 {
     let start_height = start_height.unwrap_or_default();
 
@@ -54,7 +58,10 @@ where
     // Keypair::from(ecdsa_keypair)
 
     // Spawn consensus gossip
-    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, keypair, &registry, codec).await;
+    let gossip_consensus =
+        spawn_gossip_consensus_actor(&cfg, keypair, &registry, codec.clone()).await;
+
+    let wal = spawn_wal_actor(&ctx, &cfg.moniker, codec, &node.get_home_dir(), &registry).await;
 
     // Spawn the host actor
     let (connector, rx) = spawn_host_actor(metrics.clone()).await;
@@ -74,13 +81,14 @@ where
         start_height,
         initial_validator_set,
         address,
-        ctx.clone(),
+        ctx,
         cfg,
-        gossip_consensus.clone(),
-        connector.clone(),
+        gossip_consensus,
+        connector,
+        wal,
         block_sync.clone(),
         metrics,
-        None, // tx_decision
+        TxEvent::new(),
     )
     .await;
 
