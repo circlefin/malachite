@@ -18,6 +18,7 @@ use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_blocksync::{PeerId, SyncedBlock};
 use malachite_common::{CommitCertificate, Round, Validity};
+use malachite_consensus::PeerId;
 use malachite_metrics::Metrics;
 
 use crate::host::proposal::compute_proposal_signature;
