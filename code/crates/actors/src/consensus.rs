@@ -592,7 +592,7 @@ where
             |reply| HostMsg::GetValue {
                 height,
                 round,
-                timeout_duration,
+                timeout: timeout_duration,
                 address: self.params.address.clone(),
                 reply_to: reply,
             },
