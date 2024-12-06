@@ -52,10 +52,12 @@ impl ConnectionData {
         if let Some(peer_id) = self.peer_id {
             DialOpts::peer_id(peer_id)
                 .addresses(vec![self.multiaddr.clone()])
+                .allocate_new_port()
                 .build()
         } else {
             DialOpts::unknown_peer_id()
                 .address(self.multiaddr.clone())
+                .allocate_new_port()
                 .build()
         }
     }
