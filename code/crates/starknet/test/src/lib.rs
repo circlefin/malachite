@@ -658,7 +658,7 @@ fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
 }
 
 pub fn make_node_config<S>(test: &Test<S>, i: usize) -> NodeConfig {
-    let transport = transport_from_env(TransportProtocol::Quic);
+    let transport = transport_from_env(TransportProtocol::Tcp);
     let protocol = PubSubProtocol::default();
 
     NodeConfig {
