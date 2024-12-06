@@ -4,7 +4,7 @@ pub fn generate_test_traces(spec_rel_path: &str, gen_dir: &str, quint_seed: u64)
     println!("🪄 Generating test traces for {spec_rel_path:?}...");
 
     let spec_abs_path = format!(
-        "{}/../../../../specs/quint/{spec_rel_path}",
+        "{}/../../../../specs/consensus/quint/{spec_rel_path}",
         env!("CARGO_MANIFEST_DIR"),
     );
 

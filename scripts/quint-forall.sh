@@ -1,48 +1,48 @@
-#!/usr/bin/env bash
+#!/bin/bash
+#
+# Run `quint` with the provided command on all provided files.
+# Filenames are read from the standard input (stdin).
+#
 
-BLUE=$(tput setaf 4)
-RED=$(tput setaf 1)
-RESET=$(tput sgr0)
 UNDERLINE=$(tput smul)
+RESET=$(tput sgr0)
+
+CMD=$@
+if [ -z "$CMD" ] ; then
+	echo "${UNDERLINE}Usage:${RESET} $0 <command>"
+	exit 1
+fi
 
 # [INFO] message in blue
-info()
-{
-  echo "${BLUE}[INFO] $*${RESET}"
+BLUE=$(tput setaf 4)
+info() {
+	echo "${BLUE}[INFO] $*${RESET}"
 } 
 
 # [ERROR] message in red
-error()
-{
-  echo "${RED}[ERROR] $*${RESET} "
+RED=$(tput setaf 1)
+error() {
+	echo "${RED}[ERROR] $*${RESET} "
 }
 
-# Run `quint $command` on all given files.
+FAILED=0
+FAILED_FILES=()
 
-cmd="$1"
-files=("${@:2}")
-
-if [[ "${#files[@]}" -eq 0 ]]; then
-  echo "${UNDERLINE}Usage:${RESET} $0 <command> <file> [<file> ...]"
-  exit 1
-fi
-
-failed=0
-failed_files=()
-
-for file in "${files[@]}"; do
-  info "Running: quint $cmd ${UNDERLINE}$file"
-  if ! time npx @informalsystems/quint $cmd "$file"; then
-    failed_files+=("$file")
-    failed=$((failed + 1))
-  fi
-  echo ""
+# Read input files, one per line
+while IFS="" read -r file; do
+	info "Running: quint $CMD ${UNDERLINE}$file"
+	if ! time npx @informalsystems/quint $CMD "$file"; then
+		FAILED_FILES+=("$file")
+		FAILED=$((FAILED + 1))
+	fi
+	echo ""
 done
 
-if [[ "$failed" -gt 0 ]]; then
-  error "Failed on $failed files:"
-  for file in "${failed_files[@]}"; do
-    error " - ${UNDERLINE}$file"
-  done
-  exit 1
+if [ "$FAILED" -gt 0 ]; then
+	error "Failed on $FAILED files:"
+	for file in "${FAILED_FILES[@]}"; do
+		error " - ${UNDERLINE}$file"
+	done
 fi
+
+exit $FAILED
