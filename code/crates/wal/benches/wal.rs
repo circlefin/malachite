@@ -131,9 +131,9 @@ fn bench_sequential_write(path: &PathBuf, config: &BenchConfig) {
     let data = vec![0u8; config.entry_size];
 
     for i in 0..config.batch_size {
-        wal.write(&data).unwrap();
+        wal.append(&data).unwrap();
         if i % config.sync_interval == 0 {
-            wal.sync().unwrap();
+            wal.flush().unwrap();
         }
     }
 
@@ -152,9 +152,9 @@ fn setup_wal_for_reading(path: &PathBuf, config: &BenchConfig) {
     let data = vec![0u8; config.entry_size];
 
     for i in 0..config.batch_size {
-        wal.write(&data).unwrap();
+        wal.append(&data).unwrap();
         if i % config.sync_interval == 0 {
-            wal.sync().unwrap();
+            wal.flush().unwrap();
         }
     }
 }
@@ -165,9 +165,9 @@ fn bench_batch_write(path: &PathBuf, config: &BenchConfig) {
     let data = vec![0u8; config.entry_size];
 
     for _ in 0..config.batch_size {
-        wal.write(&data).unwrap();
+        wal.append(&data).unwrap();
     }
-    wal.sync().unwrap();
+    wal.flush().unwrap();
     fs::remove_file(path).unwrap();
 }
 
@@ -177,9 +177,9 @@ fn bench_sync_interval(path: &PathBuf, config: &BenchConfig) {
     let data = vec![0u8; config.entry_size];
 
     for i in 0..config.batch_size {
-        wal.write(&data).unwrap();
+        wal.append(&data).unwrap();
         if i % config.sync_interval == 0 {
-            wal.sync().unwrap();
+            wal.flush().unwrap();
         }
     }
 }
@@ -197,8 +197,8 @@ fn bench_small_writes_frequent_sync(c: &mut Criterion) {
             let data = vec![0u8; 64];
 
             for _ in 0..100 {
-                wal.write(&data).unwrap();
-                wal.sync().unwrap();
+                wal.append(&data).unwrap();
+                wal.flush().unwrap();
             }
             fs::remove_file(path).unwrap();
         });
@@ -223,9 +223,9 @@ fn bench_random_access(c: &mut Criterion) {
             for _ in 0..100 {
                 let size = rng.gen_range(64..4096);
                 let data = vec![0u8; size];
-                wal.write(&data).unwrap();
+                wal.append(&data).unwrap();
             }
-            wal.sync().unwrap();
+            wal.flush().unwrap();
             fs::remove_file(path).unwrap();
         });
     });

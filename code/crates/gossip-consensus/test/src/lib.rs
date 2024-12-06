@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use libp2p_identity::{ecdsa, PeerId};
 use malachite_config::TransportProtocol;
-use malachite_gossip_consensus::{spawn, Config, DiscoveryConfig, Keypair};
+use malachite_gossip_consensus::{spawn, Config, DiscoveryConfig, Keypair, PeerIdExt};
 use malachite_metrics::SharedRegistry;
 use malachite_starknet_host::types::PrivateKey;
 use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -207,12 +207,12 @@ impl<const N: usize> Test<N> {
                         event = handle.recv() => {
                             match event {
                                 Some(malachite_gossip_consensus::Event::PeerConnected(peer_id)) => {
-                                    if !peers.contains(&peer_id) {
-                                        peers.push(peer_id);
+                                    if !peers.contains(&peer_id.to_libp2p()) {
+                                        peers.push(peer_id.to_libp2p());
                                     }
                                 }
                                 Some(malachite_gossip_consensus::Event::PeerDisconnected(peer_id)) => {
-                                    if let Some(pos) = peers.iter().position(|p| p == &peer_id) {
+                                    if let Some(pos) = peers.iter().position(|p| p == &peer_id.to_libp2p()) {
                                         peers.remove(pos);
                                     }
                                 }

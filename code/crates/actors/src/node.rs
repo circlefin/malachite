@@ -10,6 +10,7 @@ use crate::consensus::ConsensusRef;
 use crate::gossip_consensus::GossipConsensusRef;
 use crate::gossip_mempool::GossipMempoolRef;
 use crate::host::HostRef;
+use crate::wal::WalRef;
 
 pub type NodeRef = ActorRef<()>;
 
@@ -19,6 +20,7 @@ pub struct Node<Ctx: Context> {
     gossip_consensus: GossipConsensusRef<Ctx>,
     consensus: ConsensusRef<Ctx>,
     gossip_mempool: GossipMempoolRef,
+    wal: WalRef<Ctx>,
     block_sync: Option<BlockSyncRef<Ctx>>,
     mempool: ActorCell,
     host: HostRef<Ctx>,
@@ -35,6 +37,7 @@ where
         gossip_consensus: GossipConsensusRef<Ctx>,
         consensus: ConsensusRef<Ctx>,
         gossip_mempool: GossipMempoolRef,
+        wal: WalRef<Ctx>,
         block_sync: Option<BlockSyncRef<Ctx>>,
         mempool: ActorCell,
         host: HostRef<Ctx>,
@@ -45,6 +48,7 @@ where
             gossip_consensus,
             consensus,
             gossip_mempool,
+            wal,
             block_sync,
             mempool,
             host,
@@ -77,6 +81,7 @@ where
         self.mempool.link(myself.get_cell());
         self.host.link(myself.get_cell());
         self.gossip_mempool.link(myself.get_cell());
+        self.wal.link(myself.get_cell());
 
         if let Some(actor) = &self.block_sync {
             actor.link(myself.get_cell());

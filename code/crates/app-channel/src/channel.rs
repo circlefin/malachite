@@ -2,14 +2,13 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
-use libp2p_identity::PeerId;
 use tokio::sync::oneshot;
 
 use malachite_actors::host::LocallyProposedValue;
 use malachite_actors::util::streaming::StreamMessage;
 use malachite_blocksync::SyncedBlock;
 use malachite_common::{CommitCertificate, Context, Round, ValueId};
-use malachite_consensus::ProposedValue;
+use malachite_consensus::{PeerId, ProposedValue};
 
 /// Messages that will be sent on the channel.
 #[derive_where(Debug)]
@@ -86,7 +85,7 @@ pub enum AppMsg<Ctx: Context> {
 
 #[derive_where(Debug)]
 pub enum ConsensusMsg<Ctx: Context> {
-    StartHeight(Ctx::Height),
+    StartHeight(Ctx::Height, Ctx::ValidatorSet),
 }
 
 use malachite_actors::consensus::Msg as ConsensusActorMsg;
@@ -94,7 +93,9 @@ use malachite_actors::consensus::Msg as ConsensusActorMsg;
 impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {
     fn from(msg: ConsensusMsg<Ctx>) -> ConsensusActorMsg<Ctx> {
         match msg {
-            ConsensusMsg::StartHeight(height) => ConsensusActorMsg::StartHeight(height),
+            ConsensusMsg::StartHeight(height, validator_set) => {
+                ConsensusActorMsg::StartHeight(height, validator_set)
+            }
         }
     }
 }

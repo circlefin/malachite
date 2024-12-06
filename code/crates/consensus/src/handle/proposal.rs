@@ -2,10 +2,10 @@ use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
 use crate::handle::validator_set::get_validator_set;
 use crate::input::Input;
-use crate::prelude::*;
 use crate::types::ConsensusMsg;
 use crate::util::pretty::PrettyProposal;
 use crate::ProposedValue;
+use crate::{prelude::*, SignedConsensusMsg};
 
 pub async fn on_proposal<Ctx>(
     co: &Co<Ctx>,
@@ -62,9 +62,19 @@ where
         return Ok(());
     }
 
-    assert_eq!(proposal_height, consensus_height);
+    debug_assert_eq!(proposal_height, consensus_height);
 
+    // Store the proposal in the full proposal keeper
     state.store_proposal(signed_proposal.clone());
+
+    // If consensus runs in a mode where it publishes proposals over the network,
+    // we need to persist in the Write-Ahead Log before we actually send it over the network.
+    if state.params.value_payload.include_proposal() {
+        perform!(
+            co,
+            Effect::PersistMessage(SignedConsensusMsg::Proposal(signed_proposal.clone()))
+        );
+    }
 
     if state.params.value_payload.proposal_only() {
         // TODO - pass the received value up to the host that will verify and give back validity and extension.

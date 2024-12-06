@@ -11,13 +11,13 @@ use tracing::{error, trace};
 
 use malachite_blocksync::{self as blocksync, Response};
 use malachite_blocksync::{RawMessage, Request};
+use malachite_codec as codec;
 use malachite_common::{Context, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
 use malachite_metrics::SharedRegistry;
 
-use crate::util::codec::NetworkCodec;
 use crate::util::streaming::StreamMessage;
 
 pub type GossipConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
@@ -40,12 +40,12 @@ impl<Ctx, Codec> GossipConsensus<Ctx, Codec> {
 impl<Ctx, Codec> GossipConsensus<Ctx, Codec>
 where
     Ctx: Context,
-    Codec: NetworkCodec<Ctx::ProposalPart>,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
-    Codec: NetworkCodec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: NetworkCodec<blocksync::Status<Ctx>>,
-    Codec: NetworkCodec<blocksync::Request<Ctx>>,
-    Codec: NetworkCodec<blocksync::Response<Ctx>>,
+    Codec: codec::Codec<Ctx::ProposalPart>,
+    Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+    Codec: codec::Codec<blocksync::Status<Ctx>>,
+    Codec: codec::Codec<blocksync::Request<Ctx>>,
+    Codec: codec::Codec<blocksync::Response<Ctx>>,
 {
     pub async fn spawn(
         keypair: Keypair,
@@ -156,12 +156,12 @@ impl<Ctx, Codec> Actor for GossipConsensus<Ctx, Codec>
 where
     Ctx: Context,
     Codec: Send + Sync + 'static,
-    Codec: NetworkCodec<Ctx::ProposalPart>,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
-    Codec: NetworkCodec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: NetworkCodec<blocksync::Status<Ctx>>,
-    Codec: NetworkCodec<blocksync::Request<Ctx>>,
-    Codec: NetworkCodec<blocksync::Response<Ctx>>,
+    Codec: codec::Codec<Ctx::ProposalPart>,
+    Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+    Codec: codec::Codec<blocksync::Status<Ctx>>,
+    Codec: codec::Codec<blocksync::Request<Ctx>>,
+    Codec: codec::Codec<blocksync::Response<Ctx>>,
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
@@ -222,7 +222,7 @@ where
         match msg {
             Msg::Subscribe(subscriber) => subscribers.push(subscriber),
 
-            Msg::Publish(msg) => match self.codec.encode(msg) {
+            Msg::Publish(msg) => match self.codec.encode(&msg) {
                 Ok(data) => ctrl_handle.publish(Channel::Consensus, data).await?,
                 Err(e) => error!("Failed to encode gossip message: {e:?}"),
             },
@@ -234,7 +234,7 @@ where
                     "Broadcasting proposal part"
                 );
 
-                let data = self.codec.encode(msg);
+                let data = self.codec.encode(&msg);
                 match data {
                     Ok(data) => ctrl_handle.publish(Channel::ProposalParts, data).await?,
                     Err(e) => error!("Failed to encode proposal part: {e:?}"),
@@ -248,7 +248,7 @@ where
                     earliest_block_height: status.earliest_block_height,
                 };
 
-                let data = self.codec.encode(status);
+                let data = self.codec.encode(&status);
                 match data {
                     Ok(data) => ctrl_handle.broadcast(Channel::BlockSync, data).await?,
                     Err(e) => error!("Failed to encode status message: {e:?}"),
@@ -256,7 +256,7 @@ where
             }
 
             Msg::OutgoingBlockSyncRequest(peer_id, request, reply_to) => {
-                let request = self.codec.encode(request);
+                let request = self.codec.encode(&request);
                 match request {
                     Ok(data) => {
                         let request_id = ctrl_handle.blocksync_request(peer_id, data).await?;
@@ -267,7 +267,7 @@ where
             }
 
             Msg::OutgoingBlockSyncResponse(request_id, response) => {
-                let msg = match self.codec.encode(response) {
+                let msg = match self.codec.encode(&response) {
                     Ok(msg) => msg,
                     Err(e) => {
                         error!(%request_id, "Failed to encode block response message: {e:?}");

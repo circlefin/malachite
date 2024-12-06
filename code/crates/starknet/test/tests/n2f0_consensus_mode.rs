@@ -1,15 +1,19 @@
 use std::time::Duration;
 
 use malachite_config::ValuePayload;
-use malachite_starknet_test::{Test, TestNode, TestParams};
+use malachite_starknet_test::{init_logging, TestBuilder, TestParams};
 
 async fn run_test(params: TestParams) {
+    init_logging(module_path!());
+
     const HEIGHT: u64 = 5;
 
-    let n1 = TestNode::new(1).start().wait_until(HEIGHT).success();
-    let n2 = TestNode::new(2).start().wait_until(HEIGHT).success();
+    let mut test = TestBuilder::<()>::new();
 
-    Test::new([n1, n2])
+    test.add_node().start().wait_until(HEIGHT).success();
+    test.add_node().start().wait_until(HEIGHT).success();
+
+    test.build()
         .run_with_custom_config(Duration::from_secs(30), params)
         .await
 }

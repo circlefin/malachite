@@ -1,9 +1,10 @@
 use bytes::Bytes;
 use libp2p::request_response::InboundRequestId;
-use libp2p::PeerId;
-use malachite_blocksync::OutboundRequestId;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
+
+use malachite_blocksync::OutboundRequestId;
+use malachite_peer::PeerId;
 
 use crate::{Channel, CtrlMsg, Event};
 

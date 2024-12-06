@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
+use malachite_actors::util::events::TxEvent;
 use rand::{CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
 use tracing::{info, Instrument};
 
 use malachite_common::VotingPower;
@@ -10,7 +12,32 @@ use malachite_node::Node;
 use crate::spawn::spawn_node_actor;
 use crate::types::Height;
 use crate::types::MockContext;
-use crate::types::{PrivateKey, PublicKey, Validator, ValidatorSet};
+use crate::types::{Address, PrivateKey, PublicKey, Validator, ValidatorSet};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Genesis {
+    pub validator_set: ValidatorSet,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PrivateKeyFile {
+    pub private_key: PrivateKey,
+    pub public_key: PublicKey,
+    pub address: Address,
+}
+
+impl From<PrivateKey> for PrivateKeyFile {
+    fn from(private_key: PrivateKey) -> Self {
+        let public_key = private_key.public_key();
+        let address = Address::from_public_key(public_key);
+
+        Self {
+            private_key,
+            public_key,
+            address,
+        }
+    }
+}
 
 pub struct StarknetNode {
     pub config: Config,
@@ -22,8 +49,12 @@ pub struct StarknetNode {
 
 impl Node for StarknetNode {
     type Context = MockContext;
-    type PrivateKeyFile = PrivateKey;
-    type Genesis = ValidatorSet;
+    type PrivateKeyFile = PrivateKeyFile;
+    type Genesis = Genesis;
+
+    fn get_home_dir(&self) -> PathBuf {
+        self.home_dir.to_owned()
+    }
 
     fn generate_private_key<R>(&self, rng: R) -> PrivateKey
     where
@@ -45,11 +76,11 @@ impl Node for StarknetNode {
     }
 
     fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey {
-        file
+        file.private_key
     }
 
     fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
-        private_key
+        PrivateKeyFile::from(private_key)
     }
 
     fn load_genesis(&self, path: impl AsRef<Path>) -> std::io::Result<Self::Genesis> {
@@ -62,7 +93,9 @@ impl Node for StarknetNode {
             .into_iter()
             .map(|(pk, vp)| Validator::new(pk, vp));
 
-        ValidatorSet::new(validators)
+        let validator_set = ValidatorSet::new(validators);
+
+        Genesis { validator_set }
     }
 
     async fn run(&self) {
@@ -82,10 +115,10 @@ impl Node for StarknetNode {
         let (actor, handle) = spawn_node_actor(
             self.config.clone(),
             self.home_dir.clone(),
-            genesis,
+            genesis.validator_set,
             private_key,
             start_height,
-            None,
+            TxEvent::new(),
         )
         .await;
 
@@ -131,13 +164,22 @@ fn test_starknet_node() {
 
     // Create configuration files
     use malachite_cli::*;
+
     let priv_keys = new::generate_private_keys(&node, 1, true);
     let pub_keys = priv_keys
         .iter()
         .map(|pk| node.generate_public_key(*pk))
         .collect();
+
     let genesis = new::generate_genesis(&node, pub_keys, true);
-    file::save_priv_validator_key(&node, &node.private_key_file, &priv_keys[0]).unwrap();
+
+    file::save_priv_validator_key(
+        &node,
+        &node.private_key_file,
+        &PrivateKeyFile::from(priv_keys[0]),
+    )
+    .unwrap();
+
     file::save_genesis(&node, &node.genesis_file, &genesis).unwrap();
 
     // Run the node for a few seconds

@@ -33,17 +33,17 @@ fn large_number_of_entries() -> io::Result<()> {
     // Write entries
     for i in 0..config.num_entries {
         let entry = format!("entry-{}", i);
-        wal.write(entry.as_bytes())?;
+        wal.append(entry.as_bytes())?;
 
         if i % config.sync_interval == 0 {
-            wal.sync()?;
+            wal.flush()?;
             if i % 100_000 == 0 {
                 println!("Wrote {} entries...", i);
             }
         }
     }
 
-    wal.sync()?;
+    wal.flush()?;
 
     let write_duration = start.elapsed();
     println!("Write phase completed in {:?}", write_duration);
@@ -114,8 +114,8 @@ fn entry_sizes() -> io::Result<()> {
         }
 
         // Write entry
-        wal.write(&entry)?;
-        wal.sync()?;
+        wal.append(&entry)?;
+        wal.flush()?;
 
         let duration = start.elapsed();
         println!("  Write completed in {:?}", duration);

@@ -39,6 +39,7 @@ where
     }
 
     state.store_value(&proposed_value);
+
     // There are two cases where we need to generate an internal Proposal message for consensus to process the full proposal:
     // a) In parts-only mode, where we do not get a Proposal message but only the proposal parts
     // b) In any mode if the proposed value was provided by BlockSync, where we do net get a Proposal message but only the full value and the certificate
