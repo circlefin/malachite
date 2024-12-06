@@ -6,7 +6,6 @@ use bytes::Bytes;
 use derive_where::derive_where;
 use eyre::eyre;
 use libp2p::request_response::InboundRequestId;
-use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use rand::SeedableRng;
 use tokio::task::JoinHandle;
@@ -15,6 +14,7 @@ use tracing::{debug, error, warn};
 use malachite_blocksync::{self as blocksync, OutboundRequestId};
 use malachite_blocksync::{Request, SyncedBlock};
 use malachite_common::{CertificateError, CommitCertificate, Context, Height};
+use malachite_consensus::PeerId;
 
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
 use crate::host::{HostMsg, HostRef};

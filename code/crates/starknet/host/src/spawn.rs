@@ -25,10 +25,10 @@ use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
 
-use crate::actor::StarknetHost;
+use crate::actor::Host;
 use crate::codec::ProtobufCodec;
+use crate::host::{StarknetHost, StarknetParams};
 use crate::mempool::{Mempool, MempoolRef};
-use crate::mock::host::{MockHost, MockParams};
 use crate::types::MockContext;
 use crate::types::{Address, Height, PrivateKey, ValidatorSet};
 
@@ -294,7 +294,7 @@ async fn spawn_host_actor(
         malachite_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
     };
 
-    let mock_params = MockParams {
+    let mock_params = StarknetParams {
         value_payload,
         max_block_size: cfg.consensus.max_block_size,
         tx_size: cfg.test.tx_size,
@@ -305,7 +305,7 @@ async fn spawn_host_actor(
         vote_extensions: cfg.test.vote_extensions,
     };
 
-    let mock_host = MockHost::new(
+    let mock_host = StarknetHost::new(
         mock_params,
         mempool.clone(),
         address.clone(),
@@ -313,7 +313,7 @@ async fn spawn_host_actor(
         initial_validator_set.clone(),
     );
 
-    StarknetHost::spawn(
+    Host::spawn(
         home_dir.to_owned(),
         mock_host,
         mempool,

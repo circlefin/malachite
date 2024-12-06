@@ -14,8 +14,8 @@ use tracing::{error, trace};
 
 use malachite_common::Round;
 
+use crate::host::starknet::StarknetParams;
 use crate::mempool::{MempoolMsg, MempoolRef};
-use crate::mock::host::{compute_proposal_signature, MockParams};
 use crate::types::*;
 
 pub async fn build_proposal_task(
@@ -23,7 +23,7 @@ pub async fn build_proposal_task(
     round: Round,
     proposer: Address,
     private_key: PrivateKey,
-    params: MockParams,
+    params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
     tx_part: mpsc::Sender<ProposalPart>,
@@ -51,7 +51,7 @@ async fn run_build_proposal_task(
     round: Round,
     proposer: Address,
     private_key: PrivateKey,
-    params: MockParams,
+    params: StarknetParams,
     deadline: Instant,
     mempool: MempoolRef,
     tx_part: mpsc::Sender<ProposalPart>,
@@ -211,4 +211,32 @@ async fn run_repropose_task(
         tx_part.send(part).await?;
     }
     Ok(())
+}
+
+pub fn compute_proposal_hash(init: &ProposalInit, block_hash: &BlockHash) -> Hash {
+    use sha3::Digest;
+
+    let mut hasher = sha3::Keccak256::new();
+
+    // 1. Block number
+    hasher.update(init.height.block_number.to_be_bytes());
+    // 2. Fork id
+    hasher.update(init.height.fork_id.to_be_bytes());
+    // 3. Proposal round
+    hasher.update(init.proposal_round.as_i64().to_be_bytes());
+    // 4. Valid round
+    hasher.update(init.valid_round.as_i64().to_be_bytes());
+    // 5. Block hash
+    hasher.update(block_hash.as_bytes());
+
+    Hash::new(hasher.finalize().into())
+}
+
+pub fn compute_proposal_signature(
+    init: &ProposalInit,
+    block_hash: &BlockHash,
+    private_key: &PrivateKey,
+) -> Signature {
+    let hash = compute_proposal_hash(init, block_hash);
+    private_key.sign(&hash.as_felt())
 }

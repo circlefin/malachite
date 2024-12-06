@@ -17,14 +17,13 @@ use crate::spawn::{
     spawn_wal_actor,
 };
 
-// Todo: Remove clippy exception when the function signature is finalized
 #[allow(clippy::too_many_arguments)]
-pub async fn run<Ctx, Node, Codec>(
+pub async fn run<Node, Ctx, Codec>(
     cfg: NodeConfig,
     start_height: Option<Ctx::Height>,
     ctx: Ctx,
-    node: Node,
     codec: Codec,
+    node: Node,
     keypair: Keypair,      // Todo: see note in code
     address: Ctx::Address, // Todo: remove it when Node was properly implemented
     initial_validator_set: Ctx::ValidatorSet,
