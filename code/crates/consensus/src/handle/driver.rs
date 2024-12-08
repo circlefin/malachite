@@ -152,15 +152,6 @@ where
 
             let signed_proposal = state.ctx.sign_proposal(proposal.clone());
 
-            // Proposal messages should not be broadcasted if they are implicit,
-            // instead they should be inferred from the block parts.
-            if state.params.value_payload.include_proposal() {
-                perform!(
-                    co,
-                    Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal.clone()))
-                );
-            }
-
             if signed_proposal.pol_round().is_defined() {
                 perform!(
                     co,
@@ -174,7 +165,18 @@ where
                 );
             }
 
-            on_proposal(co, state, metrics, signed_proposal).await
+            on_proposal(co, state, metrics, signed_proposal.clone()).await?;
+
+            // Proposal messages should not be broadcasted if they are implicit,
+            // instead they should be inferred from the block parts.
+            if state.params.value_payload.include_proposal() {
+                perform!(
+                    co,
+                    Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal))
+                );
+            };
+
+            Ok(())
         }
 
         DriverOutput::Vote(vote) => {
@@ -187,13 +189,10 @@ where
 
             let extended_vote = extend_vote(vote, state);
             let signed_vote = state.ctx.sign_vote(extended_vote);
+            on_vote(co, state, metrics, signed_vote.clone()).await?;
 
-            perform!(
-                co,
-                Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote.clone()))
-            );
-
-            on_vote(co, state, metrics, signed_vote).await
+            perform!(co, Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote)));
+            Ok(())
         }
 
         DriverOutput::Decide(consensus_round, proposal) => {
