@@ -1,0 +1,24 @@
+[package]
+name = "malachite-peer"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[features]
+rand = ["dep:rand"]
+serde = ["dep:serde"]
+
+[dependencies]
+# TODO: Remove `std` once https://github.com/multiformats/rust-multihash/issues/375 is resolved
+multihash = { workspace = true, features = ["std", "alloc"] }
+
+bs58 = { workspace = true }
+thiserror = { workspace = true }
+rand = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+
+[lints]
+workspace = true

@@ -3,24 +3,23 @@ use std::io::{self, Read, Write};
 use byteorder::{ReadBytesExt, WriteBytesExt, BE};
 use derive_where::derive_where;
 
+use malachite_codec::Codec;
 use malachite_common::{Context, Round, Timeout, ValueOrigin};
 use malachite_consensus::{ProposedValue, SignedConsensusMsg};
-
-use crate::util::codec::NetworkCodec;
 
 pub trait WalCodec<Ctx>
 where
     Ctx: Context,
-    Self: NetworkCodec<SignedConsensusMsg<Ctx>>,
-    Self: NetworkCodec<ProposedValue<Ctx>>,
+    Self: Codec<SignedConsensusMsg<Ctx>>,
+    Self: Codec<ProposedValue<Ctx>>,
 {
 }
 
 impl<Ctx, C> WalCodec<Ctx> for C
 where
     Ctx: Context,
-    C: NetworkCodec<SignedConsensusMsg<Ctx>>,
-    C: NetworkCodec<ProposedValue<Ctx>>,
+    C: Codec<SignedConsensusMsg<Ctx>>,
+    C: Codec<ProposedValue<Ctx>>,
 {
 }
 

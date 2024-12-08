@@ -3,12 +3,12 @@ use std::path::Path;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use malachite_consensus::ProposedValue;
 use prost::Message;
 use redb::ReadableTable;
 use thiserror::Error;
 
 use malachite_common::{CommitCertificate, Round};
+use malachite_consensus::ProposedValue;
 use malachite_proto::Protobuf;
 
 use crate::codec;

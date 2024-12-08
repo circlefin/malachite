@@ -3,10 +3,11 @@ use derive_where::derive_where;
 use displaydoc::Display;
 use serde::{Deserialize, Serialize};
 
-use malachite_common::{CommitCertificate, Context};
+use malachite_common::Context;
 
-pub use libp2p::identity::PeerId;
 pub use libp2p::request_response::{InboundRequestId, OutboundRequestId};
+pub use malachite_common::CommitCertificate;
+pub use malachite_peer::PeerId;
 
 pub type ResponseChannel = libp2p::request_response::ResponseChannel<RawResponse>;
 

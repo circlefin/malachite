@@ -6,10 +6,10 @@ use tokio::sync::mpsc;
 use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
-use malachite_actors::util::codec::NetworkCodec;
 use malachite_actors::util::events::TxEvent;
 use malachite_actors::util::streaming::StreamMessage;
 use malachite_actors::wal::{Wal, WalCodec, WalRef};
+use malachite_codec as codec;
 use malachite_common::Context;
 use malachite_config::{BlockSyncConfig, Config as NodeConfig, PubSubProtocol, TransportProtocol};
 use malachite_consensus::{SignedConsensusMsg, ValuePayload};
@@ -29,12 +29,12 @@ pub async fn spawn_gossip_consensus_actor<Ctx, Codec>(
 ) -> GossipConsensusRef<Ctx>
 where
     Ctx: Context,
-    Codec: NetworkCodec<Ctx::ProposalPart>,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
-    Codec: NetworkCodec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: NetworkCodec<malachite_blocksync::Status<Ctx>>,
-    Codec: NetworkCodec<malachite_blocksync::Request<Ctx>>,
-    Codec: NetworkCodec<malachite_blocksync::Response<Ctx>>,
+    Codec: codec::Codec<Ctx::ProposalPart>,
+    Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+    Codec: codec::Codec<malachite_blocksync::Status<Ctx>>,
+    Codec: codec::Codec<malachite_blocksync::Request<Ctx>>,
+    Codec: codec::Codec<malachite_blocksync::Response<Ctx>>,
 {
     let config = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),

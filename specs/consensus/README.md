@@ -16,6 +16,8 @@ The specification of the consensus algorithm and its implementation is organized
 - [**misbehavior.md**](./misbehavior.md): describes different kinds of
   misbehavior by Byzantine processes that over time can harm the system (lead to
   disagreement), and how each misbehavior is defined and can be detected;
+- [**design.md**](./design.md): overviews the design of Malachite's
+  implementation of the Tendermint consensus algorithm.
 
 ## References
 
@@ -23,7 +25,6 @@ The specification of the consensus algorithm and its implementation is organized
   by _Ethan Buchman, Jae Kwon, and Zarko Milosevic_. 2018.
   ([PDF][tendermint-pdf])
 
-[accountable-tendermint]: ./misbehavior.md#misbehavior-detection-and-verification-in-accountable-tendermint
 [tendermint-arxiv]: https://arxiv.org/abs/1807.04938
 [tendermint-pdf]: https://arxiv.org/pdf/1807.04938
 [quint-spec]: ../quint/README.md

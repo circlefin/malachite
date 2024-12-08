@@ -2,11 +2,11 @@ use bytes::Bytes;
 use std::time::Duration;
 
 use derive_where::derive_where;
-use libp2p::PeerId;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachite_blocksync::SyncedBlock;
 use malachite_common::{CommitCertificate, Context, Round, SignedExtension, ValueId};
+use malachite_consensus::PeerId;
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
@@ -61,7 +61,7 @@ pub enum HostMsg<Ctx: Context> {
     GetValue {
         height: Ctx::Height,
         round: Round,
-        timeout_duration: Duration,
+        timeout: Duration,
         address: Ctx::Address,
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },

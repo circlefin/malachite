@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::eyre;
-use libp2p::PeerId;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
@@ -13,7 +12,7 @@ use malachite_common::{
     Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet, ValueOrigin,
 };
 use malachite_config::TimeoutConfig;
-use malachite_consensus::{Effect, Resume, SignedConsensusMsg, ValueToPropose};
+use malachite_consensus::{Effect, PeerId, Resume, SignedConsensusMsg, ValueToPropose};
 use malachite_metrics::Metrics;
 
 use crate::block_sync::BlockSyncRef;
@@ -237,6 +236,12 @@ where
                     if let Err(e) = block_sync.cast(BlockSyncMsg::StartedHeight(height)) {
                         error!(%height, "Error when notifying BlockSync of started height: {e}")
                     }
+                }
+
+                self.tx_event.send(|| Event::StartedHeight(height));
+
+                if let Err(e) = self.check_and_replay_wal(&myself, state, height).await {
+                    error!(%height, "Error when checking and replaying WAL: {e}");
                 }
 
                 Ok(())
@@ -593,7 +598,7 @@ where
             |reply| HostMsg::GetValue {
                 height,
                 round,
-                timeout_duration,
+                timeout: timeout_duration,
                 address: self.params.address.clone(),
                 reply_to: reply,
             },
