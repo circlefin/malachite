@@ -122,7 +122,7 @@ impl Discovery {
     }
 
     pub fn can_dial(&self) -> bool {
-        self.handler.can_dial()
+        self.is_enabled() && self.handler.can_dial()
     }
 
     fn should_dial(
@@ -298,7 +298,7 @@ impl Discovery {
     }
 
     pub fn can_request(&self) -> bool {
-        self.handler.can_request()
+        self.is_enabled() && self.handler.can_request()
     }
 
     fn should_request(
