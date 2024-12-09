@@ -149,7 +149,7 @@ where
     }
 
     pub fn remove_full_proposals(&mut self, height: Ctx::Height) {
-        debug!("Removing proposals for {height}");
+        debug!(%height, "Pruning full proposals");
         self.full_proposal_keeper.remove_full_proposals(height)
     }
 

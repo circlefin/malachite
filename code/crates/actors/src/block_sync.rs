@@ -117,6 +117,7 @@ pub struct BlockSync<Ctx: Context> {
     host: HostRef<Ctx>,
     params: Params,
     metrics: blocksync::Metrics,
+    span: tracing::Span,
 }
 
 impl<Ctx> BlockSync<Ctx>
@@ -129,6 +130,7 @@ where
         host: HostRef<Ctx>,
         params: Params,
         metrics: blocksync::Metrics,
+        span: tracing::Span,
     ) -> Self {
         Self {
             ctx,
@@ -136,6 +138,7 @@ where
             host,
             params,
             metrics,
+            span,
         }
     }
 
@@ -380,7 +383,7 @@ where
         })
     }
 
-    #[tracing::instrument(name = "blocksync", skip_all)]
+    #[tracing::instrument(name = "blocksync", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         myself: ActorRef<Self::Msg>,

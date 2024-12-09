@@ -21,6 +21,7 @@ pub struct Mempool {
     gossip_mempool: GossipMempoolRef,
     mempool_config: MempoolConfig, // todo - pick only what's needed
     test_config: TestConfig,       // todo - pick only the mempool related
+    span: tracing::Span,
 }
 
 pub enum MempoolMsg {
@@ -68,20 +69,23 @@ impl Mempool {
         gossip_mempool: GossipMempoolRef,
         mempool_config: MempoolConfig,
         test_config: TestConfig,
+        span: tracing::Span,
     ) -> Self {
         Self {
             gossip_mempool,
             mempool_config,
             test_config,
+            span,
         }
     }
 
     pub async fn spawn(
         gossip_mempool: GossipMempoolRef,
-        mempool_config: &MempoolConfig,
-        test_config: &TestConfig,
+        mempool_config: MempoolConfig,
+        test_config: TestConfig,
+        span: tracing::Span,
     ) -> Result<MempoolRef, ractor::SpawnErr> {
-        let node = Self::new(gossip_mempool, mempool_config.clone(), *test_config);
+        let node = Self::new(gossip_mempool, mempool_config, test_config, span);
 
         let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
         Ok(actor_ref)
@@ -167,7 +171,7 @@ impl Actor for Mempool {
         Ok(State::new())
     }
 
-    #[tracing::instrument("starknet.mempool", skip(self, myself, msg, state))]
+    #[tracing::instrument("host.mempool", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         myself: MempoolRef,

@@ -17,13 +17,16 @@ use malachite_metrics::SharedRegistry;
 
 pub type GossipMempoolRef = ActorRef<Msg>;
 
-pub struct GossipMempool;
+pub struct GossipMempool {
+    span: tracing::Span,
+}
 
 impl GossipMempool {
     pub async fn spawn(
         keypair: Keypair,
         config: Config,
         metrics: SharedRegistry,
+        span: tracing::Span,
     ) -> Result<ActorRef<Msg>, ractor::SpawnErr> {
         let args = Args {
             keypair,
@@ -31,7 +34,7 @@ impl GossipMempool {
             metrics,
         };
 
-        let (actor_ref, _) = Actor::spawn(None, Self, args).await?;
+        let (actor_ref, _) = Actor::spawn(None, Self { span }, args).await?;
         Ok(actor_ref)
     }
 }
@@ -107,6 +110,7 @@ impl Actor for GossipMempool {
         Ok(())
     }
 
+    #[tracing::instrument(name = "gossip.mempool", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         _myself: ActorRef<Msg>,

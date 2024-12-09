@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
-use derive_where::derive_where;
 use eyre::eyre;
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, SpawnErr};
 use tokio::sync::{mpsc, oneshot};
@@ -19,8 +18,8 @@ pub use entry::WalEntry;
 
 pub type WalRef<Ctx> = ActorRef<Msg<Ctx>>;
 
-#[derive_where(Default)]
 pub struct Wal<Ctx, Codec> {
+    span: tracing::Span,
     _marker: PhantomData<(Ctx, Codec)>,
 }
 
@@ -29,27 +28,21 @@ where
     Ctx: Context,
     Codec: WalCodec<Ctx>,
 {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(span: tracing::Span) -> Self {
+        Self {
+            span,
+            _marker: PhantomData,
+        }
     }
 
     pub async fn spawn(
         _ctx: &Ctx,
-        moniker: String,
         codec: Codec,
         path: PathBuf,
         _metrics: SharedRegistry,
+        span: tracing::Span,
     ) -> Result<WalRef<Ctx>, SpawnErr> {
-        let (actor_ref, _) = Actor::spawn(
-            None,
-            Self::new(),
-            Args {
-                moniker,
-                path,
-                codec,
-            },
-        )
-        .await?;
+        let (actor_ref, _) = Actor::spawn(None, Self::new(span), Args { path, codec }).await?;
         Ok(actor_ref)
     }
 }
@@ -63,7 +56,6 @@ pub enum Msg<Ctx: Context> {
 }
 
 pub struct Args<Codec> {
-    pub moniker: String,
     pub path: PathBuf,
     pub codec: Codec,
 }
@@ -204,7 +196,7 @@ where
         let (tx, rx) = mpsc::channel(100);
 
         // Spawn a system thread to perform blocking WAL operations.
-        let handle = self::thread::spawn(args.moniker, log, args.codec, rx);
+        let handle = self::thread::spawn(tracing::Span::current(), log, args.codec, rx);
 
         Ok(State {
             height: Ctx::Height::default(),
@@ -213,6 +205,7 @@ where
         })
     }
 
+    #[tracing::instrument(name = "wal", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         myself: WalRef<Ctx>,
