@@ -57,7 +57,7 @@ where
     while let Some(msg) = rx.blocking_recv() {
         match msg {
             WalMsg::StartedHeight(height, reply) => {
-                // FIXME: Ensure this works event with fork_id
+                // FIXME: Ensure this works even with fork_id
                 let sequence = height.as_u64();
 
                 if sequence == log.sequence() {
