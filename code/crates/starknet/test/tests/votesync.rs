@@ -31,7 +31,8 @@ pub async fn crash_restart_from_start(params: TestParams) {
 
     test.build()
         .run_with_custom_config(
-            Duration::from_secs(60), // Timeout for the whole test
+            // TODO - add step timeout to TestParams, current default is 30s and we need to allow for catching up, etc
+            Duration::from_secs(120), // Timeout for the whole test
             TestParams {
                 enable_blocksync: true, // Enable BlockSync
                 ..params
@@ -41,7 +42,6 @@ pub async fn crash_restart_from_start(params: TestParams) {
 }
 
 #[tokio::test]
-#[ignore] // Test is failing
 pub async fn crash_restart_from_start_parts_only() {
     let params = TestParams {
         value_payload: ValuePayload::PartsOnly,
@@ -52,7 +52,6 @@ pub async fn crash_restart_from_start_parts_only() {
 }
 
 #[tokio::test]
-#[ignore] // Test is failing
 pub async fn crash_restart_from_start_proposal_only() {
     let params = TestParams {
         value_payload: ValuePayload::ProposalOnly,
@@ -63,7 +62,6 @@ pub async fn crash_restart_from_start_proposal_only() {
 }
 
 #[tokio::test]
-#[ignore] // Test is failing
 pub async fn crash_restart_from_start_proposal_and_parts() {
     let params = TestParams {
         value_payload: ValuePayload::ProposalAndParts,
@@ -102,7 +100,6 @@ pub async fn crash_restart_from_latest() {
 }
 
 #[tokio::test]
-#[ignore] // Test is failing
 pub async fn start_late() {
     const HEIGHT: u64 = 5;
     let mut test = TestBuilder::<()>::new();
@@ -116,7 +113,7 @@ pub async fn start_late() {
 
     test.build()
         .run_with_custom_config(
-            Duration::from_secs(30),
+            Duration::from_secs(120),
             TestParams {
                 enable_blocksync: true,
                 ..Default::default()
