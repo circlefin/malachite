@@ -204,8 +204,8 @@ async fn on_started_round(
 
     // If we have already built a block for this height and round, feed it to consensus.
     // This may happen when we are restarting after a crash and replaying the WAL.
-    if let Some((value, block)) = state.block_store.get_undecided_block(height, round).await? {
-        info!(%height, %round, hash = %block.block_hash, "Replaying already built block");
+    if let Some(value) = state.block_store.get_undecided_value(height, round).await? {
+        info!(%height, %round, hash = %value.value, "Replaying already known proposed value");
 
         state
             .consensus
@@ -254,8 +254,8 @@ async fn on_get_value(
 ) -> Result<(), ActorProcessingErr> {
     // If we have already built a block for this height and round, return it
     // This may happen when we are restarting after a crash and replaying the WAL.
-    if let Some((value, block)) = state.block_store.get_undecided_block(height, round).await? {
-        info!(%height, %round, hash = %block.block_hash, "Returning previously built block");
+    if let Some(value) = state.block_store.get_undecided_value(height, round).await? {
+        info!(%height, %round, hash = %value.value, "Returning previously built value");
 
         reply_to.send(LocallyProposedValue::new(
             value.height,
@@ -305,17 +305,14 @@ async fn on_get_value(
 
     let parts = state.host.part_store.all_parts(height, round);
 
-    let Some((value, block)) = state.build_block_from_parts(&parts, height, round).await else {
+    let Some((value, _)) = state.build_block_from_parts(&parts, height, round).await else {
         error!(%height, %round, "Failed to build block from parts");
         return Ok(());
     };
 
-    if let Err(e) = state
-        .block_store
-        .store_undecided_block(value.clone(), block)
-        .await
-    {
-        error!(%e, %height, %round, "Failed to store the proposed block");
+    debug!(%height, %round, %block_hash, "Storing proposed value from assembled block");
+    if let Err(e) = state.block_store.store_undecided_value(value.clone()).await {
+        error!(%e, %height, %round, "Failed to store the proposed value");
     }
 
     reply_to.send(LocallyProposedValue::new(
@@ -481,6 +478,18 @@ async fn on_received_proposal_part(
             .build_value_from_part(parts.height, parts.round, part)
             .await
         {
+            debug!(
+                height = %value.height, round = %value.round, block_hash = %value.value,
+                "Storing proposed value assembled from proposal parts"
+            );
+
+            if let Err(e) = state.block_store.store_undecided_value(value.clone()).await {
+                error!(
+                    %e, height = %value.height, round = %value.round, block_hash = %value.value,
+                    "Failed to store the proposed value"
+                );
+            }
+
             reply_to.send(value)?;
             break;
         }
