@@ -8,6 +8,12 @@ use malachite_common::{CommitCertificate, Round};
 
 use crate::types::MockContext;
 
+pub mod proposal;
+pub mod starknet;
+pub mod state;
+
+pub use starknet::{StarknetHost, StarknetParams};
+
 #[async_trait]
 pub trait Host {
     type Height;

@@ -10,6 +10,7 @@ rust-version.workspace = true
 [dependencies]
 malachite-actors.workspace             = true
 malachite-blocksync.workspace          = true
+malachite-codec.workspace              = true
 malachite-consensus.workspace          = true
 malachite-gossip-consensus.workspace   = true
 malachite-common.workspace             = true
@@ -34,6 +35,7 @@ ractor.workspace          = true
 rand.workspace            = true
 redb.workspace            = true
 sha3.workspace            = true
+serde.workspace           = true
 serde_json.workspace      = true
 tokio.workspace           = true
 tracing.workspace         = true

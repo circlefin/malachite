@@ -3,10 +3,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::eyre;
-use libp2p::PeerId;
 use malachite_blocksync::InboundRequestId;
+
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
-use tokio::sync::broadcast;
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
@@ -14,19 +13,20 @@ use malachite_blocksync::{
     self as blocksync, BlockResponse, Response, VoteSetRequest, VoteSetResponse,
 };
 use malachite_common::{
-    CommitCertificate, Context, Round, SignedExtension, Timeout, TimeoutKind, ValidatorSet,
-    ValueOrigin,
+    Context, Round, SignedExtension, Timeout, TimeoutKind, ValidatorSet, ValueOrigin,
 };
 use malachite_config::TimeoutConfig;
-use malachite_consensus::{Effect, Resume, ValueToPropose};
+use malachite_consensus::{Effect, PeerId, Resume, SignedConsensusMsg, ValueToPropose};
 use malachite_metrics::Metrics;
 
 use crate::block_sync::BlockSyncRef;
 use crate::block_sync::Msg as BlockSyncMsg;
 use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg, Status};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
+use crate::util::events::{Event, TxEvent};
 use crate::util::forward::forward;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
+use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
 
 pub use malachite_consensus::Error as ConsensusError;
 pub use malachite_consensus::Params as ConsensusParams;
@@ -34,20 +34,20 @@ pub use malachite_consensus::State as ConsensusState;
 
 pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
-pub type TxDecision<Ctx> = broadcast::Sender<CommitCertificate<Ctx>>;
-
 pub struct Consensus<Ctx>
 where
     Ctx: Context,
 {
     ctx: Ctx,
+    moniker: String,
     params: ConsensusParams<Ctx>,
     timeout_config: TimeoutConfig,
     gossip_consensus: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
+    wal: WalRef<Ctx>,
     block_sync: Option<BlockSyncRef<Ctx>>,
     metrics: Metrics,
-    tx_decision: Option<TxDecision<Ctx>>,
+    tx_event: TxEvent<Ctx>,
 }
 
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
@@ -119,6 +119,13 @@ impl Timeouts {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Phase {
+    Unstarted,
+    Running,
+    Recovering,
+}
+
 pub struct State<Ctx: Context> {
     /// Scheduler for timers
     timers: Timers<Ctx>,
@@ -131,6 +138,18 @@ pub struct State<Ctx: Context> {
 
     /// The set of peers we are connected to.
     connected_peers: BTreeSet<PeerId>,
+
+    /// The current phase
+    phase: Phase,
+}
+
+impl<Ctx> State<Ctx>
+where
+    Ctx: Context,
+{
+    pub fn height(&self) -> Ctx::Height {
+        self.consensus.height()
+    }
 }
 
 impl<Ctx> Consensus<Ctx>
@@ -138,49 +157,30 @@ where
     Ctx: Context,
 {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        ctx: Ctx,
-        params: ConsensusParams<Ctx>,
-        timeout_config: TimeoutConfig,
-        gossip_consensus: GossipConsensusRef<Ctx>,
-        host: HostRef<Ctx>,
-        block_sync: Option<BlockSyncRef<Ctx>>,
-        metrics: Metrics,
-        tx_decision: Option<TxDecision<Ctx>>,
-    ) -> Self {
-        Self {
-            ctx,
-            params,
-            timeout_config,
-            gossip_consensus,
-            host,
-            block_sync,
-            metrics,
-            tx_decision,
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
     pub async fn spawn(
         ctx: Ctx,
+        moniker: String,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
+        wal: WalRef<Ctx>,
         block_sync: Option<BlockSyncRef<Ctx>>,
         metrics: Metrics,
-        tx_decision: Option<TxDecision<Ctx>>,
+        tx_event: TxEvent<Ctx>,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
-        let node = Self::new(
+        let node = Self {
             ctx,
+            moniker,
             params,
             timeout_config,
             gossip_consensus,
             host,
+            wal,
             block_sync,
             metrics,
-            tx_decision,
-        );
+            tx_event,
+        };
 
         let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
         Ok(actor_ref)
@@ -192,12 +192,21 @@ where
         state: &mut State<Ctx>,
         input: ConsensusInput<Ctx>,
     ) -> Result<(), ConsensusError<Ctx>> {
+        let height = state.height();
+
         malachite_consensus::process!(
             input: input,
             state: &mut state.consensus,
             metrics: &self.metrics,
             with: effect => {
-                self.handle_effect(myself, &mut state.timers, &mut state.timeouts, effect).await
+                self.handle_effect(
+                    myself,
+                    height,
+                    &mut state.timers,
+                    &mut state.timeouts,
+                    state.phase,
+                    effect
+                ).await
             }
         )
     }
@@ -210,6 +219,8 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::StartHeight(height, validator_set) => {
+                state.phase = Phase::Running;
+
                 let result = self
                     .process_input(
                         &myself,
@@ -219,38 +230,53 @@ where
                     .await;
 
                 if let Err(e) = result {
-                    error!(%height, "Error when starting height: {e:?}");
+                    error!(%height, "Error when starting height: {e}");
                 }
 
                 // Notify the BlockSync actor that we have started a new height
                 if let Some(block_sync) = &self.block_sync {
-                    let _ = block_sync
-                        .cast(BlockSyncMsg::StartedHeight(height))
-                        .inspect_err(|e| {
-                            error!("Error when sending start height to BlockSync: {e:?}")
-                        });
+                    if let Err(e) = block_sync.cast(BlockSyncMsg::StartedHeight(height)) {
+                        error!(%height, "Error when notifying BlockSync of started height: {e}")
+                    }
+                }
+
+                self.tx_event.send(|| Event::StartedHeight(height));
+
+                if let Err(e) = self.check_and_replay_wal(&myself, state, height).await {
+                    error!(%height, "Error when checking and replaying WAL: {e}");
                 }
 
                 Ok(())
             }
 
             Msg::ProposeValue(height, round, value, extension) => {
+                let value_to_propose = ValueToPropose {
+                    height,
+                    round,
+                    valid_round: Round::Nil,
+                    value: value.clone(),
+                    extension,
+                };
+
                 let result = self
                     .process_input(
                         &myself,
                         state,
-                        ConsensusInput::Propose(ValueToPropose {
-                            height,
-                            round,
-                            valid_round: Round::Nil,
-                            value,
-                            extension,
-                        }),
+                        ConsensusInput::Propose(value_to_propose.clone()),
                     )
                     .await;
 
+                self.tx_event
+                    .send(|| Event::ProposedValue(value_to_propose));
+
+                if std::env::var("MALACHITE_FAIL").ok().as_deref() == Some(&self.moniker) {
+                    tracing::error!("Just proposed: {value:?}");
+                    tracing::error!("Everyone stops right here!");
+                    std::process::exit(1);
+                };
+
                 if let Err(e) = result {
-                    error!("Error when processing ProposeValue message: {e:?}");
+                    error!("Error when processing ProposeValue message: {e}");
                 }
 
                 Ok(())
@@ -323,7 +349,7 @@ where
                             )
                             .await
                         {
-                            error!(%height, %request_id, "Error when processing received synced block: {e:?}");
+                            error!(%height, %request_id, "Error when processing received synced block: {e}");
 
                             let Some(block_sync) = self.block_sync.as_ref() else {
                                 warn!("Received BlockSync response but BlockSync actor is not available");
@@ -335,7 +361,7 @@ where
                                     .cast(BlockSyncMsg::InvalidCertificate(peer, certificate, e))
                                     .map_err(|e| {
                                         eyre!(
-                                            "Error when notifying BlockSync of invalid certificate: {e:?}"
+                                            "Error when notifying BlockSync of invalid certificate: {e}"
                                         )
                                     })?;
                             }
@@ -394,7 +420,7 @@ where
                             .process_input(&myself, state, ConsensusInput::Vote(vote))
                             .await
                         {
-                            error!(%from, "Error when processing vote: {e:?}");
+                            error!(%from, "Error when processing vote: {e}");
                         }
                     }
 
@@ -408,7 +434,7 @@ where
                             .process_input(&myself, state, ConsensusInput::Proposal(proposal))
                             .await
                         {
-                            error!(%from, "Error when processing proposal: {e:?}");
+                            error!(%from, "Error when processing proposal: {e}");
                         }
                     }
 
@@ -430,7 +456,7 @@ where
                                 None,
                             )
                             .map_err(|e| {
-                                eyre!("Error when forwarding proposal parts to host: {e:?}")
+                                eyre!("Error when forwarding proposal parts to host: {e}")
                             })?;
                     }
 
@@ -472,12 +498,22 @@ where
             }
 
             Msg::ReceivedProposedValue(value, origin) => {
+                self.wal_append(
+                    value.height,
+                    WalEntry::ProposedValue(value.clone(), origin),
+                    state.phase,
+                )
+                .await?;
+
+                self.tx_event
+                    .send(|| Event::ReceivedProposedValue(value.clone(), origin));
+
                 let result = self
                     .process_input(&myself, state, ConsensusInput::ProposedValue(value, origin))
                     .await;
 
                 if let Err(e) = result {
-                    error!("Error when processing GossipEvent message: {e:?}");
+                    error!("Error when processing ReceivedProposedValue message: {e}");
                 }
 
                 Ok(())
@@ -488,12 +524,124 @@ where
                 let status = Status::new(state.consensus.driver.height(), earliest_block_height);
 
                 if let Err(e) = reply_to.send(status) {
-                    error!("Error when replying to GetStatus message: {e:?}");
+                    error!("Error when replying to GetStatus message: {e}");
                 }
 
                 Ok(())
             }
         }
+    }
+
+    async fn timeout_elapsed(
+        &self,
+        myself: &ActorRef<Msg<Ctx>>,
+        state: &mut State<Ctx>,
+        timeout: Timeout,
+    ) -> Result<(), ActorProcessingErr> {
+        // Make sure the associated timer is cancelled
+        state.timers.cancel(&timeout);
+
+        // Increase the timeout for the next round
+        state.timeouts.increase_timeout(timeout.kind);
+
+        // Print debug information if the timeout is for a prevote or precommit
+        if matches!(timeout.kind, TimeoutKind::Prevote | TimeoutKind::Precommit) {
+            warn!(step = ?timeout.kind, "Timeout elapsed");
+            state.consensus.print_state();
+        }
+
+        // Process the timeout event
+        self.process_input(myself, state, ConsensusInput::TimeoutElapsed(timeout))
+            .await?;
+
+        Ok(())
+    }
+
+    async fn check_and_replay_wal(
+        &self,
+        myself: &ActorRef<Msg<Ctx>>,
+        state: &mut State<Ctx>,
+        height: Ctx::Height,
+    ) -> Result<(), ActorProcessingErr> {
+        let result = ractor::call!(self.wal, WalMsg::StartedHeight, height)?;
+
+        match result {
+            Ok(None) => {
+                // Nothing to replay
+                info!(%height, "No WAL entries to replay");
+            }
+            Ok(Some(entries)) => {
+                info!("Found {} WAL entries to replay", entries.len());
+
+                state.phase = Phase::Recovering;
+
+                if let Err(e) = self.replay_wal_entries(myself, state, entries).await {
+                    error!(%height, "Failed to replay WAL entries: {e}");
+                }
+
+                state.phase = Phase::Running;
+            }
+            Err(e) => {
+                error!(%height, "Error when notifying WAL of started height: {e}")
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn replay_wal_entries(
+        &self,
+        myself: &ActorRef<Msg<Ctx>>,
+        state: &mut State<Ctx>,
+        entries: Vec<WalEntry<Ctx>>,
+    ) -> Result<(), ActorProcessingErr> {
+        use SignedConsensusMsg::*;
+
+        debug_assert!(!entries.is_empty());
+
+        self.tx_event
+            .send(|| Event::WalReplayBegin(state.height(), entries.len()));
+
+        for entry in entries {
+            match entry {
+                WalEntry::ConsensusMsg(Vote(vote)) => {
+                    if let Err(e) = self
+                        .process_input(myself, state, ConsensusInput::Vote(vote))
+                        .await
+                    {
+                        error!("Error when replaying Vote: {e}");
+                    }
+                }
+
+                WalEntry::ConsensusMsg(Proposal(proposal)) => {
+                    if let Err(e) = self
+                        .process_input(myself, state, ConsensusInput::Proposal(proposal))
+                        .await
+                    {
+                        error!("Error when replaying Proposal: {e}");
+                    }
+                }
+
+                WalEntry::Timeout(timeout) => {
+                    if let Err(e) = self.timeout_elapsed(myself, state, timeout).await {
+                        error!("Error when replaying TimeoutElapsed: {e}");
+                    }
+                }
+
+                WalEntry::ProposedValue(value, origin) => {
+                    if let Err(e) = self
+                        .process_input(myself, state, ConsensusInput::ProposedValue(value, origin))
+                        .await
+                    {
+                        error!("Error when replaying ProposedValue: {e}");
+                    }
+                }
+            }
+        }
+
+        self.tx_event.send(|| Event::WalReplayDone(state.height()));
+
+        Ok(())
     }
 
     fn get_value(
@@ -509,7 +657,7 @@ where
             |reply| HostMsg::GetValue {
                 height,
                 round,
-                timeout_duration,
+                timeout: timeout_duration,
                 address: self.params.address.clone(),
                 reply_to: reply,
             },
@@ -548,11 +696,62 @@ where
         .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
     }
 
+    async fn wal_append(
+        &self,
+        height: Ctx::Height,
+        entry: WalEntry<Ctx>,
+        phase: Phase,
+    ) -> Result<(), ActorProcessingErr> {
+        if phase == Phase::Recovering {
+            return Ok(());
+        }
+
+        let result = ractor::call!(self.wal, WalMsg::Append, height, entry);
+
+        match result {
+            Ok(Ok(())) => {
+                // Success
+            }
+            Ok(Err(e)) => {
+                error!("Failed to append entry to WAL: {e}");
+            }
+            Err(e) => {
+                error!("Failed to send Append command to WAL actor: {e}");
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn wal_flush(&self, phase: Phase) -> Result<(), ActorProcessingErr> {
+        if phase == Phase::Recovering {
+            return Ok(());
+        }
+
+        let result = ractor::call!(self.wal, WalMsg::Flush);
+
+        match result {
+            Ok(Ok(())) => {
+                // Success
+            }
+            Ok(Err(e)) => {
+                error!("Failed to flush WAL to disk: {e}");
+            }
+            Err(e) => {
+                error!("Failed to send Flush command to WAL: {e}");
+            }
+        }
+
+        Ok(())
+    }
+
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
+        height: Ctx::Height,
         timers: &mut Timers<Ctx>,
         timeouts: &mut Timeouts,
+        phase: Phase,
         effect: Effect<Ctx>,
     ) -> Result<Resume<Ctx>, ActorProcessingErr> {
         match effect {
@@ -579,11 +778,15 @@ where
             }
 
             Effect::StartRound(height, round, proposer) => {
+                self.wal_flush(phase).await?;
+
                 self.host.cast(HostMsg::StartedRound {
                     height,
                     round,
                     proposer,
                 })?;
+
+                self.tx_event.send(|| Event::StartedRound(height, round));
 
                 Ok(Resume::Continue)
             }
@@ -605,9 +808,16 @@ where
                 Ok(Resume::SignatureValidity(valid))
             }
 
-            Effect::Broadcast(gossip_msg) => {
+            Effect::Broadcast(msg) => {
+                // Sync the WAL to disk before we broadcast the message
+                // NOTE: The message has already been append to the WAL by the `PersistMessage` effect.
+                self.wal_flush(phase).await?;
+
+                // Notify any subscribers that we are about to publish a message
+                self.tx_event.send(|| Event::Published(msg.clone()));
+
                 self.gossip_consensus
-                    .cast(GossipConsensusMsg::Publish(gossip_msg))
+                    .cast(GossipConsensusMsg::Publish(msg))
                     .map_err(|e| eyre!("Error when broadcasting gossip message: {e:?}"))?;
 
                 Ok(Resume::Continue)
@@ -647,9 +857,9 @@ where
             }
 
             Effect::Decide { certificate } => {
-                if let Some(tx_decision) = &self.tx_decision {
-                    let _ = tx_decision.send(certificate.clone());
-                }
+                self.wal_flush(phase).await?;
+
+                self.tx_event.send(|| Event::Decided(certificate.clone()));
 
                 let height = certificate.height;
 
@@ -685,6 +895,13 @@ where
                 Ok(Resume::Continue)
             }
 
+            Effect::PersistMessage(msg) => {
+                self.wal_append(height, WalEntry::ConsensusMsg(msg), phase)
+                    .await?;
+
+                Ok(Resume::Continue)
+            }
+
             Effect::SendVoteSetResponse(request_id, height, round, vote_set) => {
                 debug!("VS9 - consensus sends vote set response to gossip");
 
@@ -696,6 +913,13 @@ where
                         InboundRequestId::new(request_id),
                         response,
                     ))?;
+
+                Ok(Resume::Continue)
+            }
+
+            Effect::PersistTimeout(timeout) => {
+                self.wal_append(height, WalEntry::Timeout(timeout), phase)
+                    .await?;
 
                 Ok(Resume::Continue)
             }
@@ -727,6 +951,7 @@ where
             timeouts: Timeouts::new(self.timeout_config),
             consensus: ConsensusState::new(self.ctx.clone(), self.params.clone()),
             connected_peers: BTreeSet::new(),
+            phase: Phase::Unstarted,
         })
     }
 

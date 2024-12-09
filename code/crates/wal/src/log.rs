@@ -317,7 +317,7 @@ where
     /// # Returns
     /// * `Ok(())` - Entry was successfully written
     /// * `Err` - If writing fails
-    pub fn write(&mut self, data: impl AsRef<[u8]>) -> io::Result<()> {
+    pub fn append(&mut self, data: impl AsRef<[u8]>) -> io::Result<()> {
         cfg_if! {
             if #[cfg(feature = "force-compression")] {
                 self.write_compressed(data)
@@ -476,7 +476,7 @@ where
     /// # Returns
     /// * `Ok(())` - Successfully synced to disk
     /// * `Err` - If sync fails
-    pub fn sync(&mut self) -> io::Result<()> {
+    pub fn flush(&mut self) -> io::Result<()> {
         self.storage.sync_all()
     }
 

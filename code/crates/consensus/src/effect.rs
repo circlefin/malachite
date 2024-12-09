@@ -70,6 +70,11 @@ where
 
     /// A peer has required our vote set, send the response
     SendVoteSetResponse(RequestId, Ctx::Height, Round, VoteSet<Ctx>),
+    /// Persist a consensus message in the Write-Ahead Log for crash recovery
+    PersistMessage(SignedConsensusMsg<Ctx>),
+
+    /// Persist a timeout in the Write-Ahead Log for crash recovery
+    PersistTimeout(Timeout),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].

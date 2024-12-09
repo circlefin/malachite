@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use malachite_config::ValuePayload;
-use malachite_starknet_test::{Test, TestNode, TestParams};
+use malachite_starknet_test::{TestBuilder, TestParams};
 
 // NOTE: These tests are very similar to the BlockSync tests, with the difference that
 //       all nodes have the same voting power and therefore get stuck when one of them dies.
@@ -9,10 +9,12 @@ use malachite_starknet_test::{Test, TestNode, TestParams};
 pub async fn crash_restart_from_start(params: TestParams) {
     const HEIGHT: u64 = 10;
 
-    let n1 = TestNode::new(1).start().wait_until(HEIGHT).success();
-    let n2 = TestNode::new(2).start().wait_until(HEIGHT).success();
+    let mut test = TestBuilder::<()>::new();
 
-    let n3 = TestNode::new(3)
+    test.add_node().start().wait_until(HEIGHT).success();
+    test.add_node().start().wait_until(HEIGHT).success();
+
+    test.add_node()
         .start()
         // Wait until the node reaches height 4...
         .wait_until(4)
@@ -27,7 +29,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         // Record a successful test for this node
         .success();
 
-    Test::new([n1, n2, n3])
+    test.build()
         .run_with_custom_config(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
@@ -75,9 +77,11 @@ pub async fn crash_restart_from_start_proposal_and_parts() {
 pub async fn crash_restart_from_latest() {
     const HEIGHT: u64 = 10;
 
-    let n1 = TestNode::new(1).start().wait_until(HEIGHT).success();
-    let n2 = TestNode::new(2).start().wait_until(HEIGHT).success();
-    let n3 = TestNode::new(3)
+    let mut test = TestBuilder::<()>::new();
+
+    test.add_node().start().wait_until(HEIGHT).success();
+    test.add_node().start().wait_until(HEIGHT).success();
+    test.add_node()
         .start()
         .wait_until(2)
         .crash()
@@ -86,7 +90,7 @@ pub async fn crash_restart_from_latest() {
         .wait_until(HEIGHT)
         .success();
 
-    Test::new([n1, n2, n3])
+    test.build()
         .run_with_custom_config(
             Duration::from_secs(60),
             TestParams {
@@ -101,15 +105,16 @@ pub async fn crash_restart_from_latest() {
 #[ignore] // Test is failing
 pub async fn start_late() {
     const HEIGHT: u64 = 5;
+    let mut test = TestBuilder::<()>::new();
 
-    let n1 = TestNode::new(1).start().wait_until(HEIGHT * 2).success();
-    let n2 = TestNode::new(2).start().wait_until(HEIGHT * 2).success();
-    let n3 = TestNode::new(3)
+    test.add_node().start().wait_until(HEIGHT * 2).success();
+    test.add_node().start().wait_until(HEIGHT * 2).success();
+    test.add_node()
         .start_after(1, Duration::from_secs(10))
         .wait_until(HEIGHT)
         .success();
 
-    Test::new([n1, n2, n3])
+    test.build()
         .run_with_custom_config(
             Duration::from_secs(30),
             TestParams {

@@ -5,8 +5,7 @@ use libp2p::request_response;
 use serde::{Deserialize, Serialize};
 
 use malachite_common::{CommitCertificate, Context, Round, VoteSet};
-
-pub use libp2p::identity::PeerId;
+pub use malachite_peer::PeerId;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
 #[displaydoc("{0}")]

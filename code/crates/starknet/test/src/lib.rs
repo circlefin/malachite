@@ -1,5 +1,3 @@
-#![allow(unused_crate_dependencies)]
-
 use core::fmt;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::net::SocketAddr;
@@ -8,18 +6,20 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use eyre::bail;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use tokio::sync::broadcast;
 use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
-use tracing::{error, error_span, info, Instrument};
+use tracing::{debug, error, error_span, info, Instrument};
 
-use malachite_common::{CommitCertificate, VotingPower};
+use malachite_actors::util::events::{Event, RxEvent, TxEvent};
+use malachite_common::{SignedVote, VotingPower};
 use malachite_config::{
     BlockSyncConfig, Config as NodeConfig, Config, LoggingConfig, PubSubProtocol, TestConfig,
     TransportProtocol,
 };
+use malachite_consensus::{SignedConsensusMsg, ValueToPropose};
 use malachite_starknet_host::spawn::spawn_node_actor;
 use malachite_starknet_host::types::MockContext;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
@@ -97,90 +97,171 @@ impl TestParams {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Step {
-    Crash,
+pub enum Step<S> {
+    Crash(Duration),
     ResetDb,
     Restart(Duration),
     WaitUntil(u64),
+    OnEvent(EventHandler<S>),
     Expect(Expected),
     Success,
-    Pause,
+    Fail(String),
 }
+
+#[derive(Copy, Clone, Debug)]
+pub enum HandlerResult {
+    WaitForNextEvent,
+    ContinueTest,
+}
+
+pub type EventHandler<S> =
+    Box<dyn Fn(Event<MockContext>, &mut S) -> Result<HandlerResult, eyre::Report> + Send + Sync>;
 
 pub type NodeId = usize;
 
-#[derive(Clone)]
-pub struct TestNode {
+pub struct TestNode<State = ()> {
     pub id: NodeId,
     pub voting_power: VotingPower,
     pub start_height: Height,
     pub start_delay: Duration,
-    pub steps: Vec<Step>,
+    pub steps: Vec<Step<State>>,
+    pub state: State,
 }
 
-impl TestNode {
-    pub fn new(id: usize) -> Self {
+impl<State> TestNode<State> {
+    pub fn new(id: usize) -> Self
+    where
+        State: Default,
+    {
+        Self::new_with_state(id, State::default())
+    }
+
+    pub fn new_with_state(id: usize, state: State) -> Self {
         Self {
             id,
             voting_power: 1,
             start_height: Height::new(1, 1),
             start_delay: Duration::from_secs(0),
             steps: vec![],
+            state,
         }
     }
 
-    pub fn vp(mut self, power: VotingPower) -> Self {
+    pub fn with_state(&mut self, state: State) -> &mut Self {
+        self.state = state;
+        self
+    }
+
+    pub fn with_voting_power(&mut self, power: VotingPower) -> &mut Self {
         self.voting_power = power;
         self
     }
 
-    pub fn start(self) -> Self {
+    pub fn start(&mut self) -> &mut Self {
         self.start_at(1)
     }
 
-    pub fn start_at(self, height: u64) -> Self {
+    pub fn start_at(&mut self, height: u64) -> &mut Self {
         self.start_after(height, Duration::from_secs(0))
     }
 
-    pub fn start_after(mut self, height: u64, delay: Duration) -> Self {
+    pub fn start_after(&mut self, height: u64, delay: Duration) -> &mut Self {
         self.start_height.block_number = height;
         self.start_delay = delay;
         self
     }
 
-    pub fn crash(mut self) -> Self {
-        self.steps.push(Step::Crash);
+    pub fn crash(&mut self) -> &mut Self {
+        self.steps.push(Step::Crash(Duration::from_secs(0)));
         self
     }
 
-    pub fn reset_db(mut self) -> Self {
+    pub fn crash_after(&mut self, duration: Duration) -> &mut Self {
+        self.steps.push(Step::Crash(duration));
+        self
+    }
+
+    pub fn reset_db(&mut self) -> &mut Self {
         self.steps.push(Step::ResetDb);
         self
     }
 
-    pub fn restart_after(mut self, delay: Duration) -> Self {
+    pub fn restart_after(&mut self, delay: Duration) -> &mut Self {
         self.steps.push(Step::Restart(delay));
         self
     }
 
-    pub fn wait_until(mut self, height: u64) -> Self {
+    pub fn wait_until(&mut self, height: u64) -> &mut Self {
         self.steps.push(Step::WaitUntil(height));
         self
     }
 
-    pub fn expect(mut self, expected: Expected) -> Self {
+    pub fn on_event<F>(&mut self, on_event: F) -> &mut Self
+    where
+        F: Fn(Event<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.steps.push(Step::OnEvent(Box::new(on_event)));
+        self
+    }
+
+    pub fn expect_wal_replay(&mut self, at_height: u64) -> &mut Self {
+        self.on_event(move |event, _| {
+            let Event::WalReplayBegin(height, count) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            info!("Replaying WAL at height {height} with {count} messages");
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected WAL replay at height {height}, expected {at_height}")
+            }
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
+    pub fn on_proposed_value<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(ValueToPropose<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.on_event(move |event, state| {
+            if let Event::ProposedValue(value) = event {
+                f(value, state)
+            } else {
+                Ok(HandlerResult::WaitForNextEvent)
+            }
+        })
+    }
+
+    pub fn on_vote<F>(&mut self, f: F) -> &mut Self
+    where
+        F: Fn(SignedVote<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.on_event(move |event, state| {
+            if let Event::Published(SignedConsensusMsg::Vote(vote)) = event {
+                f(vote, state)
+            } else {
+                Ok(HandlerResult::WaitForNextEvent)
+            }
+        })
+    }
+
+    pub fn expect_decisions(&mut self, expected: Expected) -> &mut Self {
         self.steps.push(Step::Expect(expected));
         self
     }
 
-    pub fn success(mut self) -> Self {
+    pub fn success(&mut self) -> &mut Self {
         self.steps.push(Step::Success);
-        self
-    }
-
-    pub fn pause(mut self) -> Self {
-        self.steps.push(Step::Pause);
         self
     }
 }
@@ -191,21 +272,55 @@ fn unique_id() -> usize {
     ID.fetch_add(1, Ordering::SeqCst)
 }
 
-pub struct Test<const N: usize> {
+pub struct TestBuilder<S> {
+    nodes: Vec<TestNode<S>>,
+}
+
+impl<S> Default for TestBuilder<S> {
+    fn default() -> Self {
+        Self { nodes: Vec::new() }
+    }
+}
+
+impl<S> TestBuilder<S>
+where
+    S: Send + Sync + 'static,
+{
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn add_node(&mut self) -> &mut TestNode<S>
+    where
+        S: Default,
+    {
+        let node = TestNode::new(self.nodes.len() + 1);
+        self.nodes.push(node);
+        self.nodes.last_mut().unwrap()
+    }
+
+    pub fn build(self) -> Test<S> {
+        Test::new(self.nodes)
+    }
+}
+
+pub struct Test<S> {
     pub id: usize,
-    pub nodes: [TestNode; N],
-    pub private_keys: [PrivateKey; N],
+    pub nodes: Vec<TestNode<S>>,
+    pub private_keys: Vec<PrivateKey>,
     pub validator_set: ValidatorSet,
     pub consensus_base_port: usize,
     pub mempool_base_port: usize,
     pub metrics_base_port: usize,
 }
 
-impl<const N: usize> Test<N> {
-    pub fn new(nodes: [TestNode; N]) -> Self {
+impl<S> Test<S>
+where
+    S: Send + Sync + 'static,
+{
+    pub fn new(nodes: Vec<TestNode<S>>) -> Self {
         let vals_and_keys = make_validators(voting_powers(&nodes));
         let (validators, private_keys): (Vec<_>, Vec<_>) = vals_and_keys.into_iter().unzip();
-        let private_keys = private_keys.try_into().expect("N private keys");
         let validator_set = ValidatorSet::new(validators);
         let id = unique_id();
         let base_port = 20_000 + id * 1000;
@@ -221,12 +336,13 @@ impl<const N: usize> Test<N> {
         }
     }
 
-    pub fn generate_default_configs(&self) -> [Config; N] {
-        let configs: Vec<_> = (0..N).map(|i| make_node_config(self, i)).collect();
-        configs.try_into().expect("N configs")
+    pub fn generate_default_configs(&self) -> Vec<Config> {
+        (0..self.nodes.len())
+            .map(|i| make_node_config(self, i))
+            .collect()
     }
 
-    pub fn generate_custom_configs(&self, params: TestParams) -> [Config; N] {
+    pub fn generate_custom_configs(&self, params: TestParams) -> Vec<Config> {
         let mut configs = self.generate_default_configs();
         for config in &mut configs {
             params.apply_to_config(config);
@@ -244,9 +360,7 @@ impl<const N: usize> Test<N> {
         self.run_with_config(configs, timeout).await
     }
 
-    pub async fn run_with_config(self, configs: [Config; N], timeout: Duration) {
-        init_logging();
-
+    pub async fn run_with_config(self, configs: Vec<Config>, timeout: Duration) {
         let _span = error_span!("test", id = %self.id).entered();
 
         let mut set = JoinSet::new();
@@ -270,7 +384,7 @@ impl<const N: usize> Test<N> {
                     let result = run_node(node, home_dir, config, validator_set, private_key).await;
                     (id, result)
                 }
-                .instrument(tracing::Span::current()),
+                .in_current_span(),
             );
         }
 
@@ -296,16 +410,12 @@ fn check_results(results: Vec<(NodeId, TestResult)>) {
     for (id, result) in results {
         let _span = tracing::error_span!("node", %id).entered();
         match result {
-            TestResult::Success(actual, expected) => {
-                info!("Correct number of decisions: got {actual}, expected: {expected}",);
+            TestResult::Success(reason) => {
+                info!("Test succeeded: {reason}");
             }
-            TestResult::Failure(actual, expected) => {
+            TestResult::Failure(reason) => {
                 errors += 1;
-                error!("Incorrect number of decisions: got {actual}, expected {expected}",);
-            }
-            TestResult::Unknown => {
-                errors += 1;
-                error!("Unknown test result");
+                error!("Test failed: {reason}");
             }
         }
     }
@@ -317,16 +427,13 @@ fn check_results(results: Vec<(NodeId, TestResult)>) {
 }
 
 pub enum TestResult {
-    Success(usize, Expected),
-    Failure(usize, Expected),
-    Unknown,
+    Success(String),
+    Failure(String),
 }
 
-type RxDecision = broadcast::Receiver<CommitCertificate<MockContext>>;
-
 #[tracing::instrument("node", skip_all, fields(id = %node.id))]
-async fn run_node(
-    node: TestNode,
+async fn run_node<S>(
+    mut node: TestNode<S>,
     home_dir: PathBuf,
     config: Config,
     validator_set: ValidatorSet,
@@ -336,57 +443,74 @@ async fn run_node(
 
     info!("Spawning node with voting power {}", node.voting_power);
 
-    let (tx, mut rx) = broadcast::channel(100);
+    let tx_event = TxEvent::new();
+    let mut rx_event = tx_event.subscribe();
+    let rx_event_bg = tx_event.subscribe();
+
     let (mut actor_ref, mut handle) = spawn_node_actor(
         config.clone(),
         home_dir.clone(),
         validator_set.clone(),
         private_key,
         Some(node.start_height),
-        Some(tx.clone()),
+        tx_event,
     )
     .await;
 
     let decisions = Arc::new(AtomicUsize::new(0));
+    let current_height = Arc::new(AtomicUsize::new(0));
 
-    let spawn_bg = |mut rx: RxDecision| {
+    let spawn_bg = |mut rx: RxEvent<MockContext>| {
         tokio::spawn({
             let decisions = Arc::clone(&decisions);
+            let current_height = Arc::clone(&current_height);
 
             async move {
-                while let Ok(_decision) = rx.recv().await {
-                    decisions.fetch_add(1, Ordering::SeqCst);
+                while let Ok(event) = rx.recv().await {
+                    match &event {
+                        Event::StartedHeight(height) => {
+                            current_height.store(height.as_u64() as usize, Ordering::SeqCst);
+                        }
+                        Event::Decided(_) => {
+                            decisions.fetch_add(1, Ordering::SeqCst);
+                        }
+                        _ => (),
+                    }
+
+                    debug!("Event: {event:?}");
                 }
             }
+            .in_current_span()
         })
     };
 
-    let mut bg = spawn_bg(tx.subscribe());
+    let mut bg = spawn_bg(rx_event_bg);
 
     for step in node.steps {
         match step {
             Step::WaitUntil(target_height) => {
                 info!("Waiting until node reaches height {target_height}");
 
-                'inner: while let Ok(decision) = rx.recv().await {
-                    let height = decision.height.as_u64();
-                    info!("Node reached height {height}");
+                'inner: while let Ok(event) = rx_event.recv().await {
+                    let Event::StartedHeight(height) = event else {
+                        continue;
+                    };
 
-                    if height == target_height {
-                        sleep(Duration::from_millis(100)).await;
+                    info!("Node started height {height}");
+
+                    if height.as_u64() == target_height {
                         break 'inner;
                     }
                 }
             }
 
-            Step::Crash => {
-                let height = decisions.load(Ordering::SeqCst);
-                info!("Node crashes at height {height}");
+            Step::Crash(after) => {
+                let height = current_height.load(Ordering::SeqCst);
 
-                actor_ref
-                    .stop_and_wait(Some("Node must crash".to_string()), None)
-                    .await
-                    .expect("Node must stop");
+                info!("Node will crash at height {height}");
+                sleep(after).await;
+
+                actor_ref.kill_and_wait(None).await.expect("Node must stop");
             }
 
             Step::ResetDb => {
@@ -405,27 +529,45 @@ async fn run_node(
                 bg.abort();
                 handle.abort();
 
-                let (new_tx, new_rx) = broadcast::channel(100);
+                let tx_event = TxEvent::new();
+                let new_rx_event = tx_event.subscribe();
+                let new_rx_event_bg = tx_event.subscribe();
+
                 let (new_actor_ref, new_handle) = spawn_node_actor(
                     config.clone(),
                     home_dir.clone(),
                     validator_set.clone(),
                     private_key,
                     Some(node.start_height),
-                    Some(new_tx.clone()),
+                    tx_event,
                 )
                 .await;
 
-                bg = spawn_bg(new_tx.subscribe());
+                bg = spawn_bg(new_rx_event_bg);
 
                 actor_ref = new_actor_ref;
                 handle = new_handle;
-                rx = new_rx;
+                rx_event = new_rx_event;
             }
 
-            Step::Pause => {
-                info!("Pausing");
-                while rx.recv().await.is_ok() {}
+            Step::OnEvent(on_event) => {
+                'inner: while let Ok(event) = rx_event.recv().await {
+                    match on_event(event, &mut node.state) {
+                        Ok(HandlerResult::WaitForNextEvent) => {
+                            continue 'inner;
+                        }
+                        Ok(HandlerResult::ContinueTest) => {
+                            break 'inner;
+                        }
+                        Err(e) => {
+                            actor_ref.stop(Some("Test failed".to_string()));
+                            handle.abort();
+                            bg.abort();
+
+                            return TestResult::Failure(e.to_string());
+                        }
+                    }
+                }
             }
 
             Step::Expect(expected) => {
@@ -436,38 +578,46 @@ async fn run_node(
                 bg.abort();
 
                 if expected.check(actual) {
-                    return TestResult::Success(actual, expected);
+                    return TestResult::Success(format!(
+                        "Correct number of decisions: got {actual}, expected: {expected}"
+                    ));
                 } else {
-                    return TestResult::Failure(actual, expected);
+                    return TestResult::Failure(format!(
+                        "Incorrect number of decisions: got {actual}, expected: {expected}"
+                    ));
                 }
             }
 
             Step::Success => {
-                actor_ref.stop(Some("Test is over".to_string()));
+                break;
+            }
+
+            Step::Fail(reason) => {
+                actor_ref.stop(Some("Test failed".to_string()));
                 handle.abort();
                 bg.abort();
 
-                let actual = decisions.load(Ordering::SeqCst);
-                return TestResult::Success(actual, Expected::Exactly(actual));
+                return TestResult::Failure(reason);
             }
         }
     }
 
-    actor_ref.stop(Some("Test is over".to_string()));
-    handle.abort();
-    bg.abort();
-
-    return TestResult::Unknown;
+    return TestResult::Success("OK".to_string());
 }
 
-fn init_logging() {
+pub fn init_logging(test_module: &str) {
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
-    let directive = if matches!(std::env::var("TEST_DEBUG").as_deref(), Ok("1")) {
-        "malachite=debug,malachite_starknet_test=debug,ractor=error"
+    let debug_vars = &[("ACTIONS_RUNNER_DEBUG", "true"), ("MALACHITE_DEBUG", "1")];
+    let enable_debug = debug_vars
+        .iter()
+        .any(|(k, v)| std::env::var(k).as_deref() == Ok(v));
+
+    let directive = if enable_debug {
+        format!("{test_module}=debug,malachite=debug,malachite_starknet_test=debug,ractor=error")
     } else {
-        "malachite=error,malachite_starknet_test=debug,ractor=error"
+        format!("{test_module}=debug,malachite=error,malachite_starknet_test=debug,ractor=error")
     };
 
     let filter = EnvFilter::builder().parse(directive).unwrap();
@@ -481,7 +631,7 @@ fn init_logging() {
     let builder = FmtSubscriber::builder()
         .with_target(false)
         .with_env_filter(filter)
-        .with_writer(std::io::stdout)
+        .with_test_writer()
         .with_ansi(enable_ansi())
         .with_thread_ids(false);
 
@@ -507,7 +657,7 @@ fn transport_from_env(default: TransportProtocol) -> TransportProtocol {
     }
 }
 
-pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> NodeConfig {
+pub fn make_node_config<S>(test: &Test<S>, i: usize) -> NodeConfig {
     let transport = transport_from_env(TransportProtocol::Tcp);
     let protocol = PubSubProtocol::default();
 
@@ -522,7 +672,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> NodeConfig 
                 transport,
                 protocol,
                 listen_addr: transport.multiaddr("127.0.0.1", test.consensus_base_port + i),
-                persistent_peers: (0..N)
+                persistent_peers: (0..test.nodes.len())
                     .filter(|j| i != *j)
                     .map(|j| transport.multiaddr("127.0.0.1", test.consensus_base_port + j))
                     .collect(),
@@ -534,7 +684,7 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> NodeConfig 
                 transport,
                 protocol,
                 listen_addr: transport.multiaddr("127.0.0.1", test.mempool_base_port + i),
-                persistent_peers: (0..N)
+                persistent_peers: (0..test.nodes.len())
                     .filter(|j| i != *j)
                     .map(|j| transport.multiaddr("127.0.0.1", test.mempool_base_port + j))
                     .collect(),
@@ -559,20 +709,14 @@ pub fn make_node_config<const N: usize>(test: &Test<N>, i: usize) -> NodeConfig 
     }
 }
 
-fn voting_powers<const N: usize>(nodes: &[TestNode; N]) -> [VotingPower; N] {
-    let mut voting_powers = [0; N];
-    for (i, node) in nodes.iter().enumerate() {
-        voting_powers[i] = node.voting_power;
-    }
-    voting_powers
+fn voting_powers<S>(nodes: &[TestNode<S>]) -> Vec<VotingPower> {
+    nodes.iter().map(|node| node.voting_power).collect()
 }
 
-pub fn make_validators<const N: usize>(
-    voting_powers: [VotingPower; N],
-) -> [(Validator, PrivateKey); N] {
+pub fn make_validators(voting_powers: Vec<VotingPower>) -> Vec<(Validator, PrivateKey)> {
     let mut rng = StdRng::seed_from_u64(0x42);
 
-    let mut validators = Vec::with_capacity(N);
+    let mut validators = Vec::with_capacity(voting_powers.len());
 
     for vp in voting_powers {
         let sk = PrivateKey::generate(&mut rng);
@@ -580,7 +724,7 @@ pub fn make_validators<const N: usize>(
         validators.push((val, sk));
     }
 
-    validators.try_into().expect("N validators")
+    validators
 }
 
 use axum::routing::get;

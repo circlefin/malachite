@@ -17,9 +17,9 @@ fn corrupted_crc() -> io::Result<()> {
     // Write initial entries
     {
         let mut wal = Log::open(&path)?;
-        wal.write(b"entry1")?;
-        wal.write(b"entry2")?;
-        wal.sync()?;
+        wal.append(b"entry1")?;
+        wal.append(b"entry2")?;
+        wal.flush()?;
     }
 
     // Corrupt the CRC of the second entry
@@ -64,9 +64,9 @@ fn incomplete_entries() -> io::Result<()> {
     // Write initial entries
     {
         let mut wal = Log::open(&path)?;
-        wal.write(b"entry1")?;
-        wal.write(b"entry2")?;
-        wal.sync()?;
+        wal.append(b"entry1")?;
+        wal.append(b"entry2")?;
+        wal.flush()?;
     }
 
     // Truncate file in the middle of the second entry
@@ -165,10 +165,10 @@ fn multiple_corruptions() -> io::Result<()> {
     // Create initial WAL with entries
     {
         let mut wal = Log::open(&path)?;
-        wal.write(b"entry1")?;
-        wal.write(b"entry2")?;
-        wal.write(b"entry3")?;
-        wal.sync()?;
+        wal.append(b"entry1")?;
+        wal.append(b"entry2")?;
+        wal.append(b"entry3")?;
+        wal.flush()?;
     }
 
     // Introduce multiple types of corruption
@@ -210,9 +210,9 @@ fn zero_length_entries() -> io::Result<()> {
     // Create WAL with zero-length entry
     {
         let mut wal = Log::open(&path)?;
-        wal.write(b"")?;
-        wal.write(b"normal entry")?;
-        wal.sync()?;
+        wal.append(b"")?;
+        wal.append(b"normal entry")?;
+        wal.flush()?;
     }
 
     // Verify reading
@@ -237,10 +237,10 @@ fn max_entry_size() -> io::Result<()> {
 
     // Try to write an entry that's too large
     let large_entry = vec![0u8; usize::MAX / 2];
-    assert!(wal.write(&large_entry).is_err());
+    assert!(wal.append(&large_entry).is_err());
 
     // Verify WAL is still usable
-    wal.write(b"normal entry")?;
+    wal.append(b"normal entry")?;
 
     let entries: Vec<_> = wal.iter()?.collect::<Result<Vec<_>, _>>()?;
     assert_eq!(entries.len(), 1);

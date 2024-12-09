@@ -59,6 +59,10 @@ where
         }
     }
 
+    pub fn height(&self) -> Ctx::Height {
+        self.driver.height()
+    }
+
     pub fn address(&self) -> &Ctx::Address {
         self.driver.address()
     }
