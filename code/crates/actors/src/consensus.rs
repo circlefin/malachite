@@ -433,13 +433,6 @@ where
             }
 
             Msg::ReceivedProposedValue(value, origin) => {
-                // self.wal_append(
-                //     value.height,
-                //     WalEntry::ProposedValue(value.clone(), origin),
-                //     state.phase,
-                // )
-                // .await?;
-
                 self.tx_event
                     .send(|| Event::ReceivedProposedValue(value.clone(), origin));
 
@@ -568,15 +561,6 @@ where
 
                     if let Err(e) = self.timeout_elapsed(myself, state, timeout).await {
                         error!("Error when replaying TimeoutElapsed: {e}");
-                    }
-                }
-
-                WalEntry::ProposedValue(value, origin) => {
-                    if let Err(e) = self
-                        .process_input(myself, state, ConsensusInput::ProposedValue(value, origin))
-                        .await
-                    {
-                        error!("Error when replaying ProposedValue: {e}");
                     }
                 }
             }

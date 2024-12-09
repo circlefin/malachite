@@ -53,30 +53,6 @@ impl HostState {
     }
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
-    pub async fn build_block_from_parts(
-        &self,
-        parts: &[Arc<ProposalPart>],
-        height: Height,
-        round: Round,
-    ) -> Option<(ProposedValue<MockContext>, Block)> {
-        let value = self.build_value_from_parts(parts, height, round).await?;
-
-        let txes = parts
-            .iter()
-            .filter_map(|part| part.as_transactions())
-            .flat_map(|txes| txes.to_vec())
-            .collect::<Vec<_>>();
-
-        let block = Block {
-            height,
-            transactions: Transactions::new(txes),
-            block_hash: value.value,
-        };
-
-        Some((value, block))
-    }
-
-    #[tracing::instrument(skip_all, fields(%height, %round))]
     pub async fn build_value_from_parts(
         &self,
         parts: &[Arc<ProposalPart>],

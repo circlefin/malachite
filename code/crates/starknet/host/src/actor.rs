@@ -305,7 +305,7 @@ async fn on_get_value(
 
     let parts = state.host.part_store.all_parts(height, round);
 
-    let Some((value, _)) = state.build_block_from_parts(&parts, height, round).await else {
+    let Some(value) = state.build_value_from_parts(&parts, height, round).await else {
         error!(%height, %round, "Failed to build block from parts");
         return Ok(());
     };
