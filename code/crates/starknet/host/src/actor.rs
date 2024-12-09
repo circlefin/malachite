@@ -76,9 +76,11 @@ impl Actor for Host {
 
     async fn pre_start(
         &self,
-        _myself: HostRef,
+        myself: HostRef,
         initial_state: Self::State,
     ) -> Result<Self::State, ActorProcessingErr> {
+        self.mempool.link(myself.get_cell());
+
         Ok(initial_state)
     }
 

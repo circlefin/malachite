@@ -32,7 +32,8 @@ where
     thread::spawn(move || loop {
         if let Err(e) = task(moniker.clone(), &mut wal, &codec, &mut rx) {
             // Task failed, log the error and continue
-            error!("WAL error: {e}");
+            error!("WAL task failed: {e}");
+            error!("Restarting WAL task");
 
             continue;
         }
@@ -57,7 +58,7 @@ where
     while let Some(msg) = rx.blocking_recv() {
         match msg {
             WalMsg::StartedHeight(height, reply) => {
-                // FIXME: Ensure this works event with fork_id
+                // FIXME: Ensure this works even with fork_id
                 let sequence = height.as_u64();
 
                 if sequence == log.sequence() {
@@ -89,20 +90,27 @@ where
 
                 if let Err(e) = &result {
                     error!("ATTENTION: Failed to append entry to WAL: {e}");
+                } else {
+                    debug!("Wrote log entry: type = {tpe}, log size = {}", log.len());
                 }
 
                 if reply.send(result).is_err() {
                     error!("ATTENTION: Failed to send WAL append reply");
                 }
-
-                debug!("Wrote log entry: type = {tpe}, log size = {}", log.len());
             }
 
             WalMsg::Flush(reply) => {
                 let result = log.flush().map_err(Into::into);
-                reply.send(result).unwrap(); // FIXME
 
-                debug!("Flushed WAL to disk");
+                if let Err(e) = &result {
+                    error!("ATTENTION: Failed to flush WAL to disk: {e}");
+                } else {
+                    debug!("Flushed WAL to disk");
+                }
+
+                if reply.send(result).is_err() {
+                    error!("ATTENTION: Failed to send WAL flush reply");
+                }
             }
 
             WalMsg::Shutdown => {
