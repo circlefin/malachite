@@ -510,7 +510,10 @@ async fn run_node<S>(
                 info!("Node will crash at height {height}");
                 sleep(after).await;
 
-                actor_ref.kill_and_wait(None).await.expect("Node must stop");
+                actor_ref
+                    .kill_and_wait(Some(Duration::from_secs(1)))
+                    .await
+                    .expect("Node must stop");
             }
 
             Step::ResetDb => {
