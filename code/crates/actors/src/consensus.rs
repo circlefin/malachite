@@ -213,8 +213,6 @@ where
             Msg::StartHeight(height, validator_set) => {
                 state.phase = Phase::Running;
 
-                self.tx_event.send(|| Event::StartedHeight(height));
-
                 let result = self
                     .process_input(
                         &myself,
@@ -225,10 +223,6 @@ where
 
                 if let Err(e) = result {
                     error!(%height, "Error when starting height: {e}");
-                }
-
-                if let Err(e) = self.check_and_replay_wal(&myself, state, height).await {
-                    error!(%height, "Error when checking and replaying WAL: {e}");
                 }
 
                 // Notify the BlockSync actor that we have started a new height
