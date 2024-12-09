@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use libp2p::identity::Keypair;
+use libp2p_identity::Keypair;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
 use ractor::{Actor, RpcReplyPort};

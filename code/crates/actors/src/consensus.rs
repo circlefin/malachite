@@ -605,6 +605,9 @@ where
         for entry in entries {
             match entry {
                 WalEntry::ConsensusMsg(Vote(vote)) => {
+                    self.tx_event
+                        .send(|| Event::WalReplayConsensus(Vote(vote.clone())));
+
                     if let Err(e) = self
                         .process_input(myself, state, ConsensusInput::Vote(vote))
                         .await
@@ -614,6 +617,9 @@ where
                 }
 
                 WalEntry::ConsensusMsg(Proposal(proposal)) => {
+                    self.tx_event
+                        .send(|| Event::WalReplayConsensus(Proposal(proposal.clone())));
+
                     if let Err(e) = self
                         .process_input(myself, state, ConsensusInput::Proposal(proposal))
                         .await
@@ -623,6 +629,8 @@ where
                 }
 
                 WalEntry::Timeout(timeout) => {
+                    self.tx_event.send(|| Event::WalReplayTimeout(timeout));
+
                     if let Err(e) = self.timeout_elapsed(myself, state, timeout).await {
                         error!("Error when replaying TimeoutElapsed: {e}");
                     }

@@ -3,7 +3,7 @@ use core::fmt;
 use derive_where::derive_where;
 use tokio::sync::broadcast;
 
-use malachite_common::{CommitCertificate, Context, Round, ValueOrigin};
+use malachite_common::{CommitCertificate, Context, Round, Timeout, ValueOrigin};
 use malachite_consensus::{ProposedValue, SignedConsensusMsg, ValueToPropose};
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;
@@ -44,6 +44,8 @@ pub enum Event<Ctx: Context> {
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
     Decided(CommitCertificate<Ctx>),
     WalReplayBegin(Ctx::Height, usize),
+    WalReplayConsensus(SignedConsensusMsg<Ctx>),
+    WalReplayTimeout(Timeout),
     WalReplayDone(Ctx::Height),
 }
 
@@ -61,6 +63,8 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
             Event::WalReplayBegin(height, count) => {
                 write!(f, "WalReplayBegin({height}, {count})")
             }
+            Event::WalReplayConsensus(msg) => write!(f, "WalReplayConsensus({msg:?})"),
+            Event::WalReplayTimeout(timeout) => write!(f, "WalReplayTimeout({timeout:?})"),
             Event::WalReplayDone(height) => write!(f, "WalReplayDone({height})"),
         }
     }

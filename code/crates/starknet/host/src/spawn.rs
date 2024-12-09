@@ -9,7 +9,6 @@ use tokio::task::JoinHandle;
 use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
-use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
 use malachite_blocksync as blocksync;
@@ -27,6 +26,7 @@ use malachite_metrics::SharedRegistry;
 
 use crate::actor::Host;
 use crate::codec::ProtobufCodec;
+use crate::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use crate::host::{StarknetHost, StarknetParams};
 use crate::mempool::{Mempool, MempoolRef};
 use crate::types::MockContext;
@@ -101,7 +101,6 @@ pub async fn spawn_node_actor(
         ctx,
         gossip_consensus,
         consensus,
-        gossip_mempool,
         wal,
         block_sync,
         mempool.get_cell(),

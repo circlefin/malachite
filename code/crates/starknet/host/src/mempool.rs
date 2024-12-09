@@ -6,12 +6,12 @@ use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::RngCore;
 use tracing::{debug, info, trace};
 
-use malachite_actors::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use malachite_actors::util::forward::forward;
 use malachite_config::{MempoolConfig, TestConfig};
 use malachite_gossip_mempool::types::MempoolTransactionBatch;
 use malachite_gossip_mempool::{Event as GossipEvent, NetworkMsg, PeerId};
 
+use crate::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use crate::proto::Protobuf;
 use crate::types::{Hash, Transaction, Transactions};
 
@@ -158,6 +158,8 @@ impl Actor for Mempool {
             MempoolMsg::GossipEvent,
         )
         .await?;
+
+        self.gossip_mempool.link(myself.get_cell());
 
         self.gossip_mempool
             .cast(GossipMempoolMsg::Subscribe(forward))?;
