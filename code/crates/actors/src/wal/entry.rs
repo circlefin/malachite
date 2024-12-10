@@ -11,7 +11,6 @@ use malachite_consensus::{ProposedValue, SignedConsensusMsg};
 ///
 /// This trait is automatically implemented for any type that implements:
 /// - [`Codec<SignedConsensusMsg<Ctx>>`]
-/// - [`Codec<ProposedValue<Ctx>>`]
 pub trait WalCodec<Ctx>
 where
     Ctx: Context,

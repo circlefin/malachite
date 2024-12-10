@@ -1,3 +1,5 @@
+//! Implementation of a host actor acting as a bridge between consensus and the application.
+
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, SpawnErr};
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;

@@ -1,4 +1,9 @@
-pub mod channel;
 pub mod connector;
-pub mod run;
 pub mod spawn;
+pub mod types;
+
+mod channel;
+pub use channel::{AppMsg, ConsensusMsg};
+
+mod run;
+pub use run::run;
