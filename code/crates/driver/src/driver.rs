@@ -8,7 +8,6 @@ use malachite_common::{
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
-use malachite_round::state::Step::*;
 use malachite_round::state::{RoundValue, State as RoundState, Step};
 use malachite_round::state_machine::Info;
 use malachite_vote::keeper::VoteKeeper;
@@ -129,22 +128,22 @@ where
 
     /// Returns true if the current step is propose.
     pub fn step_is_propose(&self) -> bool {
-        self.round_state.step == Propose
+        self.round_state.step == Step::Propose
     }
 
-    /// Returns true if the current step is propose.
+    /// Returns true if the current step is prevote.
     pub fn step_is_prevote(&self) -> bool {
-        self.round_state.step == Prevote
+        self.round_state.step == Step::Prevote
     }
 
-    /// Returns true if the current step is propose.
+    /// Returns true if the current step is precommit.
     pub fn step_is_precommit(&self) -> bool {
-        self.round_state.step == Precommit
+        self.round_state.step == Step::Precommit
     }
 
-    /// Returns true if the current step is propose.
+    /// Returns true if the current step is commit.
     pub fn step_is_commit(&self) -> bool {
-        self.round_state.step == Commit
+        self.round_state.step == Step::Commit
     }
 
     /// Return the valid value (the value for which we saw a polka) for the current round, if any.

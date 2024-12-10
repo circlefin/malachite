@@ -400,7 +400,7 @@ where
                             vote_set,
                         }),
                     ) => {
-                        if vote_set.vote_set.is_empty() {
+                        if vote_set.votes.is_empty() {
                             debug!(%height, %round, %request_id, %peer, "Received an empty vote set response");
                             return Ok(());
                         };

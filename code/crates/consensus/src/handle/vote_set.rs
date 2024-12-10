@@ -38,9 +38,12 @@ pub async fn on_vote_set_response<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(height = %state.height(), round = %state.round(), "Received vote set response, process {} votes", response.vote_set.len());
+    debug!(
+        height = %state.height(), round = %state.round(), votes.count = %response.len(),
+        "Received vote set response"
+    );
 
-    for vote in response.vote_set {
+    for vote in response.votes {
         let _ = on_vote(co, state, metrics, vote).await;
     }
 

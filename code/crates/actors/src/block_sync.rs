@@ -242,7 +242,8 @@ where
             Effect::SendVoteSetRequest(peer_id, vote_set_request) => {
                 debug!(
                     height = %vote_set_request.height, round = %vote_set_request.round, peer = %peer_id,
-                    "Send the vote set request to peer");
+                    "Send the vote set request to peer"
+                );
 
                 let request = Request::VoteSetRequest(vote_set_request);
 
@@ -283,7 +284,8 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::GetVoteSet(height, round) => {
-                debug!(%height, %round, "Make a vote set request to one of the peers, keep track of it and retry on timeout");
+                debug!(%height, %round, "Make a vote set request to one of the peers");
+
                 self.process_input(&myself, state, blocksync::Input::GetVoteSet(height, round))
                     .await?;
             }

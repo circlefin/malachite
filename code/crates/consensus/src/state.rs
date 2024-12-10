@@ -127,6 +127,7 @@ where
         if height != self.driver.height() {
             return vec![];
         }
+
         if let Some(per_round) = self.driver.votes().per_round(round) {
             per_round.received_votes().iter().cloned().collect()
         } else {

@@ -188,6 +188,8 @@ fn encode_timeout(timeout: &Timeout, mut buf: impl Write) -> io::Result<()> {
         TimeoutKind::Prevote => 2,
         TimeoutKind::Precommit => 3,
         TimeoutKind::Commit => 4,
+
+        // We do not store these two timeouts in the WAL
         TimeoutKind::PrevoteTimeLimit | TimeoutKind::PrecommitTimeLimit => 0,
     };
 

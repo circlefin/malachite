@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use malachite_starknet_p2p_proto::ConsensusMessage;
 use prost::Message;
 
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
@@ -12,6 +11,7 @@ use malachite_common::{
     SignedProposal, SignedVote, Validity,
 };
 use malachite_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
+use malachite_starknet_p2p_proto::ConsensusMessage;
 
 use crate::proto::consensus_message::Messages;
 use crate::proto::{self as proto, Error as ProtoError, Protobuf};
@@ -617,15 +617,14 @@ pub(crate) fn encode_vote_set(
 ) -> Result<proto::sync::VoteSet, ProtoError> {
     Ok(proto::sync::VoteSet {
         signed_votes: vote_set
-            .vote_set
-            .clone()
-            .into_iter()
+            .votes
+            .iter()
             .map(encode_vote)
             .collect::<Result<Vec<_>, _>>()?,
     })
 }
 
-pub(crate) fn encode_vote(vote: SignedVote<MockContext>) -> Result<ConsensusMessage, ProtoError> {
+pub(crate) fn encode_vote(vote: &SignedVote<MockContext>) -> Result<ConsensusMessage, ProtoError> {
     Ok(ConsensusMessage {
         messages: Some(Messages::Vote(vote.message.to_proto()?)),
         signature: Some(vote.signature.to_proto()?),
@@ -636,7 +635,7 @@ pub(crate) fn decode_vote_set(
     vote_set: proto::sync::VoteSet,
 ) -> Result<malachite_common::VoteSet<MockContext>, ProtoError> {
     Ok(malachite_common::VoteSet {
-        vote_set: vote_set
+        votes: vote_set
             .signed_votes
             .into_iter()
             .filter_map(decode_vote)

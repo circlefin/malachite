@@ -515,7 +515,12 @@ pub async fn on_vote_set_response<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(height = %response.height, round = %response.round, %request_id, %peer, "Received vote set response");
+    debug!(
+        %request_id, %peer,
+        height = %response.height, round = %response.round,
+        votes.count = response.vote_set.len(),
+        "Received vote set response"
+    );
 
     state.remove_pending_vote_set_request(response.height, response.round);
     metrics.vote_set_response_received(response.height.as_u64(), response.round.as_i64());

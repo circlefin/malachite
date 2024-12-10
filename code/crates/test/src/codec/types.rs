@@ -294,7 +294,7 @@ impl From<VoteSet<TestContext>> for RawVoteSet {
     fn from(value: VoteSet<TestContext>) -> Self {
         Self {
             vote_set: value
-                .vote_set
+                .votes
                 .iter()
                 .map(|vote| RawSignedMessage {
                     message: vote.message.to_bytes(),
@@ -308,7 +308,7 @@ impl From<VoteSet<TestContext>> for RawVoteSet {
 impl From<RawVoteSet> for VoteSet<TestContext> {
     fn from(value: RawVoteSet) -> Self {
         Self {
-            vote_set: value
+            votes: value
                 .vote_set
                 .iter()
                 .map(|vote| SignedVote {

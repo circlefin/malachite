@@ -188,7 +188,7 @@ impl Metrics {
 
             registry.register(
                 "step_timeouts",
-                "NNumber of times consensus was blocked and required vote synchronization",
+                "Number of times consensus was blocked and required vote synchronization",
                 metrics.step_timeouts.clone(),
             );
 
