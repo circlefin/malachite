@@ -11,13 +11,13 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
-use tracing::{debug, error, error_span, info, Instrument};
+use tracing::{debug, error, error_span, info, Instrument, Span};
 
 use malachite_actors::util::events::{Event, RxEvent, TxEvent};
 use malachite_common::{SignedVote, VotingPower};
 use malachite_config::{
-    BlockSyncConfig, Config as NodeConfig, Config, LoggingConfig, PubSubProtocol, TestConfig,
-    TransportProtocol,
+    BlockSyncConfig, Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol,
+    TestConfig, TransportProtocol,
 };
 use malachite_consensus::{SignedConsensusMsg, ValueToPropose};
 use malachite_starknet_host::spawn::spawn_node_actor;
@@ -454,6 +454,7 @@ async fn run_node<S>(
         private_key,
         Some(node.start_height),
         tx_event,
+        Span::current(),
     )
     .await;
 
@@ -511,6 +512,9 @@ async fn run_node<S>(
                 sleep(after).await;
 
                 actor_ref.kill_and_wait(None).await.expect("Node must stop");
+
+                bg.abort();
+                handle.abort();
             }
 
             Step::ResetDb => {
@@ -526,13 +530,11 @@ async fn run_node<S>(
 
                 sleep(after).await;
 
-                bg.abort();
-                handle.abort();
-
                 let tx_event = TxEvent::new();
                 let new_rx_event = tx_event.subscribe();
                 let new_rx_event_bg = tx_event.subscribe();
 
+                info!("Spawning node");
                 let (new_actor_ref, new_handle) = spawn_node_actor(
                     config.clone(),
                     home_dir.clone(),
@@ -540,8 +542,11 @@ async fn run_node<S>(
                     private_key,
                     Some(node.start_height),
                     tx_event,
+                    tracing::Span::current(),
                 )
                 .await;
+
+                info!("Spawned");
 
                 bg = spawn_bg(new_rx_event_bg);
 
@@ -671,6 +676,7 @@ pub fn make_node_config<S>(test: &Test<S>, i: usize) -> NodeConfig {
             p2p: P2pConfig {
                 transport,
                 protocol,
+                discovery: DiscoveryConfig { enabled: false },
                 listen_addr: transport.multiaddr("127.0.0.1", test.consensus_base_port + i),
                 persistent_peers: (0..test.nodes.len())
                     .filter(|j| i != *j)

@@ -119,6 +119,7 @@ impl Node for StarknetNode {
             private_key,
             start_height,
             TxEvent::new(),
+            span.clone(),
         )
         .await;
 

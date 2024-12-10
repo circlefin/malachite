@@ -10,6 +10,7 @@ use std::time::Duration;
 use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::request_response::InboundRequestId;
+use libp2p::swarm::dial_opts::DialOpts;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, quic, SwarmBuilder};
 use libp2p_broadcast as broadcast;
@@ -221,7 +222,7 @@ async fn run(
     if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
         error!("Error listening on {}: {e}", config.listen_addr);
         return;
-    };
+    }
 
     state.discovery.dial_bootstrap_nodes(&swarm);
 
@@ -239,7 +240,7 @@ async fn run(
     loop {
         let result = tokio::select! {
             event = swarm.select_next_some() => {
-                handle_swarm_event(event, &metrics, &mut swarm, &mut state, &tx_event).await
+                handle_swarm_event(event, &config, &metrics, &mut swarm, &mut state, &tx_event).await
             }
 
             Some(connection_data) = state.discovery.controller.dial.recv(), if state.discovery.can_dial() => {
@@ -340,6 +341,7 @@ async fn handle_ctrl_msg(
 
 async fn handle_swarm_event(
     event: SwarmEvent<NetworkEvent>,
+    config: &Config,
     metrics: &Metrics,
     swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,
@@ -396,6 +398,9 @@ async fn handle_swarm_event(
                 warn!("Connection closed with {peer_id}, reason: {cause}");
             } else {
                 warn!("Connection closed with {peer_id}, reason: unknown");
+            }
+            if config.discovery.enabled {
+                state.discovery.remove_peer(peer_id, connection_id);
             }
 
             state
@@ -489,14 +494,6 @@ async fn handle_gossipsub_event(
             }
 
             trace!("Peer {peer_id} subscribed to {topic}");
-
-            if let Err(e) = tx_event
-                .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
-                .await
-            {
-                error!("Error sending peer connected event to handle: {e}");
-                return ControlFlow::Break(());
-            }
         }
 
         gossipsub::Event::Unsubscribed { peer_id, topic } => {
@@ -506,14 +503,6 @@ async fn handle_gossipsub_event(
             }
 
             trace!("Peer {peer_id} unsubscribed from {topic}");
-
-            if let Err(e) = tx_event
-                .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
-                .await
-            {
-                error!("Error sending peer disconnected event to handle: {e}");
-                return ControlFlow::Break(());
-            }
         }
 
         gossipsub::Event::Message {
@@ -573,14 +562,6 @@ async fn handle_broadcast_event(
             }
 
             trace!("Peer {peer_id} subscribed to {topic:?}");
-
-            if let Err(e) = tx_event
-                .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
-                .await
-            {
-                error!("Error sending peer connected event to handle: {e}");
-                return ControlFlow::Break(());
-            }
         }
 
         broadcast::Event::Unsubscribed(peer_id, topic) => {
@@ -590,14 +571,6 @@ async fn handle_broadcast_event(
             }
 
             trace!("Peer {peer_id} unsubscribed from {topic:?}");
-
-            if let Err(e) = tx_event
-                .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
-                .await
-            {
-                error!("Error sending peer disconnected event to handle: {e}");
-                return ControlFlow::Break(());
-            }
         }
 
         broadcast::Event::Received(peer_id, topic, message) => {

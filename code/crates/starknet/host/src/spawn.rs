@@ -9,7 +9,6 @@ use tokio::task::JoinHandle;
 use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
-use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
 use malachite_blocksync as blocksync;
@@ -27,6 +26,7 @@ use malachite_metrics::SharedRegistry;
 
 use crate::actor::Host;
 use crate::codec::ProtobufCodec;
+use crate::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use crate::host::{StarknetHost, StarknetParams};
 use crate::mempool::{Mempool, MempoolRef};
 use crate::types::MockContext;
@@ -39,6 +39,7 @@ pub async fn spawn_node_actor(
     private_key: PrivateKey,
     start_height: Option<Height>,
     tx_event: TxEvent<MockContext>,
+    span: tracing::Span,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(private_key);
 
@@ -49,11 +50,11 @@ pub async fn spawn_node_actor(
     let address = Address::from_public_key(private_key.public_key());
 
     // Spawn mempool and its gossip layer
-    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, &registry).await;
-    let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test).await;
+    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, &registry, &span).await;
+    let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test, &span).await;
 
     // Spawn consensus gossip
-    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, &private_key, &registry).await;
+    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, &private_key, &registry, &span).await;
 
     // Spawn the host actor
     let host = spawn_host_actor(
@@ -65,6 +66,7 @@ pub async fn spawn_node_actor(
         mempool.clone(),
         gossip_consensus.clone(),
         metrics.clone(),
+        &span,
     )
     .await;
 
@@ -75,10 +77,11 @@ pub async fn spawn_node_actor(
         &cfg.blocksync,
         start_height,
         &registry,
+        &span,
     )
     .await;
 
-    let wal = spawn_wal_actor(&ctx, &cfg.moniker, ProtobufCodec, &home_dir, &registry).await;
+    let wal = spawn_wal_actor(&ctx, ProtobufCodec, &home_dir, &registry, &span).await;
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(
@@ -93,6 +96,7 @@ pub async fn spawn_node_actor(
         block_sync.clone(),
         metrics,
         tx_event,
+        &span,
     )
     .await;
 
@@ -101,12 +105,12 @@ pub async fn spawn_node_actor(
         ctx,
         gossip_consensus,
         consensus,
-        gossip_mempool,
         wal,
         block_sync,
         mempool.get_cell(),
         host,
         start_height,
+        span,
     );
 
     let (actor_ref, handle) = node.spawn().await.unwrap();
@@ -116,15 +120,16 @@ pub async fn spawn_node_actor(
 
 async fn spawn_wal_actor(
     ctx: &MockContext,
-    moniker: &str,
     codec: ProtobufCodec,
     home_dir: &Path,
     registry: &SharedRegistry,
+    span: &tracing::Span,
 ) -> WalRef<MockContext> {
     let wal_dir = home_dir.join("wal");
     std::fs::create_dir_all(&wal_dir).unwrap();
     let wal_file = wal_dir.join("consensus.wal");
-    Wal::spawn(ctx, moniker.to_string(), codec, wal_file, registry.clone())
+
+    Wal::spawn(ctx, codec, wal_file, registry.clone(), span.clone())
         .await
         .unwrap()
 }
@@ -136,6 +141,7 @@ async fn spawn_block_sync_actor(
     config: &BlockSyncConfig,
     initial_height: Height,
     registry: &SharedRegistry,
+    span: &tracing::Span,
 ) -> Option<BlockSyncRef<MockContext>> {
     if !config.enabled {
         return None;
@@ -147,7 +153,7 @@ async fn spawn_block_sync_actor(
     };
 
     let metrics = blocksync::Metrics::register(registry);
-    let block_sync = BlockSync::new(ctx, gossip_consensus, host, params, metrics);
+    let block_sync = BlockSync::new(ctx, gossip_consensus, host, params, metrics, span.clone());
     let (actor_ref, _) = block_sync.spawn(initial_height).await.unwrap();
 
     Some(actor_ref)
@@ -166,6 +172,7 @@ async fn spawn_consensus_actor(
     block_sync: Option<BlockSyncRef<MockContext>>,
     metrics: Metrics,
     tx_event: TxEvent<MockContext>,
+    span: &tracing::Span,
 ) -> ConsensusRef<MockContext> {
     let value_payload = match cfg.consensus.value_payload {
         malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
@@ -183,7 +190,6 @@ async fn spawn_consensus_actor(
 
     Consensus::spawn(
         ctx,
-        cfg.moniker.clone(),
         consensus_params,
         cfg.consensus.timeouts,
         gossip_consensus,
@@ -192,6 +198,7 @@ async fn spawn_consensus_actor(
         block_sync,
         metrics,
         tx_event,
+        span.clone(),
     )
     .await
     .unwrap()
@@ -201,6 +208,7 @@ async fn spawn_gossip_consensus_actor(
     cfg: &NodeConfig,
     private_key: &PrivateKey,
     registry: &SharedRegistry,
+    span: &tracing::Span,
 ) -> GossipConsensusRef<MockContext> {
     let config_gossip = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
@@ -237,9 +245,15 @@ async fn spawn_gossip_consensus_actor(
     let keypair = make_keypair(private_key);
     let codec = ProtobufCodec;
 
-    GossipConsensus::spawn(keypair, config_gossip, registry.clone(), codec)
-        .await
-        .unwrap()
+    GossipConsensus::spawn(
+        keypair,
+        config_gossip,
+        registry.clone(),
+        codec,
+        span.clone(),
+    )
+    .await
+    .unwrap()
 }
 
 fn make_keypair(private_key: &PrivateKey) -> Keypair {
@@ -253,16 +267,23 @@ async fn spawn_mempool_actor(
     gossip_mempool: GossipMempoolRef,
     mempool_config: &MempoolConfig,
     test_config: &TestConfig,
+    span: &tracing::Span,
 ) -> MempoolRef {
-    Mempool::spawn(gossip_mempool, mempool_config, test_config)
-        .await
-        .unwrap()
+    Mempool::spawn(
+        gossip_mempool,
+        mempool_config.clone(),
+        *test_config,
+        span.clone(),
+    )
+    .await
+    .unwrap()
 }
 
 async fn spawn_gossip_mempool_actor(
     cfg: &NodeConfig,
     private_key: &PrivateKey,
     registry: &SharedRegistry,
+    span: &tracing::Span,
 ) -> GossipMempoolRef {
     let config_gossip_mempool = GossipMempoolConfig {
         listen_addr: cfg.mempool.p2p.listen_addr.clone(),
@@ -275,9 +296,14 @@ async fn spawn_gossip_mempool_actor(
     };
 
     let keypair = make_keypair(private_key);
-    GossipMempool::spawn(keypair, config_gossip_mempool, registry.clone())
-        .await
-        .unwrap()
+    GossipMempool::spawn(
+        keypair,
+        config_gossip_mempool,
+        registry.clone(),
+        span.clone(),
+    )
+    .await
+    .unwrap()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -290,6 +316,7 @@ async fn spawn_host_actor(
     mempool: MempoolRef,
     gossip_consensus: GossipConsensusRef<MockContext>,
     metrics: Metrics,
+    span: &tracing::Span,
 ) -> HostRef<MockContext> {
     let value_payload = match cfg.consensus.value_payload {
         malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
@@ -322,6 +349,7 @@ async fn spawn_host_actor(
         mempool,
         gossip_consensus,
         metrics,
+        span.clone(),
     )
     .await
     .unwrap()

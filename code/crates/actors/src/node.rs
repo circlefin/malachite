@@ -8,7 +8,6 @@ use malachite_common::Context;
 use crate::block_sync::BlockSyncRef;
 use crate::consensus::ConsensusRef;
 use crate::gossip_consensus::GossipConsensusRef;
-use crate::gossip_mempool::GossipMempoolRef;
 use crate::host::HostRef;
 use crate::wal::WalRef;
 
@@ -19,12 +18,12 @@ pub struct Node<Ctx: Context> {
     ctx: Ctx,
     gossip_consensus: GossipConsensusRef<Ctx>,
     consensus: ConsensusRef<Ctx>,
-    gossip_mempool: GossipMempoolRef,
     wal: WalRef<Ctx>,
     block_sync: Option<BlockSyncRef<Ctx>>,
     mempool: ActorCell,
     host: HostRef<Ctx>,
     start_height: Ctx::Height,
+    span: tracing::Span,
 }
 
 impl<Ctx> Node<Ctx>
@@ -36,23 +35,23 @@ where
         ctx: Ctx,
         gossip_consensus: GossipConsensusRef<Ctx>,
         consensus: ConsensusRef<Ctx>,
-        gossip_mempool: GossipMempoolRef,
         wal: WalRef<Ctx>,
         block_sync: Option<BlockSyncRef<Ctx>>,
         mempool: ActorCell,
         host: HostRef<Ctx>,
         start_height: Ctx::Height,
+        span: tracing::Span,
     ) -> Self {
         Self {
             ctx,
             gossip_consensus,
             consensus,
-            gossip_mempool,
             wal,
             block_sync,
             mempool,
             host,
             start_height,
+            span,
         }
     }
 
@@ -80,7 +79,6 @@ where
         self.consensus.link(myself.get_cell());
         self.mempool.link(myself.get_cell());
         self.host.link(myself.get_cell());
-        self.gossip_mempool.link(myself.get_cell());
         self.wal.link(myself.get_cell());
 
         if let Some(actor) = &self.block_sync {
@@ -90,7 +88,7 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(name = "node", skip_all)]
+    #[tracing::instrument(name = "node", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         _myself: ActorRef<Self::Msg>,
@@ -100,7 +98,7 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(name = "node", skip_all)]
+    #[tracing::instrument(name = "node", parent = &self.span, skip_all)]
     async fn handle_supervisor_evt(
         &self,
         _myself: ActorRef<Self::Msg>,

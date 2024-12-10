@@ -20,7 +20,7 @@ pub enum WalMsg<Ctx: Context> {
 }
 
 pub fn spawn<Ctx, Codec>(
-    moniker: String,
+    span: tracing::Span,
     mut wal: wal::Log,
     codec: Codec,
     mut rx: mpsc::Receiver<WalMsg<Ctx>>,
@@ -30,9 +30,10 @@ where
     Codec: WalCodec<Ctx>,
 {
     thread::spawn(move || loop {
-        if let Err(e) = task(moniker.clone(), &mut wal, &codec, &mut rx) {
+        if let Err(e) = task(&span, &mut wal, &codec, &mut rx) {
             // Task failed, log the error and continue
-            error!("WAL error: {e}");
+            error!("WAL task failed: {e}");
+            error!("Restarting WAL task");
 
             continue;
         }
@@ -43,9 +44,9 @@ where
     })
 }
 
-#[tracing::instrument(name = "wal", skip_all, fields(%moniker))]
+#[tracing::instrument(name = "wal", parent = span, skip_all)]
 fn task<Ctx, Codec>(
-    moniker: String,
+    span: &tracing::Span,
     log: &mut wal::Log,
     codec: &Codec,
     rx: &mut mpsc::Receiver<WalMsg<Ctx>>,
@@ -57,7 +58,7 @@ where
     while let Some(msg) = rx.blocking_recv() {
         match msg {
             WalMsg::StartedHeight(height, reply) => {
-                // FIXME: Ensure this works event with fork_id
+                // FIXME: Ensure this works even with fork_id
                 let sequence = height.as_u64();
 
                 if sequence == log.sequence() {
@@ -89,20 +90,34 @@ where
 
                 if let Err(e) = &result {
                     error!("ATTENTION: Failed to append entry to WAL: {e}");
+                } else {
+                    debug!(
+                        type = %tpe, entry.size = %buf.len(), log.entries = %log.len(),
+                        "Wrote log entry"
+                    );
                 }
 
                 if reply.send(result).is_err() {
                     error!("ATTENTION: Failed to send WAL append reply");
                 }
-
-                debug!("Wrote log entry: type = {tpe}, log size = {}", log.len());
             }
 
             WalMsg::Flush(reply) => {
                 let result = log.flush().map_err(Into::into);
-                reply.send(result).unwrap(); // FIXME
 
-                debug!("Flushed WAL to disk");
+                if let Err(e) = &result {
+                    error!("ATTENTION: Failed to flush WAL to disk: {e}");
+                } else {
+                    debug!(
+                        log.entries = %log.len(),
+                        log.size = %log.size_bytes().unwrap_or(0),
+                        "Flushed WAL to disk"
+                    );
+                }
+
+                if reply.send(result).is_err() {
+                    error!("ATTENTION: Failed to send WAL flush reply");
+                }
             }
 
             WalMsg::Shutdown => {

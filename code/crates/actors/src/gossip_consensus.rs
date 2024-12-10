@@ -25,13 +25,15 @@ pub type GossipConsensusMsg<Ctx> = Msg<Ctx>;
 
 pub struct GossipConsensus<Ctx, Codec> {
     codec: Codec,
+    span: tracing::Span,
     marker: PhantomData<Ctx>,
 }
 
 impl<Ctx, Codec> GossipConsensus<Ctx, Codec> {
-    pub fn new(codec: Codec) -> Self {
+    pub fn new(codec: Codec, span: tracing::Span) -> Self {
         Self {
             codec,
+            span,
             marker: PhantomData,
         }
     }
@@ -52,6 +54,7 @@ where
         config: Config,
         metrics: SharedRegistry,
         codec: Codec,
+        span: tracing::Span,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let args = Args {
             keypair,
@@ -59,7 +62,7 @@ where
             metrics,
         };
 
-        let (actor_ref, _) = Actor::spawn(None, Self::new(codec), args).await?;
+        let (actor_ref, _) = Actor::spawn(None, Self::new(codec, span), args).await?;
         Ok(actor_ref)
     }
 
@@ -203,6 +206,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(name = "gossip.consensus", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         _myself: ActorRef<Msg<Ctx>>,

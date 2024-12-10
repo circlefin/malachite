@@ -18,6 +18,7 @@ use crate::spawn::{
 };
 
 #[allow(clippy::too_many_arguments)]
+#[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
 pub async fn run<Node, Ctx, Codec>(
     cfg: NodeConfig,
     start_height: Option<Ctx::Height>,
@@ -60,7 +61,7 @@ where
     let gossip_consensus =
         spawn_gossip_consensus_actor(&cfg, keypair, &registry, codec.clone()).await;
 
-    let wal = spawn_wal_actor(&ctx, &cfg.moniker, codec, &node.get_home_dir(), &registry).await;
+    let wal = spawn_wal_actor(&ctx, codec, &node.get_home_dir(), &registry).await;
 
     // Spawn the host actor
     let (connector, rx) = spawn_host_actor(metrics.clone()).await;
