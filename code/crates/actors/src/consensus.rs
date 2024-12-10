@@ -911,12 +911,16 @@ where
             }
 
             Effect::SendVoteSetResponse(request_id_str, height, round, vote_set) => {
+                let vote_count = vote_set.len();
                 let response =
                     Response::VoteSetResponse(VoteSetResponse::new(height, round, vote_set));
 
                 let request_id = InboundRequestId::new(request_id_str);
 
-                debug!(%height, %round, %request_id, "Sending the vote set response");
+                debug!(
+                    %height, %round, %request_id, vote.count = %vote_count,
+                    "Sending the vote set response"
+                );
 
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::OutgoingResponse(
@@ -933,7 +937,7 @@ where
                 }
 
                 self.tx_event
-                    .send(|| Event::SentVoteSetResponse(height, round));
+                    .send(|| Event::SentVoteSetResponse(height, round, vote_count));
 
                 Ok(Resume::Continue)
             }
