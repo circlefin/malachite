@@ -91,7 +91,10 @@ where
                 if let Err(e) = &result {
                     error!("ATTENTION: Failed to append entry to WAL: {e}");
                 } else {
-                    debug!("Wrote log entry: type = {tpe}, log size = {}", log.len());
+                    debug!(
+                        type = %tpe, entry.size = %buf.len(), log.entries = %log.len(),
+                        "Wrote log entry"
+                    );
                 }
 
                 if reply.send(result).is_err() {
@@ -105,7 +108,11 @@ where
                 if let Err(e) = &result {
                     error!("ATTENTION: Failed to flush WAL to disk: {e}");
                 } else {
-                    debug!("Flushed WAL to disk");
+                    debug!(
+                        log.entries = %log.len(),
+                        log.size = %log.size_bytes().unwrap_or(0),
+                        "Flushed WAL to disk"
+                    );
                 }
 
                 if reply.send(result).is_err() {
