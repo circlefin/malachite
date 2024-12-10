@@ -1,3 +1,5 @@
+#![allow(clippy::bool_assert_comparison)]
+
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::time::Duration;
@@ -196,7 +198,7 @@ mod tests {
         let peer_id = PeerId::random();
         let multiaddr = Multiaddr::from_str("/ip4/127.0.0.1/tcp/12345").unwrap();
 
-        assert_eq!(action.is_done_on(&PeerData::PeerId(peer_id.clone())), false);
+        assert_eq!(action.is_done_on(&PeerData::PeerId(peer_id)), false);
         assert_eq!(
             action.is_done_on(&PeerData::Multiaddr(multiaddr.clone())),
             false
@@ -217,9 +219,9 @@ mod tests {
         assert_eq!(action.is_idle(), (false, 1));
         assert_eq!(action.remove_in_progress(&1), None);
 
-        action.register_done_on(PeerData::PeerId(peer_id.clone()));
+        action.register_done_on(PeerData::PeerId(peer_id));
 
-        assert_eq!(action.is_done_on(&PeerData::PeerId(peer_id.clone())), true);
+        assert_eq!(action.is_done_on(&PeerData::PeerId(peer_id)), true);
         assert_eq!(
             action.is_done_on(&PeerData::Multiaddr(multiaddr.clone())),
             false
@@ -227,7 +229,7 @@ mod tests {
 
         action.register_done_on(PeerData::Multiaddr(multiaddr.clone()));
 
-        assert_eq!(action.is_done_on(&PeerData::PeerId(peer_id.clone())), true);
+        assert_eq!(action.is_done_on(&PeerData::PeerId(peer_id)), true);
         assert_eq!(
             action.is_done_on(&PeerData::Multiaddr(multiaddr.clone())),
             true

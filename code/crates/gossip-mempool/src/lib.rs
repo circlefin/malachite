@@ -308,11 +308,6 @@ async fn handle_swarm_event(
             }
 
             trace!("Peer {peer_id} subscribed to {topic}");
-
-            if let Err(e) = tx_event.send(Event::PeerConnected(peer_id)).await {
-                error!("Error sending peer connected event to handle: {e}");
-                return ControlFlow::Break(());
-            }
         }
 
         SwarmEvent::Behaviour(NetworkEvent::GossipSub(gossipsub::Event::Unsubscribed {

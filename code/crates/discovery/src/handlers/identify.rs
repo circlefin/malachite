@@ -79,13 +79,13 @@ impl Discovery {
                 // was already done during the selection process.
                 info!("Connection {connection_id} from peer {peer_id} is outbound (pending connect request)");
 
-                self.outbound_connections
-                    .get_mut(&peer_id)
-                    .map(|out_conn| out_conn.connection_id = Some(connection_id));
+                if let Some(out_conn) = self.outbound_connections.get_mut(&peer_id) {
+                    out_conn.connection_id = Some(connection_id);
+                }
             } else if self.state == State::Idle
                 && self.outbound_connections.len() < self.config.num_outbound_peers
                 // Not already an outbound connection
-                && self.outbound_connections.get(&peer_id).is_none()
+                && !self.outbound_connections.contains_key(&peer_id)
             {
                 // If the initial discovery process is done and did not find enough peers,
                 // the connection is outbound, otherwise it is ephemeral, except if later

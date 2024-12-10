@@ -121,27 +121,29 @@ impl Discovery {
         network_event: behaviour::NetworkEvent,
     ) {
         match network_event {
-            behaviour::NetworkEvent::Kademlia(event) => match event {
-                kad::Event::OutboundQueryProgressed { result, step, .. } => match result {
-                    kad::QueryResult::Bootstrap(Ok(_)) => {
-                        if step.last {
-                            debug!("Discovery bootstrap successful");
+            behaviour::NetworkEvent::Kademlia(kad::Event::OutboundQueryProgressed {
+                result,
+                step,
+                ..
+            }) => match result {
+                kad::QueryResult::Bootstrap(Ok(_)) => {
+                    if step.last {
+                        debug!("Discovery bootstrap successful");
 
-                            self.handle_successful_bootstrap(swarm);
-                        }
+                        self.handle_successful_bootstrap(swarm);
                     }
+                }
 
-                    kad::QueryResult::Bootstrap(Err(error)) => {
-                        error!("Discovery bootstrap failed: {error}");
+                kad::QueryResult::Bootstrap(Err(error)) => {
+                    error!("Discovery bootstrap failed: {error}");
 
-                        self.handle_failed_bootstrap();
-                    }
-
-                    _ => {}
-                },
+                    self.handle_failed_bootstrap();
+                }
 
                 _ => {}
             },
+
+            behaviour::NetworkEvent::Kademlia(_) => {}
 
             behaviour::NetworkEvent::RequestResponse(event) => {
                 match event {

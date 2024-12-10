@@ -10,7 +10,6 @@ use std::time::Duration;
 use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
 use libp2p::request_response::InboundRequestId;
-use libp2p::swarm::dial_opts::DialOpts;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, quic, SwarmBuilder};
 use libp2p_broadcast as broadcast;
@@ -341,7 +340,7 @@ async fn handle_ctrl_msg(
 
 async fn handle_swarm_event(
     event: SwarmEvent<NetworkEvent>,
-    config: &Config,
+    _config: &Config,
     metrics: &Metrics,
     swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,
@@ -399,13 +398,18 @@ async fn handle_swarm_event(
             } else {
                 warn!("Connection closed with {peer_id}, reason: unknown");
             }
-            if config.discovery.enabled {
-                state.discovery.remove_peer(peer_id, connection_id);
-            }
 
             state
                 .discovery
                 .handle_closed_connection(swarm, peer_id, connection_id);
+
+            if let Err(e) = tx_event
+                .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
+                .await
+            {
+                error!("Error sending peer disconnected event to handle: {e}");
+                return ControlFlow::Break(());
+            }
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent {
@@ -433,6 +437,14 @@ async fn handle_swarm_event(
                 state
                     .discovery
                     .handle_new_peer(swarm, connection_id, peer_id, info);
+
+                if let Err(e) = tx_event
+                    .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
+                    .await
+                {
+                    error!("Error sending peer connected event to handle: {e}");
+                    return ControlFlow::Break(());
+                }
             } else {
                 trace!(
                     "Peer {peer_id} is using incompatible protocol version: {:?}",
