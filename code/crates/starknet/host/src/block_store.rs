@@ -6,6 +6,7 @@ use bytes::Bytes;
 use prost::Message;
 use redb::ReadableTable;
 use thiserror::Error;
+use tracing::error;
 
 use malachite_codec::Codec;
 use malachite_common::{CommitCertificate, Round};
@@ -117,25 +118,33 @@ impl Db {
         Ok(())
     }
 
-    pub fn get_undecided_value(
+    #[tracing::instrument(skip(self))]
+    pub fn get_undecided_values(
         &self,
         height: Height,
         round: Round,
-    ) -> Result<Option<ProposedValue<MockContext>>, StoreError> {
+    ) -> Result<Vec<ProposedValue<MockContext>>, StoreError> {
         let tx = self.db.begin_read()?;
+        let mut values = Vec::new();
 
         let from = (height, round, BlockHash::new([0; 32]));
         let to = (height, round, BlockHash::new([255; 32]));
 
         let table = tx.open_table(UNDECIDED_VALUES_TABLE)?;
         let keys = self.undecided_values_range(&table, from..to)?;
+
         for key in keys {
             if let Ok(Some(value)) = table.get(&key) {
-                return Ok(ProtobufCodec.decode(Bytes::from(value.value())).ok());
+                let Ok(value) = ProtobufCodec.decode(Bytes::from(value.value())) else {
+                    error!(hash = %key.2, "Failed to decode ProposedValue");
+                    continue;
+                };
+
+                values.push(value);
             }
         }
 
-        Ok(None)
+        Ok(values)
     }
 
     fn insert_undecided_value(&self, value: ProposedValue<MockContext>) -> Result<(), StoreError> {
@@ -284,13 +293,13 @@ impl BlockStore {
         tokio::task::spawn_blocking(move || db.insert_undecided_value(value)).await?
     }
 
-    pub async fn get_undecided_value(
+    pub async fn get_undecided_values(
         &self,
         height: Height,
         round: Round,
-    ) -> Result<Option<ProposedValue<MockContext>>, StoreError> {
+    ) -> Result<Vec<ProposedValue<MockContext>>, StoreError> {
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.get_undecided_value(height, round)).await?
+        tokio::task::spawn_blocking(move || db.get_undecided_values(height, round)).await?
     }
 
     pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {

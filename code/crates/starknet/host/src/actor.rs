@@ -192,6 +192,30 @@ fn on_consensus_ready(
     Ok(())
 }
 
+async fn replay_undecided_values(
+    state: &mut HostState,
+    height: Height,
+    round: Round,
+) -> Result<(), ActorProcessingErr> {
+    let undecided_values = state
+        .block_store
+        .get_undecided_values(height, round)
+        .await?;
+
+    let consensus = state.consensus.as_ref().unwrap();
+
+    for value in undecided_values {
+        info!(%height, %round, hash = %value.value, "Replaying already known proposed value");
+
+        consensus.cast(ConsensusMsg::ReceivedProposedValue(
+            value,
+            ValueOrigin::Consensus,
+        ))?;
+    }
+
+    Ok(())
+}
+
 async fn on_started_round(
     state: &mut HostState,
     height: Height,
@@ -202,22 +226,10 @@ async fn on_started_round(
     state.round = round;
     state.proposer = Some(proposer);
 
-    // If we have already built a block for this height and round, feed it to consensus.
-    // This may happen when we are restarting after a crash and replaying the WAL.
-    if let Some(value) = state.block_store.get_undecided_value(height, round).await? {
-        info!(%height, %round, hash = %value.value, "Replaying already known proposed value");
+    // If we have already built or seen one or more values for this height and round,
+    // feed them back to consensus. This may happen when we are restarting after a crash.
+    replay_undecided_values(state, height, round).await?;
 
-        state
-            .consensus
-            .as_ref()
-            .unwrap()
-            .cast(ConsensusMsg::ReceivedProposedValue(
-                value,
-                ValueOrigin::Consensus,
-            ))?;
-
-        return Ok(());
-    }
     Ok(())
 }
 
