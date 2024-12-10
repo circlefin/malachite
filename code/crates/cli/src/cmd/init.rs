@@ -7,7 +7,7 @@ use crate::file::{save_config, save_genesis, save_priv_validator_key};
 use crate::new::{generate_config, generate_genesis, generate_private_keys};
 use clap::Parser;
 use malachite_config::{Config, LoggingConfig, RuntimeConfig, TransportProtocol};
-use malachite_node::Node;
+use malachite_app::Node;
 use tracing::{info, warn};
 
 #[derive(Parser, Debug, Clone, Default, PartialEq)]

@@ -4,7 +4,7 @@
 use tokio::sync::mpsc;
 
 use malachite_actors::util::events::TxEvent;
-use malachite_node as node;
+use malachite_app as app;
 
 use crate::channel::AppMsg;
 use crate::spawn::{
@@ -31,7 +31,7 @@ pub async fn run<Node, Ctx, Codec>(
 ) -> Result<mpsc::Receiver<AppMsg<Ctx>>, String>
 where
     Ctx: Context,
-    Node: node::Node<Context = Ctx>,
+    Node: app::Node<Context = Ctx>,
     Codec: WalCodec<Ctx> + Clone,
     Codec: ConsensusCodec<Ctx>,
     Codec: BlockSyncCodec<Ctx>,

@@ -2784,6 +2784,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-app"
+version = "0.1.0"
+dependencies = [
+ "malachite-common",
+ "rand",
+ "serde",
+]
+
+[[package]]
 name = "malachite-app-channel"
 version = "0.1.0"
 dependencies = [
@@ -2791,6 +2800,7 @@ dependencies = [
  "derive-where",
  "libp2p-identity",
  "malachite-actors",
+ "malachite-app",
  "malachite-blocksync",
  "malachite-codec",
  "malachite-common",
@@ -2798,7 +2808,6 @@ dependencies = [
  "malachite-consensus",
  "malachite-gossip-consensus",
  "malachite-metrics",
- "malachite-node",
  "malachite-peer",
  "malachite-test",
  "ractor",
@@ -2837,10 +2846,10 @@ dependencies = [
  "color-eyre",
  "directories",
  "itertools 0.13.0",
+ "malachite-app",
  "malachite-common",
  "malachite-config",
  "malachite-metrics",
- "malachite-node",
  "rand",
  "serde_json",
  "thiserror 2.0.6",
@@ -2995,11 +3004,6 @@ dependencies = [
 [[package]]
 name = "malachite-node"
 version = "0.1.0"
-dependencies = [
- "malachite-common",
- "rand",
- "serde",
-]
 
 [[package]]
 name = "malachite-peer"
@@ -3069,6 +3073,7 @@ dependencies = [
  "itertools 0.13.0",
  "libp2p-identity",
  "malachite-actors",
+ "malachite-app",
  "malachite-blocksync",
  "malachite-cli",
  "malachite-codec",
@@ -3078,7 +3083,6 @@ dependencies = [
  "malachite-gossip-consensus",
  "malachite-gossip-mempool",
  "malachite-metrics",
- "malachite-node",
  "malachite-proto",
  "malachite-starknet-p2p-proto",
  "malachite-starknet-p2p-types",

@@ -1,5 +1,5 @@
 [package]
-name = "malachite-node"
+name = "malachite-app"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -8,6 +8,10 @@ publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+malachite-common = { workspace = true }
+
+rand  = { workspace = true }
+serde = { workspace = true }
 
 [lints]
 workspace = true

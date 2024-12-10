@@ -3,7 +3,7 @@ use tracing::info;
 
 use crate::error::Error;
 use malachite_config::MetricsConfig;
-use malachite_node::Node;
+use malachite_app::Node;
 
 use crate::metrics;
 

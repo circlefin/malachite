@@ -1,8 +1,8 @@
 //! Re-export of all types required to build a Malachite application.
 
 pub use malachite_actors::host::LocallyProposedValue;
+pub use malachite_app::Node;
 pub use malachite_consensus::{ConsensusMsg, ProposedValue, SignedConsensusMsg};
-pub use malachite_node::Node;
 pub use malachite_peer::PeerId;
 
 pub mod core {

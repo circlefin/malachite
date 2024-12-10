@@ -8,7 +8,7 @@ use color_eyre::eyre::{eyre, Result};
 use tracing::info;
 
 use malachite_config::*;
-use malachite_node::Node;
+use malachite_app::Node;
 
 use crate::args::Args;
 use crate::error::Error;
