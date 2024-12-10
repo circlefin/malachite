@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 
 use rand::seq::IteratorRandom;
 
-use malachite_common::{Context, Round};
+use malachite_common::{Context, Height, Round};
 use malachite_peer::PeerId;
+use tracing::warn;
 
 use crate::Status;
 
@@ -49,10 +50,16 @@ where
         self.peers.insert(status.peer_id, status);
     }
 
-    /// Select at random a peer
-    pub fn random_peer_for_votes(&mut self) -> Option<PeerId> {
-        // TODO optimization - get vote sets from more than one peer
-        self.peers.keys().choose_stable(&mut self.rng).cloned()
+    /// Select at random a peer that is currently running consensus at `height` and round >= `round`
+    /// TODO - currently this is infered from the fact that status was sent with height - 1
+    /// Potentially extend Status to include consensus height and round.
+    pub fn random_peer_for_votes(&mut self, height: Ctx::Height, _round: Round) -> Option<PeerId> {
+        let Some(tip_height) = height.decrement() else {
+            warn!(%height, "Failed to decrement");
+            return None;
+        };
+
+        self.random_peer_with_block(tip_height)
     }
 
     /// Select at random a peer that that we know is at or above the given height.

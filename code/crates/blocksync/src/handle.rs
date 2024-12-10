@@ -431,7 +431,7 @@ where
         return Ok(());
     }
 
-    let Some(peer) = state.random_peer_for_votes() else {
+    let Some(peer) = state.random_peer_for_votes(height, round) else {
         warn!(%height, %round, "No peer to request vote set from");
         return Ok(());
     };
