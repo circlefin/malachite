@@ -66,6 +66,7 @@ pub struct TestParams {
     pub vote_extensions: Option<ByteSize>,
     pub value_payload: ValuePayload,
     pub max_retain_blocks: usize,
+    pub timeout_step: Duration,
 }
 
 impl Default for TestParams {
@@ -79,6 +80,7 @@ impl Default for TestParams {
             vote_extensions: None,
             value_payload: ValuePayload::default(),
             max_retain_blocks: 50,
+            timeout_step: Duration::from_secs(30),
         }
     }
 }
@@ -94,6 +96,7 @@ impl TestParams {
         config.test.vote_extensions.enabled = self.vote_extensions.is_some();
         config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();
         config.test.max_retain_blocks = self.max_retain_blocks;
+        config.consensus.timeouts.timeout_step = self.timeout_step;
     }
 }
 

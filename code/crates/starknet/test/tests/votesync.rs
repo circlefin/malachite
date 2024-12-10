@@ -32,9 +32,10 @@ pub async fn crash_restart_from_start(params: TestParams) {
     test.build()
         .run_with_custom_config(
             // TODO - add step timeout to TestParams, current default is 30s and we need to allow for catching up, etc
-            Duration::from_secs(120), // Timeout for the whole test
+            Duration::from_secs(60), // Timeout for the whole test
             TestParams {
                 enable_blocksync: true, // Enable BlockSync
+                timeout_step: Duration::from_secs(5),
                 ..params
             },
         )
@@ -93,6 +94,7 @@ pub async fn crash_restart_from_latest() {
             Duration::from_secs(60),
             TestParams {
                 enable_blocksync: true,
+                timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },
         )
@@ -113,9 +115,10 @@ pub async fn start_late() {
 
     test.build()
         .run_with_custom_config(
-            Duration::from_secs(120),
+            Duration::from_secs(60),
             TestParams {
                 enable_blocksync: true,
+                timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },
         )
