@@ -264,9 +264,7 @@ async fn on_get_value(
     timeout: Duration,
     reply_to: RpcReplyPort<LocallyProposedValue<MockContext>>,
 ) -> Result<(), ActorProcessingErr> {
-    // If we have already built a block for this height and round, return it
-    // This may happen when we are restarting after a crash and replaying the WAL.
-    if let Some(value) = state.block_store.get_undecided_value(height, round).await? {
+    if let Some(value) = find_previously_built_value(state, height, round).await? {
         info!(%height, %round, hash = %value.value, "Returning previously built value");
 
         reply_to.send(LocallyProposedValue::new(
@@ -335,6 +333,25 @@ async fn on_get_value(
     ))?;
 
     Ok(())
+}
+
+/// If we have already built a block for this height and round, return it to consensus
+/// This may happen when we are restarting after a crash and replaying the WAL.
+async fn find_previously_built_value(
+    state: &mut HostState,
+    height: Height,
+    round: Round,
+) -> Result<Option<ProposedValue<MockContext>>, ActorProcessingErr> {
+    let values = state
+        .block_store
+        .get_undecided_values(height, round)
+        .await?;
+
+    let proposed_value = values
+        .into_iter()
+        .find(|v| v.validator_address == state.host.address);
+
+    Ok(proposed_value)
 }
 
 async fn on_restream_value(
