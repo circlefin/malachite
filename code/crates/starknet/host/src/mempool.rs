@@ -8,8 +8,8 @@ use tracing::{debug, info, trace};
 
 use malachite_actors::util::forward::forward;
 use malachite_config::{MempoolConfig, TestConfig};
-use malachite_gossip_mempool::types::MempoolTransactionBatch;
-use malachite_gossip_mempool::{Event as GossipEvent, NetworkMsg, PeerId};
+use malachite_test_mempool::types::MempoolTransactionBatch;
+use malachite_test_mempool::{Event as GossipEvent, NetworkMsg, PeerId};
 
 use crate::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use crate::proto::Protobuf;

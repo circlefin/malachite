@@ -2774,8 +2774,8 @@ dependencies = [
  "malachite-config",
  "malachite-consensus",
  "malachite-gossip-consensus",
- "malachite-gossip-mempool",
  "malachite-metrics",
+ "malachite-test-mempool",
  "malachite-wal",
  "ractor",
  "rand",
@@ -2969,22 +2969,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-gossip-mempool"
-version = "0.1.0"
-dependencies = [
- "futures",
- "libp2p",
- "malachite-metrics",
- "malachite-proto",
- "prost",
- "prost-build",
- "prost-types",
- "seahash",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "malachite-metrics"
 version = "0.1.0"
 dependencies = [
@@ -3076,12 +3060,12 @@ dependencies = [
  "malachite-config",
  "malachite-consensus",
  "malachite-gossip-consensus",
- "malachite-gossip-mempool",
  "malachite-metrics",
  "malachite-node",
  "malachite-proto",
  "malachite-starknet-p2p-proto",
  "malachite-starknet-p2p-types",
+ "malachite-test-mempool",
  "prost",
  "ractor",
  "rand",
@@ -3182,6 +3166,22 @@ dependencies = [
  "serde_json",
  "serde_with 3.11.0",
  "tempfile",
+]
+
+[[package]]
+name = "malachite-test-mempool"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "libp2p",
+ "malachite-metrics",
+ "malachite-proto",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "seahash",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
