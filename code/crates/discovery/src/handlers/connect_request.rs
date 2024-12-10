@@ -93,7 +93,7 @@ impl Discovery {
             info!("Rejecting connection upgrade of peer {peer} to inbound connection as the limit is reached");
         }
 
-        self.update_connections_metrics(swarm);
+        self.update_connections_metrics();
 
         if swarm
             .behaviour_mut()
@@ -132,7 +132,7 @@ impl Discovery {
             {
                 info!("All outbound connections are persistent");
                 self.metrics.initial_discovery_finished();
-                self.update_connections_metrics(swarm);
+                self.update_connections_metrics();
             }
         } else {
             info!("Peer {peer} rejected connection upgrade to outbound connection");

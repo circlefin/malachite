@@ -151,7 +151,7 @@ impl Metrics {
             .get_or_insert(Instant::now());
     }
 
-    pub(crate) fn initial_bootstrap_duration(&self) -> Duration {
+    pub(crate) fn _initial_bootstrap_duration(&self) -> Duration {
         self.initial_bootstrap_finished
             .unwrap_or(self.start_time)
             .duration_since(self.start_time)
@@ -162,7 +162,7 @@ impl Metrics {
             .get_or_insert(Instant::now());
     }
 
-    pub(crate) fn initial_discovery_duration(&self) -> Duration {
+    pub(crate) fn _initial_discovery_duration(&self) -> Duration {
         self.initial_discovery_finished
             .unwrap_or(self.start_time)
             .duration_since(self.start_time)
@@ -215,7 +215,7 @@ impl Metrics {
         self.total_rejected_connect_requests.inc();
     }
 
-    pub(crate) fn get_total_rejected_connect_requests(&self) -> u64 {
+    pub(crate) fn _get_total_rejected_connect_requests(&self) -> u64 {
         self.total_rejected_connect_requests.get()
     }
 }

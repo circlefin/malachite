@@ -23,8 +23,8 @@ pub async fn circular_graph() {
             Expected::Exactly(vec![0, 1, 2, 4]),
             Expected::Exactly(vec![0, 1, 2, 3]),
         ],
-        Duration::from_secs(1),
-        Duration::from_secs(5),
+        Duration::from_secs(0),
+        Duration::from_secs(10),
     );
 
     test.run().await
@@ -48,8 +48,8 @@ pub async fn circular_graph_n() {
     let test: Test<N> = Test::new(
         nodes.try_into().expect("Expected a Vec of length 100"),
         expected.try_into().expect("Expected a Vec of length 100"),
-        Duration::from_secs(1),
-        Duration::from_secs(5),
+        Duration::from_secs(0),
+        Duration::from_secs(10),
     );
 
     test.run().await

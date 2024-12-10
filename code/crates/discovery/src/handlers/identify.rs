@@ -152,6 +152,6 @@ impl Discovery {
             }
         }
 
-        self.update_connections_metrics(swarm);
+        self.update_connections_metrics();
     }
 }

@@ -2906,7 +2906,6 @@ dependencies = [
  "malachite-metrics",
  "rand",
  "serde",
- "serde_json",
  "tokio",
  "tracing",
 ]

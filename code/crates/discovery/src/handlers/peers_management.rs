@@ -206,7 +206,7 @@ impl Discovery {
             // Consider the connect request as done
             self.controller.connect_request.register_done_on(peer_id);
 
-            self.update_connections_metrics(swarm);
+            self.update_connections_metrics();
 
             return;
         }
@@ -343,7 +343,7 @@ impl Discovery {
             info!("Discovery extension done");
             info!(
                 "Discovery found {} peers (expected {}) in {}ms",
-                self.active_connections_len(),
+                self.discovered_peers.len(),
                 self.config.num_outbound_peers,
                 self.metrics.elapsed().as_millis()
             );

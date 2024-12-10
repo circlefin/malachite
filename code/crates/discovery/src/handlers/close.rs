@@ -84,6 +84,6 @@ impl Discovery {
             self.inbound_connections.remove(&peer_id);
         }
 
-        self.update_connections_metrics(swarm);
+        self.update_connections_metrics();
     }
 }

@@ -32,7 +32,7 @@ impl Discovery {
             } else {
                 info!(
                     "Discovery found {} peers (expected {}) in {}ms",
-                    self.active_connections_len(),
+                    self.discovered_peers.len(),
                     self.config.num_outbound_peers,
                     self.metrics.elapsed().as_millis()
                 );
