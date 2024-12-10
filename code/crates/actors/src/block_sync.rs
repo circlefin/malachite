@@ -71,10 +71,10 @@ pub enum Msg<Ctx: Context> {
     InvalidCertificate(PeerId, CommitCertificate<Ctx>, CertificateError<Ctx>),
 
     /// Consensus needs vote set from peers
-    GetVoteSet(Ctx::Height, Round),
+    RequestVoteSet(Ctx::Height, Round),
 
     /// Consensus has sent a vote set response to a peer
-    GotVoteSet(InboundRequestId, Ctx::Height, Round),
+    SentVoteSetResponse(InboundRequestId, Ctx::Height, Round),
 }
 
 impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
@@ -283,14 +283,14 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
-            Msg::GetVoteSet(height, round) => {
+            Msg::RequestVoteSet(height, round) => {
                 debug!(%height, %round, "Make a vote set request to one of the peers");
 
                 self.process_input(&myself, state, blocksync::Input::GetVoteSet(height, round))
                     .await?;
             }
 
-            Msg::GotVoteSet(request_id, height, round) => {
+            Msg::SentVoteSetResponse(request_id, height, round) => {
                 self.process_input(
                     &myself,
                     state,

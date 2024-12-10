@@ -898,7 +898,7 @@ where
 
                 if let Some(block_sync) = &self.block_sync {
                     block_sync
-                        .cast(BlockSyncMsg::GetVoteSet(height, round))
+                        .cast(BlockSyncMsg::RequestVoteSet(height, round))
                         .map_err(|e| {
                             eyre!("Error when sending vote set request to blocksync: {e:?}")
                         })?;
@@ -930,9 +930,9 @@ where
 
                 if let Some(block_sync) = &self.block_sync {
                     block_sync
-                        .cast(BlockSyncMsg::GotVoteSet(request_id, height, round))
+                        .cast(BlockSyncMsg::SentVoteSetResponse(request_id, height, round))
                         .map_err(|e| {
-                            eyre!("Error when sending vote set response to blocksync: {e:?}")
+                            eyre!("Error when notifying Sync about vote set response: {e:?}")
                         })?;
                 }
 

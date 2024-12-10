@@ -137,7 +137,7 @@ where
         }
 
         Input::GotVoteSet(request_id, height, round) => {
-            on_vote_set(co, state, metrics, request_id, height, round).await
+            on_vote_set_response_sent(co, state, metrics, request_id, height, round).await
         }
     }
 }
@@ -485,7 +485,7 @@ where
     Ok(())
 }
 
-pub async fn on_vote_set<Ctx>(
+pub async fn on_vote_set_response_sent<Ctx>(
     _co: Co<Ctx>,
     _state: &mut State<Ctx>,
     metrics: &Metrics,
