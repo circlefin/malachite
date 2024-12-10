@@ -506,7 +506,7 @@ where
 #[tracing::instrument(skip_all)]
 pub async fn on_vote_set_response<Ctx>(
     _co: Co<Ctx>,
-    _state: &mut State<Ctx>,
+    state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: OutboundRequestId,
     peer: PeerId,
@@ -517,6 +517,7 @@ where
 {
     debug!(height = %response.height, round = %response.round, %request_id, %peer, "Received vote set response");
 
+    state.remove_pending_vote_set_request(response.height, response.round);
     metrics.vote_set_response_received(response.height.as_u64(), response.round.as_i64());
 
     Ok(())
