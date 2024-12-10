@@ -8,6 +8,7 @@ use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
 use malachite_blocksync as blocksync;
+use malachite_codec as codec;
 use malachite_common::{
     Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet, ValueOrigin,
 };
@@ -21,12 +22,37 @@ use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipCons
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::events::{Event, TxEvent};
 use crate::util::forward::forward;
+use crate::util::streaming::StreamMessage;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
 
 pub use malachite_consensus::Error as ConsensusError;
 pub use malachite_consensus::Params as ConsensusParams;
 pub use malachite_consensus::State as ConsensusState;
+
+/// Codec for consensus messages.
+///
+/// This trait is automatically implemented for any type that implements:
+/// - [`codec::Codec<Ctx::ProposalPart>`]
+/// - [`codec::Codec<SignedConsensusMsg<Ctx>>`]
+/// - [`codec::Codec<StreamMessage<Ctx::ProposalPart>>`]
+pub trait ConsensusCodec<Ctx>
+where
+    Ctx: Context,
+    Self: codec::Codec<Ctx::ProposalPart>,
+    Self: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Self: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+{
+}
+
+impl<Ctx, Codec> ConsensusCodec<Ctx> for Codec
+where
+    Ctx: Context,
+    Self: codec::Codec<Ctx::ProposalPart>,
+    Self: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Self: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+{
+}
 
 pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 

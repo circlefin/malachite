@@ -7,6 +7,11 @@ use malachite_codec::Codec;
 use malachite_common::{Context, Round, Timeout, ValueOrigin};
 use malachite_consensus::{ProposedValue, SignedConsensusMsg};
 
+/// Codec for encoding and decoding WAL entries.
+///
+/// This trait is automatically implemented for any type that implements:
+/// - [`Codec<SignedConsensusMsg<Ctx>>`]
+/// - [`Codec<ProposedValue<Ctx>>`]
 pub trait WalCodec<Ctx>
 where
     Ctx: Context,
