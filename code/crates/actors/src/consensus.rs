@@ -373,7 +373,7 @@ where
                         peer,
                         blocksync::Request::VoteSetRequest(VoteSetRequest { height, round }),
                     ) => {
-                        debug!(%height, %round, %request_id, "VS7 - Received VoteSetRequest request");
+                        debug!(%height, %round, %request_id, %peer, "Received vote set request");
 
                         if let Err(e) = self
                             .process_input(
@@ -387,21 +387,25 @@ where
                             )
                             .await
                         {
-                            error!(%peer, %height, %round, "Error when processing vote set request: {e:?}");
+                            error!(%peer, %height, %round, "Error when processing VoteSetRequest: {e:?}");
                         }
                     }
 
                     GossipEvent::Response(
                         request_id,
-                        _peer,
-                        blocksync::Response::VoteSetResponse(VoteSetResponse { vote_set, .. }),
+                        peer,
+                        blocksync::Response::VoteSetResponse(VoteSetResponse {
+                            height,
+                            round,
+                            vote_set,
+                        }),
                     ) => {
-                        debug!(%request_id, "VS10 Received VoteSet response");
-
                         if vote_set.vote_set.is_empty() {
-                            error!(%request_id, "VS11 Received empty vote set response");
+                            debug!(%height, %round, %request_id, %peer, "Received an empty vote set response");
                             return Ok(());
                         };
+
+                        debug!(%height, %round, %request_id, %peer, "Received a non-empty vote set response");
 
                         if let Err(e) = self
                             .process_input(
@@ -411,7 +415,7 @@ where
                             )
                             .await
                         {
-                            error!(%request_id, "Error when processing received vote set: {e:?}");
+                            error!(%height, %round, %request_id, %peer, "Error when processing VoteSetResponse: {e:?}");
                         }
                     }
 
@@ -890,7 +894,7 @@ where
             }
 
             Effect::GetVoteSet(height, round) => {
-                debug!("VS2 - Ask blocksync to send a vote set request");
+                debug!(%height, %round, "Request blocksync to obtain the vote set from peers");
 
                 if let Some(block_sync) = &self.block_sync {
                     block_sync
@@ -910,17 +914,27 @@ where
                 Ok(Resume::Continue)
             }
 
-            Effect::SendVoteSetResponse(request_id, height, round, vote_set) => {
-                debug!("VS9 - consensus sends vote set response to gossip");
-
+            Effect::SendVoteSetResponse(request_id_str, height, round, vote_set) => {
                 let response =
                     Response::VoteSetResponse(VoteSetResponse::new(height, round, vote_set));
 
+                let request_id = InboundRequestId::new(request_id_str);
+
+                debug!(%height, %round, %request_id, "Sending the vote set response");
+
                 self.gossip_consensus
                     .cast(GossipConsensusMsg::OutgoingResponse(
-                        InboundRequestId::new(request_id),
+                        request_id.clone(),
                         response,
                     ))?;
+
+                if let Some(block_sync) = &self.block_sync {
+                    block_sync
+                        .cast(BlockSyncMsg::GotVoteSet(request_id, height, round))
+                        .map_err(|e| {
+                            eyre!("Error when sending vote set response to blocksync: {e:?}")
+                        })?;
+                }
 
                 Ok(Resume::Continue)
             }

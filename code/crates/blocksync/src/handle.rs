@@ -427,17 +427,12 @@ where
     Ctx: Context,
 {
     if state.has_pending_vote_set_request(height, round) {
-        debug!(vote_set.height = %height, "Already have a pending vote set request for this height");
+        debug!(%height, %round, "Vote set request pending for this height and round");
         return Ok(());
     }
 
-    debug!(
-        "VS4 - send vote set request to peer, number of peers {}",
-        state.peers.len()
-    );
-
     let Some(peer) = state.random_peer_for_votes() else {
-        error!("No other peer to request vote set from");
+        warn!(%height, %round, "No peer to request vote set from");
         return Ok(());
     };
 
@@ -457,7 +452,7 @@ async fn request_vote_set_from_peer<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(vote_set.height = %height, vote_set.round = %round, %peer, "Requesting vote set from peer");
+    debug!(%height, %round, %peer, "Requesting vote set from peer");
 
     perform!(
         co,
@@ -483,7 +478,7 @@ pub async fn on_vote_set_request<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(%request_id, %peer, height = %request.height, round = %request.round, "Received request for vote set");
+    debug!(height = %request.height, round = %request.round, %request_id, %peer, "Received request for vote set");
 
     metrics.vote_set_request_received(request.height.as_u64(), request.round.as_i64());
 
@@ -501,7 +496,7 @@ pub async fn on_vote_set<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(%request_id, %height, %round, "Vote set response sent");
+    debug!(%height, %round, %request_id, "Vote set response sent");
 
     metrics.vote_set_response_sent(height.as_u64(), round.as_i64());
 
@@ -520,7 +515,7 @@ pub async fn on_vote_set_response<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(%request_id, %peer, height = %response.height, round = %response.round, "Received vote set response");
+    debug!(height = %response.height, round = %response.round, %request_id, %peer, "Received vote set response");
 
     metrics.vote_set_response_received(response.height.as_u64(), response.round.as_i64());
 

@@ -9,19 +9,14 @@ pub async fn on_step_limit_timeout<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(
-        "on_step_limit_timeout {:?} {} {}",
-        state.driver.step(),
-        state.driver.height(),
-        round
-    );
+    warn!(
+        height = %state.driver.height(), round = %state.driver.round(),
+        "Consensus is halted in {:?} step, start vote synchronization", state.driver.step());
 
     perform!(co, Effect::GetVoteSet(state.driver.height(), round));
     metrics.step_timeouts.inc();
 
     if state.driver.step_is_prevote() {
-        debug!("VS1 - node has stayed too long in the prevote step");
-
         perform!(
             co,
             Effect::ScheduleTimeout(Timeout::prevote_time_limit(state.driver.round()))
@@ -29,8 +24,6 @@ where
     }
 
     if state.driver.step_is_precommit() {
-        debug!("VS1 - node has stayed too long in precommit step");
-
         perform!(
             co,
             Effect::ScheduleTimeout(Timeout::precommit_time_limit(state.driver.round()))

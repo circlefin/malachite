@@ -63,6 +63,10 @@ where
         self.driver.height()
     }
 
+    pub fn round(&self) -> Round {
+        self.driver.round()
+    }
+
     pub fn address(&self) -> &Ctx::Address {
         self.driver.address()
     }

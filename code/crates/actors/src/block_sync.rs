@@ -240,7 +240,10 @@ where
                 )?;
             }
             Effect::SendVoteSetRequest(peer_id, vote_set_request) => {
-                debug!("VS5 - send the vote set request to peer");
+                debug!(
+                    height = %vote_set_request.height, round = %vote_set_request.round, peer = %peer_id,
+                    "Send the vote set request to peer");
+
                 let request = Request::VoteSetRequest(vote_set_request);
 
                 let result = ractor::call!(self.gossip, |reply_to| {
@@ -280,7 +283,7 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             Msg::GetVoteSet(height, round) => {
-                debug!(%height, %round, "VS3 - make a vote set request to one of the peers, keep track of it, timeout, retry, etc");
+                debug!(%height, %round, "Make a vote set request to one of the peers, keep track of it and retry on timeout");
                 self.process_input(&myself, state, blocksync::Input::GetVoteSet(height, round))
                     .await?;
             }

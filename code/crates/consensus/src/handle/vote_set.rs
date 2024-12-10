@@ -13,9 +13,7 @@ pub async fn on_vote_set_request<Ctx>(
 where
     Ctx: Context,
 {
-    // TODO
-
-    debug!(%height, %round, "VS8 - consensus gets the request, builds the set and response");
+    debug!(%height, %round, %request_id, "Received vote set request, retrieve the votes and send response if set is not empty");
 
     let votes = state.restore_votes(height, round);
 
@@ -35,14 +33,14 @@ pub async fn on_vote_set_response<Ctx>(
     co: &Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
-    vote_set: VoteSet<Ctx>,
+    response: VoteSet<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    debug!("VS99 - consensus gets the vote set response, processes votes");
+    debug!(height = %state.height(), round = %state.round(), "Received vote set response, process {} votes", response.vote_set.len());
 
-    for vote in vote_set.vote_set {
+    for vote in response.vote_set {
         let _ = on_vote(co, state, metrics, vote).await;
     }
 
