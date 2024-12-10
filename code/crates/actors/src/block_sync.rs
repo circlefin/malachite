@@ -13,6 +13,7 @@ use tracing::{debug, error, warn};
 
 use malachite_blocksync::{self as blocksync, OutboundRequestId};
 use malachite_blocksync::{Request, SyncedBlock};
+use malachite_codec as codec;
 use malachite_common::{CertificateError, CommitCertificate, Context, Height};
 use malachite_consensus::PeerId;
 
@@ -21,6 +22,30 @@ use crate::host::{HostMsg, HostRef};
 use crate::util::forward::forward;
 use crate::util::ticker::ticker;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
+
+/// Codec for sync protocol messages
+///
+/// This trait is automatically implemented for any type that implements:
+/// - [`codec::Codec<blocksync::Status<Ctx>>`]
+/// - [`codec::Codec<blocksync::Request<Ctx>>`]
+/// - [`codec::Codec<blocksync::Response<Ctx>>`]
+pub trait BlockSyncCodec<Ctx>
+where
+    Ctx: Context,
+    Self: codec::Codec<blocksync::Status<Ctx>>,
+    Self: codec::Codec<blocksync::Request<Ctx>>,
+    Self: codec::Codec<blocksync::Response<Ctx>>,
+{
+}
+
+impl<Ctx, Codec> BlockSyncCodec<Ctx> for Codec
+where
+    Ctx: Context,
+    Codec: codec::Codec<blocksync::Status<Ctx>>,
+    Codec: codec::Codec<blocksync::Request<Ctx>>,
+    Codec: codec::Codec<blocksync::Response<Ctx>>,
+{
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Timeout {

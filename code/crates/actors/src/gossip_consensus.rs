@@ -18,6 +18,8 @@ use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
 use malachite_metrics::SharedRegistry;
 
+use crate::block_sync::BlockSyncCodec;
+use crate::consensus::ConsensusCodec;
 use crate::util::streaming::StreamMessage;
 
 pub type GossipConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
@@ -42,12 +44,8 @@ impl<Ctx, Codec> GossipConsensus<Ctx, Codec> {
 impl<Ctx, Codec> GossipConsensus<Ctx, Codec>
 where
     Ctx: Context,
-    Codec: codec::Codec<Ctx::ProposalPart>,
-    Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
-    Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: codec::Codec<blocksync::Status<Ctx>>,
-    Codec: codec::Codec<blocksync::Request<Ctx>>,
-    Codec: codec::Codec<blocksync::Response<Ctx>>,
+    Codec: ConsensusCodec<Ctx>,
+    Codec: BlockSyncCodec<Ctx>,
 {
     pub async fn spawn(
         keypair: Keypair,

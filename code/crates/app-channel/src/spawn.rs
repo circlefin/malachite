@@ -1,18 +1,19 @@
+//! Utility functions for spawning the actor system and connecting it to the application.
+
 use std::path::Path;
 use std::time::Duration;
 
 use tokio::sync::mpsc;
 
-use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
-use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
+use malachite_actors::block_sync::{
+    BlockSync, BlockSyncCodec, BlockSyncRef, Params as BlockSyncParams,
+};
+use malachite_actors::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::util::events::TxEvent;
-use malachite_actors::util::streaming::StreamMessage;
 use malachite_actors::wal::{Wal, WalCodec, WalRef};
-use malachite_codec as codec;
 use malachite_common::Context;
-use malachite_config::{BlockSyncConfig, Config as NodeConfig, PubSubProtocol, TransportProtocol};
-use malachite_consensus::{SignedConsensusMsg, ValuePayload};
+use malachite_consensus::ValuePayload;
 use malachite_gossip_consensus::{
     Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
 };
@@ -21,6 +22,9 @@ use tracing::Span;
 
 use crate::channel::AppMsg;
 use crate::connector::Connector;
+use crate::types::config::{
+    BlockSyncConfig, Config as NodeConfig, PubSubProtocol, TransportProtocol,
+};
 
 pub async fn spawn_gossip_consensus_actor<Ctx, Codec>(
     cfg: &NodeConfig,
@@ -30,12 +34,8 @@ pub async fn spawn_gossip_consensus_actor<Ctx, Codec>(
 ) -> GossipConsensusRef<Ctx>
 where
     Ctx: Context,
-    Codec: codec::Codec<Ctx::ProposalPart>,
-    Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
-    Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: codec::Codec<malachite_blocksync::Status<Ctx>>,
-    Codec: codec::Codec<malachite_blocksync::Request<Ctx>>,
-    Codec: codec::Codec<malachite_blocksync::Response<Ctx>>,
+    Codec: ConsensusCodec<Ctx>,
+    Codec: BlockSyncCodec<Ctx>,
 {
     let config = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),

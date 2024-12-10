@@ -1,7 +1,8 @@
 use derive_where::derive_where;
 
 use malachite_common::{
-    Context, Proposal, Round, SignedExtension, SignedProposal, SignedVote, Validity, Vote,
+    Context, Proposal, Round, Signature, SignedExtension, SignedProposal, SignedVote, Validity,
+    Vote,
 };
 
 pub use malachite_peer::PeerId;
@@ -15,10 +16,17 @@ pub enum SignedConsensusMsg<Ctx: Context> {
 }
 
 impl<Ctx: Context> SignedConsensusMsg<Ctx> {
-    pub fn msg_height(&self) -> Ctx::Height {
+    pub fn height(&self) -> Ctx::Height {
         match self {
             SignedConsensusMsg::Vote(msg) => msg.height(),
             SignedConsensusMsg::Proposal(msg) => msg.height(),
+        }
+    }
+
+    pub fn signature(&self) -> &Signature<Ctx> {
+        match self {
+            SignedConsensusMsg::Vote(msg) => &msg.signature,
+            SignedConsensusMsg::Proposal(msg) => &msg.signature,
         }
     }
 }
