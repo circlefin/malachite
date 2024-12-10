@@ -35,11 +35,13 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(rng: Box<dyn rand::RngCore + Send>, tip_height: Ctx::Height) -> Self {
+    pub fn new(rng: Box<dyn rand::RngCore + Send>, sync_height: Ctx::Height) -> Self {
+        let tip_height = sync_height.decrement().unwrap_or_default();
+
         Self {
             rng,
             tip_height,
-            sync_height: tip_height,
+            sync_height,
             pending_decided_block_requests: BTreeMap::new(),
             pending_vote_set_requests: BTreeMap::new(),
             peers: BTreeMap::new(),
