@@ -904,12 +904,8 @@ where
                         })?;
                 }
 
-                Ok(Resume::Continue)
-            }
-
-            Effect::PersistMessage(msg) => {
-                self.wal_append(height, WalEntry::ConsensusMsg(msg), phase)
-                    .await?;
+                self.tx_event
+                    .send(|| Event::RequestedVoteSet(height, round));
 
                 Ok(Resume::Continue)
             }
@@ -935,6 +931,16 @@ where
                             eyre!("Error when notifying Sync about vote set response: {e:?}")
                         })?;
                 }
+
+                self.tx_event
+                    .send(|| Event::SentVoteSetResponse(height, round));
+
+                Ok(Resume::Continue)
+            }
+
+            Effect::PersistMessage(msg) => {
+                self.wal_append(height, WalEntry::ConsensusMsg(msg), phase)
+                    .await?;
 
                 Ok(Resume::Continue)
             }

@@ -480,7 +480,7 @@ async fn run_node<S>(
                         _ => (),
                     }
 
-                    debug!("Event: {event:?}");
+                    debug!("Event: {event}");
                 }
             }
             .in_current_span()

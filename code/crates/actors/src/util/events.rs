@@ -43,6 +43,8 @@ pub enum Event<Ctx: Context> {
     ProposedValue(ValueToPropose<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
     Decided(CommitCertificate<Ctx>),
+    RequestedVoteSet(Ctx::Height, Round),
+    SentVoteSetResponse(Ctx::Height, Round),
     WalReplayBegin(Ctx::Height, usize),
     WalReplayConsensus(SignedConsensusMsg<Ctx>),
     WalReplayTimeout(Timeout),
@@ -60,6 +62,12 @@ impl<Ctx: Context> fmt::Display for Event<Ctx> {
                 write!(f, "ReceivedProposedValue({value:?}, {origin:?})")
             }
             Event::Decided(cert) => write!(f, "Decided({cert:?})"),
+            Event::RequestedVoteSet(height, round) => {
+                write!(f, "RequestedVoteSet({height}, {round})")
+            }
+            Event::SentVoteSetResponse(height, round) => {
+                write!(f, "SentVoteSetResponse({height}, {round})")
+            }
             Event::WalReplayBegin(height, count) => {
                 write!(f, "WalReplayBegin({height}, {count})")
             }
