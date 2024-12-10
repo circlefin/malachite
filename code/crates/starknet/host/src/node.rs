@@ -5,9 +5,9 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use tracing::{info, Instrument};
 
+use malachite_app::Node;
 use malachite_common::VotingPower;
 use malachite_config::Config;
-use malachite_app::Node;
 
 use crate::spawn::spawn_node_actor;
 use crate::types::Height;

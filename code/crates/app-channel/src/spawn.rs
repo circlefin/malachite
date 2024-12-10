@@ -3,7 +3,9 @@
 use std::path::Path;
 use std::time::Duration;
 
+use malachite_actors::host::HostRef;
 use tokio::sync::mpsc;
+use tracing::Span;
 
 use malachite_actors::block_sync::{
     BlockSync, BlockSyncCodec, BlockSyncRef, Params as BlockSyncParams,
@@ -12,19 +14,19 @@ use malachite_actors::consensus::{Consensus, ConsensusCodec, ConsensusParams, Co
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::util::events::TxEvent;
 use malachite_actors::wal::{Wal, WalCodec, WalRef};
-use malachite_common::Context;
-use malachite_consensus::ValuePayload;
 use malachite_gossip_consensus::{
     Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
 };
-use malachite_metrics::{Metrics, SharedRegistry};
-use tracing::Span;
 
-use crate::channel::AppMsg;
-use crate::connector::Connector;
-use crate::types::config::{
+use crate::app::types::config::{
     BlockSyncConfig, Config as NodeConfig, PubSubProtocol, TransportProtocol,
 };
+use crate::app::types::core::Context;
+use crate::app::types::metrics::{Metrics, SharedRegistry};
+use crate::app::types::sync;
+use crate::app::types::ValuePayload;
+use crate::channel::AppMsg;
+use crate::connector::Connector;
 
 pub async fn spawn_gossip_consensus_actor<Ctx, Codec>(
     cfg: &NodeConfig,
@@ -79,7 +81,7 @@ pub async fn spawn_consensus_actor<Ctx>(
     ctx: Ctx,
     cfg: NodeConfig,
     gossip_consensus: GossipConsensusRef<Ctx>,
-    host: malachite_actors::host::HostRef<Ctx>,
+    host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
     block_sync: Option<BlockSyncRef<Ctx>>,
     metrics: Metrics,
@@ -88,10 +90,11 @@ pub async fn spawn_consensus_actor<Ctx>(
 where
     Ctx: Context,
 {
+    use crate::app::types::config;
     let value_payload = match cfg.consensus.value_payload {
-        malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
-        malachite_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
-        malachite_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
+        config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
+        config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
+        config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
     };
 
     let consensus_params = ConsensusParams {
@@ -141,7 +144,7 @@ where
 pub async fn spawn_block_sync_actor<Ctx>(
     ctx: Ctx,
     gossip_consensus: GossipConsensusRef<Ctx>,
-    host: malachite_actors::host::HostRef<Ctx>,
+    host: HostRef<Ctx>,
     config: &BlockSyncConfig,
     initial_height: Ctx::Height,
     registry: &SharedRegistry,
@@ -158,7 +161,7 @@ where
         request_timeout: config.request_timeout,
     };
 
-    let metrics = malachite_blocksync::Metrics::register(registry);
+    let metrics = sync::Metrics::register(registry);
     let block_sync = BlockSync::new(
         ctx,
         gossip_consensus,
@@ -173,12 +176,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn spawn_host_actor<Ctx>(
-    metrics: Metrics,
-) -> (
-    malachite_actors::host::HostRef<Ctx>,
-    mpsc::Receiver<AppMsg<Ctx>>,
-)
+pub async fn spawn_host_actor<Ctx>(metrics: Metrics) -> (HostRef<Ctx>, mpsc::Receiver<AppMsg<Ctx>>)
 where
     Ctx: Context,
 {

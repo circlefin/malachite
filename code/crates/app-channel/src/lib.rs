@@ -8,9 +8,10 @@
 //     rustdoc::missing_doc_code_examples
 // )]
 
+pub use malachite_app as app;
+
 pub mod connector;
 pub mod spawn;
-pub mod types;
 
 mod channel;
 pub use channel::{AppMsg, ConsensusMsg};

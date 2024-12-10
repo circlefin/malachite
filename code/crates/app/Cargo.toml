@@ -8,8 +8,16 @@ publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-common = { workspace = true }
+malachite-actors.workspace = true
+malachite-blocksync.workspace = true
+malachite-common.workspace = true
+malachite-codec.workspace = true
+malachite-config.workspace = true
+malachite-consensus.workspace = true
+malachite-metrics.workspace = true
+malachite-peer.workspace = true
 
+libp2p-identity = { workspace = true }
 rand  = { workspace = true }
 serde = { workspace = true }
 

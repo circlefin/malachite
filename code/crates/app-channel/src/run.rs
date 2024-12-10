@@ -4,18 +4,18 @@
 use tokio::sync::mpsc;
 
 use malachite_actors::util::events::TxEvent;
-use malachite_app as app;
 
+use crate::app;
+use crate::app::types::codec::{BlockSyncCodec, ConsensusCodec, WalCodec};
+use crate::app::types::config::Config as NodeConfig;
+use crate::app::types::core::Context;
+use crate::app::types::metrics::{Metrics, SharedRegistry};
+use crate::app::types::Keypair;
 use crate::channel::AppMsg;
 use crate::spawn::{
     spawn_block_sync_actor, spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_host_actor,
     spawn_wal_actor,
 };
-use crate::types::codec::{BlockSyncCodec, ConsensusCodec, WalCodec};
-use crate::types::config::Config as NodeConfig;
-use crate::types::core::Context;
-use crate::types::metrics::{Metrics, SharedRegistry};
-use crate::types::Keypair;
 
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
