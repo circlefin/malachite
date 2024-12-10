@@ -249,7 +249,7 @@ async fn run(
 
     if let Err(e) = pubsub::subscribe(&mut swarm, PubSubProtocol::Broadcast, &[Channel::BlockSync])
     {
-        error!("Error subscribing to BlockSync channel: {e}");
+        error!("Error subscribing to Sync channel: {e}");
         return;
     };
 
@@ -319,7 +319,7 @@ async fn handle_ctrl_msg(
                 .send_request(peer_id.to_libp2p(), request);
 
             if let Err(e) = reply_to.send(request_id) {
-                error!(%peer_id, "Error sending BlockSync request: {e}");
+                error!(%peer_id, "Error sending Sync request: {e}");
             }
 
             ControlFlow::Continue(())
@@ -327,15 +327,15 @@ async fn handle_ctrl_msg(
 
         CtrlMsg::SyncReply(request_id, data) => {
             let Some(channel) = state.blocksync_channels.remove(&request_id) else {
-                error!(%request_id, "Received BlockSync reply for unknown request ID");
+                error!(%request_id, "Received Sync reply for unknown request ID");
                 return ControlFlow::Continue(());
             };
 
             let result = swarm.behaviour_mut().blocksync.send_response(channel, data);
 
             match result {
-                Ok(()) => debug!(%request_id, "Replied to BlockSync request"),
-                Err(e) => error!(%request_id, "Error replying to BlockSync request: {e}"),
+                Ok(()) => debug!(%request_id, "Replied to Sync request"),
+                Err(e) => error!(%request_id, "Error replying to Sync request: {e}"),
             }
 
             ControlFlow::Continue(())
@@ -641,7 +641,7 @@ async fn handle_blocksync_event(
                         }))
                         .await
                         .map_err(|e| {
-                            error!("Error sending BlockSync request to handle: {e}");
+                            error!("Error sending Sync request to handle: {e}");
                         });
                 }
 
@@ -657,7 +657,7 @@ async fn handle_blocksync_event(
                         }))
                         .await
                         .map_err(|e| {
-                            error!("Error sending BlockSync response to handle: {e}");
+                            error!("Error sending Sync response to handle: {e}");
                         });
                 }
             }
