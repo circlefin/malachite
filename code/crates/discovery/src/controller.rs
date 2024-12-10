@@ -190,42 +190,51 @@ mod tests {
     fn test_action() {
         let mut action = Action::<PeerData, u32, u32>::new(2);
 
-        assert!(action.can_perform());
+        assert_eq!(action.can_perform(), true);
         assert_eq!(action.is_idle(), (true, 0));
 
         let peer_id = PeerId::random();
         let multiaddr = Multiaddr::from_str("/ip4/127.0.0.1/tcp/12345").unwrap();
 
-        assert!(action.is_done_on(&PeerData::PeerId(peer_id)));
-        assert!(!action.is_done_on(&PeerData::Multiaddr(multiaddr.clone())));
+        assert_eq!(action.is_done_on(&PeerData::PeerId(peer_id.clone())), false);
+        assert_eq!(
+            action.is_done_on(&PeerData::Multiaddr(multiaddr.clone())),
+            false
+        );
 
         action.register_in_progress(1, 1);
 
-        assert!(action.can_perform());
+        assert_eq!(action.can_perform(), true);
         assert_eq!(action.is_idle(), (false, 1));
 
         action.register_in_progress(2, 2);
 
-        assert!(!action.can_perform());
+        assert_eq!(action.can_perform(), false);
         assert_eq!(action.is_idle(), (false, 2));
 
         assert_eq!(action.remove_in_progress(&1), Some(1));
-        assert!(action.can_perform());
+        assert_eq!(action.can_perform(), true);
         assert_eq!(action.is_idle(), (false, 1));
         assert_eq!(action.remove_in_progress(&1), None);
 
-        action.register_done_on(PeerData::PeerId(peer_id));
+        action.register_done_on(PeerData::PeerId(peer_id.clone()));
 
-        assert!(action.is_done_on(&PeerData::PeerId(peer_id)));
-        assert!(!action.is_done_on(&PeerData::Multiaddr(multiaddr.clone())));
+        assert_eq!(action.is_done_on(&PeerData::PeerId(peer_id.clone())), true);
+        assert_eq!(
+            action.is_done_on(&PeerData::Multiaddr(multiaddr.clone())),
+            false
+        );
 
         action.register_done_on(PeerData::Multiaddr(multiaddr.clone()));
 
-        assert!(action.is_done_on(&PeerData::PeerId(peer_id)));
-        assert!(action.is_done_on(&PeerData::Multiaddr(multiaddr.clone())));
+        assert_eq!(action.is_done_on(&PeerData::PeerId(peer_id.clone())), true);
+        assert_eq!(
+            action.is_done_on(&PeerData::Multiaddr(multiaddr.clone())),
+            true
+        );
 
         assert_eq!(action.remove_in_progress(&2), Some(2));
-        assert!(action.can_perform());
+        assert_eq!(action.can_perform(), true);
         assert_eq!(action.is_idle(), (true, 0));
         assert_eq!(action.remove_in_progress(&2), None);
     }

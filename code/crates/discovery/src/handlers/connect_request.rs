@@ -120,9 +120,9 @@ impl Discovery {
         if accepted {
             info!("Successfully upgraded connection of peer {peer} to outbound connection");
 
-            if let Some(out_conn) = self.outbound_connections.get_mut(&peer) {
+            self.outbound_connections.get_mut(&peer).map(|out_conn| {
                 out_conn.is_persistent = true;
-            }
+            });
 
             // if all outbound connections are persistent, discovery is done
             if self

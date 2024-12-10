@@ -676,7 +676,7 @@ pub fn make_node_config<S>(test: &Test<S>, i: usize) -> NodeConfig {
             p2p: P2pConfig {
                 transport,
                 protocol,
-                discovery: DiscoveryConfig::default(),
+                discovery: DiscoveryConfig { enabled: false },
                 listen_addr: transport.multiaddr("127.0.0.1", test.consensus_base_port + i),
                 persistent_peers: (0..test.nodes.len())
                     .filter(|j| i != *j)

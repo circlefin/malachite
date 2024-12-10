@@ -15,7 +15,7 @@ use crate::{
 
 impl Discovery {
     pub fn can_peers_request(&self) -> bool {
-        self.controller.peers_request.can_perform()
+        self.is_enabled() && self.controller.peers_request.can_perform()
     }
 
     fn should_peers_request(&self, request_data: &RequestData) -> bool {
@@ -154,9 +154,9 @@ impl Discovery {
             .filter_map(|(peer_id, info)| {
                 if peer_id == &peer {
                     // Remove the peer also from the bootstrap nodes (if it is there)
-                    if let Some(addr) = info.listen_addrs.first() {
+                    info.listen_addrs.first().map(|addr| {
                         remaining_bootstrap_nodes.retain(|(_, x)| x != addr);
-                    }
+                    });
 
                     return None;
                 }
