@@ -18,7 +18,7 @@ use crate::types::MockContext;
 use crate::types::{Block, BlockHash, Height, Transaction, Transactions};
 
 mod keys;
-use keys::{HeightKey, UndecidedBlockKey};
+use keys::{HeightKey, UndecidedValueKey};
 
 #[derive(Clone, Debug)]
 pub struct DecidedBlock {
@@ -66,7 +66,7 @@ const CERTIFICATES_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> =
 const DECIDED_BLOCKS_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> =
     redb::TableDefinition::new("decided_blocks");
 
-const UNDECIDED_VALUES_TABLE: redb::TableDefinition<UndecidedBlockKey, Vec<u8>> =
+const UNDECIDED_VALUES_TABLE: redb::TableDefinition<UndecidedValueKey, Vec<u8>> =
     redb::TableDefinition::new("undecided_blocks");
 
 struct Db {
@@ -171,7 +171,7 @@ impl Db {
         range: impl RangeBounds<(Height, Round, BlockHash)>,
     ) -> Result<Vec<(Height, Round, BlockHash)>, StoreError>
     where
-        Table: redb::ReadableTable<UndecidedBlockKey, Vec<u8>>,
+        Table: redb::ReadableTable<UndecidedValueKey, Vec<u8>>,
     {
         Ok(table
             .range(range)?
