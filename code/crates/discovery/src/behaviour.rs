@@ -66,7 +66,7 @@ pub struct Behaviour {
 }
 
 fn kademlia_config() -> kad::Config {
-    let mut config = kad::Config::new(StreamProtocol::new(&DISCOVERY_KAD_PROTOCOL));
+    let mut config = kad::Config::new(StreamProtocol::new(DISCOVERY_KAD_PROTOCOL));
 
     // In production, one might set this to a high value to keep a fresh view of the network
     config.set_periodic_bootstrap_interval(None);
@@ -76,7 +76,7 @@ fn kademlia_config() -> kad::Config {
 
 fn request_response_protocol() -> iter::Once<(StreamProtocol, ProtocolSupport)> {
     iter::once((
-        StreamProtocol::new(&DISCOVERY_REQRES_PROTOCOL),
+        StreamProtocol::new(DISCOVERY_REQRES_PROTOCOL),
         ProtocolSupport::Full,
     ))
 }

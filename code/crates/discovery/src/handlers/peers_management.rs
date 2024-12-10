@@ -16,7 +16,7 @@ impl Discovery {
         // so we cannot use `rev()` to directly start from the furthest peer
         for kbucket in swarm.behaviour_mut().kbuckets() {
             for entry in kbucket.iter() {
-                let peer_id = entry.node.key.preimage().clone();
+                let peer_id = *entry.node.key.preimage();
                 if !self.controller.peers_request.is_done_on(&peer_id) {
                     furthest_peer_id = Some(peer_id);
                 }
@@ -266,7 +266,7 @@ impl Discovery {
             .flat_map(|(peer_id, connection_ids)| {
                 connection_ids
                     .iter()
-                    .map(|connection_id| (*peer_id, connection_id.clone()))
+                    .map(|connection_id| (*peer_id, *connection_id))
             })
             // Remove inbound connections
             .filter(|(peer_id, connection_id)| {
@@ -375,7 +375,7 @@ impl Discovery {
         for kbucket in swarm.behaviour_mut().kbuckets() {
             let peers = kbucket
                 .iter()
-                .map(|entry| entry.node.key.preimage().clone())
+                .map(|entry| *entry.node.key.preimage())
                 .collect();
             let index = kbucket.range().0.ilog2().unwrap_or(0);
             kbuckets.push((index, peers));

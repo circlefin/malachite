@@ -104,6 +104,7 @@ impl DistributedTestnetCmd {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn distributed_testnet<N>(
     node: &N,
     nodes: usize,
