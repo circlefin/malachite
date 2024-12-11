@@ -16,10 +16,12 @@ malachite-config.workspace = true
 malachite-consensus.workspace = true
 malachite-metrics.workspace = true
 malachite-peer.workspace = true
+malachite-gossip-consensus.workspace = true
 
 libp2p-identity = { workspace = true }
 rand  = { workspace = true }
 serde = { workspace = true }
+tracing = { workspace = true }
 
 [lints]
 workspace = true

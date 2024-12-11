@@ -2794,10 +2794,12 @@ dependencies = [
  "malachite-common",
  "malachite-config",
  "malachite-consensus",
+ "malachite-gossip-consensus",
  "malachite-metrics",
  "malachite-peer",
  "rand",
  "serde",
+ "tracing",
 ]
 
 [[package]]
@@ -2808,7 +2810,6 @@ dependencies = [
  "derive-where",
  "malachite-actors",
  "malachite-app",
- "malachite-gossip-consensus",
  "malachite-test",
  "ractor",
  "rand",

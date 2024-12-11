@@ -16,7 +16,6 @@ tracing.workspace = true
 
 malachite-app.workspace = true
 malachite-actors.workspace = true
-malachite-gossip-consensus.workspace = true
 
 [lints]
 workspace = true
