@@ -1,11 +1,12 @@
-use bytes::Bytes;
 use derive_where::derive_where;
-
 use malachite_common::{
-    CommitCertificate, Context, Round, SignedExtension, SignedProposal, SignedVote, Timeout,
+    CommitCertificate, Context, Round, SignedProposal, SignedVote, Timeout, ValueOrigin, VoteSet,
 };
 
 use crate::types::ProposedValue;
+use crate::ValueToPropose;
+
+pub type RequestId = String;
 
 /// Inputs to be handled by the consensus process.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -23,25 +24,21 @@ where
     Proposal(SignedProposal<Ctx>),
 
     /// Propose a value
-    ProposeValue(
-        /// Height
-        Ctx::Height,
-        /// Round
-        Round,
-        /// Valid round
-        Round,
-        /// Value
-        Ctx::Value,
-        /// Signed vote extension
-        Option<SignedExtension<Ctx>>,
-    ),
+    Propose(ValueToPropose<Ctx>),
 
     /// A timeout has elapsed
     TimeoutElapsed(Timeout),
 
-    /// The value corresponding to a proposal has been received
-    ReceivedProposedValue(ProposedValue<Ctx>),
+    /// Received the full proposed value corresponding to a proposal.
+    /// The origin denotes whether the value was received via consensus or BlockSync.
+    ProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
-    /// A block received via BlockSync
-    ReceivedSyncedBlock(Bytes, CommitCertificate<Ctx>),
+    /// Received a commit certificate from BlockSync
+    CommitCertificate(CommitCertificate<Ctx>),
+
+    /// Peer needs vote set
+    VoteSetRequest(RequestId, Ctx::Height, Round),
+
+    /// Vote set to be sent to peer
+    VoteSetResponse(VoteSet<Ctx>),
 }

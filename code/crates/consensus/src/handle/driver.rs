@@ -1,11 +1,10 @@
-use malachite_driver::Input as DriverInput;
-use malachite_driver::Output as DriverOutput;
-
 use crate::handle::on_proposal;
 use crate::handle::vote::on_vote;
 use crate::prelude::*;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
+use malachite_driver::Input as DriverInput;
+use malachite_driver::Output as DriverOutput;
 
 #[async_recursion]
 pub async fn apply_driver_input<Ctx>(
@@ -100,6 +99,31 @@ where
         metrics.step_start(new_step);
     }
 
+    if prev_step != new_step {
+        if state.driver.step_is_prevote() {
+            perform!(
+                co,
+                Effect::ScheduleTimeout(Timeout::prevote_time_limit(state.driver.round()))
+            );
+        }
+        if state.driver.step_is_precommit() {
+            perform!(
+                co,
+                Effect::CancelTimeout(Timeout::prevote_time_limit(state.driver.round()))
+            );
+            perform!(
+                co,
+                Effect::ScheduleTimeout(Timeout::precommit_time_limit(state.driver.round()))
+            );
+        }
+        if state.driver.step_is_commit() {
+            perform!(
+                co,
+                Effect::CancelTimeout(Timeout::precommit_time_limit(state.driver.round()))
+            );
+        }
+    }
+
     process_driver_outputs(co, state, metrics, outputs).await?;
 
     Ok(())
@@ -152,15 +176,6 @@ where
 
             let signed_proposal = state.ctx.sign_proposal(proposal.clone());
 
-            // Proposal messages should not be broadcasted if they are implicit,
-            // instead they should be inferred from the block parts.
-            if state.params.value_payload.include_proposal() {
-                perform!(
-                    co,
-                    Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal.clone()))
-                );
-            }
-
             if signed_proposal.pol_round().is_defined() {
                 perform!(
                     co,
@@ -174,7 +189,18 @@ where
                 );
             }
 
-            on_proposal(co, state, metrics, signed_proposal).await
+            on_proposal(co, state, metrics, signed_proposal.clone()).await?;
+
+            // Proposal messages should not be broadcasted if they are implicit,
+            // instead they should be inferred from the block parts.
+            if state.params.value_payload.include_proposal() {
+                perform!(
+                    co,
+                    Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal))
+                );
+            };
+
+            Ok(())
         }
 
         DriverOutput::Vote(vote) => {
@@ -187,13 +213,10 @@ where
 
             let extended_vote = extend_vote(vote, state);
             let signed_vote = state.ctx.sign_vote(extended_vote);
+            on_vote(co, state, metrics, signed_vote.clone()).await?;
 
-            perform!(
-                co,
-                Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote.clone()))
-            );
-
-            on_vote(co, state, metrics, signed_vote).await
+            perform!(co, Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote)));
+            Ok(())
         }
 
         DriverOutput::Decide(consensus_round, proposal) => {
@@ -216,7 +239,7 @@ where
         }
 
         DriverOutput::ScheduleTimeout(timeout) => {
-            info!(round = %timeout.round, step = ?timeout.step, "Scheduling timeout");
+            info!(round = %timeout.round, step = ?timeout.kind, "Scheduling timeout");
 
             perform!(co, Effect::ScheduleTimeout(timeout));
 

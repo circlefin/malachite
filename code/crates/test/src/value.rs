@@ -1,10 +1,10 @@
 use core::fmt;
-
 use malachite_proto::{Error as ProtoError, Protobuf};
+use serde::{Deserialize, Serialize};
 
 use crate::proto;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Serialize, Deserialize)]
 pub struct ValueId(u64);
 
 impl ValueId {
@@ -58,7 +58,7 @@ impl Protobuf for ValueId {
 }
 
 /// The value to decide on
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Value(u64);
 
 impl Value {

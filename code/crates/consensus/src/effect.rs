@@ -1,8 +1,8 @@
-use bytes::Bytes;
 use derive_where::derive_where;
 
 use malachite_common::*;
 
+use crate::input::RequestId;
 use crate::types::SignedConsensusMsg;
 use crate::ConsensusMsg;
 
@@ -63,14 +63,18 @@ where
     /// Resume with: [`Resume::Continue`]
     Decide { certificate: CommitCertificate<Ctx> },
 
-    /// Consensus has received a synced decided block
+    /// Consensus has been stuck in Prevote or Precommit step,
+    /// ask for vote sets from peers
     /// Resume with: [`Resume::Continue`]
-    SyncedBlock {
-        height: Ctx::Height,
-        round: Round,
-        validator_address: Ctx::Address,
-        block_bytes: Bytes,
-    },
+    GetVoteSet(Ctx::Height, Round),
+
+    /// A peer has required our vote set, send the response
+    SendVoteSetResponse(RequestId, Ctx::Height, Round, VoteSet<Ctx>),
+    /// Persist a consensus message in the Write-Ahead Log for crash recovery
+    PersistMessage(SignedConsensusMsg<Ctx>),
+
+    /// Persist a timeout in the Write-Ahead Log for crash recovery
+    PersistTimeout(Timeout),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].

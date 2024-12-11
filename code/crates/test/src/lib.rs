@@ -5,6 +5,7 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 mod address;
+mod codec;
 mod context;
 mod height;
 mod proposal;
@@ -19,6 +20,7 @@ pub mod proto;
 pub mod utils;
 
 pub use crate::address::*;
+pub use crate::codec::testcodec::*;
 pub use crate::context::*;
 pub use crate::height::*;
 pub use crate::proposal::*;

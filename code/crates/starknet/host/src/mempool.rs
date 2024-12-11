@@ -6,12 +6,12 @@ use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::RngCore;
 use tracing::{debug, info, trace};
 
-use malachite_actors::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use malachite_actors::util::forward::forward;
 use malachite_config::{MempoolConfig, TestConfig};
-use malachite_gossip_mempool::types::MempoolTransactionBatch;
-use malachite_gossip_mempool::{Event as GossipEvent, NetworkMsg, PeerId};
+use malachite_test_mempool::types::MempoolTransactionBatch;
+use malachite_test_mempool::{Event as GossipEvent, NetworkMsg, PeerId};
 
+use crate::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use crate::proto::Protobuf;
 use crate::types::{Hash, Transaction, Transactions};
 
@@ -21,6 +21,7 @@ pub struct Mempool {
     gossip_mempool: GossipMempoolRef,
     mempool_config: MempoolConfig, // todo - pick only what's needed
     test_config: TestConfig,       // todo - pick only the mempool related
+    span: tracing::Span,
 }
 
 pub enum MempoolMsg {
@@ -68,20 +69,23 @@ impl Mempool {
         gossip_mempool: GossipMempoolRef,
         mempool_config: MempoolConfig,
         test_config: TestConfig,
+        span: tracing::Span,
     ) -> Self {
         Self {
             gossip_mempool,
             mempool_config,
             test_config,
+            span,
         }
     }
 
     pub async fn spawn(
         gossip_mempool: GossipMempoolRef,
-        mempool_config: &MempoolConfig,
-        test_config: &TestConfig,
+        mempool_config: MempoolConfig,
+        test_config: TestConfig,
+        span: tracing::Span,
     ) -> Result<MempoolRef, ractor::SpawnErr> {
-        let node = Self::new(gossip_mempool, mempool_config.clone(), *test_config);
+        let node = Self::new(gossip_mempool, mempool_config, test_config, span);
 
         let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
         Ok(actor_ref)
@@ -159,13 +163,15 @@ impl Actor for Mempool {
         )
         .await?;
 
+        self.gossip_mempool.link(myself.get_cell());
+
         self.gossip_mempool
             .cast(GossipMempoolMsg::Subscribe(forward))?;
 
         Ok(State::new())
     }
 
-    #[tracing::instrument("starknet.mempool", skip(self, myself, msg, state))]
+    #[tracing::instrument("host.mempool", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         myself: MempoolRef,

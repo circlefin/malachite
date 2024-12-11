@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package sync;
+
+import "p2p/proto/common.proto";
+import "p2p/proto/consensus.proto";
+import "p2p/proto/transaction.proto";
+
+message Status {
+  PeerID peer_id = 1;
+  uint64 block_number = 2;
+  uint64 fork_id = 3;
+  uint64 earliest_block_number = 4;
+  uint64 earliest_fork_id = 5;
+}
+
+message BlockRequest {
+  uint64 block_number = 1;
+  uint64 fork_id = 2;
+}
+
+message BlockResponse {
+  uint64 block_number = 1;
+  uint64 fork_id = 2;
+  SyncedBlock block = 3;
+}
+
+message SyncedBlock {
+  bytes block_bytes = 1;
+  CommitCertificate certificate = 2;
+}
+
+message Block {
+  uint64 fork_id = 1;
+  uint64 block_number = 2;
+  Transactions transactions = 3;
+  Hash block_hash = 4;
+}
+
+message CommitSignature {
+    // TODO - add flag (no vote, nil, value?)
+    Address validator_address    = 1;
+    ConsensusSignature signature = 2;
+    optional Extension extension = 3;
+}
+
+message AggregatedSignature {
+    repeated CommitSignature signatures = 1;
+}
+
+message CommitCertificate {
+    uint64 fork_id = 1;
+    uint64 block_number = 2;
+    uint32 round = 3;
+    Hash block_hash = 4;
+    AggregatedSignature aggregated_signature = 5;
+}
+
+message ProposedValue {
+    uint64 fork_id = 1;
+    uint64 block_number = 2;
+    uint32 round = 3;
+    optional uint32 valid_round = 4;
+    Address proposer = 5;
+    bytes value = 6;
+    bool validity = 7;
+    optional Extension extension = 8;
+}
+
+message VoteSetRequest {
+  uint64 fork_id = 1;
+  uint64 block_number = 2;
+  uint32 round = 3;
+}
+
+message VoteSetResponse {
+  uint64 fork_id = 1;
+  uint64 block_number = 2;
+  uint32 round = 3;
+  VoteSet vote_set = 4;
+}
+
+message VoteSet {
+  repeated ConsensusMessage signed_votes = 1;
+}
+
+message SyncRequest {
+  oneof messages {
+    BlockRequest block_request = 1;
+    VoteSetRequest vote_set_request = 2;
+  }
+}
+
+message SyncResponse {
+  oneof messages {
+    BlockResponse block_response = 1;
+    VoteSetResponse vote_set_response = 2;
+  }
+}

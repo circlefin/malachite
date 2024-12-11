@@ -3,8 +3,8 @@
 module misbehavior {
     
 import accTypes.* from "./accTypes"  
-import basicSpells.* from "../../Quint/spells/basic"
-import extraSpells.* from "../../Quint/spells/extra"
+import basicSpells.* from "../quint/spells/basic"
+import extraSpells.* from "../quint/spells/extra"
 
 pure def certificateRound (certificate: Set[Vote]) : Round = 
     // assumes certificate is valid (this also ensures that the fold is sound)

@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, SignedConsensusMsg};
 
 use crate::handle::driver::apply_driver_input;
 use crate::handle::signature::verify_signature;
@@ -55,25 +55,31 @@ where
             "Received vote at round -1, queuing for later"
         );
 
-        state.input_queue.push_back(Input::Vote(signed_vote));
+        state.buffer_input(vote_height, Input::Vote(signed_vote));
+
         return Ok(());
     }
 
     if consensus_height < vote_height {
-        if consensus_height.increment() == vote_height {
-            debug!(
-                consensus.height = %consensus_height,
-                vote.height = %vote_height,
-                validator = %validator_address,
-                "Received vote for next height, queuing for later"
-            );
+        debug!(
+            consensus.height = %consensus_height,
+            vote.height = %vote_height,
+            validator = %validator_address,
+            "Received vote for higher height, queuing for later"
+        );
 
-            state.input_queue.push_back(Input::Vote(signed_vote));
-        }
+        state.buffer_input(vote_height, Input::Vote(signed_vote));
+
         return Ok(());
     }
 
-    assert_eq!(consensus_height, vote_height);
+    debug_assert_eq!(consensus_height, vote_height);
+
+    // Append the vote to the Write-ahead Log
+    perform!(
+        co,
+        Effect::PersistMessage(SignedConsensusMsg::Vote(signed_vote.clone()))
+    );
 
     // Store the non-nil Precommits.
     if signed_vote.vote_type() == VoteType::Precommit && signed_vote.value().is_val() {

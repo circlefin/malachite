@@ -2,11 +2,11 @@ use bytes::Bytes;
 use std::time::Duration;
 
 use derive_where::derive_where;
-use libp2p::PeerId;
 use ractor::{ActorRef, RpcReplyPort};
 
 use malachite_blocksync::SyncedBlock;
 use malachite_common::{CommitCertificate, Context, Round, SignedExtension, ValueId};
+use malachite_consensus::PeerId;
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
@@ -47,8 +47,11 @@ pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 
 /// Messages that need to be handled by the host actor.
 pub enum HostMsg<Ctx: Context> {
+    /// Consensus is ready
+    ConsensusReady(ConsensusRef<Ctx>),
+
     /// Consensus has started a new round.
-    StartRound {
+    StartedRound {
         height: Ctx::Height,
         round: Round,
         proposer: Ctx::Address,
@@ -58,7 +61,7 @@ pub enum HostMsg<Ctx: Context> {
     GetValue {
         height: Ctx::Height,
         round: Round,
-        timeout_duration: Duration,
+        timeout: Duration,
         address: Ctx::Address,
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
@@ -89,7 +92,7 @@ pub enum HostMsg<Ctx: Context> {
     },
 
     // Consensus has decided on a value
-    Decide {
+    Decided {
         certificate: CommitCertificate<Ctx>,
         consensus: ConsensusRef<Ctx>,
     },
@@ -101,7 +104,7 @@ pub enum HostMsg<Ctx: Context> {
     },
 
     // Synced block
-    ProcessSyncedBlockBytes {
+    ProcessSyncedBlock {
         height: Ctx::Height,
         round: Round,
         validator_address: Ctx::Address,

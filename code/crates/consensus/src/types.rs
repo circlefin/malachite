@@ -1,10 +1,11 @@
 use derive_where::derive_where;
 
 use malachite_common::{
-    Context, Proposal, Round, SignedExtension, SignedProposal, SignedVote, Validity, Vote,
+    Context, Proposal, Round, Signature, SignedExtension, SignedProposal, SignedVote, Validity,
+    Vote,
 };
 
-pub use libp2p_identity::PeerId;
+pub use malachite_peer::PeerId;
 pub use multiaddr::Multiaddr;
 
 /// A signed consensus message, ie. a signed vote or a signed proposal.
@@ -15,10 +16,17 @@ pub enum SignedConsensusMsg<Ctx: Context> {
 }
 
 impl<Ctx: Context> SignedConsensusMsg<Ctx> {
-    pub fn msg_height(&self) -> Ctx::Height {
+    pub fn height(&self) -> Ctx::Height {
         match self {
             SignedConsensusMsg::Vote(msg) => msg.height(),
             SignedConsensusMsg::Proposal(msg) => msg.height(),
+        }
+    }
+
+    pub fn signature(&self) -> &Signature<Ctx> {
+        match self {
+            SignedConsensusMsg::Vote(msg) => &msg.signature,
+            SignedConsensusMsg::Proposal(msg) => &msg.signature,
         }
     }
 }
@@ -30,8 +38,18 @@ pub enum ConsensusMsg<Ctx: Context> {
     Proposal(Ctx::Proposal),
 }
 
+/// A value to propose by the current node.
+/// Used only when the node is the proposer.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
+pub struct ValueToPropose<Ctx: Context> {
+    pub height: Ctx::Height,
+    pub round: Round,
+    pub valid_round: Round,
+    pub value: Ctx::Value,
+    pub extension: Option<SignedExtension<Ctx>>,
+}
+
 /// A value proposed by a validator
-/// Called at non-proposer only.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct ProposedValue<Ctx: Context> {
     pub height: Ctx::Height,

@@ -1,13 +1,12 @@
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use tracing::debug;
+use std::collections::{BTreeMap, BTreeSet};
+use tracing::{debug, warn};
 
 use malachite_common::*;
 use malachite_driver::Driver;
-use tracing::warn;
 
 use crate::input::Input;
-use crate::{FullProposal, FullProposalKeeper};
-use crate::{Params, ProposedValue};
+use crate::util::max_queue::MaxQueue;
+use crate::{FullProposal, FullProposalKeeper, Params, ProposedValue};
 
 /// The state maintained by consensus for processing a [`Input`][crate::Input].
 pub struct State<Ctx>
@@ -23,9 +22,8 @@ where
     /// Driver for the per-round consensus state machine
     pub driver: Driver<Ctx>,
 
-    /// A queue of inputs that were received before the
-    /// driver started the new height.
-    pub input_queue: VecDeque<Input<Ctx>>,
+    /// A queue of inputs that were received before the driver started.
+    pub input_queue: MaxQueue<Ctx::Height, Input<Ctx>>,
 
     /// The proposals to decide on.
     pub full_proposal_keeper: FullProposalKeeper<Ctx>,
@@ -59,6 +57,18 @@ where
             signed_precommits: Default::default(),
             decision: Default::default(),
         }
+    }
+
+    pub fn height(&self) -> Ctx::Height {
+        self.driver.height()
+    }
+
+    pub fn round(&self) -> Round {
+        self.driver.round()
+    }
+
+    pub fn address(&self) -> &Ctx::Address {
+        self.driver.address()
     }
 
     pub fn get_proposer(&self, height: Ctx::Height, round: Round) -> &Ctx::Address {
@@ -112,6 +122,19 @@ where
             .collect()
     }
 
+    pub fn restore_votes(&mut self, height: Ctx::Height, round: Round) -> Vec<SignedVote<Ctx>> {
+        // TODO optimization - get votes for all rounds higher than or equal to `round`
+        if height != self.driver.height() {
+            return vec![];
+        }
+
+        if let Some(per_round) = self.driver.votes().per_round(round) {
+            per_round.received_votes().iter().cloned().collect()
+        } else {
+            vec![]
+        }
+    }
+
     pub fn full_proposal_at_round_and_value(
         &self,
         height: &Ctx::Height,
@@ -143,8 +166,13 @@ where
     }
 
     pub fn remove_full_proposals(&mut self, height: Ctx::Height) {
-        debug!("Removing proposals for {height}");
+        debug!(%height, "Pruning full proposals");
         self.full_proposal_keeper.remove_full_proposals(height)
+    }
+
+    /// Queue an input for later processing, only keep inputs for the highest height seen so far.
+    pub fn buffer_input(&mut self, height: Ctx::Height, input: Input<Ctx>) {
+        self.input_queue.push(height, input);
     }
 
     pub fn print_state(&self) {

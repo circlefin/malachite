@@ -1,23 +1,28 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
 use derive_where::derive_where;
+use eyre::eyre;
 use libp2p::identity::Keypair;
-use libp2p::request_response::{InboundRequestId, OutboundRequestId};
+use libp2p::request_response;
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
 
-use malachite_blocksync::{self as blocksync, Response};
-use malachite_blocksync::{RawMessage, Request};
+use malachite_blocksync::{
+    self as blocksync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
+};
+
+use malachite_codec as codec;
 use malachite_common::{Context, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
 use malachite_metrics::SharedRegistry;
 
-use crate::util::codec::NetworkCodec;
+use crate::block_sync::BlockSyncCodec;
+use crate::consensus::ConsensusCodec;
 use crate::util::streaming::StreamMessage;
 
 pub type GossipConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
@@ -25,13 +30,15 @@ pub type GossipConsensusMsg<Ctx> = Msg<Ctx>;
 
 pub struct GossipConsensus<Ctx, Codec> {
     codec: Codec,
+    span: tracing::Span,
     marker: PhantomData<Ctx>,
 }
 
 impl<Ctx, Codec> GossipConsensus<Ctx, Codec> {
-    pub fn new(codec: Codec) -> Self {
+    pub fn new(codec: Codec, span: tracing::Span) -> Self {
         Self {
             codec,
+            span,
             marker: PhantomData,
         }
     }
@@ -40,18 +47,15 @@ impl<Ctx, Codec> GossipConsensus<Ctx, Codec> {
 impl<Ctx, Codec> GossipConsensus<Ctx, Codec>
 where
     Ctx: Context,
-    Codec: NetworkCodec<Ctx::ProposalPart>,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
-    Codec: NetworkCodec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: NetworkCodec<blocksync::Status<Ctx>>,
-    Codec: NetworkCodec<blocksync::Request<Ctx>>,
-    Codec: NetworkCodec<blocksync::Response<Ctx>>,
+    Codec: ConsensusCodec<Ctx>,
+    Codec: BlockSyncCodec<Ctx>,
 {
     pub async fn spawn(
         keypair: Keypair,
         config: Config,
         metrics: SharedRegistry,
         codec: Codec,
+        span: tracing::Span,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let args = Args {
             keypair,
@@ -59,7 +63,7 @@ where
             metrics,
         };
 
-        let (actor_ref, _) = Actor::spawn(None, Self::new(codec), args).await?;
+        let (actor_ref, _) = Actor::spawn(None, Self::new(codec, span), args).await?;
         Ok(actor_ref)
     }
 
@@ -94,8 +98,8 @@ pub enum GossipEvent<Ctx: Context> {
 
     Status(PeerId, Status<Ctx>),
 
-    BlockSyncRequest(InboundRequestId, PeerId, Request<Ctx>),
-    BlockSyncResponse(OutboundRequestId, PeerId, Response<Ctx>),
+    Request(InboundRequestId, PeerId, Request<Ctx>),
+    Response(OutboundRequestId, PeerId, Response<Ctx>),
 }
 
 pub enum State<Ctx: Context> {
@@ -105,7 +109,7 @@ pub enum State<Ctx: Context> {
         subscribers: Vec<ActorRef<GossipEvent<Ctx>>>,
         ctrl_handle: CtrlHandle,
         recv_task: JoinHandle<()>,
-        marker: PhantomData<Ctx>,
+        inbound_requests: HashMap<InboundRequestId, request_response::InboundRequestId>,
     },
 }
 
@@ -134,14 +138,14 @@ pub enum Msg<Ctx: Context> {
     /// Publish a proposal part
     PublishProposalPart(StreamMessage<Ctx::ProposalPart>),
 
-    /// Publish status
-    PublishStatus(Status<Ctx>),
+    /// Broadcast status to all direct peers
+    BroadcastStatus(Status<Ctx>),
 
     /// Send a request to a peer, returning the outbound request ID
-    OutgoingBlockSyncRequest(PeerId, Request<Ctx>, RpcReplyPort<OutboundRequestId>),
+    OutgoingRequest(PeerId, Request<Ctx>, RpcReplyPort<OutboundRequestId>),
 
-    /// Send a response for a blocks request to a peer
-    OutgoingBlockSyncResponse(InboundRequestId, Response<Ctx>),
+    /// Send a response for a request to a peer
+    OutgoingResponse(InboundRequestId, Response<Ctx>),
 
     /// Request for number of peers from gossip
     GetState { reply: RpcReplyPort<usize> },
@@ -156,12 +160,12 @@ impl<Ctx, Codec> Actor for GossipConsensus<Ctx, Codec>
 where
     Ctx: Context,
     Codec: Send + Sync + 'static,
-    Codec: NetworkCodec<Ctx::ProposalPart>,
-    Codec: NetworkCodec<SignedConsensusMsg<Ctx>>,
-    Codec: NetworkCodec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: NetworkCodec<blocksync::Status<Ctx>>,
-    Codec: NetworkCodec<blocksync::Request<Ctx>>,
-    Codec: NetworkCodec<blocksync::Response<Ctx>>,
+    Codec: codec::Codec<Ctx::ProposalPart>,
+    Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+    Codec: codec::Codec<blocksync::Status<Ctx>>,
+    Codec: codec::Codec<blocksync::Request<Ctx>>,
+    Codec: codec::Codec<blocksync::Response<Ctx>>,
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
@@ -191,7 +195,7 @@ where
             subscribers: Vec::new(),
             ctrl_handle,
             recv_task,
-            marker: PhantomData,
+            inbound_requests: HashMap::new(),
         })
     }
 
@@ -203,6 +207,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(name = "gossip.consensus", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         _myself: ActorRef<Msg<Ctx>>,
@@ -213,6 +218,7 @@ where
             peers,
             subscribers,
             ctrl_handle,
+            inbound_requests,
             ..
         } = state
         else {
@@ -222,7 +228,7 @@ where
         match msg {
             Msg::Subscribe(subscriber) => subscribers.push(subscriber),
 
-            Msg::Publish(msg) => match self.codec.encode(msg) {
+            Msg::Publish(msg) => match self.codec.encode(&msg) {
                 Ok(data) => ctrl_handle.publish(Channel::Consensus, data).await?,
                 Err(e) => error!("Failed to encode gossip message: {e:?}"),
             },
@@ -234,48 +240,55 @@ where
                     "Broadcasting proposal part"
                 );
 
-                let data = self.codec.encode(msg);
+                let data = self.codec.encode(&msg);
                 match data {
                     Ok(data) => ctrl_handle.publish(Channel::ProposalParts, data).await?,
                     Err(e) => error!("Failed to encode proposal part: {e:?}"),
                 }
             }
 
-            Msg::PublishStatus(status) => {
+            Msg::BroadcastStatus(status) => {
                 let status = blocksync::Status {
                     peer_id: ctrl_handle.peer_id(),
                     height: status.height,
                     earliest_block_height: status.earliest_block_height,
                 };
 
-                let data = self.codec.encode(status);
+                let data = self.codec.encode(&status);
                 match data {
-                    Ok(data) => ctrl_handle.publish(Channel::BlockSync, data).await?,
+                    Ok(data) => ctrl_handle.broadcast(Channel::BlockSync, data).await?,
                     Err(e) => error!("Failed to encode status message: {e:?}"),
                 }
             }
 
-            Msg::OutgoingBlockSyncRequest(peer_id, request, reply_to) => {
-                let request = self.codec.encode(request);
+            Msg::OutgoingRequest(peer_id, request, reply_to) => {
+                let request = self.codec.encode(&request);
+
                 match request {
                     Ok(data) => {
-                        let request_id = ctrl_handle.blocksync_request(peer_id, data).await?;
-                        reply_to.send(request_id)?;
+                        let p2p_request_id = ctrl_handle.blocksync_request(peer_id, data).await?;
+                        reply_to.send(OutboundRequestId::new(p2p_request_id))?;
                     }
                     Err(e) => error!("Failed to encode request message: {e:?}"),
                 }
             }
 
-            Msg::OutgoingBlockSyncResponse(request_id, response) => {
-                let msg = match self.codec.encode(response) {
-                    Ok(msg) => msg,
+            Msg::OutgoingResponse(request_id, response) => {
+                let response = self.codec.encode(&response);
+
+                match response {
+                    Ok(data) => {
+                        let request_id = inbound_requests
+                            .remove(&request_id)
+                            .ok_or_else(|| eyre!("Unknown inbound request ID: {request_id}"))?;
+
+                        ctrl_handle.blocksync_reply(request_id, data).await?
+                    }
                     Err(e) => {
-                        error!(%request_id, "Failed to encode block response message: {e:?}");
+                        error!(%request_id, "Failed to encode response message: {e:?}");
                         return Ok(());
                     }
                 };
-
-                ctrl_handle.blocksync_reply(request_id, msg).await?
             }
 
             Msg::NewEvent(Event::Listening(addr)) => {
@@ -353,7 +366,7 @@ where
                 );
             }
 
-            Msg::NewEvent(Event::BlockSync(raw_msg)) => match raw_msg {
+            Msg::NewEvent(Event::Sync(raw_msg)) => match raw_msg {
                 RawMessage::Request {
                     request_id,
                     peer,
@@ -362,13 +375,15 @@ where
                     let request: blocksync::Request<Ctx> = match self.codec.decode(body) {
                         Ok(request) => request,
                         Err(e) => {
-                            error!(%peer, "Failed to decode BlockSync request: {e:?}");
+                            error!(%peer, "Failed to decode sync request: {e:?}");
                             return Ok(());
                         }
                     };
 
+                    inbound_requests.insert(InboundRequestId::new(request_id), request_id);
+
                     self.publish(
-                        GossipEvent::BlockSyncRequest(request_id, peer, request),
+                        GossipEvent::Request(InboundRequestId::new(request_id), peer, request),
                         subscribers,
                     );
                 }
@@ -381,13 +396,13 @@ where
                     let response: blocksync::Response<Ctx> = match self.codec.decode(body) {
                         Ok(response) => response,
                         Err(e) => {
-                            error!(%peer, "Failed to decode BlockSync response: {e:?}");
+                            error!(%peer, "Failed to decode sync response: {e:?}");
                             return Ok(());
                         }
                     };
 
                     self.publish(
-                        GossipEvent::BlockSyncResponse(request_id, peer, response),
+                        GossipEvent::Response(OutboundRequestId::new(request_id), peer, response),
                         subscribers,
                     );
                 }

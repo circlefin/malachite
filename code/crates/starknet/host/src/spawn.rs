@@ -1,34 +1,34 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
-use tokio::sync::broadcast;
+use malachite_actors::util::events::TxEvent;
+use malachite_actors::wal::{Wal, WalRef};
 use tokio::task::JoinHandle;
 
 use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
-use malachite_actors::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
 use malachite_blocksync as blocksync;
-use malachite_common::CommitCertificate;
 use malachite_config::{
-    BlockSyncConfig, Config as NodeConfig, MempoolConfig, PubSubProtocol, TestConfig,
+    self as config, BlockSyncConfig, Config as NodeConfig, MempoolConfig, TestConfig,
     TransportProtocol,
 };
 use malachite_consensus::ValuePayload;
 use malachite_gossip_consensus::{
-    Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
+    Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair, PubSubProtocol,
 };
-use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
+use malachite_test_mempool::Config as GossipMempoolConfig;
 
-use crate::actor::StarknetHost;
+use crate::actor::Host;
 use crate::codec::ProtobufCodec;
+use crate::gossip_mempool::{GossipMempool, GossipMempoolRef};
+use crate::host::{StarknetHost, StarknetParams};
 use crate::mempool::{Mempool, MempoolRef};
-use crate::mock::host::{MockHost, MockParams};
 use crate::types::MockContext;
 use crate::types::{Address, Height, PrivateKey, ValidatorSet};
 
@@ -38,7 +38,8 @@ pub async fn spawn_node_actor(
     initial_validator_set: ValidatorSet,
     private_key: PrivateKey,
     start_height: Option<Height>,
-    tx_decision: Option<broadcast::Sender<CommitCertificate<MockContext>>>,
+    tx_event: TxEvent<MockContext>,
+    span: tracing::Span,
 ) -> (NodeRef, JoinHandle<()>) {
     let ctx = MockContext::new(private_key);
 
@@ -49,15 +50,15 @@ pub async fn spawn_node_actor(
     let address = Address::from_public_key(private_key.public_key());
 
     // Spawn mempool and its gossip layer
-    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, &registry).await;
-    let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test).await;
+    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, &registry, &span).await;
+    let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test, &span).await;
 
     // Spawn consensus gossip
-    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, &private_key, &registry).await;
+    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, &private_key, &registry, &span).await;
 
     // Spawn the host actor
     let host = spawn_host_actor(
-        home_dir,
+        &home_dir,
         &cfg,
         &address,
         &private_key,
@@ -65,6 +66,7 @@ pub async fn spawn_node_actor(
         mempool.clone(),
         gossip_consensus.clone(),
         metrics.clone(),
+        &span,
     )
     .await;
 
@@ -75,8 +77,11 @@ pub async fn spawn_node_actor(
         &cfg.blocksync,
         start_height,
         &registry,
+        &span,
     )
     .await;
+
+    let wal = spawn_wal_actor(&ctx, ProtobufCodec, &home_dir, &registry, &span).await;
 
     // Spawn consensus
     let consensus = spawn_consensus_actor(
@@ -87,9 +92,11 @@ pub async fn spawn_node_actor(
         cfg,
         gossip_consensus.clone(),
         host.clone(),
+        wal.clone(),
         block_sync.clone(),
         metrics,
-        tx_decision,
+        tx_event,
+        &span,
     )
     .await;
 
@@ -98,16 +105,33 @@ pub async fn spawn_node_actor(
         ctx,
         gossip_consensus,
         consensus,
-        gossip_mempool,
+        wal,
         block_sync,
         mempool.get_cell(),
         host,
         start_height,
+        span,
     );
 
     let (actor_ref, handle) = node.spawn().await.unwrap();
 
     (actor_ref, handle)
+}
+
+async fn spawn_wal_actor(
+    ctx: &MockContext,
+    codec: ProtobufCodec,
+    home_dir: &Path,
+    registry: &SharedRegistry,
+    span: &tracing::Span,
+) -> WalRef<MockContext> {
+    let wal_dir = home_dir.join("wal");
+    std::fs::create_dir_all(&wal_dir).unwrap();
+    let wal_file = wal_dir.join("consensus.wal");
+
+    Wal::spawn(ctx, codec, wal_file, registry.clone(), span.clone())
+        .await
+        .unwrap()
 }
 
 async fn spawn_block_sync_actor(
@@ -117,6 +141,7 @@ async fn spawn_block_sync_actor(
     config: &BlockSyncConfig,
     initial_height: Height,
     registry: &SharedRegistry,
+    span: &tracing::Span,
 ) -> Option<BlockSyncRef<MockContext>> {
     if !config.enabled {
         return None;
@@ -128,7 +153,7 @@ async fn spawn_block_sync_actor(
     };
 
     let metrics = blocksync::Metrics::register(registry);
-    let block_sync = BlockSync::new(ctx, gossip_consensus, host, params, metrics);
+    let block_sync = BlockSync::new(ctx, gossip_consensus, host, params, metrics, span.clone());
     let (actor_ref, _) = block_sync.spawn(initial_height).await.unwrap();
 
     Some(actor_ref)
@@ -143,9 +168,11 @@ async fn spawn_consensus_actor(
     cfg: NodeConfig,
     gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
+    wal: WalRef<MockContext>,
     block_sync: Option<BlockSyncRef<MockContext>>,
     metrics: Metrics,
-    tx_decision: Option<broadcast::Sender<CommitCertificate<MockContext>>>,
+    tx_event: TxEvent<MockContext>,
+    span: &tracing::Span,
 ) -> ConsensusRef<MockContext> {
     let value_payload = match cfg.consensus.value_payload {
         malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
@@ -167,9 +194,11 @@ async fn spawn_consensus_actor(
         cfg.consensus.timeouts,
         gossip_consensus,
         host,
+        wal,
         block_sync,
         metrics,
-        tx_decision,
+        tx_event,
+        span.clone(),
     )
     .await
     .unwrap()
@@ -179,6 +208,7 @@ async fn spawn_gossip_consensus_actor(
     cfg: &NodeConfig,
     private_key: &PrivateKey,
     registry: &SharedRegistry,
+    span: &tracing::Span,
 ) -> GossipConsensusRef<MockContext> {
     let config_gossip = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
@@ -192,16 +222,18 @@ async fn spawn_gossip_consensus_actor(
             TransportProtocol::Tcp => malachite_gossip_consensus::TransportProtocol::Tcp,
             TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
         },
-        protocol: match cfg.consensus.p2p.protocol {
-            PubSubProtocol::GossipSub(config) => {
-                malachite_gossip_consensus::PubSubProtocol::GossipSub(GossipSubConfig {
-                    mesh_n: config.mesh_n(),
-                    mesh_n_high: config.mesh_n_high(),
-                    mesh_n_low: config.mesh_n_low(),
-                    mesh_outbound_min: config.mesh_outbound_min(),
-                })
-            }
-            PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
+        pubsub_protocol: match cfg.consensus.p2p.protocol {
+            config::PubSubProtocol::GossipSub(_) => PubSubProtocol::GossipSub,
+            config::PubSubProtocol::Broadcast => PubSubProtocol::Broadcast,
+        },
+        gossipsub: match cfg.consensus.p2p.protocol {
+            config::PubSubProtocol::GossipSub(config) => GossipSubConfig {
+                mesh_n: config.mesh_n(),
+                mesh_n_high: config.mesh_n_high(),
+                mesh_n_low: config.mesh_n_low(),
+                mesh_outbound_min: config.mesh_outbound_min(),
+            },
+            config::PubSubProtocol::Broadcast => GossipSubConfig::default(),
         },
         rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
@@ -210,9 +242,15 @@ async fn spawn_gossip_consensus_actor(
     let keypair = make_keypair(private_key);
     let codec = ProtobufCodec;
 
-    GossipConsensus::spawn(keypair, config_gossip, registry.clone(), codec)
-        .await
-        .unwrap()
+    GossipConsensus::spawn(
+        keypair,
+        config_gossip,
+        registry.clone(),
+        codec,
+        span.clone(),
+    )
+    .await
+    .unwrap()
 }
 
 fn make_keypair(private_key: &PrivateKey) -> Keypair {
@@ -226,36 +264,48 @@ async fn spawn_mempool_actor(
     gossip_mempool: GossipMempoolRef,
     mempool_config: &MempoolConfig,
     test_config: &TestConfig,
+    span: &tracing::Span,
 ) -> MempoolRef {
-    Mempool::spawn(gossip_mempool, mempool_config, test_config)
-        .await
-        .unwrap()
+    Mempool::spawn(
+        gossip_mempool,
+        mempool_config.clone(),
+        *test_config,
+        span.clone(),
+    )
+    .await
+    .unwrap()
 }
 
 async fn spawn_gossip_mempool_actor(
     cfg: &NodeConfig,
     private_key: &PrivateKey,
     registry: &SharedRegistry,
+    span: &tracing::Span,
 ) -> GossipMempoolRef {
     let config_gossip_mempool = GossipMempoolConfig {
         listen_addr: cfg.mempool.p2p.listen_addr.clone(),
         persistent_peers: cfg.mempool.p2p.persistent_peers.clone(),
         idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: match cfg.mempool.p2p.transport {
-            TransportProtocol::Tcp => malachite_gossip_mempool::TransportProtocol::Tcp,
-            TransportProtocol::Quic => malachite_gossip_mempool::TransportProtocol::Quic,
+            TransportProtocol::Tcp => malachite_test_mempool::TransportProtocol::Tcp,
+            TransportProtocol::Quic => malachite_test_mempool::TransportProtocol::Quic,
         },
     };
 
     let keypair = make_keypair(private_key);
-    GossipMempool::spawn(keypair, config_gossip_mempool, registry.clone())
-        .await
-        .unwrap()
+    GossipMempool::spawn(
+        keypair,
+        config_gossip_mempool,
+        registry.clone(),
+        span.clone(),
+    )
+    .await
+    .unwrap()
 }
 
 #[allow(clippy::too_many_arguments)]
 async fn spawn_host_actor(
-    home_dir: PathBuf,
+    home_dir: &Path,
     cfg: &NodeConfig,
     address: &Address,
     private_key: &PrivateKey,
@@ -263,6 +313,7 @@ async fn spawn_host_actor(
     mempool: MempoolRef,
     gossip_consensus: GossipConsensusRef<MockContext>,
     metrics: Metrics,
+    span: &tracing::Span,
 ) -> HostRef<MockContext> {
     let value_payload = match cfg.consensus.value_payload {
         malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
@@ -270,7 +321,7 @@ async fn spawn_host_actor(
         malachite_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
     };
 
-    let mock_params = MockParams {
+    let mock_params = StarknetParams {
         value_payload,
         max_block_size: cfg.consensus.max_block_size,
         tx_size: cfg.test.tx_size,
@@ -281,7 +332,7 @@ async fn spawn_host_actor(
         vote_extensions: cfg.test.vote_extensions,
     };
 
-    let mock_host = MockHost::new(
+    let mock_host = StarknetHost::new(
         mock_params,
         mempool.clone(),
         address.clone(),
@@ -289,7 +340,14 @@ async fn spawn_host_actor(
         initial_validator_set.clone(),
     );
 
-    StarknetHost::spawn(home_dir, mock_host, mempool, gossip_consensus, metrics)
-        .await
-        .unwrap()
+    Host::spawn(
+        home_dir.to_owned(),
+        mock_host,
+        mempool,
+        gossip_consensus,
+        metrics,
+        span.clone(),
+    )
+    .await
+    .unwrap()
 }

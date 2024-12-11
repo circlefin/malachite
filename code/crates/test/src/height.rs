@@ -1,11 +1,11 @@
 use core::fmt;
-
 use malachite_proto::{Error as ProtoError, Protobuf};
+use serde::{Deserialize, Serialize};
 
 use crate::proto;
 
 /// A blockchain height
-#[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Height(u64);
 
 impl Height {
@@ -41,6 +41,10 @@ impl fmt::Debug for Height {
 impl malachite_common::Height for Height {
     fn increment_by(&self, n: u64) -> Self {
         Self(self.0 + n)
+    }
+
+    fn decrement_by(&self, n: u64) -> Option<Self> {
+        Some(Self(self.0.saturating_sub(n)))
     }
 
     fn as_u64(&self) -> u64 {

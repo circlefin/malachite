@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use libp2p_identity::{ecdsa, PeerId};
 use malachite_config::TransportProtocol;
-use malachite_gossip_consensus::{spawn, Config, DiscoveryConfig, Keypair};
+use malachite_gossip_consensus::{spawn, Config, DiscoveryConfig, Keypair, PeerIdExt};
 use malachite_metrics::SharedRegistry;
 use malachite_starknet_host::types::PrivateKey;
 use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -161,7 +161,8 @@ impl<const N: usize> Test<N> {
             },
             idle_connection_timeout: Duration::from_secs(60),
             transport: malachite_gossip_consensus::TransportProtocol::Quic,
-            protocol: malachite_gossip_consensus::PubSubProtocol::default(),
+            gossipsub: malachite_gossip_consensus::GossipSubConfig::default(),
+            pubsub_protocol: malachite_gossip_consensus::PubSubProtocol::default(),
             rpc_max_size: 10 * 1024 * 1024,   // 10 MiB
             pubsub_max_size: 4 * 1024 * 1024, // 4 MiB
         })
@@ -206,12 +207,12 @@ impl<const N: usize> Test<N> {
                         event = handle.recv() => {
                             match event {
                                 Some(malachite_gossip_consensus::Event::PeerConnected(peer_id)) => {
-                                    if !peers.contains(&peer_id) {
-                                        peers.push(peer_id);
+                                    if !peers.contains(&peer_id.to_libp2p()) {
+                                        peers.push(peer_id.to_libp2p());
                                     }
                                 }
                                 Some(malachite_gossip_consensus::Event::PeerDisconnected(peer_id)) => {
-                                    if let Some(pos) = peers.iter().position(|p| p == &peer_id) {
+                                    if let Some(pos) = peers.iter().position(|p| p == &peer_id.to_libp2p()) {
                                         peers.remove(pos);
                                     }
                                 }

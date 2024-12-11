@@ -78,6 +78,9 @@ pub struct Inner {
     /// The round of the proposal that was decided on
     pub proposal_round: Histogram,
 
+    /// Number of times consensus was blocked in Prevote or Precommit step and required vote synchronization
+    pub step_timeouts: Counter,
+
     /// Number of connected peers, ie. for each consensus node, how many peers is it connected to)
     pub connected_peers: Gauge,
 
@@ -114,6 +117,7 @@ impl Metrics {
             block_size_bytes: Histogram::new(linear_buckets(0.0, 64.0 * 1024.0, 128)),
             consensus_round: Histogram::new(linear_buckets(0.0, 1.0, 20)),
             proposal_round: Histogram::new(linear_buckets(0.0, 1.0, 20)),
+            step_timeouts: Counter::default(),
             connected_peers: Gauge::default(),
             height: Gauge::default(),
             round: Gauge::default(),
@@ -180,6 +184,12 @@ impl Metrics {
                 "proposal_round",
                 "The round of the proposal that was decided on",
                 metrics.proposal_round.clone(),
+            );
+
+            registry.register(
+                "step_timeouts",
+                "Number of times consensus was blocked and required vote synchronization",
+                metrics.step_timeouts.clone(),
             );
 
             registry.register(

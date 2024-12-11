@@ -3,12 +3,11 @@ use alloc::vec::Vec;
 use core::fmt;
 
 use malachite_common::{
-    CommitCertificate, Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
-    Validator, ValidatorSet, Validity, Vote,
+    CommitCertificate, Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutKind,
+    Validator, ValidatorSet, Validity, ValueId, Vote,
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
-use malachite_round::state::Step::Propose;
 use malachite_round::state::{RoundValue, State as RoundState, Step};
 use malachite_round::state_machine::Info;
 use malachite_vote::keeper::VoteKeeper;
@@ -38,6 +37,9 @@ where
     /// The validator set at the current height
     validator_set: Ctx::ValidatorSet,
 
+    /// The proposer for the current round, None for round nil.
+    proposer: Option<Ctx::Address>,
+
     /// The proposals to decide on.
     pub(crate) proposal_keeper: ProposalKeeper<Ctx>,
 
@@ -49,9 +51,6 @@ where
 
     /// The state of the round state machine.
     pub(crate) round_state: RoundState<Ctx>,
-
-    /// The proposer for the current round, None for round nil.
-    proposer: Option<Ctx::Address>,
 
     /// The pending inputs to be processed next, if any.
     /// The first element of the tuple is the round at which that input has been emitted.
@@ -129,7 +128,22 @@ where
 
     /// Returns true if the current step is propose.
     pub fn step_is_propose(&self) -> bool {
-        self.round_state.step == Propose
+        self.round_state.step == Step::Propose
+    }
+
+    /// Returns true if the current step is prevote.
+    pub fn step_is_prevote(&self) -> bool {
+        self.round_state.step == Step::Prevote
+    }
+
+    /// Returns true if the current step is precommit.
+    pub fn step_is_precommit(&self) -> bool {
+        self.round_state.step == Step::Precommit
+    }
+
+    /// Returns true if the current step is commit.
+    pub fn step_is_commit(&self) -> bool {
+        self.round_state.step == Step::Commit
     }
 
     /// Return the valid value (the value for which we saw a polka) for the current round, if any.
@@ -174,6 +188,17 @@ where
         } else {
             Err(Error::NoProposer(self.height(), self.round()))
         }
+    }
+
+    /// Get a commit certificate for the given round and value id.
+    pub fn get_certificate(
+        &self,
+        round: Round,
+        value_id: ValueId<Ctx>,
+    ) -> Option<&CommitCertificate<Ctx>> {
+        self.certificates
+            .iter()
+            .find(|c| c.round == round && c.value_id == value_id)
     }
 
     /// Process the given input, returning the outputs to be broadcast to the network.
@@ -336,13 +361,15 @@ where
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        let input = match timeout.step {
-            TimeoutStep::Propose => RoundInput::TimeoutPropose,
-            TimeoutStep::Prevote => RoundInput::TimeoutPrevote,
-            TimeoutStep::Precommit => RoundInput::TimeoutPrecommit,
+        let input = match timeout.kind {
+            TimeoutKind::Propose => RoundInput::TimeoutPropose,
+            TimeoutKind::Prevote => RoundInput::TimeoutPrevote,
+            TimeoutKind::Precommit => RoundInput::TimeoutPrecommit,
 
-            // The driver never receives a commit timeout, so we can just ignore it.
-            TimeoutStep::Commit => return Ok(None),
+            // The driver never receives a commit or time limit timeout, so we can just ignore it.
+            TimeoutKind::Commit => return Ok(None),
+            TimeoutKind::PrevoteTimeLimit => return Ok(None),
+            TimeoutKind::PrecommitTimeLimit => return Ok(None),
         };
 
         self.apply_input(timeout.round, input)

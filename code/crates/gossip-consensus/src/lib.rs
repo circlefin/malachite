@@ -9,21 +9,24 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
-use libp2p::request_response::InboundRequestId;
+use libp2p::request_response::{InboundRequestId, OutboundRequestId};
+use libp2p::swarm::dial_opts::DialOpts;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, quic, SwarmBuilder};
 use libp2p_broadcast as broadcast;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, error_span, trace, Instrument};
 
-use malachite_blocksync::{self as blocksync, OutboundRequestId};
+use malachite_blocksync::{self as blocksync};
 use malachite_discovery::{self as discovery, ConnectionData};
 use malachite_metrics::SharedRegistry;
+
+pub use malachite_peer::PeerId;
 
 pub use bytes::Bytes;
 pub use libp2p::gossipsub::MessageId;
 pub use libp2p::identity::Keypair;
-pub use libp2p::{Multiaddr, PeerId};
+pub use libp2p::Multiaddr;
 
 pub mod behaviour;
 pub mod handle;
@@ -39,10 +42,11 @@ const PROTOCOL: &str = "/malachite-consensus/v1beta1";
 const METRICS_PREFIX: &str = "malachite_gossip_consensus";
 const DISCOVERY_METRICS_PREFIX: &str = "malachite_discovery";
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub enum PubSubProtocol {
     /// GossipSub: a pubsub protocol based on epidemic broadcast trees
-    GossipSub(GossipSubConfig),
+    #[default]
+    GossipSub,
 
     /// Broadcast: a simple broadcast protocol
     Broadcast,
@@ -50,17 +54,11 @@ pub enum PubSubProtocol {
 
 impl PubSubProtocol {
     pub fn is_gossipsub(&self) -> bool {
-        matches!(self, Self::GossipSub(_))
+        matches!(self, Self::GossipSub)
     }
 
     pub fn is_broadcast(&self) -> bool {
         matches!(self, Self::Broadcast)
-    }
-}
-
-impl Default for PubSubProtocol {
-    fn default() -> Self {
-        Self::GossipSub(GossipSubConfig::default())
     }
 }
 
@@ -95,7 +93,8 @@ pub struct Config {
     pub discovery: DiscoveryConfig,
     pub idle_connection_timeout: Duration,
     pub transport: TransportProtocol,
-    pub protocol: PubSubProtocol,
+    pub gossipsub: GossipSubConfig,
+    pub pubsub_protocol: PubSubProtocol,
     pub rpc_max_size: usize,
     pub pubsub_max_size: usize,
 }
@@ -123,26 +122,30 @@ pub enum TransportProtocol {
 
 /// Blocksync event details:
 ///
-/// peer1: blocksync              peer2: gossip_consensus        peer2: blocksync                peer1: gossip_consensus
-/// CtrlMsg::BlockSyncRequest --> Event::BlockSync  -----------> CtrlMsg::BlockSyncReply ------> Event::BlockSync
-/// (peer_id, height)             (RawMessage::Request           (request_id, height)            RawMessage::Response
-///                             {request_id, peer_id, height}                                    {request_id, block}
+/// peer1: blocksync               peer2: gossip_consensus       peer2: blocksync           peer1: gossip_consensus
+///                                                                or consensus
+/// CtrlMsg::SyncRequest       --> Event::Sync      -----------> CtrlMsg::SyncReply ------> Event::Sync
+/// (peer_id, height)             (RawMessage::Request           (request_id, height)       RawMessage::Response
+///                           {request_id, peer_id, request}                                {request_id, response}
+///
+/// - request can be for a block or vote set
 ///
 /// An event that can be emitted by the gossip layer
 #[derive(Clone, Debug)]
 pub enum Event {
     Listening(Multiaddr),
-    Message(Channel, PeerId, Bytes),
-    BlockSync(blocksync::RawMessage),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
+    Message(Channel, PeerId, Bytes),
+    Sync(blocksync::RawMessage),
 }
 
 #[derive(Debug)]
 pub enum CtrlMsg {
     Publish(Channel, Bytes),
-    BlockSyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
-    BlockSyncReply(InboundRequestId, Bytes),
+    Broadcast(Channel, Bytes),
+    SyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
+    SyncReply(InboundRequestId, Bytes),
     Shutdown,
 }
 
@@ -201,7 +204,7 @@ pub async fn spawn(
 
     let state = State::new(discovery);
 
-    let peer_id = *swarm.local_peer_id();
+    let peer_id = PeerId::from_libp2p(swarm.local_peer_id());
     let span = error_span!("gossip.consensus", peer = %peer_id);
     let task_handle =
         tokio::task::spawn(run(config, metrics, state, swarm, rx_ctrl, tx_event).instrument(span));
@@ -220,23 +223,40 @@ async fn run(
     if let Err(e) = swarm.listen_on(config.listen_addr.clone()) {
         error!("Error listening on {}: {e}", config.listen_addr);
         return;
-    };
-
-    for persistent_peer in config.persistent_peers {
-        state
-            .discovery
-            .add_to_dial_queue(&swarm, ConnectionData::new(None, persistent_peer));
     }
 
-    if let Err(e) = pubsub::subscribe(&mut swarm, Channel::all()) {
-        error!("Error subscribing to channels: {e}");
+    for peer in &config.persistent_peers {
+        if config.discovery.enabled {
+            state
+                .discovery
+                .add_to_dial_queue(&swarm, ConnectionData::new(None, peer.clone()));
+        } else {
+            let opts = DialOpts::unknown_peer_id()
+                .address(peer.clone())
+                .allocate_new_port()
+                .build();
+
+            if let Err(e) = swarm.dial(opts) {
+                error!("Error dialing persistent peer {peer}: {e}");
+            }
+        }
+    }
+
+    if let Err(e) = pubsub::subscribe(&mut swarm, config.pubsub_protocol, Channel::consensus()) {
+        error!("Error subscribing to consensus channels: {e}");
+        return;
+    };
+
+    if let Err(e) = pubsub::subscribe(&mut swarm, PubSubProtocol::Broadcast, &[Channel::BlockSync])
+    {
+        error!("Error subscribing to Sync channel: {e}");
         return;
     };
 
     loop {
         let result = tokio::select! {
             event = swarm.select_next_some() => {
-                handle_swarm_event(event, &metrics, &mut swarm, &mut state, &tx_event).await
+                handle_swarm_event(event, &config, &metrics, &mut swarm, &mut state, &tx_event).await
             }
 
             Some(connection_data) = state.discovery.rx_dial.recv(), if state.discovery.can_dial() => {
@@ -250,7 +270,7 @@ async fn run(
             }
 
             Some(ctrl) = rx_ctrl.recv() => {
-                handle_ctrl_msg(ctrl, &mut swarm, &mut state).await
+                handle_ctrl_msg(&mut swarm, &mut state, &config, ctrl).await
             }
         };
 
@@ -262,47 +282,60 @@ async fn run(
 }
 
 async fn handle_ctrl_msg(
-    msg: CtrlMsg,
     swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,
+    config: &Config,
+    msg: CtrlMsg,
 ) -> ControlFlow<()> {
     match msg {
         CtrlMsg::Publish(channel, data) => {
             let msg_size = data.len();
-            let result = pubsub::publish(swarm, channel, data);
+            let result = pubsub::publish(swarm, config.pubsub_protocol, channel, data);
 
             match result {
                 Ok(()) => debug!(%channel, size = %msg_size, "Published message"),
+                Err(e) => error!(%channel, "Error publishing message: {e}"),
+            }
+
+            ControlFlow::Continue(())
+        }
+
+        CtrlMsg::Broadcast(channel, data) => {
+            let msg_size = data.len();
+            let result = pubsub::publish(swarm, PubSubProtocol::Broadcast, channel, data);
+
+            match result {
+                Ok(()) => debug!(%channel, size = %msg_size, "Broadcasted message"),
                 Err(e) => error!(%channel, "Error broadcasting message: {e}"),
             }
 
             ControlFlow::Continue(())
         }
 
-        CtrlMsg::BlockSyncRequest(peer_id, request, reply_to) => {
+        CtrlMsg::SyncRequest(peer_id, request, reply_to) => {
             let request_id = swarm
                 .behaviour_mut()
                 .blocksync
-                .send_request(peer_id, request);
+                .send_request(peer_id.to_libp2p(), request);
 
             if let Err(e) = reply_to.send(request_id) {
-                error!(%peer_id, "Error sending BlockSync request: {e}");
+                error!(%peer_id, "Error sending Sync request: {e}");
             }
 
             ControlFlow::Continue(())
         }
 
-        CtrlMsg::BlockSyncReply(request_id, data) => {
+        CtrlMsg::SyncReply(request_id, data) => {
             let Some(channel) = state.blocksync_channels.remove(&request_id) else {
-                error!(%request_id, "Received BlockSync reply for unknown request ID");
+                error!(%request_id, "Received Sync reply for unknown request ID");
                 return ControlFlow::Continue(());
             };
 
             let result = swarm.behaviour_mut().blocksync.send_response(channel, data);
 
             match result {
-                Ok(()) => debug!(%request_id, "Replied to BlockSync request"),
-                Err(e) => error!(%request_id, "Error replying to BlockSync request: {e}"),
+                Ok(()) => debug!(%request_id, "Replied to Sync request"),
+                Err(e) => error!(%request_id, "Error replying to Sync request: {e}"),
             }
 
             ControlFlow::Continue(())
@@ -314,6 +347,7 @@ async fn handle_ctrl_msg(
 
 async fn handle_swarm_event(
     event: SwarmEvent<NetworkEvent>,
+    config: &Config,
     metrics: &Metrics,
     swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,
@@ -341,9 +375,11 @@ async fn handle_swarm_event(
             endpoint,
             ..
         } => {
-            state
-                .discovery
-                .handle_connection(peer_id, connection_id, endpoint);
+            if config.discovery.enabled {
+                state
+                    .discovery
+                    .handle_connection(peer_id, connection_id, endpoint);
+            }
         }
 
         SwarmEvent::OutgoingConnectionError {
@@ -352,7 +388,10 @@ async fn handle_swarm_event(
             ..
         } => {
             error!("Error dialing peer: {error}");
-            state.discovery.handle_failed_connection(connection_id);
+
+            if config.discovery.enabled {
+                state.discovery.handle_failed_connection(connection_id);
+            }
         }
 
         SwarmEvent::ConnectionClosed {
@@ -361,8 +400,22 @@ async fn handle_swarm_event(
             cause,
             ..
         } => {
-            error!("Connection closed with {peer_id}: {:?}", cause);
-            state.discovery.remove_peer(peer_id, connection_id);
+            if let Some(cause) = cause {
+                error!("Connection closed with {peer_id}, reason: {cause}");
+            } else {
+                error!("Connection closed with {peer_id}, reason: unknown");
+            }
+            if config.discovery.enabled {
+                state.discovery.remove_peer(peer_id, connection_id);
+            }
+
+            if let Err(e) = tx_event
+                .send(Event::PeerDisconnected(PeerId::from_libp2p(&peer_id)))
+                .await
+            {
+                error!("Error sending peer disconnected event to handle: {e}");
+                return ControlFlow::Break(());
+            }
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Identify(identify::Event::Sent {
@@ -387,9 +440,15 @@ async fn handle_swarm_event(
                     info.protocol_version
                 );
 
-                state
-                    .discovery
-                    .handle_new_peer(connection_id, peer_id, info)
+                if config.discovery.enabled {
+                    state
+                        .discovery
+                        .handle_new_peer(connection_id, peer_id, info)
+                }
+
+                let _ = tx_event
+                    .send(Event::PeerConnected(PeerId::from_libp2p(&peer_id)))
+                    .await;
             } else {
                 trace!(
                     "Peer {peer_id} is using incompatible protocol version: {:?}",
@@ -451,11 +510,6 @@ async fn handle_gossipsub_event(
             }
 
             trace!("Peer {peer_id} subscribed to {topic}");
-
-            if let Err(e) = tx_event.send(Event::PeerConnected(peer_id)).await {
-                error!("Error sending peer connected event to handle: {e}");
-                return ControlFlow::Break(());
-            }
         }
 
         gossipsub::Event::Unsubscribed { peer_id, topic } => {
@@ -465,11 +519,6 @@ async fn handle_gossipsub_event(
             }
 
             trace!("Peer {peer_id} unsubscribed from {topic}");
-
-            if let Err(e) = tx_event.send(Event::PeerDisconnected(peer_id)).await {
-                error!("Error sending peer disconnected event to handle: {e}");
-                return ControlFlow::Break(());
-            }
         }
 
         gossipsub::Event::Message {
@@ -495,7 +544,11 @@ async fn handle_gossipsub_event(
                 message.data.len()
             );
 
-            let event = Event::Message(channel, peer_id, Bytes::from(message.data));
+            let event = Event::Message(
+                channel,
+                PeerId::from_libp2p(&peer_id),
+                Bytes::from(message.data),
+            );
 
             if let Err(e) = tx_event.send(event).await {
                 error!("Error sending message to handle: {e}");
@@ -525,11 +578,6 @@ async fn handle_broadcast_event(
             }
 
             trace!("Peer {peer_id} subscribed to {topic:?}");
-
-            if let Err(e) = tx_event.send(Event::PeerConnected(peer_id)).await {
-                error!("Error sending peer connected event to handle: {e}");
-                return ControlFlow::Break(());
-            }
         }
 
         broadcast::Event::Unsubscribed(peer_id, topic) => {
@@ -539,11 +587,6 @@ async fn handle_broadcast_event(
             }
 
             trace!("Peer {peer_id} unsubscribed from {topic:?}");
-
-            if let Err(e) = tx_event.send(Event::PeerDisconnected(peer_id)).await {
-                error!("Error sending peer disconnected event to handle: {e}");
-                return ControlFlow::Break(());
-            }
         }
 
         broadcast::Event::Received(peer_id, topic, message) => {
@@ -557,7 +600,11 @@ async fn handle_broadcast_event(
                 message.len()
             );
 
-            let event = Event::Message(channel, peer_id, Bytes::copy_from_slice(message.as_ref()));
+            let event = Event::Message(
+                channel,
+                PeerId::from_libp2p(&peer_id),
+                Bytes::copy_from_slice(message.as_ref()),
+            );
 
             if let Err(e) = tx_event.send(event).await {
                 error!("Error sending message to handle: {e}");
@@ -587,14 +634,14 @@ async fn handle_blocksync_event(
                     state.blocksync_channels.insert(request_id, channel);
 
                     let _ = tx_event
-                        .send(Event::BlockSync(blocksync::RawMessage::Request {
+                        .send(Event::Sync(blocksync::RawMessage::Request {
                             request_id,
-                            peer,
+                            peer: PeerId::from_libp2p(&peer),
                             body: request.0,
                         }))
                         .await
                         .map_err(|e| {
-                            error!("Error sending BlockSync request to handle: {e}");
+                            error!("Error sending Sync request to handle: {e}");
                         });
                 }
 
@@ -603,14 +650,14 @@ async fn handle_blocksync_event(
                     response,
                 } => {
                     let _ = tx_event
-                        .send(Event::BlockSync(blocksync::RawMessage::Response {
+                        .send(Event::Sync(blocksync::RawMessage::Response {
                             request_id,
-                            peer,
+                            peer: PeerId::from_libp2p(&peer),
                             body: response.0,
                         }))
                         .await
                         .map_err(|e| {
-                            error!("Error sending BlockSync response to handle: {e}");
+                            error!("Error sending Sync response to handle: {e}");
                         });
                 }
             }
@@ -640,5 +687,20 @@ async fn handle_blocksync_event(
             let _ = (peer, request_id, error);
             ControlFlow::Continue(())
         }
+    }
+}
+
+pub trait PeerIdExt {
+    fn to_libp2p(&self) -> libp2p::PeerId;
+    fn from_libp2p(peer_id: &libp2p::PeerId) -> Self;
+}
+
+impl PeerIdExt for PeerId {
+    fn to_libp2p(&self) -> libp2p::PeerId {
+        libp2p::PeerId::from_bytes(&self.to_bytes()).expect("valid PeerId")
+    }
+
+    fn from_libp2p(peer_id: &libp2p::PeerId) -> Self {
+        Self::from_bytes(&peer_id.to_bytes()).expect("valid PeerId")
     }
 }
