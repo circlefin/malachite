@@ -3,7 +3,6 @@
 
 use tokio::sync::mpsc;
 
-use malachite_actors::util::events::TxEvent;
 use crate::app;
 use crate::app::types::codec::{BlockSyncCodec, ConsensusCodec, WalCodec};
 use crate::app::types::config::Config as NodeConfig;
@@ -15,6 +14,7 @@ use crate::spawn::{
     spawn_block_sync_actor, spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_host_actor,
     spawn_wal_actor,
 };
+use malachite_actors::util::events::TxEvent;
 
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
@@ -39,7 +39,8 @@ where
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
     let metrics = Metrics::register(&registry);
 
-    let private_key = node.load_private_key(node.load_private_key_file(node.get_home_dir()).unwrap());
+    let private_key =
+        node.load_private_key(node.load_private_key_file(node.get_home_dir()).unwrap());
     let public_key = node.get_public_key(private_key);
     let address = node.get_address(public_key);
 

@@ -63,7 +63,9 @@ impl Node for StarknetNode {
         PrivateKey::generate(rng)
     }
 
-    fn get_address(&self, pk: PublicKey) -> Address { Address::from_public_key(pk) }
+    fn get_address(&self, pk: PublicKey) -> Address {
+        Address::from_public_key(pk)
+    }
 
     fn get_public_key(&self, pk: PrivateKey) -> PublicKey {
         pk.public_key()
