@@ -78,6 +78,10 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-maelstrom
+      - name: Allow Maelstrom to run
+        run: |
+          echo "kernel.apparmor_restrict_unprivileged_userns = 0" | sudo tee /etc/sysctl.d/99-userns.conf
+          sudo sysctl --system
       - name: Run Starknet tests
         run: cargo maelstrom --include 'package.match(malachite-starknet-test)'
       - name: Run Discovery tests
