@@ -20,9 +20,9 @@ use malachite_consensus::ValuePayload;
 use malachite_gossip_consensus::{
     Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair, PubSubProtocol,
 };
-use malachite_gossip_mempool::Config as GossipMempoolConfig;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
+use malachite_test_mempool::Config as GossipMempoolConfig;
 
 use crate::actor::Host;
 use crate::codec::ProtobufCodec;
@@ -287,8 +287,8 @@ async fn spawn_gossip_mempool_actor(
         persistent_peers: cfg.mempool.p2p.persistent_peers.clone(),
         idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: match cfg.mempool.p2p.transport {
-            TransportProtocol::Tcp => malachite_gossip_mempool::TransportProtocol::Tcp,
-            TransportProtocol::Quic => malachite_gossip_mempool::TransportProtocol::Quic,
+            TransportProtocol::Tcp => malachite_test_mempool::TransportProtocol::Tcp,
+            TransportProtocol::Quic => malachite_test_mempool::TransportProtocol::Quic,
         },
     };
 

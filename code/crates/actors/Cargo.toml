@@ -16,7 +16,7 @@ malachite-codec.workspace            = true
 malachite-blocksync.workspace        = true
 malachite-consensus.workspace        = true
 malachite-gossip-consensus.workspace = true
-malachite-gossip-mempool.workspace   = true
+malachite-test-mempool.workspace   = true
 malachite-metrics.workspace          = true
 malachite-wal.workspace              = true
 

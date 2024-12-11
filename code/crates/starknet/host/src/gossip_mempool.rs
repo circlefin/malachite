@@ -9,11 +9,11 @@ use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::error;
 
-use malachite_gossip_mempool::handle::CtrlHandle;
-use malachite_gossip_mempool::types::MempoolTransactionBatch;
-use malachite_gossip_mempool::Channel::Mempool;
-use malachite_gossip_mempool::{Config, Event, NetworkMsg, PeerId};
 use malachite_metrics::SharedRegistry;
+use malachite_test_mempool::handle::CtrlHandle;
+use malachite_test_mempool::types::MempoolTransactionBatch;
+use malachite_test_mempool::Channel::Mempool;
+use malachite_test_mempool::{Config, Event, NetworkMsg, PeerId};
 
 pub type GossipMempoolRef = ActorRef<Msg>;
 
@@ -81,8 +81,7 @@ impl Actor for GossipMempool {
         myself: ActorRef<Msg>,
         args: Args,
     ) -> Result<State, ActorProcessingErr> {
-        let handle =
-            malachite_gossip_mempool::spawn(args.keypair, args.config, args.metrics).await?;
+        let handle = malachite_test_mempool::spawn(args.keypair, args.config, args.metrics).await?;
         let (mut recv_handle, ctrl_handle) = handle.split();
 
         let recv_task = tokio::spawn(async move {
