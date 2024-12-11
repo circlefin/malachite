@@ -3,7 +3,7 @@ use core::mem::size_of;
 use malachite_common::Round;
 use malachite_starknet_p2p_types::{BlockHash, Height};
 
-pub type UndecidedBlockKey = (HeightKey, RoundKey, BlockHashKey);
+pub type UndecidedValueKey = (HeightKey, RoundKey, BlockHashKey);
 
 #[derive(Copy, Clone, Debug)]
 pub struct HeightKey;

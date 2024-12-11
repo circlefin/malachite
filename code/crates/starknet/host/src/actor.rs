@@ -17,7 +17,7 @@ use malachite_actors::gossip_consensus::{
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_blocksync::SyncedBlock;
-use malachite_common::{CommitCertificate, Round, Validity};
+use malachite_common::{CommitCertificate, Round, Validity, ValueOrigin};
 use malachite_consensus::PeerId;
 use malachite_metrics::Metrics;
 
@@ -121,7 +121,7 @@ impl Host {
                 height,
                 round,
                 proposer,
-            } => on_started_round(state, height, round, proposer),
+            } => on_started_round(state, height, round, proposer).await,
 
             HostMsg::GetEarliestBlockHeight { reply_to } => {
                 on_get_earliest_block_height(state, reply_to)
@@ -191,6 +191,8 @@ fn on_consensus_ready(
     let latest_block_height = state.block_store.last_height().unwrap_or_default();
     let start_height = latest_block_height.increment();
 
+    state.consensus = Some(consensus.clone());
+
     consensus.cast(ConsensusMsg::StartHeight(
         start_height,
         state.host.validator_set.clone(),
@@ -199,7 +201,31 @@ fn on_consensus_ready(
     Ok(())
 }
 
-fn on_started_round(
+async fn replay_undecided_values(
+    state: &mut HostState,
+    height: Height,
+    round: Round,
+) -> Result<(), ActorProcessingErr> {
+    let undecided_values = state
+        .block_store
+        .get_undecided_values(height, round)
+        .await?;
+
+    let consensus = state.consensus.as_ref().unwrap();
+
+    for value in undecided_values {
+        info!(%height, %round, hash = %value.value, "Replaying already known proposed value");
+
+        consensus.cast(ConsensusMsg::ReceivedProposedValue(
+            value,
+            ValueOrigin::Consensus,
+        ))?;
+    }
+
+    Ok(())
+}
+
+async fn on_started_round(
     state: &mut HostState,
     height: Height,
     round: Round,
@@ -208,6 +234,10 @@ fn on_started_round(
     state.height = height;
     state.round = round;
     state.proposer = Some(proposer);
+
+    // If we have already built or seen one or more values for this height and round,
+    // feed them back to consensus. This may happen when we are restarting after a crash.
+    replay_undecided_values(state, height, round).await?;
 
     Ok(())
 }
@@ -243,13 +273,15 @@ async fn on_get_value(
     timeout: Duration,
     reply_to: RpcReplyPort<LocallyProposedValue<MockContext>>,
 ) -> Result<(), ActorProcessingErr> {
-    // If we have already built a block for this height and round, return it
-    // This may happen when we are restarting after a crash and replaying the WAL.
-    if let Some(block) = state.block_store.get_undecided_block(height, round).await? {
-        info!(%height, %round, hash = %block.block_hash, "Returning previously built block");
+    if let Some(value) = find_previously_built_value(state, height, round).await? {
+        info!(%height, %round, hash = %value.value, "Returning previously built value");
 
-        let value = LocallyProposedValue::new(height, round, block.block_hash, None);
-        reply_to.send(value)?;
+        reply_to.send(LocallyProposedValue::new(
+            value.height,
+            value.round,
+            value.value,
+            value.extension,
+        ))?;
 
         return Ok(());
     }
@@ -292,17 +324,14 @@ async fn on_get_value(
 
     let parts = state.host.part_store.all_parts(height, round);
 
-    let Some((value, block)) = state.build_block_from_parts(&parts, height, round).await else {
+    let Some(value) = state.build_value_from_parts(&parts, height, round).await else {
         error!(%height, %round, "Failed to build block from parts");
         return Ok(());
     };
 
-    if let Err(e) = state
-        .block_store
-        .store_undecided_block(value.height, value.round, block)
-        .await
-    {
-        error!(%e, %height, %round, "Failed to store the proposed block");
+    debug!(%height, %round, %block_hash, "Storing proposed value from assembled block");
+    if let Err(e) = state.block_store.store_undecided_value(value.clone()).await {
+        error!(%e, %height, %round, "Failed to store the proposed value");
     }
 
     reply_to.send(LocallyProposedValue::new(
@@ -313,6 +342,25 @@ async fn on_get_value(
     ))?;
 
     Ok(())
+}
+
+/// If we have already built a block for this height and round, return it to consensus
+/// This may happen when we are restarting after a crash and replaying the WAL.
+async fn find_previously_built_value(
+    state: &mut HostState,
+    height: Height,
+    round: Round,
+) -> Result<Option<ProposedValue<MockContext>>, ActorProcessingErr> {
+    let values = state
+        .block_store
+        .get_undecided_values(height, round)
+        .await?;
+
+    let proposed_value = values
+        .into_iter()
+        .find(|v| v.validator_address == state.host.address);
+
+    Ok(proposed_value)
 }
 
 async fn on_restream_value(
@@ -468,6 +516,18 @@ async fn on_received_proposal_part(
             .build_value_from_part(parts.height, parts.round, part)
             .await
         {
+            debug!(
+                height = %value.height, round = %value.round, block_hash = %value.value,
+                "Storing proposed value assembled from proposal parts"
+            );
+
+            if let Err(e) = state.block_store.store_undecided_value(value.clone()).await {
+                error!(
+                    %e, height = %value.height, round = %value.round, block_hash = %value.value,
+                    "Failed to store the proposed value"
+                );
+            }
+
             reply_to.send(value)?;
             break;
         }

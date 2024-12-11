@@ -5,6 +5,7 @@ use rand::RngCore;
 use sha3::Digest;
 use tracing::{debug, error, trace};
 
+use malachite_actors::consensus::ConsensusRef;
 use malachite_actors::host::ProposedValue;
 use malachite_actors::util::streaming::StreamId;
 use malachite_common::{Round, SignedExtension, Validity};
@@ -20,6 +21,7 @@ pub struct HostState {
     pub round: Round,
     pub proposer: Option<Address>,
     pub host: StarknetHost,
+    pub consensus: Option<ConsensusRef<MockContext>>,
     pub block_store: BlockStore,
     pub part_streams_map: PartStreamsMap,
     pub next_stream_id: StreamId,
@@ -35,6 +37,7 @@ impl HostState {
             round: Round::Nil,
             proposer: None,
             host,
+            consensus: None,
             block_store: BlockStore::new(db_path).unwrap(),
             part_streams_map: PartStreamsMap::default(),
             next_stream_id: rng.next_u64(),
@@ -47,30 +50,6 @@ impl HostState {
         // stream id was close to it already.
         self.next_stream_id = self.next_stream_id.wrapping_add(1);
         stream_id
-    }
-
-    #[tracing::instrument(skip_all, fields(%height, %round))]
-    pub async fn build_block_from_parts(
-        &self,
-        parts: &[Arc<ProposalPart>],
-        height: Height,
-        round: Round,
-    ) -> Option<(ProposedValue<MockContext>, Block)> {
-        let value = self.build_value_from_parts(parts, height, round).await?;
-
-        let txes = parts
-            .iter()
-            .filter_map(|part| part.as_transactions())
-            .flat_map(|txes| txes.to_vec())
-            .collect::<Vec<_>>();
-
-        let block = Block {
-            height,
-            transactions: Transactions::new(txes),
-            block_hash: value.value,
-        };
-
-        Some((value, block))
     }
 
     #[tracing::instrument(skip_all, fields(%height, %round))]
