@@ -559,9 +559,14 @@ mod tests {
         assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
         assert_eq!(config.test, TestConfig::default());
 
-        let config = load_config(Path::new("../../config.toml"), None).unwrap();
+        let tmp_file = std::env::temp_dir().join("malachite-config.toml");
+        std::fs::write(&tmp_file, file).unwrap();
+
+        let config = load_config(&tmp_file, None).unwrap();
         assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
         assert_eq!(config.test, TestConfig::default());
+
+        std::fs::remove_file(tmp_file).unwrap();
     }
 
     #[test]
