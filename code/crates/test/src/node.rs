@@ -1,3 +1,4 @@
+use malachite_app::types::Keypair;
 use malachite_app::Node;
 use malachite_common::VotingPower;
 use malachite_config::Config;
@@ -36,6 +37,10 @@ impl Node for TestNode {
 
     fn get_public_key(&self, pk: &PrivateKey) -> PublicKey {
         pk.public_key()
+    }
+
+    fn get_keypair(&self, pk: PrivateKey) -> Keypair {
+        Keypair::ed25519_from_bytes(pk.inner().to_bytes()).unwrap()
     }
 
     fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey {

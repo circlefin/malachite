@@ -1,10 +1,12 @@
 use std::path::{Path, PathBuf};
 
-use malachite_actors::util::events::TxEvent;
+use libp2p_identity::ecdsa;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use tracing::{info, Instrument};
 
+use malachite_actors::util::events::TxEvent;
+use malachite_app::types::Keypair;
 use malachite_app::Node;
 use malachite_common::VotingPower;
 use malachite_config::Config;
@@ -69,6 +71,13 @@ impl Node for StarknetNode {
 
     fn get_public_key(&self, pk: &PrivateKey) -> PublicKey {
         pk.public_key()
+    }
+
+    fn get_keypair(&self, pk: PrivateKey) -> Keypair {
+        let pk_bytes = pk.inner().to_bytes_be();
+        let secret_key = ecdsa::SecretKey::try_from_bytes(pk_bytes).unwrap();
+        let ecdsa_keypair = ecdsa::Keypair::from(secret_key);
+        Keypair::from(ecdsa_keypair)
     }
 
     fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey {

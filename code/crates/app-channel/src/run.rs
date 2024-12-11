@@ -9,7 +9,6 @@ use crate::app::types::codec::{BlockSyncCodec, ConsensusCodec, WalCodec};
 use crate::app::types::config::Config as NodeConfig;
 use crate::app::types::core::Context;
 use crate::app::types::metrics::{Metrics, SharedRegistry};
-use crate::app::types::Keypair;
 use crate::channel::AppMsg;
 use crate::spawn::spawn_host_actor;
 
@@ -25,7 +24,6 @@ pub async fn run<Node, Ctx, Codec>(
     ctx: Ctx,
     codec: Codec,
     node: Node,
-    peer_id: [u8; 64],
     initial_validator_set: Ctx::ValidatorSet,
 ) -> Result<mpsc::Receiver<AppMsg<Ctx>>>
 where
@@ -44,8 +42,7 @@ where
         node.load_private_key(node.load_private_key_file(node.get_home_dir()).unwrap());
     let public_key = node.get_public_key(&private_key);
     let address = node.get_address(&public_key);
-
-    let keypair = Keypair::ed25519_from_bytes(peer_id)?;
+    let keypair = node.get_keypair(private_key);
 
     // Spawn consensus gossip
     let gossip_consensus =
