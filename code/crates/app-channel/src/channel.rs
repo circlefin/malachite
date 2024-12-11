@@ -4,10 +4,10 @@ use bytes::Bytes;
 use derive_where::derive_where;
 use tokio::sync::oneshot;
 
-use crate::types::core::{CommitCertificate, Context, Round, ValueId};
-use crate::types::streaming::StreamMessage;
-use crate::types::sync::DecidedValue;
-use crate::types::{LocallyProposedValue, PeerId, ProposedValue};
+use crate::app::types::core::{CommitCertificate, Context, Round, ValueId};
+use crate::app::types::streaming::StreamMessage;
+use crate::app::types::sync::DecidedValue;
+use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
 
 /// Messages sent from consensus to the application.
 #[derive_where(Debug)]

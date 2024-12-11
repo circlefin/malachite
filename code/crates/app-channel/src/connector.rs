@@ -5,9 +5,9 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
 use malachite_actors::host::HostMsg;
-use malachite_common::Context;
-use malachite_metrics::Metrics;
 
+use crate::app::types::core::Context;
+use crate::app::types::metrics::Metrics;
 use crate::channel::AppMsg;
 
 pub struct Connector<Ctx>

@@ -153,7 +153,7 @@ async fn spawn_sync_actor(
 
     let metrics = sync::Metrics::register(registry);
     let sync = Sync::new(ctx, gossip_consensus, host, params, metrics, span.clone());
-    let (actor_ref, _) = sync.spawn(initial_height).await.unwrap();
+    let actor_ref = sync.spawn(initial_height).await.unwrap();
 
     Some(actor_ref)
 }
