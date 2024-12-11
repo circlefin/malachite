@@ -24,7 +24,7 @@ pub mod streaming {
 }
 
 pub mod sync {
-    pub use malachite_blocksync::{Request, Response, Status, SyncedBlock};
+    pub use malachite_sync::{Request, Response, Status, SyncedBlock};
 }
 
 pub mod codec {

@@ -2,7 +2,7 @@ use crate::{Address, Height, Proposal, ProposalPart, RoundDef, TestContext, Valu
 use bytes::Bytes;
 use ed25519_consensus::Signature;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_blocksync::{
+use malachite_sync::{
     BlockRequest, BlockResponse, PeerId, Request, Response, Status, SyncedBlock, VoteSetRequest,
     VoteSetResponse,
 };

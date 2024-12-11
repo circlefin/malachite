@@ -9,7 +9,7 @@ use libp2p_broadcast as broadcast;
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
-use malachite_blocksync as blocksync;
+use malachite_sync as blocksync;
 use malachite_discovery as discovery;
 use malachite_metrics::Registry;
 

@@ -2,7 +2,7 @@ use bytes::Bytes;
 use prost::Message;
 
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_blocksync::{
+use malachite_sync::{
     self as blocksync, BlockRequest, BlockResponse, VoteSetRequest, VoteSetResponse,
 };
 use malachite_codec::Codec;

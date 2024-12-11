@@ -76,7 +76,7 @@ impl Metrics {
     pub fn register(registry: &SharedRegistry) -> Self {
         let metrics = Self::new();
 
-        registry.with_prefix("malachite_blocksync", |registry| {
+        registry.with_prefix("malachite_sync", |registry| {
             // Block sync related metrics
             registry.register(
                 "block_requests_sent",

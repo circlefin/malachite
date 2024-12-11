@@ -11,8 +11,8 @@ use rand::SeedableRng;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 
-use malachite_blocksync::{self as blocksync, InboundRequestId, OutboundRequestId, Response};
-use malachite_blocksync::{Request, SyncedBlock};
+use malachite_sync::{self as blocksync, InboundRequestId, OutboundRequestId, Response};
+use malachite_sync::{Request, SyncedBlock};
 use malachite_codec as codec;
 use malachite_common::{CertificateError, CommitCertificate, Context, Height, Round};
 use malachite_consensus::PeerId;
@@ -186,7 +186,7 @@ where
         state: &mut State<Ctx>,
         input: blocksync::Input<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        malachite_blocksync::process!(
+        malachite_sync::process!(
             input: input,
             state: &mut state.blocksync,
             metrics: &self.metrics,

@@ -10,7 +10,7 @@ use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
 
-use malachite_blocksync::{
+use malachite_sync::{
     self as blocksync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
 };
 

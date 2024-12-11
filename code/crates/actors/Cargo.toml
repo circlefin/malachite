@@ -10,14 +10,14 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
+malachite-codec.workspace            = true
 malachite-common.workspace           = true
 malachite-config.workspace           = true
-malachite-codec.workspace            = true
-malachite-blocksync.workspace        = true
 malachite-consensus.workspace        = true
 malachite-gossip-consensus.workspace = true
-malachite-test-mempool.workspace   = true
 malachite-metrics.workspace          = true
+malachite-sync.workspace             = true
+malachite-test-mempool.workspace     = true
 malachite-wal.workspace              = true
 
 async-trait        = { workspace = true }

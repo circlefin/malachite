@@ -17,7 +17,7 @@ use libp2p_broadcast as broadcast;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, error_span, trace, Instrument};
 
-use malachite_blocksync::{self as blocksync};
+use malachite_sync::{self as blocksync};
 use malachite_discovery::{self as discovery, ConnectionData};
 use malachite_metrics::SharedRegistry;
 

@@ -4,7 +4,7 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachite_blocksync::SyncedBlock;
+use malachite_sync::SyncedBlock;
 use malachite_common::{CommitCertificate, Context, Round, SignedExtension, ValueId};
 use malachite_consensus::PeerId;
 

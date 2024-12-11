@@ -3,13 +3,13 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::eyre;
-use malachite_blocksync::InboundRequestId;
+use malachite_sync::InboundRequestId;
 
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
-use malachite_blocksync::{
+use malachite_sync::{
     self as blocksync, BlockResponse, Response, VoteSetRequest, VoteSetResponse,
 };
 use malachite_codec as codec;

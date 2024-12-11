@@ -11,7 +11,7 @@ use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
-use malachite_blocksync as blocksync;
+use malachite_sync as blocksync;
 use malachite_config::{
     self as config, BlockSyncConfig, Config as NodeConfig, MempoolConfig, TestConfig,
     TransportProtocol,

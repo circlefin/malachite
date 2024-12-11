@@ -10,10 +10,10 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
-malachite-metrics   = { workspace = true }
-malachite-blocksync = { workspace = true }
 malachite-discovery = { workspace = true }
+malachite-metrics   = { workspace = true }
 malachite-peer      = { workspace = true }
+malachite-sync      = { workspace = true }
 
 bytes              = { workspace = true }
 either             = { workspace = true }

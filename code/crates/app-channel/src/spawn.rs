@@ -158,7 +158,7 @@ where
         request_timeout: config.request_timeout,
     };
 
-    let metrics = malachite_blocksync::Metrics::register(registry);
+    let metrics = malachite_sync::Metrics::register(registry);
     let block_sync = BlockSync::new(
         ctx,
         gossip_consensus,

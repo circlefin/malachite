@@ -2768,13 +2768,13 @@ dependencies = [
  "derive-where",
  "eyre",
  "libp2p",
- "malachite-blocksync",
  "malachite-codec",
  "malachite-common",
  "malachite-config",
  "malachite-consensus",
  "malachite-gossip-consensus",
  "malachite-metrics",
+ "malachite-sync",
  "malachite-test-mempool",
  "malachite-wal",
  "ractor",
@@ -2791,7 +2791,6 @@ dependencies = [
  "derive-where",
  "libp2p-identity",
  "malachite-actors",
- "malachite-blocksync",
  "malachite-codec",
  "malachite-common",
  "malachite-config",
@@ -2800,30 +2799,11 @@ dependencies = [
  "malachite-metrics",
  "malachite-node",
  "malachite-peer",
+ "malachite-sync",
  "malachite-test",
  "ractor",
  "rand",
  "tokio",
- "tracing",
-]
-
-[[package]]
-name = "malachite-blocksync"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bytes",
- "dashmap",
- "derive-where",
- "displaydoc",
- "genawaiter",
- "libp2p",
- "malachite-common",
- "malachite-metrics",
- "malachite-peer",
- "rand",
- "serde",
- "thiserror 2.0.6",
  "tracing",
 ]
 
@@ -2958,10 +2938,10 @@ dependencies = [
  "futures",
  "libp2p",
  "libp2p-scatter",
- "malachite-blocksync",
  "malachite-discovery",
  "malachite-metrics",
  "malachite-peer",
+ "malachite-sync",
  "seahash",
  "serde",
  "tokio",
@@ -3053,7 +3033,6 @@ dependencies = [
  "itertools 0.13.0",
  "libp2p-identity",
  "malachite-actors",
- "malachite-blocksync",
  "malachite-cli",
  "malachite-codec",
  "malachite-common",
@@ -3065,6 +3044,7 @@ dependencies = [
  "malachite-proto",
  "malachite-starknet-p2p-proto",
  "malachite-starknet-p2p-types",
+ "malachite-sync",
  "malachite-test-mempool",
  "prost",
  "ractor",
@@ -3124,6 +3104,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-sync"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "dashmap",
+ "derive-where",
+ "displaydoc",
+ "genawaiter",
+ "libp2p",
+ "malachite-common",
+ "malachite-metrics",
+ "malachite-peer",
+ "rand",
+ "serde",
+ "thiserror 2.0.6",
+ "tracing",
+]
+
+[[package]]
 name = "malachite-test"
 version = "0.1.0"
 dependencies = [
@@ -3132,12 +3132,12 @@ dependencies = [
  "ed25519-consensus",
  "hex",
  "malachite-actors",
- "malachite-blocksync",
  "malachite-codec",
  "malachite-common",
  "malachite-consensus",
  "malachite-proto",
  "malachite-signing-ed25519",
+ "malachite-sync",
  "prost",
  "prost-build",
  "prost-types",
