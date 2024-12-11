@@ -31,8 +31,7 @@ struct StressTestConfig {
 
 #[test]
 fn large_number_of_entries() -> io::Result<()> {
-    let dir = testwal!();
-    let path = dir.join("large_entries.wal");
+    let path = testwal!();
 
     let config = StressTestConfig {
         num_entries: 1_000_000, // 1 million entries
