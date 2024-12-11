@@ -1,6 +1,6 @@
 //! The consensus state machine.
 
-use malachite_common::{Context, NilOrVal, Proposal, Round, TimeoutStep, Value};
+use malachite_common::{Context, NilOrVal, Proposal, Round, TimeoutKind, Value};
 
 use crate::debug_trace;
 use crate::input::Input;
@@ -280,7 +280,7 @@ where
             let output = Output::get_value_and_schedule_timeout(
                 state.height,
                 state.round,
-                TimeoutStep::Propose,
+                TimeoutKind::Propose,
             );
             debug_trace!(state, Line::L18);
 
@@ -472,7 +472,7 @@ where
 {
     debug_trace!(state, Line::L21ProposeTimeoutScheduled);
 
-    let timeout = Output::schedule_timeout(state.round, TimeoutStep::Propose);
+    let timeout = Output::schedule_timeout(state.round, TimeoutKind::Propose);
     Transition::to(state.with_step(Step::Propose)).with_output(timeout)
 }
 
@@ -486,7 +486,7 @@ pub fn schedule_timeout_prevote<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let output = Output::schedule_timeout(state.round, TimeoutStep::Prevote);
+    let output = Output::schedule_timeout(state.round, TimeoutKind::Prevote);
     Transition::to(state).with_output(output)
 }
 
@@ -497,7 +497,7 @@ pub fn schedule_timeout_precommit<Ctx>(state: State<Ctx>) -> Transition<Ctx>
 where
     Ctx: Context,
 {
-    let output = Output::schedule_timeout(state.round, TimeoutStep::Precommit);
+    let output = Output::schedule_timeout(state.round, TimeoutKind::Precommit);
     Transition::to(state).with_output(output)
 }
 

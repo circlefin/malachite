@@ -1,11 +1,12 @@
 use derive_where::derive_where;
-
 use malachite_common::{
-    CommitCertificate, Context, SignedProposal, SignedVote, Timeout, ValueOrigin,
+    CommitCertificate, Context, Round, SignedProposal, SignedVote, Timeout, ValueOrigin, VoteSet,
 };
 
 use crate::types::ProposedValue;
 use crate::ValueToPropose;
+
+pub type RequestId = String;
 
 /// Inputs to be handled by the consensus process.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -34,4 +35,10 @@ where
 
     /// Received a commit certificate from BlockSync
     CommitCertificate(CommitCertificate<Ctx>),
+
+    /// Peer needs vote set
+    VoteSetRequest(RequestId, Ctx::Height, Round),
+
+    /// Vote set to be sent to peer
+    VoteSetResponse(VoteSet<Ctx>),
 }

@@ -4,13 +4,14 @@ use bytesize::ByteSize;
 use malachite_config::{GossipSubConfig, PubSubProtocol};
 use malachite_starknet_test::{init_logging, TestBuilder, TestParams};
 
-async fn run_n2f0_tests(params: TestParams) {
+async fn run_test(params: TestParams) {
     init_logging(module_path!());
 
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();
 
+    test.add_node().start().wait_until(HEIGHT).success();
     test.add_node().start().wait_until(HEIGHT).success();
     test.add_node().start().wait_until(HEIGHT).success();
 
@@ -30,7 +31,7 @@ pub async fn broadcast_custom_config_1ktx() {
         ..Default::default()
     };
 
-    run_n2f0_tests(params).await
+    run_test(params).await
 }
 
 #[tokio::test]
@@ -44,7 +45,7 @@ pub async fn broadcast_custom_config_2ktx() {
         ..Default::default()
     };
 
-    run_n2f0_tests(params).await
+    run_test(params).await
 }
 
 #[tokio::test]
@@ -58,7 +59,7 @@ pub async fn gossip_custom_config_1ktx() {
         ..Default::default()
     };
 
-    run_n2f0_tests(params).await
+    run_test(params).await
 }
 
 #[tokio::test]
@@ -72,5 +73,5 @@ pub async fn gossip_custom_config_2ktx() {
         ..Default::default()
     };
 
-    run_n2f0_tests(params).await
+    run_test(params).await
 }

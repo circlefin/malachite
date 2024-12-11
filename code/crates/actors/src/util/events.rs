@@ -43,6 +43,8 @@ pub enum Event<Ctx: Context> {
     ProposedValue(ValueToPropose<Ctx>),
     ReceivedProposedValue(ProposedValue<Ctx>, ValueOrigin),
     Decided(CommitCertificate<Ctx>),
+    RequestedVoteSet(Ctx::Height, Round),
+    SentVoteSetResponse(Ctx::Height, Round, usize),
     WalReplayBegin(Ctx::Height, usize),
     WalReplayConsensus(SignedConsensusMsg<Ctx>),
     WalReplayTimeout(Timeout),
@@ -52,20 +54,34 @@ pub enum Event<Ctx: Context> {
 impl<Ctx: Context> fmt::Display for Event<Ctx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Event::StartedHeight(height) => write!(f, "StartedHeight({height})"),
-            Event::StartedRound(height, round) => write!(f, "StartedRound({height}, {round})"),
-            Event::Published(msg) => write!(f, "Published({msg:?})"),
-            Event::ProposedValue(value) => write!(f, "ProposedValue({value:?})"),
+            Event::StartedHeight(height) => write!(f, "StartedHeight(height: {height})"),
+            Event::StartedRound(height, round) => {
+                write!(f, "StartedRound(height: {height}, round: {round})")
+            }
+            Event::Published(msg) => write!(f, "Published(msg: {msg:?})"),
+            Event::ProposedValue(value) => write!(f, "ProposedValue(value: {value:?})"),
             Event::ReceivedProposedValue(value, origin) => {
-                write!(f, "ReceivedProposedValue({value:?}, {origin:?})")
+                write!(
+                    f,
+                    "ReceivedProposedValue(value: {value:?}, origin: {origin:?})"
+                )
             }
-            Event::Decided(cert) => write!(f, "Decided({cert:?})"),
+            Event::Decided(cert) => write!(f, "Decided(value: {})", cert.value_id),
+            Event::RequestedVoteSet(height, round) => {
+                write!(f, "RequestedVoteSet(height: {height}, round: {round})")
+            }
+            Event::SentVoteSetResponse(height, round, count) => {
+                write!(
+                    f,
+                    "SentVoteSetResponse(height: {height}, round: {round}, count: {count})"
+                )
+            }
             Event::WalReplayBegin(height, count) => {
-                write!(f, "WalReplayBegin({height}, {count})")
+                write!(f, "WalReplayBegin(height: {height}, count: {count})")
             }
-            Event::WalReplayConsensus(msg) => write!(f, "WalReplayConsensus({msg:?})"),
-            Event::WalReplayTimeout(timeout) => write!(f, "WalReplayTimeout({timeout:?})"),
-            Event::WalReplayDone(height) => write!(f, "WalReplayDone({height})"),
+            Event::WalReplayConsensus(msg) => write!(f, "WalReplayConsensus(msg: {msg:?})"),
+            Event::WalReplayTimeout(timeout) => write!(f, "WalReplayTimeout(timeout: {timeout:?})"),
+            Event::WalReplayDone(height) => write!(f, "WalReplayDone(height: {height})"),
         }
     }
 }

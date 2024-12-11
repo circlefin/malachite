@@ -2,13 +2,16 @@ use bytes::Bytes;
 use prost::Message;
 
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_blocksync as blocksync;
+use malachite_blocksync::{
+    self as blocksync, BlockRequest, BlockResponse, VoteSetRequest, VoteSetResponse,
+};
 use malachite_codec::Codec;
 use malachite_common::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
     SignedProposal, SignedVote, Validity,
 };
 use malachite_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
+use malachite_starknet_p2p_proto::ConsensusMessage;
 
 use crate::proto::consensus_message::Messages;
 use crate::proto::{self as proto, Error as ProtoError, Protobuf};
@@ -208,55 +211,132 @@ impl Codec<blocksync::Status<MockContext>> for ProtobufCodec {
     }
 }
 
-pub fn decode_blocksync_request(
-    request: proto::sync::Request,
+pub fn decode_sync_request(
+    proto_request: proto::sync::SyncRequest,
 ) -> Result<blocksync::Request<MockContext>, ProtoError> {
-    Ok(blocksync::Request {
-        height: Height::new(request.block_number, request.fork_id),
-    })
+    let messages = proto_request
+        .messages
+        .ok_or_else(|| ProtoError::missing_field::<proto::sync::SyncRequest>("messages"))?;
+    let request = match messages {
+        proto::sync::sync_request::Messages::BlockRequest(block_request) => {
+            blocksync::Request::BlockRequest(BlockRequest::new(Height::new(
+                block_request.block_number,
+                block_request.fork_id,
+            )))
+        }
+        proto::sync::sync_request::Messages::VoteSetRequest(vote_set_request) => {
+            blocksync::Request::VoteSetRequest(VoteSetRequest::new(
+                Height::new(vote_set_request.block_number, vote_set_request.fork_id),
+                Round::new(vote_set_request.round),
+            ))
+        }
+    };
+
+    Ok(request)
 }
 
-pub fn encode_blocksync_request(
+pub fn encode_sync_request(
     request: &blocksync::Request<MockContext>,
-) -> Result<proto::sync::Request, ProtoError> {
-    Ok(proto::sync::Request {
-        block_number: request.height.block_number,
-        fork_id: request.height.fork_id,
-    })
+) -> Result<proto::sync::SyncRequest, ProtoError> {
+    let proto = match request {
+        blocksync::Request::BlockRequest(block_request) => proto::sync::SyncRequest {
+            messages: Some(proto::sync::sync_request::Messages::BlockRequest(
+                proto::sync::BlockRequest {
+                    fork_id: block_request.height.fork_id,
+                    block_number: block_request.height.block_number,
+                },
+            )),
+        },
+        blocksync::Request::VoteSetRequest(vote_set_request) => proto::sync::SyncRequest {
+            messages: Some(proto::sync::sync_request::Messages::VoteSetRequest(
+                proto::sync::VoteSetRequest {
+                    fork_id: vote_set_request.height.fork_id,
+                    block_number: vote_set_request.height.block_number,
+                    round: vote_set_request
+                        .round
+                        .as_u32()
+                        .expect("round should not be nil"),
+                },
+            )),
+        },
+    };
+
+    Ok(proto)
 }
 
 impl Codec<blocksync::Request<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<blocksync::Request<MockContext>, Self::Error> {
-        decode_blocksync_request(proto::sync::Request::decode(bytes)?)
+        decode_sync_request(proto::sync::SyncRequest::decode(bytes)?)
     }
 
     fn encode(&self, request: &blocksync::Request<MockContext>) -> Result<Bytes, Self::Error> {
-        encode_blocksync_request(request).map(|proto| proto.encode_to_bytes())
+        encode_sync_request(request).map(|proto| proto.encode_to_bytes())
     }
 }
 
-pub fn decode_blocksync_response(
-    response: proto::sync::Response,
+pub fn decode_sync_response(
+    proto_response: proto::sync::SyncResponse,
 ) -> Result<blocksync::Response<MockContext>, ProtoError> {
-    Ok(blocksync::Response {
-        height: Height::new(response.block_number, response.fork_id),
-        block: response.block.map(decode_synced_block).transpose()?,
-    })
+    let messages = proto_response
+        .messages
+        .ok_or_else(|| ProtoError::missing_field::<proto::sync::SyncResponse>("messages"))?;
+
+    let response = match messages {
+        proto::sync::sync_response::Messages::BlockResponse(block_response) => {
+            blocksync::Response::BlockResponse(BlockResponse::new(
+                Height::new(block_response.block_number, block_response.fork_id),
+                block_response.block.map(decode_synced_block).transpose()?,
+            ))
+        }
+        proto::sync::sync_response::Messages::VoteSetResponse(vote_set_response) => {
+            let height = Height::new(vote_set_response.block_number, vote_set_response.fork_id);
+            let round = Round::new(vote_set_response.round);
+            let vote_set = vote_set_response
+                .vote_set
+                .ok_or_else(|| ProtoError::missing_field::<proto::sync::VoteSet>("vote_set"))?;
+
+            blocksync::Response::VoteSetResponse(VoteSetResponse::new(
+                height,
+                round,
+                decode_vote_set(vote_set)?,
+            ))
+        }
+    };
+    Ok(response)
 }
 
-pub fn encode_blocksync_response(
+pub fn encode_sync_response(
     response: &blocksync::Response<MockContext>,
-) -> Result<proto::sync::Response, ProtoError> {
-    let proto = proto::sync::Response {
-        block_number: response.height.block_number,
-        fork_id: response.height.fork_id,
-        block: response
-            .block
-            .as_ref()
-            .map(encode_synced_block)
-            .transpose()?,
+) -> Result<proto::sync::SyncResponse, ProtoError> {
+    let proto = match response {
+        blocksync::Response::BlockResponse(block_response) => proto::sync::SyncResponse {
+            messages: Some(proto::sync::sync_response::Messages::BlockResponse(
+                proto::sync::BlockResponse {
+                    fork_id: block_response.height.fork_id,
+                    block_number: block_response.height.block_number,
+                    block: block_response
+                        .block
+                        .as_ref()
+                        .map(encode_synced_block)
+                        .transpose()?,
+                },
+            )),
+        },
+        blocksync::Response::VoteSetResponse(vote_set_response) => proto::sync::SyncResponse {
+            messages: Some(proto::sync::sync_response::Messages::VoteSetResponse(
+                proto::sync::VoteSetResponse {
+                    fork_id: vote_set_response.height.fork_id,
+                    block_number: vote_set_response.height.block_number,
+                    round: vote_set_response
+                        .round
+                        .as_u32()
+                        .expect("round should not be nil"),
+                    vote_set: Some(encode_vote_set(&vote_set_response.vote_set)?),
+                },
+            )),
+        },
     };
 
     Ok(proto)
@@ -266,11 +346,11 @@ impl Codec<blocksync::Response<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
     fn decode(&self, bytes: Bytes) -> Result<blocksync::Response<MockContext>, Self::Error> {
-        decode_blocksync_response(proto::sync::Response::decode(bytes)?)
+        decode_sync_response(proto::sync::SyncResponse::decode(bytes)?)
     }
 
     fn encode(&self, response: &blocksync::Response<MockContext>) -> Result<Bytes, Self::Error> {
-        encode_blocksync_response(response).map(|proto| proto.encode_to_bytes())
+        encode_sync_response(response).map(|proto| proto.encode_to_bytes())
     }
 }
 
@@ -530,4 +610,47 @@ pub fn encode_block(block: &Block) -> Result<Vec<u8>, ProtoError> {
     };
 
     Ok(proto.encode_to_vec())
+}
+
+pub(crate) fn encode_vote_set(
+    vote_set: &malachite_common::VoteSet<MockContext>,
+) -> Result<proto::sync::VoteSet, ProtoError> {
+    Ok(proto::sync::VoteSet {
+        signed_votes: vote_set
+            .votes
+            .iter()
+            .map(encode_vote)
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+pub(crate) fn encode_vote(vote: &SignedVote<MockContext>) -> Result<ConsensusMessage, ProtoError> {
+    Ok(ConsensusMessage {
+        messages: Some(Messages::Vote(vote.message.to_proto()?)),
+        signature: Some(vote.signature.to_proto()?),
+    })
+}
+
+pub(crate) fn decode_vote_set(
+    vote_set: proto::sync::VoteSet,
+) -> Result<malachite_common::VoteSet<MockContext>, ProtoError> {
+    Ok(malachite_common::VoteSet {
+        votes: vote_set
+            .signed_votes
+            .into_iter()
+            .filter_map(decode_vote)
+            .collect(),
+    })
+}
+
+pub(crate) fn decode_vote(msg: ConsensusMessage) -> Option<SignedVote<MockContext>> {
+    let signature = msg.signature?;
+    let vote = match msg.messages {
+        Some(Messages::Vote(v)) => Some(v),
+        _ => None,
+    }?;
+
+    let signature = p2p::Signature::from_proto(signature).ok()?;
+    let vote = Vote::from_proto(vote).ok()?;
+    Some(SignedVote::new(vote, signature))
 }

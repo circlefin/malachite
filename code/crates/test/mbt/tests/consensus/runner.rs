@@ -268,7 +268,7 @@ impl ItfRunner for ConsensusRunner {
                     ModelOutput::Timeout(expected_round, expected_timeout),
                 ) => {
                     assert_eq!(timeout.round.as_i64(), *expected_round);
-                    assert_eq!(timeout.step, expected_timeout.to_common());
+                    assert_eq!(timeout.kind, expected_timeout.to_common());
                 }
 
                 (
@@ -281,7 +281,7 @@ impl ItfRunner for ConsensusRunner {
                 ) => {
                     assert_eq!(output_height.as_u64(), *model_height as u64);
                     assert_eq!(output_round.as_i64(), *model_round);
-                    assert_eq!(output_timeout.step, model_timeout.to_common());
+                    assert_eq!(output_timeout.kind, model_timeout.to_common());
                 }
 
                 (

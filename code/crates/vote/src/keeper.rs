@@ -125,6 +125,11 @@ where
         &self.votes
     }
 
+    /// Return the votes for this round.
+    pub fn received_votes(&self) -> &BTreeSet<SignedVote<Ctx>> {
+        &self.received_votes
+    }
+
     /// Return the addresses and their weights for this round.
     pub fn addresses_weights(&self) -> &RoundWeights<Ctx::Address> {
         &self.addresses_weights

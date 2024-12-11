@@ -5,16 +5,16 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use derive_where::derive_where;
 use eyre::eyre;
-use libp2p::request_response::InboundRequestId;
+
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use rand::SeedableRng;
 use tokio::task::JoinHandle;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
-use malachite_blocksync::{self as blocksync, OutboundRequestId};
+use malachite_blocksync::{self as blocksync, InboundRequestId, OutboundRequestId, Response};
 use malachite_blocksync::{Request, SyncedBlock};
 use malachite_codec as codec;
-use malachite_common::{CertificateError, CommitCertificate, Context, Height};
+use malachite_common::{CertificateError, CommitCertificate, Context, Height, Round};
 use malachite_consensus::PeerId;
 
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
@@ -47,7 +47,7 @@ where
 {
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Timeout {
     Request(OutboundRequestId),
 }
@@ -87,13 +87,19 @@ pub enum Msg<Ctx: Context> {
     StartedHeight(Ctx::Height),
 
     /// Host has a response for the blocks request
-    GotDecidedBlock(Ctx::Height, InboundRequestId, Option<SyncedBlock<Ctx>>),
+    GotDecidedBlock(InboundRequestId, Ctx::Height, Option<SyncedBlock<Ctx>>),
 
     /// A timeout has elapsed
     TimeoutElapsed(TimeoutElapsed<Timeout>),
 
     /// We received an invalid [`CommitCertificate`] from a peer
     InvalidCertificate(PeerId, CommitCertificate<Ctx>, CertificateError<Ctx>),
+
+    /// Consensus needs vote set from peers
+    RequestVoteSet(Ctx::Height, Round),
+
+    /// Consensus has sent a vote set response to a peer
+    SentVoteSetResponse(InboundRequestId, Ctx::Height, Round),
 }
 
 impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
@@ -217,18 +223,23 @@ where
                     )))?;
             }
 
-            Effect::SendRequest(peer_id, request) => {
+            Effect::SendBlockRequest(peer_id, block_request) => {
+                let request = Request::BlockRequest(block_request);
                 let result = ractor::call!(self.gossip, |reply_to| {
-                    GossipConsensusMsg::OutgoingBlockSyncRequest(peer_id, request.clone(), reply_to)
+                    GossipConsensusMsg::OutgoingRequest(peer_id, request.clone(), reply_to)
                 });
 
                 match result {
                     Ok(request_id) => {
-                        timers
-                            .start_timer(Timeout::Request(request_id), self.params.request_timeout);
+                        let request_id = OutboundRequestId::new(request_id);
+
+                        timers.start_timer(
+                            Timeout::Request(request_id.clone()),
+                            self.params.request_timeout,
+                        );
 
                         inflight.insert(
-                            request_id,
+                            request_id.clone(),
                             InflightRequest {
                                 peer_id,
                                 request_id,
@@ -242,20 +253,51 @@ where
                 }
             }
 
-            Effect::SendResponse(request_id, response) => {
+            Effect::SendBlockResponse(request_id, block_response) => {
+                let response = Response::BlockResponse(block_response);
                 self.gossip
-                    .cast(GossipConsensusMsg::OutgoingBlockSyncResponse(
-                        request_id, response,
-                    ))?;
+                    .cast(GossipConsensusMsg::OutgoingResponse(request_id, response))?;
             }
 
             Effect::GetBlock(request_id, height) => {
                 self.host.call_and_forward(
                     |reply_to| HostMsg::GetDecidedBlock { height, reply_to },
                     myself,
-                    move |block| Msg::<Ctx>::GotDecidedBlock(height, request_id, block),
+                    move |block| Msg::<Ctx>::GotDecidedBlock(request_id, height, block),
                     None,
                 )?;
+            }
+            Effect::SendVoteSetRequest(peer_id, vote_set_request) => {
+                debug!(
+                    height = %vote_set_request.height, round = %vote_set_request.round, peer = %peer_id,
+                    "Send the vote set request to peer"
+                );
+
+                let request = Request::VoteSetRequest(vote_set_request);
+
+                let result = ractor::call!(self.gossip, |reply_to| {
+                    GossipConsensusMsg::OutgoingRequest(peer_id, request.clone(), reply_to)
+                });
+                match result {
+                    Ok(request_id) => {
+                        timers.start_timer(
+                            Timeout::Request(request_id.clone()),
+                            self.params.request_timeout,
+                        );
+
+                        inflight.insert(
+                            request_id.clone(),
+                            InflightRequest {
+                                peer_id,
+                                request_id,
+                                request,
+                            },
+                        );
+                    }
+                    Err(e) => {
+                        error!("Failed to send request to gossip layer: {e}");
+                    }
+                }
             }
         }
 
@@ -269,9 +311,33 @@ where
         state: &mut State<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
         match msg {
+            Msg::RequestVoteSet(height, round) => {
+                debug!(%height, %round, "Make a vote set request to one of the peers");
+
+                self.process_input(&myself, state, blocksync::Input::GetVoteSet(height, round))
+                    .await?;
+            }
+
+            Msg::SentVoteSetResponse(request_id, height, round) => {
+                self.process_input(
+                    &myself,
+                    state,
+                    blocksync::Input::GotVoteSet(request_id, height, round),
+                )
+                .await?;
+            }
+
             Msg::Tick => {
                 self.process_input(&myself, state, blocksync::Input::Tick)
                     .await?;
+            }
+
+            Msg::GossipEvent(GossipEvent::PeerDisconnected(peer_id)) => {
+                info!(%peer_id, "Disconnected from peer");
+
+                if state.blocksync.peers.remove(&peer_id).is_some() {
+                    debug!(%peer_id, "Removed disconnected peer");
+                }
             }
 
             Msg::GossipEvent(GossipEvent::Status(peer_id, status)) => {
@@ -285,25 +351,49 @@ where
                     .await?;
             }
 
-            Msg::GossipEvent(GossipEvent::BlockSyncRequest(request_id, from, request)) => {
-                self.process_input(
-                    &myself,
-                    state,
-                    blocksync::Input::Request(request_id, from, request),
-                )
-                .await?;
+            Msg::GossipEvent(GossipEvent::Request(request_id, from, request)) => {
+                match request {
+                    Request::BlockRequest(block_request) => {
+                        self.process_input(
+                            &myself,
+                            state,
+                            blocksync::Input::BlockRequest(request_id, from, block_request),
+                        )
+                        .await?;
+                    }
+                    Request::VoteSetRequest(vote_set_request) => {
+                        self.process_input(
+                            &myself,
+                            state,
+                            blocksync::Input::VoteSetRequest(request_id, from, vote_set_request),
+                        )
+                        .await?;
+                    }
+                };
             }
 
-            Msg::GossipEvent(GossipEvent::BlockSyncResponse(request_id, peer, response)) => {
+            Msg::GossipEvent(GossipEvent::Response(request_id, peer, response)) => {
                 // Cancel the timer associated with the request for which we just received a response
-                state.timers.cancel(&Timeout::Request(request_id));
+                state.timers.cancel(&Timeout::Request(request_id.clone()));
 
-                self.process_input(
-                    &myself,
-                    state,
-                    blocksync::Input::Response(request_id, peer, response),
-                )
-                .await?;
+                match response {
+                    Response::BlockResponse(block_response) => {
+                        self.process_input(
+                            &myself,
+                            state,
+                            blocksync::Input::BlockResponse(request_id, peer, block_response),
+                        )
+                        .await?;
+                    }
+                    Response::VoteSetResponse(vote_set_response) => {
+                        self.process_input(
+                            &myself,
+                            state,
+                            blocksync::Input::VoteSetResponse(request_id, peer, vote_set_response),
+                        )
+                        .await?;
+                    }
+                }
             }
 
             Msg::GossipEvent(_) => {
@@ -325,7 +415,7 @@ where
                     .await?;
             }
 
-            Msg::GotDecidedBlock(height, request_id, block) => {
+            Msg::GotDecidedBlock(request_id, height, block) => {
                 self.process_input(
                     &myself,
                     state,
@@ -357,7 +447,7 @@ where
                             self.process_input(
                                 &myself,
                                 state,
-                                blocksync::Input::RequestTimedOut(
+                                blocksync::Input::SyncRequestTimedOut(
                                     inflight.peer_id,
                                     inflight.request,
                                 ),
