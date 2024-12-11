@@ -4,7 +4,6 @@
 use tokio::sync::mpsc;
 
 use malachite_actors::util::events::TxEvent;
-use malachite_app::types;
 use crate::app;
 use crate::app::types::codec::{BlockSyncCodec, ConsensusCodec, WalCodec};
 use crate::app::types::config::Config as NodeConfig;
