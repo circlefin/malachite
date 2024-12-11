@@ -38,8 +38,9 @@ where
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
     let metrics = Metrics::register(&registry);
 
-    let private_key =
-        node.load_private_key(node.load_private_key_file(node.get_home_dir()).unwrap());
+    // TODO: Simplify this?
+    let private_key_file = node.load_private_key_file(node.get_home_dir())?;
+    let private_key = node.load_private_key(private_key_file);
     let public_key = node.get_public_key(&private_key);
     let address = node.get_address(&public_key);
     let keypair = node.get_keypair(private_key);
