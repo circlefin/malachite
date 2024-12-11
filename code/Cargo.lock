@@ -2777,6 +2777,7 @@ dependencies = [
 name = "malachite-app"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "eyre",
  "libp2p-identity",
  "malachite-actors",
@@ -3125,9 +3126,11 @@ dependencies = [
 name = "malachite-test"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "base64 0.22.1",
  "bytes",
  "ed25519-consensus",
+ "eyre",
  "hex",
  "malachite-actors",
  "malachite-app",
