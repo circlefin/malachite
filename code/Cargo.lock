@@ -2787,6 +2787,7 @@ dependencies = [
 name = "malachite-app"
 version = "0.1.0"
 dependencies = [
+ "eyre",
  "libp2p-identity",
  "malachite-actors",
  "malachite-blocksync",
@@ -2808,6 +2809,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "derive-where",
+ "eyre",
  "malachite-actors",
  "malachite-app",
  "malachite-test",

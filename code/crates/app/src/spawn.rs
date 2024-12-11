@@ -3,6 +3,7 @@
 use std::path::Path;
 use std::time::Duration;
 
+use eyre::Result;
 use tracing::Span;
 
 use malachite_actors::block_sync::{
@@ -30,7 +31,7 @@ pub async fn spawn_gossip_consensus_actor<Ctx, Codec>(
     keypair: Keypair,
     registry: &SharedRegistry,
     codec: Codec,
-) -> GossipConsensusRef<Ctx>
+) -> Result<GossipConsensusRef<Ctx>>
 where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
@@ -40,7 +41,7 @@ where
 
     GossipConsensus::spawn(keypair, config, registry.clone(), codec, Span::current())
         .await
-        .unwrap()
+        .map_err(Into::into)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -56,7 +57,7 @@ pub async fn spawn_consensus_actor<Ctx>(
     block_sync: Option<BlockSyncRef<Ctx>>,
     metrics: Metrics,
     tx_event: TxEvent<Ctx>,
-) -> ConsensusRef<Ctx>
+) -> Result<ConsensusRef<Ctx>>
 where
     Ctx: Context,
 {
@@ -88,7 +89,7 @@ where
         Span::current(),
     )
     .await
-    .unwrap()
+    .map_err(Into::into)
 }
 
 pub async fn spawn_wal_actor<Ctx, Codec>(
@@ -96,7 +97,7 @@ pub async fn spawn_wal_actor<Ctx, Codec>(
     codec: Codec,
     home_dir: &Path,
     registry: &SharedRegistry,
-) -> WalRef<Ctx>
+) -> Result<WalRef<Ctx>>
 where
     Ctx: Context,
     Codec: WalCodec<Ctx>,
@@ -108,7 +109,7 @@ where
 
     Wal::spawn(ctx, codec, wal_file, registry.clone(), Span::current())
         .await
-        .unwrap()
+        .map_err(Into::into)
 }
 
 pub async fn spawn_block_sync_actor<Ctx>(
@@ -118,12 +119,12 @@ pub async fn spawn_block_sync_actor<Ctx>(
     config: &BlockSyncConfig,
     initial_height: Ctx::Height,
     registry: &SharedRegistry,
-) -> Option<BlockSyncRef<Ctx>>
+) -> Result<Option<BlockSyncRef<Ctx>>>
 where
     Ctx: Context,
 {
     if !config.enabled {
-        return None;
+        return Ok(None);
     }
 
     let params = BlockSyncParams {
@@ -140,9 +141,9 @@ where
         metrics,
         Span::current(),
     );
-    let (actor_ref, _) = block_sync.spawn(initial_height).await.unwrap();
 
-    Some(actor_ref)
+    let actor_ref = block_sync.spawn(initial_height).await?;
+    Ok(Some(actor_ref))
 }
 
 fn make_gossip_config(cfg: &NodeConfig) -> GossipConsensusConfig {

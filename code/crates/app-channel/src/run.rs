@@ -1,6 +1,7 @@
 //! Run Malachite consensus with the given configuration and context.
 //! Provides the application with a channel for receiving messages from consensus.
 
+use eyre::Result;
 use tokio::sync::mpsc;
 
 use crate::app;
@@ -26,7 +27,7 @@ pub async fn run<Node, Ctx, Codec>(
     node: Node,
     peer_id: [u8; 64],
     initial_validator_set: Ctx::ValidatorSet,
-) -> Result<mpsc::Receiver<AppMsg<Ctx>>, String>
+) -> Result<mpsc::Receiver<AppMsg<Ctx>>>
 where
     Ctx: Context,
     Node: app::Node<Context = Ctx>,
@@ -44,16 +45,16 @@ where
     let public_key = node.get_public_key(&private_key);
     let address = node.get_address(&public_key);
 
-    let keypair = Keypair::ed25519_from_bytes(peer_id).map_err(|error| error.to_string())?;
+    let keypair = Keypair::ed25519_from_bytes(peer_id)?;
 
     // Spawn consensus gossip
     let gossip_consensus =
-        spawn_gossip_consensus_actor(&cfg, keypair, &registry, codec.clone()).await;
+        spawn_gossip_consensus_actor(&cfg, keypair, &registry, codec.clone()).await?;
 
-    let wal = spawn_wal_actor(&ctx, codec, &node.get_home_dir(), &registry).await;
+    let wal = spawn_wal_actor(&ctx, codec, &node.get_home_dir(), &registry).await?;
 
     // Spawn the host actor
-    let (connector, rx) = spawn_host_actor(metrics.clone()).await;
+    let (connector, rx) = spawn_host_actor(metrics.clone()).await?;
 
     let block_sync = spawn_block_sync_actor(
         ctx.clone(),
@@ -63,7 +64,7 @@ where
         start_height,
         &registry,
     )
-    .await;
+    .await?;
 
     // Spawn consensus
     let _consensus = spawn_consensus_actor(
@@ -79,7 +80,7 @@ where
         metrics,
         TxEvent::new(),
     )
-    .await;
+    .await?;
 
     Ok(rx)
 }
