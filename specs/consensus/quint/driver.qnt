@@ -79,7 +79,7 @@ module driver {
     //    - pendingInputs updated with the returned ConsensusInput if there is one
     // and a driver input. 
     // It considers 3 cases:
-    // 1) there is a propsal+commit certificate for that proposal in any round
+    // 1) there is a proposal+commit certificate for that proposal in any round
     //    => a PendingDInput with ProposalAndCommitAndValidCInput is returned
     // 2) there is a VotekeeperOutput for round r > 0
     //    => a PendingDInput with NewRoundCInput is returned
