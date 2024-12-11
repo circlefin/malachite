@@ -137,7 +137,7 @@ module driver {
         val resultInput = if (decisionValAndRound._1 != Nil)
             Set((ProposalAndCommitAndValidCInput((decisionRound, decisionVal)),h, decisionRound))
         else if (roundToStart > 0)
-            Set((RoundSkipCInput(roundToStart),h,roundToStart))
+            Set((NewRoundCInput(roundToStart), h, -1))
         else 
             Set()
 
@@ -148,7 +148,7 @@ module driver {
         val resultAction = if (decisionValAndRound._1 != Nil)
             PendingDInput(ProposalAndCommitAndValidCInput((decisionRound, decisionVal)))
         else if (roundToStart > 0)
-            PendingDInput(RoundSkipCInput(roundToStart))
+            PendingDInput(NewRoundCInput(roundToStart))
         else 
             StartDInput
 
@@ -198,9 +198,9 @@ module driver {
     // a function, that is, any two validators need to agree on this
     pure def proposer(valset: Address -> Weight, height: Height, round: Round): Address = {
         // Here: rotating coordinator. We can do something more clever actually using the valset
-        // Update: generalized to arbitrary validator set, different proposer at different heights
+        // Update: generalized to arbitrary validator set, same proposer at different heights for test cases
         val valList = valset.keys().fold(List(), (s, x) => s.append(x))
-        val prop = (round + height + 1) % length(valList) // start with v2 as before
+        val prop = (round + 1) % length(valList) // start with v2 as before
         valList[prop]
         // if (prop == 0) "v1"
         // else if  (prop == 1) "v2"
