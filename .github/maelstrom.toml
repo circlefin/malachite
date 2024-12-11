@@ -11,7 +11,7 @@ network = "loopback"
 # Don't bother creating a writable container for our test. It can still write to /tmp .
 #
 # This is the default value:
-enable_writable_file_system = false
+enable_writable_file_system = true
 
 # Have our tests run with root as a working directory.
 #
@@ -29,7 +29,6 @@ enable_writable_file_system = false
 layers = [
     { stubs = [ "/{proc,sys,tmp,etc}/", "/dev/{full,null,random,urandom,zero}" ] },
     { paths = ["/etc/resolv.conf"], follow_symlinks = true },
-    { glob = "crates/test/mbt/specs/**/*.qnt", follow_symlinks = true },
 ]
 
 # Provide /tmp, /proc, /sys, and some devices in /dev/. These are used pretty
