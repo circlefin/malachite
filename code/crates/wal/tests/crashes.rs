@@ -18,12 +18,18 @@ use malachite_wal::*;
 static TESTDIR: LazyLock<NumberedDir> =
     LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());
 
-macro_rules! testwal {
+macro_rules! testdir {
     () => {{
         let module_path = ::std::module_path!();
         let test_name = ::testdir::private::extract_test_name(&module_path);
         let subdir_path = ::std::path::Path::new(&module_path.replace("::", "/")).join(&test_name);
-        TESTDIR.create_subdir(subdir_path).unwrap().join("wal.log")
+        TESTDIR.create_subdir(subdir_path).unwrap()
+    }};
+}
+
+macro_rules! testwal {
+    () => {{
+        testdir!().join("wal.log")
     }};
 }
 
@@ -107,7 +113,7 @@ fn verify_wal_integrity(path: &Path) -> io::Result<Vec<Vec<u8>>> {
 
 #[test]
 fn system_crash_during_write() -> io::Result<()> {
-    let temp_dir = testwal!();
+    let temp_dir = testdir!();
 
     // Test different crash points
     let crash_points = vec![
