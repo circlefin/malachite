@@ -3,10 +3,11 @@
 
 module driver {
     import extraSpells.* from "./spells/extra"
+    import basicSpells.* from "./spells/basic"
     import types.* from "./types"
     import consensus.* from "./consensus"
     import votekeeper.* from "./votekeeper"
-    
+   
     // *************************************************************************
     // State
     // *************************************************************************
@@ -48,6 +49,114 @@ module driver {
     pure def setValue(s: NodeState, value: NonNilValue): NodeState =
         { ...s, nextValueToPropose: Val(value) }
 
+
+
+    // *************************************************************************
+    // New Height Logic
+    // *************************************************************************
+
+    pure def maxRound(S: Set[Round]): Round = 
+        S.fold(0, (x,agg) => max(x,agg))
+
+
+    pure def removeMessagesFromOlderHeights(ns: NodeState, height: Height) : NodeState =
+        val proposals = ns.incomingProposals.filter(v => v.height >= height)
+        val votes = ns.incomingVotes.filter(v => v.height >= height)
+        val certificates = ns.incomingCertificates.filter(cert => cert.forall(v => v.height >= height))
+        { ... ns,
+            incomingProposals: proposals,
+            incomingVotes: votes,
+            incomingCertificates: certificates }
+
+    // initialize a driver with for a new height, and processing all messages that are already in the message buffers for that height
+    //pure def initNodeStateForNewHeight(ns: NodeState, vs: ValidatorSet, h: Height, chain: List[BlockStoreEntry]): NodeState = 
+
+    pure def getNewHeightAction(ns: NodeState, vs: ValidatorSet, h: Height): (NodeState, DriverInput)  = 
+        val proposalsForHeight = ns.incomingProposals.filter(v => v.height == h)
+        val votesForHeight = ns.incomingVotes.filter(v => v.height == h)
+        val maxVotesRound = maxRound(votesForHeight.map( vote => vote.round)) // needed to avoid skip rounds in applyVote
+        val certificatesForHeight = ns.incomingCertificates.filter(cert => cert.forall(v => v.height == h))
+        val maxCertRound = maxRound(certificatesForHeight.map( cert => maxRound(cert.map(vote => vote.round)))) // needed to avoid skip rounds in applyVote
+
+        // init new driver with empty votekeeper
+        val driver = ns.es      //initDriver(ns.es.cs.p, vs, h, ns.es.chain)
+        val vkEmpty = initBookKeeper(h, vs)
+
+        // load votekeeper with votes
+        val vkWithVotes = votesForHeight.fold(vkEmpty, (vk, vote) => 
+            val res = applyVote(vk, vote, maxVotesRound)
+            res.bookkeeper          
+        )    
+
+        // load votekeeper with certificates
+        val vkWithCertificates = certificatesForHeight.fold(vkWithVotes, (vk, cert) =>
+            val res = applyCertificate(vk, cert, maxCertRound)
+            res.bookkeeper
+        )
+
+        // check if there is a value to decide: decisionVal is a decision value or Nil
+        val decisionValAndRound = vkWithCertificates.rounds.keys().fold((Nil,-1), (agg, rNr) =>
+            if (agg._1 != Nil) agg
+            else {
+                vkWithCertificates.rounds.get(rNr).emittedOutputs.fold((Nil,-1), (agg2, output) =>
+                    match output {
+                        | PrecommitValueVKOutput(value) => 
+                            val validProposals = proposalsForHeight.filter(p => p.proposal.isValid() and p.proposal == value._2 and p.srcAddress == proposer(vs,h,rNr))
+                            if (validProposals != Set())
+                                (Val(value._2),rNr)
+                            else
+                                agg2
+                        | _ => agg2
+                    }
+                )
+            }       
+        )
+        val decisionVal : NonNilValue = getVal(decisionValAndRound._1)
+        val decisionRound = decisionValAndRound._2
+
+        // else compute consensus round to start
+        val roundToStart = vkWithCertificates.rounds.keys().fold(0, (agg, rNr) =>
+            vkWithCertificates.rounds.get(rNr).emittedOutputs.fold(0, (agg2, output) =>
+                match output {
+                    | PolkaAnyVKOutput(round) => max(round,agg2)
+                    | PolkaNilVKOutput(round) => max(round,agg2)
+                    | PolkaValueVKOutput(output) => max(output._1,agg2)
+                    | PrecommitAnyVKOutput(round) => max(round,agg2)
+                    | PrecommitValueVKOutput(output) => max(output._1,agg2)
+                    | SkipVKOutput(round) => max(round,agg2)
+                    | _ => agg2
+                }
+            )
+        )
+
+        val resultInput = if (decisionValAndRound._1 != Nil)
+            Set((ProposalAndCommitAndValidCInput((decisionRound, decisionVal)),h, decisionRound))
+        else if (roundToStart > 0)
+            Set((NewRoundCInput(roundToStart), h, -1))
+        else 
+            Set()
+
+        val resultDriver = { ...driver, bk: vkWithCertificates, pendingInputs: resultInput, started: true }
+        // Note: proposals messages are not processed / removed
+        // TODO: which messages can safely be removed in case of StartInRound(r)???
+
+        val resultAction = if (decisionValAndRound._1 != Nil)
+            PendingDInput(ProposalAndCommitAndValidCInput((decisionRound, decisionVal)))
+        else if (roundToStart > 0)
+            PendingDInput(NewRoundCInput(roundToStart))
+        else 
+            StartDInput
+
+        val resultNodeState = {...ns.removeMessagesFromOlderHeights(h),
+            debug: ns.debug.append(resultAction),
+            es: resultDriver,
+            incomingVotes: ns.incomingVotes.exclude(votesForHeight),
+            incomingCertificates: ns.incomingCertificates.exclude(certificatesForHeight) }
+
+        (resultNodeState, resultAction)
+
+
+
     // *************************************************************************
     // Input / Output
     // *************************************************************************
@@ -84,11 +193,14 @@ module driver {
     // a function, that is, any two validators need to agree on this
     pure def proposer(valset: Address -> Weight, height: Height, round: Round): Address = {
         // Here: rotating coordinator. We can do something more clever actually using the valset
-        val prop = (round + 1) % 4
-        if (prop == 0) "v1"
-        else if  (prop == 1) "v2"
-        else if  (prop == 2) "v3"
-        else "v4"
+        // Update: generalized to arbitrary validator set, same proposer at different heights for test cases
+        val valList = valset.keys().fold(List(), (s, x) => s.append(x))
+        val prop = (round + 1) % length(valList) // start with v2 as before
+        valList[prop]
+        // if (prop == 0) "v1"
+        // else if  (prop == 1) "v2"
+        // else if  (prop == 2) "v3"
+        // else "v4"
     }
 
     pure def getValue(state: NodeState): Value = state.nextValueToPropose
@@ -417,6 +529,7 @@ module driver {
         incomingSyncCertificates: Set[Set[Vote]],
         getValueRequests: Set[(Height, Round)],
         nextValueToPropose: Value, 
+        debug: List[DriverInput]
     }
 
     pure def initNode(v: Address, vs: Address -> Weight, height: Height): NodeState = {
@@ -428,7 +541,8 @@ module driver {
         incomingSyncProposals: Set(),
         incomingSyncCertificates: Set(),
         getValueRequests: Set(),
-        nextValueToPropose: Nil, 
+        nextValueToPropose: Nil,
+        debug: List() 
     }
 
     pure def existsTimeout(state: NodeState): bool =
@@ -458,7 +572,7 @@ module driver {
         val syncProposalsForCurrentHeight = state.incomingSyncProposals.filter(p => p.height == state.es.cs.height)
 
         if (not(state.es.started))
-            (state, StartDInput)
+            getNewHeightAction(state, state.es.valset, state.es.cs.height)
 
         else if (syncCertificatesForCurrentHeight != Set())
             // val cert = syncCertificatesForCurrentHeight.chooseSome()
