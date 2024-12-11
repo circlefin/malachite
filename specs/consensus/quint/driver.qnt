@@ -55,9 +55,10 @@ module driver {
     // New Height Logic
     // *************************************************************************
 
+    // *** helper functions ******************/
+
     pure def maxRound(S: Set[Round]): Round = 
         S.fold(0, (x,agg) => max(x,agg))
-
 
     pure def removeMessagesFromOlderHeights(ns: NodeState, height: Height) : NodeState =
         val proposals = ns.incomingProposals.filter(v => v.height >= height)
@@ -68,8 +69,22 @@ module driver {
             incomingVotes: votes,
             incomingCertificates: certificates }
 
-    // initialize a driver with for a new height, and processing all messages that are already in the message buffers for that height
-    //pure def initNodeStateForNewHeight(ns: NodeState, vs: ValidatorSet, h: Height, chain: List[BlockStoreEntry]): NodeState = 
+
+
+    // getNewHeightAction() manages the fast processing of messages when a new height h is
+    // started. It is called from nextAction when a the consensus algorithm has not yet started,
+    // and returns a node state with
+    //    - an updated votekeeper with all votes of this height processed
+    //    - all messages from the previous heights and the current height removed
+    //    - pendingInputs updated with the returned ConsensusInput if there is one
+    // and a driver input. 
+    // It considers 3 cases:
+    // 1) there is a propsal+commit certificate for that proposal in any round
+    //    => a PendingDInput with ProposalAndCommitAndValidCInput is returned
+    // 2) there is a VotekeeperOutput for round r > 0
+    //    => a PendingDInput with NewRoundCInput is returned
+    // 3) else 
+    //    => only the Votekeeper is updated and StartDInput is returned
 
     pure def getNewHeightAction(ns: NodeState, vs: ValidatorSet, h: Height): (NodeState, DriverInput)  = 
         val proposalsForHeight = ns.incomingProposals.filter(v => v.height == h)
@@ -79,7 +94,6 @@ module driver {
         val maxCertRound = maxRound(certificatesForHeight.map( cert => maxRound(cert.map(vote => vote.round)))) // needed to avoid skip rounds in applyVote
 
         // init new driver with empty votekeeper
-        val driver = ns.es      //initDriver(ns.es.cs.p, vs, h, ns.es.chain)
         val vkEmpty = initBookKeeper(h, vs)
 
         // load votekeeper with votes
@@ -95,10 +109,10 @@ module driver {
         )
 
         // check if there is a value to decide: decisionVal is a decision value or Nil
-        val decisionValAndRound = vkWithCertificates.rounds.keys().fold((Nil,-1), (agg, rNr) =>
+        val decisionValAndRound = vkWithCertificates.rounds.keys().fold((Nil, -1), (agg, rNr) =>
             if (agg._1 != Nil) agg
             else {
-                vkWithCertificates.rounds.get(rNr).emittedOutputs.fold((Nil,-1), (agg2, output) =>
+                vkWithCertificates.rounds.get(rNr).emittedOutputs.fold((Nil, -1), (agg2, output) =>
                     match output {
                         | PrecommitValueVKOutput(value) => 
                             val validProposals = proposalsForHeight.filter(p => p.proposal.isValid() and p.proposal == value._2 and p.srcAddress == proposer(vs,h,rNr))
@@ -111,8 +125,6 @@ module driver {
                 )
             }       
         )
-        val decisionVal : NonNilValue = getVal(decisionValAndRound._1)
-        val decisionRound = decisionValAndRound._2
 
         // else compute consensus round to start
         val roundToStart = vkWithCertificates.rounds.keys().fold(0, (agg, rNr) =>
@@ -129,29 +141,37 @@ module driver {
             )
         )
 
+        // determine additional pendingInputs
         val resultInput = if (decisionValAndRound._1 != Nil)
+            val decisionVal : NonNilValue = getVal(decisionValAndRound._1)
+            val decisionRound = decisionValAndRound._2
             Set((ProposalAndCommitAndValidCInput((decisionRound, decisionVal)),h, decisionRound))
         else if (roundToStart > 0)
             Set((NewRoundCInput(roundToStart), h, -1))
         else 
             Set()
 
-        val resultDriver = { ...driver, bk: vkWithCertificates, pendingInputs: resultInput, started: true }
-        // Note: proposals messages are not processed / removed
-        // TODO: which messages can safely be removed in case of StartInRound(r)???
+        val resultDriver = { ...ns.es, bk: vkWithCertificates, pendingInputs: resultInput, started: true }
 
         val resultAction = if (decisionValAndRound._1 != Nil)
+            val decisionVal : NonNilValue = getVal(decisionValAndRound._1)
+            val decisionRound = decisionValAndRound._2
             PendingDInput(ProposalAndCommitAndValidCInput((decisionRound, decisionVal)))
         else if (roundToStart > 0)
             PendingDInput(NewRoundCInput(roundToStart))
         else 
             StartDInput
 
-        val resultNodeState = {...ns.removeMessagesFromOlderHeights(h),
-            debug: ns.debug.append(resultAction),
+        // remove messages from previous heights
+        val ns2 = ns.removeMessagesFromOlderHeights(h)
+
+        // result state new driver and processed votes and certificates removed
+        // Note: processed proposals messages are not removed
+        val resultNodeState = {...ns2,
+            debug: ns2.debug.append(resultAction), // to be removed
             es: resultDriver,
-            incomingVotes: ns.incomingVotes.exclude(votesForHeight),
-            incomingCertificates: ns.incomingCertificates.exclude(certificatesForHeight) }
+            incomingVotes: ns2.incomingVotes.exclude(votesForHeight),
+            incomingCertificates: ns2.incomingCertificates.exclude(certificatesForHeight) }
 
         (resultNodeState, resultAction)
 
@@ -529,7 +549,7 @@ module driver {
         incomingSyncCertificates: Set[Set[Vote]],
         getValueRequests: Set[(Height, Round)],
         nextValueToPropose: Value, 
-        debug: List[DriverInput]
+        debug: List[DriverInput] // debug field for new height logic, remove when finished
     }
 
     pure def initNode(v: Address, vs: Address -> Weight, height: Height): NodeState = {
