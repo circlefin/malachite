@@ -804,6 +804,30 @@ where
                 Ok(Resume::Continue)
             }
 
+            Effect::SignProposal(proposal) => {
+                let start = Instant::now();
+
+                let signed_proposal = self.ctx.sign_proposal(proposal);
+
+                self.metrics
+                    .signature_signing_time
+                    .observe(start.elapsed().as_secs_f64());
+
+                Ok(Resume::SignedProposal(signed_proposal))
+            }
+
+            Effect::SignVote(vote) => {
+                let start = Instant::now();
+
+                let signed_vote = self.ctx.sign_vote(vote);
+
+                self.metrics
+                    .signature_signing_time
+                    .observe(start.elapsed().as_secs_f64());
+
+                Ok(Resume::SignedVote(signed_vote))
+            }
+
             Effect::VerifySignature(msg, pk) => {
                 use malachite_consensus::ConsensusMsg as Msg;
 

@@ -90,6 +90,9 @@ pub struct Inner {
     /// Current round
     pub round: Gauge,
 
+    /// Time taken to sign a message
+    pub signature_signing_time: Histogram,
+
     /// Time taken to verify a signature
     pub signature_verification_time: Histogram,
 
@@ -121,6 +124,7 @@ impl Metrics {
             connected_peers: Gauge::default(),
             height: Gauge::default(),
             round: Gauge::default(),
+            signature_signing_time: Histogram::new(exponential_buckets(0.001, 2.0, 10)),
             signature_verification_time: Histogram::new(exponential_buckets(0.001, 2.0, 10)),
             instant_consensus_started: Arc::new(AtomicInstant::empty()),
             instant_block_started: Arc::new(AtomicInstant::empty()),
@@ -208,6 +212,12 @@ impl Metrics {
                 "round",
                 "Current round",
                 metrics.round.clone(),
+            );
+
+            registry.register(
+                "signature_signing_time",
+                "Time taken to sign a message, in seconds",
+                metrics.signature_signing_time.clone(),
             );
 
             registry.register(

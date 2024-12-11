@@ -1,4 +1,6 @@
 use crate::handle::on_proposal;
+use crate::handle::signature::sign_proposal;
+use crate::handle::signature::sign_vote;
 use crate::handle::vote::on_vote;
 use crate::prelude::*;
 use crate::types::SignedConsensusMsg;
@@ -174,17 +176,17 @@ where
                 "Proposing value"
             );
 
-            let signed_proposal = state.ctx.sign_proposal(proposal.clone());
+            let signed_proposal = sign_proposal(co, proposal).await?;
 
             if signed_proposal.pol_round().is_defined() {
                 perform!(
                     co,
                     Effect::RestreamValue(
-                        proposal.height(),
-                        proposal.round(),
-                        proposal.pol_round(),
-                        proposal.validator_address().clone(),
-                        proposal.value().id(),
+                        signed_proposal.height(),
+                        signed_proposal.round(),
+                        signed_proposal.pol_round(),
+                        signed_proposal.validator_address().clone(),
+                        signed_proposal.value().id(),
                     )
                 );
             }
@@ -212,10 +214,12 @@ where
             );
 
             let extended_vote = extend_vote(vote, state);
-            let signed_vote = state.ctx.sign_vote(extended_vote);
+            let signed_vote = sign_vote(co, extended_vote).await?;
+
             on_vote(co, state, metrics, signed_vote.clone()).await?;
 
             perform!(co, Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote)));
+
             Ok(())
         }
 
