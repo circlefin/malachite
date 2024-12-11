@@ -1,7 +1,7 @@
 use clap::Parser;
+use color_eyre::eyre;
 use tracing::info;
 
-use crate::error::Error;
 use malachite_app::Node;
 use malachite_config::MetricsConfig;
 
@@ -14,7 +14,7 @@ pub struct StartCmd {
 }
 
 impl StartCmd {
-    pub async fn run<N>(&self, node: &N, metrics: Option<MetricsConfig>) -> Result<(), Error>
+    pub async fn run<N>(&self, node: &N, metrics: Option<MetricsConfig>) -> eyre::Result<()>
     where
         N: Node,
     {
@@ -29,7 +29,7 @@ impl StartCmd {
 }
 
 /// start command to run a node.
-pub async fn start<N>(node: &N, metrics: Option<MetricsConfig>) -> Result<(), Error>
+pub async fn start<N>(node: &N, metrics: Option<MetricsConfig>) -> eyre::Result<()>
 where
     N: Node,
 {
@@ -39,8 +39,7 @@ where
     }
 
     // Start the node
-    node.run().await;
+    node.run().await?;
 
-    // Todo: refactor Node trait Node::run to return error messages.
     Ok(())
 }

@@ -1,12 +1,16 @@
+use std::path::{Path, PathBuf};
+
+use async_trait::async_trait;
+use rand::{CryptoRng, RngCore};
+
 use malachite_app::types::Keypair;
 use malachite_app::Node;
 use malachite_common::VotingPower;
 use malachite_config::Config;
-use rand::{CryptoRng, RngCore};
-use std::path::{Path, PathBuf};
 
 use crate::context::TestContext;
 use crate::{Address, Genesis, PrivateKey, PublicKey, Validator, ValidatorSet};
+
 pub struct TestNode {
     pub config: Config,
     pub home_dir: PathBuf,
@@ -15,6 +19,7 @@ pub struct TestNode {
     pub start_height: Option<u64>,
 }
 
+#[async_trait]
 impl Node for TestNode {
     type Context = TestContext;
     type Genesis = Genesis;
@@ -74,7 +79,7 @@ impl Node for TestNode {
         Genesis { validator_set }
     }
 
-    async fn run(&self) {
-        panic!("Obsolete function. This will be removed.")
+    async fn run(&self) -> eyre::Result<()> {
+        unimplemented!()
     }
 }

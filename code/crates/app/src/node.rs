@@ -1,7 +1,7 @@
-use std::future::Future;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use async_trait::async_trait;
 use rand::{CryptoRng, RngCore};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -9,6 +9,7 @@ use serde::Serialize;
 use crate::types::core::{Context, PrivateKey, PublicKey, VotingPower};
 use crate::types::Keypair;
 
+#[async_trait]
 pub trait Node {
     type Context: Context;
     type Genesis: Serialize + DeserializeOwned;
@@ -40,5 +41,5 @@ pub trait Node {
         validators: Vec<(PublicKey<Self::Context>, VotingPower)>,
     ) -> Self::Genesis;
 
-    fn run(&self) -> impl Future<Output = ()> + Send;
+    async fn run(&self) -> eyre::Result<()>;
 }
