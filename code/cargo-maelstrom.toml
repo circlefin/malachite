@@ -11,7 +11,7 @@ network = "loopback"
 # Don't bother creating a writable container for our test. It can still write to /tmp .
 #
 # This is the default value:
-enable_writable_file_system = true
+enable_writable_file_system = false
 
 # Have our tests run with root as a working directory.
 #
