@@ -63,11 +63,11 @@ impl Node for StarknetNode {
         PrivateKey::generate(rng)
     }
 
-    fn get_address(&self, pk: PublicKey) -> Address {
-        Address::from_public_key(pk)
+    fn get_address(&self, pk: &PublicKey) -> Address {
+        Address::from_public_key(*pk)
     }
 
-    fn get_public_key(&self, pk: PrivateKey) -> PublicKey {
+    fn get_public_key(&self, pk: &PrivateKey) -> PublicKey {
         pk.public_key()
     }
 
@@ -171,11 +171,7 @@ fn test_starknet_node() {
     use malachite_cli::*;
 
     let priv_keys = new::generate_private_keys(&node, 1, true);
-    let pub_keys = priv_keys
-        .iter()
-        .map(|pk| node.get_public_key(*pk))
-        .collect();
-
+    let pub_keys = priv_keys.iter().map(|pk| node.get_public_key(pk)).collect();
     let genesis = new::generate_genesis(&node, pub_keys, true);
 
     file::save_priv_validator_key(

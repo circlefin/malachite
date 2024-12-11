@@ -3,7 +3,6 @@
 use std::path::Path;
 use std::time::Duration;
 
-use malachite_actors::host::HostRef;
 use tracing::Span;
 
 use malachite_actors::block_sync::{
@@ -11,6 +10,7 @@ use malachite_actors::block_sync::{
 };
 use malachite_actors::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
+use malachite_actors::host::HostRef;
 use malachite_actors::util::events::TxEvent;
 use malachite_actors::wal::{Wal, WalCodec, WalRef};
 use malachite_gossip_consensus::{
@@ -36,34 +36,7 @@ where
     Codec: ConsensusCodec<Ctx>,
     Codec: BlockSyncCodec<Ctx>,
 {
-    let config = GossipConsensusConfig {
-        listen_addr: cfg.consensus.p2p.listen_addr.clone(),
-        persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
-        discovery: DiscoveryConfig {
-            enabled: cfg.consensus.p2p.discovery.enabled,
-            ..Default::default()
-        },
-        idle_connection_timeout: Duration::from_secs(15 * 60),
-        transport: match cfg.consensus.p2p.transport {
-            TransportProtocol::Tcp => malachite_gossip_consensus::TransportProtocol::Tcp,
-            TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
-        },
-        pubsub_protocol: match cfg.consensus.p2p.protocol {
-            PubSubProtocol::GossipSub(_) => malachite_gossip_consensus::PubSubProtocol::GossipSub,
-            PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
-        },
-        gossipsub: match cfg.consensus.p2p.protocol {
-            PubSubProtocol::GossipSub(config) => GossipSubConfig {
-                mesh_n: config.mesh_n(),
-                mesh_n_high: config.mesh_n_high(),
-                mesh_n_low: config.mesh_n_low(),
-                mesh_outbound_min: config.mesh_outbound_min(),
-            },
-            PubSubProtocol::Broadcast => GossipSubConfig::default(),
-        },
-        rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
-        pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
-    };
+    let config = make_gossip_config(cfg);
 
     GossipConsensus::spawn(keypair, config, registry.clone(), codec, Span::current())
         .await
@@ -170,4 +143,35 @@ where
     let (actor_ref, _) = block_sync.spawn(initial_height).await.unwrap();
 
     Some(actor_ref)
+}
+
+fn make_gossip_config(cfg: &NodeConfig) -> GossipConsensusConfig {
+    GossipConsensusConfig {
+        listen_addr: cfg.consensus.p2p.listen_addr.clone(),
+        persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
+        discovery: DiscoveryConfig {
+            enabled: cfg.consensus.p2p.discovery.enabled,
+            ..Default::default()
+        },
+        idle_connection_timeout: Duration::from_secs(15 * 60),
+        transport: match cfg.consensus.p2p.transport {
+            TransportProtocol::Tcp => malachite_gossip_consensus::TransportProtocol::Tcp,
+            TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
+        },
+        pubsub_protocol: match cfg.consensus.p2p.protocol {
+            PubSubProtocol::GossipSub(_) => malachite_gossip_consensus::PubSubProtocol::GossipSub,
+            PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
+        },
+        gossipsub: match cfg.consensus.p2p.protocol {
+            PubSubProtocol::GossipSub(config) => GossipSubConfig {
+                mesh_n: config.mesh_n(),
+                mesh_n_high: config.mesh_n_high(),
+                mesh_n_low: config.mesh_n_low(),
+                mesh_outbound_min: config.mesh_outbound_min(),
+            },
+            PubSubProtocol::Broadcast => GossipSubConfig::default(),
+        },
+        rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
+        pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
+    }
 }

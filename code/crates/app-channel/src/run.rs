@@ -41,8 +41,8 @@ where
 
     let private_key =
         node.load_private_key(node.load_private_key_file(node.get_home_dir()).unwrap());
-    let public_key = node.get_public_key(private_key);
-    let address = node.get_address(public_key);
+    let public_key = node.get_public_key(&private_key);
+    let address = node.get_address(&public_key);
 
     let keypair = Keypair::ed25519_from_bytes(peer_id).map_err(|error| error.to_string())?;
 

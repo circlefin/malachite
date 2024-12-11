@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use rand::{CryptoRng, RngCore};
@@ -18,21 +19,18 @@ pub trait Node {
     where
         R: RngCore + CryptoRng;
 
-    fn get_address(&self, pk: PublicKey<Self::Context>) -> <Self::Context as Context>::Address;
+    fn get_address(&self, pk: &PublicKey<Self::Context>) -> <Self::Context as Context>::Address;
 
-    fn get_public_key(&self, pk: PrivateKey<Self::Context>) -> PublicKey<Self::Context>;
+    fn get_public_key(&self, pk: &PrivateKey<Self::Context>) -> PublicKey<Self::Context>;
 
     fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey<Self::Context>;
 
-    fn load_private_key_file(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> std::io::Result<Self::PrivateKeyFile>;
+    fn load_private_key_file(&self, path: impl AsRef<Path>) -> io::Result<Self::PrivateKeyFile>;
 
     fn make_private_key_file(&self, private_key: PrivateKey<Self::Context>)
         -> Self::PrivateKeyFile;
 
-    fn load_genesis(&self, path: impl AsRef<Path>) -> std::io::Result<Self::Genesis>;
+    fn load_genesis(&self, path: impl AsRef<Path>) -> io::Result<Self::Genesis>;
 
     fn make_genesis(
         &self,

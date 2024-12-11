@@ -100,8 +100,9 @@ where
         let private_keys = generate_private_keys(node, 1, false);
         let public_keys = private_keys
             .iter()
-            .map(|pk| node.get_public_key(pk.clone()))
+            .map(|pk| node.get_public_key(pk))
             .collect();
+
         let genesis = generate_genesis(node, public_keys, false);
         info!(file = ?genesis_file, "Saving test genesis");
         save_genesis(node, genesis_file, &genesis)?;

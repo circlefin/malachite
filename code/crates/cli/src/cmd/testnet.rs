@@ -115,7 +115,7 @@ where
     let private_keys = crate::new::generate_private_keys(node, nodes, deterministic);
     let public_keys = private_keys
         .iter()
-        .map(|pk| node.get_public_key(pk.clone()))
+        .map(|pk| node.get_public_key(pk))
         .collect();
     let genesis = crate::new::generate_genesis(node, public_keys, deterministic);
 
