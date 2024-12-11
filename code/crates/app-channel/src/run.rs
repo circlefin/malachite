@@ -4,7 +4,7 @@
 use tokio::sync::mpsc;
 
 use malachite_actors::util::events::TxEvent;
-
+use malachite_app::types;
 use crate::app;
 use crate::app::types::codec::{BlockSyncCodec, ConsensusCodec, WalCodec};
 use crate::app::types::config::Config as NodeConfig;
@@ -25,8 +25,7 @@ pub async fn run<Node, Ctx, Codec>(
     ctx: Ctx,
     codec: Codec,
     node: Node,
-    keypair: Keypair,      // Todo: see note in code
-    address: Ctx::Address, // Todo: remove it when Node was properly implemented
+    peer_id: [u8; 64],
     initial_validator_set: Ctx::ValidatorSet,
 ) -> Result<mpsc::Receiver<AppMsg<Ctx>>, String>
 where
@@ -41,17 +40,11 @@ where
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
     let metrics = Metrics::register(&registry);
 
-    // The key types are not generic enough to create a gossip_consensus::KeyPair, but the current
-    // libp2p implementation requires a KeyPair in SwarmBuilder::with_existing_identity.
-    // We either decide on a specific keytype (ed25519 or ecdsa) or keep asking the user for the
-    // KeyPair.
-    // let private_key = node.load_private_key(node.load_private_key_file(&home_dir).unwrap());
-    // let public_key = node.generate_public_key(private_key);
-    // let address: Ctx::Address = node.get_address(public_key);
-    // let pk_bytes = private_key.inner().to_bytes_be();
-    // let secret_key = ecdsa::SecretKey::try_from_bytes(pk_bytes).unwrap();
-    // let ecdsa_keypair = ecdsa::Keypair::from(secret_key);
-    // Keypair::from(ecdsa_keypair)
+    let private_key = node.load_private_key(node.load_private_key_file(node.get_home_dir()).unwrap());
+    let public_key = node.get_public_key(private_key);
+    let address = node.get_address(public_key);
+
+    let keypair = Keypair::ed25519_from_bytes(peer_id).map_err(|error| error.to_string())?;
 
     // Spawn consensus gossip
     let gossip_consensus =

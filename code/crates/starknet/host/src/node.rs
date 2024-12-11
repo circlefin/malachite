@@ -49,8 +49,8 @@ pub struct StarknetNode {
 
 impl Node for StarknetNode {
     type Context = MockContext;
-    type PrivateKeyFile = PrivateKeyFile;
     type Genesis = Genesis;
+    type PrivateKeyFile = PrivateKeyFile;
 
     fn get_home_dir(&self) -> PathBuf {
         self.home_dir.to_owned()
@@ -63,8 +63,14 @@ impl Node for StarknetNode {
         PrivateKey::generate(rng)
     }
 
-    fn generate_public_key(&self, pk: PrivateKey) -> PublicKey {
+    fn get_address(&self, pk: PublicKey) -> Address { Address::from_public_key(pk) }
+
+    fn get_public_key(&self, pk: PrivateKey) -> PublicKey {
         pk.public_key()
+    }
+
+    fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey {
+        file.private_key
     }
 
     fn load_private_key_file(
@@ -73,10 +79,6 @@ impl Node for StarknetNode {
     ) -> std::io::Result<Self::PrivateKeyFile> {
         let private_key = std::fs::read_to_string(path)?;
         serde_json::from_str(&private_key).map_err(|e| e.into())
-    }
-
-    fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey {
-        file.private_key
     }
 
     fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
@@ -169,7 +171,7 @@ fn test_starknet_node() {
     let priv_keys = new::generate_private_keys(&node, 1, true);
     let pub_keys = priv_keys
         .iter()
-        .map(|pk| node.generate_public_key(*pk))
+        .map(|pk| node.get_public_key(*pk))
         .collect();
 
     let genesis = new::generate_genesis(&node, pub_keys, true);

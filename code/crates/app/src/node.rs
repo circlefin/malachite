@@ -5,7 +5,7 @@ use rand::{CryptoRng, RngCore};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use malachite_common::{Context, PrivateKey, PublicKey, VotingPower};
+use malachite_common::{Address, Context, PrivateKey, PublicKey, VotingPower};
 
 pub trait Node {
     type Context: Context;
@@ -18,7 +18,9 @@ pub trait Node {
     where
         R: RngCore + CryptoRng;
 
-    fn generate_public_key(&self, pk: PrivateKey<Self::Context>) -> PublicKey<Self::Context>;
+    fn get_address(&self, pk: PublicKey<Self::Context>) -> <Self::Context as Context>::Address;
+
+    fn get_public_key(&self, pk: PrivateKey<Self::Context>) -> PublicKey<Self::Context>;
 
     fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey<Self::Context>;
 
