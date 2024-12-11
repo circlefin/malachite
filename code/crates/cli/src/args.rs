@@ -114,7 +114,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn args_struct() {
+    fn parse_args() {
         let args = Args::parse_from([
             "test",
             "--log-level",
@@ -133,9 +133,15 @@ mod tests {
     }
 
     #[test]
-    fn args_methods() {
-        let args = Args::parse_from(["test", "start"]);
-        assert!(args.get_config_file_path().is_ok());
-        assert!(args.get_genesis_file_path().is_ok());
+    fn parse_home_path() {
+        let args = Args::parse_from(["test", "start", "--home", "/tmp"]);
+        assert_eq!(
+            args.get_config_file_path().unwrap(),
+            PathBuf::from("/tmp/config/config.toml")
+        );
+        assert_eq!(
+            args.get_genesis_file_path().unwrap(),
+            PathBuf::from("/tmp/config/genesis.json")
+        );
     }
 }
