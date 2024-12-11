@@ -7,8 +7,8 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use tracing::info;
 
+use malachite_app::Node;
 use malachite_config::*;
-use malachite_node::Node;
 
 use crate::args::Args;
 use crate::error::Error;
@@ -115,7 +115,7 @@ where
     let private_keys = crate::new::generate_private_keys(node, nodes, deterministic);
     let public_keys = private_keys
         .iter()
-        .map(|pk| node.generate_public_key(pk.clone()))
+        .map(|pk| node.get_public_key(pk))
         .collect();
     let genesis = crate::new::generate_genesis(node, public_keys, deterministic);
 

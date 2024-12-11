@@ -8,13 +8,12 @@
 //     rustdoc::missing_doc_code_examples
 // )]
 
-pub use malachite_app as app;
+mod node;
+pub use node::Node;
 
-pub mod connector;
-pub mod spawn;
+pub mod types;
 
-mod channel;
-pub use channel::{AppMsg, ConsensusMsg};
-
-mod run;
-pub use run::run;
+mod spawn;
+pub use spawn::{
+    spawn_block_sync_actor, spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_wal_actor,
+};

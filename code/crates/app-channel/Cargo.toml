@@ -10,21 +10,13 @@ rust-version.workspace = true
 [dependencies]
 bytes.workspace = true
 derive-where.workspace = true
+eyre.workspace = true
 ractor.workspace = true
 tokio.workspace = true
 tracing.workspace = true
-libp2p-identity.workspace = true
 
+malachite-app.workspace = true
 malachite-actors.workspace = true
-malachite-blocksync.workspace = true
-malachite-common.workspace  = true
-malachite-codec.workspace = true
-malachite-config.workspace  = true
-malachite-consensus.workspace = true
-malachite-gossip-consensus.workspace = true
-malachite-metrics.workspace = true
-malachite-node.workspace = true
-malachite-peer.workspace = true
 
 [lints]
 workspace = true

@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
   "crates/actors",
+  "crates/app",
   "crates/app-channel",
   "crates/blocksync",
   "crates/cli",
@@ -59,6 +60,7 @@ debug = true
 
 [workspace.dependencies]
 malachite-actors           = { version = "0.1.0", path = "crates/actors" }
+malachite-app              = { version = "0.1.0", path = "crates/app" }
 malachite-app-channel      = { version = "0.1.0", path = "crates/app-channel" }
 malachite-blocksync        = { version = "0.1.0", path = "crates/blocksync" }
 malachite-codec            = { version = "0.1.0", path = "crates/codec" }

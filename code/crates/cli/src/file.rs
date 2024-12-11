@@ -4,8 +4,8 @@ use std::fs;
 use std::path::Path;
 
 use crate::error::Error;
+use malachite_app::Node;
 use malachite_config::Config;
-use malachite_node::Node;
 
 /// Save configuration to file
 pub fn save_config(config_file: &Path, config: &Config) -> Result<(), Error> {

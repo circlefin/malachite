@@ -176,8 +176,9 @@ where
     pub async fn spawn(
         self,
         initial_height: Ctx::Height,
-    ) -> Result<(BlockSyncRef<Ctx>, JoinHandle<()>), ractor::SpawnErr> {
-        Actor::spawn(None, self, Args { initial_height }).await
+    ) -> Result<BlockSyncRef<Ctx>, ractor::SpawnErr> {
+        let (actor_ref, _) = Actor::spawn(None, self, Args { initial_height }).await?;
+        Ok(actor_ref)
     }
 
     async fn process_input(

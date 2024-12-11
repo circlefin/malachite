@@ -1,0 +1,28 @@
+[package]
+name = "malachite-app"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+malachite-actors.workspace = true
+malachite-blocksync.workspace = true
+malachite-common.workspace = true
+malachite-codec.workspace = true
+malachite-config.workspace = true
+malachite-consensus.workspace = true
+malachite-metrics.workspace = true
+malachite-peer.workspace = true
+malachite-gossip-consensus.workspace = true
+
+eyre = { workspace = true }
+libp2p-identity = { workspace = true }
+rand  = { workspace = true }
+serde = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

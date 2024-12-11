@@ -2784,11 +2784,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-app-channel"
+name = "malachite-app"
 version = "0.1.0"
 dependencies = [
- "bytes",
- "derive-where",
+ "eyre",
  "libp2p-identity",
  "malachite-actors",
  "malachite-blocksync",
@@ -2798,8 +2797,21 @@ dependencies = [
  "malachite-consensus",
  "malachite-gossip-consensus",
  "malachite-metrics",
- "malachite-node",
  "malachite-peer",
+ "rand",
+ "serde",
+ "tracing",
+]
+
+[[package]]
+name = "malachite-app-channel"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "derive-where",
+ "eyre",
+ "malachite-actors",
+ "malachite-app",
  "malachite-test",
  "ractor",
  "rand",
@@ -2837,10 +2849,10 @@ dependencies = [
  "color-eyre",
  "directories",
  "itertools 0.13.0",
+ "malachite-app",
  "malachite-common",
  "malachite-config",
  "malachite-metrics",
- "malachite-node",
  "rand",
  "serde_json",
  "thiserror 2.0.6",
@@ -2979,11 +2991,6 @@ dependencies = [
 [[package]]
 name = "malachite-node"
 version = "0.1.0"
-dependencies = [
- "malachite-common",
- "rand",
- "serde",
-]
 
 [[package]]
 name = "malachite-peer"
@@ -3053,6 +3060,7 @@ dependencies = [
  "itertools 0.13.0",
  "libp2p-identity",
  "malachite-actors",
+ "malachite-app",
  "malachite-blocksync",
  "malachite-cli",
  "malachite-codec",
@@ -3061,7 +3069,6 @@ dependencies = [
  "malachite-consensus",
  "malachite-gossip-consensus",
  "malachite-metrics",
- "malachite-node",
  "malachite-proto",
  "malachite-starknet-p2p-proto",
  "malachite-starknet-p2p-types",
@@ -3132,9 +3139,11 @@ dependencies = [
  "ed25519-consensus",
  "hex",
  "malachite-actors",
+ "malachite-app",
  "malachite-blocksync",
  "malachite-codec",
  "malachite-common",
+ "malachite-config",
  "malachite-consensus",
  "malachite-proto",
  "malachite-signing-ed25519",

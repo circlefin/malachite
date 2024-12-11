@@ -2,8 +2,8 @@ use clap::Parser;
 use tracing::info;
 
 use crate::error::Error;
+use malachite_app::Node;
 use malachite_config::MetricsConfig;
-use malachite_node::Node;
 
 use crate::metrics;
 
