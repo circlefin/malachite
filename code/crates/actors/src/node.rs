@@ -5,10 +5,10 @@ use tracing::{error, info, warn};
 
 use malachite_common::Context;
 
-use crate::block_sync::BlockSyncRef;
 use crate::consensus::ConsensusRef;
 use crate::gossip_consensus::GossipConsensusRef;
 use crate::host::HostRef;
+use crate::sync::SyncRef;
 use crate::wal::WalRef;
 
 pub type NodeRef = ActorRef<()>;
@@ -19,7 +19,7 @@ pub struct Node<Ctx: Context> {
     gossip_consensus: GossipConsensusRef<Ctx>,
     consensus: ConsensusRef<Ctx>,
     wal: WalRef<Ctx>,
-    block_sync: Option<BlockSyncRef<Ctx>>,
+    sync: Option<SyncRef<Ctx>>,
     mempool: ActorCell,
     host: HostRef<Ctx>,
     start_height: Ctx::Height,
@@ -36,7 +36,7 @@ where
         gossip_consensus: GossipConsensusRef<Ctx>,
         consensus: ConsensusRef<Ctx>,
         wal: WalRef<Ctx>,
-        block_sync: Option<BlockSyncRef<Ctx>>,
+        sync: Option<SyncRef<Ctx>>,
         mempool: ActorCell,
         host: HostRef<Ctx>,
         start_height: Ctx::Height,
@@ -47,7 +47,7 @@ where
             gossip_consensus,
             consensus,
             wal,
-            block_sync,
+            sync,
             mempool,
             host,
             start_height,
@@ -81,7 +81,7 @@ where
         self.host.link(myself.get_cell());
         self.wal.link(myself.get_cell());
 
-        if let Some(actor) = &self.block_sync {
+        if let Some(actor) = &self.sync {
             actor.link(myself.get_cell());
         }
 

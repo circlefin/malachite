@@ -5,11 +5,9 @@ use std::time::Duration;
 
 use tokio::sync::mpsc;
 
-use malachite_actors::block_sync::{
-    BlockSync, BlockSyncCodec, BlockSyncRef, Params as BlockSyncParams,
-};
 use malachite_actors::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
+use malachite_actors::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
 use malachite_actors::util::events::TxEvent;
 use malachite_actors::wal::{Wal, WalCodec, WalRef};
 use malachite_common::Context;
@@ -22,9 +20,7 @@ use tracing::Span;
 
 use crate::channel::AppMsg;
 use crate::connector::Connector;
-use crate::types::config::{
-    BlockSyncConfig, Config as NodeConfig, PubSubProtocol, TransportProtocol,
-};
+use crate::types::config::{Config as NodeConfig, PubSubProtocol, SyncConfig, TransportProtocol};
 
 pub async fn spawn_gossip_consensus_actor<Ctx, Codec>(
     cfg: &NodeConfig,
@@ -35,7 +31,7 @@ pub async fn spawn_gossip_consensus_actor<Ctx, Codec>(
 where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
-    Codec: BlockSyncCodec<Ctx>,
+    Codec: SyncCodec<Ctx>,
 {
     let config = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
@@ -81,7 +77,7 @@ pub async fn spawn_consensus_actor<Ctx>(
     gossip_consensus: GossipConsensusRef<Ctx>,
     host: malachite_actors::host::HostRef<Ctx>,
     wal: WalRef<Ctx>,
-    block_sync: Option<BlockSyncRef<Ctx>>,
+    sync: Option<SyncRef<Ctx>>,
     metrics: Metrics,
     tx_event: TxEvent<Ctx>,
 ) -> ConsensusRef<Ctx>
@@ -109,7 +105,7 @@ where
         gossip_consensus,
         host,
         wal,
-        block_sync,
+        sync,
         metrics,
         tx_event,
         Span::current(),
@@ -138,14 +134,14 @@ where
         .unwrap()
 }
 
-pub async fn spawn_block_sync_actor<Ctx>(
+pub async fn spawn_sync_actor<Ctx>(
     ctx: Ctx,
     gossip_consensus: GossipConsensusRef<Ctx>,
     host: malachite_actors::host::HostRef<Ctx>,
-    config: &BlockSyncConfig,
+    config: &SyncConfig,
     initial_height: Ctx::Height,
     registry: &SharedRegistry,
-) -> Option<BlockSyncRef<Ctx>>
+) -> Option<SyncRef<Ctx>>
 where
     Ctx: Context,
 {
@@ -153,13 +149,13 @@ where
         return None;
     }
 
-    let params = BlockSyncParams {
+    let params = SyncParams {
         status_update_interval: config.status_update_interval,
         request_timeout: config.request_timeout,
     };
 
     let metrics = malachite_sync::Metrics::register(registry);
-    let block_sync = BlockSync::new(
+    let sync = Sync::new(
         ctx,
         gossip_consensus,
         host,
@@ -167,7 +163,7 @@ where
         metrics,
         Span::current(),
     );
-    let (actor_ref, _) = block_sync.spawn(initial_height).await.unwrap();
+    let (actor_ref, _) = sync.spawn(initial_height).await.unwrap();
 
     Some(actor_ref)
 }

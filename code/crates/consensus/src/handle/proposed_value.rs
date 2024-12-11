@@ -42,8 +42,8 @@ where
 
     // There are two cases where we need to generate an internal Proposal message for consensus to process the full proposal:
     // a) In parts-only mode, where we do not get a Proposal message but only the proposal parts
-    // b) In any mode if the proposed value was provided by BlockSync, where we do net get a Proposal message but only the full value and the certificate
-    if state.params.value_payload.parts_only() || origin == ValueOrigin::BlockSync {
+    // b) In any mode if the proposed value was provided by Sync, where we do net get a Proposal message but only the full value and the certificate
+    if state.params.value_payload.parts_only() || origin == ValueOrigin::Sync {
         let proposal = Ctx::new_proposal(
             proposed_value.height,
             proposed_value.round,

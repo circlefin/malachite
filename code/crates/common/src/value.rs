@@ -70,8 +70,8 @@ where
 /// Protocols that diseminate `Value`
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ValueOrigin {
-    /// Block Synchronization protocol
-    BlockSync,
+    /// Synchronization protocol
+    Sync,
     /// Consensus protocol
     Consensus,
 }

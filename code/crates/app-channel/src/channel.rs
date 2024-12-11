@@ -6,7 +6,7 @@ use tokio::sync::oneshot;
 
 use crate::types::core::{CommitCertificate, Context, Round, ValueId};
 use crate::types::streaming::StreamMessage;
-use crate::types::sync::SyncedBlock;
+use crate::types::sync::DecidedValue;
 use crate::types::{LocallyProposedValue, PeerId, ProposedValue};
 
 /// Messages sent from consensus to the application.
@@ -69,15 +69,15 @@ pub enum AppMsg<Ctx: Context> {
     // Retrieve decided block from the block store
     GetDecidedBlock {
         height: Ctx::Height,
-        reply_to: oneshot::Sender<Option<SyncedBlock<Ctx>>>,
+        reply_to: oneshot::Sender<Option<DecidedValue<Ctx>>>,
     },
 
     // Synced block
-    ProcessSyncedBlock {
+    ProcessSyncedValue {
         height: Ctx::Height,
         round: Round,
         validator_address: Ctx::Address,
-        block_bytes: Bytes,
+        value_bytes: Bytes,
         reply_to: oneshot::Sender<ProposedValue<Ctx>>,
     },
 }

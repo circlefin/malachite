@@ -8,8 +8,8 @@ use malachite_common::{CertificateError, CommitCertificate, Context, Height, Rou
 
 use crate::co::Co;
 use crate::{
-    perform, BlockRequest, BlockResponse, InboundRequestId, Metrics, OutboundRequestId, PeerId,
-    Request, State, Status, SyncedBlock, VoteSetRequest, VoteSetResponse,
+    perform, DecidedValue, InboundRequestId, Metrics, OutboundRequestId, PeerId, Request, State,
+    Status, ValueRequest, ValueResponse, VoteSetRequest, VoteSetResponse,
 };
 
 #[derive_where(Debug)]
@@ -37,14 +37,14 @@ pub enum Effect<Ctx: Context> {
     /// Broadcast our status to our direct peers
     BroadcastStatus(Ctx::Height),
 
-    /// Send a BlockSync request to a peer
-    SendBlockRequest(PeerId, BlockRequest<Ctx>),
+    /// Send a ValueSync request to a peer
+    SendValueRequest(PeerId, ValueRequest<Ctx>),
 
-    /// Send a response to a BlockSync request
-    SendBlockResponse(InboundRequestId, BlockResponse<Ctx>),
+    /// Send a response to a ValueSync request
+    SendValueResponse(InboundRequestId, ValueResponse<Ctx>),
 
-    /// Retrieve a block from the application
-    GetBlock(InboundRequestId, Ctx::Height),
+    /// Retrieve a value from the application
+    GetValue(InboundRequestId, Ctx::Height),
 
     /// Send a VoteSet request to a peer
     SendVoteSetRequest(PeerId, VoteSetRequest<Ctx>),
@@ -61,19 +61,19 @@ pub enum Input<Ctx: Context> {
     /// Consensus just started a new height
     StartHeight(Ctx::Height),
 
-    /// Consensus just decided on a new block
+    /// Consensus just decided on a new value
     UpdateHeight(Ctx::Height),
 
-    /// A BlockSync request has been received from a peer
-    BlockRequest(InboundRequestId, PeerId, BlockRequest<Ctx>),
+    /// A ValueSync request has been received from a peer
+    ValueRequest(InboundRequestId, PeerId, ValueRequest<Ctx>),
 
-    /// A BlockSync response has been received
-    BlockResponse(OutboundRequestId, PeerId, BlockResponse<Ctx>),
+    /// A ValueSync response has been received
+    ValueResponse(OutboundRequestId, PeerId, ValueResponse<Ctx>),
 
-    /// Got a response from the application to our `GetBlock` request
-    GotBlock(InboundRequestId, Ctx::Height, Option<SyncedBlock<Ctx>>),
+    /// Got a response from the application to our `GetValue` request
+    GotDecidedValue(InboundRequestId, Ctx::Height, Option<DecidedValue<Ctx>>),
 
-    /// A request for a block or vote set timed out
+    /// A request for a value or vote set timed out
     SyncRequestTimedOut(PeerId, Request<Ctx>),
 
     /// We received an invalid [`CommitCertificate`]
@@ -110,14 +110,14 @@ where
 
         Input::UpdateHeight(height) => on_update_height(co, state, metrics, height).await,
 
-        Input::BlockRequest(request_id, peer_id, request) => {
-            on_block_request(co, state, metrics, request_id, peer_id, request).await
+        Input::ValueRequest(request_id, peer_id, request) => {
+            on_value_request(co, state, metrics, request_id, peer_id, request).await
         }
-        Input::BlockResponse(request_id, peer_id, response) => {
-            on_block_response(co, state, metrics, request_id, peer_id, response).await
+        Input::ValueResponse(request_id, peer_id, response) => {
+            on_value_response(co, state, metrics, request_id, peer_id, response).await
         }
-        Input::GotBlock(request_id, height, block) => {
-            on_block(co, state, metrics, request_id, height, block).await
+        Input::GotDecidedValue(request_id, height, value) => {
+            on_value(co, state, metrics, request_id, height, value).await
         }
         Input::SyncRequestTimedOut(peer_id, request) => {
             on_sync_request_timed_out(co, state, metrics, peer_id, request).await
@@ -190,48 +190,48 @@ where
 
         // We are lagging behind one of our peer at least,
         // request sync from any peer already at or above that peer's height.
-        request_block(co, state, metrics).await?;
+        request_value(co, state, metrics).await?;
     }
 
     Ok(())
 }
 
 #[tracing::instrument(skip_all)]
-pub async fn on_block_request<Ctx>(
+pub async fn on_value_request<Ctx>(
     co: Co<Ctx>,
     _state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: InboundRequestId,
     peer: PeerId,
-    request: BlockRequest<Ctx>,
+    request: ValueRequest<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    debug!(height = %request.height, %peer, "Received request for block");
+    debug!(height = %request.height, %peer, "Received request for value");
 
-    metrics.decided_block_request_received(request.height.as_u64());
+    metrics.decided_value_request_received(request.height.as_u64());
 
-    perform!(co, Effect::GetBlock(request_id, request.height));
+    perform!(co, Effect::GetValue(request_id, request.height));
 
     Ok(())
 }
 
 #[tracing::instrument(skip_all)]
-pub async fn on_block_response<Ctx>(
+pub async fn on_value_response<Ctx>(
     _co: Co<Ctx>,
     _state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: OutboundRequestId,
     peer: PeerId,
-    response: BlockResponse<Ctx>,
+    response: ValueResponse<Ctx>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
     debug!(height = %response.height, %request_id, %peer, "Received response");
 
-    metrics.decided_block_response_received(response.height.as_u64());
+    metrics.decided_value_response_received(response.height.as_u64());
 
     Ok(())
 }
@@ -251,7 +251,7 @@ where
 
     // Check if there is any peer already at or above the height we just started,
     // and request sync from that peer in order to catch up.
-    request_block(co, state, metrics).await?;
+    request_value(co, state, metrics).await?;
 
     Ok(())
 }
@@ -269,47 +269,47 @@ where
         debug!(%height, "Update height");
 
         state.tip_height = height;
-        state.remove_pending_decided_block_request(height);
+        state.remove_pending_decided_value_request(height);
     }
 
     Ok(())
 }
 
-pub async fn on_block<Ctx>(
+pub async fn on_value<Ctx>(
     co: Co<Ctx>,
     _state: &mut State<Ctx>,
     metrics: &Metrics,
     request_id: InboundRequestId,
     height: Ctx::Height,
-    block: Option<SyncedBlock<Ctx>>,
+    value: Option<DecidedValue<Ctx>>,
 ) -> Result<(), Error<Ctx>>
 where
     Ctx: Context,
 {
-    let response = match block {
+    let response = match value {
         None => {
             error!(%height, "Received empty response");
             None
         }
-        Some(block) if block.certificate.height != height => {
+        Some(value) if value.certificate.height != height => {
             error!(
-                %height, block.height = %block.certificate.height,
-                "Received block for wrong height"
+                %height, value.height = %value.certificate.height,
+                "Received value for wrong height"
             );
             None
         }
-        Some(block) => {
-            debug!(%height, "Received decided block");
-            Some(block)
+        Some(value) => {
+            debug!(%height, "Received decided value");
+            Some(value)
         }
     };
 
     perform!(
         co,
-        Effect::SendBlockResponse(request_id, BlockResponse::new(height, response))
+        Effect::SendValueResponse(request_id, ValueResponse::new(height, response))
     );
 
-    metrics.decided_block_response_sent(height.as_u64());
+    metrics.decided_value_response_sent(height.as_u64());
 
     Ok(())
 }
@@ -325,11 +325,11 @@ where
     Ctx: Context,
 {
     match request {
-        Request::BlockRequest(block_request) => {
-            let height = block_request.height;
-            warn!(%peer_id, %height, "Block request timed out");
-            state.remove_pending_decided_block_request(height);
-            metrics.decided_block_request_timed_out(height.as_u64());
+        Request::ValueRequest(value_request) => {
+            let height = value_request.height;
+            warn!(%peer_id, %height, "Value request timed out");
+            state.remove_pending_decided_value_request(height);
+            metrics.decided_value_request_timed_out(height.as_u64());
         }
         Request::VoteSetRequest(vote_set_request) => {
             let height = vote_set_request.height;
@@ -346,7 +346,7 @@ where
 /// If there are no pending requests for the sync height,
 /// and there is peer at a higher height than our sync height,
 /// then sync from that peer.
-async fn request_block<Ctx>(
+async fn request_value<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -356,19 +356,19 @@ where
 {
     let sync_height = state.sync_height;
 
-    if state.has_pending_decided_block_request(&sync_height) {
-        debug!(sync.height = %sync_height, "Already have a pending block request for this height");
+    if state.has_pending_decided_value_request(&sync_height) {
+        debug!(sync.height = %sync_height, "Already have a pending value request for this height");
         return Ok(());
     }
 
-    if let Some(peer) = state.random_peer_with_block(sync_height) {
-        request_block_from_peer(co, state, metrics, sync_height, peer).await?;
+    if let Some(peer) = state.random_peer_with_value(sync_height) {
+        request_value_from_peer(co, state, metrics, sync_height, peer).await?;
     }
 
     Ok(())
 }
 
-async fn request_block_from_peer<Ctx>(
+async fn request_value_from_peer<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,
     metrics: &Metrics,
@@ -378,15 +378,15 @@ async fn request_block_from_peer<Ctx>(
 where
     Ctx: Context,
 {
-    debug!(sync.height = %height, %peer, "Requesting block from peer");
+    debug!(sync.height = %height, %peer, "Requesting value from peer");
 
     perform!(
         co,
-        Effect::SendBlockRequest(peer, BlockRequest::new(height))
+        Effect::SendValueRequest(peer, ValueRequest::new(height))
     );
 
-    metrics.decided_block_request_sent(height.as_u64());
-    state.store_pending_decided_block_request(height, peer);
+    metrics.decided_value_request_sent(height.as_u64());
+    state.store_pending_decided_value_request(height, peer);
 
     Ok(())
 }
@@ -406,14 +406,14 @@ where
     trace!("Certificate: {certificate:#?}");
 
     info!("Requesting sync from another peer");
-    state.remove_pending_decided_block_request(certificate.height);
+    state.remove_pending_decided_value_request(certificate.height);
 
-    let Some(peer) = state.random_peer_with_block_except(certificate.height, from) else {
+    let Some(peer) = state.random_peer_with_value_except(certificate.height, from) else {
         error!("No other peer to request sync from");
         return Ok(());
     };
 
-    request_block_from_peer(co, state, metrics, certificate.height, peer).await
+    request_value_from_peer(co, state, metrics, certificate.height, peer).await
 }
 
 pub async fn on_get_vote_set<Ctx>(
