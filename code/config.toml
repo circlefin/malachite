@@ -68,6 +68,11 @@ timeout_precommit_delta = "500ms"
 # Override with MALACHITE__CONSENSUS__TIMEOUT_COMMIT env variable
 timeout_commit = "0s"
 
+# How long we wait in the prevote and precommit steps before starting
+# the vote synchronization protocol
+# Override with MALACHITE__CONSENSUS__TIMEOUT_STEP env variable
+timeout_step = "30s"
+
 #######################################################
 ###       Consensus P2P Configuration Options       ###
 #######################################################

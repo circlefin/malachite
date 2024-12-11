@@ -1,11 +1,10 @@
-use malachite_driver::Input as DriverInput;
-use malachite_driver::Output as DriverOutput;
-
 use crate::handle::on_proposal;
 use crate::handle::vote::on_vote;
 use crate::prelude::*;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
+use malachite_driver::Input as DriverInput;
+use malachite_driver::Output as DriverOutput;
 
 #[async_recursion]
 pub async fn apply_driver_input<Ctx>(
@@ -98,6 +97,31 @@ where
         }
         metrics.step_end(prev_step);
         metrics.step_start(new_step);
+    }
+
+    if prev_step != new_step {
+        if state.driver.step_is_prevote() {
+            perform!(
+                co,
+                Effect::ScheduleTimeout(Timeout::prevote_time_limit(state.driver.round()))
+            );
+        }
+        if state.driver.step_is_precommit() {
+            perform!(
+                co,
+                Effect::CancelTimeout(Timeout::prevote_time_limit(state.driver.round()))
+            );
+            perform!(
+                co,
+                Effect::ScheduleTimeout(Timeout::precommit_time_limit(state.driver.round()))
+            );
+        }
+        if state.driver.step_is_commit() {
+            perform!(
+                co,
+                Effect::CancelTimeout(Timeout::precommit_time_limit(state.driver.round()))
+            );
+        }
     }
 
     process_driver_outputs(co, state, metrics, outputs).await?;
@@ -215,7 +239,7 @@ where
         }
 
         DriverOutput::ScheduleTimeout(timeout) => {
-            info!(round = %timeout.round, step = ?timeout.step, "Scheduling timeout");
+            info!(round = %timeout.round, step = ?timeout.kind, "Scheduling timeout");
 
             perform!(co, Effect::ScheduleTimeout(timeout));
 

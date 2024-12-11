@@ -3,7 +3,7 @@ use std::{io, thread};
 
 use eyre::Result;
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use malachite_common::{Context, Height};
 use malachite_wal as wal;
@@ -65,7 +65,10 @@ where
                     // WAL is already at that sequence
                     // Let's check if there are any entries to replay
                     let entries = fetch_entries(log, codec);
-                    reply.send(entries).unwrap(); // FIXME
+
+                    if reply.send(entries).is_err() {
+                        error!("Failed to send WAL replay reply");
+                    }
                 } else {
                     // WAL is at different sequence, restart it
                     // No entries to replay
@@ -76,7 +79,9 @@ where
 
                     debug!(%height, "Reset WAL");
 
-                    reply.send(result).unwrap(); // FIXME
+                    if reply.send(result).is_err() {
+                        error!("Failed to send WAL reset reply");
+                    }
                 }
             }
 
@@ -98,7 +103,7 @@ where
                 }
 
                 if reply.send(result).is_err() {
-                    error!("ATTENTION: Failed to send WAL append reply");
+                    error!("Failed to send WAL append reply");
                 }
             }
 
@@ -116,7 +121,7 @@ where
                 }
 
                 if reply.send(result).is_err() {
-                    error!("ATTENTION: Failed to send WAL flush reply");
+                    error!("Failed to send WAL flush reply");
                 }
             }
 
@@ -144,7 +149,7 @@ where
         .filter_map(|result| match result {
             Ok(entry) => Some(entry),
             Err(e) => {
-                warn!("Failed to retrieve a WAL entry: {e}");
+                error!("Failed to retrieve a WAL entry: {e}");
                 None
             }
         })

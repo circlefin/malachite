@@ -2,6 +2,7 @@ use derive_where::derive_where;
 
 use malachite_common::*;
 
+use crate::input::RequestId;
 use crate::types::SignedConsensusMsg;
 use crate::ConsensusMsg;
 
@@ -62,6 +63,13 @@ where
     /// Resume with: [`Resume::Continue`]
     Decide { certificate: CommitCertificate<Ctx> },
 
+    /// Consensus has been stuck in Prevote or Precommit step,
+    /// ask for vote sets from peers
+    /// Resume with: [`Resume::Continue`]
+    GetVoteSet(Ctx::Height, Round),
+
+    /// A peer has required our vote set, send the response
+    SendVoteSetResponse(RequestId, Ctx::Height, Round, VoteSet<Ctx>),
     /// Persist a consensus message in the Write-Ahead Log for crash recovery
     PersistMessage(SignedConsensusMsg<Ctx>),
 

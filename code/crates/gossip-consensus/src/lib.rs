@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use libp2p::metrics::{Metrics, Recorder};
-use libp2p::request_response::InboundRequestId;
+use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use libp2p::swarm::dial_opts::DialOpts;
 use libp2p::swarm::{self, SwarmEvent};
 use libp2p::{gossipsub, identify, quic, SwarmBuilder};
@@ -17,7 +17,7 @@ use libp2p_broadcast as broadcast;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, error_span, trace, Instrument};
 
-use malachite_blocksync::{self as blocksync, OutboundRequestId};
+use malachite_blocksync::{self as blocksync};
 use malachite_discovery::{self as discovery, ConnectionData};
 use malachite_metrics::SharedRegistry;
 
@@ -122,10 +122,13 @@ pub enum TransportProtocol {
 
 /// Blocksync event details:
 ///
-/// peer1: blocksync              peer2: gossip_consensus        peer2: blocksync                peer1: gossip_consensus
-/// CtrlMsg::BlockSyncRequest --> Event::BlockSync  -----------> CtrlMsg::BlockSyncReply ------> Event::BlockSync
-/// (peer_id, height)             (RawMessage::Request           (request_id, height)            RawMessage::Response
-///                             {request_id, peer_id, height}                                    {request_id, block}
+/// peer1: blocksync               peer2: gossip_consensus       peer2: blocksync           peer1: gossip_consensus
+///                                                                or consensus
+/// CtrlMsg::SyncRequest       --> Event::Sync      -----------> CtrlMsg::SyncReply ------> Event::Sync
+/// (peer_id, height)             (RawMessage::Request           (request_id, height)       RawMessage::Response
+///                           {request_id, peer_id, request}                                {request_id, response}
+///
+/// - request can be for a block or vote set
 ///
 /// An event that can be emitted by the gossip layer
 #[derive(Clone, Debug)]
@@ -134,17 +137,15 @@ pub enum Event {
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
     Message(Channel, PeerId, Bytes),
-    BlockSync(blocksync::RawMessage),
+    Sync(blocksync::RawMessage),
 }
 
 #[derive(Debug)]
 pub enum CtrlMsg {
     Publish(Channel, Bytes),
     Broadcast(Channel, Bytes),
-
-    BlockSyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
-    BlockSyncReply(InboundRequestId, Bytes),
-
+    SyncRequest(PeerId, Bytes, oneshot::Sender<OutboundRequestId>),
+    SyncReply(InboundRequestId, Bytes),
     Shutdown,
 }
 
@@ -248,7 +249,7 @@ async fn run(
 
     if let Err(e) = pubsub::subscribe(&mut swarm, PubSubProtocol::Broadcast, &[Channel::BlockSync])
     {
-        error!("Error subscribing to BlockSync channel: {e}");
+        error!("Error subscribing to Sync channel: {e}");
         return;
     };
 
@@ -311,30 +312,30 @@ async fn handle_ctrl_msg(
             ControlFlow::Continue(())
         }
 
-        CtrlMsg::BlockSyncRequest(peer_id, request, reply_to) => {
+        CtrlMsg::SyncRequest(peer_id, request, reply_to) => {
             let request_id = swarm
                 .behaviour_mut()
                 .blocksync
                 .send_request(peer_id.to_libp2p(), request);
 
             if let Err(e) = reply_to.send(request_id) {
-                error!(%peer_id, "Error sending BlockSync request: {e}");
+                error!(%peer_id, "Error sending Sync request: {e}");
             }
 
             ControlFlow::Continue(())
         }
 
-        CtrlMsg::BlockSyncReply(request_id, data) => {
+        CtrlMsg::SyncReply(request_id, data) => {
             let Some(channel) = state.blocksync_channels.remove(&request_id) else {
-                error!(%request_id, "Received BlockSync reply for unknown request ID");
+                error!(%request_id, "Received Sync reply for unknown request ID");
                 return ControlFlow::Continue(());
             };
 
             let result = swarm.behaviour_mut().blocksync.send_response(channel, data);
 
             match result {
-                Ok(()) => debug!(%request_id, "Replied to BlockSync request"),
-                Err(e) => error!(%request_id, "Error replying to BlockSync request: {e}"),
+                Ok(()) => debug!(%request_id, "Replied to Sync request"),
+                Err(e) => error!(%request_id, "Error replying to Sync request: {e}"),
             }
 
             ControlFlow::Continue(())
@@ -633,14 +634,14 @@ async fn handle_blocksync_event(
                     state.blocksync_channels.insert(request_id, channel);
 
                     let _ = tx_event
-                        .send(Event::BlockSync(blocksync::RawMessage::Request {
+                        .send(Event::Sync(blocksync::RawMessage::Request {
                             request_id,
                             peer: PeerId::from_libp2p(&peer),
                             body: request.0,
                         }))
                         .await
                         .map_err(|e| {
-                            error!("Error sending BlockSync request to handle: {e}");
+                            error!("Error sending Sync request to handle: {e}");
                         });
                 }
 
@@ -649,14 +650,14 @@ async fn handle_blocksync_event(
                     response,
                 } => {
                     let _ = tx_event
-                        .send(Event::BlockSync(blocksync::RawMessage::Response {
+                        .send(Event::Sync(blocksync::RawMessage::Response {
                             request_id,
                             peer: PeerId::from_libp2p(&peer),
                             body: response.0,
                         }))
                         .await
                         .map_err(|e| {
-                            error!("Error sending BlockSync response to handle: {e}");
+                            error!("Error sending Sync response to handle: {e}");
                         });
                 }
             }

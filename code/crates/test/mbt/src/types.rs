@@ -109,11 +109,11 @@ pub enum Timeout {
 }
 
 impl Timeout {
-    pub fn to_common(&self) -> malachite_common::TimeoutStep {
+    pub fn to_common(&self) -> malachite_common::TimeoutKind {
         match self {
-            Timeout::Propose => malachite_common::TimeoutStep::Propose,
-            Timeout::Prevote => malachite_common::TimeoutStep::Prevote,
-            Timeout::Precommit => malachite_common::TimeoutStep::Precommit,
+            Timeout::Propose => malachite_common::TimeoutKind::Propose,
+            Timeout::Prevote => malachite_common::TimeoutKind::Prevote,
+            Timeout::Precommit => malachite_common::TimeoutKind::Precommit,
         }
     }
 }

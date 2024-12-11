@@ -29,6 +29,7 @@ mod timeout;
 mod validator_set;
 mod value;
 mod vote;
+mod vote_set;
 
 /// Type alias to make it easier to refer the `ValueId` type.
 pub type ValueId<Ctx> = <<Ctx as Context>::Value as Value>::Id;
@@ -63,7 +64,8 @@ pub use round::Round;
 pub use signed_message::SignedMessage;
 pub use signing::SigningScheme;
 pub use threshold::{Threshold, ThresholdParam, ThresholdParams};
-pub use timeout::{Timeout, TimeoutStep};
+pub use timeout::{Timeout, TimeoutKind};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};
 pub use value::{NilOrVal, Value, ValueOrigin};
 pub use vote::{Extension, Vote, VoteType};
+pub use vote_set::VoteSet;

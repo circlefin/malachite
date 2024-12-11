@@ -63,6 +63,10 @@ where
         self.driver.height()
     }
 
+    pub fn round(&self) -> Round {
+        self.driver.round()
+    }
+
     pub fn address(&self) -> &Ctx::Address {
         self.driver.address()
     }
@@ -116,6 +120,19 @@ where
             .into_iter()
             .filter(|c| c.value() == &NilOrVal::Val(value.id()))
             .collect()
+    }
+
+    pub fn restore_votes(&mut self, height: Ctx::Height, round: Round) -> Vec<SignedVote<Ctx>> {
+        // TODO optimization - get votes for all rounds higher than or equal to `round`
+        if height != self.driver.height() {
+            return vec![];
+        }
+
+        if let Some(per_round) = self.driver.votes().per_round(round) {
+            per_round.received_votes().iter().cloned().collect()
+        } else {
+            vec![]
+        }
     }
 
     pub fn full_proposal_at_round_and_value(
