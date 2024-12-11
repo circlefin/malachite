@@ -6,21 +6,17 @@ use std::time::Duration;
 use eyre::Result;
 use tracing::Span;
 
-use malachite_actors::sync::{
-    Sync, SyncCodec, SyncRef, Params as SyncParams,
-};
 use malachite_actors::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::host::HostRef;
+use malachite_actors::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
 use malachite_actors::util::events::TxEvent;
 use malachite_actors::wal::{Wal, WalCodec, WalRef};
 use malachite_gossip_consensus::{
     Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
 };
 
-use crate::types::config::{
-    SyncConfig, Config as NodeConfig, PubSubProtocol, TransportProtocol,
-};
+use crate::types::config::{Config as NodeConfig, PubSubProtocol, SyncConfig, TransportProtocol};
 use crate::types::core::Context;
 use crate::types::metrics::{Metrics, SharedRegistry};
 use crate::types::sync;
