@@ -75,7 +75,9 @@ jobs:
         with:
           cache-workspaces: "code"
       - name: Install cargo-maelstrom
-        uses: taiki-e/install-action@cargo-maelstrom
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-maelstrom
       - name: Run Starknet tests
         run: cargo maelstrom --include 'package.match(malachite-starknet-test)'
       - name: Run Discovery tests
