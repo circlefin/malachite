@@ -1,25 +1,30 @@
+//! Utility functions for spawning the actor system and connecting it to the application.
+
 use std::path::Path;
 use std::time::Duration;
 
 use tokio::sync::mpsc;
 
-use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
-use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
+use malachite_actors::block_sync::{
+    BlockSync, BlockSyncCodec, BlockSyncRef, Params as BlockSyncParams,
+};
+use malachite_actors::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::util::events::TxEvent;
-use malachite_actors::util::streaming::StreamMessage;
 use malachite_actors::wal::{Wal, WalCodec, WalRef};
-use malachite_codec as codec;
 use malachite_common::Context;
-use malachite_config::{BlockSyncConfig, Config as NodeConfig, PubSubProtocol, TransportProtocol};
-use malachite_consensus::{SignedConsensusMsg, ValuePayload};
+use malachite_consensus::ValuePayload;
 use malachite_gossip_consensus::{
     Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
 };
 use malachite_metrics::{Metrics, SharedRegistry};
+use tracing::Span;
 
 use crate::channel::AppMsg;
 use crate::connector::Connector;
+use crate::types::config::{
+    BlockSyncConfig, Config as NodeConfig, PubSubProtocol, TransportProtocol,
+};
 
 pub async fn spawn_gossip_consensus_actor<Ctx, Codec>(
     cfg: &NodeConfig,
@@ -29,12 +34,8 @@ pub async fn spawn_gossip_consensus_actor<Ctx, Codec>(
 ) -> GossipConsensusRef<Ctx>
 where
     Ctx: Context,
-    Codec: codec::Codec<Ctx::ProposalPart>,
-    Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
-    Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: codec::Codec<malachite_blocksync::Status<Ctx>>,
-    Codec: codec::Codec<malachite_blocksync::Request<Ctx>>,
-    Codec: codec::Codec<malachite_blocksync::Response<Ctx>>,
+    Codec: ConsensusCodec<Ctx>,
+    Codec: BlockSyncCodec<Ctx>,
 {
     let config = GossipConsensusConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
@@ -64,9 +65,8 @@ where
         rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,
     };
-    let config_gossip = config;
 
-    GossipConsensus::spawn(keypair, config_gossip, registry.clone(), codec)
+    GossipConsensus::spawn(keypair, config, registry.clone(), codec, Span::current())
         .await
         .unwrap()
 }
@@ -104,7 +104,6 @@ where
 
     Consensus::spawn(
         ctx,
-        cfg.moniker.clone(),
         consensus_params,
         cfg.consensus.timeouts,
         gossip_consensus,
@@ -113,6 +112,7 @@ where
         block_sync,
         metrics,
         tx_event,
+        Span::current(),
     )
     .await
     .unwrap()
@@ -120,7 +120,6 @@ where
 
 pub async fn spawn_wal_actor<Ctx, Codec>(
     ctx: &Ctx,
-    moniker: &str,
     codec: Codec,
     home_dir: &Path,
     registry: &SharedRegistry,
@@ -134,7 +133,7 @@ where
 
     let wal_file = wal_dir.join("consensus.wal");
 
-    Wal::spawn(ctx, moniker.to_string(), codec, wal_file, registry.clone())
+    Wal::spawn(ctx, codec, wal_file, registry.clone(), Span::current())
         .await
         .unwrap()
 }
@@ -160,7 +159,14 @@ where
     };
 
     let metrics = malachite_blocksync::Metrics::register(registry);
-    let block_sync = BlockSync::new(ctx, gossip_consensus, host, params, metrics);
+    let block_sync = BlockSync::new(
+        ctx,
+        gossip_consensus,
+        host,
+        params,
+        metrics,
+        Span::current(),
+    );
     let (actor_ref, _) = block_sync.spawn(initial_height).await.unwrap();
 
     Some(actor_ref)

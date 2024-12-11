@@ -13,6 +13,7 @@ derive-where.workspace = true
 ractor.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+libp2p-identity.workspace = true
 
 malachite-actors.workspace = true
 malachite-blocksync.workspace = true

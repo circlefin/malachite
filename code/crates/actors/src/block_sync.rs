@@ -13,6 +13,7 @@ use tracing::{debug, error, info, warn};
 
 use malachite_blocksync::{self as blocksync, InboundRequestId, OutboundRequestId, Response};
 use malachite_blocksync::{Request, SyncedBlock};
+use malachite_codec as codec;
 use malachite_common::{CertificateError, CommitCertificate, Context, Height, Round};
 use malachite_consensus::PeerId;
 
@@ -21,6 +22,30 @@ use crate::host::{HostMsg, HostRef};
 use crate::util::forward::forward;
 use crate::util::ticker::ticker;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
+
+/// Codec for sync protocol messages
+///
+/// This trait is automatically implemented for any type that implements:
+/// - [`codec::Codec<blocksync::Status<Ctx>>`]
+/// - [`codec::Codec<blocksync::Request<Ctx>>`]
+/// - [`codec::Codec<blocksync::Response<Ctx>>`]
+pub trait BlockSyncCodec<Ctx>
+where
+    Ctx: Context,
+    Self: codec::Codec<blocksync::Status<Ctx>>,
+    Self: codec::Codec<blocksync::Request<Ctx>>,
+    Self: codec::Codec<blocksync::Response<Ctx>>,
+{
+}
+
+impl<Ctx, Codec> BlockSyncCodec<Ctx> for Codec
+where
+    Ctx: Context,
+    Codec: codec::Codec<blocksync::Status<Ctx>>,
+    Codec: codec::Codec<blocksync::Request<Ctx>>,
+    Codec: codec::Codec<blocksync::Response<Ctx>>,
+{
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Timeout {
@@ -123,6 +148,7 @@ pub struct BlockSync<Ctx: Context> {
     host: HostRef<Ctx>,
     params: Params,
     metrics: blocksync::Metrics,
+    span: tracing::Span,
 }
 
 impl<Ctx> BlockSync<Ctx>
@@ -135,6 +161,7 @@ where
         host: HostRef<Ctx>,
         params: Params,
         metrics: blocksync::Metrics,
+        span: tracing::Span,
     ) -> Self {
         Self {
             ctx,
@@ -142,6 +169,7 @@ where
             host,
             params,
             metrics,
+            span,
         }
     }
 
@@ -470,7 +498,7 @@ where
         })
     }
 
-    #[tracing::instrument(name = "blocksync", skip_all)]
+    #[tracing::instrument(name = "blocksync", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         myself: ActorRef<Self::Msg>,

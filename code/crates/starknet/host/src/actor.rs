@@ -32,6 +32,7 @@ pub struct Host {
     mempool: MempoolRef,
     gossip: GossipRef<MockContext>,
     metrics: Metrics,
+    span: tracing::Span,
 }
 
 pub type HostRef = malachite_actors::host::HostRef<MockContext>;
@@ -44,6 +45,7 @@ impl Host {
         mempool: MempoolRef,
         gossip: GossipRef<MockContext>,
         metrics: Metrics,
+        span: tracing::Span,
     ) -> Result<HostRef, SpawnErr> {
         let db_dir = home_dir.join("db");
         std::fs::create_dir_all(&db_dir).map_err(|e| SpawnErr::StartupFailed(e.into()))?;
@@ -51,7 +53,7 @@ impl Host {
 
         let (actor_ref, _) = Actor::spawn(
             None,
-            Self::new(mempool, gossip, metrics),
+            Self::new(mempool, gossip, metrics, span),
             HostState::new(host, db_path, &mut StdRng::from_entropy()),
         )
         .await?;
@@ -59,11 +61,17 @@ impl Host {
         Ok(actor_ref)
     }
 
-    pub fn new(mempool: MempoolRef, gossip: GossipRef<MockContext>, metrics: Metrics) -> Self {
+    pub fn new(
+        mempool: MempoolRef,
+        gossip: GossipRef<MockContext>,
+        metrics: Metrics,
+        span: tracing::Span,
+    ) -> Self {
         Self {
             mempool,
             gossip,
             metrics,
+            span,
         }
     }
 }
@@ -99,6 +107,7 @@ impl Actor for Host {
 }
 
 impl Host {
+    #[tracing::instrument(name = "host", parent = &self.span, skip_all)]
     async fn handle_msg(
         &self,
         _myself: HostRef,

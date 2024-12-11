@@ -21,6 +21,8 @@ use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
 use malachite_metrics::SharedRegistry;
 
+use crate::block_sync::BlockSyncCodec;
+use crate::consensus::ConsensusCodec;
 use crate::util::streaming::StreamMessage;
 
 pub type GossipConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
@@ -28,13 +30,15 @@ pub type GossipConsensusMsg<Ctx> = Msg<Ctx>;
 
 pub struct GossipConsensus<Ctx, Codec> {
     codec: Codec,
+    span: tracing::Span,
     marker: PhantomData<Ctx>,
 }
 
 impl<Ctx, Codec> GossipConsensus<Ctx, Codec> {
-    pub fn new(codec: Codec) -> Self {
+    pub fn new(codec: Codec, span: tracing::Span) -> Self {
         Self {
             codec,
+            span,
             marker: PhantomData,
         }
     }
@@ -43,18 +47,15 @@ impl<Ctx, Codec> GossipConsensus<Ctx, Codec> {
 impl<Ctx, Codec> GossipConsensus<Ctx, Codec>
 where
     Ctx: Context,
-    Codec: codec::Codec<Ctx::ProposalPart>,
-    Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
-    Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: codec::Codec<blocksync::Status<Ctx>>,
-    Codec: codec::Codec<blocksync::Request<Ctx>>,
-    Codec: codec::Codec<blocksync::Response<Ctx>>,
+    Codec: ConsensusCodec<Ctx>,
+    Codec: BlockSyncCodec<Ctx>,
 {
     pub async fn spawn(
         keypair: Keypair,
         config: Config,
         metrics: SharedRegistry,
         codec: Codec,
+        span: tracing::Span,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let args = Args {
             keypair,
@@ -62,7 +63,7 @@ where
             metrics,
         };
 
-        let (actor_ref, _) = Actor::spawn(None, Self::new(codec), args).await?;
+        let (actor_ref, _) = Actor::spawn(None, Self::new(codec, span), args).await?;
         Ok(actor_ref)
     }
 
@@ -206,6 +207,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(name = "gossip.consensus", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         _myself: ActorRef<Msg<Ctx>>,

@@ -4,13 +4,12 @@ use bytes::Bytes;
 use derive_where::derive_where;
 use tokio::sync::oneshot;
 
-use malachite_actors::host::LocallyProposedValue;
-use malachite_actors::util::streaming::StreamMessage;
-use malachite_blocksync::SyncedBlock;
-use malachite_common::{CommitCertificate, Context, Round, ValueId};
-use malachite_consensus::{PeerId, ProposedValue};
+use crate::types::core::{CommitCertificate, Context, Round, ValueId};
+use crate::types::streaming::StreamMessage;
+use crate::types::sync::SyncedBlock;
+use crate::types::{LocallyProposedValue, PeerId, ProposedValue};
 
-/// Messages that will be sent on the channel.
+/// Messages sent from consensus to the application.
 #[derive_where(Debug)]
 pub enum AppMsg<Ctx: Context> {
     /// Consensus is ready
@@ -83,6 +82,7 @@ pub enum AppMsg<Ctx: Context> {
     },
 }
 
+/// Messages sent from the application to consensus.
 #[derive_where(Debug)]
 pub enum ConsensusMsg<Ctx: Context> {
     StartHeight(Ctx::Height, Ctx::ValidatorSet),

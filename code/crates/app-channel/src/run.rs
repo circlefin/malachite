@@ -1,14 +1,9 @@
-use malachite_actors::util::events::TxEvent;
-use malachite_actors::wal::WalCodec;
+//! Run Malachite consensus with the given configuration and context.
+//! Provides the application with a channel for receiving messages from consensus.
+
 use tokio::sync::mpsc;
 
-use malachite_actors::util::streaming::StreamMessage;
-use malachite_codec as codec;
-use malachite_common::Context;
-use malachite_config::Config as NodeConfig;
-use malachite_consensus::SignedConsensusMsg;
-use malachite_gossip_consensus::Keypair;
-use malachite_metrics::{Metrics, SharedRegistry};
+use malachite_actors::util::events::TxEvent;
 use malachite_node as node;
 
 use crate::channel::AppMsg;
@@ -16,8 +11,14 @@ use crate::spawn::{
     spawn_block_sync_actor, spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_host_actor,
     spawn_wal_actor,
 };
+use crate::types::codec::{BlockSyncCodec, ConsensusCodec, WalCodec};
+use crate::types::config::Config as NodeConfig;
+use crate::types::core::Context;
+use crate::types::metrics::{Metrics, SharedRegistry};
+use crate::types::Keypair;
 
 #[allow(clippy::too_many_arguments)]
+#[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
 pub async fn run<Node, Ctx, Codec>(
     cfg: NodeConfig,
     start_height: Option<Ctx::Height>,
@@ -32,12 +33,8 @@ where
     Ctx: Context,
     Node: node::Node<Context = Ctx>,
     Codec: WalCodec<Ctx> + Clone,
-    Codec: codec::Codec<Ctx::ProposalPart>,
-    Codec: codec::Codec<SignedConsensusMsg<Ctx>>,
-    Codec: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
-    Codec: codec::Codec<malachite_blocksync::Status<Ctx>>,
-    Codec: codec::Codec<malachite_blocksync::Request<Ctx>>,
-    Codec: codec::Codec<malachite_blocksync::Response<Ctx>>,
+    Codec: ConsensusCodec<Ctx>,
+    Codec: BlockSyncCodec<Ctx>,
 {
     let start_height = start_height.unwrap_or_default();
 
@@ -60,7 +57,7 @@ where
     let gossip_consensus =
         spawn_gossip_consensus_actor(&cfg, keypair, &registry, codec.clone()).await;
 
-    let wal = spawn_wal_actor(&ctx, &cfg.moniker, codec, &node.get_home_dir(), &registry).await;
+    let wal = spawn_wal_actor(&ctx, codec, &node.get_home_dir(), &registry).await;
 
     // Spawn the host actor
     let (connector, rx) = spawn_host_actor(metrics.clone()).await;

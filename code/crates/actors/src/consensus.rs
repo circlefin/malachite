@@ -12,6 +12,7 @@ use tracing::{debug, error, info, warn};
 use malachite_blocksync::{
     self as blocksync, BlockResponse, Response, VoteSetRequest, VoteSetResponse,
 };
+use malachite_codec as codec;
 use malachite_common::{
     Context, Round, SignedExtension, Timeout, TimeoutKind, ValidatorSet, ValueOrigin,
 };
@@ -25,12 +26,37 @@ use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipCons
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::events::{Event, TxEvent};
 use crate::util::forward::forward;
+use crate::util::streaming::StreamMessage;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
 
 pub use malachite_consensus::Error as ConsensusError;
 pub use malachite_consensus::Params as ConsensusParams;
 pub use malachite_consensus::State as ConsensusState;
+
+/// Codec for consensus messages.
+///
+/// This trait is automatically implemented for any type that implements:
+/// - [`codec::Codec<Ctx::ProposalPart>`]
+/// - [`codec::Codec<SignedConsensusMsg<Ctx>>`]
+/// - [`codec::Codec<StreamMessage<Ctx::ProposalPart>>`]
+pub trait ConsensusCodec<Ctx>
+where
+    Ctx: Context,
+    Self: codec::Codec<Ctx::ProposalPart>,
+    Self: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Self: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+{
+}
+
+impl<Ctx, Codec> ConsensusCodec<Ctx> for Codec
+where
+    Ctx: Context,
+    Self: codec::Codec<Ctx::ProposalPart>,
+    Self: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Self: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+{
+}
 
 pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
@@ -39,7 +65,6 @@ where
     Ctx: Context,
 {
     ctx: Ctx,
-    moniker: String,
     params: ConsensusParams<Ctx>,
     timeout_config: TimeoutConfig,
     gossip_consensus: GossipConsensusRef<Ctx>,
@@ -48,6 +73,7 @@ where
     block_sync: Option<BlockSyncRef<Ctx>>,
     metrics: Metrics,
     tx_event: TxEvent<Ctx>,
+    span: tracing::Span,
 }
 
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
@@ -159,7 +185,6 @@ where
     #[allow(clippy::too_many_arguments)]
     pub async fn spawn(
         ctx: Ctx,
-        moniker: String,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
@@ -168,10 +193,10 @@ where
         block_sync: Option<BlockSyncRef<Ctx>>,
         metrics: Metrics,
         tx_event: TxEvent<Ctx>,
+        span: tracing::Span,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let node = Self {
             ctx,
-            moniker,
             params,
             timeout_config,
             gossip_consensus,
@@ -180,6 +205,7 @@ where
             block_sync,
             metrics,
             tx_event,
+            span,
         };
 
         let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
@@ -266,18 +292,12 @@ where
                     )
                     .await;
 
+                if let Err(e) = result {
+                    error!(%height, %round, "Error when processing ProposeValue message: {e}");
+                }
+
                 self.tx_event
                     .send(|| Event::ProposedValue(value_to_propose));
-
-                if std::env::var("MALACHITE_FAIL").ok().as_deref() == Some(&self.moniker) {
-                    tracing::error!("Just proposed: {value:?}");
-                    tracing::error!("Everyone stops right here!");
-                    std::process::exit(1);
-                };
-
-                if let Err(e) = result {
-                    error!("Error when processing ProposeValue message: {e}");
-                }
 
                 Ok(())
             }
@@ -996,14 +1016,7 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(
-        name = "consensus",
-        skip_all,
-        fields(
-            height = %state.consensus.driver.height(),
-            round = %state.consensus.driver.round()
-        )
-    )]
+    #[tracing::instrument(name = "consensus", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         myself: ActorRef<Msg<Ctx>>,

@@ -11,7 +11,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
-use tracing::{debug, error, error_span, info, Instrument};
+use tracing::{debug, error, error_span, info, Instrument, Span};
 
 use malachite_actors::util::events::{Event, RxEvent, TxEvent};
 use malachite_common::{SignedVote, VotingPower};
@@ -473,6 +473,7 @@ async fn run_node<S>(
         private_key,
         Some(node.start_height),
         tx_event,
+        Span::current(),
     )
     .await;
 
@@ -560,6 +561,7 @@ async fn run_node<S>(
                     private_key,
                     Some(node.start_height),
                     tx_event,
+                    tracing::Span::current(),
                 )
                 .await;
 

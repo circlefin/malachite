@@ -20,7 +20,7 @@ pub enum WalMsg<Ctx: Context> {
 }
 
 pub fn spawn<Ctx, Codec>(
-    moniker: String,
+    span: tracing::Span,
     mut wal: wal::Log,
     codec: Codec,
     mut rx: mpsc::Receiver<WalMsg<Ctx>>,
@@ -30,7 +30,7 @@ where
     Codec: WalCodec<Ctx>,
 {
     thread::spawn(move || loop {
-        if let Err(e) = task(moniker.clone(), &mut wal, &codec, &mut rx) {
+        if let Err(e) = task(&span, &mut wal, &codec, &mut rx) {
             // Task failed, log the error and continue
             error!("WAL task failed: {e}");
             error!("Restarting WAL task");
@@ -44,9 +44,9 @@ where
     })
 }
 
-#[tracing::instrument(name = "wal", skip_all, fields(%moniker))]
+#[tracing::instrument(name = "wal", parent = span, skip_all)]
 fn task<Ctx, Codec>(
-    moniker: String,
+    span: &tracing::Span,
     log: &mut wal::Log,
     codec: &Codec,
     rx: &mut mpsc::Receiver<WalMsg<Ctx>>,
@@ -96,7 +96,10 @@ where
                 if let Err(e) = &result {
                     error!("ATTENTION: Failed to append entry to WAL: {e}");
                 } else {
-                    debug!("Wrote log entry: type = {tpe}, log size = {}", log.len());
+                    debug!(
+                        type = %tpe, entry.size = %buf.len(), log.entries = %log.len(),
+                        "Wrote log entry"
+                    );
                 }
 
                 if reply.send(result).is_err() {
@@ -110,7 +113,11 @@ where
                 if let Err(e) = &result {
                     error!("ATTENTION: Failed to flush WAL to disk: {e}");
                 } else {
-                    debug!("Flushed WAL to disk");
+                    debug!(
+                        log.entries = %log.len(),
+                        log.size = %log.size_bytes().unwrap_or(0),
+                        "Flushed WAL to disk"
+                    );
                 }
 
                 if reply.send(result).is_err() {
