@@ -3,12 +3,10 @@ use std::path::Path;
 pub fn generate_test_traces(spec_rel_path: &str, gen_dir: &str, quint_seed: u64) {
     println!("🪄 Generating test traces for {spec_rel_path:?}...");
 
-    let spec_abs_path = format!(
-        "{}/../../../../specs/consensus/quint/{spec_rel_path}",
-        env!("CARGO_MANIFEST_DIR"),
-    );
-
+    let spec_abs_path = format!("{}/specs/tests/{spec_rel_path}", env!("CARGO_MANIFEST_DIR"),);
     let spec_path = Path::new(&spec_abs_path);
+
+    println!("{}", spec_abs_path);
 
     std::process::Command::new("quint")
         .arg("test")
