@@ -81,7 +81,7 @@ jobs:
       - name: Disable apparmor container restrictions
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Run integration tests
-        run: cargo maelstrom --include 'package.match(malachite-starknet-test) || package.match(malachite-discovery-test)'
+        run: cargo maelstrom -c ../.github/maelstrom.toml -i 'package.match(malachite-starknet-test) || package.match(malachite-discovery-test)'
 
   clippy:
     name: Clippy
