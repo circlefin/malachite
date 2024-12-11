@@ -10,7 +10,10 @@ use crate::{
     Discovery, DiscoveryClient,
 };
 
-impl Discovery {
+impl<C> Discovery<C>
+where
+    C: DiscoveryClient,
+{
     pub fn can_connect_request(&self) -> bool {
         self.controller.peers_request.can_perform()
     }
@@ -24,11 +27,7 @@ impl Discovery {
             || request_data.retry.count() != 0
     }
 
-    pub fn connect_request_peer(
-        &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
-        request_data: RequestData,
-    ) {
+    pub fn connect_request_peer(&mut self, swarm: &mut Swarm<C>, request_data: RequestData) {
         if !self.should_connect_request(&request_data) {
             return;
         }
@@ -59,7 +58,7 @@ impl Discovery {
 
     pub(crate) fn handle_connect_request(
         &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
+        swarm: &mut Swarm<C>,
         channel: ResponseChannel<Response>,
         peer: PeerId,
     ) {
@@ -108,7 +107,7 @@ impl Discovery {
 
     pub(crate) fn handle_connect_response(
         &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
+        swarm: &mut Swarm<C>,
         request_id: OutboundRequestId,
         peer: PeerId,
         accepted: bool,
@@ -143,7 +142,7 @@ impl Discovery {
         }
     }
 
-    fn handle_connect_rejection(&mut self, swarm: &mut Swarm<impl DiscoveryClient>, peer: PeerId) {
+    fn handle_connect_rejection(&mut self, swarm: &mut Swarm<C>, peer: PeerId) {
         self.outbound_connections.remove(&peer);
 
         if self.is_enabled() {
@@ -153,7 +152,7 @@ impl Discovery {
 
     pub(crate) fn handle_failed_connect_request(
         &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
+        swarm: &mut Swarm<C>,
         request_id: OutboundRequestId,
     ) {
         if let Some(mut request_data) = self

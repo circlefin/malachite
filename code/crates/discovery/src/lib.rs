@@ -25,6 +25,7 @@ mod controller;
 use controller::Controller;
 
 mod handlers;
+use handlers::selection::{kademlia::KademliaSelector, selector::Selector};
 
 mod metrics;
 use metrics::Metrics;
@@ -53,9 +54,14 @@ struct OutboundConnection {
 }
 
 #[derive(Debug)]
-pub struct Discovery {
+pub struct Discovery<C>
+where
+    C: DiscoveryClient,
+{
     config: Config,
     state: State,
+
+    selector: Box<dyn Selector<C>>,
 
     bootstrap_nodes: Vec<(Option<PeerId>, Multiaddr)>,
     discovered_peers: HashMap<PeerId, identify::Info>,
@@ -67,7 +73,10 @@ pub struct Discovery {
     metrics: Metrics,
 }
 
-impl Discovery {
+impl<C> Discovery<C>
+where
+    C: DiscoveryClient,
+{
     pub fn new(config: Config, bootstrap_nodes: Vec<Multiaddr>, registry: &mut Registry) -> Self {
         info!(
             "Discovery is {}",
@@ -91,6 +100,8 @@ impl Discovery {
         Self {
             config,
             state,
+
+            selector: Box::new(KademliaSelector::new()),
 
             bootstrap_nodes: bootstrap_nodes
                 .clone()
@@ -117,7 +128,7 @@ impl Discovery {
 
     pub fn on_network_event(
         &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
+        swarm: &mut Swarm<C>,
         network_event: behaviour::NetworkEvent,
     ) {
         match network_event {

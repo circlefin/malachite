@@ -1,8 +1,11 @@
 use tracing::info;
 
-use crate::Discovery;
+use crate::{Discovery, DiscoveryClient};
 
-impl Discovery {
+impl<C> Discovery<C>
+where
+    C: DiscoveryClient,
+{
     fn active_connections_num_duplicates(&self) -> usize {
         self.active_connections
             .values()

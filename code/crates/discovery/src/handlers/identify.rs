@@ -3,7 +3,10 @@ use tracing::{info, warn};
 
 use crate::{request::RequestData, Discovery, DiscoveryClient, OutboundConnection, State};
 
-impl Discovery {
+impl<C> Discovery<C>
+where
+    C: DiscoveryClient,
+{
     fn is_bootstrap_node(&self, peer_id: &PeerId) -> bool {
         self.bootstrap_nodes
             .iter()
@@ -12,7 +15,7 @@ impl Discovery {
 
     pub fn handle_new_peer(
         &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
+        swarm: &mut Swarm<C>,
         connection_id: ConnectionId,
         peer_id: PeerId,
         info: identify::Info,

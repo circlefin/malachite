@@ -3,7 +3,10 @@ use tracing::{error, info, warn};
 
 use crate::{Discovery, DiscoveryClient, State};
 
-impl Discovery {
+impl<C> Discovery<C>
+where
+    C: DiscoveryClient,
+{
     pub fn can_close(&mut self) -> bool {
         self.state == State::Idle && self.controller.close.can_perform()
     }
@@ -20,7 +23,7 @@ impl Discovery {
 
     pub fn close_connection(
         &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
+        swarm: &mut Swarm<C>,
         peer_id: PeerId,
         connection_id: ConnectionId,
     ) {
@@ -45,7 +48,7 @@ impl Discovery {
 
     pub fn handle_closed_connection(
         &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
+        swarm: &mut Swarm<C>,
         peer_id: PeerId,
         connection_id: ConnectionId,
     ) {

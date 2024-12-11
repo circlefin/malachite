@@ -1,147 +1,51 @@
 use libp2p::{swarm::ConnectionId, PeerId, Swarm};
-use rand::seq::SliceRandom;
 use tracing::{debug, info, warn};
 
 use crate::{request::RequestData, Discovery, DiscoveryClient, OutboundConnection, State};
 
-impl Discovery {
-    fn get_next_peer_to_peers_request(
-        &self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
-    ) -> Option<PeerId> {
-        let mut furthest_peer_id = None;
+use super::selection::selector::Selection;
 
-        // Find the furthest peer in the routing table that has not been requested.
-        // Both iterators do not implement trait `DoubleEndedIterator`,
-        // so we cannot use `rev()` to directly start from the furthest peer
-        for kbucket in swarm.behaviour_mut().kbuckets() {
-            for entry in kbucket.iter() {
-                let peer_id = *entry.node.key.preimage();
-                if !self.controller.peers_request.is_done_on(&peer_id) {
-                    furthest_peer_id = Some(peer_id);
-                }
-            }
-        }
-
-        furthest_peer_id
-    }
-
-    fn select_n_outbound_candidates(
-        &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
-        n: usize,
-    ) -> Vec<PeerId> {
-        debug!("Selecting {} outbound candidates", n);
-
-        let mut candidates: Vec<PeerId> = Vec::new();
-
-        // Select the candidates from the routing table first
-        let routing_table_candidates: Vec<PeerId> = self
-            .get_routing_table(swarm)
+impl<C> Discovery<C>
+where
+    C: DiscoveryClient,
+{
+    fn get_next_peer_to_peers_request(&self) -> Option<PeerId> {
+        self.discovered_peers
             .iter()
-            .flat_map(|kbucket| kbucket.1.clone()) // get the peer ids
-            // Remove already selected outbound connections
-            .filter(|peer_id| !self.outbound_connections.contains_key(peer_id))
-            // Remove peers to which a connect request has already been done
-            .filter(|peer_id| !self.controller.connect_request.is_done_on(peer_id))
-            .collect();
-
-        debug!(
-            "Routing table candidates: {}",
-            routing_table_candidates.len()
-        );
-
-        candidates.extend(routing_table_candidates);
-
-        if candidates.len() >= n {
-            let mut rng = rand::thread_rng();
-
-            return candidates.choose_multiple(&mut rng, n).cloned().collect();
-        }
-
-        // If we still need more candidates, select from the active connections
-        let active_connections_candidates: Vec<PeerId> = self
-            .active_connections
-            .keys()
-            // Remove already selected peers from the routing table
-            .filter(|peer_id| !candidates.contains(peer_id))
-            // Remove already selected outbound connections
-            .filter(|peer_id| !self.outbound_connections.contains_key(peer_id))
-            // Remove peers to which a connect request has already been done
-            .filter(|peer_id| !self.controller.connect_request.is_done_on(peer_id))
-            .cloned()
-            .collect();
-
-        debug!(
-            "Active connections candidates: {}",
-            active_connections_candidates.len(),
-        );
-
-        // Peers from the routing table are prioritized
-        if active_connections_candidates.len() >= n - candidates.len() {
-            let mut rng = rand::thread_rng();
-
-            candidates.extend(
-                active_connections_candidates.choose_multiple(&mut rng, n - candidates.len()),
-            );
-
-            return candidates;
-        }
-
-        candidates.extend(active_connections_candidates);
-
-        // If we still need more candidates, select from the discovered peers
-        // NOTE: this case is more likely to happen when repairing outbound connections,
-        // as, during the initial discovery, all discovered peers still have an active connection
-        let discovery_peers_candidates: Vec<PeerId> = self
-            .discovered_peers
-            .keys()
-            // Remove already selected peers from the routing table
-            .filter(|peer_id| !candidates.contains(peer_id))
-            // Remove already selected outbound connections
-            .filter(|peer_id| !self.outbound_connections.contains_key(peer_id))
-            // Remove peers to which a connect request has already been done
-            .filter(|peer_id| !self.controller.connect_request.is_done_on(peer_id))
-            .cloned()
-            .collect();
-
-        debug!(
-            "Discovered peers candidates: {}",
-            discovery_peers_candidates.len(),
-        );
-
-        // Peers from the routing table and active connections are prioritized
-        if discovery_peers_candidates.len() >= n - candidates.len() {
-            let mut rng = rand::thread_rng();
-
-            candidates
-                .extend(discovery_peers_candidates.choose_multiple(&mut rng, n - candidates.len()));
-        } else {
-            candidates.extend(discovery_peers_candidates);
-        }
-
-        if candidates.len() < n {
-            warn!(
-                "Not enough outbound candidates, expected {}, got {}",
-                n,
-                candidates.len()
-            );
-        }
-
-        candidates
+            .find(|(peer_id, _)| !self.controller.peers_request.is_done_on(peer_id))
+            .map(|(peer_id, _)| *peer_id)
     }
 
-    fn select_outbound_connections(&mut self, swarm: &mut Swarm<impl DiscoveryClient>) {
+    fn select_outbound_connections(&mut self, swarm: &mut Swarm<C>) {
         let n = self
             .config
             .num_outbound_peers
             .saturating_sub(self.outbound_connections.len());
 
-        for peer_id in self.select_n_outbound_candidates(swarm, n) {
+        let peers = match self.selector.try_select_n_outbound_candidates(
+            swarm,
+            &self.discovered_peers,
+            self.get_excluded_peers(),
+            n,
+        ) {
+            Selection::Exactly(peers) => {
+                info!("Selected exactly {} outbound candidates", peers.len());
+                peers
+            }
+            Selection::Only(peers) => {
+                warn!("Selected only {} outbound candidates", peers.len());
+                peers
+            }
+            Selection::None => {
+                warn!("No outbound candidates available");
+                return;
+            }
+        };
+
+        for peer_id in peers {
             if let Some(connection_ids) = self.active_connections.get(&peer_id) {
                 if connection_ids.len() > 1 {
                     warn!("Peer {peer_id} has more than one connection");
-                    // TODO: refer to `OutboundConnection` struct TODO in lib.rs
                 }
                 self.outbound_connections.insert(
                     peer_id,
@@ -176,7 +80,7 @@ impl Discovery {
         });
     }
 
-    pub(crate) fn repair_outbound_connection(&mut self, swarm: &mut Swarm<impl DiscoveryClient>) {
+    pub(crate) fn repair_outbound_connection(&mut self, swarm: &mut Swarm<C>) {
         if !self.is_enabled() || self.outbound_connections.len() >= self.config.num_outbound_peers {
             return;
         }
@@ -212,46 +116,53 @@ impl Discovery {
         }
 
         // If no inbound connection is available, then select a candidate
-        if let Some(peer_id) = self.select_n_outbound_candidates(swarm, 1).first() {
-            info!("Trying to connect to peer {peer_id} to repair outbound connections");
-            if let Some(connection_ids) = self.active_connections.get(peer_id) {
-                if connection_ids.len() > 1 {
-                    // TODO: refer to `OutboundConnection` struct TODO in lib.rs
-                    warn!("Peer {peer_id} has more than one connection");
+        match self.selector.try_select_n_outbound_candidates(
+            swarm,
+            &self.discovered_peers,
+            self.get_excluded_peers(),
+            1,
+        ) {
+            Selection::Exactly(peers) => {
+                if let Some(peer_id) = peers.first() {
+                    info!("Trying to connect to peer {peer_id} to repair outbound connections");
+                    if let Some(connection_ids) = self.active_connections.get(peer_id) {
+                        if connection_ids.len() > 1 {
+                            warn!("Peer {peer_id} has more than one connection");
+                        }
+                        self.outbound_connections.insert(
+                            *peer_id,
+                            OutboundConnection {
+                                connection_id: connection_ids.first().cloned(),
+                                is_persistent: false,
+                            },
+                        );
+                    } else {
+                        warn!("Peer {peer_id} has no active connection");
+                        self.outbound_connections.insert(
+                            *peer_id,
+                            OutboundConnection {
+                                connection_id: None,
+                                is_persistent: false,
+                            },
+                        );
+                    }
+
+                    self.controller
+                        .connect_request
+                        .add_to_queue(RequestData::new(*peer_id), None);
                 }
-                self.outbound_connections.insert(
-                    *peer_id,
-                    OutboundConnection {
-                        connection_id: connection_ids.first().cloned(),
-                        is_persistent: false,
-                    },
-                );
-            } else {
-                warn!("Peer {peer_id} has no active connection");
-                self.outbound_connections.insert(
-                    *peer_id,
-                    OutboundConnection {
-                        connection_id: None,
-                        is_persistent: false,
-                    },
-                );
             }
+            _ => {
+                // If no candidate is available, then trigger the discovery extension
+                warn!("No available peers to repair outbound connections, triggering discovery extension");
 
-            self.controller
-                .connect_request
-                .add_to_queue(RequestData::new(*peer_id), None);
-
-            return;
+                self.state = State::Extending;
+                self.make_extension_step(swarm); // trigger extension
+            }
         }
-
-        // If no candidate is available, then trigger the discovery extension
-        warn!("No available peers to repair outbound connections, triggering discovery extension");
-
-        self.state = State::Extending;
-        self.make_extension_step(swarm); // trigger extension
     }
 
-    pub(crate) fn adjust_connections(&mut self, swarm: &mut Swarm<impl DiscoveryClient>) {
+    pub(crate) fn adjust_connections(&mut self, swarm: &mut Swarm<C>) {
         if !self.is_enabled() {
             return;
         }
@@ -303,7 +214,7 @@ impl Discovery {
         }
     }
 
-    pub(crate) fn make_extension_step(&mut self, swarm: &mut Swarm<impl DiscoveryClient>) {
+    pub(crate) fn make_extension_step(&mut self, swarm: &mut Swarm<C>) {
         if !self.is_enabled() || self.state != State::Extending {
             return;
         }
@@ -323,7 +234,7 @@ impl Discovery {
                 .count()
                 < (self.config.num_outbound_peers - self.outbound_connections.len())
             {
-                if let Some(peer_id) = self.get_next_peer_to_peers_request(swarm) {
+                if let Some(peer_id) = self.get_next_peer_to_peers_request() {
                     info!(
                         "Discovery extension in progress ({}ms), requesting peers from peer {}",
                         self.metrics.elapsed().as_millis(),
@@ -360,27 +271,5 @@ impl Discovery {
                 rx_peers_request_len,
             );
         }
-    }
-
-    pub(crate) fn get_routing_table(
-        &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
-    ) -> Vec<(u32, Vec<PeerId>)> {
-        // To avoid any implementation error of calling this function when the discovery is disabled
-        if !self.is_enabled() {
-            return Vec::new();
-        }
-
-        let mut kbuckets: Vec<(u32, Vec<PeerId>)> = Vec::new();
-        for kbucket in swarm.behaviour_mut().kbuckets() {
-            let peers = kbucket
-                .iter()
-                .map(|entry| *entry.node.key.preimage())
-                .collect();
-            let index = kbucket.range().0.ilog2().unwrap_or(0);
-            kbuckets.push((index, peers));
-        }
-
-        kbuckets
     }
 }

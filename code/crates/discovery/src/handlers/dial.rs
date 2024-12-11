@@ -3,14 +3,17 @@ use tracing::{debug, error, info};
 
 use crate::{connection::ConnectionData, controller::PeerData, Discovery, DiscoveryClient};
 
-impl Discovery {
+impl<C> Discovery<C>
+where
+    C: DiscoveryClient,
+{
     pub fn can_dial(&self) -> bool {
         self.controller.dial.can_perform()
     }
 
     fn should_dial(
         &self,
-        swarm: &Swarm<impl DiscoveryClient>,
+        swarm: &Swarm<C>,
         connection_data: &ConnectionData,
         check_already_dialed: bool,
     ) -> bool {
@@ -26,11 +29,7 @@ impl Discovery {
             && !swarm.listeners().any(|addr| *addr == connection_data.multiaddr())
     }
 
-    pub fn dial_peer(
-        &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
-        connection_data: ConnectionData,
-    ) {
+    pub fn dial_peer(&mut self, swarm: &mut Swarm<C>, connection_data: ConnectionData) {
         // Not checking if the peer was already dialed because it is done when
         // adding to the dial queue
         if !self.should_dial(swarm, &connection_data, false) {
@@ -79,7 +78,7 @@ impl Discovery {
 
     pub fn handle_connection(
         &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
+        swarm: &mut Swarm<C>,
         peer_id: PeerId,
         connection_id: ConnectionId,
         endpoint: ConnectedPoint,
@@ -118,11 +117,7 @@ impl Discovery {
             .dial_add_peer_id_to_connection_data(connection_id, peer_id);
     }
 
-    pub fn handle_failed_connection(
-        &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
-        connection_id: ConnectionId,
-    ) {
+    pub fn handle_failed_connection(&mut self, swarm: &mut Swarm<C>, connection_id: ConnectionId) {
         if let Some(mut connection_data) = self.controller.dial.remove_in_progress(&connection_id) {
             if connection_data.retry.count() < self.config.dial_max_retries {
                 // Retry dialing after a delay
@@ -147,11 +142,7 @@ impl Discovery {
         }
     }
 
-    pub(crate) fn add_to_dial_queue(
-        &mut self,
-        swarm: &Swarm<impl DiscoveryClient>,
-        connection_data: ConnectionData,
-    ) {
+    pub(crate) fn add_to_dial_queue(&mut self, swarm: &Swarm<C>, connection_data: ConnectionData) {
         if self.should_dial(swarm, &connection_data, true) {
             // Already register as dialed address to avoid flooding the dial queue
             // with the same dial attempts.
@@ -161,7 +152,7 @@ impl Discovery {
         }
     }
 
-    pub fn dial_bootstrap_nodes(&mut self, swarm: &Swarm<impl DiscoveryClient>) {
+    pub fn dial_bootstrap_nodes(&mut self, swarm: &Swarm<C>) {
         for (peer_id, addr) in &self.bootstrap_nodes.clone() {
             self.add_to_dial_queue(swarm, ConnectionData::new(*peer_id, addr.clone()));
         }

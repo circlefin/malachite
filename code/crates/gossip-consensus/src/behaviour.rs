@@ -72,6 +72,13 @@ pub struct Behaviour {
     pub discovery: discovery::Behaviour,
 }
 
+/// Dummy implementation of Debug for Behaviour.
+impl std::fmt::Debug for Behaviour {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Behaviour").finish()
+    }
+}
+
 impl discovery::DiscoveryClient for Behaviour {
     fn add_address(&mut self, peer: &PeerId, address: Multiaddr) -> libp2p::kad::RoutingUpdate {
         self.discovery

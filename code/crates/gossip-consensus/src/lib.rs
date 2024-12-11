@@ -151,11 +151,11 @@ pub enum CtrlMsg {
 #[derive(Debug)]
 pub struct State {
     pub blocksync_channels: HashMap<InboundRequestId, blocksync::ResponseChannel>,
-    pub discovery: discovery::Discovery,
+    pub discovery: discovery::Discovery<Behaviour>,
 }
 
 impl State {
-    fn new(discovery: discovery::Discovery) -> Self {
+    fn new(discovery: discovery::Discovery<Behaviour>) -> Self {
         Self {
             blocksync_channels: Default::default(),
             discovery,

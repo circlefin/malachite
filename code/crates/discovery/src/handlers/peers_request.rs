@@ -13,7 +13,10 @@ use crate::{
     Discovery, DiscoveryClient,
 };
 
-impl Discovery {
+impl<C> Discovery<C>
+where
+    C: DiscoveryClient,
+{
     pub fn can_peers_request(&self) -> bool {
         self.controller.peers_request.can_perform()
     }
@@ -27,11 +30,7 @@ impl Discovery {
             || request_data.retry.count() != 0
     }
 
-    pub fn peers_request_peer(
-        &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
-        request_data: RequestData,
-    ) {
+    pub fn peers_request_peer(&mut self, swarm: &mut Swarm<C>, request_data: RequestData) {
         if !self.is_enabled() || !self.should_peers_request(&request_data) {
             return;
         }
@@ -63,7 +62,7 @@ impl Discovery {
 
     pub(crate) fn handle_peers_request(
         &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
+        swarm: &mut Swarm<C>,
         peer: PeerId,
         channel: ResponseChannel<Response>,
         peers: HashSet<(Option<PeerId>, Multiaddr)>,
@@ -89,7 +88,7 @@ impl Discovery {
 
     pub(crate) fn handle_peers_response(
         &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
+        swarm: &mut Swarm<C>,
         request_id: OutboundRequestId,
         peers: HashSet<(Option<PeerId>, Multiaddr)>,
     ) {
@@ -104,7 +103,7 @@ impl Discovery {
 
     pub(crate) fn handle_failed_peers_request(
         &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
+        swarm: &mut Swarm<C>,
         request_id: OutboundRequestId,
     ) {
         if let Some(mut request_data) = self
@@ -136,7 +135,7 @@ impl Discovery {
 
     fn process_received_peers(
         &mut self,
-        swarm: &mut Swarm<impl DiscoveryClient>,
+        swarm: &mut Swarm<C>,
         peers: HashSet<(Option<PeerId>, Multiaddr)>,
     ) {
         for (peer_id, listen_addr) in peers {

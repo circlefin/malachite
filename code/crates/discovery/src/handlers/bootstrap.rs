@@ -3,11 +3,11 @@ use tracing::info;
 
 use crate::{Discovery, DiscoveryClient, State};
 
-impl Discovery {
-    pub(crate) fn handle_successful_bootstrap(
-        &mut self,
-        swarm: &mut swarm::Swarm<impl DiscoveryClient>,
-    ) {
+impl<C> Discovery<C>
+where
+    C: DiscoveryClient,
+{
+    pub(crate) fn handle_successful_bootstrap(&mut self, swarm: &mut swarm::Swarm<C>) {
         // NOTE: A new bootstrap query is initiated every time a new peer is added
         // to the routing table (delayed with kad crate configuration parameter `automatic_bootstrap_throttle`
         // to avoid multiple queries in a short period of time).
