@@ -7,6 +7,10 @@ use malachite_codec::Codec;
 use malachite_common::{Context, Round, Timeout};
 use malachite_consensus::SignedConsensusMsg;
 
+/// Codec for encoding and decoding WAL entries.
+///
+/// This trait is automatically implemented for any type that implements:
+/// - [`Codec<SignedConsensusMsg<Ctx>>`]
 pub trait WalCodec<Ctx>
 where
     Ctx: Context,
@@ -121,29 +125,34 @@ where
 }
 
 fn encode_timeout(timeout: &Timeout, mut buf: impl Write) -> io::Result<()> {
-    use malachite_common::TimeoutStep;
+    use malachite_common::TimeoutKind;
 
-    let step = match timeout.step {
-        TimeoutStep::Propose => 1,
-        TimeoutStep::Prevote => 2,
-        TimeoutStep::Precommit => 3,
-        TimeoutStep::Commit => 4,
+    let step = match timeout.kind {
+        TimeoutKind::Propose => 1,
+        TimeoutKind::Prevote => 2,
+        TimeoutKind::Precommit => 3,
+        TimeoutKind::Commit => 4,
+
+        // We do not store these two timeouts in the WAL
+        TimeoutKind::PrevoteTimeLimit | TimeoutKind::PrecommitTimeLimit => 0,
     };
 
-    buf.write_u8(step)?;
-    buf.write_i64::<BE>(timeout.round.as_i64())?;
+    if step > 0 {
+        buf.write_u8(step)?;
+        buf.write_i64::<BE>(timeout.round.as_i64())?;
+    }
 
     Ok(())
 }
 
 fn decode_timeout(mut buf: impl Read) -> io::Result<Timeout> {
-    use malachite_common::TimeoutStep;
+    use malachite_common::TimeoutKind;
 
     let step = match buf.read_u8()? {
-        1 => TimeoutStep::Propose,
-        2 => TimeoutStep::Prevote,
-        3 => TimeoutStep::Precommit,
-        4 => TimeoutStep::Commit,
+        1 => TimeoutKind::Propose,
+        2 => TimeoutKind::Prevote,
+        3 => TimeoutKind::Precommit,
+        4 => TimeoutKind::Commit,
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,

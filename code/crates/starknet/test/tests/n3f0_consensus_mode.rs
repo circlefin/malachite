@@ -12,6 +12,7 @@ async fn run_test(params: TestParams) {
 
     test.add_node().start().wait_until(HEIGHT).success();
     test.add_node().start().wait_until(HEIGHT).success();
+    test.add_node().start().wait_until(HEIGHT).success();
 
     test.build()
         .run_with_custom_config(Duration::from_secs(30), params)

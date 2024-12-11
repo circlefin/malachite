@@ -53,12 +53,10 @@ impl malachite_common::Height for Height {
     }
 
     fn decrement_by(&self, n: u64) -> Option<Self> {
-        Some(self.block_number.saturating_sub(n))
-            .filter(|&n| n > 0)
-            .map(|block_number| Self {
-                block_number,
-                fork_id: self.fork_id,
-            })
+        Some(Self {
+            block_number: self.block_number.saturating_sub(n),
+            fork_id: self.fork_id,
+        })
     }
 
     fn as_u64(&self) -> u64 {

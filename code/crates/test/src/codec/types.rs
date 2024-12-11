@@ -2,15 +2,19 @@ use crate::{Address, Height, Proposal, ProposalPart, RoundDef, TestContext, Valu
 use bytes::Bytes;
 use ed25519_consensus::Signature;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_blocksync::{PeerId, Request, Response, Status, SyncedBlock};
+use malachite_blocksync::{
+    BlockRequest, BlockResponse, PeerId, Request, Response, Status, SyncedBlock, VoteSetRequest,
+    VoteSetResponse,
+};
 use malachite_common::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
-    SignedProposal, SignedVote,
+    SignedProposal, SignedVote, VoteSet,
 };
 use malachite_consensus::SignedConsensusMsg;
 use malachite_proto::Protobuf;
 use serde::{Deserialize, Serialize};
 
+/// todo
 #[derive(Serialize, Deserialize)]
 pub struct RawSignedMessage {
     message: Bytes,
@@ -122,22 +126,49 @@ impl From<RawStatus> for Status<TestContext> {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct RawRequest {
+pub struct BlockRawRequest {
     pub height: Height,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct VoteSetRawRequest {
+    pub height: Height,
+    #[serde(with = "RoundDef")]
+    pub round: Round,
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum RawRequest {
+    BlockRequest(BlockRawRequest),
+    VoteSetRequest(VoteSetRawRequest),
 }
 
 impl From<Request<TestContext>> for RawRequest {
     fn from(value: Request<TestContext>) -> Self {
-        Self {
-            height: value.height,
+        match value {
+            Request::BlockRequest(block_request) => Self::BlockRequest(BlockRawRequest {
+                height: block_request.height,
+            }),
+            Request::VoteSetRequest(vote_set_request) => Self::VoteSetRequest(VoteSetRawRequest {
+                height: vote_set_request.height,
+                round: vote_set_request.round,
+            }),
         }
     }
 }
 
 impl From<RawRequest> for Request<TestContext> {
     fn from(value: RawRequest) -> Self {
-        Self {
-            height: value.height,
+        match value {
+            RawRequest::BlockRequest(block_raw_request) => Self::BlockRequest(BlockRequest {
+                height: block_raw_request.height,
+            }),
+            RawRequest::VoteSetRequest(vote_set_raw_request) => {
+                Self::VoteSetRequest(VoteSetRequest {
+                    height: vote_set_raw_request.height,
+                    round: vote_set_raw_request.round,
+                })
+            }
         }
     }
 }
@@ -181,13 +212,13 @@ pub struct RawSyncedBlock {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct RawResponse {
+pub struct BlockRawResponse {
     pub height: Height,
     pub block: Option<RawSyncedBlock>,
 }
 
-impl From<Response<TestContext>> for RawResponse {
-    fn from(value: Response<TestContext>) -> Self {
+impl From<BlockResponse<TestContext>> for BlockRawResponse {
+    fn from(value: BlockResponse<TestContext>) -> Self {
         Self {
             height: value.height,
             block: value.block.map(|block| RawSyncedBlock {
@@ -220,8 +251,8 @@ impl From<Response<TestContext>> for RawResponse {
     }
 }
 
-impl From<RawResponse> for Response<TestContext> {
-    fn from(value: RawResponse) -> Self {
+impl From<BlockRawResponse> for BlockResponse<TestContext> {
+    fn from(value: BlockRawResponse) -> Self {
         Self {
             height: value.height,
             block: value.block.map(|block| SyncedBlock {
@@ -250,6 +281,99 @@ impl From<RawResponse> for Response<TestContext> {
                     },
                 },
             }),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RawVoteSet {
+    vote_set: Vec<RawSignedMessage>,
+}
+
+impl From<VoteSet<TestContext>> for RawVoteSet {
+    fn from(value: VoteSet<TestContext>) -> Self {
+        Self {
+            vote_set: value
+                .votes
+                .iter()
+                .map(|vote| RawSignedMessage {
+                    message: vote.message.to_bytes(),
+                    signature: *vote.signature.inner(),
+                })
+                .collect(),
+        }
+    }
+}
+
+impl From<RawVoteSet> for VoteSet<TestContext> {
+    fn from(value: RawVoteSet) -> Self {
+        Self {
+            votes: value
+                .vote_set
+                .iter()
+                .map(|vote| SignedVote {
+                    message: Vote::from_bytes(&vote.message).unwrap(),
+                    signature: vote.signature.into(),
+                })
+                .collect(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct VoteSetRawResponse {
+    pub height: Height,
+    #[serde(with = "RoundDef")]
+    pub round: Round,
+    pub vote_set: RawVoteSet,
+}
+
+impl From<VoteSetResponse<TestContext>> for VoteSetRawResponse {
+    fn from(value: VoteSetResponse<TestContext>) -> Self {
+        Self {
+            height: value.height,
+            round: value.round,
+            vote_set: value.vote_set.into(),
+        }
+    }
+}
+
+impl From<VoteSetRawResponse> for VoteSetResponse<TestContext> {
+    fn from(value: VoteSetRawResponse) -> Self {
+        Self {
+            height: value.height,
+            round: value.round,
+            vote_set: value.vote_set.into(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum RawResponse {
+    BlockResponse(BlockRawResponse),
+    VoteSetResponse(VoteSetRawResponse),
+}
+
+impl From<Response<TestContext>> for RawResponse {
+    fn from(value: Response<TestContext>) -> Self {
+        match value {
+            Response::BlockResponse(block_response) => Self::BlockResponse(block_response.into()),
+            Response::VoteSetResponse(vote_set_response) => {
+                Self::VoteSetResponse(vote_set_response.into())
+            }
+        }
+    }
+}
+
+impl From<RawResponse> for Response<TestContext> {
+    fn from(value: RawResponse) -> Self {
+        match value {
+            RawResponse::BlockResponse(block_raw_response) => {
+                Self::BlockResponse(block_raw_response.into())
+            }
+            RawResponse::VoteSetResponse(vote_set_raw_response) => {
+                Self::VoteSetResponse(vote_set_raw_response.into())
+            }
         }
     }
 }

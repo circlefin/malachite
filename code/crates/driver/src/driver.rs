@@ -3,12 +3,11 @@ use alloc::vec::Vec;
 use core::fmt;
 
 use malachite_common::{
-    CommitCertificate, Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutStep,
+    CommitCertificate, Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutKind,
     Validator, ValidatorSet, Validity, ValueId, Vote,
 };
 use malachite_round::input::Input as RoundInput;
 use malachite_round::output::Output as RoundOutput;
-use malachite_round::state::Step::Propose;
 use malachite_round::state::{RoundValue, State as RoundState, Step};
 use malachite_round::state_machine::Info;
 use malachite_vote::keeper::VoteKeeper;
@@ -129,7 +128,22 @@ where
 
     /// Returns true if the current step is propose.
     pub fn step_is_propose(&self) -> bool {
-        self.round_state.step == Propose
+        self.round_state.step == Step::Propose
+    }
+
+    /// Returns true if the current step is prevote.
+    pub fn step_is_prevote(&self) -> bool {
+        self.round_state.step == Step::Prevote
+    }
+
+    /// Returns true if the current step is precommit.
+    pub fn step_is_precommit(&self) -> bool {
+        self.round_state.step == Step::Precommit
+    }
+
+    /// Returns true if the current step is commit.
+    pub fn step_is_commit(&self) -> bool {
+        self.round_state.step == Step::Commit
     }
 
     /// Return the valid value (the value for which we saw a polka) for the current round, if any.
@@ -347,13 +361,15 @@ where
     }
 
     fn apply_timeout(&mut self, timeout: Timeout) -> Result<Option<RoundOutput<Ctx>>, Error<Ctx>> {
-        let input = match timeout.step {
-            TimeoutStep::Propose => RoundInput::TimeoutPropose,
-            TimeoutStep::Prevote => RoundInput::TimeoutPrevote,
-            TimeoutStep::Precommit => RoundInput::TimeoutPrecommit,
+        let input = match timeout.kind {
+            TimeoutKind::Propose => RoundInput::TimeoutPropose,
+            TimeoutKind::Prevote => RoundInput::TimeoutPrevote,
+            TimeoutKind::Precommit => RoundInput::TimeoutPrecommit,
 
-            // The driver never receives a commit timeout, so we can just ignore it.
-            TimeoutStep::Commit => return Ok(None),
+            // The driver never receives a commit or time limit timeout, so we can just ignore it.
+            TimeoutKind::Commit => return Ok(None),
+            TimeoutKind::PrevoteTimeLimit => return Ok(None),
+            TimeoutKind::PrecommitTimeLimit => return Ok(None),
         };
 
         self.apply_input(timeout.round, input)

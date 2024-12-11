@@ -3,13 +3,18 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::eyre;
+use malachite_blocksync::InboundRequestId;
+
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
-use malachite_blocksync as blocksync;
+use malachite_blocksync::{
+    self as blocksync, BlockResponse, Response, VoteSetRequest, VoteSetResponse,
+};
+use malachite_codec as codec;
 use malachite_common::{
-    Context, Round, SignedExtension, Timeout, TimeoutStep, ValidatorSet, ValueOrigin,
+    Context, Round, SignedExtension, Timeout, TimeoutKind, ValidatorSet, ValueOrigin,
 };
 use malachite_config::TimeoutConfig;
 use malachite_consensus::{Effect, PeerId, Resume, SignedConsensusMsg, ValueToPropose};
@@ -21,12 +26,37 @@ use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipCons
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::util::events::{Event, TxEvent};
 use crate::util::forward::forward;
+use crate::util::streaming::StreamMessage;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
 
 pub use malachite_consensus::Error as ConsensusError;
 pub use malachite_consensus::Params as ConsensusParams;
 pub use malachite_consensus::State as ConsensusState;
+
+/// Codec for consensus messages.
+///
+/// This trait is automatically implemented for any type that implements:
+/// - [`codec::Codec<Ctx::ProposalPart>`]
+/// - [`codec::Codec<SignedConsensusMsg<Ctx>>`]
+/// - [`codec::Codec<StreamMessage<Ctx::ProposalPart>>`]
+pub trait ConsensusCodec<Ctx>
+where
+    Ctx: Context,
+    Self: codec::Codec<Ctx::ProposalPart>,
+    Self: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Self: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+{
+}
+
+impl<Ctx, Codec> ConsensusCodec<Ctx> for Codec
+where
+    Ctx: Context,
+    Self: codec::Codec<Ctx::ProposalPart>,
+    Self: codec::Codec<SignedConsensusMsg<Ctx>>,
+    Self: codec::Codec<StreamMessage<Ctx::ProposalPart>>,
+{
+}
 
 pub type ConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
 
@@ -35,7 +65,6 @@ where
     Ctx: Context,
 {
     ctx: Ctx,
-    moniker: String,
     params: ConsensusParams<Ctx>,
     timeout_config: TimeoutConfig,
     gossip_consensus: GossipConsensusRef<Ctx>,
@@ -44,6 +73,7 @@ where
     block_sync: Option<BlockSyncRef<Ctx>>,
     metrics: Metrics,
     tx_event: TxEvent<Ctx>,
+    span: tracing::Span,
 }
 
 pub type ConsensusMsg<Ctx> = Msg<Ctx>;
@@ -91,22 +121,26 @@ impl Timeouts {
         self.config = config;
     }
 
-    fn duration_for(&self, step: TimeoutStep) -> Duration {
+    fn duration_for(&self, step: TimeoutKind) -> Duration {
         match step {
-            TimeoutStep::Propose => self.config.timeout_propose,
-            TimeoutStep::Prevote => self.config.timeout_prevote,
-            TimeoutStep::Precommit => self.config.timeout_precommit,
-            TimeoutStep::Commit => self.config.timeout_commit,
+            TimeoutKind::Propose => self.config.timeout_propose,
+            TimeoutKind::Prevote => self.config.timeout_prevote,
+            TimeoutKind::Precommit => self.config.timeout_precommit,
+            TimeoutKind::Commit => self.config.timeout_commit,
+            TimeoutKind::PrevoteTimeLimit => self.config.timeout_step,
+            TimeoutKind::PrecommitTimeLimit => self.config.timeout_step,
         }
     }
 
-    fn increase_timeout(&mut self, step: TimeoutStep) {
+    fn increase_timeout(&mut self, step: TimeoutKind) {
         let c = &mut self.config;
         match step {
-            TimeoutStep::Propose => c.timeout_propose += c.timeout_propose_delta,
-            TimeoutStep::Prevote => c.timeout_prevote += c.timeout_prevote_delta,
-            TimeoutStep::Precommit => c.timeout_precommit += c.timeout_precommit_delta,
-            TimeoutStep::Commit => (),
+            TimeoutKind::Propose => c.timeout_propose += c.timeout_propose_delta,
+            TimeoutKind::Prevote => c.timeout_prevote += c.timeout_prevote_delta,
+            TimeoutKind::Precommit => c.timeout_precommit += c.timeout_precommit_delta,
+            TimeoutKind::Commit => (),
+            TimeoutKind::PrevoteTimeLimit => (),
+            TimeoutKind::PrecommitTimeLimit => (),
         };
     }
 }
@@ -151,7 +185,6 @@ where
     #[allow(clippy::too_many_arguments)]
     pub async fn spawn(
         ctx: Ctx,
-        moniker: String,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
         gossip_consensus: GossipConsensusRef<Ctx>,
@@ -160,10 +193,10 @@ where
         block_sync: Option<BlockSyncRef<Ctx>>,
         metrics: Metrics,
         tx_event: TxEvent<Ctx>,
+        span: tracing::Span,
     ) -> Result<ActorRef<Msg<Ctx>>, ractor::SpawnErr> {
         let node = Self {
             ctx,
-            moniker,
             params,
             timeout_config,
             gossip_consensus,
@@ -172,6 +205,7 @@ where
             block_sync,
             metrics,
             tx_event,
+            span,
         };
 
         let (actor_ref, _) = Actor::spawn(None, node, ()).await?;
@@ -258,18 +292,12 @@ where
                     )
                     .await;
 
+                if let Err(e) = result {
+                    error!(%height, %round, "Error when processing ProposeValue message: {e}");
+                }
+
                 self.tx_event
                     .send(|| Event::ProposedValue(value_to_propose));
-
-                if std::env::var("MALACHITE_FAIL").ok().as_deref() == Some(&self.moniker) {
-                    tracing::error!("Just proposed: {value:?}");
-                    tracing::error!("Everyone stops right here!");
-                    std::process::exit(1);
-                };
-
-                if let Err(e) = result {
-                    error!("Error when processing ProposeValue message: {e}");
-                }
 
                 Ok(())
             }
@@ -278,6 +306,7 @@ where
                 match event {
                     GossipEvent::Listening(address) => {
                         info!(%address, "Listening");
+                        self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
                     }
 
                     GossipEvent::PeerConnected(peer_id) => {
@@ -295,13 +324,6 @@ where
                         debug!(connected = %connected_peers, total = %total_peers, "Connected to another peer");
 
                         self.metrics.connected_peers.inc();
-
-                        // TODO: change logic
-                        if connected_peers == total_peers {
-                            info!(count = %connected_peers, "Enough peers connected to start consensus");
-
-                            self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
-                        }
                     }
 
                     GossipEvent::PeerDisconnected(peer_id) => {
@@ -309,15 +331,13 @@ where
 
                         if state.connected_peers.remove(&peer_id) {
                             self.metrics.connected_peers.dec();
-
-                            // TODO: pause/stop consensus, if necessary
                         }
                     }
 
-                    GossipEvent::BlockSyncResponse(
+                    GossipEvent::Response(
                         request_id,
                         peer,
-                        blocksync::Response { height, block },
+                        blocksync::Response::BlockResponse(BlockResponse { height, block }),
                     ) => {
                         debug!(%height, %request_id, "Received BlockSync response");
 
@@ -365,6 +385,57 @@ where
                                         )
                                     })?;
                             }
+                        }
+                    }
+
+                    GossipEvent::Request(
+                        request_id,
+                        peer,
+                        blocksync::Request::VoteSetRequest(VoteSetRequest { height, round }),
+                    ) => {
+                        debug!(%height, %round, %request_id, %peer, "Received vote set request");
+
+                        if let Err(e) = self
+                            .process_input(
+                                &myself,
+                                state,
+                                ConsensusInput::VoteSetRequest(
+                                    request_id.to_string(),
+                                    height,
+                                    round,
+                                ),
+                            )
+                            .await
+                        {
+                            error!(%peer, %height, %round, "Error when processing VoteSetRequest: {e:?}");
+                        }
+                    }
+
+                    GossipEvent::Response(
+                        request_id,
+                        peer,
+                        blocksync::Response::VoteSetResponse(VoteSetResponse {
+                            height,
+                            round,
+                            vote_set,
+                        }),
+                    ) => {
+                        if vote_set.votes.is_empty() {
+                            debug!(%height, %round, %request_id, %peer, "Received an empty vote set response");
+                            return Ok(());
+                        };
+
+                        debug!(%height, %round, %request_id, %peer, "Received a non-empty vote set response");
+
+                        if let Err(e) = self
+                            .process_input(
+                                &myself,
+                                state,
+                                ConsensusInput::VoteSetResponse(vote_set),
+                            )
+                            .await
+                        {
+                            error!(%height, %round, %request_id, %peer, "Error when processing VoteSetResponse: {e:?}");
                         }
                     }
 
@@ -425,8 +496,26 @@ where
                     return Ok(());
                 };
 
-                if let Err(e) = self.timeout_elapsed(&myself, state, timeout).await {
-                    error!("Error when processing TimeoutElapsed message: {e}");
+                state.timeouts.increase_timeout(timeout.kind);
+
+                if matches!(
+                    timeout.kind,
+                    TimeoutKind::Prevote
+                        | TimeoutKind::Precommit
+                        | TimeoutKind::PrevoteTimeLimit
+                        | TimeoutKind::PrecommitTimeLimit
+                ) {
+                    warn!(step = ?timeout.kind, "Timeout elapsed");
+
+                    state.consensus.print_state();
+                }
+
+                let result = self
+                    .process_input(&myself, state, ConsensusInput::TimeoutElapsed(timeout))
+                    .await;
+
+                if let Err(e) = result {
+                    error!("Error when processing TimeoutElapsed message: {e:?}");
                 }
 
                 Ok(())
@@ -470,11 +559,11 @@ where
         state.timers.cancel(&timeout);
 
         // Increase the timeout for the next round
-        state.timeouts.increase_timeout(timeout.step);
+        state.timeouts.increase_timeout(timeout.kind);
 
         // Print debug information if the timeout is for a prevote or precommit
-        if matches!(timeout.step, TimeoutStep::Prevote | TimeoutStep::Precommit) {
-            warn!(step = ?timeout.step, "Timeout elapsed");
+        if matches!(timeout.kind, TimeoutKind::Prevote | TimeoutKind::Precommit) {
+            warn!(step = ?timeout.kind, "Timeout elapsed");
             state.consensus.print_state();
         }
 
@@ -698,7 +787,7 @@ where
             }
 
             Effect::ScheduleTimeout(timeout) => {
-                let duration = timeouts.duration_for(timeout.step);
+                let duration = timeouts.duration_for(timeout.kind);
                 timers.start_timer(timeout, duration);
 
                 Ok(Resume::Continue)
@@ -751,7 +840,7 @@ where
             }
 
             Effect::GetValue(height, round, timeout) => {
-                let timeout_duration = timeouts.duration_for(timeout.step);
+                let timeout_duration = timeouts.duration_for(timeout.kind);
 
                 self.get_value(myself, height, round, timeout_duration)
                     .map_err(|e| eyre!("Error when asking for value to be built: {e:?}"))?;
@@ -804,6 +893,55 @@ where
                             eyre!("Error when sending decided height to blocksync: {e:?}")
                         })?;
                 }
+
+                Ok(Resume::Continue)
+            }
+
+            Effect::GetVoteSet(height, round) => {
+                debug!(%height, %round, "Request blocksync to obtain the vote set from peers");
+
+                if let Some(block_sync) = &self.block_sync {
+                    block_sync
+                        .cast(BlockSyncMsg::RequestVoteSet(height, round))
+                        .map_err(|e| {
+                            eyre!("Error when sending vote set request to blocksync: {e:?}")
+                        })?;
+                }
+
+                self.tx_event
+                    .send(|| Event::RequestedVoteSet(height, round));
+
+                Ok(Resume::Continue)
+            }
+
+            Effect::SendVoteSetResponse(request_id_str, height, round, vote_set) => {
+                let vote_count = vote_set.len();
+                let response =
+                    Response::VoteSetResponse(VoteSetResponse::new(height, round, vote_set));
+
+                let request_id = InboundRequestId::new(request_id_str);
+
+                debug!(
+                    %height, %round, %request_id, vote.count = %vote_count,
+                    "Sending the vote set response"
+                );
+
+                self.gossip_consensus
+                    .cast(GossipConsensusMsg::OutgoingResponse(
+                        request_id.clone(),
+                        response,
+                    ))?;
+
+                if let Some(block_sync) = &self.block_sync {
+                    block_sync
+                        .cast(BlockSyncMsg::SentVoteSetResponse(request_id, height, round))
+                        .map_err(|e| {
+                            eyre!("Error when notifying Sync about vote set response: {e:?}")
+                        })?;
+                }
+
+                self.tx_event
+                    .send(|| Event::SentVoteSetResponse(height, round, vote_count));
 
                 Ok(Resume::Continue)
             }
@@ -862,14 +1000,7 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(
-        name = "consensus",
-        skip_all,
-        fields(
-            height = %state.consensus.driver.height(),
-            round = %state.consensus.driver.round()
-        )
-    )]
+    #[tracing::instrument(name = "consensus", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         myself: ActorRef<Msg<Ctx>>,

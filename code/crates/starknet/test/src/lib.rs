@@ -11,7 +11,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
-use tracing::{debug, error, error_span, info, Instrument};
+use tracing::{debug, error, error_span, info, Instrument, Span};
 
 use malachite_actors::util::events::{Event, RxEvent, TxEvent};
 use malachite_common::{SignedVote, VotingPower};
@@ -66,6 +66,7 @@ pub struct TestParams {
     pub vote_extensions: Option<ByteSize>,
     pub value_payload: ValuePayload,
     pub max_retain_blocks: usize,
+    pub timeout_step: Duration,
 }
 
 impl Default for TestParams {
@@ -79,6 +80,7 @@ impl Default for TestParams {
             vote_extensions: None,
             value_payload: ValuePayload::default(),
             max_retain_blocks: 50,
+            timeout_step: Duration::from_secs(30),
         }
     }
 }
@@ -94,6 +96,7 @@ impl TestParams {
         config.test.vote_extensions.enabled = self.vote_extensions.is_some();
         config.test.vote_extensions.size = self.vote_extensions.unwrap_or_default();
         config.test.max_retain_blocks = self.max_retain_blocks;
+        config.consensus.timeouts.timeout_step = self.timeout_step;
     }
 }
 
@@ -217,6 +220,22 @@ impl<State> TestNode<State> {
 
             if height.as_u64() != at_height {
                 bail!("Unexpected WAL replay at height {height}, expected {at_height}")
+            }
+
+            Ok(HandlerResult::ContinueTest)
+        })
+    }
+
+    pub fn expect_vote_set_request(&mut self, at_height: u64) -> &mut Self {
+        self.on_event(move |event, _| {
+            let Event::RequestedVoteSet(height, round) = event else {
+                return Ok(HandlerResult::WaitForNextEvent);
+            };
+
+            info!("Requested vote set for height {height} and round {round}");
+
+            if height.as_u64() != at_height {
+                bail!("Unexpected vote set request for height {height}, expected {at_height}")
             }
 
             Ok(HandlerResult::ContinueTest)
@@ -454,6 +473,7 @@ async fn run_node<S>(
         private_key,
         Some(node.start_height),
         tx_event,
+        Span::current(),
     )
     .await;
 
@@ -477,7 +497,7 @@ async fn run_node<S>(
                         _ => (),
                     }
 
-                    debug!("Event: {event:?}");
+                    debug!("Event: {event}");
                 }
             }
             .in_current_span()
@@ -541,6 +561,7 @@ async fn run_node<S>(
                     private_key,
                     Some(node.start_height),
                     tx_event,
+                    tracing::Span::current(),
                 )
                 .await;
 

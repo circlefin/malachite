@@ -2,7 +2,7 @@
 
 use derive_where::derive_where;
 
-use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutStep, ValueId};
+use malachite_common::{Context, NilOrVal, Round, Timeout, TimeoutKind, ValueId};
 
 /// Output of the round state machine.
 #[derive_where(Clone, Debug, PartialEq, Eq)]
@@ -63,17 +63,17 @@ impl<Ctx: Context> Output<Ctx> {
     }
 
     /// Build a `ScheduleTimeout` output.
-    pub fn schedule_timeout(round: Round, step: TimeoutStep) -> Self {
-        Output::ScheduleTimeout(Timeout { round, step })
+    pub fn schedule_timeout(round: Round, step: TimeoutKind) -> Self {
+        Output::ScheduleTimeout(Timeout { round, kind: step })
     }
 
     /// Build a `GetValue` output.
     pub fn get_value_and_schedule_timeout(
         height: Ctx::Height,
         round: Round,
-        step: TimeoutStep,
+        step: TimeoutKind,
     ) -> Self {
-        Output::GetValueAndScheduleTimeout(height, round, Timeout { round, step })
+        Output::GetValueAndScheduleTimeout(height, round, Timeout { round, kind: step })
     }
 
     /// Build a `Decision` output.

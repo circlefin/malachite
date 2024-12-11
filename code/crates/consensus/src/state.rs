@@ -63,6 +63,10 @@ where
         self.driver.height()
     }
 
+    pub fn round(&self) -> Round {
+        self.driver.round()
+    }
+
     pub fn address(&self) -> &Ctx::Address {
         self.driver.address()
     }
@@ -118,6 +122,19 @@ where
             .collect()
     }
 
+    pub fn restore_votes(&mut self, height: Ctx::Height, round: Round) -> Vec<SignedVote<Ctx>> {
+        // TODO optimization - get votes for all rounds higher than or equal to `round`
+        if height != self.driver.height() {
+            return vec![];
+        }
+
+        if let Some(per_round) = self.driver.votes().per_round(round) {
+            per_round.received_votes().iter().cloned().collect()
+        } else {
+            vec![]
+        }
+    }
+
     pub fn full_proposal_at_round_and_value(
         &self,
         height: &Ctx::Height,
@@ -149,7 +166,7 @@ where
     }
 
     pub fn remove_full_proposals(&mut self, height: Ctx::Height) {
-        debug!("Removing proposals for {height}");
+        debug!(%height, "Pruning full proposals");
         self.full_proposal_keeper.remove_full_proposals(height)
     }
 

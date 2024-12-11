@@ -8,10 +8,7 @@ mod state;
 pub use state::State;
 
 mod types;
-pub use types::{
-    InboundRequestId, OutboundRequestId, PeerId, RawMessage, Request, Response, ResponseChannel,
-    Status, SyncedBlock,
-};
+pub use types::*;
 
 mod rpc;
 

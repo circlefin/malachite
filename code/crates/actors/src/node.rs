@@ -23,6 +23,7 @@ pub struct Node<Ctx: Context> {
     mempool: ActorCell,
     host: HostRef<Ctx>,
     start_height: Ctx::Height,
+    span: tracing::Span,
 }
 
 impl<Ctx> Node<Ctx>
@@ -39,6 +40,7 @@ where
         mempool: ActorCell,
         host: HostRef<Ctx>,
         start_height: Ctx::Height,
+        span: tracing::Span,
     ) -> Self {
         Self {
             ctx,
@@ -49,6 +51,7 @@ where
             mempool,
             host,
             start_height,
+            span,
         }
     }
 
@@ -85,7 +88,7 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(name = "node", skip_all)]
+    #[tracing::instrument(name = "node", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         _myself: ActorRef<Self::Msg>,
@@ -95,7 +98,7 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(name = "node", skip_all)]
+    #[tracing::instrument(name = "node", parent = &self.span, skip_all)]
     async fn handle_supervisor_evt(
         &self,
         _myself: ActorRef<Self::Msg>,
