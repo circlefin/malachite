@@ -137,14 +137,12 @@ pub async fn spawn(
                     libp2p::noise::Config::new,
                     libp2p::yamux::Config::default,
                 )?
-                .with_dns()?
                 .with_bandwidth_metrics(registry)
                 .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
                 .with_swarm_config(|cfg| config.apply(cfg))
                 .build()),
             TransportProtocol::Quic => Ok(builder
                 .with_quic()
-                .with_dns()?
                 .with_bandwidth_metrics(registry)
                 .with_behaviour(|kp| Behaviour::new_with_metrics(kp, registry))?
                 .with_swarm_config(|cfg| config.apply(cfg))
