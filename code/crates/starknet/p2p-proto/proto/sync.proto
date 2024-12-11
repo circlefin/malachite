@@ -14,19 +14,19 @@ message Status {
   uint64 earliest_fork_id = 5;
 }
 
-message BlockRequest {
+message ValueRequest {
   uint64 block_number = 1;
   uint64 fork_id = 2;
 }
 
-message BlockResponse {
+message ValueResponse {
   uint64 block_number = 1;
   uint64 fork_id = 2;
-  SyncedBlock block = 3;
+  SyncedValue value = 3;
 }
 
-message SyncedBlock {
-  bytes block_bytes = 1;
+message SyncedValue {
+  bytes value_bytes = 1;
   CommitCertificate certificate = 2;
 }
 
@@ -86,14 +86,14 @@ message VoteSet {
 
 message SyncRequest {
   oneof messages {
-    BlockRequest block_request = 1;
+    ValueRequest value_request = 1;
     VoteSetRequest vote_set_request = 2;
   }
 }
 
 message SyncResponse {
   oneof messages {
-    BlockResponse block_response = 1;
+    ValueResponse value_response = 1;
     VoteSetResponse vote_set_response = 2;
   }
 }

@@ -6,8 +6,8 @@ use crate::codec::types::{
 };
 use crate::{ProposalPart, TestContext};
 use malachite_actors::util::streaming::StreamMessage;
-use malachite_blocksync::{Request, Response, Status};
 use malachite_consensus::SignedConsensusMsg;
+use malachite_sync::{Request, Response, Status};
 
 pub struct TestCodec;
 

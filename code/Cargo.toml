@@ -5,7 +5,6 @@ members = [
   "crates/actors",
   "crates/app",
   "crates/app-channel",
-  "crates/blocksync",
   "crates/cli",
   "crates/codec",
   "crates/common",
@@ -13,22 +12,23 @@ members = [
   "crates/consensus",
   "crates/driver",
   "crates/gossip-consensus",
-  "crates/gossip-consensus/test",
   "crates/metrics",
   "crates/node",
   "crates/peer",
   "crates/proto",
   "crates/round",
+  "crates/sync",
   "crates/vote",
   "crates/wal",
 
-  # Ed25519
+  # Signing scheme
   "crates/signing-ed25519",
 
   # Test
   "crates/test",
   "crates/test/mbt",
   "crates/test/mempool",
+  "crates/gossip-consensus/test",
   "crates/driver/test-utils",
 
   # Starknet
@@ -62,7 +62,7 @@ debug = true
 malachite-actors           = { version = "0.1.0", path = "crates/actors" }
 malachite-app              = { version = "0.1.0", path = "crates/app" }
 malachite-app-channel      = { version = "0.1.0", path = "crates/app-channel" }
-malachite-blocksync        = { version = "0.1.0", path = "crates/blocksync" }
+malachite-sync             = { version = "0.1.0", path = "crates/sync" }
 malachite-codec            = { version = "0.1.0", path = "crates/codec" }
 malachite-cli              = { version = "0.1.0", path = "crates/cli" }
 malachite-common           = { version = "0.1.0", path = "crates/common" }

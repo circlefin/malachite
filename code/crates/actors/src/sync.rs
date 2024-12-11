@@ -11,11 +11,11 @@ use rand::SeedableRng;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 
-use malachite_blocksync::{self as blocksync, InboundRequestId, OutboundRequestId, Response};
-use malachite_blocksync::{Request, SyncedBlock};
 use malachite_codec as codec;
 use malachite_common::{CertificateError, CommitCertificate, Context, Height, Round};
 use malachite_consensus::PeerId;
+use malachite_sync::{self as sync, InboundRequestId, OutboundRequestId, Response};
+use malachite_sync::{DecidedValue, Request};
 
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
 use crate::host::{HostMsg, HostRef};
@@ -26,24 +26,24 @@ use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 /// Codec for sync protocol messages
 ///
 /// This trait is automatically implemented for any type that implements:
-/// - [`codec::Codec<blocksync::Status<Ctx>>`]
-/// - [`codec::Codec<blocksync::Request<Ctx>>`]
-/// - [`codec::Codec<blocksync::Response<Ctx>>`]
-pub trait BlockSyncCodec<Ctx>
+/// - [`codec::Codec<sync::Status<Ctx>>`]
+/// - [`codec::Codec<sync::Request<Ctx>>`]
+/// - [`codec::Codec<sync::Response<Ctx>>`]
+pub trait SyncCodec<Ctx>
 where
     Ctx: Context,
-    Self: codec::Codec<blocksync::Status<Ctx>>,
-    Self: codec::Codec<blocksync::Request<Ctx>>,
-    Self: codec::Codec<blocksync::Response<Ctx>>,
+    Self: codec::Codec<sync::Status<Ctx>>,
+    Self: codec::Codec<sync::Request<Ctx>>,
+    Self: codec::Codec<sync::Response<Ctx>>,
 {
 }
 
-impl<Ctx, Codec> BlockSyncCodec<Ctx> for Codec
+impl<Ctx, Codec> SyncCodec<Ctx> for Codec
 where
     Ctx: Context,
-    Codec: codec::Codec<blocksync::Status<Ctx>>,
-    Codec: codec::Codec<blocksync::Request<Ctx>>,
-    Codec: codec::Codec<blocksync::Response<Ctx>>,
+    Codec: codec::Codec<sync::Status<Ctx>>,
+    Codec: codec::Codec<sync::Request<Ctx>>,
+    Codec: codec::Codec<sync::Response<Ctx>>,
 {
 }
 
@@ -54,13 +54,13 @@ pub enum Timeout {
 
 type Timers<Ctx> = TimerScheduler<Timeout, Msg<Ctx>>;
 
-pub type BlockSyncRef<Ctx> = ActorRef<Msg<Ctx>>;
+pub type SyncRef<Ctx> = ActorRef<Msg<Ctx>>;
 
 #[derive_where(Clone, Debug)]
 pub struct RawDecidedBlock<Ctx: Context> {
     pub height: Ctx::Height,
     pub certificate: CommitCertificate<Ctx>,
-    pub block_bytes: Bytes,
+    pub value_bytes: Bytes,
 }
 
 #[derive_where(Clone, Debug)]
@@ -87,7 +87,7 @@ pub enum Msg<Ctx: Context> {
     StartedHeight(Ctx::Height),
 
     /// Host has a response for the blocks request
-    GotDecidedBlock(InboundRequestId, Ctx::Height, Option<SyncedBlock<Ctx>>),
+    GotDecidedBlock(InboundRequestId, Ctx::Height, Option<DecidedValue<Ctx>>),
 
     /// A timeout has elapsed
     TimeoutElapsed(TimeoutElapsed<Timeout>),
@@ -128,8 +128,8 @@ pub struct Args<Ctx: Context> {
 }
 
 pub struct State<Ctx: Context> {
-    /// The state of the blocksync state machine
-    blocksync: blocksync::State<Ctx>,
+    /// The state of the sync state machine
+    sync: sync::State<Ctx>,
 
     /// Scheduler for timers
     timers: Timers<Ctx>,
@@ -142,16 +142,16 @@ pub struct State<Ctx: Context> {
 }
 
 #[allow(dead_code)]
-pub struct BlockSync<Ctx: Context> {
+pub struct Sync<Ctx: Context> {
     ctx: Ctx,
     gossip: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
     params: Params,
-    metrics: blocksync::Metrics,
+    metrics: sync::Metrics,
     span: tracing::Span,
 }
 
-impl<Ctx> BlockSync<Ctx>
+impl<Ctx> Sync<Ctx>
 where
     Ctx: Context,
 {
@@ -160,7 +160,7 @@ where
         gossip: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
         params: Params,
-        metrics: blocksync::Metrics,
+        metrics: sync::Metrics,
         span: tracing::Span,
     ) -> Self {
         Self {
@@ -176,7 +176,7 @@ where
     pub async fn spawn(
         self,
         initial_height: Ctx::Height,
-    ) -> Result<BlockSyncRef<Ctx>, ractor::SpawnErr> {
+    ) -> Result<SyncRef<Ctx>, ractor::SpawnErr> {
         let (actor_ref, _) = Actor::spawn(None, self, Args { initial_height }).await?;
         Ok(actor_ref)
     }
@@ -185,11 +185,11 @@ where
         &self,
         myself: &ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
-        input: blocksync::Input<Ctx>,
+        input: sync::Input<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        malachite_blocksync::process!(
+        malachite_sync::process!(
             input: input,
-            state: &mut state.blocksync,
+            state: &mut state.sync,
             metrics: &self.metrics,
             with: effect => {
                 self.handle_effect(myself, &mut state.timers, &mut state.inflight, effect).await
@@ -197,7 +197,7 @@ where
         )
     }
 
-    async fn get_earliest_block_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
+    async fn get_history_min_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
         ractor::call!(self.host, |reply_to| HostMsg::GetEarliestBlockHeight {
             reply_to
         })
@@ -209,23 +209,23 @@ where
         myself: &ActorRef<Msg<Ctx>>,
         timers: &mut Timers<Ctx>,
         inflight: &mut InflightRequests<Ctx>,
-        effect: blocksync::Effect<Ctx>,
-    ) -> Result<blocksync::Resume<Ctx>, ActorProcessingErr> {
-        use blocksync::Effect;
+        effect: sync::Effect<Ctx>,
+    ) -> Result<sync::Resume<Ctx>, ActorProcessingErr> {
+        use sync::Effect;
 
         match effect {
             Effect::BroadcastStatus(height) => {
-                let earliest_block_height = self.get_earliest_block_height().await?;
+                let history_min_height = self.get_history_min_height().await?;
 
                 self.gossip
                     .cast(GossipConsensusMsg::BroadcastStatus(Status::new(
                         height,
-                        earliest_block_height,
+                        history_min_height,
                     )))?;
             }
 
-            Effect::SendBlockRequest(peer_id, block_request) => {
-                let request = Request::BlockRequest(block_request);
+            Effect::SendValueRequest(peer_id, value_request) => {
+                let request = Request::ValueRequest(value_request);
                 let result = ractor::call!(self.gossip, |reply_to| {
                     GossipConsensusMsg::OutgoingRequest(peer_id, request.clone(), reply_to)
                 });
@@ -254,17 +254,19 @@ where
                 }
             }
 
-            Effect::SendBlockResponse(request_id, block_response) => {
-                let response = Response::BlockResponse(block_response);
+            Effect::SendValueResponse(request_id, value_response) => {
+                let response = Response::ValueResponse(value_response);
                 self.gossip
                     .cast(GossipConsensusMsg::OutgoingResponse(request_id, response))?;
             }
 
-            Effect::GetBlock(request_id, height) => {
+            Effect::GetValue(request_id, height) => {
                 self.host.call_and_forward(
-                    |reply_to| HostMsg::GetDecidedBlock { height, reply_to },
+                    |reply_to| HostMsg::GetDecidedValue { height, reply_to },
                     myself,
-                    move |block| Msg::<Ctx>::GotDecidedBlock(request_id, height, block),
+                    move |synced_value| {
+                        Msg::<Ctx>::GotDecidedBlock(request_id, height, synced_value)
+                    },
                     None,
                 )?;
             }
@@ -302,7 +304,7 @@ where
             }
         }
 
-        Ok(blocksync::Resume::default())
+        Ok(sync::Resume::default())
     }
 
     async fn handle_msg(
@@ -315,7 +317,7 @@ where
             Msg::RequestVoteSet(height, round) => {
                 debug!(%height, %round, "Make a vote set request to one of the peers");
 
-                self.process_input(&myself, state, blocksync::Input::GetVoteSet(height, round))
+                self.process_input(&myself, state, sync::Input::GetVoteSet(height, round))
                     .await?;
             }
 
@@ -323,42 +325,42 @@ where
                 self.process_input(
                     &myself,
                     state,
-                    blocksync::Input::GotVoteSet(request_id, height, round),
+                    sync::Input::GotVoteSet(request_id, height, round),
                 )
                 .await?;
             }
 
             Msg::Tick => {
-                self.process_input(&myself, state, blocksync::Input::Tick)
+                self.process_input(&myself, state, sync::Input::Tick)
                     .await?;
             }
 
             Msg::GossipEvent(GossipEvent::PeerDisconnected(peer_id)) => {
                 info!(%peer_id, "Disconnected from peer");
 
-                if state.blocksync.peers.remove(&peer_id).is_some() {
+                if state.sync.peers.remove(&peer_id).is_some() {
                     debug!(%peer_id, "Removed disconnected peer");
                 }
             }
 
             Msg::GossipEvent(GossipEvent::Status(peer_id, status)) => {
-                let status = blocksync::Status {
+                let status = sync::Status {
                     peer_id,
                     height: status.height,
-                    earliest_block_height: status.earliest_block_height,
+                    history_min_height: status.history_min_height,
                 };
 
-                self.process_input(&myself, state, blocksync::Input::Status(status))
+                self.process_input(&myself, state, sync::Input::Status(status))
                     .await?;
             }
 
             Msg::GossipEvent(GossipEvent::Request(request_id, from, request)) => {
                 match request {
-                    Request::BlockRequest(block_request) => {
+                    Request::ValueRequest(value_request) => {
                         self.process_input(
                             &myself,
                             state,
-                            blocksync::Input::BlockRequest(request_id, from, block_request),
+                            sync::Input::ValueRequest(request_id, from, value_request),
                         )
                         .await?;
                     }
@@ -366,7 +368,7 @@ where
                         self.process_input(
                             &myself,
                             state,
-                            blocksync::Input::VoteSetRequest(request_id, from, vote_set_request),
+                            sync::Input::VoteSetRequest(request_id, from, vote_set_request),
                         )
                         .await?;
                     }
@@ -378,11 +380,11 @@ where
                 state.timers.cancel(&Timeout::Request(request_id.clone()));
 
                 match response {
-                    Response::BlockResponse(block_response) => {
+                    Response::ValueResponse(value_response) => {
                         self.process_input(
                             &myself,
                             state,
-                            blocksync::Input::BlockResponse(request_id, peer, block_response),
+                            sync::Input::ValueResponse(request_id, peer, value_response),
                         )
                         .await?;
                     }
@@ -390,7 +392,7 @@ where
                         self.process_input(
                             &myself,
                             state,
-                            blocksync::Input::VoteSetResponse(request_id, peer, vote_set_response),
+                            sync::Input::VoteSetResponse(request_id, peer, vote_set_response),
                         )
                         .await?;
                     }
@@ -402,17 +404,17 @@ where
             }
 
             Msg::Decided(height) => {
-                self.process_input(&myself, state, blocksync::Input::UpdateHeight(height))
+                self.process_input(&myself, state, sync::Input::UpdateHeight(height))
                     .await?;
             }
 
             Msg::StartedHeight(height) => {
                 if let Some(height) = height.decrement() {
-                    self.process_input(&myself, state, blocksync::Input::UpdateHeight(height))
+                    self.process_input(&myself, state, sync::Input::UpdateHeight(height))
                         .await?;
                 }
 
-                self.process_input(&myself, state, blocksync::Input::StartHeight(height))
+                self.process_input(&myself, state, sync::Input::StartHeight(height))
                     .await?;
             }
 
@@ -420,7 +422,7 @@ where
                 self.process_input(
                     &myself,
                     state,
-                    blocksync::Input::GotBlock(request_id, height, block),
+                    sync::Input::GotDecidedValue(request_id, height, block),
                 )
                 .await?;
             }
@@ -429,7 +431,7 @@ where
                 self.process_input(
                     &myself,
                     state,
-                    blocksync::Input::InvalidCertificate(peer, certificate, error),
+                    sync::Input::InvalidCertificate(peer, certificate, error),
                 )
                 .await?
             }
@@ -448,7 +450,7 @@ where
                             self.process_input(
                                 &myself,
                                 state,
-                                blocksync::Input::SyncRequestTimedOut(
+                                sync::Input::SyncRequestTimedOut(
                                     inflight.peer_id,
                                     inflight.request,
                                 ),
@@ -467,7 +469,7 @@ where
 }
 
 #[async_trait]
-impl<Ctx> Actor for BlockSync<Ctx>
+impl<Ctx> Actor for Sync<Ctx>
 where
     Ctx: Context,
 {
@@ -492,14 +494,14 @@ where
         let rng = Box::new(rand::rngs::StdRng::from_entropy());
 
         Ok(State {
-            blocksync: blocksync::State::new(rng, args.initial_height),
+            sync: sync::State::new(rng, args.initial_height),
             timers: Timers::new(myself.clone()),
             inflight: HashMap::new(),
             ticker,
         })
     }
 
-    #[tracing::instrument(name = "blocksync", parent = &self.span, skip_all)]
+    #[tracing::instrument(name = "sync", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         myself: ActorRef<Self::Msg>,

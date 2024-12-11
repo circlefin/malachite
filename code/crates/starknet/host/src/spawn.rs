@@ -6,15 +6,13 @@ use malachite_actors::util::events::TxEvent;
 use malachite_actors::wal::{Wal, WalRef};
 use tokio::task::JoinHandle;
 
-use malachite_actors::block_sync::{BlockSync, BlockSyncRef, Params as BlockSyncParams};
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::host::HostRef;
 use malachite_actors::node::{Node, NodeRef};
-use malachite_blocksync as blocksync;
+use malachite_actors::sync::{Params as SyncParams, Sync, SyncRef};
 use malachite_config::{
-    self as config, BlockSyncConfig, Config as NodeConfig, MempoolConfig, TestConfig,
-    TransportProtocol,
+    self as config, Config as NodeConfig, MempoolConfig, SyncConfig, TestConfig, TransportProtocol,
 };
 use malachite_consensus::ValuePayload;
 use malachite_gossip_consensus::{
@@ -22,6 +20,7 @@ use malachite_gossip_consensus::{
 };
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
+use malachite_sync as sync;
 use malachite_test_mempool::Config as GossipMempoolConfig;
 
 use crate::actor::Host;
@@ -70,11 +69,11 @@ pub async fn spawn_node_actor(
     )
     .await;
 
-    let block_sync = spawn_block_sync_actor(
+    let sync = spawn_sync_actor(
         ctx.clone(),
         gossip_consensus.clone(),
         host.clone(),
-        &cfg.blocksync,
+        &cfg.sync,
         start_height,
         &registry,
         &span,
@@ -93,7 +92,7 @@ pub async fn spawn_node_actor(
         gossip_consensus.clone(),
         host.clone(),
         wal.clone(),
-        block_sync.clone(),
+        sync.clone(),
         metrics,
         tx_event,
         &span,
@@ -106,7 +105,7 @@ pub async fn spawn_node_actor(
         gossip_consensus,
         consensus,
         wal,
-        block_sync,
+        sync,
         mempool.get_cell(),
         host,
         start_height,
@@ -134,27 +133,28 @@ async fn spawn_wal_actor(
         .unwrap()
 }
 
-async fn spawn_block_sync_actor(
+async fn spawn_sync_actor(
     ctx: MockContext,
     gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
-    config: &BlockSyncConfig,
+    config: &SyncConfig,
     initial_height: Height,
     registry: &SharedRegistry,
     span: &tracing::Span,
-) -> Option<BlockSyncRef<MockContext>> {
+) -> Option<SyncRef<MockContext>> {
     if !config.enabled {
         return None;
     }
 
-    let params = BlockSyncParams {
+    let params = SyncParams {
         status_update_interval: config.status_update_interval,
         request_timeout: config.request_timeout,
     };
 
-    let metrics = blocksync::Metrics::register(registry);
-    let block_sync = BlockSync::new(ctx, gossip_consensus, host, params, metrics, span.clone());
-    let actor_ref = block_sync.spawn(initial_height).await.unwrap();
+    let metrics = sync::Metrics::register(registry);
+    let sync = Sync::new(ctx, gossip_consensus, host, params, metrics, span.clone());
+    let actor_ref = sync.spawn(initial_height).await.unwrap();
+
     Some(actor_ref)
 }
 
@@ -168,7 +168,7 @@ async fn spawn_consensus_actor(
     gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
     wal: WalRef<MockContext>,
-    block_sync: Option<BlockSyncRef<MockContext>>,
+    sync: Option<SyncRef<MockContext>>,
     metrics: Metrics,
     tx_event: TxEvent<MockContext>,
     span: &tracing::Span,
@@ -194,7 +194,7 @@ async fn spawn_consensus_actor(
         gossip_consensus,
         host,
         wal,
-        block_sync,
+        sync,
         metrics,
         tx_event,
         span.clone(),

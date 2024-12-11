@@ -30,10 +30,10 @@ where
     TimeoutElapsed(Timeout),
 
     /// Received the full proposed value corresponding to a proposal.
-    /// The origin denotes whether the value was received via consensus or BlockSync.
+    /// The origin denotes whether the value was received via consensus or Sync.
     ProposedValue(ProposedValue<Ctx>, ValueOrigin),
 
-    /// Received a commit certificate from BlockSync
+    /// Received a commit certificate from Sync
     CommitCertificate(CommitCertificate<Ctx>),
 
     /// Peer needs vote set

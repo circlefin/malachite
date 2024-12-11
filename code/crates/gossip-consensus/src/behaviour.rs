@@ -9,9 +9,9 @@ use libp2p_broadcast as broadcast;
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
-use malachite_blocksync as blocksync;
 use malachite_discovery as discovery;
 use malachite_metrics::Registry;
+use malachite_sync as sync;
 
 use crate::{Config, GossipSubConfig, PROTOCOL};
 
@@ -21,7 +21,7 @@ pub enum NetworkEvent {
     Ping(ping::Event),
     GossipSub(gossipsub::Event),
     Broadcast(broadcast::Event),
-    BlockSync(blocksync::Event),
+    Sync(sync::Event),
     Discovery(discovery::NetworkEvent),
 }
 
@@ -49,9 +49,9 @@ impl From<broadcast::Event> for NetworkEvent {
     }
 }
 
-impl From<blocksync::Event> for NetworkEvent {
-    fn from(event: blocksync::Event) -> Self {
-        Self::BlockSync(event)
+impl From<sync::Event> for NetworkEvent {
+    fn from(event: sync::Event) -> Self {
+        Self::Sync(event)
     }
 }
 
@@ -68,7 +68,7 @@ pub struct Behaviour {
     pub ping: ping::Behaviour,
     pub gossipsub: gossipsub::Behaviour,
     pub broadcast: broadcast::Behaviour,
-    pub blocksync: blocksync::Behaviour,
+    pub sync: sync::Behaviour,
     pub discovery: discovery::Behaviour,
 }
 
@@ -159,9 +159,9 @@ impl Behaviour {
             registry.sub_registry_with_prefix("broadcast"),
         );
 
-        let blocksync = blocksync::Behaviour::new_with_metrics(
-            blocksync::Config::default().with_max_response_size(config.rpc_max_size),
-            registry.sub_registry_with_prefix("blocksync"),
+        let sync = sync::Behaviour::new_with_metrics(
+            sync::Config::default().with_max_response_size(config.rpc_max_size),
+            registry.sub_registry_with_prefix("sync"),
         );
 
         let discovery = discovery::Behaviour::new(keypair, config.discovery.enabled);
@@ -171,7 +171,7 @@ impl Behaviour {
             ping,
             gossipsub,
             broadcast,
-            blocksync,
+            sync,
             discovery,
         }
     }

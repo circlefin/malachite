@@ -173,7 +173,7 @@ where
                 consensus_ref.cast(rx.await?.into())?;
             }
 
-            HostMsg::GetDecidedBlock { height, reply_to } => {
+            HostMsg::GetDecidedValue { height, reply_to } => {
                 let (tx, rx) = oneshot::channel();
 
                 self.sender
@@ -186,21 +186,21 @@ where
                 reply_to.send(rx.await?)?;
             }
 
-            HostMsg::ProcessSyncedBlock {
+            HostMsg::ProcessSyncedValue {
                 height,
                 round,
                 validator_address,
-                block_bytes,
+                value_bytes,
                 reply_to,
             } => {
                 let (tx, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::ProcessSyncedBlock {
+                    .send(AppMsg::ProcessSyncedValue {
                         height,
                         round,
                         validator_address,
-                        block_bytes,
+                        value_bytes,
                         reply_to: tx,
                     })
                     .await?;

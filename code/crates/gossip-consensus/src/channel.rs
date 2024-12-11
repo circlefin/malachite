@@ -8,16 +8,12 @@ use serde::{Deserialize, Serialize};
 pub enum Channel {
     Consensus,
     ProposalParts,
-    BlockSync,
+    Sync,
 }
 
 impl Channel {
     pub fn all() -> &'static [Channel] {
-        &[
-            Channel::Consensus,
-            Channel::ProposalParts,
-            Channel::BlockSync,
-        ]
+        &[Channel::Consensus, Channel::ProposalParts, Channel::Sync]
     }
 
     pub fn consensus() -> &'static [Channel] {
@@ -36,7 +32,7 @@ impl Channel {
         match self {
             Channel::Consensus => "/consensus",
             Channel::ProposalParts => "/proposal_parts",
-            Channel::BlockSync => "/block_sync",
+            Channel::Sync => "/sync",
         }
     }
 
@@ -56,7 +52,7 @@ impl Channel {
         match topic.as_str() {
             "/consensus" => Some(Channel::Consensus),
             "/proposal_parts" => Some(Channel::ProposalParts),
-            "/block_sync" => Some(Channel::BlockSync),
+            "/sync" => Some(Channel::Sync),
             _ => None,
         }
     }
@@ -65,7 +61,7 @@ impl Channel {
         match topic.as_ref() {
             b"/consensus" => Some(Channel::Consensus),
             b"/proposal_parts" => Some(Channel::ProposalParts),
-            b"/block_sync" => Some(Channel::BlockSync),
+            b"/sync" => Some(Channel::Sync),
             _ => None,
         }
     }

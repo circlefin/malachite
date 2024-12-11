@@ -7,11 +7,11 @@ use malachite_metrics::prometheus::metrics::counter::Counter;
 use malachite_metrics::prometheus::metrics::histogram::{exponential_buckets, Histogram};
 use malachite_metrics::SharedRegistry;
 
-pub type DecidedBlocksMetrics = Inner;
+pub type DecidedValuesMetrics = Inner;
 pub type VoteSetMetrics = Inner;
 
 #[derive(Clone, Debug)]
-pub struct Metrics(Arc<(DecidedBlocksMetrics, VoteSetMetrics)>);
+pub struct Metrics(Arc<(DecidedValuesMetrics, VoteSetMetrics)>);
 
 impl Deref for Metrics {
     type Target = (Inner, Inner);
@@ -60,12 +60,12 @@ impl Default for Inner {
 impl Metrics {
     pub fn new() -> Self {
         Self(Arc::new((
-            DecidedBlocksMetrics::new(),
+            DecidedValuesMetrics::new(),
             VoteSetMetrics::new(),
         )))
     }
 
-    fn decided_blocks(&self) -> &DecidedBlocksMetrics {
+    fn decided_values(&self) -> &DecidedValuesMetrics {
         &self.0 .0
     }
 
@@ -76,72 +76,72 @@ impl Metrics {
     pub fn register(registry: &SharedRegistry) -> Self {
         let metrics = Self::new();
 
-        registry.with_prefix("malachite_blocksync", |registry| {
-            // Block sync related metrics
+        registry.with_prefix("malachite_sync", |registry| {
+            // Value sync related metrics
             registry.register(
-                "block_requests_sent",
-                "Number of BlockSync requests sent",
-                metrics.decided_blocks().requests_sent.clone(),
+                "value_requests_sent",
+                "Number of ValueSync requests sent",
+                metrics.decided_values().requests_sent.clone(),
             );
 
             registry.register(
-                "block_requests_received",
-                "Number of BlockSync requests received",
-                metrics.decided_blocks().requests_received.clone(),
+                "value_requests_received",
+                "Number of ValueSync requests received",
+                metrics.decided_values().requests_received.clone(),
             );
 
             registry.register(
-                "block_responses_sent",
-                "Number of BlockSync responses sent",
-                metrics.decided_blocks().responses_sent.clone(),
+                "value_responses_sent",
+                "Number of ValueSync responses sent",
+                metrics.decided_values().responses_sent.clone(),
             );
 
             registry.register(
-                "block_responses_received",
-                "Number of BlockSync responses received",
-                metrics.decided_blocks().responses_received.clone(),
+                "value_responses_received",
+                "Number of ValueSync responses received",
+                metrics.decided_values().responses_received.clone(),
             );
 
             registry.register(
-                "block_client_latency",
+                "value_client_latency",
                 "Interval of time between when request was sent and response was received",
-                metrics.decided_blocks().client_latency.clone(),
+                metrics.decided_values().client_latency.clone(),
             );
 
             registry.register(
-                "block_server_latency",
+                "value_server_latency",
                 "Interval of time between when request was received and response was sent",
-                metrics.decided_blocks().server_latency.clone(),
+                metrics.decided_values().server_latency.clone(),
             );
 
             registry.register(
-                "block_request_timeouts",
-                "Number of BlockSync request timeouts",
-                metrics.decided_blocks().request_timeouts.clone(),
+                "value_request_timeouts",
+                "Number of ValueSync request timeouts",
+                metrics.decided_values().request_timeouts.clone(),
             );
 
             registry.register(
                 "vote_set_requests_sent",
-                "Number of BlockSync requests sent",
-                metrics.decided_blocks().requests_sent.clone(),
+                "Number of ValueSync requests sent",
+                metrics.decided_values().requests_sent.clone(),
             );
 
             // Vote set sync related metrics
             registry.register(
                 "vote_set_requests_received",
-                "Number of BlockSync requests received",
+                "Number of VoteSet requests received",
                 metrics.vote_set().requests_received.clone(),
             );
 
             registry.register(
                 "vote_set_responses_sent",
-                "Number of BlockSync responses sent",
+                "Number of VoteSet responses sent",
                 metrics.vote_set().responses_sent.clone(),
             );
 
             registry.register(
                 "vote_set_responses_received",
-                "Number of BlockSync responses received",
+                "Number of VoteSet responses received",
                 metrics.vote_set().responses_received.clone(),
             );
 
@@ -159,7 +159,7 @@ impl Metrics {
 
             registry.register(
                 "vote_set_timeouts",
-                "Number of BlockSync request timeouts",
+                "Number of VoteSet request timeouts",
                 metrics.vote_set().request_timeouts.clone(),
             );
         });
@@ -167,51 +167,51 @@ impl Metrics {
         metrics
     }
 
-    pub fn decided_block_request_sent(&self, height: u64) {
-        self.decided_blocks().requests_sent.inc();
-        self.decided_blocks()
+    pub fn decided_value_request_sent(&self, height: u64) {
+        self.decided_values().requests_sent.inc();
+        self.decided_values()
             .instant_request_sent
             .insert((height, -1), Instant::now());
     }
 
-    pub fn decided_block_request_received(&self, height: u64) {
-        self.decided_blocks().requests_received.inc();
-        self.decided_blocks()
+    pub fn decided_value_request_received(&self, height: u64) {
+        self.decided_values().requests_received.inc();
+        self.decided_values()
             .instant_request_received
             .insert((height, -1), Instant::now());
     }
 
-    pub fn decided_block_response_sent(&self, height: u64) {
-        self.decided_blocks().responses_sent.inc();
+    pub fn decided_value_response_sent(&self, height: u64) {
+        self.decided_values().responses_sent.inc();
 
         if let Some((_, instant)) = self
-            .decided_blocks()
+            .decided_values()
             .instant_request_received
             .remove(&(height, -1))
         {
-            self.decided_blocks()
+            self.decided_values()
                 .server_latency
                 .observe(instant.elapsed().as_secs_f64());
         }
     }
 
-    pub fn decided_block_response_received(&self, height: u64) {
-        self.decided_blocks().responses_received.inc();
+    pub fn decided_value_response_received(&self, height: u64) {
+        self.decided_values().responses_received.inc();
 
         if let Some((_, instant)) = self
-            .decided_blocks()
+            .decided_values()
             .instant_request_sent
             .remove(&(height, -1))
         {
-            self.decided_blocks()
+            self.decided_values()
                 .client_latency
                 .observe(instant.elapsed().as_secs_f64());
         }
     }
 
-    pub fn decided_block_request_timed_out(&self, height: u64) {
-        self.decided_blocks().request_timeouts.inc();
-        self.decided_blocks()
+    pub fn decided_value_request_timed_out(&self, height: u64) {
+        self.decided_values().request_timeouts.inc();
+        self.decided_values()
             .instant_request_sent
             .remove(&(height, 0));
     }

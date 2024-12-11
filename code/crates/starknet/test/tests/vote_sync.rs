@@ -3,7 +3,7 @@ use std::time::Duration;
 use malachite_config::ValuePayload;
 use malachite_starknet_test::{init_logging, TestBuilder, TestParams};
 
-// NOTE: These tests are very similar to the BlockSync tests, with the difference that
+// NOTE: These tests are very similar to the Sync tests, with the difference that
 //       all nodes have the same voting power and therefore get stuck when one of them dies.
 
 pub async fn crash_restart_from_start(params: TestParams) {
@@ -22,7 +22,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .wait_until(4)
         // ...then kill it
         .crash()
-        // Reset the database so that the node has to do BlockSync from height 1
+        // Reset the database so that the node has to do Sync from height 1
         .reset_db()
         // After that, it waits 5 seconds before restarting the node
         .restart_after(Duration::from_secs(5))
@@ -37,7 +37,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .run_with_custom_config(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
-                enable_blocksync: true, // Enable BlockSync
+                enable_sync: true, // Enable Sync
                 timeout_step: Duration::from_secs(5),
                 ..params
             },
@@ -100,7 +100,7 @@ pub async fn crash_restart_from_latest() {
         .run_with_custom_config(
             Duration::from_secs(60),
             TestParams {
-                enable_blocksync: true,
+                enable_sync: true,
                 timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },
@@ -128,7 +128,7 @@ pub async fn start_late() {
         .run_with_custom_config(
             Duration::from_secs(60),
             TestParams {
-                enable_blocksync: true,
+                enable_sync: true,
                 timeout_step: Duration::from_secs(5),
                 ..Default::default()
             },

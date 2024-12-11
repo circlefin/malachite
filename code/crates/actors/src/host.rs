@@ -4,9 +4,9 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachite_blocksync::SyncedBlock;
 use malachite_common::{CommitCertificate, Context, Round, SignedExtension, ValueId};
 use malachite_consensus::PeerId;
+use malachite_sync::DecidedValue;
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
@@ -98,17 +98,17 @@ pub enum HostMsg<Ctx: Context> {
     },
 
     // Retrieve decided block from the block store
-    GetDecidedBlock {
+    GetDecidedValue {
         height: Ctx::Height,
-        reply_to: RpcReplyPort<Option<SyncedBlock<Ctx>>>,
+        reply_to: RpcReplyPort<Option<DecidedValue<Ctx>>>,
     },
 
     // Synced block
-    ProcessSyncedBlock {
+    ProcessSyncedValue {
         height: Ctx::Height,
         round: Round,
         validator_address: Ctx::Address,
-        block_bytes: Bytes,
+        value_bytes: Bytes,
         reply_to: RpcReplyPort<ProposedValue<Ctx>>,
     },
 }

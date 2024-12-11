@@ -3,15 +3,12 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::eyre;
-use malachite_blocksync::InboundRequestId;
+use malachite_sync::InboundRequestId;
 
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
-use malachite_blocksync::{
-    self as blocksync, BlockResponse, Response, VoteSetRequest, VoteSetResponse,
-};
 use malachite_codec as codec;
 use malachite_common::{
     Context, Round, SignedExtension, Timeout, TimeoutKind, ValidatorSet, ValueOrigin,
@@ -19,11 +16,12 @@ use malachite_common::{
 use malachite_config::TimeoutConfig;
 use malachite_consensus::{Effect, PeerId, Resume, SignedConsensusMsg, ValueToPropose};
 use malachite_metrics::Metrics;
+use malachite_sync::{self as sync, Response, ValueResponse, VoteSetRequest, VoteSetResponse};
 
-use crate::block_sync::BlockSyncRef;
-use crate::block_sync::Msg as BlockSyncMsg;
 use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg, Status};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
+use crate::sync::Msg as SyncMsg;
+use crate::sync::SyncRef;
 use crate::util::events::{Event, TxEvent};
 use crate::util::forward::forward;
 use crate::util::streaming::StreamMessage;
@@ -70,7 +68,7 @@ where
     gossip_consensus: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
-    block_sync: Option<BlockSyncRef<Ctx>>,
+    sync: Option<SyncRef<Ctx>>,
     metrics: Metrics,
     tx_event: TxEvent<Ctx>,
     span: tracing::Span,
@@ -190,7 +188,7 @@ where
         gossip_consensus: GossipConsensusRef<Ctx>,
         host: HostRef<Ctx>,
         wal: WalRef<Ctx>,
-        block_sync: Option<BlockSyncRef<Ctx>>,
+        sync: Option<SyncRef<Ctx>>,
         metrics: Metrics,
         tx_event: TxEvent<Ctx>,
         span: tracing::Span,
@@ -202,7 +200,7 @@ where
             gossip_consensus,
             host,
             wal,
-            block_sync,
+            sync,
             metrics,
             tx_event,
             span,
@@ -259,10 +257,10 @@ where
                     error!(%height, "Error when starting height: {e}");
                 }
 
-                // Notify the BlockSync actor that we have started a new height
-                if let Some(block_sync) = &self.block_sync {
-                    if let Err(e) = block_sync.cast(BlockSyncMsg::StartedHeight(height)) {
-                        error!(%height, "Error when notifying BlockSync of started height: {e}")
+                // Notify the sync actor that we have started a new height
+                if let Some(sync) = &self.sync {
+                    if let Err(e) = sync.cast(SyncMsg::StartedHeight(height)) {
+                        error!(%height, "Error when notifying sync of started height: {e}")
                     }
                 }
 
@@ -337,26 +335,26 @@ where
                     GossipEvent::Response(
                         request_id,
                         peer,
-                        blocksync::Response::BlockResponse(BlockResponse { height, block }),
+                        sync::Response::ValueResponse(ValueResponse { height, value }),
                     ) => {
-                        debug!(%height, %request_id, "Received BlockSync response");
+                        debug!(%height, %request_id, "Received sync response");
 
-                        let Some(block) = block else {
-                            error!(%height, %request_id, "Received empty block sync response");
+                        let Some(value) = value else {
+                            error!(%height, %request_id, "Received empty value sync response");
                             return Ok(());
                         };
 
                         self.host.call_and_forward(
-                            |reply_to| HostMsg::ProcessSyncedBlock {
-                                height: block.certificate.height,
-                                round: block.certificate.round,
+                            |reply_to| HostMsg::ProcessSyncedValue {
+                                height: value.certificate.height,
+                                round: value.certificate.round,
                                 validator_address: state.consensus.address().clone(),
-                                block_bytes: block.block_bytes.clone(),
+                                value_bytes: value.value_bytes.clone(),
                                 reply_to,
                             },
                             &myself,
                             |proposed| {
-                                Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::BlockSync)
+                                Msg::<Ctx>::ReceivedProposedValue(proposed, ValueOrigin::Sync)
                             },
                             None,
                         )?;
@@ -365,23 +363,22 @@ where
                             .process_input(
                                 &myself,
                                 state,
-                                ConsensusInput::CommitCertificate(block.certificate),
+                                ConsensusInput::CommitCertificate(value.certificate),
                             )
                             .await
                         {
                             error!(%height, %request_id, "Error when processing received synced block: {e}");
 
-                            let Some(block_sync) = self.block_sync.as_ref() else {
-                                warn!("Received BlockSync response but BlockSync actor is not available");
+                            let Some(sync) = self.sync.as_ref() else {
+                                warn!("Received sync response but sync actor is not available");
                                 return Ok(());
                             };
 
                             if let ConsensusError::InvalidCertificate(certificate, e) = e {
-                                block_sync
-                                    .cast(BlockSyncMsg::InvalidCertificate(peer, certificate, e))
+                                sync.cast(SyncMsg::InvalidCertificate(peer, certificate, e))
                                     .map_err(|e| {
                                         eyre!(
-                                            "Error when notifying BlockSync of invalid certificate: {e}"
+                                            "Error when notifying sync of invalid certificate: {e}"
                                         )
                                     })?;
                             }
@@ -391,7 +388,7 @@ where
                     GossipEvent::Request(
                         request_id,
                         peer,
-                        blocksync::Request::VoteSetRequest(VoteSetRequest { height, round }),
+                        sync::Request::VoteSetRequest(VoteSetRequest { height, round }),
                     ) => {
                         debug!(%height, %round, %request_id, %peer, "Received vote set request");
 
@@ -414,7 +411,7 @@ where
                     GossipEvent::Response(
                         request_id,
                         peer,
-                        blocksync::Response::VoteSetResponse(VoteSetResponse {
+                        sync::Response::VoteSetResponse(VoteSetResponse {
                             height,
                             round,
                             vote_set,
@@ -537,8 +534,8 @@ where
             }
 
             Msg::GetStatus(reply_to) => {
-                let earliest_block_height = self.get_earliest_block_height().await?;
-                let status = Status::new(state.consensus.driver.height(), earliest_block_height);
+                let history_min_height = self.get_history_min_height().await?;
+                let status = Status::new(state.consensus.driver.height(), history_min_height);
 
                 if let Err(e) = reply_to.send(status) {
                     error!("Error when replying to GetStatus message: {e}");
@@ -705,7 +702,7 @@ where
         Ok(validator_set)
     }
 
-    async fn get_earliest_block_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
+    async fn get_history_min_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
         ractor::call!(self.host, |reply_to| HostMsg::GetEarliestBlockHeight {
             reply_to
         })
@@ -886,26 +883,20 @@ where
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
-                if let Some(block_sync) = &self.block_sync {
-                    block_sync
-                        .cast(BlockSyncMsg::Decided(height))
-                        .map_err(|e| {
-                            eyre!("Error when sending decided height to blocksync: {e:?}")
-                        })?;
+                if let Some(sync) = &self.sync {
+                    sync.cast(SyncMsg::Decided(height))
+                        .map_err(|e| eyre!("Error when sending decided height to sync: {e:?}"))?;
                 }
 
                 Ok(Resume::Continue)
             }
 
             Effect::GetVoteSet(height, round) => {
-                debug!(%height, %round, "Request blocksync to obtain the vote set from peers");
+                debug!(%height, %round, "Request sync to obtain the vote set from peers");
 
-                if let Some(block_sync) = &self.block_sync {
-                    block_sync
-                        .cast(BlockSyncMsg::RequestVoteSet(height, round))
-                        .map_err(|e| {
-                            eyre!("Error when sending vote set request to blocksync: {e:?}")
-                        })?;
+                if let Some(sync) = &self.sync {
+                    sync.cast(SyncMsg::RequestVoteSet(height, round))
+                        .map_err(|e| eyre!("Error when sending vote set request to sync: {e:?}"))?;
                 }
 
                 self.tx_event
@@ -932,9 +923,8 @@ where
                         response,
                     ))?;
 
-                if let Some(block_sync) = &self.block_sync {
-                    block_sync
-                        .cast(BlockSyncMsg::SentVoteSetResponse(request_id, height, round))
+                if let Some(sync) = &self.sync {
+                    sync.cast(SyncMsg::SentVoteSetResponse(request_id, height, round))
                         .map_err(|e| {
                             eyre!("Error when notifying Sync about vote set response: {e:?}")
                         })?;

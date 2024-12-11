@@ -23,12 +23,12 @@ pub mod streaming {
 }
 
 pub mod sync {
-    pub use malachite_blocksync::{Metrics, Request, Response, Status, SyncedBlock};
+    pub use malachite_sync::{DecidedValue, Metrics, Request, Response, Status};
 }
 
 pub mod codec {
-    pub use malachite_actors::block_sync::BlockSyncCodec;
     pub use malachite_actors::consensus::ConsensusCodec;
+    pub use malachite_actors::sync::SyncCodec;
     pub use malachite_actors::wal::WalCodec;
     pub use malachite_codec::Codec;
 }

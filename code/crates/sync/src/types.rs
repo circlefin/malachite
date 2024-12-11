@@ -35,47 +35,47 @@ pub type ResponseChannel = request_response::ResponseChannel<RawResponse>;
 pub struct Status<Ctx: Context> {
     pub peer_id: PeerId,
     pub height: Ctx::Height,
-    pub earliest_block_height: Ctx::Height,
+    pub history_min_height: Ctx::Height,
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum Request<Ctx: Context> {
-    BlockRequest(BlockRequest<Ctx>),
+    ValueRequest(ValueRequest<Ctx>),
     VoteSetRequest(VoteSetRequest<Ctx>),
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
 pub enum Response<Ctx: Context> {
-    BlockResponse(BlockResponse<Ctx>),
+    ValueResponse(ValueResponse<Ctx>),
     VoteSetResponse(VoteSetResponse<Ctx>),
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct BlockRequest<Ctx: Context> {
+pub struct ValueRequest<Ctx: Context> {
     pub height: Ctx::Height,
 }
 
-impl<Ctx: Context> BlockRequest<Ctx> {
+impl<Ctx: Context> ValueRequest<Ctx> {
     pub fn new(height: Ctx::Height) -> Self {
         Self { height }
     }
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct BlockResponse<Ctx: Context> {
+pub struct ValueResponse<Ctx: Context> {
     pub height: Ctx::Height,
-    pub block: Option<SyncedBlock<Ctx>>,
+    pub value: Option<DecidedValue<Ctx>>,
 }
 
-impl<Ctx: Context> BlockResponse<Ctx> {
-    pub fn new(height: Ctx::Height, block: Option<SyncedBlock<Ctx>>) -> Self {
-        Self { height, block }
+impl<Ctx: Context> ValueResponse<Ctx> {
+    pub fn new(height: Ctx::Height, value: Option<DecidedValue<Ctx>>) -> Self {
+        Self { height, value }
     }
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub struct SyncedBlock<Ctx: Context> {
-    pub block_bytes: Bytes,
+pub struct DecidedValue<Ctx: Context> {
+    pub value_bytes: Bytes,
     pub certificate: CommitCertificate<Ctx>,
 }
 

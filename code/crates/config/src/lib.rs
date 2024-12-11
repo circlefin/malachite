@@ -29,8 +29,8 @@ pub struct Config {
     /// Mempool configuration options
     pub mempool: MempoolConfig,
 
-    /// BlockSync configuration options
-    pub blocksync: BlockSyncConfig,
+    /// Sync configuration options
+    pub sync: SyncConfig,
 
     /// Metrics configuration options
     pub metrics: MetricsConfig,
@@ -286,8 +286,8 @@ pub struct MempoolConfig {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct BlockSyncConfig {
-    /// Enable BlockSync
+pub struct SyncConfig {
+    /// Enable Sync
     pub enabled: bool,
 
     /// Interval at which to update other peers of our status
@@ -299,7 +299,7 @@ pub struct BlockSyncConfig {
     pub request_timeout: Duration,
 }
 
-impl Default for BlockSyncConfig {
+impl Default for SyncConfig {
     fn default() -> Self {
         Self {
             enabled: true,

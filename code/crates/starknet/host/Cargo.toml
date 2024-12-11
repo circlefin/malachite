@@ -8,19 +8,20 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-app.workspace                = true
 malachite-actors.workspace             = true
-malachite-blocksync.workspace          = true
+malachite-app.workspace                = true
 malachite-codec.workspace              = true
+malachite-common.workspace             = true
+malachite-config.workspace             = true
 malachite-consensus.workspace          = true
 malachite-gossip-consensus.workspace   = true
-malachite-common.workspace             = true
 malachite-metrics.workspace            = true
-malachite-config.workspace             = true
-malachite-test-mempool.workspace     = true
+malachite-node.workspace               = true
 malachite-proto.workspace              = true
-malachite-starknet-p2p-types.workspace = true
 malachite-starknet-p2p-proto.workspace = true
+malachite-starknet-p2p-types.workspace = true
+malachite-sync.workspace               = true
+malachite-test-mempool.workspace       = true
 
 bytes = { workspace = true, features = ["serde"] }
 

@@ -5,7 +5,7 @@ use eyre::Result;
 use tokio::sync::mpsc;
 
 use crate::app;
-use crate::app::types::codec::{BlockSyncCodec, ConsensusCodec, WalCodec};
+use crate::app::types::codec::{ConsensusCodec, SyncCodec, WalCodec};
 use crate::app::types::config::Config as NodeConfig;
 use crate::app::types::core::Context;
 use crate::app::types::metrics::{Metrics, SharedRegistry};
@@ -14,7 +14,7 @@ use crate::spawn::spawn_host_actor;
 
 use malachite_actors::util::events::TxEvent;
 use malachite_app::{
-    spawn_block_sync_actor, spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_wal_actor,
+    spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_sync_actor, spawn_wal_actor,
 };
 
 #[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
@@ -31,7 +31,7 @@ where
     Node: app::Node<Context = Ctx>,
     Codec: WalCodec<Ctx> + Clone,
     Codec: ConsensusCodec<Ctx>,
-    Codec: BlockSyncCodec<Ctx>,
+    Codec: SyncCodec<Ctx>,
 {
     let start_height = start_height.unwrap_or_default();
 
@@ -54,11 +54,11 @@ where
     // Spawn the host actor
     let (connector, rx) = spawn_host_actor(metrics.clone()).await?;
 
-    let block_sync = spawn_block_sync_actor(
+    let sync = spawn_sync_actor(
         ctx.clone(),
         gossip_consensus.clone(),
         connector.clone(),
-        &cfg.blocksync,
+        &cfg.sync,
         start_height,
         &registry,
     )
@@ -74,7 +74,7 @@ where
         gossip_consensus,
         connector,
         wal,
-        block_sync.clone(),
+        sync.clone(),
         metrics,
         TxEvent::new(),
     )

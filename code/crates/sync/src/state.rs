@@ -14,20 +14,20 @@ where
 {
     rng: Box<dyn rand::RngCore + Send>,
 
-    /// Height of last decided block
+    /// Height of last decided value
     pub tip_height: Ctx::Height,
 
     /// Height currently syncing.
     pub sync_height: Ctx::Height,
 
-    /// Decided block requests for these heights have been sent out to peers.
-    pub pending_decided_block_requests: BTreeMap<Ctx::Height, PeerId>,
+    /// Decided value requests for these heights have been sent out to peers.
+    pub pending_decided_value_requests: BTreeMap<Ctx::Height, PeerId>,
 
     /// Vote set requests for these heights and rounds have been sent out to peers.
     pub pending_vote_set_requests: BTreeMap<(Ctx::Height, Round), PeerId>,
 
-    /// The set of peers we are connected to in order to get blocks, certificates and votes.
-    /// TODO - For now block and vote sync peers are the same. Might need to revise in the future.
+    /// The set of peers we are connected to in order to get values, certificates and votes.
+    /// TODO - For now value and vote sync peers are the same. Might need to revise in the future.
     pub peers: BTreeMap<PeerId, Status<Ctx>>,
 }
 
@@ -42,7 +42,7 @@ where
             rng,
             tip_height,
             sync_height,
-            pending_decided_block_requests: BTreeMap::new(),
+            pending_decided_value_requests: BTreeMap::new(),
             pending_vote_set_requests: BTreeMap::new(),
             peers: BTreeMap::new(),
         }
@@ -61,11 +61,11 @@ where
             return None;
         };
 
-        self.random_peer_with_block(tip_height)
+        self.random_peer_with_value(tip_height)
     }
 
     /// Select at random a peer that that we know is at or above the given height.
-    pub fn random_peer_with_block(&mut self, height: Ctx::Height) -> Option<PeerId> {
+    pub fn random_peer_with_value(&mut self, height: Ctx::Height) -> Option<PeerId> {
         self.peers
             .iter()
             .filter_map(move |(&peer, status)| (status.height >= height).then_some(peer))
@@ -74,7 +74,7 @@ where
 
     /// Select at random a peer that that we know is at or above the given height,
     /// except the given one.
-    pub fn random_peer_with_block_except(
+    pub fn random_peer_with_value_except(
         &mut self,
         height: Ctx::Height,
         except: PeerId,
@@ -86,16 +86,16 @@ where
             .choose_stable(&mut self.rng)
     }
 
-    pub fn store_pending_decided_block_request(&mut self, height: Ctx::Height, peer: PeerId) {
-        self.pending_decided_block_requests.insert(height, peer);
+    pub fn store_pending_decided_value_request(&mut self, height: Ctx::Height, peer: PeerId) {
+        self.pending_decided_value_requests.insert(height, peer);
     }
 
-    pub fn remove_pending_decided_block_request(&mut self, height: Ctx::Height) {
-        self.pending_decided_block_requests.remove(&height);
+    pub fn remove_pending_decided_value_request(&mut self, height: Ctx::Height) {
+        self.pending_decided_value_requests.remove(&height);
     }
 
-    pub fn has_pending_decided_block_request(&self, height: &Ctx::Height) -> bool {
-        self.pending_decided_block_requests.contains_key(height)
+    pub fn has_pending_decided_value_request(&self, height: &Ctx::Height) -> bool {
+        self.pending_decided_value_requests.contains_key(height)
     }
     pub fn store_pending_vote_set_request(
         &mut self,

@@ -34,7 +34,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .wait_until(2)
         // ...and then kills it
         .crash()
-        // Reset the database so that the node has to do BlockSync from height 1
+        // Reset the database so that the node has to do Sync from height 1
         .reset_db()
         // After that, it waits 5 seconds before restarting the node
         .restart_after(Duration::from_secs(5))
@@ -47,7 +47,7 @@ pub async fn crash_restart_from_start(params: TestParams) {
         .run_with_custom_config(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
-                enable_blocksync: true, // Enable BlockSync
+                enable_sync: true, // Enable Sync
                 ..params
             },
         )
@@ -117,7 +117,7 @@ pub async fn crash_restart_from_latest() {
         .run_with_custom_config(
             Duration::from_secs(60),
             TestParams {
-                enable_blocksync: true,
+                enable_sync: true,
                 ..Default::default()
             },
         )
@@ -158,8 +158,8 @@ pub async fn aggressive_pruning() {
         .run_with_custom_config(
             Duration::from_secs(60), // Timeout for the whole test
             TestParams {
-                enable_blocksync: true, // Enable BlockSync
-                max_retain_blocks: 10,  // Prune blocks older than 10
+                enable_sync: true,     // Enable Sync
+                max_retain_blocks: 10, // Prune blocks older than 10
                 ..Default::default()
             },
         )
@@ -167,7 +167,7 @@ pub async fn aggressive_pruning() {
 }
 
 #[tokio::test]
-pub async fn blocksync_start_late() {
+pub async fn start_late() {
     const HEIGHT: u64 = 5;
 
     let mut test = TestBuilder::<()>::new();
@@ -194,7 +194,7 @@ pub async fn blocksync_start_late() {
         .run_with_custom_config(
             Duration::from_secs(30),
             TestParams {
-                enable_blocksync: true,
+                enable_sync: true,
                 ..Default::default()
             },
         )

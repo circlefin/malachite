@@ -16,9 +16,9 @@ use libp2p_broadcast as broadcast;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, error_span, trace, warn, Instrument};
 
-use malachite_blocksync::{self as blocksync};
 use malachite_discovery::{self as discovery};
 use malachite_metrics::SharedRegistry;
+use malachite_sync::{self as sync};
 
 pub use malachite_peer::PeerId;
 
@@ -119,9 +119,9 @@ pub enum TransportProtocol {
     Quic,
 }
 
-/// Blocksync event details:
+/// sync event details:
 ///
-/// peer1: blocksync               peer2: gossip_consensus       peer2: blocksync           peer1: gossip_consensus
+/// peer1: sync               peer2: gossip_consensus       peer2: sync           peer1: gossip_consensus
 ///                                                                or consensus
 /// CtrlMsg::SyncRequest       --> Event::Sync      -----------> CtrlMsg::SyncReply ------> Event::Sync
 /// (peer_id, height)             (RawMessage::Request           (request_id, height)       RawMessage::Response
@@ -136,7 +136,7 @@ pub enum Event {
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
     Message(Channel, PeerId, Bytes),
-    Sync(blocksync::RawMessage),
+    Sync(sync::RawMessage),
 }
 
 #[derive(Debug)]
@@ -150,14 +150,14 @@ pub enum CtrlMsg {
 
 #[derive(Debug)]
 pub struct State {
-    pub blocksync_channels: HashMap<InboundRequestId, blocksync::ResponseChannel>,
+    pub sync_channels: HashMap<InboundRequestId, sync::ResponseChannel>,
     pub discovery: discovery::Discovery<Behaviour>,
 }
 
 impl State {
     fn new(discovery: discovery::Discovery<Behaviour>) -> Self {
         Self {
-            blocksync_channels: Default::default(),
+            sync_channels: Default::default(),
             discovery,
         }
     }
@@ -231,8 +231,7 @@ async fn run(
         return;
     };
 
-    if let Err(e) = pubsub::subscribe(&mut swarm, PubSubProtocol::Broadcast, &[Channel::BlockSync])
-    {
+    if let Err(e) = pubsub::subscribe(&mut swarm, PubSubProtocol::Broadcast, &[Channel::Sync]) {
         error!("Error subscribing to Sync channel: {e}");
         return;
     };
@@ -309,7 +308,7 @@ async fn handle_ctrl_msg(
         CtrlMsg::SyncRequest(peer_id, request, reply_to) => {
             let request_id = swarm
                 .behaviour_mut()
-                .blocksync
+                .sync
                 .send_request(peer_id.to_libp2p(), request);
 
             if let Err(e) = reply_to.send(request_id) {
@@ -320,12 +319,12 @@ async fn handle_ctrl_msg(
         }
 
         CtrlMsg::SyncReply(request_id, data) => {
-            let Some(channel) = state.blocksync_channels.remove(&request_id) else {
+            let Some(channel) = state.sync_channels.remove(&request_id) else {
                 error!(%request_id, "Received Sync reply for unknown request ID");
                 return ControlFlow::Continue(());
             };
 
-            let result = swarm.behaviour_mut().blocksync.send_response(channel, data);
+            let result = swarm.behaviour_mut().sync.send_response(channel, data);
 
             match result {
                 Ok(()) => debug!(%request_id, "Replied to Sync request"),
@@ -476,8 +475,8 @@ async fn handle_swarm_event(
             return handle_broadcast_event(event, metrics, swarm, state, tx_event).await;
         }
 
-        SwarmEvent::Behaviour(NetworkEvent::BlockSync(event)) => {
-            return handle_blocksync_event(event, metrics, swarm, state, tx_event).await;
+        SwarmEvent::Behaviour(NetworkEvent::Sync(event)) => {
+            return handle_sync_event(event, metrics, swarm, state, tx_event).await;
         }
 
         SwarmEvent::Behaviour(NetworkEvent::Discovery(network_event)) => {
@@ -613,25 +612,25 @@ async fn handle_broadcast_event(
     ControlFlow::Continue(())
 }
 
-async fn handle_blocksync_event(
-    event: blocksync::Event,
+async fn handle_sync_event(
+    event: sync::Event,
     _metrics: &Metrics,
     _swarm: &mut swarm::Swarm<Behaviour>,
     state: &mut State,
     tx_event: &mpsc::Sender<Event>,
 ) -> ControlFlow<()> {
     match event {
-        blocksync::Event::Message { peer, message } => {
+        sync::Event::Message { peer, message } => {
             match message {
                 libp2p::request_response::Message::Request {
                     request_id,
                     request,
                     channel,
                 } => {
-                    state.blocksync_channels.insert(request_id, channel);
+                    state.sync_channels.insert(request_id, channel);
 
                     let _ = tx_event
-                        .send(Event::Sync(blocksync::RawMessage::Request {
+                        .send(Event::Sync(sync::RawMessage::Request {
                             request_id,
                             peer: PeerId::from_libp2p(&peer),
                             body: request.0,
@@ -647,7 +646,7 @@ async fn handle_blocksync_event(
                     response,
                 } => {
                     let _ = tx_event
-                        .send(Event::Sync(blocksync::RawMessage::Response {
+                        .send(Event::Sync(sync::RawMessage::Response {
                             request_id,
                             peer: PeerId::from_libp2p(&peer),
                             body: response.0,
@@ -661,13 +660,13 @@ async fn handle_blocksync_event(
             ControlFlow::Continue(())
         }
 
-        blocksync::Event::ResponseSent { peer, request_id } => {
+        sync::Event::ResponseSent { peer, request_id } => {
             // TODO
             let _ = (peer, request_id);
             ControlFlow::Continue(())
         }
 
-        blocksync::Event::OutboundFailure {
+        sync::Event::OutboundFailure {
             peer,
             request_id,
             error,
@@ -676,7 +675,7 @@ async fn handle_blocksync_event(
             ControlFlow::Continue(())
         }
 
-        blocksync::Event::InboundFailure {
+        sync::Event::InboundFailure {
             peer,
             request_id,
             error,

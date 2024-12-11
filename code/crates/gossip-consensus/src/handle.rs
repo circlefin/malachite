@@ -43,7 +43,7 @@ impl CtrlHandle {
         Ok(())
     }
 
-    pub async fn blocksync_request(
+    pub async fn sync_request(
         &self,
         peer_id: PeerId,
         data: Bytes,
@@ -57,7 +57,7 @@ impl CtrlHandle {
         Ok(rx.await?)
     }
 
-    pub async fn blocksync_reply(
+    pub async fn sync_reply(
         &self,
         request_id: InboundRequestId,
         data: Bytes,

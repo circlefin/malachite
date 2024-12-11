@@ -16,10 +16,10 @@ use malachite_actors::gossip_consensus::{
 };
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_blocksync::SyncedBlock;
 use malachite_common::{CommitCertificate, Round, Validity, ValueOrigin};
 use malachite_consensus::PeerId;
 use malachite_metrics::Metrics;
+use malachite_sync::DecidedValue;
 
 use crate::host::proposal::compute_proposal_signature;
 use crate::host::state::HostState;
@@ -124,7 +124,7 @@ impl Host {
             } => on_started_round(state, height, round, proposer).await,
 
             HostMsg::GetEarliestBlockHeight { reply_to } => {
-                on_get_earliest_block_height(state, reply_to)
+                on_get_history_min_height(state, reply_to)
             }
 
             HostMsg::GetValue {
@@ -169,17 +169,17 @@ impl Host {
                 consensus,
             } => on_decided(state, &consensus, &self.mempool, certificate, &self.metrics).await,
 
-            HostMsg::GetDecidedBlock { height, reply_to } => {
+            HostMsg::GetDecidedValue { height, reply_to } => {
                 on_get_decided_block(height, state, reply_to).await
             }
 
-            HostMsg::ProcessSyncedBlock {
+            HostMsg::ProcessSyncedValue {
                 height,
                 round,
                 validator_address,
-                block_bytes,
+                value_bytes,
                 reply_to,
-            } => on_process_synced_block(block_bytes, height, round, validator_address, reply_to),
+            } => on_process_synced_value(value_bytes, height, round, validator_address, reply_to),
         }
     }
 }
@@ -242,12 +242,12 @@ async fn on_started_round(
     Ok(())
 }
 
-fn on_get_earliest_block_height(
+fn on_get_history_min_height(
     state: &mut HostState,
     reply_to: RpcReplyPort<Height>,
 ) -> Result<(), ActorProcessingErr> {
-    let earliest_block_height = state.block_store.first_height().unwrap_or_default();
-    reply_to.send(earliest_block_height)?;
+    let history_min_height = state.block_store.first_height().unwrap_or_default();
+    reply_to.send(history_min_height)?;
 
     Ok(())
 }
@@ -417,14 +417,14 @@ async fn on_restream_value(
     Ok(())
 }
 
-fn on_process_synced_block(
-    block_bytes: Bytes,
+fn on_process_synced_value(
+    value_bytes: Bytes,
     height: Height,
     round: Round,
     validator_address: Address,
     reply_to: RpcReplyPort<ProposedValue<MockContext>>,
 ) -> Result<(), ActorProcessingErr> {
-    let maybe_block = Block::from_bytes(block_bytes.as_ref());
+    let maybe_block = Block::from_bytes(value_bytes.as_ref());
     if let Ok(block) = maybe_block {
         let proposed_value = ProposedValue {
             height,
@@ -445,7 +445,7 @@ fn on_process_synced_block(
 async fn on_get_decided_block(
     height: Height,
     state: &mut HostState,
-    reply_to: RpcReplyPort<Option<SyncedBlock<MockContext>>>,
+    reply_to: RpcReplyPort<Option<DecidedValue<MockContext>>>,
 ) -> Result<(), ActorProcessingErr> {
     debug!(%height, "Received request for block");
 
@@ -460,8 +460,8 @@ async fn on_get_decided_block(
         }
 
         Ok(Some(block)) => {
-            let block = SyncedBlock {
-                block_bytes: block.block.to_bytes().unwrap(),
+            let block = DecidedValue {
+                value_bytes: block.block.to_bytes().unwrap(),
                 certificate: block.certificate,
             };
 

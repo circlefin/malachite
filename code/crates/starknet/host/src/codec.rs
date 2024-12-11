@@ -2,14 +2,12 @@ use bytes::Bytes;
 use prost::Message;
 
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_blocksync::{
-    self as blocksync, BlockRequest, BlockResponse, VoteSetRequest, VoteSetResponse,
-};
 use malachite_codec::Codec;
 use malachite_common::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
     SignedProposal, SignedVote, Validity,
 };
+use malachite_sync::{self as sync, ValueRequest, ValueResponse, VoteSetRequest, VoteSetResponse};
 
 use malachite_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
 use malachite_starknet_p2p_proto::ConsensusMessage;
@@ -172,59 +170,59 @@ impl Codec<PeerId> for ProtobufCodec {
     }
 }
 
-pub fn decode_blocksync_status(
+pub fn decode_sync_status(
     status: proto::sync::Status,
-) -> Result<blocksync::Status<MockContext>, ProtoError> {
+) -> Result<sync::Status<MockContext>, ProtoError> {
     let peer_id = status
         .peer_id
         .ok_or_else(|| ProtoError::missing_field::<proto::sync::Status>("peer_id"))?;
 
-    Ok(blocksync::Status {
+    Ok(sync::Status {
         peer_id: decode_peer_id(peer_id)?,
         height: Height::new(status.block_number, status.fork_id),
-        earliest_block_height: Height::new(status.earliest_block_number, status.earliest_fork_id),
+        history_min_height: Height::new(status.earliest_block_number, status.earliest_fork_id),
     })
 }
 
-pub fn encode_blocksync_status(
-    status: &blocksync::Status<MockContext>,
+pub fn encode_sync_status(
+    status: &sync::Status<MockContext>,
 ) -> Result<proto::sync::Status, ProtoError> {
     Ok(proto::sync::Status {
         peer_id: Some(encode_peer_id(&status.peer_id)?),
         block_number: status.height.block_number,
         fork_id: status.height.fork_id,
-        earliest_block_number: status.earliest_block_height.block_number,
-        earliest_fork_id: status.earliest_block_height.fork_id,
+        earliest_block_number: status.history_min_height.block_number,
+        earliest_fork_id: status.history_min_height.fork_id,
     })
 }
 
-impl Codec<blocksync::Status<MockContext>> for ProtobufCodec {
+impl Codec<sync::Status<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
-    fn decode(&self, bytes: Bytes) -> Result<blocksync::Status<MockContext>, Self::Error> {
-        decode_blocksync_status(proto::sync::Status::decode(bytes)?)
+    fn decode(&self, bytes: Bytes) -> Result<sync::Status<MockContext>, Self::Error> {
+        decode_sync_status(proto::sync::Status::decode(bytes)?)
     }
 
-    fn encode(&self, status: &blocksync::Status<MockContext>) -> Result<Bytes, Self::Error> {
-        encode_blocksync_status(status).map(|proto| proto.encode_to_bytes())
+    fn encode(&self, status: &sync::Status<MockContext>) -> Result<Bytes, Self::Error> {
+        encode_sync_status(status).map(|proto| proto.encode_to_bytes())
     }
 }
 
 pub fn decode_sync_request(
     proto_request: proto::sync::SyncRequest,
-) -> Result<blocksync::Request<MockContext>, ProtoError> {
+) -> Result<sync::Request<MockContext>, ProtoError> {
     let messages = proto_request
         .messages
         .ok_or_else(|| ProtoError::missing_field::<proto::sync::SyncRequest>("messages"))?;
     let request = match messages {
-        proto::sync::sync_request::Messages::BlockRequest(block_request) => {
-            blocksync::Request::BlockRequest(BlockRequest::new(Height::new(
-                block_request.block_number,
-                block_request.fork_id,
+        proto::sync::sync_request::Messages::ValueRequest(value_request) => {
+            sync::Request::ValueRequest(ValueRequest::new(Height::new(
+                value_request.block_number,
+                value_request.fork_id,
             )))
         }
         proto::sync::sync_request::Messages::VoteSetRequest(vote_set_request) => {
-            blocksync::Request::VoteSetRequest(VoteSetRequest::new(
+            sync::Request::VoteSetRequest(VoteSetRequest::new(
                 Height::new(vote_set_request.block_number, vote_set_request.fork_id),
                 Round::new(vote_set_request.round),
             ))
@@ -235,18 +233,18 @@ pub fn decode_sync_request(
 }
 
 pub fn encode_sync_request(
-    request: &blocksync::Request<MockContext>,
+    request: &sync::Request<MockContext>,
 ) -> Result<proto::sync::SyncRequest, ProtoError> {
     let proto = match request {
-        blocksync::Request::BlockRequest(block_request) => proto::sync::SyncRequest {
-            messages: Some(proto::sync::sync_request::Messages::BlockRequest(
-                proto::sync::BlockRequest {
-                    fork_id: block_request.height.fork_id,
-                    block_number: block_request.height.block_number,
+        sync::Request::ValueRequest(value_request) => proto::sync::SyncRequest {
+            messages: Some(proto::sync::sync_request::Messages::ValueRequest(
+                proto::sync::ValueRequest {
+                    fork_id: value_request.height.fork_id,
+                    block_number: value_request.height.block_number,
                 },
             )),
         },
-        blocksync::Request::VoteSetRequest(vote_set_request) => proto::sync::SyncRequest {
+        sync::Request::VoteSetRequest(vote_set_request) => proto::sync::SyncRequest {
             messages: Some(proto::sync::sync_request::Messages::VoteSetRequest(
                 proto::sync::VoteSetRequest {
                     fork_id: vote_set_request.height.fork_id,
@@ -263,30 +261,30 @@ pub fn encode_sync_request(
     Ok(proto)
 }
 
-impl Codec<blocksync::Request<MockContext>> for ProtobufCodec {
+impl Codec<sync::Request<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
-    fn decode(&self, bytes: Bytes) -> Result<blocksync::Request<MockContext>, Self::Error> {
+    fn decode(&self, bytes: Bytes) -> Result<sync::Request<MockContext>, Self::Error> {
         decode_sync_request(proto::sync::SyncRequest::decode(bytes)?)
     }
 
-    fn encode(&self, request: &blocksync::Request<MockContext>) -> Result<Bytes, Self::Error> {
+    fn encode(&self, request: &sync::Request<MockContext>) -> Result<Bytes, Self::Error> {
         encode_sync_request(request).map(|proto| proto.encode_to_bytes())
     }
 }
 
 pub fn decode_sync_response(
     proto_response: proto::sync::SyncResponse,
-) -> Result<blocksync::Response<MockContext>, ProtoError> {
+) -> Result<sync::Response<MockContext>, ProtoError> {
     let messages = proto_response
         .messages
         .ok_or_else(|| ProtoError::missing_field::<proto::sync::SyncResponse>("messages"))?;
 
     let response = match messages {
-        proto::sync::sync_response::Messages::BlockResponse(block_response) => {
-            blocksync::Response::BlockResponse(BlockResponse::new(
-                Height::new(block_response.block_number, block_response.fork_id),
-                block_response.block.map(decode_synced_block).transpose()?,
+        proto::sync::sync_response::Messages::ValueResponse(value_response) => {
+            sync::Response::ValueResponse(ValueResponse::new(
+                Height::new(value_response.block_number, value_response.fork_id),
+                value_response.value.map(decode_synced_value).transpose()?,
             ))
         }
         proto::sync::sync_response::Messages::VoteSetResponse(vote_set_response) => {
@@ -296,7 +294,7 @@ pub fn decode_sync_response(
                 .vote_set
                 .ok_or_else(|| ProtoError::missing_field::<proto::sync::VoteSet>("vote_set"))?;
 
-            blocksync::Response::VoteSetResponse(VoteSetResponse::new(
+            sync::Response::VoteSetResponse(VoteSetResponse::new(
                 height,
                 round,
                 decode_vote_set(vote_set)?,
@@ -307,23 +305,23 @@ pub fn decode_sync_response(
 }
 
 pub fn encode_sync_response(
-    response: &blocksync::Response<MockContext>,
+    response: &sync::Response<MockContext>,
 ) -> Result<proto::sync::SyncResponse, ProtoError> {
     let proto = match response {
-        blocksync::Response::BlockResponse(block_response) => proto::sync::SyncResponse {
-            messages: Some(proto::sync::sync_response::Messages::BlockResponse(
-                proto::sync::BlockResponse {
-                    fork_id: block_response.height.fork_id,
-                    block_number: block_response.height.block_number,
-                    block: block_response
-                        .block
+        sync::Response::ValueResponse(value_response) => proto::sync::SyncResponse {
+            messages: Some(proto::sync::sync_response::Messages::ValueResponse(
+                proto::sync::ValueResponse {
+                    fork_id: value_response.height.fork_id,
+                    block_number: value_response.height.block_number,
+                    value: value_response
+                        .value
                         .as_ref()
-                        .map(encode_synced_block)
+                        .map(encode_synced_value)
                         .transpose()?,
                 },
             )),
         },
-        blocksync::Response::VoteSetResponse(vote_set_response) => proto::sync::SyncResponse {
+        sync::Response::VoteSetResponse(vote_set_response) => proto::sync::SyncResponse {
             messages: Some(proto::sync::sync_response::Messages::VoteSetResponse(
                 proto::sync::VoteSetResponse {
                     fork_id: vote_set_response.height.fork_id,
@@ -341,14 +339,14 @@ pub fn encode_sync_response(
     Ok(proto)
 }
 
-impl Codec<blocksync::Response<MockContext>> for ProtobufCodec {
+impl Codec<sync::Response<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
-    fn decode(&self, bytes: Bytes) -> Result<blocksync::Response<MockContext>, Self::Error> {
+    fn decode(&self, bytes: Bytes) -> Result<sync::Response<MockContext>, Self::Error> {
         decode_sync_response(proto::sync::SyncResponse::decode(bytes)?)
     }
 
-    fn encode(&self, response: &blocksync::Response<MockContext>) -> Result<Bytes, Self::Error> {
+    fn encode(&self, response: &sync::Response<MockContext>) -> Result<Bytes, Self::Error> {
         encode_sync_response(response).map(|proto| proto.encode_to_bytes())
     }
 }
@@ -563,40 +561,40 @@ impl Codec<CommitCertificate<MockContext>> for ProtobufCodec {
     }
 }
 
-pub fn encode_synced_block(
-    synced_block: &blocksync::SyncedBlock<MockContext>,
-) -> Result<proto::sync::SyncedBlock, ProtoError> {
-    Ok(proto::sync::SyncedBlock {
-        block_bytes: synced_block.block_bytes.clone(),
-        certificate: Some(encode_certificate(&synced_block.certificate)?),
+pub fn encode_synced_value(
+    synced_value: &sync::DecidedValue<MockContext>,
+) -> Result<proto::sync::SyncedValue, ProtoError> {
+    Ok(proto::sync::SyncedValue {
+        value_bytes: synced_value.value_bytes.clone(),
+        certificate: Some(encode_certificate(&synced_value.certificate)?),
     })
 }
 
-pub fn decode_synced_block(
-    proto: proto::sync::SyncedBlock,
-) -> Result<blocksync::SyncedBlock<MockContext>, ProtoError> {
+pub fn decode_synced_value(
+    proto: proto::sync::SyncedValue,
+) -> Result<sync::DecidedValue<MockContext>, ProtoError> {
     let Some(certificate) = proto.certificate else {
-        return Err(ProtoError::missing_field::<proto::sync::SyncedBlock>(
+        return Err(ProtoError::missing_field::<proto::sync::SyncedValue>(
             "certificate",
         ));
     };
 
-    Ok(blocksync::SyncedBlock {
-        block_bytes: proto.block_bytes,
+    Ok(sync::DecidedValue {
+        value_bytes: proto.value_bytes,
         certificate: decode_certificate(certificate)?,
     })
 }
 
-impl Codec<blocksync::SyncedBlock<MockContext>> for ProtobufCodec {
+impl Codec<sync::DecidedValue<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
-    fn decode(&self, bytes: Bytes) -> Result<blocksync::SyncedBlock<MockContext>, Self::Error> {
-        let proto = proto::sync::SyncedBlock::decode(bytes).map_err(ProtoError::Decode)?;
-        decode_synced_block(proto)
+    fn decode(&self, bytes: Bytes) -> Result<sync::DecidedValue<MockContext>, Self::Error> {
+        let proto = proto::sync::SyncedValue::decode(bytes).map_err(ProtoError::Decode)?;
+        decode_synced_value(proto)
     }
 
-    fn encode(&self, msg: &blocksync::SyncedBlock<MockContext>) -> Result<Bytes, Self::Error> {
-        Ok(Bytes::from(encode_synced_block(msg)?.encode_to_vec()))
+    fn encode(&self, msg: &sync::DecidedValue<MockContext>) -> Result<Bytes, Self::Error> {
+        Ok(Bytes::from(encode_synced_value(msg)?.encode_to_vec()))
     }
 }
 
