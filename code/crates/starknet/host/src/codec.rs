@@ -10,14 +10,13 @@ use malachite_common::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
     SignedProposal, SignedVote, Validity,
 };
+
 use malachite_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
 use malachite_starknet_p2p_proto::ConsensusMessage;
 
 use crate::proto::consensus_message::Messages;
 use crate::proto::{self as proto, Error as ProtoError, Protobuf};
-use crate::types::{
-    self as p2p, Address, Block, BlockHash, Height, MockContext, ProposalPart, Vote,
-};
+use crate::types::{self as p2p, Address, BlockHash, Height, MockContext, ProposalPart, Vote};
 
 trait MessageExt {
     fn encode_to_bytes(&self) -> Bytes;
@@ -599,17 +598,6 @@ impl Codec<blocksync::SyncedBlock<MockContext>> for ProtobufCodec {
     fn encode(&self, msg: &blocksync::SyncedBlock<MockContext>) -> Result<Bytes, Self::Error> {
         Ok(Bytes::from(encode_synced_block(msg)?.encode_to_vec()))
     }
-}
-
-pub fn encode_block(block: &Block) -> Result<Vec<u8>, ProtoError> {
-    let proto = proto::sync::Block {
-        fork_id: block.height.fork_id,
-        block_number: block.height.block_number,
-        transactions: Some(block.transactions.to_proto()?),
-        block_hash: Some(block.block_hash.to_proto()?),
-    };
-
-    Ok(proto.encode_to_vec())
 }
 
 pub(crate) fn encode_vote_set(

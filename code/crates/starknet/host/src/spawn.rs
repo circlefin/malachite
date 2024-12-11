@@ -154,8 +154,7 @@ async fn spawn_block_sync_actor(
 
     let metrics = blocksync::Metrics::register(registry);
     let block_sync = BlockSync::new(ctx, gossip_consensus, host, params, metrics, span.clone());
-    let (actor_ref, _) = block_sync.spawn(initial_height).await.unwrap();
-
+    let actor_ref = block_sync.spawn(initial_height).await.unwrap();
     Some(actor_ref)
 }
 

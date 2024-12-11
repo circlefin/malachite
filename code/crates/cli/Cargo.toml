@@ -13,7 +13,7 @@ workspace = true
 malachite-common.workspace        = true
 malachite-metrics.workspace       = true
 malachite-config.workspace        = true
-malachite-node.workspace          = true
+malachite-app.workspace          = true
 
 axum               = { workspace = true }
 bytesize           = { workspace = true }

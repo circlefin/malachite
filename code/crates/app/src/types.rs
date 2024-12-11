@@ -1,8 +1,7 @@
 //! Re-export of all types required to build a Malachite application.
 
 pub use malachite_actors::host::LocallyProposedValue;
-pub use malachite_consensus::{ConsensusMsg, ProposedValue, SignedConsensusMsg};
-pub use malachite_node::Node;
+pub use malachite_consensus::{ConsensusMsg, ProposedValue, SignedConsensusMsg, ValuePayload};
 pub use malachite_peer::PeerId;
 
 pub mod core {
@@ -24,7 +23,7 @@ pub mod streaming {
 }
 
 pub mod sync {
-    pub use malachite_blocksync::{Request, Response, Status, SyncedBlock};
+    pub use malachite_blocksync::{Metrics, Request, Response, Status, SyncedBlock};
 }
 
 pub mod codec {
