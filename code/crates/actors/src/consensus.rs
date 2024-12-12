@@ -1014,7 +1014,14 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(name = "consensus", parent = &self.span, skip_all)]
+    #[tracing::instrument(
+        name = "consensus",
+        parent = &self.span,
+        skip_all,
+        fields(
+            height = %state.consensus.height(),
+            round = %state.consensus.round())
+    )]
     async fn handle(
         &self,
         myself: ActorRef<Msg<Ctx>>,

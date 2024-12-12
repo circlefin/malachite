@@ -501,7 +501,15 @@ where
         })
     }
 
-    #[tracing::instrument(name = "sync", parent = &self.span, skip_all)]
+    #[tracing::instrument(
+        name = "sync",
+        parent = &self.span,
+        skip_all,
+        fields(
+            height.tip = %state.sync.tip_height,
+            height.sync = %state.sync.sync_height,
+        ),
+    )]
     async fn handle(
         &self,
         myself: ActorRef<Self::Msg>,

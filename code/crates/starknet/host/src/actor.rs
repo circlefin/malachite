@@ -107,7 +107,12 @@ impl Actor for Host {
 }
 
 impl Host {
-    #[tracing::instrument(name = "host", parent = &self.span, skip_all)]
+    #[tracing::instrument(
+        name = "host",
+        parent = &self.span,
+        skip_all,
+        fields(height = %state.height, round = %state.round),
+    )]
     async fn handle_msg(
         &self,
         _myself: HostRef,

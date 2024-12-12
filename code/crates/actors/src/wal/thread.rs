@@ -44,7 +44,12 @@ where
     })
 }
 
-#[tracing::instrument(name = "wal", parent = span, skip_all)]
+#[tracing::instrument(
+    name = "wal",
+    parent = span,
+    skip_all,
+    fields(height = %log.sequence())
+)]
 fn task<Ctx, Codec>(
     span: &tracing::Span,
     log: &mut wal::Log,
