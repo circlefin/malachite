@@ -4,8 +4,8 @@ version.workspace      = true
 edition.workspace      = true
 repository.workspace   = true
 license.workspace      = true
-publish.workspace      = true
 rust-version.workspace = true
+publish                = false
 
 [dependencies]
 prost.workspace = true
