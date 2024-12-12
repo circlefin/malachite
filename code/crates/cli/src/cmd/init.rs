@@ -34,7 +34,7 @@ pub struct InitCmd {
     /// Selector
     /// The selection strategy used to select persistent peers
     /// Possible values:
-    /// - "kademlia": Kademlia-based selection
+    /// - "kademlia": Kademlia-based selection, only available with the Kademlia bootstrap protocol
     /// - "random": Random selection (default)
     #[clap(long, default_value = "random", verbatim_doc_comment)]
     pub selector: Selector,

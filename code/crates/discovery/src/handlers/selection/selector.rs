@@ -10,9 +10,15 @@ impl<C> Discovery<C>
 where
     C: DiscoveryClient,
 {
-    pub(crate) fn get_selector(name: &str) -> Box<dyn Selector<C>> {
+    pub(crate) fn get_selector(bootstrap_protocol: &str, name: &str) -> Box<dyn Selector<C>> {
         match name {
             "kademlia" => {
+                if bootstrap_protocol != "kademlia" {
+                    panic!(
+                        "Kademlia selector is only available with the Kademlia bootstrap protocol"
+                    );
+                }
+
                 info!("Using Kademlia selector");
                 Box::new(KademliaSelector::new())
             }
