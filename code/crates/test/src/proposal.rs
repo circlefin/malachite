@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use malachite_common::Round;
+use malachite_core_types::Round;
 use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::{Address, Height, TestContext, Value};
@@ -36,7 +36,7 @@ impl Proposal {
     }
 }
 
-impl malachite_common::Proposal<TestContext> for Proposal {
+impl malachite_core_types::Proposal<TestContext> for Proposal {
     fn height(&self) -> Height {
         self.height
     }

@@ -5,7 +5,7 @@ pub use malachite_consensus::{ConsensusMsg, ProposedValue, SignedConsensusMsg, V
 pub use malachite_peer::PeerId;
 
 pub mod core {
-    pub use malachite_common::*;
+    pub use malachite_core_types::*;
 }
 
 pub mod config {

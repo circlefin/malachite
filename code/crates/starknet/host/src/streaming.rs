@@ -4,8 +4,8 @@ use std::collections::{BTreeMap, BinaryHeap, HashSet};
 use derive_where::derive_where;
 
 use malachite_actors::util::streaming::{Sequence, StreamId, StreamMessage};
-use malachite_common::Round;
 use malachite_consensus::PeerId;
+use malachite_core_types::Round;
 
 use crate::types::{Address, Height, ProposalInit, ProposalPart};
 

@@ -9,8 +9,8 @@ use tracing::{info, Instrument};
 use malachite_actors::util::events::TxEvent;
 use malachite_app::types::Keypair;
 use malachite_app::Node;
-use malachite_common::VotingPower;
 use malachite_config::Config;
+use malachite_core_types::VotingPower;
 
 use crate::spawn::spawn_node_actor;
 use crate::types::Height;

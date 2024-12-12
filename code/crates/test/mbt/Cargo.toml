@@ -10,9 +10,9 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-common = { workspace = true }
-malachite-vote   = { workspace = true }
-malachite-round  = { workspace = true }
+malachite-core-types = { workspace = true }
+malachite-core-votekeeper   = { workspace = true }
+malachite-core-state-machine  = { workspace = true }
 malachite-test   = { workspace = true }
 
 itf               = { workspace = true }

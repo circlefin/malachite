@@ -7,8 +7,8 @@ use rand::rngs::OsRng;
 use rand::{seq::IteratorRandom, Rng, SeedableRng};
 
 use malachite_app::Node;
-use malachite_common::{PrivateKey, PublicKey};
 use malachite_config::*;
+use malachite_core_types::{PrivateKey, PublicKey};
 
 const MIN_VOTING_POWER: u64 = 1;
 const MAX_VOTING_POWER: u64 = 1;

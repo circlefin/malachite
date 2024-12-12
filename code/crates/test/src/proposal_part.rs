@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use malachite_common::Round;
+use malachite_core_types::Round;
 use malachite_proto::{Error as ProtoError, Protobuf};
 use serde::{Deserialize, Serialize};
 
@@ -142,7 +142,7 @@ impl ProposalPart {
     }
 }
 
-impl malachite_common::ProposalPart<TestContext> for ProposalPart {
+impl malachite_core_types::ProposalPart<TestContext> for ProposalPart {
     fn is_first(&self) -> bool {
         self.sequence == 0
     }

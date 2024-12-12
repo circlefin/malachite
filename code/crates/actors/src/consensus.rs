@@ -10,11 +10,11 @@ use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
 
 use malachite_codec as codec;
-use malachite_common::{
-    Context, Round, SignedExtension, Timeout, TimeoutKind, ValidatorSet, ValueOrigin,
-};
 use malachite_config::TimeoutConfig;
 use malachite_consensus::{Effect, PeerId, Resume, SignedConsensusMsg, ValueToPropose};
+use malachite_core_types::{
+    Context, Round, SignedExtension, Timeout, TimeoutKind, ValidatorSet, ValueOrigin,
+};
 use malachite_metrics::Metrics;
 use malachite_sync::{self as sync, Response, ValueResponse, VoteSetRequest, VoteSetResponse};
 

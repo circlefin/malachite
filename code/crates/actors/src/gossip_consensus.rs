@@ -15,8 +15,8 @@ use malachite_sync::{
 };
 
 use malachite_codec as codec;
-use malachite_common::{Context, SignedProposal, SignedVote};
 use malachite_consensus::SignedConsensusMsg;
+use malachite_core_types::{Context, SignedProposal, SignedVote};
 use malachite_gossip_consensus::handle::CtrlHandle;
 use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
 use malachite_metrics::SharedRegistry;

@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use tracing::{debug, warn};
 
-use malachite_common::*;
-use malachite_driver::Driver;
+use malachite_core_driver::Driver;
+use malachite_core_types::*;
 
 use crate::input::Input;
 use crate::util::max_queue::MaxQueue;

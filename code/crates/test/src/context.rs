@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use malachite_common::{
+use malachite_core_types::{
     Context, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote, ValidatorSet as _,
 };
 

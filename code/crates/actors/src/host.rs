@@ -4,8 +4,8 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachite_common::{CommitCertificate, Context, Round, SignedExtension, ValueId};
 use malachite_consensus::PeerId;
+use malachite_core_types::{CommitCertificate, Context, Round, SignedExtension, ValueId};
 use malachite_sync::DecidedValue;
 
 use crate::consensus::ConsensusRef;

@@ -79,7 +79,7 @@ impl Value {
     }
 }
 
-impl malachite_common::Value for Value {
+impl malachite_core_types::Value for Value {
     type Id = ValueId;
 
     fn id(&self) -> ValueId {

@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use malachite_common::Round;
+use malachite_core_types::Round;
 use malachite_proto as proto;
 use malachite_starknet_p2p_proto as p2p_proto;
 

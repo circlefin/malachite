@@ -7,18 +7,18 @@ members = [
   "crates/app-channel",
   "crates/cli",
   "crates/codec",
-  "crates/common",
   "crates/config",
   "crates/consensus",
-  "crates/driver",
+  "crates/core-driver",
+  "crates/core-state-machine",
+  "crates/core-types",
+  "crates/core-votekeeper",
   "crates/gossip-consensus",
   "crates/metrics",
   "crates/node",
   "crates/peer",
   "crates/proto",
-  "crates/round",
   "crates/sync",
-  "crates/vote",
   "crates/wal",
 
   # Signing scheme
@@ -29,7 +29,7 @@ members = [
   "crates/test/mbt",
   "crates/test/mempool",
   "crates/gossip-consensus/test",
-  "crates/driver/test-utils",
+  "crates/core-driver/test-utils",
 
   # Starknet
   "crates/starknet/*",
@@ -59,32 +59,32 @@ debug = true
 # None for now
 
 [workspace.dependencies]
-malachite-actors           = { version = "0.1.0", path = "crates/actors" }
-malachite-app              = { version = "0.1.0", path = "crates/app" }
-malachite-app-channel      = { version = "0.1.0", path = "crates/app-channel" }
-malachite-sync             = { version = "0.1.0", path = "crates/sync" }
-malachite-codec            = { version = "0.1.0", path = "crates/codec" }
-malachite-cli              = { version = "0.1.0", path = "crates/cli" }
-malachite-common           = { version = "0.1.0", path = "crates/common" }
-malachite-config           = { version = "0.1.0", path = "crates/config" }
-malachite-consensus        = { version = "0.1.0", path = "crates/consensus", features = ["debug"] }
-malachite-discovery        = { version = "0.1.0", path = "crates/discovery" }
-malachite-driver           = { version = "0.1.0", path = "crates/driver" }
-malachite-gossip-consensus = { version = "0.1.0", path = "crates/gossip-consensus" }
-malachite-metrics          = { version = "0.1.0", path = "crates/metrics" }
-malachite-node             = { version = "0.1.0", path = "crates/node" }
-malachite-peer             = { version = "0.1.0", path = "crates/peer" }
-malachite-proto            = { version = "0.1.0", path = "crates/proto" }
-malachite-round            = { version = "0.1.0", path = "crates/round" }
-malachite-vote             = { version = "0.1.0", path = "crates/vote" }
-malachite-signing-ed25519  = { version = "0.1.0", path = "crates/signing-ed25519" }
-malachite-wal              = { version = "0.1.0", path = "crates/wal" }
+malachite-actors             = { version = "0.1.0", path = "crates/actors" }
+malachite-app                = { version = "0.1.0", path = "crates/app" }
+malachite-app-channel        = { version = "0.1.0", path = "crates/app-channel" }
+malachite-cli                = { version = "0.1.0", path = "crates/cli" }
+malachite-codec              = { version = "0.1.0", path = "crates/codec" }
+malachite-config             = { version = "0.1.0", path = "crates/config" }
+malachite-consensus          = { version = "0.1.0", path = "crates/consensus" }
+malachite-core-driver        = { version = "0.1.0", path = "crates/core-driver" }
+malachite-core-state-machine = { version = "0.1.0", path = "crates/core-state-machine" }
+malachite-core-types         = { version = "0.1.0", path = "crates/core-types" }
+malachite-core-votekeeper    = { version = "0.1.0", path = "crates/core-votekeeper" }
+malachite-discovery          = { version = "0.1.0", path = "crates/discovery" }
+malachite-gossip-consensus   = { version = "0.1.0", path = "crates/gossip-consensus" }
+malachite-metrics            = { version = "0.1.0", path = "crates/metrics" }
+malachite-node               = { version = "0.1.0", path = "crates/node" }
+malachite-peer               = { version = "0.1.0", path = "crates/peer" }
+malachite-proto              = { version = "0.1.0", path = "crates/proto" }
+malachite-signing-ed25519    = { version = "0.1.0", path = "crates/signing-ed25519" }
+malachite-sync               = { version = "0.1.0", path = "crates/sync" }
+malachite-wal                = { version = "0.1.0", path = "crates/wal" }
 
 # Test
-malachite-test              = { version = "0.1.0", path = "crates/test" }
-malachite-test-mbt          = { version = "0.1.0", path = "crates/test/mbt" }
-malachite-test-mempool      = { version = "0.1.0", path = "crates/test/mempool" }
-malachite-driver-test-utils = { version = "0.1.0", path = "crates/driver/test-utils" }
+malachite-test                   = { version = "0.1.0", path = "crates/test" }
+malachite-test-mbt               = { version = "0.1.0", path = "crates/test/mbt" }
+malachite-test-mempool           = { version = "0.1.0", path = "crates/test/mempool" }
+malachite-core-driver-test-utils = { version = "0.1.0", path = "crates/core-driver/test-utils" }
 
 # Starknet
 malachite-starknet-host      = { version = "0.1.0", path = "crates/starknet/host" }
