@@ -13,6 +13,9 @@ const DEFAULT_CONNECT_REQUEST_MAX_RETRIES: usize = 0;
 pub struct Config {
     pub enabled: bool,
 
+    pub bootstrap_protocol: &'static str,
+    pub selector: &'static str,
+
     pub num_outbound_peers: usize,
     pub num_inbound_peers: usize,
 
@@ -32,6 +35,9 @@ impl Default for Config {
         Self {
             enabled: true,
 
+            bootstrap_protocol: "full",
+            selector: "random",
+
             num_outbound_peers: DEFAULT_NUM_OUTBOUND_PEERS,
             num_inbound_peers: DEFAULT_NUM_INBOUND_PEERS,
 
@@ -50,6 +56,14 @@ impl Config {
             enabled,
             ..Default::default()
         }
+    }
+
+    pub fn set_bootstrap_protocol(&mut self, protocol: &'static str) {
+        self.bootstrap_protocol = protocol;
+    }
+
+    pub fn set_selector(&mut self, selector: &'static str) {
+        self.selector = selector;
     }
 
     pub fn set_peers_bounds(&mut self, num_outbound_peers: usize, num_inbound_peers: usize) {

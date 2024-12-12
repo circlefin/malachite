@@ -157,6 +157,8 @@ impl<const N: usize> Test<N> {
                 .collect(),
             discovery: DiscoveryConfig {
                 enabled: true,
+                bootstrap_protocol: "full",
+                selector: "random",
                 ..Default::default()
             },
             idle_connection_timeout: Duration::from_secs(60),

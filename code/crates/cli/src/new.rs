@@ -68,6 +68,8 @@ pub fn generate_config(
     total: usize,
     runtime: RuntimeConfig,
     enable_discovery: bool,
+    bootstrap_protocol: BootstrapProtocol,
+    selector: Selector,
     num_outbound_peers: usize,
     num_inbound_peers: usize,
     ephemeral_connection_timeout_ms: u64,
@@ -111,6 +113,8 @@ pub fn generate_config(
                 },
                 discovery: DiscoveryConfig {
                     enabled: enable_discovery,
+                    bootstrap_protocol,
+                    selector,
                     num_outbound_peers,
                     num_inbound_peers,
                     ephemeral_connection_timeout: Duration::from_millis(
@@ -131,6 +135,8 @@ pub fn generate_config(
                     .collect(),
                 discovery: DiscoveryConfig {
                     enabled: false,
+                    bootstrap_protocol,
+                    selector,
                     num_outbound_peers,
                     num_inbound_peers,
                     ephemeral_connection_timeout: Duration::from_millis(

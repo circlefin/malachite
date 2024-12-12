@@ -65,6 +65,22 @@ pub struct TestnetCmd {
     #[clap(long, default_value = "false")]
     pub enable_discovery: bool,
 
+    /// Bootstrap protocol
+    /// The protocol used to bootstrap the discovery mechanism
+    /// Possible values:
+    /// - "kademlia": Kademlia
+    /// - "full": Full mesh (default)
+    #[clap(long, default_value = "full", verbatim_doc_comment)]
+    pub bootstrap_protocol: BootstrapProtocol,
+
+    /// Selector
+    /// The selection strategy used to select persistent peers
+    /// Possible values:
+    /// - "kademlia": Kademlia-based selection
+    /// - "random": Random selection (default)
+    #[clap(long, default_value = "random", verbatim_doc_comment)]
+    pub selector: Selector,
+
     /// Number of outbound peers
     #[clap(long, default_value = "20", verbatim_doc_comment)]
     pub num_outbound_peers: usize,
@@ -104,6 +120,8 @@ impl TestnetCmd {
             home_dir,
             runtime,
             self.enable_discovery,
+            self.bootstrap_protocol,
+            self.selector,
             self.num_outbound_peers,
             self.num_inbound_peers,
             self.ephemeral_connection_timeout_ms,
@@ -122,6 +140,8 @@ pub fn testnet<N>(
     home_dir: &Path,
     runtime: RuntimeConfig,
     enable_discovery: bool,
+    bootstrap_protocol: BootstrapProtocol,
+    selector: Selector,
     num_outbound_peers: usize,
     num_inbound_peers: usize,
     ephemeral_connection_timeout_ms: u64,
@@ -163,6 +183,8 @@ where
                 nodes,
                 runtime,
                 enable_discovery,
+                bootstrap_protocol,
+                selector,
                 num_outbound_peers,
                 num_inbound_peers,
                 ephemeral_connection_timeout_ms,

@@ -164,7 +164,7 @@ impl Behaviour {
             registry.sub_registry_with_prefix("sync"),
         );
 
-        let discovery = discovery::Behaviour::new(keypair, config.discovery.enabled);
+        let discovery = discovery::Behaviour::new(keypair, config.discovery);
 
         Self {
             identify,

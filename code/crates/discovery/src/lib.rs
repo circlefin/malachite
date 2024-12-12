@@ -25,7 +25,7 @@ mod controller;
 use controller::Controller;
 
 mod handlers;
-use handlers::selection::{kademlia::KademliaSelector, selector::Selector};
+use handlers::selection::selector::Selector;
 
 mod metrics;
 use metrics::Metrics;
@@ -35,7 +35,7 @@ mod request;
 #[derive(Debug, PartialEq)]
 enum State {
     Bootstrapping,
-    Extending,
+    Extending(usize), // Target number of peers
     Idle,
 }
 
@@ -92,7 +92,25 @@ where
             info!("Discovery found 0 peers in 0ms");
             State::Idle
         } else if config.enabled {
-            State::Bootstrapping
+            match config.bootstrap_protocol {
+                "kademlia" => {
+                    debug!("Using Kademlia bootstrap");
+
+                    State::Bootstrapping
+                }
+
+                "full" => {
+                    debug!("Using full bootstrap");
+
+                    State::Extending(config.num_outbound_peers)
+                }
+
+                unknown => {
+                    error!("Unknown bootstrap protocol: {unknown}");
+
+                    State::Idle
+                }
+            }
         } else {
             State::Idle
         };
@@ -101,7 +119,7 @@ where
             config,
             state,
 
-            selector: Box::new(KademliaSelector::new()),
+            selector: Discovery::get_selector(&config.selector),
 
             bootstrap_nodes: bootstrap_nodes
                 .clone()
@@ -138,7 +156,7 @@ where
                 ..
             }) => match result {
                 kad::QueryResult::Bootstrap(Ok(_)) => {
-                    if step.last {
+                    if step.last && self.state == State::Bootstrapping {
                         debug!("Discovery bootstrap successful");
 
                         self.handle_successful_bootstrap(swarm);
@@ -148,7 +166,9 @@ where
                 kad::QueryResult::Bootstrap(Err(error)) => {
                     error!("Discovery bootstrap failed: {error}");
 
-                    self.handle_failed_bootstrap();
+                    if self.state == State::Bootstrapping {
+                        self.handle_failed_bootstrap();
+                    }
                 }
 
                 _ => {}

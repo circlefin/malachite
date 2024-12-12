@@ -43,6 +43,22 @@ pub struct DistributedTestnetCmd {
     #[clap(long, default_value = "false")]
     pub enable_discovery: bool,
 
+    /// Bootstrap protocol
+    /// The protocol used to bootstrap the discovery mechanism
+    /// Possible values:
+    /// - "kademlia": Kademlia
+    /// - "full": Full mesh (default)
+    #[clap(long, default_value = "full", verbatim_doc_comment)]
+    pub bootstrap_protocol: BootstrapProtocol,
+
+    /// Selector
+    /// The selection strategy used to select persistent peers
+    /// Possible values:
+    /// - "kademlia": Kademlia-based selection
+    /// - "random": Random selection (default)
+    #[clap(long, default_value = "random", verbatim_doc_comment)]
+    pub selector: Selector,
+
     /// Number of outbound peers
     #[clap(long, default_value = "20", verbatim_doc_comment)]
     pub num_outbound_peers: usize,
@@ -87,6 +103,8 @@ impl DistributedTestnetCmd {
             runtime,
             self.machines.clone(),
             self.enable_discovery,
+            self.bootstrap_protocol,
+            self.selector,
             self.num_outbound_peers,
             self.num_inbound_peers,
             self.ephemeral_connection_timeout_ms,
@@ -112,6 +130,8 @@ fn distributed_testnet<N>(
     runtime: RuntimeConfig,
     machines: Vec<String>,
     enable_discovery: bool,
+    bootstrap_protocol: BootstrapProtocol,
+    selector: Selector,
     num_outbound_peers: usize,
     num_inbound_peers: usize,
     ephemeral_connection_timeout_ms: u64,
@@ -154,6 +174,8 @@ where
                 runtime,
                 machines.clone(),
                 enable_discovery,
+                bootstrap_protocol,
+                selector,
                 num_outbound_peers,
                 num_inbound_peers,
                 ephemeral_connection_timeout_ms,
@@ -188,6 +210,8 @@ fn generate_distributed_config(
     runtime: RuntimeConfig,
     machines: Vec<String>,
     enable_discovery: bool,
+    bootstrap_protocol: BootstrapProtocol,
+    selector: Selector,
     num_outbound_peers: usize,
     num_inbound_peers: usize,
     ephemeral_connection_timeout_ms: u64,
@@ -238,6 +262,8 @@ fn generate_distributed_config(
                 },
                 discovery: DiscoveryConfig {
                     enabled: enable_discovery,
+                    bootstrap_protocol,
+                    selector,
                     num_outbound_peers,
                     num_inbound_peers,
                     ephemeral_connection_timeout: Duration::from_millis(
@@ -255,6 +281,8 @@ fn generate_distributed_config(
                 persistent_peers: vec![],
                 discovery: DiscoveryConfig {
                     enabled: false,
+                    bootstrap_protocol,
+                    selector,
                     num_outbound_peers: 0,
                     num_inbound_peers: 0,
                     ephemeral_connection_timeout: Duration::from_secs(0),

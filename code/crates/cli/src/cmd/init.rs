@@ -7,7 +7,9 @@ use crate::file::{save_config, save_genesis, save_priv_validator_key};
 use crate::new::{generate_config, generate_genesis, generate_private_keys};
 use clap::Parser;
 use malachite_app::Node;
-use malachite_config::{Config, LoggingConfig, RuntimeConfig, TransportProtocol};
+use malachite_config::{
+    BootstrapProtocol, Config, LoggingConfig, RuntimeConfig, Selector, TransportProtocol,
+};
 use tracing::{info, warn};
 
 #[derive(Parser, Debug, Clone, Default, PartialEq)]
@@ -20,6 +22,22 @@ pub struct InitCmd {
     /// If enabled, the node will attempt to discover other nodes in the network
     #[clap(long, default_value = "true")]
     pub enable_discovery: bool,
+
+    /// Bootstrap protocol
+    /// The protocol used to bootstrap the discovery mechanism
+    /// Possible values:
+    /// - "kademlia": Kademlia
+    /// - "full": Full mesh (default)
+    #[clap(long, default_value = "full", verbatim_doc_comment)]
+    pub bootstrap_protocol: BootstrapProtocol,
+
+    /// Selector
+    /// The selection strategy used to select persistent peers
+    /// Possible values:
+    /// - "kademlia": Kademlia-based selection
+    /// - "random": Random selection (default)
+    #[clap(long, default_value = "random", verbatim_doc_comment)]
+    pub selector: Selector,
 
     /// Number of outbound peers
     #[clap(long, default_value = "20", verbatim_doc_comment)]
@@ -54,6 +72,8 @@ impl InitCmd {
             1,
             RuntimeConfig::SingleThreaded,
             self.enable_discovery,
+            self.bootstrap_protocol,
+            self.selector,
             self.num_outbound_peers,
             self.num_inbound_peers,
             self.ephemeral_connection_timeout_ms,

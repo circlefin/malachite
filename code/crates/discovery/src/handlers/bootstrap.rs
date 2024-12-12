@@ -22,13 +22,13 @@ where
             self.metrics.initial_bootstrap_finished();
 
             if self.active_connections_len() < self.config.num_outbound_peers {
-                info!("Not enough active connections (got {}, expected {}) to select outbound peers, initiating discovery extension",
+                info!(
+                    "Not enough active connections (got {}, expected {}) to select outbound peers",
                     self.active_connections_len(),
                     self.config.num_outbound_peers
                 );
 
-                self.state = State::Extending;
-                self.make_extension_step(swarm); // trigger extension
+                self.initiate_extension_with_target(swarm, self.config.num_outbound_peers);
             } else {
                 info!(
                     "Discovery found {} peers (expected {}) in {}ms",

@@ -43,6 +43,14 @@ where
     }
 
     pub(crate) fn add_to_queue(&mut self, value: V, delay: Option<Duration>) {
+        // Avoid spawning a new task if the delay is None
+        if delay.is_none() {
+            self.tx_queue.send(value).unwrap_or_else(|e| {
+                error!("Failed to send value to queue: {:?}", e);
+            });
+            return;
+        }
+
         let tx_queue = self.tx_queue.clone();
         tokio::spawn(async move {
             if let Some(delay) = delay {

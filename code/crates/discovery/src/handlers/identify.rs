@@ -119,14 +119,16 @@ where
                 );
 
                 // Check if the re-extension dials are done
-                if self.state == State::Extending {
+                if let State::Extending(_) = self.state {
                     self.make_extension_step(swarm);
                 }
             }
             // Add the address to the Kademlia routing table
-            swarm
-                .behaviour_mut()
-                .add_address(&peer_id, info.listen_addrs.first().unwrap().clone());
+            if self.config.bootstrap_protocol == "kademlia" {
+                swarm
+                    .behaviour_mut()
+                    .add_address(&peer_id, info.listen_addrs.first().unwrap().clone());
+            }
         } else {
             // If discovery is disabled, connections to bootstrap nodes are outbound,
             // and all other connections are ephemeral, except if later the connections

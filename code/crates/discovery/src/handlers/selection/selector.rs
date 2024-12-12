@@ -1,12 +1,29 @@
 use libp2p::{identify, PeerId, Swarm};
 use std::{collections::HashMap, fmt::Debug};
+use tracing::info;
 
 use crate::{Discovery, DiscoveryClient};
+
+use super::{kademlia::KademliaSelector, random::RandomSelector};
 
 impl<C> Discovery<C>
 where
     C: DiscoveryClient,
 {
+    pub(crate) fn get_selector(name: &str) -> Box<dyn Selector<C>> {
+        match name {
+            "kademlia" => {
+                info!("Using Kademlia selector");
+                Box::new(KademliaSelector::new())
+            }
+            "random" => {
+                info!("Using Random selector");
+                Box::new(RandomSelector::new())
+            }
+            _ => panic!("Unknown selector: {}", name),
+        }
+    }
+
     /// Excluded peers are those that are already outbound connections or have already
     /// been requested to be so.
     pub(crate) fn get_excluded_peers(&self) -> Vec<PeerId> {
