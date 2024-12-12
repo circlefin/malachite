@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use rand::seq::IteratorRandom;
 
-use malachite_common::{Context, Height, Round};
+use malachite_core_types::{Context, Height, Round};
 use malachite_peer::PeerId;
 use tracing::warn;
 

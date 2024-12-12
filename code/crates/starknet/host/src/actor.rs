@@ -16,8 +16,8 @@ use malachite_actors::gossip_consensus::{
 };
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_common::{CommitCertificate, Round, Validity, ValueOrigin};
 use malachite_consensus::PeerId;
+use malachite_core_types::{CommitCertificate, Round, Validity, ValueOrigin};
 use malachite_metrics::Metrics;
 use malachite_sync::DecidedValue;
 

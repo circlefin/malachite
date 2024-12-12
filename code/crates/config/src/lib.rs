@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use bytesize::ByteSize;
 use config as config_rs;
-use malachite_common::TimeoutKind;
+use malachite_core_types::TimeoutKind;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 

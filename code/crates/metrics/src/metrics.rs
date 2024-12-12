@@ -3,7 +3,7 @@ use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use malachite_round::state::Step;
+use malachite_core_state_machine::state::Step;
 use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;

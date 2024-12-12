@@ -5,7 +5,7 @@ use eyre::Result;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
-use malachite_common::{Context, Height};
+use malachite_core_types::{Context, Height};
 use malachite_wal as wal;
 
 use super::entry::{WalCodec, WalEntry};

@@ -10,7 +10,7 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
-malachite-common.workspace        = true
+malachite-core-types.workspace        = true
 malachite-metrics.workspace       = true
 malachite-config.workspace        = true
 malachite-app.workspace          = true

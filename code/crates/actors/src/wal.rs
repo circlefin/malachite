@@ -6,7 +6,7 @@ use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, Spa
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
-use malachite_common::Context;
+use malachite_core_types::Context;
 use malachite_metrics::SharedRegistry;
 use malachite_wal as wal;
 

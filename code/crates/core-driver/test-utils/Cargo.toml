@@ -1,0 +1,18 @@
+[package]
+name        = "malachite-core-driver-test-utils"
+description = "Test utilities for the `malachite-core-driver`"
+publish     = false
+
+version.workspace      = true
+edition.workspace      = true
+repository.workspace   = true
+license.workspace      = true
+rust-version.workspace = true
+
+
+[dependencies]
+malachite-core-driver = { workspace = true }
+malachite-core-state-machine = { workspace = true }
+malachite-core-types = { workspace = true }
+malachite-core-votekeeper = { workspace = true }
+malachite-test = { workspace = true }

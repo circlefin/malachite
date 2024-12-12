@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use starknet_core::crypto::{ecdsa_sign, ecdsa_verify};
 use starknet_crypto::{get_public_key, Felt};
 
-use malachite_common::SigningScheme;
+use malachite_core_types::SigningScheme;
 use malachite_proto::{Error as ProtoError, Protobuf};
 use malachite_starknet_p2p_proto as proto;
 

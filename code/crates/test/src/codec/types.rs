@@ -2,11 +2,11 @@ use crate::{Address, Height, Proposal, ProposalPart, RoundDef, TestContext, Valu
 use bytes::Bytes;
 use ed25519_consensus::Signature;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_common::{
+use malachite_consensus::SignedConsensusMsg;
+use malachite_core_types::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
     SignedProposal, SignedVote, VoteSet,
 };
-use malachite_consensus::SignedConsensusMsg;
 use malachite_proto::Protobuf;
 use malachite_sync::{
     DecidedValue, PeerId, Request, Response, Status, ValueRequest, ValueResponse, VoteSetRequest,

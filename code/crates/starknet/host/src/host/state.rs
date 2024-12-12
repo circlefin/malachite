@@ -8,7 +8,7 @@ use tracing::{debug, error, trace};
 use malachite_actors::consensus::ConsensusRef;
 use malachite_actors::host::ProposedValue;
 use malachite_actors::util::streaming::StreamId;
-use malachite_common::{Round, SignedExtension, Validity};
+use malachite_core_types::{Round, SignedExtension, Validity};
 
 use crate::block_store::BlockStore;
 use crate::host::proposal::compute_proposal_hash;
