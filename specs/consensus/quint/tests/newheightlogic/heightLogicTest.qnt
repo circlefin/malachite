@@ -33,4 +33,8 @@ run catchUpToHigherRound = {
 run catchUpToHigherRoundAfterHeightChange = {
     SLOW1::catchUpToHigherRoundAfterHeightChange
 }
+
+run preloadVotekeeperOnly = {
+    SLOW1::preloadVotekeeperOnly
+}
 }

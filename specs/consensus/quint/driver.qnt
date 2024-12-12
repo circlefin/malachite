@@ -157,8 +157,14 @@ module driver {
             val decisionVal : NonNilValue = getVal(decisionValAndRound._1)
             val decisionRound = decisionValAndRound._2
             PendingDInput(ProposalAndCommitAndValidCInput((decisionRound, decisionVal)))
-        else if (roundToStart > 0)
-            PendingDInput(NewRoundCInput(roundToStart))
+        else if (roundToStart > 0) {
+            if (isProposer({...ns, es:resultDriver}, h, roundToStart)) {
+                PendingDInput(NewRoundProposerCInput(roundToStart))
+            }
+            else {
+                PendingDInput(NewRoundCInput(roundToStart))
+            }
+        }
         else 
             StartDInput
 
@@ -221,6 +227,10 @@ module driver {
         // else if  (prop == 1) "v2"
         // else if  (prop == 2) "v3"
         // else "v4"
+    }
+
+    pure def isProposer(state: NodeState, height: Height, round: Round) : bool = {
+        state.es.cs.p == proposer(state.es.bk.validatorSet, height, round)
     }
 
     pure def getValue(state: NodeState): Value = state.nextValueToPropose
@@ -669,7 +679,7 @@ module driver {
         val syncCertificatesForCurrentHeight = state.incomingSyncCertificates.filter(cert => cert.forall(v => v.height == state.es.cs.height))
         val syncProposalsForCurrentHeight = state.incomingSyncProposals.filter(p => p.height == state.es.cs.height)
         if (command == StartCmd and not(state.es.started))
-            (state, StartDInput)
+            getNewHeightAction(state, state.es.valset, state.es.cs.height)
 
         else if (command == ProposeValueCmd and state.getValueRequests.contains((state.es.cs.height, state.es.cs.round)))
             val newstate = { ...state, getValueRequests: state.getValueRequests.exclude(Set((state.es.cs.height, state.es.cs.round)))}

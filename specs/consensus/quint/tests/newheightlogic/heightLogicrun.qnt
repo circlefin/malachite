@@ -206,6 +206,22 @@ run catchUpToHigherRoundAfterHeightChange = {
     .expect(system.get(slow).es.cs.round == 1)
 }
 
-
+run preloadVotekeeperOnly = {
+    val prop = proposer(validatorSet, 0, 0)
+    val value = "a"
+    init
+    .then(setNextValueToPropose(prop, value))
+    .then(reps(2, _ => ListTakeAStep(fastList)))
+    .then(ListDeliverProposal(validatorList,mkProposal(prop, 0, 0, value, -1)))
+    .then(ListTakeAStep(fastList))
+    .then(ListDeliverAllVotes (Prevote, fastList, validatorList, validatorSet, 0, 0, Val(value)))
+    // now slow catches up
+    // new height logic (StartDInput)
+    .then(valStep(slow)) 
+    // StepChangeDInput
+    .then(valStep(slow))
+    // ProposalDInput
+    .then(valStep(slow))
+}
 }
 
