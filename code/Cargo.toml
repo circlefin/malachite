@@ -138,7 +138,7 @@ prometheus-client  = "0.22"
 prost              = "0.13"
 prost-build        = "0.13"
 prost-types        = "0.13"
-ractor             = "0.13.4"
+ractor             = { version = "0.13.4", default-features = false, features = ["tokio_runtime"] }
 rand               = { version = "0.8.5", features = ["std_rng"] }
 rand_chacha        = "0.3.1"
 redb               = "2.2.0"
