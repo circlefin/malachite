@@ -55,6 +55,14 @@ where
     /// Resume with: [`Resume::ValidatorSet`]
     GetValidatorSet(Ctx::Height),
 
+    /// Sign a vote with this node's private key
+    /// Resume with: [`Resume::SignedVote`]
+    SignVote(Ctx::Vote),
+
+    /// Sign a proposal with this node's private key
+    /// Resume with: [`Resume::SignedProposal`]
+    SignProposal(Ctx::Proposal),
+
     /// Verify a signature
     /// Resume with: [`Resume::SignatureValidity`]
     VerifySignature(SignedMessage<Ctx, ConsensusMsg<Ctx>>, PublicKey<Ctx>),
@@ -63,13 +71,13 @@ where
     /// Resume with: [`Resume::Continue`]
     Decide { certificate: CommitCertificate<Ctx> },
 
-    /// Consensus has been stuck in Prevote or Precommit step,
-    /// ask for vote sets from peers
+    /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
     /// Resume with: [`Resume::Continue`]
     GetVoteSet(Ctx::Height, Round),
 
     /// A peer has required our vote set, send the response
     SendVoteSetResponse(RequestId, Ctx::Height, Round, VoteSet<Ctx>),
+
     /// Persist a consensus message in the Write-Ahead Log for crash recovery
     PersistMessage(SignedConsensusMsg<Ctx>),
 
@@ -97,4 +105,10 @@ where
 
     /// Resume execution with the validity of the signature just verified
     SignatureValidity(bool),
+
+    /// Resume execution with the signed vote
+    SignedVote(SignedMessage<Ctx, Ctx::Vote>),
+
+    /// Resume execution with the signed proposal
+    SignedProposal(SignedMessage<Ctx, Ctx::Proposal>),
 }
