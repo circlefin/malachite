@@ -2,7 +2,6 @@
 resolver = "2"
 
 members = [
-  "crates/actors",
   "crates/app",
   "crates/app-channel",
   "crates/cli",
@@ -13,6 +12,7 @@ members = [
   "crates/core-state-machine",
   "crates/core-types",
   "crates/core-votekeeper",
+  "crates/engine",
   "crates/metrics",
   "crates/network",
   "crates/node",
@@ -59,7 +59,7 @@ debug = true
 # None for now
 
 [workspace.dependencies]
-malachite-actors             = { version = "0.1.0", path = "crates/actors" }
+malachite-engine             = { version = "0.1.0", path = "crates/engine" }
 malachite-app                = { version = "0.1.0", path = "crates/app" }
 malachite-app-channel        = { version = "0.1.0", path = "crates/app-channel" }
 malachite-cli                = { version = "0.1.0", path = "crates/cli" }

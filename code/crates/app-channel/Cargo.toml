@@ -16,7 +16,7 @@ tokio.workspace = true
 tracing.workspace = true
 
 malachite-app.workspace = true
-malachite-actors.workspace = true
+malachite-engine.workspace = true
 
 [lints]
 workspace = true

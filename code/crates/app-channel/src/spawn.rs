@@ -3,7 +3,7 @@
 use eyre::Result;
 use tokio::sync::mpsc;
 
-use malachite_actors::host::HostRef;
+use malachite_engine::host::HostRef;
 
 use crate::app::types::core::Context;
 use crate::app::types::metrics::Metrics;

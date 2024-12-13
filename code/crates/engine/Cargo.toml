@@ -1,5 +1,5 @@
 [package]
-name = "malachite-actors"
+name = "malachite-engine"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true

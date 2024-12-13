@@ -10,12 +10,12 @@ use rand::SeedableRng;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
-use malachite_actors::consensus::{ConsensusMsg, ConsensusRef};
-use malachite_actors::host::{LocallyProposedValue, ProposedValue};
-use malachite_actors::network::{NetworkMsg, NetworkRef};
-use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_consensus::PeerId;
 use malachite_core_types::{CommitCertificate, Round, Validity, ValueOrigin};
+use malachite_engine::consensus::{ConsensusMsg, ConsensusRef};
+use malachite_engine::host::{LocallyProposedValue, ProposedValue};
+use malachite_engine::network::{NetworkMsg, NetworkRef};
+use malachite_engine::util::streaming::{StreamContent, StreamMessage};
 use malachite_metrics::Metrics;
 use malachite_sync::DecidedValue;
 
@@ -33,8 +33,8 @@ pub struct Host {
     span: tracing::Span,
 }
 
-pub type HostRef = malachite_actors::host::HostRef<MockContext>;
-pub type HostMsg = malachite_actors::host::HostMsg<MockContext>;
+pub type HostRef = malachite_engine::host::HostRef<MockContext>;
+pub type HostMsg = malachite_engine::host::HostMsg<MockContext>;
 
 impl Host {
     pub async fn spawn(

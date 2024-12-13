@@ -6,12 +6,12 @@ use std::time::Duration;
 use eyre::Result;
 use tracing::Span;
 
-use malachite_actors::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
-use malachite_actors::host::HostRef;
-use malachite_actors::network::{Network, NetworkRef};
-use malachite_actors::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
-use malachite_actors::util::events::TxEvent;
-use malachite_actors::wal::{Wal, WalCodec, WalRef};
+use malachite_engine::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
+use malachite_engine::host::HostRef;
+use malachite_engine::network::{Network, NetworkRef};
+use malachite_engine::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
+use malachite_engine::util::events::TxEvent;
+use malachite_engine::wal::{Wal, WalCodec, WalRef};
 use malachite_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
 
 use crate::types::config::{Config as NodeConfig, PubSubProtocol, SyncConfig, TransportProtocol};

@@ -12,10 +12,10 @@ use crate::app::types::metrics::{Metrics, SharedRegistry};
 use crate::channel::AppMsg;
 use crate::spawn::spawn_host_actor;
 
-use malachite_actors::util::events::TxEvent;
 use malachite_app::{
     spawn_consensus_actor, spawn_network_actor, spawn_sync_actor, spawn_wal_actor,
 };
+use malachite_engine::util::events::TxEvent;
 
 #[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
 pub async fn run<Node, Ctx, Codec>(

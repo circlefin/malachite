@@ -2750,42 +2750,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-actors"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "byteorder",
- "bytes",
- "derive-where",
- "eyre",
- "libp2p",
- "malachite-codec",
- "malachite-config",
- "malachite-consensus",
- "malachite-core-types",
- "malachite-metrics",
- "malachite-network",
- "malachite-sync",
- "malachite-test-mempool",
- "malachite-wal",
- "ractor",
- "rand",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "malachite-app"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "eyre",
  "libp2p-identity",
- "malachite-actors",
  "malachite-codec",
  "malachite-config",
  "malachite-consensus",
  "malachite-core-types",
+ "malachite-engine",
  "malachite-metrics",
  "malachite-network",
  "malachite-peer",
@@ -2802,8 +2777,8 @@ dependencies = [
  "bytes",
  "derive-where",
  "eyre",
- "malachite-actors",
  "malachite-app",
+ "malachite-engine",
  "malachite-test",
  "ractor",
  "rand",
@@ -2955,6 +2930,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-engine"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "byteorder",
+ "bytes",
+ "derive-where",
+ "eyre",
+ "libp2p",
+ "malachite-codec",
+ "malachite-config",
+ "malachite-consensus",
+ "malachite-core-types",
+ "malachite-metrics",
+ "malachite-network",
+ "malachite-sync",
+ "malachite-test-mempool",
+ "malachite-wal",
+ "ractor",
+ "rand",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "malachite-metrics"
 version = "0.1.0"
 dependencies = [
@@ -3043,13 +3043,13 @@ dependencies = [
  "eyre",
  "itertools 0.13.0",
  "libp2p-identity",
- "malachite-actors",
  "malachite-app",
  "malachite-cli",
  "malachite-codec",
  "malachite-config",
  "malachite-consensus",
  "malachite-core-types",
+ "malachite-engine",
  "malachite-metrics",
  "malachite-network",
  "malachite-node",
@@ -3101,10 +3101,10 @@ dependencies = [
  "axum",
  "bytesize",
  "eyre",
- "malachite-actors",
  "malachite-config",
  "malachite-consensus",
  "malachite-core-types",
+ "malachite-engine",
  "malachite-metrics",
  "malachite-starknet-host",
  "ractor",
@@ -3145,12 +3145,12 @@ dependencies = [
  "ed25519-consensus",
  "eyre",
  "hex",
- "malachite-actors",
  "malachite-app",
  "malachite-codec",
  "malachite-config",
  "malachite-consensus",
  "malachite-core-types",
+ "malachite-engine",
  "malachite-proto",
  "malachite-signing-ed25519",
  "malachite-sync",

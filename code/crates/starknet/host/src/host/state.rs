@@ -5,10 +5,10 @@ use rand::RngCore;
 use sha3::Digest;
 use tracing::{debug, error, trace};
 
-use malachite_actors::consensus::ConsensusRef;
-use malachite_actors::host::ProposedValue;
-use malachite_actors::util::streaming::StreamId;
 use malachite_core_types::{Round, SignedExtension, Validity};
+use malachite_engine::consensus::ConsensusRef;
+use malachite_engine::host::ProposedValue;
+use malachite_engine::util::streaming::StreamId;
 
 use crate::block_store::BlockStore;
 use crate::host::proposal::compute_proposal_hash;

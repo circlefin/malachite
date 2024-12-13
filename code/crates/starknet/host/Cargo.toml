@@ -1,14 +1,14 @@
 [package]
-name                   = "malachite-starknet-host"
-version.workspace      = true
-edition.workspace      = true
-repository.workspace   = true
-license.workspace      = true
+name = "malachite-starknet-host"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 rust-version.workspace = true
-publish                = false
+publish = false
 
 [dependencies]
-malachite-actors = { workspace = true }
+malachite-engine = { workspace = true }
 malachite-app = { workspace = true }
 malachite-codec = { workspace = true }
 malachite-config = { workspace = true }

@@ -88,7 +88,7 @@ pub enum ConsensusMsg<Ctx: Context> {
     StartHeight(Ctx::Height, Ctx::ValidatorSet),
 }
 
-use malachite_actors::consensus::Msg as ConsensusActorMsg;
+use malachite_engine::consensus::Msg as ConsensusActorMsg;
 
 impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {
     fn from(msg: ConsensusMsg<Ctx>) -> ConsensusActorMsg<Ctx> {
