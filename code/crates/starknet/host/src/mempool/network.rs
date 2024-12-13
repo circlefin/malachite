@@ -17,13 +17,14 @@ use malachite_test_mempool::types::MempoolTransactionBatch;
 use malachite_test_mempool::Channel::Mempool;
 use malachite_test_mempool::{Config, Event, NetworkMsg, PeerId};
 
-pub type GossipMempoolRef = ActorRef<Msg>;
+pub type MempoolNetworkMsg = Msg;
+pub type MempoolNetworkRef = ActorRef<Msg>;
 
-pub struct GossipMempool {
+pub struct MempoolNetwork {
     span: tracing::Span,
 }
 
-impl GossipMempool {
+impl MempoolNetwork {
     pub async fn spawn(
         keypair: Keypair,
         config: Config,
@@ -73,7 +74,7 @@ pub enum Msg {
 }
 
 #[async_trait]
-impl Actor for GossipMempool {
+impl Actor for MempoolNetwork {
     type Msg = Msg;
     type State = State;
     type Arguments = Args;

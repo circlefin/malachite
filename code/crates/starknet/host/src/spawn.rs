@@ -19,12 +19,12 @@ use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
 use malachite_network::Keypair;
 use malachite_sync as sync;
-use malachite_test_mempool::Config as GossipMempoolConfig;
+use malachite_test_mempool::Config as MempoolNetworkConfig;
 
 use crate::actor::Host;
 use crate::codec::ProtobufCodec;
-use crate::gossip_mempool::{GossipMempool, GossipMempoolRef};
 use crate::host::{StarknetHost, StarknetParams};
+use crate::mempool::network::{MempoolNetwork, MempoolNetworkRef};
 use crate::mempool::{Mempool, MempoolRef};
 use crate::types::MockContext;
 use crate::types::{Address, Height, PrivateKey, ValidatorSet};
@@ -47,8 +47,9 @@ pub async fn spawn_node_actor(
     let address = Address::from_public_key(private_key.public_key());
 
     // Spawn mempool and its gossip layer
-    let gossip_mempool = spawn_gossip_mempool_actor(&cfg, &private_key, &registry, &span).await;
-    let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test, &span).await;
+    let mempool_network = spawn_mempool_network_actor(&cfg, &private_key, &registry, &span).await;
+    let mempool =
+        spawn_mempool_actor(mempool_network.clone(), &cfg.mempool, &cfg.test, &span).await;
 
     // Spawn consensus gossip
     let network = spawn_network_actor(&cfg, &private_key, &registry, &span).await;
@@ -274,13 +275,13 @@ fn make_keypair(private_key: &PrivateKey) -> Keypair {
 }
 
 async fn spawn_mempool_actor(
-    gossip_mempool: GossipMempoolRef,
+    mempool_network: MempoolNetworkRef,
     mempool_config: &MempoolConfig,
     test_config: &TestConfig,
     span: &tracing::Span,
 ) -> MempoolRef {
     Mempool::spawn(
-        gossip_mempool,
+        mempool_network,
         mempool_config.clone(),
         *test_config,
         span.clone(),
@@ -289,13 +290,15 @@ async fn spawn_mempool_actor(
     .unwrap()
 }
 
-async fn spawn_gossip_mempool_actor(
+async fn spawn_mempool_network_actor(
     cfg: &NodeConfig,
     private_key: &PrivateKey,
     registry: &SharedRegistry,
     span: &tracing::Span,
-) -> GossipMempoolRef {
-    let config_gossip_mempool = GossipMempoolConfig {
+) -> MempoolNetworkRef {
+    let keypair = make_keypair(private_key);
+
+    let config = MempoolNetworkConfig {
         listen_addr: cfg.mempool.p2p.listen_addr.clone(),
         persistent_peers: cfg.mempool.p2p.persistent_peers.clone(),
         idle_connection_timeout: Duration::from_secs(15 * 60),
@@ -305,15 +308,9 @@ async fn spawn_gossip_mempool_actor(
         },
     };
 
-    let keypair = make_keypair(private_key);
-    GossipMempool::spawn(
-        keypair,
-        config_gossip_mempool,
-        registry.clone(),
-        span.clone(),
-    )
-    .await
-    .unwrap()
+    MempoolNetwork::spawn(keypair, config, registry.clone(), span.clone())
+        .await
+        .unwrap()
 }
 
 #[allow(clippy::too_many_arguments)]
