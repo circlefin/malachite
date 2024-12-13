@@ -3,6 +3,8 @@ use crate::prelude::*;
 use crate::handle::driver::apply_driver_input;
 use crate::types::ProposedValue;
 
+use super::signature::sign_proposal;
+
 #[tracing::instrument(
     skip_all,
     fields(
@@ -54,7 +56,7 @@ where
 
         // TODO: Keep unsigned proposals in keeper.
         // For now we keep all happy by signing all "implicit" proposals with this node's key
-        let signed_proposal = state.ctx.signing_provider().sign_proposal(proposal);
+        let signed_proposal = sign_proposal(co, proposal).await?;
 
         state.store_proposal(signed_proposal);
     }
