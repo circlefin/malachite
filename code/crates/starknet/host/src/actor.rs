@@ -385,7 +385,7 @@ async fn on_restream_value(
         height,
         proposal_round: round,
         valid_round,
-        proposer: address.clone(),
+        proposer: address,
     };
 
     let signature = compute_proposal_signature(&init, &value_id, &state.host.private_key);

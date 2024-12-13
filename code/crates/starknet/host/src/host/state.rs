@@ -135,13 +135,7 @@ impl HostState {
             .verify_proposal_validity(init, &proposal_hash, &fin.signature)
             .await?;
 
-        Some((
-            valid_round,
-            block_hash,
-            init.proposer.clone(),
-            validity,
-            extension,
-        ))
+        Some((valid_round, block_hash, init.proposer, validity, extension))
     }
 
     async fn verify_proposal_validity(

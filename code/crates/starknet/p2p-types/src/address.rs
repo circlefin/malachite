@@ -7,7 +7,7 @@ use malachite_starknet_p2p_proto as p2p_proto;
 
 use crate::PublicKey;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Address(PublicKey);
 

@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use malachite_core_types::{
-    Context, NilOrVal, Round, SignedProposal, SignedProposalPart, SignedVote, ValidatorSet as _,
-};
+use malachite_core_types::{Context, NilOrVal, Round, ValidatorSet as _};
 
 use crate::address::*;
 use crate::height::*;
@@ -15,13 +13,13 @@ use crate::vote::*;
 
 #[derive(Clone, Debug)]
 pub struct TestContext {
-    private_key: Arc<PrivateKey>,
+    ed25519_provider: Arc<Ed25519Provider>,
 }
 
 impl TestContext {
     pub fn new(private_key: PrivateKey) -> Self {
         Self {
-            private_key: Arc::new(private_key),
+            ed25519_provider: Arc::new(Ed25519Provider::new(private_key)),
         }
     }
 }
@@ -36,6 +34,11 @@ impl Context for TestContext {
     type Value = Value;
     type Vote = Vote;
     type SigningScheme = Ed25519;
+    type SigningProvider = Ed25519Provider;
+
+    fn signing_provider(&self) -> &Self::SigningProvider {
+        &self.ed25519_provider
+    }
 
     fn select_proposer<'a>(
         &self,
@@ -56,62 +59,6 @@ impl Context for TestContext {
         validator_set
             .get_by_index(proposer_index)
             .expect("proposer_index is valid")
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn sign_vote(&self, vote: Self::Vote) -> SignedVote<Self> {
-        use signature::Signer;
-        let signature = self.private_key.sign(&vote.to_bytes());
-        SignedVote::new(vote, signature)
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn verify_signed_vote(
-        &self,
-        vote: &Vote,
-        signature: &Signature,
-        public_key: &PublicKey,
-    ) -> bool {
-        use signature::Verifier;
-        public_key.verify(&vote.to_bytes(), signature).is_ok()
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn sign_proposal(&self, proposal: Self::Proposal) -> SignedProposal<Self> {
-        use signature::Signer;
-        let signature = self.private_key.sign(&proposal.to_bytes());
-        SignedProposal::new(proposal, signature)
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn verify_signed_proposal(
-        &self,
-        proposal: &Proposal,
-        signature: &Signature,
-        public_key: &PublicKey,
-    ) -> bool {
-        use signature::Verifier;
-        public_key.verify(&proposal.to_bytes(), signature).is_ok()
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn sign_proposal_part(&self, proposal_part: Self::ProposalPart) -> SignedProposalPart<Self> {
-        use signature::Signer;
-        let signature = self.private_key.sign(&proposal_part.to_bytes());
-        SignedProposalPart::new(proposal_part, signature)
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn verify_signed_proposal_part(
-        &self,
-        proposal_part: &ProposalPart,
-        signature: &Signature,
-        public_key: &PublicKey,
-    ) -> bool {
-        use signature::Verifier;
-        public_key
-            .verify(&proposal_part.to_bytes(), signature)
-            .is_ok()
     }
 
     fn new_proposal(

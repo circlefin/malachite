@@ -1,5 +1,7 @@
 use malachite_consensus::{FullProposal, FullProposalKeeper, Input, ProposedValue};
-use malachite_core_types::{Context, Round, SignedProposal, Validity, ValueOrigin};
+use malachite_core_types::{
+    Context, Round, SignedProposal, SigningProvider, Validity, ValueOrigin,
+};
 use malachite_test::utils::validators::make_validators;
 use malachite_test::{Address, Proposal, Value};
 use malachite_test::{Height, TestContext};
@@ -13,7 +15,7 @@ fn signed_proposal_pol(
     address: Address,
 ) -> SignedProposal<TestContext> {
     let proposal1 = Proposal::new(height, round, value, pol_round, address);
-    ctx.sign_proposal(proposal1)
+    ctx.signing_provider().sign_proposal(proposal1)
 }
 
 fn prop(

@@ -3,8 +3,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use eyre::eyre;
-use malachite_sync::InboundRequestId;
-
 use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use tokio::time::Instant;
 use tracing::{debug, error, info, warn};
@@ -13,10 +11,13 @@ use malachite_codec as codec;
 use malachite_config::TimeoutConfig;
 use malachite_consensus::{Effect, PeerId, Resume, SignedConsensusMsg, ValueToPropose};
 use malachite_core_types::{
-    Context, Round, SignedExtension, Timeout, TimeoutKind, ValidatorSet, ValueOrigin,
+    Context, Round, SignedExtension, SigningProvider, Timeout, TimeoutKind, ValidatorSet,
+    ValueOrigin,
 };
 use malachite_metrics::Metrics;
-use malachite_sync::{self as sync, Response, ValueResponse, VoteSetRequest, VoteSetResponse};
+use malachite_sync::{
+    self as sync, InboundRequestId, Response, ValueResponse, VoteSetRequest, VoteSetResponse,
+};
 
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
@@ -812,7 +813,7 @@ where
             Effect::SignProposal(proposal) => {
                 let start = Instant::now();
 
-                let signed_proposal = self.ctx.sign_proposal(proposal);
+                let signed_proposal = self.ctx.signing_provider().sign_proposal(proposal);
 
                 self.metrics
                     .signature_signing_time
@@ -824,7 +825,7 @@ where
             Effect::SignVote(vote) => {
                 let start = Instant::now();
 
-                let signed_vote = self.ctx.sign_vote(vote);
+                let signed_vote = self.ctx.signing_provider().sign_vote(vote);
 
                 self.metrics
                     .signature_signing_time
@@ -839,8 +840,16 @@ where
                 let start = Instant::now();
 
                 let valid = match msg.message {
-                    Msg::Vote(v) => self.ctx.verify_signed_vote(&v, &msg.signature, &pk),
-                    Msg::Proposal(p) => self.ctx.verify_signed_proposal(&p, &msg.signature, &pk),
+                    Msg::Vote(v) => {
+                        self.ctx
+                            .signing_provider()
+                            .verify_signed_vote(&v, &msg.signature, &pk)
+                    }
+                    Msg::Proposal(p) => {
+                        self.ctx
+                            .signing_provider()
+                            .verify_signed_proposal(&p, &msg.signature, &pk)
+                    }
                 };
 
                 self.metrics

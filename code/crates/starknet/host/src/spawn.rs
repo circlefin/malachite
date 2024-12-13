@@ -345,7 +345,7 @@ async fn spawn_host_actor(
     let mock_host = StarknetHost::new(
         mock_params,
         mempool.clone(),
-        address.clone(),
+        *address,
         *private_key,
         initial_validator_set.clone(),
     );

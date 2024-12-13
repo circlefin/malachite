@@ -52,9 +52,10 @@ where
             proposed_value.validator_address.clone(),
         );
 
-        // TODO - keep unsigned proposals in keeper. For now we keep all happy
-        // by signing all "implicit" proposals with this node's key
-        let signed_proposal = Ctx::sign_proposal(&state.ctx, proposal);
+        // TODO: Keep unsigned proposals in keeper.
+        // For now we keep all happy by signing all "implicit" proposals with this node's key
+        let signed_proposal = state.ctx.signing_provider().sign_proposal(proposal);
+
         state.store_proposal(signed_proposal);
     }
 

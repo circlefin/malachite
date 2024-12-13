@@ -149,7 +149,7 @@ impl PartStreamsMap {
         Some(ProposalParts {
             height: init_info.height,
             round: init_info.proposal_round,
-            proposer: init_info.proposer.clone(),
+            proposer: init_info.proposer,
             parts: to_emit,
         })
     }
@@ -177,7 +177,7 @@ impl PartStreamsMap {
         Some(ProposalParts {
             height: init_info.height,
             round: init_info.proposal_round,
-            proposer: init_info.proposer.clone(),
+            proposer: init_info.proposer,
             parts: to_emit,
         })
     }
