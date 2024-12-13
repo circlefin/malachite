@@ -3,7 +3,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use libp2p_identity::{ecdsa, PeerId};
 use malachite_config::TransportProtocol;
-use malachite_gossip_consensus::{spawn, Config, DiscoveryConfig, Keypair, PeerIdExt};
+use malachite_gossip_consensus::{
+    spawn, BootstrapProtocol, Config, DiscoveryConfig, Keypair, PeerIdExt, Selector,
+};
 use malachite_metrics::SharedRegistry;
 use malachite_starknet_host::types::PrivateKey;
 use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -157,8 +159,8 @@ impl<const N: usize> Test<N> {
                 .collect(),
             discovery: DiscoveryConfig {
                 enabled: true,
-                bootstrap_protocol: "full",
-                selector: "random",
+                bootstrap_protocol: BootstrapProtocol::Full,
+                selector: Selector::Random,
                 ..Default::default()
             },
             idle_connection_timeout: Duration::from_secs(60),

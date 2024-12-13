@@ -12,6 +12,7 @@ use libp2p::swarm::NetworkBehaviour;
 use libp2p::{kad, Multiaddr, PeerId, StreamProtocol};
 use serde::{Deserialize, Serialize};
 
+use crate::config::BootstrapProtocol;
 use crate::Config;
 
 const DISCOVERY_KAD_PROTOCOL: &str = "/malachite-discovery/kad/v1beta1";
@@ -90,17 +91,19 @@ fn request_response_config() -> request_response::Config {
 impl Behaviour {
     pub fn new(keypair: &Keypair, config: Config) -> Self {
         let kademlia = Toggle::from(
-            (config.enabled && config.bootstrap_protocol == "kademlia").then(|| {
-                let mut kademlia = kad::Behaviour::with_config(
-                    keypair.public().to_peer_id(),
-                    MemoryStore::new(keypair.public().to_peer_id()),
-                    kademlia_config(),
-                );
+            (config.enabled && config.bootstrap_protocol == BootstrapProtocol::Kademlia).then(
+                || {
+                    let mut kademlia = kad::Behaviour::with_config(
+                        keypair.public().to_peer_id(),
+                        MemoryStore::new(keypair.public().to_peer_id()),
+                        kademlia_config(),
+                    );
 
-                kademlia.set_mode(Some(Mode::Server));
+                    kademlia.set_mode(Some(Mode::Server));
 
-                kademlia
-            }),
+                    kademlia
+                },
+            ),
         );
 
         let request_response = request_response::cbor::Behaviour::new(

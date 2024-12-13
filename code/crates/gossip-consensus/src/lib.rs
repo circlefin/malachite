@@ -84,6 +84,8 @@ impl Default for GossipSubConfig {
 pub type BoxError = Box<dyn Error + Send + Sync + 'static>;
 
 pub type DiscoveryConfig = discovery::Config;
+pub type BootstrapProtocol = discovery::config::BootstrapProtocol;
+pub type Selector = discovery::config::Selector;
 
 #[derive(Clone, Debug)]
 pub struct Config {

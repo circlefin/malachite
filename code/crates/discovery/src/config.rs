@@ -9,12 +9,26 @@ const DEFAULT_DIAL_MAX_RETRIES: usize = 5;
 const DEFAULT_PEERS_REQUEST_MAX_RETRIES: usize = 5;
 const DEFAULT_CONNECT_REQUEST_MAX_RETRIES: usize = 0;
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub enum BootstrapProtocol {
+    #[default]
+    Kademlia,
+    Full,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub enum Selector {
+    #[default]
+    Kademlia,
+    Random,
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct Config {
     pub enabled: bool,
 
-    pub bootstrap_protocol: &'static str,
-    pub selector: &'static str,
+    pub bootstrap_protocol: BootstrapProtocol,
+    pub selector: Selector,
 
     pub num_outbound_peers: usize,
     pub num_inbound_peers: usize,
@@ -35,8 +49,8 @@ impl Default for Config {
         Self {
             enabled: true,
 
-            bootstrap_protocol: "full",
-            selector: "random",
+            bootstrap_protocol: BootstrapProtocol::default(),
+            selector: Selector::default(),
 
             num_outbound_peers: DEFAULT_NUM_OUTBOUND_PEERS,
             num_inbound_peers: DEFAULT_NUM_INBOUND_PEERS,
@@ -58,11 +72,11 @@ impl Config {
         }
     }
 
-    pub fn set_bootstrap_protocol(&mut self, protocol: &'static str) {
+    pub fn set_bootstrap_protocol(&mut self, protocol: BootstrapProtocol) {
         self.bootstrap_protocol = protocol;
     }
 
-    pub fn set_selector(&mut self, selector: &'static str) {
+    pub fn set_selector(&mut self, selector: Selector) {
         self.selector = selector;
     }
 

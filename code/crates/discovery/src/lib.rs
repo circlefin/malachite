@@ -18,7 +18,7 @@ pub use behaviour::*;
 mod connection;
 use connection::ConnectionData;
 
-mod config;
+pub mod config;
 pub use config::Config;
 
 mod controller;
@@ -93,22 +93,16 @@ where
             State::Idle
         } else if config.enabled {
             match config.bootstrap_protocol {
-                "kademlia" => {
+                config::BootstrapProtocol::Kademlia => {
                     debug!("Using Kademlia bootstrap");
 
                     State::Bootstrapping
                 }
 
-                "full" => {
+                config::BootstrapProtocol::Full => {
                     debug!("Using full bootstrap");
 
                     State::Extending(config.num_outbound_peers)
-                }
-
-                unknown => {
-                    error!("Unknown bootstrap protocol: {unknown}");
-
-                    State::Idle
                 }
             }
         } else {
@@ -119,7 +113,7 @@ where
             config,
             state,
 
-            selector: Discovery::get_selector(&config.bootstrap_protocol, &config.selector),
+            selector: Discovery::get_selector(config.bootstrap_protocol, config.selector),
 
             bootstrap_nodes: bootstrap_nodes
                 .clone()

@@ -1,6 +1,7 @@
 use libp2p::{identify, swarm::ConnectionId, PeerId, Swarm};
 use tracing::{info, warn};
 
+use crate::config::BootstrapProtocol;
 use crate::{request::RequestData, Discovery, DiscoveryClient, OutboundConnection, State};
 
 impl<C> Discovery<C>
@@ -124,7 +125,7 @@ where
                 }
             }
             // Add the address to the Kademlia routing table
-            if self.config.bootstrap_protocol == "kademlia" {
+            if self.config.bootstrap_protocol == BootstrapProtocol::Kademlia {
                 swarm
                     .behaviour_mut()
                     .add_address(&peer_id, info.listen_addrs.first().unwrap().clone());

@@ -15,9 +15,7 @@ use malachite_config::{
     self as config, Config as NodeConfig, MempoolConfig, SyncConfig, TestConfig, TransportProtocol,
 };
 use malachite_consensus::ValuePayload;
-use malachite_gossip_consensus::{
-    Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair, PubSubProtocol,
-};
+use malachite_gossip_consensus::Keypair;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
 use malachite_sync as sync;
@@ -209,13 +207,25 @@ async fn spawn_gossip_consensus_actor(
     registry: &SharedRegistry,
     span: &tracing::Span,
 ) -> GossipConsensusRef<MockContext> {
-    let config_gossip = GossipConsensusConfig {
+    use malachite_gossip_consensus as gossip;
+
+    let bootstrap_protocol = match cfg.consensus.p2p.discovery.bootstrap_protocol {
+        config::BootstrapProtocol::Kademlia => gossip::BootstrapProtocol::Kademlia,
+        config::BootstrapProtocol::Full => gossip::BootstrapProtocol::Full,
+    };
+
+    let selector = match cfg.consensus.p2p.discovery.selector {
+        config::Selector::Kademlia => gossip::Selector::Kademlia,
+        config::Selector::Random => gossip::Selector::Random,
+    };
+
+    let config_gossip = gossip::Config {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
-        discovery: DiscoveryConfig {
+        discovery: gossip::DiscoveryConfig {
             enabled: cfg.consensus.p2p.discovery.enabled,
-            bootstrap_protocol: cfg.consensus.p2p.discovery.bootstrap_protocol.name(),
-            selector: cfg.consensus.p2p.discovery.selector.name(),
+            bootstrap_protocol,
+            selector,
             num_outbound_peers: cfg.consensus.p2p.discovery.num_outbound_peers,
             num_inbound_peers: cfg.consensus.p2p.discovery.num_inbound_peers,
             ephemeral_connection_timeout: cfg.consensus.p2p.discovery.ephemeral_connection_timeout,
@@ -223,21 +233,21 @@ async fn spawn_gossip_consensus_actor(
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: match cfg.consensus.p2p.transport {
-            TransportProtocol::Tcp => malachite_gossip_consensus::TransportProtocol::Tcp,
-            TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
+            TransportProtocol::Tcp => gossip::TransportProtocol::Tcp,
+            TransportProtocol::Quic => gossip::TransportProtocol::Quic,
         },
         pubsub_protocol: match cfg.consensus.p2p.protocol {
-            config::PubSubProtocol::GossipSub(_) => PubSubProtocol::GossipSub,
-            config::PubSubProtocol::Broadcast => PubSubProtocol::Broadcast,
+            config::PubSubProtocol::GossipSub(_) => gossip::PubSubProtocol::GossipSub,
+            config::PubSubProtocol::Broadcast => gossip::PubSubProtocol::Broadcast,
         },
         gossipsub: match cfg.consensus.p2p.protocol {
-            config::PubSubProtocol::GossipSub(config) => GossipSubConfig {
+            config::PubSubProtocol::GossipSub(config) => gossip::GossipSubConfig {
                 mesh_n: config.mesh_n(),
                 mesh_n_high: config.mesh_n_high(),
                 mesh_n_low: config.mesh_n_low(),
                 mesh_outbound_min: config.mesh_outbound_min(),
             },
-            config::PubSubProtocol::Broadcast => GossipSubConfig::default(),
+            config::PubSubProtocol::Broadcast => gossip::GossipSubConfig::default(),
         },
         rpc_max_size: cfg.consensus.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.consensus.p2p.pubsub_max_size.as_u64() as usize,

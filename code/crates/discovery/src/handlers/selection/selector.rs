@@ -1,19 +1,25 @@
-use libp2p::{identify, PeerId, Swarm};
 use std::{collections::HashMap, fmt::Debug};
+
+use libp2p::{identify, PeerId, Swarm};
 use tracing::info;
 
+use crate::config;
 use crate::{Discovery, DiscoveryClient};
 
-use super::{kademlia::KademliaSelector, random::RandomSelector};
+use super::kademlia::KademliaSelector;
+use super::random::RandomSelector;
 
 impl<C> Discovery<C>
 where
     C: DiscoveryClient,
 {
-    pub(crate) fn get_selector(bootstrap_protocol: &str, name: &str) -> Box<dyn Selector<C>> {
-        match name {
-            "kademlia" => {
-                if bootstrap_protocol != "kademlia" {
+    pub(crate) fn get_selector(
+        bootstrap_protocol: config::BootstrapProtocol,
+        selector: config::Selector,
+    ) -> Box<dyn Selector<C>> {
+        match selector {
+            config::Selector::Kademlia => {
+                if bootstrap_protocol != config::BootstrapProtocol::Kademlia {
                     panic!(
                         "Kademlia selector is only available with the Kademlia bootstrap protocol"
                     );
@@ -22,11 +28,11 @@ where
                 info!("Using Kademlia selector");
                 Box::new(KademliaSelector::new())
             }
-            "random" => {
+
+            config::Selector::Random => {
                 info!("Using Random selector");
                 Box::new(RandomSelector::new())
             }
-            _ => panic!("Unknown selector: {}", name),
         }
     }
 

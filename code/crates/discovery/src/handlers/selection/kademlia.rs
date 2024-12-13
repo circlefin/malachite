@@ -76,7 +76,7 @@ where
 
         if total_kbuckets_candidates < n {
             for (_, peers) in &kbuckets_candidates {
-                candidates.extend(peers.into_iter());
+                candidates.extend(peers.iter());
             }
         } else {
             // Select candidates in round-robin fashion based on kbucket index in reverse order
