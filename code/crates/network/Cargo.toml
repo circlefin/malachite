@@ -1,5 +1,5 @@
 [package]
-name                 = "malachite-gossip-consensus"
+name                 = "malachite-network"
 version.workspace    = true
 edition.workspace    = true
 repository.workspace = true

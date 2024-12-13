@@ -1,32 +1,32 @@
 [package]
-name                 = "malachite-actors"
-version.workspace    = true
-edition.workspace    = true
+name = "malachite-actors"
+version.workspace = true
+edition.workspace = true
 repository.workspace = true
-license.workspace    = true
-publish.workspace    = true
+license.workspace = true
+publish.workspace = true
 
 [lints]
 workspace = true
 
 [dependencies]
-malachite-codec.workspace            = true
-malachite-config.workspace           = true
-malachite-consensus.workspace        = true
-malachite-core-types.workspace       = true
-malachite-gossip-consensus.workspace = true
-malachite-metrics.workspace          = true
-malachite-sync.workspace             = true
-malachite-test-mempool.workspace     = true
-malachite-wal.workspace              = true
+malachite-codec.workspace = true
+malachite-config.workspace = true
+malachite-consensus.workspace = true
+malachite-core-types.workspace = true
+malachite-network.workspace = true
+malachite-metrics.workspace = true
+malachite-sync.workspace = true
+malachite-test-mempool.workspace = true
+malachite-wal.workspace = true
 
-async-trait        = { workspace = true }
-bytes              = { workspace = true, features = ["serde"] }
-byteorder          = { workspace = true }
-derive-where       = { workspace = true }
-eyre               = { workspace = true }
-libp2p             = { workspace = true }
-ractor             = { workspace = true, features = ["async-trait"] }
-rand               = { workspace = true }
-tokio              = { workspace = true, features = ["full"] }
-tracing            = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true, features = ["serde"] }
+byteorder = { workspace = true }
+derive-where = { workspace = true }
+eyre = { workspace = true }
+libp2p = { workspace = true }
+ractor = { workspace = true, features = ["async-trait"] }
+rand = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }

@@ -13,8 +13,8 @@ members = [
   "crates/core-state-machine",
   "crates/core-types",
   "crates/core-votekeeper",
-  "crates/gossip-consensus",
   "crates/metrics",
+  "crates/network",
   "crates/node",
   "crates/peer",
   "crates/proto",
@@ -28,7 +28,7 @@ members = [
   "crates/test",
   "crates/test/mbt",
   "crates/test/mempool",
-  "crates/gossip-consensus/test",
+  "crates/network/test",
   "crates/core-driver/test-utils",
 
   # Starknet
@@ -71,7 +71,7 @@ malachite-core-state-machine = { version = "0.1.0", path = "crates/core-state-ma
 malachite-core-types         = { version = "0.1.0", path = "crates/core-types" }
 malachite-core-votekeeper    = { version = "0.1.0", path = "crates/core-votekeeper" }
 malachite-discovery          = { version = "0.1.0", path = "crates/discovery" }
-malachite-gossip-consensus   = { version = "0.1.0", path = "crates/gossip-consensus" }
+malachite-network            = { version = "0.1.0", path = "crates/network" }
 malachite-metrics            = { version = "0.1.0", path = "crates/metrics" }
 malachite-node               = { version = "0.1.0", path = "crates/node" }
 malachite-peer               = { version = "0.1.0", path = "crates/peer" }

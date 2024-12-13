@@ -18,8 +18,8 @@ use malachite_sync::{
 use malachite_codec as codec;
 use malachite_consensus::SignedConsensusMsg;
 use malachite_core_types::{Context, SignedProposal, SignedVote};
-use malachite_gossip_consensus::handle::CtrlHandle;
-use malachite_gossip_consensus::{Channel, Config, Event, Multiaddr, PeerId};
+use malachite_network::handle::CtrlHandle;
+use malachite_network::{Channel, Config, Event, Multiaddr, PeerId};
 use malachite_metrics::SharedRegistry;
 
 use crate::consensus::ConsensusCodec;
@@ -168,7 +168,7 @@ where
         args: Args,
     ) -> Result<Self::State, ActorProcessingErr> {
         let handle =
-            malachite_gossip_consensus::spawn(args.keypair, args.config, args.metrics).await?;
+            malachite_network::spawn(args.keypair, args.config, args.metrics).await?;
 
         let (mut recv_handle, ctrl_handle) = handle.split();
 

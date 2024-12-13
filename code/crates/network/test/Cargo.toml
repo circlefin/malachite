@@ -1,0 +1,25 @@
+[package]
+name = "malachite-discovery-test"
+publish = false
+
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+malachite-network.workspace = true
+malachite-config.workspace = true
+malachite-starknet-host.workspace = true
+malachite-metrics.workspace = true
+
+futures.workspace = true
+libp2p-identity.workspace = true
+rand.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

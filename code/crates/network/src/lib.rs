@@ -38,7 +38,7 @@ use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
 
 const PROTOCOL: &str = "/malachite-consensus/v1beta1";
-const METRICS_PREFIX: &str = "malachite_gossip_consensus";
+const METRICS_PREFIX: &str = "malachite_network";
 const DISCOVERY_METRICS_PREFIX: &str = "malachite_discovery";
 
 #[derive(Copy, Clone, Debug, Default)]

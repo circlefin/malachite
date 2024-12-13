@@ -12,7 +12,7 @@ use malachite_actors::host::HostRef;
 use malachite_actors::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
 use malachite_actors::util::events::TxEvent;
 use malachite_actors::wal::{Wal, WalCodec, WalRef};
-use malachite_gossip_consensus::{
+use malachite_network::{
     Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
 };
 
@@ -152,12 +152,12 @@ fn make_gossip_config(cfg: &NodeConfig) -> GossipConsensusConfig {
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: match cfg.consensus.p2p.transport {
-            TransportProtocol::Tcp => malachite_gossip_consensus::TransportProtocol::Tcp,
-            TransportProtocol::Quic => malachite_gossip_consensus::TransportProtocol::Quic,
+            TransportProtocol::Tcp => malachite_network::TransportProtocol::Tcp,
+            TransportProtocol::Quic => malachite_network::TransportProtocol::Quic,
         },
         pubsub_protocol: match cfg.consensus.p2p.protocol {
-            PubSubProtocol::GossipSub(_) => malachite_gossip_consensus::PubSubProtocol::GossipSub,
-            PubSubProtocol::Broadcast => malachite_gossip_consensus::PubSubProtocol::Broadcast,
+            PubSubProtocol::GossipSub(_) => malachite_network::PubSubProtocol::GossipSub,
+            PubSubProtocol::Broadcast => malachite_network::PubSubProtocol::Broadcast,
         },
         gossipsub: match cfg.consensus.p2p.protocol {
             PubSubProtocol::GossipSub(config) => GossipSubConfig {

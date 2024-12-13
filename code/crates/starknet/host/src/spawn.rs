@@ -15,7 +15,7 @@ use malachite_config::{
     self as config, Config as NodeConfig, MempoolConfig, SyncConfig, TestConfig, TransportProtocol,
 };
 use malachite_consensus::ValuePayload;
-use malachite_gossip_consensus::Keypair;
+use malachite_network::Keypair;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
 use malachite_sync as sync;
@@ -206,7 +206,7 @@ async fn spawn_gossip_consensus_actor(
     registry: &SharedRegistry,
     span: &tracing::Span,
 ) -> GossipConsensusRef<MockContext> {
-    use malachite_gossip_consensus as gossip;
+    use malachite_network as gossip;
 
     let bootstrap_protocol = match cfg.consensus.p2p.discovery.bootstrap_protocol {
         config::BootstrapProtocol::Kademlia => gossip::BootstrapProtocol::Kademlia,

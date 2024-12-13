@@ -14,7 +14,7 @@ malachite-codec = { workspace = true }
 malachite-config = { workspace = true }
 malachite-consensus = { workspace = true, features = ["debug"] }
 malachite-core-types = { workspace = true }
-malachite-gossip-consensus = { workspace = true }
+malachite-network = { workspace = true }
 malachite-metrics = { workspace = true }
 malachite-node = { workspace = true }
 malachite-proto = { workspace = true }
