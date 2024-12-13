@@ -11,8 +11,8 @@ use malachite_codec as codec;
 use malachite_config::TimeoutConfig;
 use malachite_consensus::{Effect, PeerId, Resume, SignedConsensusMsg, ValueToPropose};
 use malachite_core_types::{
-    Context, Round, SignedExtension, SigningProvider, Timeout, TimeoutKind, ValidatorSet,
-    ValueOrigin,
+    Context, Round, SignedExtension, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
+    ValidatorSet, ValueOrigin,
 };
 use malachite_metrics::Metrics;
 use malachite_sync::{
@@ -857,6 +857,16 @@ where
                     .observe(start.elapsed().as_secs_f64());
 
                 Ok(Resume::SignatureValidity(valid))
+            }
+
+            Effect::VerifyCertificate(certificate, validator_set, threshold_params) => {
+                let valid = self.ctx.signing_provider().verify_certificate(
+                    &certificate,
+                    &validator_set,
+                    threshold_params,
+                );
+
+                Ok(Resume::CertificateValidity(valid))
             }
 
             Effect::Broadcast(msg) => {

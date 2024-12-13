@@ -55,18 +55,6 @@ where
     /// Resume with: [`Resume::ValidatorSet`]
     GetValidatorSet(Ctx::Height),
 
-    /// Sign a vote with this node's private key
-    /// Resume with: [`Resume::SignedVote`]
-    SignVote(Ctx::Vote),
-
-    /// Sign a proposal with this node's private key
-    /// Resume with: [`Resume::SignedProposal`]
-    SignProposal(Ctx::Proposal),
-
-    /// Verify a signature
-    /// Resume with: [`Resume::SignatureValidity`]
-    VerifySignature(SignedMessage<Ctx, ConsensusMsg<Ctx>>, PublicKey<Ctx>),
-
     /// Consensus has decided on a value
     /// Resume with: [`Resume::Continue`]
     Decide { certificate: CommitCertificate<Ctx> },
@@ -83,6 +71,21 @@ where
 
     /// Persist a timeout in the Write-Ahead Log for crash recovery
     PersistTimeout(Timeout),
+
+    /// Sign a vote with this node's private key
+    /// Resume with: [`Resume::SignedVote`]
+    SignVote(Ctx::Vote),
+
+    /// Sign a proposal with this node's private key
+    /// Resume with: [`Resume::SignedProposal`]
+    SignProposal(Ctx::Proposal),
+
+    /// Verify a signature
+    /// Resume with: [`Resume::SignatureValidity`]
+    VerifySignature(SignedMessage<Ctx, ConsensusMsg<Ctx>>, PublicKey<Ctx>),
+
+    /// Verify a commit certificate
+    VerifyCertificate(CommitCertificate<Ctx>, Ctx::ValidatorSet, ThresholdParams),
 }
 
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].
@@ -103,7 +106,7 @@ where
     /// Resume execution with an optional validator set at the given height
     ValidatorSet(Ctx::Height, Option<Ctx::ValidatorSet>),
 
-    /// Resume execution with the validity of the signature just verified
+    /// Resume execution with the validity of the signature
     SignatureValidity(bool),
 
     /// Resume execution with the signed vote
@@ -111,4 +114,7 @@ where
 
     /// Resume execution with the signed proposal
     SignedProposal(SignedMessage<Ctx, Ctx::Proposal>),
+
+    /// Resume execution with the result of the verification of the [`CommitCertificate`]
+    CertificateValidity(Result<(), CertificateError<Ctx>>),
 }
