@@ -19,7 +19,6 @@ use malachite_sync::{DecidedValue, Request};
 
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
 use crate::host::{HostMsg, HostRef};
-use crate::util::forward::forward;
 use crate::util::ticker::ticker;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
@@ -100,6 +99,12 @@ pub enum Msg<Ctx: Context> {
 
     /// Consensus has sent a vote set response to a peer
     SentVoteSetResponse(InboundRequestId, Ctx::Height, Round),
+}
+
+impl<Ctx: Context> From<GossipEvent<Ctx>> for Msg<Ctx> {
+    fn from(event: GossipEvent<Ctx>) -> Self {
+        Msg::GossipEvent(event)
+    }
 }
 
 impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
@@ -482,8 +487,8 @@ where
         myself: ActorRef<Self::Msg>,
         args: Args<Ctx>,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
-        self.gossip.cast(GossipConsensusMsg::Subscribe(forward))?;
+        self.gossip
+            .cast(GossipConsensusMsg::Subscribe(Box::new(myself.clone())))?;
 
         let ticker = tokio::spawn(ticker(
             self.params.status_update_interval,

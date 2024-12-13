@@ -23,7 +23,6 @@ use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
 use crate::util::events::{Event, TxEvent};
-use crate::util::forward::forward;
 use crate::util::streaming::StreamMessage;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
@@ -94,6 +93,12 @@ pub enum Msg<Ctx: Context> {
 
     /// Get the status of the consensus state machine
     GetStatus(RpcReplyPort<Status<Ctx>>),
+}
+
+impl<Ctx: Context> From<GossipEvent<Ctx>> for Msg<Ctx> {
+    fn from(event: GossipEvent<Ctx>) -> Self {
+        Self::GossipEvent(event)
+    }
 }
 
 type ConsensusInput<Ctx> = malachite_consensus::Input<Ctx>;
@@ -991,10 +996,8 @@ where
         myself: ActorRef<Msg<Ctx>>,
         _args: (),
     ) -> Result<State<Ctx>, ActorProcessingErr> {
-        let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
-
         self.gossip_consensus
-            .cast(GossipConsensusMsg::Subscribe(forward))?;
+            .cast(GossipConsensusMsg::Subscribe(Box::new(myself.clone())))?;
 
         Ok(State {
             timers: Timers::new(myself),
