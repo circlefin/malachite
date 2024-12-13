@@ -3,8 +3,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use libp2p_identity::Keypair;
+use ractor::port::OutputPortSubscriber;
 use ractor::ActorProcessingErr;
 use ractor::ActorRef;
+use ractor::OutputPort;
 use ractor::{Actor, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::error;
@@ -49,7 +51,7 @@ pub enum State {
     Stopped,
     Running {
         peers: BTreeSet<PeerId>,
-        subscribers: Vec<ActorRef<Arc<Event>>>,
+        output_port: OutputPort<Arc<Event>>,
         ctrl_handle: CtrlHandle,
         recv_task: JoinHandle<()>,
     },
@@ -57,7 +59,7 @@ pub enum State {
 
 pub enum Msg {
     /// Subscribe to gossip events
-    Subscribe(ActorRef<Arc<Event>>),
+    Subscribe(OutputPortSubscriber<Arc<Event>>),
 
     /// Broadcast a message to all peers
     BroadcastMsg(MempoolTransactionBatch),
@@ -95,7 +97,7 @@ impl Actor for GossipMempool {
 
         Ok(State::Running {
             peers: BTreeSet::new(),
-            subscribers: Vec::new(),
+            output_port: OutputPort::default(),
             ctrl_handle,
             recv_task,
         })
@@ -118,7 +120,7 @@ impl Actor for GossipMempool {
     ) -> Result<(), ActorProcessingErr> {
         let State::Running {
             peers,
-            subscribers,
+            output_port,
             ctrl_handle,
             ..
         } = state
@@ -127,7 +129,8 @@ impl Actor for GossipMempool {
         };
 
         match msg {
-            Msg::Subscribe(subscriber) => subscribers.push(subscriber),
+            Msg::Subscribe(subscriber) => subscriber.subscribe_to_port(output_port),
+
             Msg::BroadcastMsg(batch) => {
                 match NetworkMsg::TransactionBatch(batch).to_network_bytes() {
                     Ok(bytes) => {
@@ -138,6 +141,7 @@ impl Actor for GossipMempool {
                     }
                 }
             }
+
             Msg::NewEvent(event) => {
                 match event {
                     Event::PeerConnected(peer_id) => {
@@ -150,15 +154,15 @@ impl Actor for GossipMempool {
                 }
 
                 let event = Arc::new(event);
-                for subscriber in subscribers {
-                    subscriber.cast(Arc::clone(&event))?;
-                }
+                output_port.send(event);
             }
+
             Msg::GetState { reply } => {
                 let number_peers = match state {
                     State::Stopped => 0,
                     State::Running { peers, .. } => peers.len(),
                 };
+
                 reply.send(number_peers)?;
             }
         }

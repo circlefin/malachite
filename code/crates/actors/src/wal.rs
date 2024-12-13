@@ -205,7 +205,12 @@ where
         })
     }
 
-    #[tracing::instrument(name = "wal", parent = &self.span, skip_all)]
+    #[tracing::instrument(
+        name = "wal",
+        parent = &self.span,
+        skip_all,
+        fields(height = %state.height),
+    )]
     async fn handle(
         &self,
         myself: WalRef<Ctx>,

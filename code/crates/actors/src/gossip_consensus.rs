@@ -6,7 +6,8 @@ use derive_where::derive_where;
 use eyre::eyre;
 use libp2p::identity::Keypair;
 use libp2p::request_response;
-use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
+use ractor::port::OutputPortSubscriber;
+use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
 
@@ -66,16 +67,6 @@ where
         let (actor_ref, _) = Actor::spawn(None, Self::new(codec, span), args).await?;
         Ok(actor_ref)
     }
-
-    fn publish(&self, event: GossipEvent<Ctx>, subscribers: &mut [ActorRef<GossipEvent<Ctx>>]) {
-        if let Some((last, head)) = subscribers.split_last() {
-            for subscriber in head {
-                let _ = subscriber.cast(event.clone());
-            }
-
-            let _ = last.cast(event);
-        }
-    }
 }
 
 pub struct Args {
@@ -106,7 +97,7 @@ pub enum State<Ctx: Context> {
     Stopped,
     Running {
         peers: BTreeSet<PeerId>,
-        subscribers: Vec<ActorRef<GossipEvent<Ctx>>>,
+        output_port: OutputPort<GossipEvent<Ctx>>,
         ctrl_handle: CtrlHandle,
         recv_task: JoinHandle<()>,
         inbound_requests: HashMap<InboundRequestId, request_response::InboundRequestId>,
@@ -130,7 +121,7 @@ impl<Ctx: Context> Status<Ctx> {
 
 pub enum Msg<Ctx: Context> {
     /// Subscribe this actor to receive gossip events
-    Subscribe(ActorRef<GossipEvent<Ctx>>),
+    Subscribe(OutputPortSubscriber<GossipEvent<Ctx>>),
 
     /// Publish a signed consensus message
     Publish(SignedConsensusMsg<Ctx>),
@@ -192,7 +183,7 @@ where
 
         Ok(State::Running {
             peers: BTreeSet::new(),
-            subscribers: Vec::new(),
+            output_port: OutputPort::default(),
             ctrl_handle,
             recv_task,
             inbound_requests: HashMap::new(),
@@ -216,7 +207,7 @@ where
     ) -> Result<(), ActorProcessingErr> {
         let State::Running {
             peers,
-            subscribers,
+            output_port,
             ctrl_handle,
             inbound_requests,
             ..
@@ -226,7 +217,7 @@ where
         };
 
         match msg {
-            Msg::Subscribe(subscriber) => subscribers.push(subscriber),
+            Msg::Subscribe(subscriber) => subscriber.subscribe_to_port(output_port),
 
             Msg::Publish(msg) => match self.codec.encode(&msg) {
                 Ok(data) => ctrl_handle.publish(Channel::Consensus, data).await?,
@@ -292,17 +283,17 @@ where
             }
 
             Msg::NewEvent(Event::Listening(addr)) => {
-                self.publish(GossipEvent::Listening(addr), subscribers);
+                output_port.send(GossipEvent::Listening(addr));
             }
 
             Msg::NewEvent(Event::PeerConnected(peer_id)) => {
                 peers.insert(peer_id);
-                self.publish(GossipEvent::PeerConnected(peer_id), subscribers);
+                output_port.send(GossipEvent::PeerConnected(peer_id));
             }
 
             Msg::NewEvent(Event::PeerDisconnected(peer_id)) => {
                 peers.remove(&peer_id);
-                self.publish(GossipEvent::PeerDisconnected(peer_id), subscribers);
+                output_port.send(GossipEvent::PeerDisconnected(peer_id));
             }
 
             Msg::NewEvent(Event::Message(Channel::Consensus, from, data)) => {
@@ -319,7 +310,7 @@ where
                     SignedConsensusMsg::Proposal(proposal) => GossipEvent::Proposal(from, proposal),
                 };
 
-                self.publish(event, subscribers);
+                output_port.send(event);
             }
 
             Msg::NewEvent(Event::Message(Channel::ProposalParts, from, data)) => {
@@ -338,7 +329,7 @@ where
                     "Received proposal part"
                 );
 
-                self.publish(GossipEvent::ProposalPart(from, msg), subscribers);
+                output_port.send(GossipEvent::ProposalPart(from, msg));
             }
 
             Msg::NewEvent(Event::Message(Channel::Sync, from, data)) => {
@@ -357,13 +348,10 @@ where
 
                 trace!(%from, height = %status.height, "Received status");
 
-                self.publish(
-                    GossipEvent::Status(
-                        status.peer_id,
-                        Status::new(status.height, status.history_min_height),
-                    ),
-                    subscribers,
-                );
+                output_port.send(GossipEvent::Status(
+                    status.peer_id,
+                    Status::new(status.height, status.history_min_height),
+                ));
             }
 
             Msg::NewEvent(Event::Sync(raw_msg)) => match raw_msg {
@@ -382,10 +370,11 @@ where
 
                     inbound_requests.insert(InboundRequestId::new(request_id), request_id);
 
-                    self.publish(
-                        GossipEvent::Request(InboundRequestId::new(request_id), peer, request),
-                        subscribers,
-                    );
+                    output_port.send(GossipEvent::Request(
+                        InboundRequestId::new(request_id),
+                        peer,
+                        request,
+                    ));
                 }
 
                 RawMessage::Response {
@@ -401,10 +390,11 @@ where
                         }
                     };
 
-                    self.publish(
-                        GossipEvent::Response(OutboundRequestId::new(request_id), peer, response),
-                        subscribers,
-                    );
+                    output_port.send(GossipEvent::Response(
+                        OutboundRequestId::new(request_id),
+                        peer,
+                        response,
+                    ));
                 }
             },
 
