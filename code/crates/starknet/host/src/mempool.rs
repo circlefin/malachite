@@ -6,7 +6,6 @@ use ractor::{Actor, ActorProcessingErr, ActorRef, RpcReplyPort};
 use rand::RngCore;
 use tracing::{debug, info, trace};
 
-use malachite_actors::util::forward::forward;
 use malachite_config::{MempoolConfig, TestConfig};
 use malachite_test_mempool::types::MempoolTransactionBatch;
 use malachite_test_mempool::{Event as GossipEvent, NetworkMsg, PeerId};
@@ -15,7 +14,8 @@ use crate::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use crate::proto::Protobuf;
 use crate::types::{Hash, Transaction, Transactions};
 
-pub type MempoolRef = ActorRef<MempoolMsg>;
+pub type MempoolMsg = Msg;
+pub type MempoolRef = ActorRef<Msg>;
 
 pub struct Mempool {
     gossip_mempool: GossipMempoolRef,
@@ -24,7 +24,7 @@ pub struct Mempool {
     span: tracing::Span,
 }
 
-pub enum MempoolMsg {
+pub enum Msg {
     GossipEvent(Arc<GossipEvent>),
     Input(Transaction),
     Reap {
@@ -35,6 +35,12 @@ pub enum MempoolMsg {
     Update {
         tx_hashes: Vec<Hash>,
     },
+}
+
+impl From<Arc<GossipEvent>> for Msg {
+    fn from(event: Arc<GossipEvent>) -> Self {
+        Self::GossipEvent(event)
+    }
 }
 
 #[allow(dead_code)]
@@ -136,7 +142,7 @@ impl Mempool {
                 trace!(%from, "Received batch with {} transactions", batch.len());
 
                 for tx in batch.into_vec() {
-                    myself.cast(MempoolMsg::Input(tx))?;
+                    myself.cast(Msg::Input(tx))?;
                 }
             }
         }
@@ -147,7 +153,7 @@ impl Mempool {
 
 #[async_trait]
 impl Actor for Mempool {
-    type Msg = MempoolMsg;
+    type Msg = Msg;
     type State = State;
     type Arguments = ();
 
@@ -156,17 +162,10 @@ impl Actor for Mempool {
         myself: MempoolRef,
         _args: (),
     ) -> Result<State, ractor::ActorProcessingErr> {
-        let forward = forward(
-            myself.clone(),
-            Some(myself.get_cell()),
-            MempoolMsg::GossipEvent,
-        )
-        .await?;
-
         self.gossip_mempool.link(myself.get_cell());
 
         self.gossip_mempool
-            .cast(GossipMempoolMsg::Subscribe(forward))?;
+            .cast(GossipMempoolMsg::Subscribe(Box::new(myself.clone())))?;
 
         Ok(State::new())
     }
@@ -175,15 +174,15 @@ impl Actor for Mempool {
     async fn handle(
         &self,
         myself: MempoolRef,
-        msg: MempoolMsg,
+        msg: Msg,
         state: &mut State,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
-            MempoolMsg::GossipEvent(event) => {
+            Msg::GossipEvent(event) => {
                 self.handle_gossip_event(&event, myself, state).await?;
             }
 
-            MempoolMsg::Input(tx) => {
+            Msg::Input(tx) => {
                 if state.transactions.len() < self.mempool_config.max_tx_count {
                     state.add_tx(&tx);
                 } else {
@@ -191,7 +190,7 @@ impl Actor for Mempool {
                 }
             }
 
-            MempoolMsg::Reap {
+            Msg::Reap {
                 reply, num_txes, ..
             } => {
                 let txes = generate_and_broadcast_txes(
@@ -205,7 +204,7 @@ impl Actor for Mempool {
                 reply.send(txes)?;
             }
 
-            MempoolMsg::Update { .. } => {
+            Msg::Update { .. } => {
                 // FIXME: Remove only the given txes
                 // tx_hashes.iter().for_each(|hash| state.remove_tx(hash));
 

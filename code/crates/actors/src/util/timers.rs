@@ -3,51 +3,53 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeFrom;
+use std::sync::Arc;
 use std::time::Duration;
 
-use ractor::time::send_after;
-use ractor::{ActorRef, MessagingErr};
+use ractor::port::OutputPortSubscriber;
+use ractor::OutputPort;
 use tokio::task::JoinHandle;
 use tracing::trace;
 
-type TimerTask<Msg> = JoinHandle<Result<(), MessagingErr<Msg>>>;
-
 #[derive(Debug)]
-struct Timer<Key, Msg> {
+struct Timer<Key> {
     /// Message to give to the actor when the timer expires
     key: Key,
 
     // Task that will notify the actor that the timer has elapsed
-    task: TimerTask<Msg>,
+    task: JoinHandle<()>,
 
     /// Generation counter to the timer to check if we received a timeout
     /// message from an old timer that was enqueued in mailbox before canceled
     generation: u64,
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct TimeoutElapsed<Key> {
     key: Key,
     generation: u64,
 }
 
 #[derive(Debug)]
-pub struct TimerScheduler<Key, Msg>
+pub struct TimerScheduler<Key>
 where
-    Key: Eq + Hash,
+    Key: Clone + Eq + Hash + Send + 'static,
 {
-    actor: ActorRef<Msg>,
-    timers: HashMap<Key, Timer<Key, Msg>>,
+    output_port: Arc<OutputPort<TimeoutElapsed<Key>>>,
+    timers: HashMap<Key, Timer<Key>>,
     generations: RangeFrom<u64>,
 }
 
-impl<Key, Msg> TimerScheduler<Key, Msg>
+impl<Key> TimerScheduler<Key>
 where
-    Key: Eq + Hash,
+    Key: Clone + Eq + Hash + Send + 'static,
 {
-    pub fn new(actor: ActorRef<Msg>) -> Self {
+    pub fn new(subscriber: OutputPortSubscriber<TimeoutElapsed<Key>>) -> Self {
+        let output_port = OutputPort::default();
+        subscriber.subscribe_to_port(&output_port);
+
         Self {
-            actor,
+            output_port: Arc::new(output_port),
             timers: HashMap::new(),
             generations: 1..,
         }
@@ -68,7 +70,6 @@ where
     pub fn start_timer(&mut self, key: Key, timeout: Duration)
     where
         Key: Clone + Send + 'static,
-        Msg: ractor::Message + From<TimeoutElapsed<Key>>,
     {
         self.cancel(&key);
 
@@ -79,8 +80,11 @@ where
 
         let task = {
             let key = key.clone();
-            send_after(timeout, self.actor.get_cell(), move || {
-                Msg::from(TimeoutElapsed { key, generation })
+            let output_port = Arc::clone(&self.output_port);
+
+            tokio::spawn(async move {
+                tokio::time::sleep(timeout).await;
+                output_port.send(TimeoutElapsed { key, generation })
             })
         };
 
@@ -164,9 +168,9 @@ where
     }
 }
 
-impl<Key, Msg> Drop for TimerScheduler<Key, Msg>
+impl<Key> Drop for TimerScheduler<Key>
 where
-    Key: Eq + Hash,
+    Key: Clone + Eq + Hash + Send + 'static,
 {
     fn drop(&mut self) {
         self.cancel_all();
@@ -177,7 +181,7 @@ where
 mod tests {
     use super::*;
 
-    use ractor::Actor;
+    use ractor::{Actor, ActorRef};
     use std::time::Duration;
     use tokio::time::sleep;
 
@@ -220,9 +224,10 @@ mod tests {
         }
     }
 
-    async fn spawn() -> TimerScheduler<TestKey, TestMsg> {
+    async fn spawn() -> TimerScheduler<TestKey> {
         let actor_ref = TestActor::spawn(None, TestActor, ()).await.unwrap().0;
-        TimerScheduler::new(actor_ref)
+        // let subscriber: OutputPortSubscriber<TimeoutElapsed<TestKey>> = ;
+        TimerScheduler::new(Box::new(actor_ref))
     }
 
     #[tokio::test]

@@ -19,7 +19,6 @@ use malachite_sync::{DecidedValue, Request};
 
 use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
 use crate::host::{HostMsg, HostRef};
-use crate::util::forward::forward;
 use crate::util::ticker::ticker;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
@@ -52,7 +51,7 @@ pub enum Timeout {
     Request(OutboundRequestId),
 }
 
-type Timers<Ctx> = TimerScheduler<Timeout, Msg<Ctx>>;
+type Timers = TimerScheduler<Timeout>;
 
 pub type SyncRef<Ctx> = ActorRef<Msg<Ctx>>;
 
@@ -102,6 +101,12 @@ pub enum Msg<Ctx: Context> {
     SentVoteSetResponse(InboundRequestId, Ctx::Height, Round),
 }
 
+impl<Ctx: Context> From<GossipEvent<Ctx>> for Msg<Ctx> {
+    fn from(event: GossipEvent<Ctx>) -> Self {
+        Msg::GossipEvent(event)
+    }
+}
+
 impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
     fn from(elapsed: TimeoutElapsed<Timeout>) -> Self {
         Msg::TimeoutElapsed(elapsed)
@@ -128,7 +133,7 @@ pub struct State<Ctx: Context> {
     sync: sync::State<Ctx>,
 
     /// Scheduler for timers
-    timers: Timers<Ctx>,
+    timers: Timers,
 
     /// In-flight requests
     inflight: InflightRequests<Ctx>,
@@ -208,7 +213,7 @@ where
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
-        timers: &mut Timers<Ctx>,
+        timers: &mut Timers,
         inflight: &mut InflightRequests<Ctx>,
         effect: sync::Effect<Ctx>,
     ) -> Result<sync::Resume<Ctx>, ActorProcessingErr> {
@@ -483,8 +488,8 @@ where
         myself: ActorRef<Self::Msg>,
         _args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
-        self.gossip.cast(GossipConsensusMsg::Subscribe(forward))?;
+        self.gossip
+            .cast(GossipConsensusMsg::Subscribe(Box::new(myself.clone())))?;
 
         let ticker = tokio::spawn(ticker(
             self.params.status_update_interval,
@@ -496,7 +501,7 @@ where
 
         Ok(State {
             sync: sync::State::new(rng),
-            timers: Timers::new(myself.clone()),
+            timers: Timers::new(Box::new(myself.clone())),
             inflight: HashMap::new(),
             ticker,
         })

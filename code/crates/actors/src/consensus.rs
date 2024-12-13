@@ -23,7 +23,6 @@ use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
 use crate::util::events::{Event, TxEvent};
-use crate::util::forward::forward;
 use crate::util::streaming::StreamMessage;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
@@ -96,6 +95,12 @@ pub enum Msg<Ctx: Context> {
     GetStatus(RpcReplyPort<Status<Ctx>>),
 }
 
+impl<Ctx: Context> From<GossipEvent<Ctx>> for Msg<Ctx> {
+    fn from(event: GossipEvent<Ctx>) -> Self {
+        Self::GossipEvent(event)
+    }
+}
+
 type ConsensusInput<Ctx> = malachite_consensus::Input<Ctx>;
 
 impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
@@ -104,7 +109,7 @@ impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
     }
 }
 
-type Timers<Ctx> = TimerScheduler<Timeout, Msg<Ctx>>;
+type Timers = TimerScheduler<Timeout>;
 
 struct Timeouts {
     config: TimeoutConfig,
@@ -152,7 +157,7 @@ enum Phase {
 
 pub struct State<Ctx: Context> {
     /// Scheduler for timers
-    timers: Timers<Ctx>,
+    timers: Timers,
 
     /// Timeouts configuration
     timeouts: Timeouts,
@@ -762,7 +767,7 @@ where
         &self,
         myself: &ActorRef<Msg<Ctx>>,
         height: Ctx::Height,
-        timers: &mut Timers<Ctx>,
+        timers: &mut Timers,
         timeouts: &mut Timeouts,
         phase: Phase,
         effect: Effect<Ctx>,
@@ -991,13 +996,11 @@ where
         myself: ActorRef<Msg<Ctx>>,
         _args: (),
     ) -> Result<State<Ctx>, ActorProcessingErr> {
-        let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
-
         self.gossip_consensus
-            .cast(GossipConsensusMsg::Subscribe(forward))?;
+            .cast(GossipConsensusMsg::Subscribe(Box::new(myself.clone())))?;
 
         Ok(State {
-            timers: Timers::new(myself),
+            timers: Timers::new(Box::new(myself)),
             timeouts: Timeouts::new(self.timeout_config),
             consensus: ConsensusState::new(self.ctx.clone(), self.params.clone()),
             connected_peers: BTreeSet::new(),
