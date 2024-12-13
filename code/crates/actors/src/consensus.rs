@@ -109,7 +109,7 @@ impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
     }
 }
 
-type Timers<Ctx> = TimerScheduler<Timeout, Msg<Ctx>>;
+type Timers = TimerScheduler<Timeout>;
 
 struct Timeouts {
     config: TimeoutConfig,
@@ -157,7 +157,7 @@ enum Phase {
 
 pub struct State<Ctx: Context> {
     /// Scheduler for timers
-    timers: Timers<Ctx>,
+    timers: Timers,
 
     /// Timeouts configuration
     timeouts: Timeouts,
@@ -767,7 +767,7 @@ where
         &self,
         myself: &ActorRef<Msg<Ctx>>,
         height: Ctx::Height,
-        timers: &mut Timers<Ctx>,
+        timers: &mut Timers,
         timeouts: &mut Timeouts,
         phase: Phase,
         effect: Effect<Ctx>,
@@ -1000,7 +1000,7 @@ where
             .cast(GossipConsensusMsg::Subscribe(Box::new(myself.clone())))?;
 
         Ok(State {
-            timers: Timers::new(myself),
+            timers: Timers::new(Box::new(myself)),
             timeouts: Timeouts::new(self.timeout_config),
             consensus: ConsensusState::new(self.ctx.clone(), self.params.clone()),
             connected_peers: BTreeSet::new(),

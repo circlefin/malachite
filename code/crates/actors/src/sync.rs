@@ -51,7 +51,7 @@ pub enum Timeout {
     Request(OutboundRequestId),
 }
 
-type Timers<Ctx> = TimerScheduler<Timeout, Msg<Ctx>>;
+type Timers = TimerScheduler<Timeout>;
 
 pub type SyncRef<Ctx> = ActorRef<Msg<Ctx>>;
 
@@ -137,7 +137,7 @@ pub struct State<Ctx: Context> {
     sync: sync::State<Ctx>,
 
     /// Scheduler for timers
-    timers: Timers<Ctx>,
+    timers: Timers,
 
     /// In-flight requests
     inflight: InflightRequests<Ctx>,
@@ -212,7 +212,7 @@ where
     async fn handle_effect(
         &self,
         myself: &ActorRef<Msg<Ctx>>,
-        timers: &mut Timers<Ctx>,
+        timers: &mut Timers,
         inflight: &mut InflightRequests<Ctx>,
         effect: sync::Effect<Ctx>,
     ) -> Result<sync::Resume<Ctx>, ActorProcessingErr> {
@@ -500,7 +500,7 @@ where
 
         Ok(State {
             sync: sync::State::new(rng, args.initial_height),
-            timers: Timers::new(myself.clone()),
+            timers: Timers::new(Box::new(myself.clone())),
             inflight: HashMap::new(),
             ticker,
         })
