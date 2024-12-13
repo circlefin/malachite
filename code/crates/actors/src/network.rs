@@ -18,24 +18,24 @@ use malachite_sync::{
 use malachite_codec as codec;
 use malachite_consensus::SignedConsensusMsg;
 use malachite_core_types::{Context, SignedProposal, SignedVote};
+use malachite_metrics::SharedRegistry;
 use malachite_network::handle::CtrlHandle;
 use malachite_network::{Channel, Config, Event, Multiaddr, PeerId};
-use malachite_metrics::SharedRegistry;
 
 use crate::consensus::ConsensusCodec;
 use crate::sync::SyncCodec;
 use crate::util::streaming::StreamMessage;
 
-pub type GossipConsensusRef<Ctx> = ActorRef<Msg<Ctx>>;
-pub type GossipConsensusMsg<Ctx> = Msg<Ctx>;
+pub type NetworkRef<Ctx> = ActorRef<Msg<Ctx>>;
+pub type NetworkMsg<Ctx> = Msg<Ctx>;
 
-pub struct GossipConsensus<Ctx, Codec> {
+pub struct Network<Ctx, Codec> {
     codec: Codec,
     span: tracing::Span,
     marker: PhantomData<Ctx>,
 }
 
-impl<Ctx, Codec> GossipConsensus<Ctx, Codec> {
+impl<Ctx, Codec> Network<Ctx, Codec> {
     pub fn new(codec: Codec, span: tracing::Span) -> Self {
         Self {
             codec,
@@ -45,7 +45,7 @@ impl<Ctx, Codec> GossipConsensus<Ctx, Codec> {
     }
 }
 
-impl<Ctx, Codec> GossipConsensus<Ctx, Codec>
+impl<Ctx, Codec> Network<Ctx, Codec>
 where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
@@ -76,7 +76,7 @@ pub struct Args {
 }
 
 #[derive_where(Clone, Debug, PartialEq, Eq)]
-pub enum GossipEvent<Ctx: Context> {
+pub enum NetworkEvent<Ctx: Context> {
     Listening(Multiaddr),
 
     PeerConnected(PeerId),
@@ -97,7 +97,7 @@ pub enum State<Ctx: Context> {
     Stopped,
     Running {
         peers: BTreeSet<PeerId>,
-        output_port: OutputPort<GossipEvent<Ctx>>,
+        output_port: OutputPort<NetworkEvent<Ctx>>,
         ctrl_handle: CtrlHandle,
         recv_task: JoinHandle<()>,
         inbound_requests: HashMap<InboundRequestId, request_response::InboundRequestId>,
@@ -121,7 +121,7 @@ impl<Ctx: Context> Status<Ctx> {
 
 pub enum Msg<Ctx: Context> {
     /// Subscribe this actor to receive gossip events
-    Subscribe(OutputPortSubscriber<GossipEvent<Ctx>>),
+    Subscribe(OutputPortSubscriber<NetworkEvent<Ctx>>),
 
     /// Publish a signed consensus message
     Publish(SignedConsensusMsg<Ctx>),
@@ -147,7 +147,7 @@ pub enum Msg<Ctx: Context> {
 }
 
 #[async_trait]
-impl<Ctx, Codec> Actor for GossipConsensus<Ctx, Codec>
+impl<Ctx, Codec> Actor for Network<Ctx, Codec>
 where
     Ctx: Context,
     Codec: Send + Sync + 'static,
@@ -167,15 +167,14 @@ where
         myself: ActorRef<Msg<Ctx>>,
         args: Args,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let handle =
-            malachite_network::spawn(args.keypair, args.config, args.metrics).await?;
+        let handle = malachite_network::spawn(args.keypair, args.config, args.metrics).await?;
 
         let (mut recv_handle, ctrl_handle) = handle.split();
 
         let recv_task = tokio::spawn(async move {
             while let Some(event) = recv_handle.recv().await {
                 if let Err(e) = myself.cast(Msg::NewEvent(event)) {
-                    error!("Actor has died, stopping gossip consensus: {e:?}");
+                    error!("Actor has died, stopping network: {e:?}");
                     break;
                 }
             }
@@ -198,7 +197,7 @@ where
         Ok(())
     }
 
-    #[tracing::instrument(name = "gossip.consensus", parent = &self.span, skip_all)]
+    #[tracing::instrument(name = "network", parent = &self.span, skip_all)]
     async fn handle(
         &self,
         _myself: ActorRef<Msg<Ctx>>,
@@ -283,17 +282,17 @@ where
             }
 
             Msg::NewEvent(Event::Listening(addr)) => {
-                output_port.send(GossipEvent::Listening(addr));
+                output_port.send(NetworkEvent::Listening(addr));
             }
 
             Msg::NewEvent(Event::PeerConnected(peer_id)) => {
                 peers.insert(peer_id);
-                output_port.send(GossipEvent::PeerConnected(peer_id));
+                output_port.send(NetworkEvent::PeerConnected(peer_id));
             }
 
             Msg::NewEvent(Event::PeerDisconnected(peer_id)) => {
                 peers.remove(&peer_id);
-                output_port.send(GossipEvent::PeerDisconnected(peer_id));
+                output_port.send(NetworkEvent::PeerDisconnected(peer_id));
             }
 
             Msg::NewEvent(Event::Message(Channel::Consensus, from, data)) => {
@@ -306,8 +305,10 @@ where
                 };
 
                 let event = match msg {
-                    SignedConsensusMsg::Vote(vote) => GossipEvent::Vote(from, vote),
-                    SignedConsensusMsg::Proposal(proposal) => GossipEvent::Proposal(from, proposal),
+                    SignedConsensusMsg::Vote(vote) => NetworkEvent::Vote(from, vote),
+                    SignedConsensusMsg::Proposal(proposal) => {
+                        NetworkEvent::Proposal(from, proposal)
+                    }
                 };
 
                 output_port.send(event);
@@ -329,7 +330,7 @@ where
                     "Received proposal part"
                 );
 
-                output_port.send(GossipEvent::ProposalPart(from, msg));
+                output_port.send(NetworkEvent::ProposalPart(from, msg));
             }
 
             Msg::NewEvent(Event::Message(Channel::Sync, from, data)) => {
@@ -348,7 +349,7 @@ where
 
                 trace!(%from, height = %status.height, "Received status");
 
-                output_port.send(GossipEvent::Status(
+                output_port.send(NetworkEvent::Status(
                     status.peer_id,
                     Status::new(status.height, status.history_min_height),
                 ));
@@ -370,7 +371,7 @@ where
 
                     inbound_requests.insert(InboundRequestId::new(request_id), request_id);
 
-                    output_port.send(GossipEvent::Request(
+                    output_port.send(NetworkEvent::Request(
                         InboundRequestId::new(request_id),
                         peer,
                         request,
@@ -390,7 +391,7 @@ where
                         }
                     };
 
-                    output_port.send(GossipEvent::Response(
+                    output_port.send(NetworkEvent::Response(
                         OutboundRequestId::new(request_id),
                         peer,
                         response,

@@ -11,10 +11,8 @@ use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
 use malachite_actors::consensus::{ConsensusMsg, ConsensusRef};
-use malachite_actors::gossip_consensus::{
-    GossipConsensusMsg as GossipMsg, GossipConsensusRef as GossipRef,
-};
 use malachite_actors::host::{LocallyProposedValue, ProposedValue};
+use malachite_actors::network::{NetworkMsg, NetworkRef};
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_consensus::PeerId;
 use malachite_core_types::{CommitCertificate, Round, Validity, ValueOrigin};
@@ -30,7 +28,7 @@ use crate::types::*;
 
 pub struct Host {
     mempool: MempoolRef,
-    gossip: GossipRef<MockContext>,
+    network: NetworkRef<MockContext>,
     metrics: Metrics,
     span: tracing::Span,
 }
@@ -43,7 +41,7 @@ impl Host {
         home_dir: PathBuf,
         host: StarknetHost,
         mempool: MempoolRef,
-        gossip: GossipRef<MockContext>,
+        network: NetworkRef<MockContext>,
         metrics: Metrics,
         span: tracing::Span,
     ) -> Result<HostRef, SpawnErr> {
@@ -53,7 +51,7 @@ impl Host {
 
         let (actor_ref, _) = Actor::spawn(
             None,
-            Self::new(mempool, gossip, metrics, span),
+            Self::new(mempool, network, metrics, span),
             HostState::new(host, db_path, &mut StdRng::from_entropy()),
         )
         .await?;
@@ -63,13 +61,13 @@ impl Host {
 
     pub fn new(
         mempool: MempoolRef,
-        gossip: GossipRef<MockContext>,
+        network: NetworkRef<MockContext>,
         metrics: Metrics,
         span: tracing::Span,
     ) -> Self {
         Self {
             mempool,
-            gossip,
+            network,
             metrics,
             span,
         }
@@ -138,7 +136,7 @@ impl Host {
                 timeout,
                 address: _,
                 reply_to,
-            } => on_get_value(state, &self.gossip, height, round, timeout, reply_to).await,
+            } => on_get_value(state, &self.network, height, round, timeout, reply_to).await,
 
             HostMsg::RestreamValue {
                 height,
@@ -149,7 +147,7 @@ impl Host {
             } => {
                 on_restream_value(
                     state,
-                    &self.gossip,
+                    &self.network,
                     height,
                     round,
                     value_id,
@@ -272,7 +270,7 @@ async fn on_get_validator_set(
 
 async fn on_get_value(
     state: &mut HostState,
-    gossip: &GossipRef<MockContext>,
+    network: &NetworkRef<MockContext>,
     height: Height,
     round: Round,
     timeout: Duration,
@@ -308,7 +306,7 @@ async fn on_get_value(
             debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
             let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(part.clone()));
-            gossip.cast(GossipMsg::PublishProposalPart(msg))?;
+            network.cast(NetworkMsg::PublishProposalPart(msg))?;
         }
 
         sequence += 1;
@@ -316,7 +314,7 @@ async fn on_get_value(
 
     if state.host.params.value_payload.include_parts() {
         let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin(true));
-        gossip.cast(GossipMsg::PublishProposalPart(msg))?;
+        network.cast(NetworkMsg::PublishProposalPart(msg))?;
     }
 
     let block_hash = rx_hash.await?;
@@ -370,7 +368,7 @@ async fn find_previously_built_value(
 
 async fn on_restream_value(
     state: &mut HostState,
-    gossip: &GossipRef<MockContext>,
+    network: &NetworkRef<MockContext>,
     height: Height,
     round: Round,
     value_id: Hash,
@@ -413,7 +411,7 @@ async fn on_restream_value(
 
             let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(new_part));
 
-            gossip.cast(GossipMsg::PublishProposalPart(msg))?;
+            network.cast(NetworkMsg::PublishProposalPart(msg))?;
 
             sequence += 1;
         }

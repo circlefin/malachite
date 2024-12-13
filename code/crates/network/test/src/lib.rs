@@ -3,10 +3,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use libp2p_identity::{ecdsa, PeerId};
 use malachite_config::TransportProtocol;
+use malachite_metrics::SharedRegistry;
 use malachite_network::{
     spawn, BootstrapProtocol, Config, DiscoveryConfig, Keypair, PeerIdExt, Selector,
 };
-use malachite_metrics::SharedRegistry;
 use malachite_starknet_host::types::PrivateKey;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::time::sleep;

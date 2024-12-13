@@ -8,7 +8,7 @@ use tracing::{debug, info, trace};
 
 use malachite_config::{MempoolConfig, TestConfig};
 use malachite_test_mempool::types::MempoolTransactionBatch;
-use malachite_test_mempool::{Event as GossipEvent, NetworkMsg, PeerId};
+use malachite_test_mempool::{Event as NetworkEvent, NetworkMsg, PeerId};
 
 use crate::gossip_mempool::{GossipMempoolRef, Msg as GossipMempoolMsg};
 use crate::proto::Protobuf;
@@ -25,7 +25,7 @@ pub struct Mempool {
 }
 
 pub enum Msg {
-    GossipEvent(Arc<GossipEvent>),
+    NetworkEvent(Arc<NetworkEvent>),
     Input(Transaction),
     Reap {
         height: u64,
@@ -37,9 +37,9 @@ pub enum Msg {
     },
 }
 
-impl From<Arc<GossipEvent>> for Msg {
-    fn from(event: Arc<GossipEvent>) -> Self {
-        Self::GossipEvent(event)
+impl From<Arc<NetworkEvent>> for Msg {
+    fn from(event: Arc<NetworkEvent>) -> Self {
+        Self::NetworkEvent(event)
     }
 }
 
@@ -97,23 +97,23 @@ impl Mempool {
         Ok(actor_ref)
     }
 
-    pub async fn handle_gossip_event(
+    pub async fn handle_network_event(
         &self,
-        event: &GossipEvent,
+        event: &NetworkEvent,
         myself: MempoolRef,
         state: &mut State,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match event {
-            GossipEvent::Listening(address) => {
+            NetworkEvent::Listening(address) => {
                 info!(%address, "Listening");
             }
-            GossipEvent::PeerConnected(peer_id) => {
+            NetworkEvent::PeerConnected(peer_id) => {
                 info!(%peer_id, "Connected to peer");
             }
-            GossipEvent::PeerDisconnected(peer_id) => {
+            NetworkEvent::PeerDisconnected(peer_id) => {
                 info!(%peer_id, "Disconnected from peer");
             }
-            GossipEvent::Message(_channel, from, _msg_id, msg) => {
+            NetworkEvent::Message(_channel, from, _msg_id, msg) => {
                 trace!(%from, size = msg.size_bytes(), "Received message");
 
                 trace!(%from, "Received message");
@@ -178,8 +178,8 @@ impl Actor for Mempool {
         state: &mut State,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match msg {
-            Msg::GossipEvent(event) => {
-                self.handle_gossip_event(&event, myself, state).await?;
+            Msg::NetworkEvent(event) => {
+                self.handle_network_event(&event, myself, state).await?;
             }
 
             Msg::Input(tx) => {

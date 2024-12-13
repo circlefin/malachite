@@ -18,8 +18,8 @@ use malachite_core_types::{
 use malachite_metrics::Metrics;
 use malachite_sync::{self as sync, Response, ValueResponse, VoteSetRequest, VoteSetResponse};
 
-use crate::gossip_consensus::{GossipConsensusRef, GossipEvent, Msg as GossipConsensusMsg, Status};
 use crate::host::{HostMsg, HostRef, LocallyProposedValue, ProposedValue};
+use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
 use crate::sync::Msg as SyncMsg;
 use crate::sync::SyncRef;
 use crate::util::events::{Event, TxEvent};
@@ -64,7 +64,7 @@ where
     ctx: Ctx,
     params: ConsensusParams<Ctx>,
     timeout_config: TimeoutConfig,
-    gossip_consensus: GossipConsensusRef<Ctx>,
+    network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
     sync: Option<SyncRef<Ctx>>,
@@ -80,7 +80,7 @@ pub enum Msg<Ctx: Context> {
     StartHeight(Ctx::Height, Ctx::ValidatorSet),
 
     /// Received an event from the gossip layer
-    GossipEvent(GossipEvent<Ctx>),
+    NetworkEvent(NetworkEvent<Ctx>),
 
     /// A timeout has elapsed
     TimeoutElapsed(TimeoutElapsed<Timeout>),
@@ -95,9 +95,9 @@ pub enum Msg<Ctx: Context> {
     GetStatus(RpcReplyPort<Status<Ctx>>),
 }
 
-impl<Ctx: Context> From<GossipEvent<Ctx>> for Msg<Ctx> {
-    fn from(event: GossipEvent<Ctx>) -> Self {
-        Self::GossipEvent(event)
+impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
+    fn from(event: NetworkEvent<Ctx>) -> Self {
+        Self::NetworkEvent(event)
     }
 }
 
@@ -190,7 +190,7 @@ where
         ctx: Ctx,
         params: ConsensusParams<Ctx>,
         timeout_config: TimeoutConfig,
-        gossip_consensus: GossipConsensusRef<Ctx>,
+        network: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
         wal: WalRef<Ctx>,
         sync: Option<SyncRef<Ctx>>,
@@ -202,7 +202,7 @@ where
             ctx,
             params,
             timeout_config,
-            gossip_consensus,
+            network,
             host,
             wal,
             sync,
@@ -305,14 +305,14 @@ where
                 Ok(())
             }
 
-            Msg::GossipEvent(event) => {
+            Msg::NetworkEvent(event) => {
                 match event {
-                    GossipEvent::Listening(address) => {
+                    NetworkEvent::Listening(address) => {
                         info!(%address, "Listening");
                         self.host.cast(HostMsg::ConsensusReady(myself.clone()))?;
                     }
 
-                    GossipEvent::PeerConnected(peer_id) => {
+                    NetworkEvent::PeerConnected(peer_id) => {
                         if !state.connected_peers.insert(peer_id) {
                             // We already saw that peer, ignoring...
                             return Ok(());
@@ -329,7 +329,7 @@ where
                         self.metrics.connected_peers.inc();
                     }
 
-                    GossipEvent::PeerDisconnected(peer_id) => {
+                    NetworkEvent::PeerDisconnected(peer_id) => {
                         info!(%peer_id, "Disconnected from peer");
 
                         if state.connected_peers.remove(&peer_id) {
@@ -337,7 +337,7 @@ where
                         }
                     }
 
-                    GossipEvent::Response(
+                    NetworkEvent::Response(
                         request_id,
                         peer,
                         sync::Response::ValueResponse(ValueResponse { height, value }),
@@ -390,7 +390,7 @@ where
                         }
                     }
 
-                    GossipEvent::Request(
+                    NetworkEvent::Request(
                         request_id,
                         peer,
                         sync::Request::VoteSetRequest(VoteSetRequest { height, round }),
@@ -413,7 +413,7 @@ where
                         }
                     }
 
-                    GossipEvent::Response(
+                    NetworkEvent::Response(
                         request_id,
                         peer,
                         sync::Response::VoteSetResponse(VoteSetResponse {
@@ -441,7 +441,7 @@ where
                         }
                     }
 
-                    GossipEvent::Vote(from, vote) => {
+                    NetworkEvent::Vote(from, vote) => {
                         if let Err(e) = self
                             .process_input(&myself, state, ConsensusInput::Vote(vote))
                             .await
@@ -450,7 +450,7 @@ where
                         }
                     }
 
-                    GossipEvent::Proposal(from, proposal) => {
+                    NetworkEvent::Proposal(from, proposal) => {
                         if state.consensus.params.value_payload.parts_only() {
                             error!(%from, "Properly configured peer should never send proposal messages in BlockPart mode");
                             return Ok(());
@@ -464,7 +464,7 @@ where
                         }
                     }
 
-                    GossipEvent::ProposalPart(from, part) => {
+                    NetworkEvent::ProposalPart(from, part) => {
                         if state.consensus.params.value_payload.proposal_only() {
                             error!(%from, "Properly configured peer should never send block part messages in Proposal mode");
                             return Ok(());
@@ -858,8 +858,8 @@ where
                 // Notify any subscribers that we are about to publish a message
                 self.tx_event.send(|| Event::Published(msg.clone()));
 
-                self.gossip_consensus
-                    .cast(GossipConsensusMsg::Publish(msg))
+                self.network
+                    .cast(NetworkMsg::Publish(msg))
                     .map_err(|e| eyre!("Error when broadcasting gossip message: {e:?}"))?;
 
                 Ok(Resume::Continue)
@@ -946,11 +946,8 @@ where
                     "Sending the vote set response"
                 );
 
-                self.gossip_consensus
-                    .cast(GossipConsensusMsg::OutgoingResponse(
-                        request_id.clone(),
-                        response,
-                    ))?;
+                self.network
+                    .cast(NetworkMsg::OutgoingResponse(request_id.clone(), response))?;
 
                 if let Some(sync) = &self.sync {
                     sync.cast(SyncMsg::SentVoteSetResponse(request_id, height, round))
@@ -996,8 +993,8 @@ where
         myself: ActorRef<Msg<Ctx>>,
         _args: (),
     ) -> Result<State<Ctx>, ActorProcessingErr> {
-        self.gossip_consensus
-            .cast(GossipConsensusMsg::Subscribe(Box::new(myself.clone())))?;
+        self.network
+            .cast(NetworkMsg::Subscribe(Box::new(myself.clone())))?;
 
         Ok(State {
             timers: Timers::new(Box::new(myself)),

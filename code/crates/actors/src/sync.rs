@@ -17,8 +17,8 @@ use malachite_core_types::{CertificateError, CommitCertificate, Context, Height,
 use malachite_sync::{self as sync, InboundRequestId, OutboundRequestId, Response};
 use malachite_sync::{DecidedValue, Request};
 
-use crate::gossip_consensus::{GossipConsensusMsg, GossipConsensusRef, GossipEvent, Status};
 use crate::host::{HostMsg, HostRef};
+use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
 use crate::util::ticker::ticker;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 
@@ -77,7 +77,7 @@ pub enum Msg<Ctx: Context> {
     Tick,
 
     /// Receive an even from gossip layer
-    GossipEvent(GossipEvent<Ctx>),
+    NetworkEvent(NetworkEvent<Ctx>),
 
     /// Consensus has decided on a value at the given height
     Decided(Ctx::Height),
@@ -101,9 +101,9 @@ pub enum Msg<Ctx: Context> {
     SentVoteSetResponse(InboundRequestId, Ctx::Height, Round),
 }
 
-impl<Ctx: Context> From<GossipEvent<Ctx>> for Msg<Ctx> {
-    fn from(event: GossipEvent<Ctx>) -> Self {
-        Msg::GossipEvent(event)
+impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
+    fn from(event: NetworkEvent<Ctx>) -> Self {
+        Msg::NetworkEvent(event)
     }
 }
 
@@ -145,7 +145,7 @@ pub struct State<Ctx: Context> {
 #[allow(dead_code)]
 pub struct Sync<Ctx: Context> {
     ctx: Ctx,
-    gossip: GossipConsensusRef<Ctx>,
+    gossip: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     params: Params,
     metrics: sync::Metrics,
@@ -158,7 +158,7 @@ where
 {
     pub fn new(
         ctx: Ctx,
-        gossip: GossipConsensusRef<Ctx>,
+        gossip: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
         params: Params,
         metrics: sync::Metrics,
@@ -176,7 +176,7 @@ where
 
     pub async fn spawn(
         ctx: Ctx,
-        gossip: GossipConsensusRef<Ctx>,
+        gossip: NetworkRef<Ctx>,
         host: HostRef<Ctx>,
         params: Params,
         metrics: sync::Metrics,
@@ -223,17 +223,16 @@ where
             Effect::BroadcastStatus(height) => {
                 let history_min_height = self.get_history_min_height().await?;
 
-                self.gossip
-                    .cast(GossipConsensusMsg::BroadcastStatus(Status::new(
-                        height,
-                        history_min_height,
-                    )))?;
+                self.gossip.cast(NetworkMsg::BroadcastStatus(Status::new(
+                    height,
+                    history_min_height,
+                )))?;
             }
 
             Effect::SendValueRequest(peer_id, value_request) => {
                 let request = Request::ValueRequest(value_request);
                 let result = ractor::call!(self.gossip, |reply_to| {
-                    GossipConsensusMsg::OutgoingRequest(peer_id, request.clone(), reply_to)
+                    NetworkMsg::OutgoingRequest(peer_id, request.clone(), reply_to)
                 });
 
                 match result {
@@ -263,7 +262,7 @@ where
             Effect::SendValueResponse(request_id, value_response) => {
                 let response = Response::ValueResponse(value_response);
                 self.gossip
-                    .cast(GossipConsensusMsg::OutgoingResponse(request_id, response))?;
+                    .cast(NetworkMsg::OutgoingResponse(request_id, response))?;
             }
 
             Effect::GetValue(request_id, height) => {
@@ -285,7 +284,7 @@ where
                 let request = Request::VoteSetRequest(vote_set_request);
 
                 let result = ractor::call!(self.gossip, |reply_to| {
-                    GossipConsensusMsg::OutgoingRequest(peer_id, request.clone(), reply_to)
+                    NetworkMsg::OutgoingRequest(peer_id, request.clone(), reply_to)
                 });
                 match result {
                     Ok(request_id) => {
@@ -341,7 +340,7 @@ where
                     .await?;
             }
 
-            Msg::GossipEvent(GossipEvent::PeerDisconnected(peer_id)) => {
+            Msg::NetworkEvent(NetworkEvent::PeerDisconnected(peer_id)) => {
                 info!(%peer_id, "Disconnected from peer");
 
                 if state.sync.peers.remove(&peer_id).is_some() {
@@ -349,7 +348,7 @@ where
                 }
             }
 
-            Msg::GossipEvent(GossipEvent::Status(peer_id, status)) => {
+            Msg::NetworkEvent(NetworkEvent::Status(peer_id, status)) => {
                 let status = sync::Status {
                     peer_id,
                     height: status.height,
@@ -360,7 +359,7 @@ where
                     .await?;
             }
 
-            Msg::GossipEvent(GossipEvent::Request(request_id, from, request)) => {
+            Msg::NetworkEvent(NetworkEvent::Request(request_id, from, request)) => {
                 match request {
                     Request::ValueRequest(value_request) => {
                         self.process_input(
@@ -381,7 +380,7 @@ where
                 };
             }
 
-            Msg::GossipEvent(GossipEvent::Response(request_id, peer, response)) => {
+            Msg::NetworkEvent(NetworkEvent::Response(request_id, peer, response)) => {
                 // Cancel the timer associated with the request for which we just received a response
                 state.timers.cancel(&Timeout::Request(request_id.clone()));
 
@@ -405,7 +404,7 @@ where
                 }
             }
 
-            Msg::GossipEvent(_) => {
+            Msg::NetworkEvent(_) => {
                 // Ignore other gossip events
             }
 
@@ -489,7 +488,7 @@ where
         _args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
         self.gossip
-            .cast(GossipConsensusMsg::Subscribe(Box::new(myself.clone())))?;
+            .cast(NetworkMsg::Subscribe(Box::new(myself.clone())))?;
 
         let ticker = tokio::spawn(ticker(
             self.params.status_update_interval,

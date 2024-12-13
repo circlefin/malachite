@@ -14,7 +14,7 @@ use crate::spawn::spawn_host_actor;
 
 use malachite_actors::util::events::TxEvent;
 use malachite_app::{
-    spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_sync_actor, spawn_wal_actor,
+    spawn_consensus_actor, spawn_network_actor, spawn_sync_actor, spawn_wal_actor,
 };
 
 #[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
@@ -46,8 +46,7 @@ where
     let keypair = node.get_keypair(private_key);
 
     // Spawn consensus gossip
-    let gossip_consensus =
-        spawn_gossip_consensus_actor(&cfg, keypair, &registry, codec.clone()).await?;
+    let network = spawn_network_actor(&cfg, keypair, &registry, codec.clone()).await?;
 
     let wal = spawn_wal_actor(&ctx, codec, &node.get_home_dir(), &registry).await?;
 
@@ -56,7 +55,7 @@ where
 
     let sync = spawn_sync_actor(
         ctx.clone(),
-        gossip_consensus.clone(),
+        network.clone(),
         connector.clone(),
         &cfg.sync,
         &registry,
@@ -70,7 +69,7 @@ where
         address,
         ctx,
         cfg,
-        gossip_consensus,
+        network,
         connector,
         wal,
         sync.clone(),

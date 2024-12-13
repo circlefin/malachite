@@ -7,14 +7,12 @@ use eyre::Result;
 use tracing::Span;
 
 use malachite_actors::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
-use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::host::HostRef;
+use malachite_actors::network::{Network, NetworkRef};
 use malachite_actors::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
 use malachite_actors::util::events::TxEvent;
 use malachite_actors::wal::{Wal, WalCodec, WalRef};
-use malachite_network::{
-    Config as GossipConsensusConfig, DiscoveryConfig, GossipSubConfig, Keypair,
-};
+use malachite_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
 
 use crate::types::config::{Config as NodeConfig, PubSubProtocol, SyncConfig, TransportProtocol};
 use crate::types::core::Context;
@@ -22,12 +20,12 @@ use crate::types::metrics::{Metrics, SharedRegistry};
 use crate::types::sync;
 use crate::types::ValuePayload;
 
-pub async fn spawn_gossip_consensus_actor<Ctx, Codec>(
+pub async fn spawn_network_actor<Ctx, Codec>(
     cfg: &NodeConfig,
     keypair: Keypair,
     registry: &SharedRegistry,
     codec: Codec,
-) -> Result<GossipConsensusRef<Ctx>>
+) -> Result<NetworkRef<Ctx>>
 where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
@@ -35,7 +33,7 @@ where
 {
     let config = make_gossip_config(cfg);
 
-    GossipConsensus::spawn(keypair, config, registry.clone(), codec, Span::current())
+    Network::spawn(keypair, config, registry.clone(), codec, Span::current())
         .await
         .map_err(Into::into)
 }
@@ -47,7 +45,7 @@ pub async fn spawn_consensus_actor<Ctx>(
     address: Ctx::Address,
     ctx: Ctx,
     cfg: NodeConfig,
-    gossip_consensus: GossipConsensusRef<Ctx>,
+    network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     wal: WalRef<Ctx>,
     sync: Option<SyncRef<Ctx>>,
@@ -76,7 +74,7 @@ where
         ctx,
         consensus_params,
         cfg.consensus.timeouts,
-        gossip_consensus,
+        network,
         host,
         wal,
         sync,
@@ -110,7 +108,7 @@ where
 
 pub async fn spawn_sync_actor<Ctx>(
     ctx: Ctx,
-    gossip_consensus: GossipConsensusRef<Ctx>,
+    network: NetworkRef<Ctx>,
     host: HostRef<Ctx>,
     config: &SyncConfig,
     registry: &SharedRegistry,
@@ -129,21 +127,13 @@ where
 
     let metrics = sync::Metrics::register(registry);
 
-    let actor_ref = Sync::spawn(
-        ctx,
-        gossip_consensus,
-        host,
-        params,
-        metrics,
-        Span::current(),
-    )
-    .await?;
+    let actor_ref = Sync::spawn(ctx, network, host, params, metrics, Span::current()).await?;
 
     Ok(Some(actor_ref))
 }
 
-fn make_gossip_config(cfg: &NodeConfig) -> GossipConsensusConfig {
-    GossipConsensusConfig {
+fn make_gossip_config(cfg: &NodeConfig) -> NetworkConfig {
+    NetworkConfig {
         listen_addr: cfg.consensus.p2p.listen_addr.clone(),
         persistent_peers: cfg.consensus.p2p.persistent_peers.clone(),
         discovery: DiscoveryConfig {

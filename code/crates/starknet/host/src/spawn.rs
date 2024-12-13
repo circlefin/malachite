@@ -7,17 +7,17 @@ use malachite_actors::wal::{Wal, WalRef};
 use tokio::task::JoinHandle;
 
 use malachite_actors::consensus::{Consensus, ConsensusParams, ConsensusRef};
-use malachite_actors::gossip_consensus::{GossipConsensus, GossipConsensusRef};
 use malachite_actors::host::HostRef;
+use malachite_actors::network::{Network, NetworkRef};
 use malachite_actors::node::{Node, NodeRef};
 use malachite_actors::sync::{Params as SyncParams, Sync, SyncRef};
 use malachite_config::{
     self as config, Config as NodeConfig, MempoolConfig, SyncConfig, TestConfig, TransportProtocol,
 };
 use malachite_consensus::ValuePayload;
-use malachite_network::Keypair;
 use malachite_metrics::Metrics;
 use malachite_metrics::SharedRegistry;
+use malachite_network::Keypair;
 use malachite_sync as sync;
 use malachite_test_mempool::Config as GossipMempoolConfig;
 
@@ -51,7 +51,7 @@ pub async fn spawn_node_actor(
     let mempool = spawn_mempool_actor(gossip_mempool.clone(), &cfg.mempool, &cfg.test, &span).await;
 
     // Spawn consensus gossip
-    let gossip_consensus = spawn_gossip_consensus_actor(&cfg, &private_key, &registry, &span).await;
+    let network = spawn_network_actor(&cfg, &private_key, &registry, &span).await;
 
     // Spawn the host actor
     let host = spawn_host_actor(
@@ -61,7 +61,7 @@ pub async fn spawn_node_actor(
         &private_key,
         &initial_validator_set,
         mempool.clone(),
-        gossip_consensus.clone(),
+        network.clone(),
         metrics.clone(),
         &span,
     )
@@ -69,7 +69,7 @@ pub async fn spawn_node_actor(
 
     let sync = spawn_sync_actor(
         ctx.clone(),
-        gossip_consensus.clone(),
+        network.clone(),
         host.clone(),
         &cfg.sync,
         &registry,
@@ -86,7 +86,7 @@ pub async fn spawn_node_actor(
         address,
         ctx.clone(),
         cfg,
-        gossip_consensus.clone(),
+        network.clone(),
         host.clone(),
         wal.clone(),
         sync.clone(),
@@ -99,7 +99,7 @@ pub async fn spawn_node_actor(
     // Spawn the node actor
     let node = Node::new(
         ctx,
-        gossip_consensus,
+        network,
         consensus,
         wal,
         sync,
@@ -132,7 +132,7 @@ async fn spawn_wal_actor(
 
 async fn spawn_sync_actor(
     ctx: MockContext,
-    gossip_consensus: GossipConsensusRef<MockContext>,
+    network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
     config: &SyncConfig,
     registry: &SharedRegistry,
@@ -148,7 +148,7 @@ async fn spawn_sync_actor(
     };
 
     let metrics = sync::Metrics::register(registry);
-    let actor_ref = Sync::spawn(ctx, gossip_consensus, host, params, metrics, span.clone())
+    let actor_ref = Sync::spawn(ctx, network, host, params, metrics, span.clone())
         .await
         .unwrap();
 
@@ -162,7 +162,7 @@ async fn spawn_consensus_actor(
     address: Address,
     ctx: MockContext,
     cfg: NodeConfig,
-    gossip_consensus: GossipConsensusRef<MockContext>,
+    network: NetworkRef<MockContext>,
     host: HostRef<MockContext>,
     wal: WalRef<MockContext>,
     sync: Option<SyncRef<MockContext>>,
@@ -188,7 +188,7 @@ async fn spawn_consensus_actor(
         ctx,
         consensus_params,
         cfg.consensus.timeouts,
-        gossip_consensus,
+        network,
         host,
         wal,
         sync,
@@ -200,12 +200,12 @@ async fn spawn_consensus_actor(
     .unwrap()
 }
 
-async fn spawn_gossip_consensus_actor(
+async fn spawn_network_actor(
     cfg: &NodeConfig,
     private_key: &PrivateKey,
     registry: &SharedRegistry,
     span: &tracing::Span,
-) -> GossipConsensusRef<MockContext> {
+) -> NetworkRef<MockContext> {
     use malachite_network as gossip;
 
     let bootstrap_protocol = match cfg.consensus.p2p.discovery.bootstrap_protocol {
@@ -255,7 +255,7 @@ async fn spawn_gossip_consensus_actor(
     let keypair = make_keypair(private_key);
     let codec = ProtobufCodec;
 
-    GossipConsensus::spawn(
+    Network::spawn(
         keypair,
         config_gossip,
         registry.clone(),
@@ -324,7 +324,7 @@ async fn spawn_host_actor(
     private_key: &PrivateKey,
     initial_validator_set: &ValidatorSet,
     mempool: MempoolRef,
-    gossip_consensus: GossipConsensusRef<MockContext>,
+    network: NetworkRef<MockContext>,
     metrics: Metrics,
     span: &tracing::Span,
 ) -> HostRef<MockContext> {
@@ -357,7 +357,7 @@ async fn spawn_host_actor(
         home_dir.to_owned(),
         mock_host,
         mempool,
-        gossip_consensus,
+        network,
         metrics,
         span.clone(),
     )

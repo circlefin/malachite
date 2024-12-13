@@ -6,8 +6,8 @@ use tracing::{error, info, warn};
 use malachite_core_types::Context;
 
 use crate::consensus::ConsensusRef;
-use crate::gossip_consensus::GossipConsensusRef;
 use crate::host::HostRef;
+use crate::network::NetworkRef;
 use crate::sync::SyncRef;
 use crate::wal::WalRef;
 
@@ -16,7 +16,7 @@ pub type NodeRef = ActorRef<()>;
 #[allow(dead_code)]
 pub struct Node<Ctx: Context> {
     ctx: Ctx,
-    gossip_consensus: GossipConsensusRef<Ctx>,
+    network: NetworkRef<Ctx>,
     consensus: ConsensusRef<Ctx>,
     wal: WalRef<Ctx>,
     sync: Option<SyncRef<Ctx>>,
@@ -33,7 +33,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         ctx: Ctx,
-        gossip_consensus: GossipConsensusRef<Ctx>,
+        network: NetworkRef<Ctx>,
         consensus: ConsensusRef<Ctx>,
         wal: WalRef<Ctx>,
         sync: Option<SyncRef<Ctx>>,
@@ -44,7 +44,7 @@ where
     ) -> Self {
         Self {
             ctx,
-            gossip_consensus,
+            network,
             consensus,
             wal,
             sync,
@@ -75,7 +75,7 @@ where
         _args: (),
     ) -> Result<(), ActorProcessingErr> {
         // Set ourselves as the supervisor of the other actors
-        self.gossip_consensus.link(myself.get_cell());
+        self.network.link(myself.get_cell());
         self.consensus.link(myself.get_cell());
         self.mempool.link(myself.get_cell());
         self.host.link(myself.get_cell());
