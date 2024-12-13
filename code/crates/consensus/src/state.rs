@@ -42,7 +42,7 @@ where
     pub fn new(ctx: Ctx, params: Params<Ctx>) -> Self {
         let driver = Driver::new(
             ctx.clone(),
-            params.start_height,
+            params.initial_height,
             params.initial_validator_set.clone(),
             params.address.clone(),
             params.threshold_params,
@@ -71,9 +71,13 @@ where
         self.driver.address()
     }
 
+    pub fn validator_set(&self) -> &Ctx::ValidatorSet {
+        self.driver.validator_set()
+    }
+
     pub fn get_proposer(&self, height: Ctx::Height, round: Round) -> &Ctx::Address {
         self.ctx
-            .select_proposer(self.driver.validator_set(), height, round)
+            .select_proposer(self.validator_set(), height, round)
             .address()
     }
 

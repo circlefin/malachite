@@ -315,7 +315,7 @@ where
 
                         info!(%peer_id, "Connected to peer");
 
-                        let validator_set = state.consensus.driver.validator_set();
+                        let validator_set = state.consensus.validator_set();
                         let connected_peers = state.connected_peers.len();
                         let total_peers = validator_set.count() - 1;
 
@@ -535,7 +535,7 @@ where
 
             Msg::GetStatus(reply_to) => {
                 let history_min_height = self.get_history_min_height().await?;
-                let status = Status::new(state.consensus.driver.height(), history_min_height);
+                let status = Status::new(state.consensus.height(), history_min_height);
 
                 if let Err(e) = reply_to.send(status) {
                     error!("Error when replying to GetStatus message: {e}");

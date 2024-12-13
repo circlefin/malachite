@@ -123,10 +123,6 @@ impl Default for Params {
     }
 }
 
-pub struct Args<Ctx: Context> {
-    pub initial_height: Ctx::Height,
-}
-
 pub struct State<Ctx: Context> {
     /// The state of the sync state machine
     sync: sync::State<Ctx>,
@@ -174,10 +170,15 @@ where
     }
 
     pub async fn spawn(
-        self,
-        initial_height: Ctx::Height,
+        ctx: Ctx,
+        gossip: GossipConsensusRef<Ctx>,
+        host: HostRef<Ctx>,
+        params: Params,
+        metrics: sync::Metrics,
+        span: tracing::Span,
     ) -> Result<SyncRef<Ctx>, ractor::SpawnErr> {
-        let (actor_ref, _) = Actor::spawn(None, self, Args { initial_height }).await?;
+        let actor = Self::new(ctx, gossip, host, params, metrics, span);
+        let (actor_ref, _) = Actor::spawn(None, actor, ()).await?;
         Ok(actor_ref)
     }
 
@@ -475,12 +476,12 @@ where
 {
     type Msg = Msg<Ctx>;
     type State = State<Ctx>;
-    type Arguments = Args<Ctx>;
+    type Arguments = ();
 
     async fn pre_start(
         &self,
         myself: ActorRef<Self::Msg>,
-        args: Args<Ctx>,
+        _args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
         let forward = forward(myself.clone(), Some(myself.get_cell()), Msg::GossipEvent).await?;
         self.gossip.cast(GossipConsensusMsg::Subscribe(forward))?;
@@ -494,7 +495,7 @@ where
         let rng = Box::new(rand::rngs::StdRng::from_entropy());
 
         Ok(State {
-            sync: sync::State::new(rng, args.initial_height),
+            sync: sync::State::new(rng),
             timers: Timers::new(myself.clone()),
             inflight: HashMap::new(),
             ticker,

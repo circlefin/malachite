@@ -74,7 +74,6 @@ pub async fn spawn_node_actor(
         gossip_consensus.clone(),
         host.clone(),
         &cfg.sync,
-        start_height,
         &registry,
         &span,
     )
@@ -138,7 +137,6 @@ async fn spawn_sync_actor(
     gossip_consensus: GossipConsensusRef<MockContext>,
     host: HostRef<MockContext>,
     config: &SyncConfig,
-    initial_height: Height,
     registry: &SharedRegistry,
     span: &tracing::Span,
 ) -> Option<SyncRef<MockContext>> {
@@ -152,15 +150,16 @@ async fn spawn_sync_actor(
     };
 
     let metrics = sync::Metrics::register(registry);
-    let sync = Sync::new(ctx, gossip_consensus, host, params, metrics, span.clone());
-    let actor_ref = sync.spawn(initial_height).await.unwrap();
+    let actor_ref = Sync::spawn(ctx, gossip_consensus, host, params, metrics, span.clone())
+        .await
+        .unwrap();
 
     Some(actor_ref)
 }
 
 #[allow(clippy::too_many_arguments)]
 async fn spawn_consensus_actor(
-    start_height: Height,
+    initial_height: Height,
     initial_validator_set: ValidatorSet,
     address: Address,
     ctx: MockContext,
@@ -180,7 +179,7 @@ async fn spawn_consensus_actor(
     };
 
     let consensus_params = ConsensusParams {
-        start_height,
+        initial_height,
         initial_validator_set,
         address,
         threshold_params: Default::default(),

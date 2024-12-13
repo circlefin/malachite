@@ -59,7 +59,6 @@ where
         gossip_consensus.clone(),
         connector.clone(),
         &cfg.sync,
-        start_height,
         &registry,
     )
     .await?;

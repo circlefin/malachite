@@ -42,7 +42,7 @@ where
 
 #[allow(clippy::too_many_arguments)]
 pub async fn spawn_consensus_actor<Ctx>(
-    start_height: Ctx::Height,
+    initial_height: Ctx::Height,
     initial_validator_set: Ctx::ValidatorSet,
     address: Ctx::Address,
     ctx: Ctx,
@@ -65,7 +65,7 @@ where
     };
 
     let consensus_params = ConsensusParams {
-        start_height,
+        initial_height,
         initial_validator_set,
         address,
         threshold_params: Default::default(),
@@ -113,7 +113,6 @@ pub async fn spawn_sync_actor<Ctx>(
     gossip_consensus: GossipConsensusRef<Ctx>,
     host: HostRef<Ctx>,
     config: &SyncConfig,
-    initial_height: Ctx::Height,
     registry: &SharedRegistry,
 ) -> Result<Option<SyncRef<Ctx>>>
 where
@@ -129,16 +128,17 @@ where
     };
 
     let metrics = sync::Metrics::register(registry);
-    let sync = Sync::new(
+
+    let actor_ref = Sync::spawn(
         ctx,
         gossip_consensus,
         host,
         params,
         metrics,
         Span::current(),
-    );
+    )
+    .await?;
 
-    let actor_ref = sync.spawn(initial_height).await?;
     Ok(Some(actor_ref))
 }
 
