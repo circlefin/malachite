@@ -360,9 +360,10 @@ module driver {
                 if (newES.cs.step == ProposeStep)
                     val receivedPolkaValidRoundVal = checkThreshold(newES.bk, prop.validRound, Prevote, th)
                     if (prop.validRound == -1)
-                        if (receivedPolkaCurrentVal)
-                            callConsensus(newES, newES.bk, NoCertificate, ProposalAndPolkaAndValidCInput(propId))
-                        else
+                    // removed (see Issue #670)
+//                        if (receivedPolkaCurrentVal)
+//                            callConsensus(newES, newES.bk, NoCertificate, ProposalAndPolkaAndValidCInput(propId))
+//                        else
                             callConsensus(newES, newES.bk, NoCertificate, ProposalCInput((prop.round, propId)))
                     else if (receivedPolkaValidRoundVal)
                         callConsensus(newES, newES.bk, NoCertificate, ProposalAndPolkaPreviousAndValidCInput((propId, prop.validRound)))

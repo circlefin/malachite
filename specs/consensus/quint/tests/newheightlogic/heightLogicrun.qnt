@@ -222,6 +222,8 @@ run preloadVotekeeperOnly = {
     .then(valStep(slow))
     // ProposalDInput
     .then(valStep(slow))
+    .then(valStep(slow))
+    .expect(system.get(slow).es.cs.step == PrecommitStep)
 }
 }
 
