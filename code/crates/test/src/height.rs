@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::proto;
 
 /// A blockchain height
-#[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Height(u64);
 
 impl Height {
@@ -23,6 +23,12 @@ impl Height {
 
     pub fn decrement(&self) -> Option<Self> {
         self.0.checked_sub(1).map(Self)
+    }
+}
+
+impl Default for Height {
+    fn default() -> Self {
+        Height(1)
     }
 }
 

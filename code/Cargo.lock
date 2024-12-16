@@ -2803,6 +2803,7 @@ dependencies = [
  "eyre",
  "malachite-actors",
  "malachite-app",
+ "malachite-config",
  "malachite-test",
  "ractor",
  "rand",
@@ -2929,6 +2930,29 @@ dependencies = [
  "malachite-round",
  "malachite-test",
  "malachite-vote",
+]
+
+[[package]]
+name = "malachite-example-channel"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "color-eyre",
+ "eyre",
+ "libp2p-identity",
+ "malachite-actors",
+ "malachite-app",
+ "malachite-app-channel",
+ "malachite-cli",
+ "malachite-common",
+ "malachite-config",
+ "malachite-consensus",
+ "malachite-test",
+ "rand",
+ "serde_json",
+ "sha3",
+ "tracing",
 ]
 
 [[package]]

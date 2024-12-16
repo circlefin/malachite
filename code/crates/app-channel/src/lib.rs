@@ -14,7 +14,7 @@ pub mod connector;
 pub mod spawn;
 
 mod channel;
-pub use channel::{AppMsg, ConsensusMsg};
+pub use channel::{AppMsg, Channels, ConsensusGossipMsg, ConsensusMsg};
 
 mod run;
 pub use run::run;

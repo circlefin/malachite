@@ -9,6 +9,7 @@ use malachite_actors::util::streaming::StreamMessage;
 use malachite_consensus::SignedConsensusMsg;
 use malachite_sync::{Request, Response, Status};
 
+#[derive(Clone)]
 pub struct TestCodec;
 
 impl Codec<ProposalPart> for TestCodec {

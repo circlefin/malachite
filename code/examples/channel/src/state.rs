@@ -1,0 +1,162 @@
+//! Internal state of the application. This is a simplified abstract to keep it simple.
+//! A regular application would have mempool implemented, a proper database and input methods like RPC.
+
+use bytes::Bytes;
+use malachite_actors::host::LocallyProposedValue;
+use malachite_actors::util::streaming::{StreamContent, StreamMessage};
+use malachite_app::types::sync::DecidedValue;
+use malachite_common::{CommitCertificate, Round, Validity};
+use malachite_consensus::ProposedValue;
+use malachite_test::{Address, BlockMetadata, Content, Height, ProposalPart, TestContext, Value};
+use std::collections::HashMap;
+
+pub struct State {
+    pub current_height: Height,
+    pub current_round: Round,
+    pub current_proposer: Option<Address>,
+    earliest_height: Height,
+    address: Address,
+    sequence: u64,
+    undecided_proposals: HashMap<Height, ProposedValue<TestContext>>,
+    decided_proposals: HashMap<Height, ProposedValue<TestContext>>,
+    blocks: HashMap<Height, DecidedValue<TestContext>>,
+    current_proposal: Option<StreamMessage<ProposalPart>>,
+}
+
+impl State {
+    pub fn new(address: Address, height: Height) -> Self {
+        Self {
+            earliest_height: height,
+            current_height: height,
+            current_round: Round::new(0),
+            current_proposer: None,
+            address,
+            sequence: 0,
+            undecided_proposals: HashMap::new(),
+            decided_proposals: HashMap::new(),
+            blocks: HashMap::new(),
+            current_proposal: None,
+        }
+    }
+
+    pub fn get_earliest_height(&self) -> Height {
+        self.earliest_height
+    }
+
+    pub fn create_fake_proposal_value(&self, height: &Height) -> Value {
+        use sha3::Digest;
+        let mut hasher = sha3::Keccak256::new();
+        hasher.update(height.as_u64().to_le_bytes());
+        let hash = hasher.finalize().to_vec();
+        let simplified_hash = 255 * 255 * 255 * hash[0] as u64
+            + 255 * 255 * hash[1] as u64
+            + 255 * hash[2] as u64
+            + hash[3] as u64;
+        Value::new(simplified_hash)
+    }
+
+    pub fn add_proposal(
+        &mut self,
+        stream_message: StreamMessage<ProposalPart>,
+    ) -> ProposedValue<TestContext> {
+        if let StreamContent::Data(proposal_part) = stream_message.content {
+            if proposal_part.height > self.current_height
+                || proposal_part.height == self.current_height
+                    && proposal_part.round >= self.current_round
+            {
+                assert!(proposal_part.fin); // we only implemented 1 part === 1 proposal
+                let value = self.create_fake_proposal_value(&proposal_part.height);
+                let proposal = ProposedValue {
+                    height: proposal_part.height,
+                    round: proposal_part.round,
+                    valid_round: Round::Nil,
+                    validator_address: proposal_part.validator_address,
+                    value,
+                    validity: Validity::Valid,
+                    extension: None,
+                };
+                self.undecided_proposals
+                    .insert(proposal_part.height, proposal.clone());
+                return proposal;
+            }
+        }
+        panic!("Invalid proposal");
+    }
+
+    pub fn get_block(&self, height: &Height) -> Option<&DecidedValue<TestContext>> {
+        self.blocks.get(height)
+    }
+
+    pub fn commit_block(&mut self, certificate: CommitCertificate<TestContext>) {
+        // Sort out proposals
+        for (height, value) in self.undecided_proposals.clone() {
+            if height > self.current_height {
+                continue;
+            }
+            if height == self.current_height {
+                self.decided_proposals.insert(height, value);
+            }
+            self.undecided_proposals.remove(&height);
+        }
+
+        // Commit block transactions to "database"
+        // Todo: retrieve all transactions from block parts
+        let value_bytes = Bytes::from(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        self.blocks.insert(
+            self.current_height,
+            DecidedValue {
+                value_bytes,
+                certificate,
+            },
+        );
+
+        // Move to next height
+        self.current_height = self.current_height.increment();
+        self.current_round = Round::new(0);
+    }
+
+    pub fn get_previously_built_value(
+        &self,
+        height: &Height,
+    ) -> Option<&ProposedValue<TestContext>> {
+        self.undecided_proposals.get(height)
+    }
+
+    pub fn get_locally_proposed_value(&self, height: &Height) -> LocallyProposedValue<TestContext> {
+        if let Some(proposal) = self.get_previously_built_value(height) {
+            // We have an old value to send back.
+            LocallyProposedValue::new(proposal.height, proposal.round, proposal.value, None)
+        } else {
+            assert_eq!(height.as_u64(), self.current_height.as_u64());
+            // We create a new value.
+            let value = Value::new(42); // TODO: get value
+            LocallyProposedValue::new(self.current_height, self.current_round, value, None)
+        }
+    }
+
+    pub fn create_broadcast_message(
+        &mut self,
+        value: LocallyProposedValue<TestContext>,
+    ) -> StreamMessage<ProposalPart> {
+        // TODO: create proof properly.
+        let fake_proof = [
+            self.current_height.as_u64().to_le_bytes().to_vec(),
+            self.current_round.as_u32().unwrap().to_le_bytes().to_vec(),
+        ]
+        .concat();
+        let content = Content::new(&BlockMetadata::new(fake_proof, value.value));
+        let proposal_part = ProposalPart::new(
+            self.current_height,
+            self.current_round,
+            self.sequence,
+            self.address,
+            content,
+            true, // each proposal part is a full proposal
+        );
+        let stream_content = StreamContent::Data(proposal_part);
+        let msg = StreamMessage::new(self.sequence, self.sequence, stream_content);
+        self.sequence += 1;
+        self.current_proposal = Some(msg.clone());
+        msg
+    }
+}

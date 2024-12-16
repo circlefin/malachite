@@ -2,12 +2,21 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
 use crate::app::types::core::{CommitCertificate, Context, Round, ValueId};
 use crate::app::types::streaming::StreamMessage;
 use crate::app::types::sync::DecidedValue;
 use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
+
+use malachite_actors::consensus::Msg as ConsensusActorMsg;
+
+/// Channels created for application consumption
+pub struct Channels<Ctx: Context> {
+    pub consensus: mpsc::Receiver<AppMsg<Ctx>>,
+    pub consensus_gossip: mpsc::Sender<ConsensusGossipMsg<Ctx>>,
+}
 
 /// Messages sent from consensus to the application.
 #[derive_where(Debug)]
@@ -88,8 +97,6 @@ pub enum ConsensusMsg<Ctx: Context> {
     StartHeight(Ctx::Height, Ctx::ValidatorSet),
 }
 
-use malachite_actors::consensus::Msg as ConsensusActorMsg;
-
 impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {
     fn from(msg: ConsensusMsg<Ctx>) -> ConsensusActorMsg<Ctx> {
         match msg {
@@ -98,4 +105,10 @@ impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {
             }
         }
     }
+}
+
+/// Messages sent from the application to consensus gossip.
+#[derive_where(Debug)]
+pub enum ConsensusGossipMsg<Ctx: Context> {
+    PublishProposalPart(StreamMessage<Ctx::ProposalPart>),
 }

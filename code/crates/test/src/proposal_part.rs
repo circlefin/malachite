@@ -64,6 +64,12 @@ impl Content {
     pub fn size_bytes(&self) -> usize {
         self.metadata.size_bytes()
     }
+
+    pub fn new(block_metadata: &BlockMetadata) -> Self {
+        Self {
+            metadata: block_metadata.clone(),
+        }
+    }
 }
 
 impl Protobuf for Content {
