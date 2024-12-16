@@ -9,6 +9,7 @@ use libp2p_identity::Keypair;
 use rand::{CryptoRng, RngCore};
 use tracing::{debug, error};
 
+use malachite_app::types::LocallyProposedValue;
 use malachite_app::Node;
 use malachite_app_channel::{run, AppMsg, ConsensusGossipMsg, ConsensusMsg};
 use malachite_common::{Round, Validity, VotingPower};
@@ -19,8 +20,7 @@ use malachite_test::{
     ValidatorSet,
 };
 
-use crate::state;
-use crate::state::State;
+use crate::state::{decode_value, State};
 
 #[derive(Clone)]
 pub struct App {
@@ -150,13 +150,22 @@ impl Node for App {
                     address: _,
                     reply_to,
                 } => {
-                    let value = state.get_locally_proposed_value(&height);
+                    let proposal = state.propose_value(&height);
+
+                    let value = LocallyProposedValue::new(
+                        proposal.height,
+                        proposal.round,
+                        proposal.value,
+                        proposal.extension,
+                    );
+
                     // Send it to consensus
                     if reply_to.send(value.clone()).is_err() {
                         error!("Failed to send GetValue reply");
                     }
 
                     let stream_message = state.create_broadcast_message(value);
+
                     // Broadcast it to others. Old messages need not be broadcast.
                     channels
                         .consensus_gossip
@@ -175,9 +184,10 @@ impl Node for App {
                     part,
                     reply_to,
                 } => {
-                    let proposed_value = state.add_proposal(part);
-                    if reply_to.send(proposed_value).is_err() {
-                        error!("Failed to send ReceivedProposalPart reply");
+                    if let Some(proposed_value) = state.add_proposal(part) {
+                        if reply_to.send(proposed_value).is_err() {
+                            error!("Failed to send ReceivedProposalPart reply");
+                        }
                     }
                 }
 
@@ -207,7 +217,7 @@ impl Node for App {
                 }
 
                 AppMsg::GetDecidedBlock { height, reply_to } => {
-                    let block = state.get_block(&height).map(|o| (*o).clone());
+                    let block = state.get_block(&height).cloned();
                     if reply_to.send(block).is_err() {
                         error!("Failed to send GetDecidedBlock reply");
                     }
@@ -220,7 +230,8 @@ impl Node for App {
                     value_bytes,
                     reply_to,
                 } => {
-                    let value = state::value_from_vec(value_bytes.to_vec());
+                    let value = decode_value(value_bytes);
+
                     if reply_to
                         .send(ProposedValue {
                             height,

@@ -1,22 +1,27 @@
 //! Internal state of the application. This is a simplified abstract to keep it simple.
 //! A regular application would have mempool implemented, a proper database and input methods like RPC.
 
+use std::collections::HashMap;
+
 use bytes::Bytes;
+use tracing::error;
+
 use malachite_actors::host::LocallyProposedValue;
 use malachite_actors::util::streaming::{StreamContent, StreamMessage};
+use malachite_app::types::codec::Codec;
 use malachite_app::types::sync::DecidedValue;
 use malachite_common::{CommitCertificate, Round, Validity};
 use malachite_consensus::ProposedValue;
-use malachite_proto::Protobuf;
-use malachite_test::{Address, BlockMetadata, Content, Height, ProposalPart, TestContext, Value};
-use std::collections::HashMap;
+use malachite_test::{
+    Address, BlockMetadata, Content, Height, ProposalPart, TestCodec, TestContext, Value,
+};
 
-// Todo: implement better values
-pub fn value_from_vec(vec: Vec<u8>) -> Value {
-    assert!(vec.len() >= 8);
-    let mut bytes = [0; 8];
-    bytes.copy_from_slice(&vec);
-    Value::new(u64::from_le_bytes(bytes))
+pub fn decode_value(bytes: Bytes) -> Value {
+    TestCodec.decode(bytes).unwrap()
+}
+
+pub fn encode_value(value: &Value) -> Bytes {
+    TestCodec.encode(value).unwrap()
 }
 
 pub struct State {
@@ -55,41 +60,37 @@ impl State {
     pub fn add_proposal(
         &mut self,
         stream_message: StreamMessage<ProposalPart>,
-    ) -> ProposedValue<TestContext> {
-        if let StreamContent::Data(proposal_part) = stream_message.content {
-            if proposal_part.height > self.current_height
-                || proposal_part.height == self.current_height
-                    && proposal_part.round >= self.current_round
-            {
-                assert!(proposal_part.fin); // we only implemented 1 part === 1 proposal
+    ) -> Option<ProposedValue<TestContext>> {
+        let StreamContent::Data(proposal_part) = stream_message.content else {
+            error!("Invalid proposal: {:?}", stream_message.content);
+            return None;
+        };
 
-                let value = value_from_vec(
-                    proposal_part
-                        .content
-                        .to_proto()
-                        .unwrap()
-                        .metadata
-                        .unwrap()
-                        .value
-                        .unwrap()
-                        .value()
-                        .to_vec(),
-                );
-                let proposal = ProposedValue {
-                    height: proposal_part.height,
-                    round: proposal_part.round,
-                    valid_round: Round::Nil,
-                    validator_address: proposal_part.validator_address,
-                    value,
-                    validity: Validity::Valid,
-                    extension: None,
-                };
-                self.undecided_proposals
-                    .insert(proposal_part.height, proposal.clone());
-                return proposal;
-            }
+        if proposal_part.height > self.current_height
+            || proposal_part.height == self.current_height
+                && proposal_part.round >= self.current_round
+        {
+            assert!(proposal_part.fin); // we only implemented 1 part === 1 proposal
+
+            let value = proposal_part.content.metadata.value();
+
+            let proposal = ProposedValue {
+                height: proposal_part.height,
+                round: proposal_part.round,
+                valid_round: Round::Nil,
+                validator_address: proposal_part.validator_address,
+                value,
+                validity: Validity::Valid,
+                extension: None,
+            };
+
+            self.undecided_proposals
+                .insert(proposal_part.height, proposal.clone());
+
+            Some(proposal)
+        } else {
+            None
         }
-        panic!("Invalid proposal");
     }
 
     pub fn get_block(&self, height: &Height) -> Option<&DecidedValue<TestContext>> {
@@ -102,15 +103,19 @@ impl State {
             if height > self.current_height {
                 continue;
             }
-            if height == self.current_height {
+
+            if height == certificate.height {
                 self.decided_proposals.insert(height, value);
             }
+
             self.undecided_proposals.remove(&height);
         }
 
         // Commit block transactions to "database"
-        // Todo: retrieve all transactions from block parts
-        let value_bytes = Bytes::from(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        // TODO: retrieve all transactions from block parts
+        let value = self.decided_proposals.get(&certificate.height).unwrap();
+        let value_bytes = encode_value(&value.value);
+
         self.blocks.insert(
             self.current_height,
             DecidedValue {
@@ -131,15 +136,29 @@ impl State {
         self.undecided_proposals.get(height)
     }
 
-    pub fn get_locally_proposed_value(&self, height: &Height) -> LocallyProposedValue<TestContext> {
+    pub fn propose_value(&mut self, height: &Height) -> ProposedValue<TestContext> {
         if let Some(proposal) = self.get_previously_built_value(height) {
-            // We have an old value to send back.
-            LocallyProposedValue::new(proposal.height, proposal.round, proposal.value, None)
+            proposal.clone()
         } else {
             assert_eq!(height.as_u64(), self.current_height.as_u64());
+
             // We create a new value.
             let value = Value::new(42); // TODO: get value
-            LocallyProposedValue::new(self.current_height, self.current_round, value, None)
+
+            let proposal = ProposedValue {
+                height: *height,
+                round: self.current_round,
+                valid_round: Round::Nil,
+                validator_address: self.address,
+                value,
+                validity: Validity::Valid,
+                extension: None,
+            };
+
+            // Insert the new proposal into the undecided proposals.
+            self.undecided_proposals.insert(*height, proposal.clone());
+
+            proposal
         }
     }
 
@@ -167,8 +186,10 @@ impl State {
 
         let stream_content = StreamContent::Data(proposal_part);
         let msg = StreamMessage::new(self.sequence, self.sequence, stream_content);
+
         self.sequence += 1;
         self.current_proposal = Some(msg.clone());
+
         msg
     }
 }
