@@ -6,11 +6,11 @@ use std::collections::HashMap;
 use bytes::Bytes;
 use tracing::error;
 
-use malachite_app_channel::app::types::core::{CommitCertificate, Round, Validity};
 use malachite_app_channel::app::consensus::ProposedValue;
 use malachite_app_channel::app::host::LocallyProposedValue;
 use malachite_app_channel::app::streaming::{StreamContent, StreamMessage};
 use malachite_app_channel::app::types::codec::Codec;
+use malachite_app_channel::app::types::core::{CommitCertificate, Round, Validity};
 use malachite_app_channel::app::types::sync::DecidedValue;
 use malachite_test::{
     Address, BlockMetadata, Content, Height, ProposalPart, TestCodec, TestContext, Value,

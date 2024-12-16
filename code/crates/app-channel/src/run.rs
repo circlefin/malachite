@@ -7,12 +7,10 @@ use crate::app::types::codec::{ConsensusCodec, SyncCodec, WalCodec};
 use crate::app::types::config::Config as NodeConfig;
 use crate::app::types::core::Context;
 use crate::app::types::metrics::{Metrics, SharedRegistry};
-use crate::spawn::{spawn_network_actor, spawn_host_actor};
+use crate::spawn::{spawn_host_actor, spawn_network_actor};
 use crate::{app, Channels};
 
-use malachite_app::{
-    spawn_consensus_actor, spawn_sync_actor, spawn_wal_actor,
-};
+use malachite_app::{spawn_consensus_actor, spawn_sync_actor, spawn_wal_actor};
 use malachite_engine::util::events::TxEvent;
 
 #[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]

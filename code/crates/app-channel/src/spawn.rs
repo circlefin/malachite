@@ -8,12 +8,12 @@ use crate::app::types::metrics::Metrics;
 use crate::connector::Connector;
 use crate::{AppMsg, ConsensusGossipMsg};
 
-use malachite_engine::consensus::ConsensusCodec;
-use malachite_engine::network::{NetworkMsg, NetworkRef};
-use malachite_engine::host::HostRef;
-use malachite_engine::sync::SyncCodec;
 use malachite_app::types::{metrics::SharedRegistry, Keypair};
 use malachite_config::Config as NodeConfig;
+use malachite_engine::consensus::ConsensusCodec;
+use malachite_engine::host::HostRef;
+use malachite_engine::network::{NetworkMsg, NetworkRef};
+use malachite_engine::sync::SyncCodec;
 
 pub async fn spawn_host_actor<Ctx>(
     metrics: Metrics,
@@ -31,10 +31,7 @@ pub async fn spawn_network_actor<Ctx, Codec>(
     keypair: Keypair,
     registry: &SharedRegistry,
     codec: Codec,
-) -> Result<(
-    NetworkRef<Ctx>,
-    mpsc::Sender<ConsensusGossipMsg<Ctx>>,
-)>
+) -> Result<(NetworkRef<Ctx>, mpsc::Sender<ConsensusGossipMsg<Ctx>>)>
 where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
@@ -42,8 +39,7 @@ where
 {
     let (tx, mut rx) = mpsc::channel(1);
 
-    let actor_ref =
-        malachite_app::spawn_network_actor(cfg, keypair, registry, codec).await?;
+    let actor_ref = malachite_app::spawn_network_actor(cfg, keypair, registry, codec).await?;
     let actor_ref_return = actor_ref.clone();
 
     tokio::spawn(async move {
