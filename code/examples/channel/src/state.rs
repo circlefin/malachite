@@ -7,8 +7,17 @@ use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_app::types::sync::DecidedValue;
 use malachite_common::{CommitCertificate, Round, Validity};
 use malachite_consensus::ProposedValue;
+use malachite_proto::Protobuf;
 use malachite_test::{Address, BlockMetadata, Content, Height, ProposalPart, TestContext, Value};
 use std::collections::HashMap;
+
+// Todo: implement better values
+pub fn value_from_vec(vec: Vec<u8>) -> Value {
+    assert!(vec.len() >= 8);
+    let mut bytes = [0; 8];
+    bytes.copy_from_slice(&vec);
+    Value::new(u64::from_le_bytes(bytes))
+}
 
 pub struct State {
     pub current_height: Height,
@@ -43,18 +52,6 @@ impl State {
         self.earliest_height
     }
 
-    pub fn create_fake_proposal_value(&self, height: &Height) -> Value {
-        use sha3::Digest;
-        let mut hasher = sha3::Keccak256::new();
-        hasher.update(height.as_u64().to_le_bytes());
-        let hash = hasher.finalize().to_vec();
-        let simplified_hash = 255 * 255 * 255 * hash[0] as u64
-            + 255 * 255 * hash[1] as u64
-            + 255 * hash[2] as u64
-            + hash[3] as u64;
-        Value::new(simplified_hash)
-    }
-
     pub fn add_proposal(
         &mut self,
         stream_message: StreamMessage<ProposalPart>,
@@ -65,7 +62,18 @@ impl State {
                     && proposal_part.round >= self.current_round
             {
                 assert!(proposal_part.fin); // we only implemented 1 part === 1 proposal
-                let value = self.create_fake_proposal_value(&proposal_part.height);
+                let value = value_from_vec(
+                    proposal_part
+                        .content
+                        .to_proto()
+                        .unwrap()
+                        .metadata
+                        .unwrap()
+                        .value
+                        .unwrap()
+                        .value()
+                        .to_vec(),
+                );
                 let proposal = ProposedValue {
                     height: proposal_part.height,
                     round: proposal_part.round,

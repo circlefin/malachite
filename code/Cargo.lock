@@ -2948,6 +2948,7 @@ dependencies = [
  "malachite-common",
  "malachite-config",
  "malachite-consensus",
+ "malachite-proto",
  "malachite-test",
  "rand",
  "serde_json",

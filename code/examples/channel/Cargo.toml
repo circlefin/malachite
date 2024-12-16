@@ -25,6 +25,7 @@ malachite-cli.workspace = true
 malachite-common.workspace = true
 malachite-config.workspace = true
 malachite-consensus.workspace = true
+malachite-proto.workspace = true
 malachite-test.workspace = true
 
 [lints]

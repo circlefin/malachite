@@ -17,6 +17,7 @@ use malachite_test::{
     ValidatorSet,
 };
 
+use crate::state;
 use crate::state::State;
 use libp2p_identity::Keypair;
 
@@ -209,11 +210,10 @@ impl Node for App {
                         height,
                         round,
                         validator_address,
-                        value_bytes: _,
+                        value_bytes,
                         reply_to,
                     } => {
-                        // Instead of bothering proto-decoding the value_bytes, we will just fake a value.
-                        let value = state.create_fake_proposal_value(&height);
+                        let value = state::value_from_vec(value_bytes.to_vec());
                         if reply_to
                             .send(ProposedValue {
                                 height,
