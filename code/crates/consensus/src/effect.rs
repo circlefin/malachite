@@ -77,14 +77,20 @@ where
     /// Resume with: [`Resume::Continue`]
     GetValue(Ctx::Height, Round, Timeout, resume::Continue),
 
-    /// Restream value at the given height, round and valid round
+    /// Restream the value identified by the given information.
     /// Resume with: [`Resume::Continue`]
     RestreamValue(
+        /// Height of the value
         Ctx::Height,
+        /// Round of the value
         Round,
+        /// Valid round of the value
         Round,
+        /// Address of the proposer for that value
         Ctx::Address,
+        /// Value ID of the value to restream
         ValueId<Ctx>,
+        /// For resumption
         resume::Continue,
     ),
 
@@ -206,8 +212,8 @@ pub mod resume {
     impl<Ctx: Context> Resumable<Ctx> for SignatureValidity {
         type Value = bool;
 
-        fn resume_with(self, a: Self::Value) -> Resume<Ctx> {
-            Resume::SignatureValidity(a)
+        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
+            Resume::SignatureValidity(value)
         }
     }
 
@@ -217,8 +223,8 @@ pub mod resume {
     impl<Ctx: Context> Resumable<Ctx> for SignedVote {
         type Value = SignedMessage<Ctx, Ctx::Vote>;
 
-        fn resume_with(self, a: Self::Value) -> Resume<Ctx> {
-            Resume::SignedVote(a)
+        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
+            Resume::SignedVote(value)
         }
     }
 
@@ -239,8 +245,8 @@ pub mod resume {
     impl<Ctx: Context> Resumable<Ctx> for CertificateValidity {
         type Value = Result<(), CertificateError<Ctx>>;
 
-        fn resume_with(self, a: Self::Value) -> Resume<Ctx> {
-            Resume::CertificateValidity(a)
+        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
+            Resume::CertificateValidity(value)
         }
     }
 }
