@@ -10,9 +10,7 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
-malachite-common.workspace        = true
-malachite-metrics.workspace       = true
-malachite-config.workspace        = true
+malachite-config.workspace       = true
 malachite-app.workspace          = true
 
 axum               = { workspace = true }

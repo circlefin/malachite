@@ -33,3 +33,7 @@ pub mod consensus {
 pub mod common {
     pub use malachite_common::*;
 }
+
+pub mod metrics {
+    pub use malachite_metrics::*;
+}
