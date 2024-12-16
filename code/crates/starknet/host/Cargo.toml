@@ -46,4 +46,4 @@ workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-malachite-cli.workspace = true
+malachite-test-cli.workspace = true

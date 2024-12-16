@@ -2787,30 +2787,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-cli"
-version = "0.1.0"
-dependencies = [
- "axum",
- "bytesize",
- "clap",
- "color-eyre",
- "directories",
- "itertools 0.13.0",
- "malachite-app",
- "malachite-config",
- "malachite-core-types",
- "malachite-metrics",
- "rand",
- "serde_json",
- "thiserror 2.0.6",
- "tokio",
- "toml",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "malachite-codec"
 version = "0.1.0"
 dependencies = [
@@ -3024,9 +3000,9 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "color-eyre",
- "malachite-cli",
  "malachite-config",
  "malachite-starknet-host",
+ "malachite-test-cli",
  "tempfile",
  "tikv-jemallocator",
  "tracing",
@@ -3044,7 +3020,6 @@ dependencies = [
  "itertools 0.13.0",
  "libp2p-identity",
  "malachite-app",
- "malachite-cli",
  "malachite-codec",
  "malachite-config",
  "malachite-consensus",
@@ -3057,6 +3032,7 @@ dependencies = [
  "malachite-starknet-p2p-proto",
  "malachite-starknet-p2p-types",
  "malachite-sync",
+ "malachite-test-cli",
  "malachite-test-mempool",
  "prost",
  "ractor",
@@ -3162,6 +3138,30 @@ dependencies = [
  "serde_json",
  "sha3",
  "signature",
+]
+
+[[package]]
+name = "malachite-test-cli"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "bytesize",
+ "clap",
+ "color-eyre",
+ "directories",
+ "itertools 0.13.0",
+ "malachite-app",
+ "malachite-config",
+ "malachite-core-types",
+ "malachite-metrics",
+ "rand",
+ "serde_json",
+ "thiserror 2.0.6",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
 ]
 
 [[package]]

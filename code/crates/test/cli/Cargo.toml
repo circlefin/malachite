@@ -1,5 +1,5 @@
 [package]
-name                 = "malachite-cli"
+name                 = "malachite-test-cli"
 version.workspace    = true
 edition.workspace    = true
 repository.workspace = true

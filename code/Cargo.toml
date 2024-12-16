@@ -4,7 +4,6 @@ resolver = "2"
 members = [
   "crates/app",
   "crates/app-channel",
-  "crates/cli",
   "crates/codec",
   "crates/config",
   "crates/consensus",
@@ -26,6 +25,7 @@ members = [
 
   # Test
   "crates/test",
+  "crates/test/cli",
   "crates/test/mbt",
   "crates/test/mempool",
   "crates/network/test",
@@ -62,7 +62,7 @@ debug = true
 malachite-engine             = { version = "0.1.0", path = "crates/engine" }
 malachite-app                = { version = "0.1.0", path = "crates/app" }
 malachite-app-channel        = { version = "0.1.0", path = "crates/app-channel" }
-malachite-cli                = { version = "0.1.0", path = "crates/cli" }
+malachite-test-cli           = { version = "0.1.0", path = "crates/test/cli" }
 malachite-codec              = { version = "0.1.0", path = "crates/codec" }
 malachite-config             = { version = "0.1.0", path = "crates/config" }
 malachite-consensus          = { version = "0.1.0", path = "crates/consensus" }
