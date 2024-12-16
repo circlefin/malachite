@@ -15,16 +15,10 @@ eyre.workspace = true
 libp2p-identity.workspace = true
 rand.workspace = true
 serde_json.workspace = true
-sha3.workspace = true
 tracing.workspace = true
 
-malachite-actors.workspace = true
-malachite-app.workspace = true
 malachite-app-channel.workspace = true
 malachite-cli.workspace = true
-malachite-common.workspace = true
-malachite-config.workspace = true
-malachite-consensus.workspace = true
 malachite-test.workspace = true
 
 [lints]

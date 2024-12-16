@@ -2941,17 +2941,11 @@ dependencies = [
  "color-eyre",
  "eyre",
  "libp2p-identity",
- "malachite-actors",
- "malachite-app",
  "malachite-app-channel",
  "malachite-cli",
- "malachite-common",
- "malachite-config",
- "malachite-consensus",
  "malachite-test",
  "rand",
  "serde_json",
- "sha3",
  "tracing",
 ]
 

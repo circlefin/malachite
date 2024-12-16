@@ -9,12 +9,12 @@ use libp2p_identity::Keypair;
 use rand::{CryptoRng, RngCore};
 use tracing::{debug, error};
 
-use malachite_app::types::LocallyProposedValue;
-use malachite_app::Node;
+use malachite_app_channel::app::common::{Round, Validity, VotingPower};
+use malachite_app_channel::app::consensus::ProposedValue;
+use malachite_app_channel::app::types::LocallyProposedValue;
+use malachite_app_channel::app::Node;
 use malachite_app_channel::{run, AppMsg, ConsensusGossipMsg, ConsensusMsg};
-use malachite_common::{Round, Validity, VotingPower};
-use malachite_config::Config;
-use malachite_consensus::ProposedValue;
+use malachite_cli::config::Config;
 use malachite_test::{
     Address, Genesis, Height, PrivateKey, PublicKey, TestCodec, TestContext, Validator,
     ValidatorSet,

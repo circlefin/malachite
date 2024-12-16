@@ -17,3 +17,19 @@ mod spawn;
 pub use spawn::{
     spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_sync_actor, spawn_wal_actor,
 };
+
+pub mod streaming {
+    pub use malachite_actors::util::streaming::*;
+}
+
+pub mod host {
+    pub use malachite_actors::host::LocallyProposedValue;
+}
+
+pub mod consensus {
+    pub use malachite_consensus::*;
+}
+
+pub mod common {
+    pub use malachite_common::*;
+}

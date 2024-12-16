@@ -6,12 +6,12 @@ use std::collections::HashMap;
 use bytes::Bytes;
 use tracing::error;
 
-use malachite_actors::host::LocallyProposedValue;
-use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_app::types::codec::Codec;
-use malachite_app::types::sync::DecidedValue;
-use malachite_common::{CommitCertificate, Round, Validity};
-use malachite_consensus::ProposedValue;
+use malachite_app_channel::app::common::{CommitCertificate, Round, Validity};
+use malachite_app_channel::app::consensus::ProposedValue;
+use malachite_app_channel::app::host::LocallyProposedValue;
+use malachite_app_channel::app::streaming::{StreamContent, StreamMessage};
+use malachite_app_channel::app::types::codec::Codec;
+use malachite_app_channel::app::types::sync::DecidedValue;
 use malachite_test::{
     Address, BlockMetadata, Content, Height, ProposalPart, TestCodec, TestContext, Value,
 };

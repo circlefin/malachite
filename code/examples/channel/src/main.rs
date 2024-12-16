@@ -5,8 +5,8 @@ mod state;
 
 use eyre::eyre;
 use malachite_cli::args::{Args, Commands};
+use malachite_cli::config::load_config;
 use malachite_cli::{logging, runtime};
-use malachite_config::load_config;
 use node::App;
 use tracing::{error, info, trace};
 
