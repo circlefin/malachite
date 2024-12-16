@@ -23,12 +23,18 @@ where
             metrics.round.set(round.as_i64());
 
             info!(%height, %round, %proposer, "Starting new round");
-            perform!(co, Effect::CancelAllTimeouts);
-            perform!(co, Effect::StartRound(*height, *round, proposer.clone()));
+            perform!(co, Effect::CancelAllTimeouts(Default::default()));
+            perform!(
+                co,
+                Effect::StartRound(*height, *round, proposer.clone(), Default::default())
+            );
         }
 
         DriverInput::ProposeValue(round, _) => {
-            perform!(co, Effect::CancelTimeout(Timeout::propose(*round)));
+            perform!(
+                co,
+                Effect::CancelTimeout(Timeout::propose(*round), Default::default())
+            );
         }
 
         DriverInput::Proposal(proposal, _validity) => {
@@ -44,7 +50,7 @@ where
 
             perform!(
                 co,
-                Effect::CancelTimeout(Timeout::propose(proposal.round()))
+                Effect::CancelTimeout(Timeout::propose(proposal.round()), Default::default())
             );
         }
 
@@ -105,23 +111,35 @@ where
         if state.driver.step_is_prevote() {
             perform!(
                 co,
-                Effect::ScheduleTimeout(Timeout::prevote_time_limit(state.driver.round()))
+                Effect::ScheduleTimeout(
+                    Timeout::prevote_time_limit(state.driver.round()),
+                    Default::default()
+                )
             );
         }
         if state.driver.step_is_precommit() {
             perform!(
                 co,
-                Effect::CancelTimeout(Timeout::prevote_time_limit(state.driver.round()))
+                Effect::CancelTimeout(
+                    Timeout::prevote_time_limit(state.driver.round()),
+                    Default::default()
+                )
             );
             perform!(
                 co,
-                Effect::ScheduleTimeout(Timeout::precommit_time_limit(state.driver.round()))
+                Effect::ScheduleTimeout(
+                    Timeout::precommit_time_limit(state.driver.round()),
+                    Default::default()
+                )
             );
         }
         if state.driver.step_is_commit() {
             perform!(
                 co,
-                Effect::CancelTimeout(Timeout::precommit_time_limit(state.driver.round()))
+                Effect::CancelTimeout(
+                    Timeout::precommit_time_limit(state.driver.round()),
+                    Default::default()
+                )
             );
         }
     }
@@ -187,6 +205,7 @@ where
                         signed_proposal.pol_round(),
                         signed_proposal.validator_address().clone(),
                         signed_proposal.value().id(),
+                        Default::default()
                     )
                 );
             }
@@ -198,7 +217,10 @@ where
             if state.params.value_payload.include_proposal() {
                 perform!(
                     co,
-                    Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal))
+                    Effect::Broadcast(
+                        SignedConsensusMsg::Proposal(signed_proposal),
+                        Default::default()
+                    )
                 );
             };
 
@@ -218,7 +240,10 @@ where
 
             on_vote(co, state, metrics, signed_vote.clone()).await?;
 
-            perform!(co, Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote)));
+            perform!(
+                co,
+                Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote), Default::default())
+            );
 
             Ok(())
         }
@@ -236,7 +261,7 @@ where
 
             perform!(
                 co,
-                Effect::ScheduleTimeout(Timeout::commit(consensus_round))
+                Effect::ScheduleTimeout(Timeout::commit(consensus_round), Default::default())
             );
 
             Ok(())
@@ -245,7 +270,7 @@ where
         DriverOutput::ScheduleTimeout(timeout) => {
             info!(round = %timeout.round, step = ?timeout.kind, "Scheduling timeout");
 
-            perform!(co, Effect::ScheduleTimeout(timeout));
+            perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
 
             Ok(())
         }
@@ -253,7 +278,10 @@ where
         DriverOutput::GetValue(height, round, timeout) => {
             info!(%height, %round, "Requesting value");
 
-            perform!(co, Effect::GetValue(height, round, timeout));
+            perform!(
+                co,
+                Effect::GetValue(height, round, timeout, Default::default())
+            );
 
             Ok(())
         }

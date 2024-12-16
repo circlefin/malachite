@@ -11,7 +11,7 @@ where
     Ctx: Context,
 {
     let valid = perform!(co,
-        Effect::VerifySignature(signed_msg, validator.public_key().clone()),
+        Effect::VerifySignature(signed_msg, validator.public_key().clone(), Default::default()),
         Resume::SignatureValidity(valid) => valid
     );
 
@@ -23,7 +23,7 @@ where
     Ctx: Context,
 {
     let signed_vote = perform!(co,
-        Effect::SignVote(vote),
+        Effect::SignVote(vote, Default::default()),
         Resume::SignedVote(signed_vote) => signed_vote
     );
 
@@ -38,7 +38,7 @@ where
     Ctx: Context,
 {
     let signed_proposal = perform!(co,
-        Effect::SignProposal(proposal),
+        Effect::SignProposal(proposal, Default::default()),
         Resume::SignedProposal(signed_proposal) => signed_proposal
     );
 
@@ -55,7 +55,7 @@ where
     Ctx: Context,
 {
     let result = perform!(co,
-        Effect::VerifyCertificate(certificate, validator_set, threshold_params),
+        Effect::VerifyCertificate(certificate, validator_set, threshold_params, Default::default()),
         Resume::CertificateValidity(result) => result
     );
 

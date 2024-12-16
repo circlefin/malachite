@@ -22,7 +22,7 @@ where
 
         perform!(
             co,
-            Effect::SendVoteSetResponse(request_id, height, round, vote_set)
+            Effect::SendVoteSetResponse(request_id, height, round, vote_set, Default::default())
         );
     }
 

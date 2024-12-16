@@ -9,7 +9,7 @@ use tracing::{debug, error, info, warn};
 
 use malachite_codec as codec;
 use malachite_config::TimeoutConfig;
-use malachite_consensus::{Effect, PeerId, Resume, SignedConsensusMsg, ValueToPropose};
+use malachite_consensus::{Effect, PeerId, Resumable, Resume, SignedConsensusMsg, ValueToPropose};
 use malachite_core_types::{
     Context, Round, SignedExtension, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
     ValidatorSet, ValueOrigin,
@@ -774,29 +774,29 @@ where
         effect: Effect<Ctx>,
     ) -> Result<Resume<Ctx>, ActorProcessingErr> {
         match effect {
-            Effect::ResetTimeouts => {
+            Effect::ResetTimeouts(r) => {
                 timeouts.reset(self.timeout_config);
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
 
-            Effect::CancelAllTimeouts => {
+            Effect::CancelAllTimeouts(r) => {
                 timers.cancel_all();
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
 
-            Effect::CancelTimeout(timeout) => {
+            Effect::CancelTimeout(timeout, r) => {
                 timers.cancel(&timeout);
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
 
-            Effect::ScheduleTimeout(timeout) => {
+            Effect::ScheduleTimeout(timeout, r) => {
                 let duration = timeouts.duration_for(timeout.kind);
                 timers.start_timer(timeout, duration);
 
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
 
-            Effect::StartRound(height, round, proposer) => {
+            Effect::StartRound(height, round, proposer, r) => {
                 self.wal_flush(phase).await?;
 
                 self.host.cast(HostMsg::StartedRound {
@@ -807,10 +807,10 @@ where
 
                 self.tx_event.send(|| Event::StartedRound(height, round));
 
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
 
-            Effect::SignProposal(proposal) => {
+            Effect::SignProposal(proposal, r) => {
                 let start = Instant::now();
 
                 let signed_proposal = self.ctx.signing_provider().sign_proposal(proposal);
@@ -819,10 +819,10 @@ where
                     .signature_signing_time
                     .observe(start.elapsed().as_secs_f64());
 
-                Ok(Resume::SignedProposal(signed_proposal))
+                Ok(r.resume_with(signed_proposal))
             }
 
-            Effect::SignVote(vote) => {
+            Effect::SignVote(vote, r) => {
                 let start = Instant::now();
 
                 let signed_vote = self.ctx.signing_provider().sign_vote(vote);
@@ -831,10 +831,10 @@ where
                     .signature_signing_time
                     .observe(start.elapsed().as_secs_f64());
 
-                Ok(Resume::SignedVote(signed_vote))
+                Ok(r.resume_with(signed_vote))
             }
 
-            Effect::VerifySignature(msg, pk) => {
+            Effect::VerifySignature(msg, pk, r) => {
                 use malachite_consensus::ConsensusMsg as Msg;
 
                 let start = Instant::now();
@@ -856,20 +856,20 @@ where
                     .signature_verification_time
                     .observe(start.elapsed().as_secs_f64());
 
-                Ok(Resume::SignatureValidity(valid))
+                Ok(r.resume_with(valid))
             }
 
-            Effect::VerifyCertificate(certificate, validator_set, threshold_params) => {
+            Effect::VerifyCertificate(certificate, validator_set, thresholds, r) => {
                 let valid = self.ctx.signing_provider().verify_certificate(
                     &certificate,
                     &validator_set,
-                    threshold_params,
+                    thresholds,
                 );
 
-                Ok(Resume::CertificateValidity(valid))
+                Ok(r.resume_with(valid))
             }
 
-            Effect::Broadcast(msg) => {
+            Effect::Broadcast(msg, r) => {
                 // Sync the WAL to disk before we broadcast the message
                 // NOTE: The message has already been append to the WAL by the `PersistMessage` effect.
                 self.wal_flush(phase).await?;
@@ -881,29 +881,29 @@ where
                     .cast(NetworkMsg::Publish(msg))
                     .map_err(|e| eyre!("Error when broadcasting gossip message: {e:?}"))?;
 
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
 
-            Effect::GetValue(height, round, timeout) => {
+            Effect::GetValue(height, round, timeout, r) => {
                 let timeout_duration = timeouts.duration_for(timeout.kind);
 
                 self.get_value(myself, height, round, timeout_duration)
                     .map_err(|e| eyre!("Error when asking for value to be built: {e:?}"))?;
 
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
 
-            Effect::GetValidatorSet(height) => {
+            Effect::GetValidatorSet(height, r) => {
                 let validator_set = self
                     .get_validator_set(height)
                     .await
                     .map_err(|e| warn!("No validator set found for height {height}: {e:?}"))
                     .ok();
 
-                Ok(Resume::ValidatorSet(height, validator_set))
+                Ok(r.resume_with((height, validator_set)))
             }
 
-            Effect::RestreamValue(height, round, valid_round, address, value_id) => {
+            Effect::RestreamValue(height, round, valid_round, address, value_id, r) => {
                 self.host
                     .cast(HostMsg::RestreamValue {
                         height,
@@ -914,10 +914,10 @@ where
                     })
                     .map_err(|e| eyre!("Error when sending decided value to host: {e:?}"))?;
 
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
 
-            Effect::Decide { certificate } => {
+            Effect::Decide(certificate, r) => {
                 self.wal_flush(phase).await?;
 
                 self.tx_event.send(|| Event::Decided(certificate.clone()));
@@ -936,10 +936,10 @@ where
                         .map_err(|e| eyre!("Error when sending decided height to sync: {e:?}"))?;
                 }
 
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
 
-            Effect::GetVoteSet(height, round) => {
+            Effect::GetVoteSet(height, round, r) => {
                 debug!(%height, %round, "Request sync to obtain the vote set from peers");
 
                 if let Some(sync) = &self.sync {
@@ -950,10 +950,10 @@ where
                 self.tx_event
                     .send(|| Event::RequestedVoteSet(height, round));
 
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
 
-            Effect::SendVoteSetResponse(request_id_str, height, round, vote_set) => {
+            Effect::SendVoteSetResponse(request_id_str, height, round, vote_set, r) => {
                 let vote_count = vote_set.len();
                 let response =
                     Response::VoteSetResponse(VoteSetResponse::new(height, round, vote_set));
@@ -978,21 +978,21 @@ where
                 self.tx_event
                     .send(|| Event::SentVoteSetResponse(height, round, vote_count));
 
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
 
-            Effect::PersistMessage(msg) => {
+            Effect::PersistMessage(msg, r) => {
                 self.wal_append(height, WalEntry::ConsensusMsg(msg), phase)
                     .await?;
 
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
 
-            Effect::PersistTimeout(timeout) => {
+            Effect::PersistTimeout(timeout, r) => {
                 self.wal_append(height, WalEntry::Timeout(timeout), phase)
                     .await?;
 
-                Ok(Resume::Continue)
+                Ok(r.resume_with(()))
             }
         }
     }
