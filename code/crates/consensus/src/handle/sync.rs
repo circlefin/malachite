@@ -1,6 +1,5 @@
-use std::borrow::Borrow;
-
 use crate::handle::driver::apply_driver_input;
+use crate::handle::signature::verify_certificate;
 use crate::handle::validator_set::get_validator_set;
 use crate::prelude::*;
 
@@ -23,11 +22,14 @@ where
         return Err(Error::ValidatorSetNotFound(certificate.height));
     };
 
-    if let Err(e) = certificate.verify(
-        &state.ctx,
-        validator_set.borrow(),
+    if let Err(e) = verify_certificate(
+        co,
+        certificate.clone(),
+        validator_set.as_ref().clone(),
         state.params.threshold_params,
-    ) {
+    )
+    .await?
+    {
         return Err(Error::InvalidCertificate(certificate, e));
     }
 

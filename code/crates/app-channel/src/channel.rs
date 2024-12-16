@@ -10,7 +10,7 @@ use crate::app::types::streaming::StreamMessage;
 use crate::app::types::sync::DecidedValue;
 use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
 
-use malachite_actors::consensus::Msg as ConsensusActorMsg;
+use malachite_engine::consensus::Msg as ConsensusActorMsg;
 
 /// Channels created for application consumption
 pub struct Channels<Ctx: Context> {

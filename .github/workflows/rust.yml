@@ -49,7 +49,7 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
       - name: Run tests
-        run: cargo nextest run --workspace --all-features --no-fail-fast --failure-output final --test-threads 1 --exclude malachite-starknet-test --exclude malachite-discovery-test
+        run: cargo nextest run --workspace --all-features --no-fail-fast --failure-output final --exclude malachite-starknet-test --exclude malachite-discovery-test
 
   integration:
     name: Integration Tests
@@ -74,12 +74,14 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           cache-workspaces: "code"
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@cargo-nextest
-      - name: Run Starknet tests
-        run: cargo nextest run --all-features --no-fail-fast --failure-output final --test-threads 1 -p malachite-starknet-test
-      - name: Run Discovery tests
-        run: cargo nextest run --all-features --no-fail-fast --failure-output final --test-threads 1 -p malachite-discovery-test
+      - name: Install cargo-maelstrom
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-maelstrom
+      - name: Disable apparmor container restrictions
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Run integration tests
+        run: cargo maelstrom --slots 16 -i 'package.match(malachite-starknet-test) || package.match(malachite-discovery-test)'
 
   clippy:
     name: Clippy

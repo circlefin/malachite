@@ -78,7 +78,10 @@ where
     // Append the vote to the Write-ahead Log
     perform!(
         co,
-        Effect::PersistMessage(SignedConsensusMsg::Vote(signed_vote.clone()))
+        Effect::PersistMessage(
+            SignedConsensusMsg::Vote(signed_vote.clone()),
+            Default::default()
+        )
     );
 
     // Store the non-nil Precommits.

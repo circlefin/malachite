@@ -1,8 +1,8 @@
 use bytes::Bytes;
 use malachite_codec::Codec;
 
-use malachite_actors::util::streaming::StreamMessage;
 use malachite_consensus::SignedConsensusMsg;
+use malachite_engine::util::streaming::StreamMessage;
 use malachite_sync::{Request, Response, Status};
 
 use crate::codec::types::{

@@ -1,5 +1,5 @@
 use itf::de::{As, Integer};
-use malachite_round::state::Step as RoundStep;
+use malachite_core_state_machine::state::Step as RoundStep;
 use serde::Deserialize;
 
 pub type Height = i64;
@@ -45,10 +45,10 @@ pub enum VoteType {
 }
 
 impl VoteType {
-    pub fn to_common(&self) -> malachite_common::VoteType {
+    pub fn to_common(&self) -> malachite_core_types::VoteType {
         match self {
-            VoteType::Prevote => malachite_common::VoteType::Prevote,
-            VoteType::Precommit => malachite_common::VoteType::Precommit,
+            VoteType::Prevote => malachite_core_types::VoteType::Prevote,
+            VoteType::Precommit => malachite_core_types::VoteType::Precommit,
         }
     }
 }
@@ -109,11 +109,11 @@ pub enum Timeout {
 }
 
 impl Timeout {
-    pub fn to_common(&self) -> malachite_common::TimeoutKind {
+    pub fn to_common(&self) -> malachite_core_types::TimeoutKind {
         match self {
-            Timeout::Propose => malachite_common::TimeoutKind::Propose,
-            Timeout::Prevote => malachite_common::TimeoutKind::Prevote,
-            Timeout::Precommit => malachite_common::TimeoutKind::Precommit,
+            Timeout::Propose => malachite_core_types::TimeoutKind::Propose,
+            Timeout::Prevote => malachite_core_types::TimeoutKind::Prevote,
+            Timeout::Precommit => malachite_core_types::TimeoutKind::Precommit,
         }
     }
 }

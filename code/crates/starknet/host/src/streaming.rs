@@ -3,9 +3,9 @@ use std::collections::{BTreeMap, BinaryHeap, HashSet};
 
 use derive_where::derive_where;
 
-use malachite_actors::util::streaming::{Sequence, StreamId, StreamMessage};
-use malachite_common::Round;
 use malachite_consensus::PeerId;
+use malachite_core_types::Round;
+use malachite_engine::util::streaming::{Sequence, StreamId, StreamMessage};
 
 use crate::types::{Address, Height, ProposalInit, ProposalPart};
 
@@ -149,7 +149,7 @@ impl PartStreamsMap {
         Some(ProposalParts {
             height: init_info.height,
             round: init_info.proposal_round,
-            proposer: init_info.proposer.clone(),
+            proposer: init_info.proposer,
             parts: to_emit,
         })
     }
@@ -177,7 +177,7 @@ impl PartStreamsMap {
         Some(ProposalParts {
             height: init_info.height,
             round: init_info.proposal_round,
-            proposer: init_info.proposer.clone(),
+            proposer: init_info.proposer,
             parts: to_emit,
         })
     }

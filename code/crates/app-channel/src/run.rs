@@ -7,11 +7,13 @@ use crate::app::types::codec::{ConsensusCodec, SyncCodec, WalCodec};
 use crate::app::types::config::Config as NodeConfig;
 use crate::app::types::core::Context;
 use crate::app::types::metrics::{Metrics, SharedRegistry};
-use crate::spawn::{spawn_gossip_consensus_actor, spawn_host_actor};
+use crate::spawn::{spawn_network_actor, spawn_host_actor};
 use crate::{app, Channels};
 
-use malachite_actors::util::events::TxEvent;
-use malachite_app::{spawn_consensus_actor, spawn_sync_actor, spawn_wal_actor};
+use malachite_app::{
+    spawn_consensus_actor, spawn_sync_actor, spawn_wal_actor,
+};
+use malachite_engine::util::events::TxEvent;
 
 #[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
 pub async fn run<Node, Ctx, Codec>(
@@ -45,8 +47,8 @@ where
     let keypair = node.get_keypair(private_key);
 
     // Spawn consensus gossip
-    let (gossip_consensus, gossipconsensusmsg_tx) =
-        spawn_gossip_consensus_actor(&cfg, keypair, &registry, codec.clone()).await?;
+    let (network, network_msg_tx) =
+        spawn_network_actor(&cfg, keypair, &registry, codec.clone()).await?;
 
     let wal = spawn_wal_actor(&ctx, codec, &node.get_home_dir(), &registry).await?;
 
@@ -55,10 +57,9 @@ where
 
     let sync = spawn_sync_actor(
         ctx.clone(),
-        gossip_consensus.clone(),
+        network.clone(),
         connector.clone(),
         &cfg.sync,
-        start_height,
         &registry,
     )
     .await?;
@@ -70,7 +71,7 @@ where
         address,
         ctx,
         cfg,
-        gossip_consensus,
+        network,
         connector,
         wal,
         sync.clone(),
@@ -81,6 +82,6 @@ where
 
     Ok(Channels {
         consensus: appmsg_rx,
-        consensus_gossip: gossipconsensusmsg_tx,
+        consensus_gossip: network_msg_tx,
     })
 }

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use rand::seq::IteratorRandom;
 
-use malachite_common::{Context, Height, Round};
+use malachite_core_types::{Context, Height, Round};
 use malachite_peer::PeerId;
 use tracing::warn;
 
@@ -35,13 +35,11 @@ impl<Ctx> State<Ctx>
 where
     Ctx: Context,
 {
-    pub fn new(rng: Box<dyn rand::RngCore + Send>, sync_height: Ctx::Height) -> Self {
-        let tip_height = sync_height.decrement().unwrap_or_default();
-
+    pub fn new(rng: Box<dyn rand::RngCore + Send>) -> Self {
         Self {
             rng,
-            tip_height,
-            sync_height,
+            tip_height: Ctx::Height::default(),
+            sync_height: Ctx::Height::default(),
             pending_decided_value_requests: BTreeMap::new(),
             pending_vote_set_requests: BTreeMap::new(),
             peers: BTreeMap::new(),

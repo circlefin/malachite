@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use malachite_common::NilOrVal;
+use malachite_core_types::NilOrVal;
 use malachite_test::{
     Address, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet, ValueId,
 };
@@ -46,7 +46,7 @@ pub fn value_from_model(value: &Value) -> NilOrVal<ValueId> {
 
 pub fn check_votes(
     expected: &malachite_test_mbt::votekeeper::VoteCount,
-    actual: &malachite_vote::count::VoteCount<TestContext>,
+    actual: &malachite_core_votekeeper::count::VoteCount<TestContext>,
     address_map: &HashMap<String, Address>,
 ) {
     // expected has `total_weight` which is not present in actual

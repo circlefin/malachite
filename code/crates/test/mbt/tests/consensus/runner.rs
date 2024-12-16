@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 
 use pretty_assertions::assert_eq;
 
-use malachite_common::{Context, NilOrVal, Round};
-use malachite_round::input::Input;
-use malachite_round::output::Output;
-use malachite_round::{state::State as RoundState, state_machine::Info};
+use malachite_core_state_machine::input::Input;
+use malachite_core_state_machine::output::Output;
+use malachite_core_state_machine::{state::State as RoundState, state_machine::Info};
+use malachite_core_types::{Context, NilOrVal, Round};
 use malachite_test::{Address, Height, TestContext};
 use malachite_test_mbt::consensus::{Input as ModelInput, Output as ModelOutput, State};
 use malachite_test_mbt::types::Step;

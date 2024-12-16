@@ -5,8 +5,8 @@ use rand::{CryptoRng, RngCore};
 
 use malachite_app::types::Keypair;
 use malachite_app::Node;
-use malachite_common::VotingPower;
 use malachite_config::Config;
+use malachite_core_types::VotingPower;
 
 use crate::context::TestContext;
 use crate::{Address, Genesis, PrivateKey, PublicKey, Validator, ValidatorSet};

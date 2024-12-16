@@ -12,7 +12,7 @@ use crate::Felt;
 pub type MessageHash = Hash;
 pub type BlockHash = Hash;
 
-impl malachite_common::Value for BlockHash {
+impl malachite_core_types::Value for BlockHash {
     type Id = BlockHash;
 
     fn id(&self) -> Self::Id {

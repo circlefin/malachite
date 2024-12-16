@@ -4,9 +4,9 @@ mod node;
 mod state;
 
 use eyre::eyre;
-use malachite_cli::args::{Args, Commands};
-use malachite_cli::config::load_config;
-use malachite_cli::{logging, runtime};
+use malachite_test_cli::args::{Args, Commands};
+use malachite_test_cli::config::load_config;
+use malachite_test_cli::{logging, runtime};
 use node::App;
 use tracing::{error, info, trace};
 
@@ -99,5 +99,8 @@ fn main() -> color_eyre::Result<()> {
         Commands::Testnet(cmd) => cmd
             .run(node, &args.get_home_dir()?, logging)
             .map_err(|error| eyre!("Failed to run testnet command {:?}", error)),
+        Commands::DistributedTestnet(cmd) => cmd
+            .run(node, &args.get_home_dir()?, logging)
+            .map_err(|error| eyre!("Failed to run distributed testnet command {:?}", error)),
     }
 }

@@ -1,11 +1,11 @@
 use bytes::Bytes;
-use malachite_common::{NilOrVal, Round, SignedExtension, VoteType};
+use malachite_core_types::{NilOrVal, Round, SignedExtension, VoteType};
 use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::proto;
 use crate::{Address, Height, TestContext, ValueId};
 
-pub use malachite_common::Extension;
+pub use malachite_core_types::Extension;
 
 /// A vote for a value in a round
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -56,7 +56,7 @@ impl Vote {
     }
 }
 
-impl malachite_common::Vote<TestContext> for Vote {
+impl malachite_core_types::Vote<TestContext> for Vote {
     fn height(&self) -> Height {
         self.height
     }

@@ -1,7 +1,7 @@
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use malachite_common::VotingPower;
+use malachite_core_types::VotingPower;
 
 use crate::{PrivateKey, Validator};
 

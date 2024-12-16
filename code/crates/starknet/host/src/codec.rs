@@ -1,12 +1,12 @@
 use bytes::Bytes;
 use prost::Message;
 
-use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_codec::Codec;
-use malachite_common::{
+use malachite_core_types::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
     SignedProposal, SignedVote, Validity,
 };
+use malachite_engine::util::streaming::{StreamContent, StreamMessage};
 use malachite_sync::{self as sync, ValueRequest, ValueResponse, VoteSetRequest, VoteSetResponse};
 
 use malachite_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
@@ -599,7 +599,7 @@ impl Codec<sync::DecidedValue<MockContext>> for ProtobufCodec {
 }
 
 pub(crate) fn encode_vote_set(
-    vote_set: &malachite_common::VoteSet<MockContext>,
+    vote_set: &malachite_core_types::VoteSet<MockContext>,
 ) -> Result<proto::sync::VoteSet, ProtoError> {
     Ok(proto::sync::VoteSet {
         signed_votes: vote_set
@@ -619,8 +619,8 @@ pub(crate) fn encode_vote(vote: &SignedVote<MockContext>) -> Result<ConsensusMes
 
 pub(crate) fn decode_vote_set(
     vote_set: proto::sync::VoteSet,
-) -> Result<malachite_common::VoteSet<MockContext>, ProtoError> {
-    Ok(malachite_common::VoteSet {
+) -> Result<malachite_core_types::VoteSet<MockContext>, ProtoError> {
+    Ok(malachite_core_types::VoteSet {
         votes: vote_set
             .signed_votes
             .into_iter()

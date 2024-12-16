@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 
-use malachite_common::{CommitCertificate, Round};
+use malachite_core_types::{CommitCertificate, Round};
 
 use crate::types::MockContext;
 

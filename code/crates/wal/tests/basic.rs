@@ -2,12 +2,25 @@
 
 use std::fs::OpenOptions;
 use std::path::Path;
+use std::sync::LazyLock;
 use std::time::Duration;
 use std::{fs, io, str};
 
 use malachite_wal::{Log, Version};
 
-use testdir::testdir;
+use testdir::{NumberedDir, NumberedDirBuilder};
+
+static TESTDIR: LazyLock<NumberedDir> =
+    LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());
+
+macro_rules! testwal {
+    () => {{
+        let module_path = ::std::module_path!();
+        let test_name = ::testdir::private::extract_test_name(&module_path);
+        let subdir_path = ::std::path::Path::new(&module_path.replace("::", "/")).join(&test_name);
+        TESTDIR.create_subdir(subdir_path).unwrap().join("wal.log")
+    }};
+}
 
 const ENTRIES_1: &[&str] = &[
     "Hello, world!",
@@ -47,7 +60,7 @@ fn setup_wal(path: &Path, entries: &[&str]) -> io::Result<Log> {
 
 #[test]
 fn new_wal() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
     let wal = Log::open(path)?;
     println!("Path: {}", wal.path().display());
 
@@ -61,7 +74,7 @@ fn new_wal() -> io::Result<()> {
 
 #[test]
 fn open_empty_wal() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     let wal = setup_wal(&path, &[])?;
     let version = wal.version();
@@ -79,7 +92,7 @@ fn open_empty_wal() -> io::Result<()> {
 
 #[test]
 fn write_entries() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     setup_wal(&path, ENTRIES_1)?;
 
@@ -101,7 +114,7 @@ fn write_entries() -> io::Result<()> {
 
 #[test]
 fn restart() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     {
         let mut wal = setup_wal(&path, ENTRIES_1)?;
@@ -132,7 +145,7 @@ fn restart() -> io::Result<()> {
 }
 #[test]
 fn corrupted_wal() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     // Create and write some entries
     {
@@ -161,7 +174,7 @@ fn corrupted_wal() -> io::Result<()> {
 
 #[test]
 fn empty_wal_operations() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
     let mut wal = Log::open(&path)?;
 
     assert!(matches!(wal.first_entry(), Ok(None)));
@@ -174,7 +187,7 @@ fn empty_wal_operations() -> io::Result<()> {
 fn concurrent_access() -> io::Result<()> {
     use std::thread;
 
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     // Write in one thread
     let path_clone = path.clone();

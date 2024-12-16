@@ -9,11 +9,11 @@ rust-version.workspace = true
 
 [features]
 std = []
-debug = ["std", "malachite-driver/debug"]
+debug = ["std", "malachite-core-driver/debug"]
 
 [dependencies]
-malachite-common.workspace  = true
-malachite-driver.workspace  = true
+malachite-core-types.workspace  = true
+malachite-core-driver.workspace  = true
 malachite-metrics.workspace = true
 malachite-peer.workspace    = true
 

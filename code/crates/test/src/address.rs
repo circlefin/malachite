@@ -54,7 +54,7 @@ impl fmt::Debug for Address {
     }
 }
 
-impl malachite_common::Address for Address {}
+impl malachite_core_types::Address for Address {}
 
 impl Protobuf for Address {
     type Proto = proto::Address;

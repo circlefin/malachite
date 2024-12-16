@@ -1,5 +1,5 @@
 use derive_where::derive_where;
-use malachite_common::{
+use malachite_core_types::{
     CommitCertificate, Context, Round, SignedProposal, SignedVote, Timeout, ValueOrigin, VoteSet,
 };
 

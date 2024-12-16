@@ -1,4 +1,4 @@
-use malachite_common::VotingPower;
+use malachite_core_types::VotingPower;
 use serde::{Deserialize, Serialize};
 
 use crate::signing::PublicKey;
@@ -35,7 +35,7 @@ impl Ord for Validator {
     }
 }
 
-impl malachite_common::Validator<TestContext> for Validator {
+impl malachite_core_types::Validator<TestContext> for Validator {
     fn address(&self) -> &Address {
         &self.address
     }
@@ -126,7 +126,7 @@ impl ValidatorSet {
     }
 }
 
-impl malachite_common::ValidatorSet<TestContext> for ValidatorSet {
+impl malachite_core_types::ValidatorSet<TestContext> for ValidatorSet {
     fn count(&self) -> usize {
         self.validators.len()
     }

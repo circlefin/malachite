@@ -14,24 +14,18 @@ pub use node::Node;
 pub mod types;
 
 mod spawn;
-pub use spawn::{
-    spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_sync_actor, spawn_wal_actor,
-};
+pub use spawn::{spawn_consensus_actor, spawn_network_actor, spawn_sync_actor, spawn_wal_actor};
 
 pub mod streaming {
-    pub use malachite_actors::util::streaming::*;
+    pub use malachite_engine::util::streaming::*;
 }
 
 pub mod host {
-    pub use malachite_actors::host::LocallyProposedValue;
+    pub use malachite_engine::host::LocallyProposedValue;
 }
 
 pub mod consensus {
     pub use malachite_consensus::*;
-}
-
-pub mod common {
-    pub use malachite_common::*;
 }
 
 pub mod metrics {

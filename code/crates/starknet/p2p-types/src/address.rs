@@ -7,7 +7,7 @@ use malachite_starknet_p2p_proto as p2p_proto;
 
 use crate::PublicKey;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Address(PublicKey);
 
@@ -37,7 +37,7 @@ impl fmt::Debug for Address {
     }
 }
 
-impl malachite_common::Address for Address {}
+impl malachite_core_types::Address for Address {}
 
 impl Protobuf for Address {
     type Proto = p2p_proto::Address;
