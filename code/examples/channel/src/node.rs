@@ -4,6 +4,8 @@
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
+use eyre::eyre;
+use libp2p_identity::Keypair;
 use rand::{CryptoRng, RngCore};
 use tracing::{debug, error};
 
@@ -19,7 +21,6 @@ use malachite_test::{
 
 use crate::state;
 use crate::state::State;
-use libp2p_identity::Keypair;
 
 #[derive(Clone)]
 pub struct App {
@@ -117,126 +118,131 @@ impl Node for App {
 
         let mut state = State::new(address, start_height.unwrap_or_default());
 
-        loop {
-            match channels.consensus.recv().await {
-                Some(msg) => match msg {
-                    AppMsg::ConsensusReady { reply_to } => {
-                        debug!("Consensus is ready to run");
-                        if reply_to
-                            .send(ConsensusMsg::StartHeight(
-                                state.current_height,
-                                genesis.validator_set.clone(),
-                            ))
-                            .is_err()
-                        {
-                            error!("Failed to send ConsensusReady reply");
-                        }
+        while let Some(msg) = channels.consensus.recv().await {
+            match msg {
+                AppMsg::ConsensusReady { reply_to } => {
+                    debug!("Consensus is ready to run");
+                    if reply_to
+                        .send(ConsensusMsg::StartHeight(
+                            state.current_height,
+                            genesis.validator_set.clone(),
+                        ))
+                        .is_err()
+                    {
+                        error!("Failed to send ConsensusReady reply");
                     }
-                    AppMsg::StartedRound {
-                        height,
-                        round,
-                        proposer,
-                    } => {
-                        state.current_height = height;
-                        state.current_round = round;
-                        state.current_proposer = Some(proposer);
-                    }
-                    AppMsg::GetValue {
-                        height,
-                        round: _,
-                        timeout_duration: _,
-                        address: _,
-                        reply_to,
-                    } => {
-                        let value = state.get_locally_proposed_value(&height);
-                        // Send it to consensus
-                        if reply_to.send(value.clone()).is_err() {
-                            error!("Failed to send GetValue reply");
-                        }
+                }
 
-                        let stream_message = state.create_broadcast_message(value);
-                        // Broadcast it to others. Old messages need not be broadcast.
-                        channels
-                            .consensus_gossip
-                            .send(ConsensusGossipMsg::PublishProposalPart(stream_message))
-                            .await?;
+                AppMsg::StartedRound {
+                    height,
+                    round,
+                    proposer,
+                } => {
+                    state.current_height = height;
+                    state.current_round = round;
+                    state.current_proposer = Some(proposer);
+                }
+
+                AppMsg::GetValue {
+                    height,
+                    round: _,
+                    timeout_duration: _,
+                    address: _,
+                    reply_to,
+                } => {
+                    let value = state.get_locally_proposed_value(&height);
+                    // Send it to consensus
+                    if reply_to.send(value.clone()).is_err() {
+                        error!("Failed to send GetValue reply");
                     }
-                    AppMsg::GetEarliestBlockHeight { reply_to } => {
-                        error!("GetEarliestBlockHeight");
-                        if reply_to.send(state.get_earliest_height()).is_err() {
-                            error!("Failed to send GetEarliestBlockHeight reply");
-                        }
+
+                    let stream_message = state.create_broadcast_message(value);
+                    // Broadcast it to others. Old messages need not be broadcast.
+                    channels
+                        .consensus_gossip
+                        .send(ConsensusGossipMsg::PublishProposalPart(stream_message))
+                        .await?;
+                }
+
+                AppMsg::GetEarliestBlockHeight { reply_to } => {
+                    if reply_to.send(state.get_earliest_height()).is_err() {
+                        error!("Failed to send GetEarliestBlockHeight reply");
                     }
-                    AppMsg::ReceivedProposalPart {
-                        from: _,
-                        part,
-                        reply_to,
-                    } => {
-                        let proposed_value = state.add_proposal(part);
-                        if reply_to.send(proposed_value).is_err() {
-                            error!("Failed to send ReceivedProposalPart reply");
-                        }
+                }
+
+                AppMsg::ReceivedProposalPart {
+                    from: _,
+                    part,
+                    reply_to,
+                } => {
+                    let proposed_value = state.add_proposal(part);
+                    if reply_to.send(proposed_value).is_err() {
+                        error!("Failed to send ReceivedProposalPart reply");
                     }
-                    AppMsg::GetValidatorSet {
-                        height: _,
-                        reply_to,
-                    } => {
-                        if reply_to.send(genesis.validator_set.clone()).is_err() {
-                            error!("Failed to send GetValidatorSet reply");
-                        }
+                }
+
+                AppMsg::GetValidatorSet {
+                    height: _,
+                    reply_to,
+                } => {
+                    if reply_to.send(genesis.validator_set.clone()).is_err() {
+                        error!("Failed to send GetValidatorSet reply");
                     }
-                    AppMsg::Decided {
-                        certificate,
-                        reply_to,
-                    } => {
-                        state.commit_block(certificate);
-                        if reply_to
-                            .send(ConsensusMsg::StartHeight(
-                                state.current_height,
-                                genesis.validator_set.clone(),
-                            ))
-                            .is_err()
-                        {
-                            error!("Failed to send Decided reply");
-                        }
+                }
+
+                AppMsg::Decided {
+                    certificate,
+                    reply_to,
+                } => {
+                    state.commit_block(certificate);
+                    if reply_to
+                        .send(ConsensusMsg::StartHeight(
+                            state.current_height,
+                            genesis.validator_set.clone(),
+                        ))
+                        .is_err()
+                    {
+                        error!("Failed to send Decided reply");
                     }
-                    AppMsg::GetDecidedBlock { height, reply_to } => {
-                        let block = state.get_block(&height).map(|o| (*o).clone());
-                        if reply_to.send(block).is_err() {
-                            error!("Failed to send GetDecidedBlock reply");
-                        }
+                }
+
+                AppMsg::GetDecidedBlock { height, reply_to } => {
+                    let block = state.get_block(&height).map(|o| (*o).clone());
+                    if reply_to.send(block).is_err() {
+                        error!("Failed to send GetDecidedBlock reply");
                     }
-                    AppMsg::ProcessSyncedValue {
-                        height,
-                        round,
-                        validator_address,
-                        value_bytes,
-                        reply_to,
-                    } => {
-                        let value = state::value_from_vec(value_bytes.to_vec());
-                        if reply_to
-                            .send(ProposedValue {
-                                height,
-                                round,
-                                valid_round: Round::Nil,
-                                validator_address,
-                                value,
-                                validity: Validity::Valid,
-                                extension: None,
-                            })
-                            .is_err()
-                        {
-                            error!("Failed to send ProcessSyncedBlock reply");
-                        }
+                }
+
+                AppMsg::ProcessSyncedValue {
+                    height,
+                    round,
+                    validator_address,
+                    value_bytes,
+                    reply_to,
+                } => {
+                    let value = state::value_from_vec(value_bytes.to_vec());
+                    if reply_to
+                        .send(ProposedValue {
+                            height,
+                            round,
+                            valid_round: Round::Nil,
+                            validator_address,
+                            value,
+                            validity: Validity::Valid,
+                            extension: None,
+                        })
+                        .is_err()
+                    {
+                        error!("Failed to send ProcessSyncedBlock reply");
                     }
-                    AppMsg::RestreamValue { .. } => {
-                        unimplemented!("RestreamValue");
-                    }
-                },
-                None => {
-                    error!("Channel is closed.")
+                }
+
+                AppMsg::RestreamValue { .. } => {
+                    unimplemented!("RestreamValue");
                 }
             }
         }
+
+        Err(eyre!("Consensus channel closed unexpectedly"))
     }
 }

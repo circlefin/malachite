@@ -62,6 +62,7 @@ impl State {
                     && proposal_part.round >= self.current_round
             {
                 assert!(proposal_part.fin); // we only implemented 1 part === 1 proposal
+
                 let value = value_from_vec(
                     proposal_part
                         .content
@@ -152,7 +153,9 @@ impl State {
             self.current_round.as_u32().unwrap().to_le_bytes().to_vec(),
         ]
         .concat();
+
         let content = Content::new(&BlockMetadata::new(fake_proof, value.value));
+
         let proposal_part = ProposalPart::new(
             self.current_height,
             self.current_round,
@@ -161,6 +164,7 @@ impl State {
             content,
             true, // each proposal part is a full proposal
         );
+
         let stream_content = StreamContent::Data(proposal_part);
         let msg = StreamMessage::new(self.sequence, self.sequence, stream_content);
         self.sequence += 1;
