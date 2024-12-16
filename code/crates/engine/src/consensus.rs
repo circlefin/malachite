@@ -900,7 +900,7 @@ where
                     .map_err(|e| warn!("No validator set found for height {height}: {e:?}"))
                     .ok();
 
-                Ok(r.resume_with((height, validator_set)))
+                Ok(r.resume_with(validator_set))
             }
 
             Effect::RestreamValue(height, round, valid_round, address, value_id, r) => {

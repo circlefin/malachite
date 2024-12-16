@@ -158,8 +158,9 @@ where
     /// Resume execution
     Continue,
 
-    /// Resume execution with an optional validator set at the given height
-    ValidatorSet(Ctx::Height, Option<Ctx::ValidatorSet>),
+    /// Resume execution with `Some(Ctx::ValidatorSet)` if a validator set
+    /// was successfully fetched, or `None` otherwise.
+    ValidatorSet(Option<Ctx::ValidatorSet>),
 
     /// Resume execution with the validity of the signature
     SignatureValidity(bool),
@@ -192,10 +193,10 @@ pub mod resume {
     pub struct ValidatorSet;
 
     impl<Ctx: Context> Resumable<Ctx> for ValidatorSet {
-        type Value = (Ctx::Height, Option<Ctx::ValidatorSet>);
+        type Value = Option<Ctx::ValidatorSet>;
 
-        fn resume_with(self, a: Self::Value) -> Resume<Ctx> {
-            Resume::ValidatorSet(a.0, a.1)
+        fn resume_with(self, value: Self::Value) -> Resume<Ctx> {
+            Resume::ValidatorSet(value)
         }
     }
 
