@@ -1,16 +1,29 @@
 use bytes::Bytes;
 use malachite_codec::Codec;
 
-use crate::codec::types::{
-    RawRequest, RawResponse, RawSignedConsensusMsg, RawStatus, RawStreamMessage,
-};
-use crate::{ProposalPart, TestContext};
 use malachite_actors::util::streaming::StreamMessage;
 use malachite_consensus::SignedConsensusMsg;
 use malachite_sync::{Request, Response, Status};
 
+use crate::codec::types::{
+    RawRequest, RawResponse, RawSignedConsensusMsg, RawStatus, RawStreamMessage,
+};
+use crate::{ProposalPart, TestContext, Value};
+
 #[derive(Clone)]
 pub struct TestCodec;
+
+impl Codec<Value> for TestCodec {
+    type Error = serde_json::Error;
+
+    fn decode(&self, bytes: Bytes) -> Result<Value, Self::Error> {
+        serde_json::from_slice(&bytes)
+    }
+
+    fn encode(&self, msg: &Value) -> Result<Bytes, Self::Error> {
+        serde_json::to_vec(&msg).map(Bytes::from)
+    }
+}
 
 impl Codec<ProposalPart> for TestCodec {
     type Error = serde_json::Error;

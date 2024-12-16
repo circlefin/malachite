@@ -57,7 +57,7 @@ impl Protobuf for BlockMetadata {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Content {
-    metadata: BlockMetadata,
+    pub metadata: BlockMetadata,
 }
 
 impl Content {
