@@ -668,17 +668,16 @@ where
         myself: &ActorRef<Msg<Ctx>>,
         height: Ctx::Height,
         round: Round,
-        timeout_duration: Duration,
+        timeout: Duration,
     ) -> Result<(), ActorProcessingErr> {
         // Call `GetValue` on the Host actor, and forward the reply
         // to the current actor, wrapping it in `Msg::ProposeValue`.
         self.host.call_and_forward(
-            |reply| HostMsg::GetValue {
+            |reply_to| HostMsg::GetValue {
                 height,
                 round,
-                timeout: timeout_duration,
-                address: self.params.address.clone(),
-                reply_to: reply,
+                timeout,
+                reply_to,
             },
             myself,
             |proposed: LocallyProposedValue<Ctx>| {

@@ -134,7 +134,6 @@ impl Host {
                 height,
                 round,
                 timeout,
-                address: _,
                 reply_to,
             } => on_get_value(state, &self.network, height, round, timeout, reply_to).await,
 

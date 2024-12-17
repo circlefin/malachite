@@ -62,7 +62,6 @@ pub enum HostMsg<Ctx: Context> {
         height: Ctx::Height,
         round: Round,
         timeout: Duration,
-        address: Ctx::Address,
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
 
