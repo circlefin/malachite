@@ -3,7 +3,7 @@
 </h1>
 
 <h4 align="center">
-    BFT Consensus Library<br/>
+    BFT Consensus Library in Rust<br/>
     Bundled with state-of-the-art Tendermint in Rust implementation
 </h4>
 
