@@ -111,7 +111,7 @@ impl Host for StarknetHost {
             build_proposal_task(
                 height,
                 round,
-                self.address.clone(),
+                self.address,
                 self.private_key,
                 self.params,
                 deadline,

@@ -8,8 +8,8 @@ use crate::ValuePayload;
 /// Consensus parameters.
 #[derive_where(Clone, Debug)]
 pub struct Params<Ctx: Context> {
-    /// The starting height
-    pub start_height: Ctx::Height,
+    /// The initial height
+    pub initial_height: Ctx::Height,
 
     /// The initial validator set
     pub initial_validator_set: Ctx::ValidatorSet,

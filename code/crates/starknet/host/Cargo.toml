@@ -1,20 +1,20 @@
 [package]
-name                   = "malachite-starknet-host"
-version.workspace      = true
-edition.workspace      = true
-repository.workspace   = true
-license.workspace      = true
+name = "malachite-starknet-host"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 rust-version.workspace = true
-publish                = false
+publish = false
 
 [dependencies]
-malachite-actors = { workspace = true }
+malachite-engine = { workspace = true }
 malachite-app = { workspace = true }
 malachite-codec = { workspace = true }
 malachite-config = { workspace = true }
 malachite-consensus = { workspace = true, features = ["debug"] }
 malachite-core-types = { workspace = true }
-malachite-gossip-consensus = { workspace = true }
+malachite-network = { workspace = true }
 malachite-metrics = { workspace = true }
 malachite-node = { workspace = true }
 malachite-proto = { workspace = true }
@@ -46,4 +46,4 @@ workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-malachite-cli.workspace = true
+malachite-test-cli.workspace = true

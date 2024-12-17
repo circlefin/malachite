@@ -97,6 +97,7 @@ where
     pub fn move_to_height(&mut self, height: Ctx::Height, validator_set: Ctx::ValidatorSet) {
         // Reset the proposal keeper
         let proposal_keeper = ProposalKeeper::new();
+
         // Reset the vote keeper
         let vote_keeper = VoteKeeper::new(validator_set.clone(), self.threshold_params);
 

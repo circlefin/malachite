@@ -15,3 +15,5 @@ libp2p             = { workspace = true }
 serde              = { workspace = true }
 tracing            = { workspace = true }
 tokio              = { workspace = true }
+either             = { workspace = true }
+rand               = { workspace = true }

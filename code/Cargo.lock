@@ -2462,6 +2462,7 @@ dependencies = [
  "libp2p-gossipsub",
  "libp2p-identify",
  "libp2p-identity",
+ "libp2p-kad",
  "libp2p-ping",
  "libp2p-swarm",
  "pin-project",
@@ -2749,44 +2750,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-actors"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "byteorder",
- "bytes",
- "derive-where",
- "eyre",
- "libp2p",
- "malachite-codec",
- "malachite-config",
- "malachite-consensus",
- "malachite-core-types",
- "malachite-gossip-consensus",
- "malachite-metrics",
- "malachite-sync",
- "malachite-test-mempool",
- "malachite-wal",
- "ractor",
- "rand",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "malachite-app"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "eyre",
  "libp2p-identity",
- "malachite-actors",
  "malachite-codec",
  "malachite-config",
  "malachite-consensus",
  "malachite-core-types",
- "malachite-gossip-consensus",
+ "malachite-engine",
  "malachite-metrics",
+ "malachite-network",
  "malachite-peer",
  "malachite-sync",
  "rand",
@@ -2801,37 +2777,13 @@ dependencies = [
  "bytes",
  "derive-where",
  "eyre",
- "malachite-actors",
  "malachite-app",
+ "malachite-engine",
  "malachite-test",
  "ractor",
  "rand",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "malachite-cli"
-version = "0.1.0"
-dependencies = [
- "axum",
- "bytesize",
- "clap",
- "color-eyre",
- "directories",
- "itertools 0.13.0",
- "malachite-app",
- "malachite-config",
- "malachite-core-types",
- "malachite-metrics",
- "rand",
- "serde_json",
- "thiserror 2.0.6",
- "tokio",
- "toml",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -2928,8 +2880,10 @@ dependencies = [
 name = "malachite-discovery"
 version = "0.1.0"
 dependencies = [
+ "either",
  "libp2p",
  "malachite-metrics",
+ "rand",
  "serde",
  "tokio",
  "tracing",
@@ -2942,8 +2896,8 @@ dependencies = [
  "futures",
  "libp2p-identity",
  "malachite-config",
- "malachite-gossip-consensus",
  "malachite-metrics",
+ "malachite-network",
  "malachite-starknet-host",
  "rand",
  "tokio",
@@ -2952,7 +2906,40 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-gossip-consensus"
+name = "malachite-engine"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "byteorder",
+ "bytes",
+ "derive-where",
+ "eyre",
+ "libp2p",
+ "malachite-codec",
+ "malachite-config",
+ "malachite-consensus",
+ "malachite-core-types",
+ "malachite-metrics",
+ "malachite-network",
+ "malachite-sync",
+ "malachite-test-mempool",
+ "malachite-wal",
+ "ractor",
+ "rand",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "malachite-metrics"
+version = "0.1.0"
+dependencies = [
+ "malachite-core-state-machine",
+ "prometheus-client",
+]
+
+[[package]]
+name = "malachite-network"
 version = "0.1.0"
 dependencies = [
  "bytes",
@@ -2969,14 +2956,6 @@ dependencies = [
  "serde",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "malachite-metrics"
-version = "0.1.0"
-dependencies = [
- "malachite-core-state-machine",
- "prometheus-client",
 ]
 
 [[package]]
@@ -3021,9 +3000,9 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "color-eyre",
- "malachite-cli",
  "malachite-config",
  "malachite-starknet-host",
+ "malachite-test-cli",
  "tempfile",
  "tikv-jemallocator",
  "tracing",
@@ -3040,20 +3019,20 @@ dependencies = [
  "eyre",
  "itertools 0.13.0",
  "libp2p-identity",
- "malachite-actors",
  "malachite-app",
- "malachite-cli",
  "malachite-codec",
  "malachite-config",
  "malachite-consensus",
  "malachite-core-types",
- "malachite-gossip-consensus",
+ "malachite-engine",
  "malachite-metrics",
+ "malachite-network",
  "malachite-node",
  "malachite-proto",
  "malachite-starknet-p2p-proto",
  "malachite-starknet-p2p-types",
  "malachite-sync",
+ "malachite-test-cli",
  "malachite-test-mempool",
  "prost",
  "ractor",
@@ -3098,10 +3077,10 @@ dependencies = [
  "axum",
  "bytesize",
  "eyre",
- "malachite-actors",
  "malachite-config",
  "malachite-consensus",
  "malachite-core-types",
+ "malachite-engine",
  "malachite-metrics",
  "malachite-starknet-host",
  "ractor",
@@ -3142,12 +3121,12 @@ dependencies = [
  "ed25519-consensus",
  "eyre",
  "hex",
- "malachite-actors",
  "malachite-app",
  "malachite-codec",
  "malachite-config",
  "malachite-consensus",
  "malachite-core-types",
+ "malachite-engine",
  "malachite-proto",
  "malachite-signing-ed25519",
  "malachite-sync",
@@ -3159,6 +3138,30 @@ dependencies = [
  "serde_json",
  "sha3",
  "signature",
+]
+
+[[package]]
+name = "malachite-test-cli"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "bytesize",
+ "clap",
+ "color-eyre",
+ "directories",
+ "itertools 0.13.0",
+ "malachite-app",
+ "malachite-config",
+ "malachite-core-types",
+ "malachite-metrics",
+ "rand",
+ "serde_json",
+ "thiserror 2.0.6",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
 ]
 
 [[package]]

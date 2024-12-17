@@ -1,12 +1,12 @@
 use bytes::Bytes;
 use prost::Message;
 
-use malachite_actors::util::streaming::{StreamContent, StreamMessage};
 use malachite_codec::Codec;
 use malachite_core_types::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
     SignedProposal, SignedVote, Validity,
 };
+use malachite_engine::util::streaming::{StreamContent, StreamMessage};
 use malachite_sync::{self as sync, ValueRequest, ValueResponse, VoteSetRequest, VoteSetResponse};
 
 use malachite_consensus::{PeerId, ProposedValue, SignedConsensusMsg};

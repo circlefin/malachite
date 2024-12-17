@@ -3,8 +3,8 @@ use derive_where::derive_where;
 use thiserror::Error;
 
 use crate::{
-    Context, NilOrVal, Round, Signature, SignedExtension, SignedVote, ThresholdParams, Validator,
-    ValidatorSet, ValueId, Vote, VoteType, VotingPower,
+    Context, NilOrVal, Round, Signature, SignedExtension, SignedVote, ValueId, Vote, VoteType,
+    VotingPower,
 };
 
 /// Represents a signature for a certificate, including the address and the signature itself.
@@ -93,76 +93,6 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
             value_id,
             aggregated_signature,
         }
-    }
-
-    /// Verify the certificate against the given validator set.
-    ///
-    /// - For each commit signature in the certificate:
-    ///   - Reconstruct the signed precommit and verify its signature
-    /// - Check that we have 2/3+ of voting power has signed the certificate
-    ///
-    /// If any of those steps fail, return a [`CertificateError`].
-    ///
-    /// TODO: Move to Context
-    pub fn verify(
-        &self,
-        ctx: &Ctx,
-        validator_set: &Ctx::ValidatorSet,
-        thresholds: ThresholdParams,
-    ) -> Result<(), CertificateError<Ctx>> {
-        let total_voting_power = validator_set.total_voting_power();
-        let mut signed_voting_power = 0;
-
-        // For each commit signature, reconstruct the signed precommit and verify the signature
-        for commit_sig in &self.aggregated_signature.signatures {
-            // Abort if validator not in validator set
-            let Some(validator) = validator_set.get_by_address(&commit_sig.address) else {
-                return Err(CertificateError::UnknownValidator(commit_sig.clone()));
-            };
-
-            let voting_power = self.verify_commit_signature(ctx, commit_sig, validator)?;
-            signed_voting_power += voting_power;
-        }
-
-        // Check if we have 2/3+ voting power
-        if thresholds
-            .quorum
-            .is_met(signed_voting_power, total_voting_power)
-        {
-            Ok(())
-        } else {
-            Err(CertificateError::NotEnoughVotingPower {
-                signed: signed_voting_power,
-                total: total_voting_power,
-                expected: thresholds.quorum.min_expected(total_voting_power),
-            })
-        }
-    }
-
-    /// Verify a commit signature against the public key of its validator.
-    ///
-    /// ## Return
-    /// Return the voting power of that validator if the signature is valid.
-    fn verify_commit_signature(
-        &self,
-        ctx: &Ctx,
-        commit_sig: &CommitSignature<Ctx>,
-        validator: &Ctx::Validator,
-    ) -> Result<VotingPower, CertificateError<Ctx>> {
-        // Reconstruct the vote that was signed
-        let vote = Ctx::new_precommit(
-            self.height,
-            self.round,
-            NilOrVal::Val(self.value_id.clone()),
-            validator.address().clone(),
-        );
-
-        // Verify signature
-        if !ctx.verify_signed_vote(&vote, &commit_sig.signature, validator.public_key()) {
-            return Err(CertificateError::InvalidSignature(commit_sig.clone()));
-        }
-
-        Ok(validator.voting_power())
     }
 }
 

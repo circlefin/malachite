@@ -100,6 +100,88 @@ pub struct DiscoveryConfig {
     /// Enable peer discovery
     #[serde(default)]
     pub enabled: bool,
+
+    /// Bootstrap protocol
+    #[serde(default)]
+    pub bootstrap_protocol: BootstrapProtocol,
+
+    /// Selector
+    #[serde(default)]
+    pub selector: Selector,
+
+    /// Number of outbound peers
+    #[serde(default)]
+    pub num_outbound_peers: usize,
+
+    /// Number of inbound peers
+    #[serde(default)]
+    pub num_inbound_peers: usize,
+
+    /// Ephemeral connection timeout
+    #[serde(default)]
+    pub ephemeral_connection_timeout: Duration,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BootstrapProtocol {
+    #[default]
+    Kademlia,
+    Full,
+}
+
+impl BootstrapProtocol {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Kademlia => "kademlia",
+            Self::Full => "full",
+        }
+    }
+}
+
+impl FromStr for BootstrapProtocol {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "kademlia" => Ok(Self::Kademlia),
+            "full" => Ok(Self::Full),
+            e => Err(format!(
+                "unknown bootstrap protocol: {e}, available: kademlia, full"
+            )),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Selector {
+    #[default]
+    Kademlia,
+    Random,
+}
+
+impl Selector {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Kademlia => "kademlia",
+            Self::Random => "random",
+        }
+    }
+}
+
+impl FromStr for Selector {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "kademlia" => Ok(Self::Kademlia),
+            "random" => Ok(Self::Random),
+            e => Err(format!(
+                "unknown selector: {e}, available: kademlia, random"
+            )),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]

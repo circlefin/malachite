@@ -1,38 +1,38 @@
 [package]
-name        = "malachite-test"
+name = "malachite-test"
 description = "Testing framework for the Malachite consensus engine"
-publish     = false
+publish = false
 
-version.workspace      = true
-edition.workspace      = true
-repository.workspace   = true
-license.workspace      = true
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-actors          = { workspace = true }
-malachite-app             = { workspace = true }
-malachite-codec           = { workspace = true }
-malachite-core-types          = { workspace = true }
-malachite-config          = { workspace = true }
-malachite-consensus       = { workspace = true }
-malachite-proto           = { workspace = true }
+malachite-engine = { workspace = true }
+malachite-app = { workspace = true }
+malachite-codec = { workspace = true }
+malachite-core-types = { workspace = true }
+malachite-config = { workspace = true }
+malachite-consensus = { workspace = true }
+malachite-proto = { workspace = true }
 malachite-signing-ed25519 = { workspace = true, features = ["rand", "serde"] }
-malachite-sync            = { workspace = true }
+malachite-sync = { workspace = true }
 
-async-trait        = { workspace = true }
-base64             = { workspace = true }
-bytes              = { workspace = true }
-ed25519-consensus  = { workspace = true }
-eyre               = { workspace = true }
-hex                = { workspace = true }
-prost              = { workspace = true }
-prost-types        = { workspace = true }
-rand               = { workspace = true }
-serde              = { workspace = true, features = ["derive", "rc"] }
-serde_json         = { workspace = true }
-sha3               = { workspace = true }
-signature          = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+bytes = { workspace = true }
+ed25519-consensus = { workspace = true }
+eyre = { workspace = true }
+hex = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true, features = ["derive", "rc"] }
+serde_json = { workspace = true }
+sha3 = { workspace = true }
+signature = { workspace = true }
 
 [build-dependencies]
 prost-build = { workspace = true }

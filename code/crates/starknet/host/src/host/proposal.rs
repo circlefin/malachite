@@ -71,7 +71,7 @@ async fn run_build_proposal_task(
         let init = ProposalInit {
             height,
             proposal_round: round,
-            proposer: proposer.clone(),
+            proposer,
             valid_round: Round::Nil,
         };
 

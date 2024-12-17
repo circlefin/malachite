@@ -14,16 +14,7 @@ where
         return Ok(Some(Cow::Borrowed(state.driver.validator_set())));
     }
 
-    perform!(co, Effect::GetValidatorSet(height),
-        Resume::ValidatorSet(vs_height, validator_set) => {
-            if vs_height == height {
-                Ok(validator_set.map(Cow::Owned))
-            } else {
-                Err(Error::UnexpectedResume(
-                    Resume::ValidatorSet(vs_height, validator_set),
-                    "ValidatorSet for the given height"
-                ))
-            }
-        }
+    perform!(co, Effect::GetValidatorSet(height, Default::default()),
+        Resume::ValidatorSet(validator_set) => Ok(validator_set.map(Cow::Owned))
     )
 }

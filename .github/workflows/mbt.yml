@@ -14,8 +14,8 @@ on:
       - .github/workflows/mbt.yml
 
 jobs:
-  gen-and-exec-traces:
-    name: Generate and execute random traces
+  mbt-tests:
+    name: Run MBT Tests
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: 0
@@ -46,6 +46,6 @@ jobs:
         run: cargo nextest run -p malachite-test-mbt --all-features --no-run
       - name: Current time as random seed for Quint
         run: echo "QUINT_SEED=$(date +%s)" >> $GITHUB_ENV
-      - name: Run tests from traces (with random seed)
+      - name: Run tests
         working-directory: code/crates/test/mbt
         run: cargo nextest run -p malachite-test-mbt --all-features

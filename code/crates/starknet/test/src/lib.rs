@@ -13,13 +13,13 @@ use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, error_span, info, Instrument, Span};
 
-use malachite_actors::util::events::{Event, RxEvent, TxEvent};
 use malachite_config::{
     Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol, SyncConfig,
     TestConfig, TransportProtocol,
 };
 use malachite_consensus::{SignedConsensusMsg, ValueToPropose};
 use malachite_core_types::{SignedVote, VotingPower};
+use malachite_engine::util::events::{Event, RxEvent, TxEvent};
 use malachite_starknet_host::spawn::spawn_node_actor;
 use malachite_starknet_host::types::MockContext;
 use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
@@ -695,7 +695,7 @@ pub fn make_node_config<S>(test: &Test<S>, i: usize) -> NodeConfig {
             p2p: P2pConfig {
                 transport,
                 protocol,
-                discovery: DiscoveryConfig { enabled: false },
+                discovery: DiscoveryConfig::default(),
                 listen_addr: transport.multiaddr("127.0.0.1", test.consensus_base_port + i),
                 persistent_peers: (0..test.nodes.len())
                     .filter(|j| i != *j)

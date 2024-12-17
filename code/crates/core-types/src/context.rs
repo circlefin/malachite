@@ -1,6 +1,7 @@
+use crate::signing::SigningProvider;
 use crate::{
-    Address, Height, NilOrVal, Proposal, ProposalPart, PublicKey, Round, Signature, SignedMessage,
-    SigningScheme, Validator, ValidatorSet, Value, ValueId, Vote,
+    Address, Height, NilOrVal, Proposal, ProposalPart, Round, SigningScheme, Validator,
+    ValidatorSet, Value, ValueId, Vote,
 };
 
 /// This trait allows to abstract over the various datatypes
@@ -33,8 +34,11 @@ where
     /// The type of votes that can be cast.
     type Vote: Vote<Self>;
 
-    /// The signing scheme used to sign votes.
+    /// The signing scheme used to sign consensus messages.
     type SigningScheme: SigningScheme;
+
+    /// The signing provider used to sign and verify consensus messages.
+    type SigningProvider: SigningProvider<Self>;
 
     /// Select a proposer in the validator set for the given height and round.
     fn select_proposer<'a>(
@@ -44,41 +48,8 @@ where
         round: Round,
     ) -> &'a Self::Validator;
 
-    /// Sign the given vote with our private key.
-    fn sign_vote(&self, vote: Self::Vote) -> SignedMessage<Self, Self::Vote>;
-
-    /// Verify the given vote's signature using the given public key.
-    fn verify_signed_vote(
-        &self,
-        vote: &Self::Vote,
-        signature: &Signature<Self>,
-        public_key: &PublicKey<Self>,
-    ) -> bool;
-
-    /// Sign the given proposal with our private key.
-    fn sign_proposal(&self, proposal: Self::Proposal) -> SignedMessage<Self, Self::Proposal>;
-
-    /// Verify the given proposal's signature using the given public key.
-    fn verify_signed_proposal(
-        &self,
-        proposal: &Self::Proposal,
-        signature: &Signature<Self>,
-        public_key: &PublicKey<Self>,
-    ) -> bool;
-
-    /// Sign the proposal part with our private key.
-    fn sign_proposal_part(
-        &self,
-        proposal_part: Self::ProposalPart,
-    ) -> SignedMessage<Self, Self::ProposalPart>;
-
-    /// Verify the given proposal part signature using the given public key.
-    fn verify_signed_proposal_part(
-        &self,
-        proposal_part: &Self::ProposalPart,
-        signature: &Signature<Self>,
-        public_key: &PublicKey<Self>,
-    ) -> bool;
+    /// Get the singing provider.
+    fn signing_provider(&self) -> &Self::SigningProvider;
 
     /// Build a new proposal for the given value at the given height, round and POL round.
     fn new_proposal(

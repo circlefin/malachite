@@ -13,7 +13,7 @@ mod params;
 pub use params::{Params, ThresholdParams};
 
 mod effect;
-pub use effect::{Effect, Resume};
+pub use effect::{Effect, Resumable, Resume};
 
 mod types;
 pub use types::*;

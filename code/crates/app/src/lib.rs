@@ -14,6 +14,4 @@ pub use node::Node;
 pub mod types;
 
 mod spawn;
-pub use spawn::{
-    spawn_consensus_actor, spawn_gossip_consensus_actor, spawn_sync_actor, spawn_wal_actor,
-};
+pub use spawn::{spawn_consensus_actor, spawn_network_actor, spawn_sync_actor, spawn_wal_actor};

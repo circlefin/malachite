@@ -6,11 +6,11 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use tracing::{info, Instrument};
 
-use malachite_actors::util::events::TxEvent;
 use malachite_app::types::Keypair;
 use malachite_app::Node;
 use malachite_config::Config;
 use malachite_core_types::VotingPower;
+use malachite_engine::util::events::TxEvent;
 
 use crate::spawn::spawn_node_actor;
 use crate::types::Height;
@@ -179,7 +179,7 @@ fn test_starknet_node() {
     };
 
     // Create configuration files
-    use malachite_cli::*;
+    use malachite_test_cli::*;
 
     let priv_keys = new::generate_private_keys(&node, 1, true);
     let pub_keys = priv_keys.iter().map(|pk| node.get_public_key(pk)).collect();
@@ -197,7 +197,7 @@ fn test_starknet_node() {
     // Run the node for a few seconds
     const TIMEOUT: u64 = 3;
     use tokio::time::{timeout, Duration};
-    let rt = malachite_cli::runtime::build_runtime(node.config.runtime).unwrap();
+    let rt = malachite_test_cli::runtime::build_runtime(node.config.runtime).unwrap();
     let result = rt.block_on(async { timeout(Duration::from_secs(TIMEOUT), node.run()).await });
 
     // Check that the node did not quit before the timeout.

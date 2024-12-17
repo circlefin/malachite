@@ -62,7 +62,7 @@ pub use proposal::{Proposal, Validity};
 pub use proposal_part::ProposalPart;
 pub use round::Round;
 pub use signed_message::SignedMessage;
-pub use signing::SigningScheme;
+pub use signing::{SigningProvider, SigningProviderExt, SigningScheme};
 pub use threshold::{Threshold, ThresholdParam, ThresholdParams};
 pub use timeout::{Timeout, TimeoutKind};
 pub use validator_set::{Address, Validator, ValidatorSet, VotingPower};

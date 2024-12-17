@@ -8,12 +8,12 @@ publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-actors.workspace = true
+malachite-engine.workspace = true
 malachite-codec.workspace = true
 malachite-core-types.workspace = true
 malachite-config.workspace = true
 malachite-consensus.workspace = true
-malachite-gossip-consensus.workspace = true
+malachite-network.workspace = true
 malachite-metrics.workspace = true
 malachite-peer.workspace = true
 malachite-sync.workspace = true
