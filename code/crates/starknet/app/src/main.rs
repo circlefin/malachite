@@ -65,7 +65,7 @@ pub fn main() -> color_eyre::Result<()> {
             trace!(?config, "Configuration");
 
             // Redefine the node with the valid configuration.
-            let node = &StarknetNode {
+            let node = StarknetNode {
                 home_dir: args.get_home_dir().unwrap(),
                 config,
                 genesis_file: args.get_genesis_file_path().unwrap(),

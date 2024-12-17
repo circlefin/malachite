@@ -79,6 +79,15 @@ pub struct DecidedValue<Ctx: Context> {
     pub certificate: CommitCertificate<Ctx>,
 }
 
+impl<Ctx: Context> DecidedValue<Ctx> {
+    pub fn new(value_bytes: Bytes, certificate: CommitCertificate<Ctx>) -> Self {
+        Self {
+            value_bytes,
+            certificate,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum RawMessage {
     Request {

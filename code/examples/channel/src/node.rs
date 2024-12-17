@@ -1,17 +1,28 @@
+//! The Application (or Node) definition. The Node trait implements the Consensus context and the
+//! cryptographic library used for signing.
+
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
+use libp2p_identity::Keypair;
 use rand::{CryptoRng, RngCore};
 
-use malachite_app::types::Keypair;
-use malachite_app::Node;
-use malachite_config::Config;
-use malachite_core_types::VotingPower;
+use malachite_app_channel::app::types::config::Config;
+use malachite_app_channel::app::types::core::VotingPower;
+use malachite_app_channel::app::Node;
 
-use crate::context::TestContext;
-use crate::{Address, Genesis, PrivateKey, PublicKey, Validator, ValidatorSet};
+// Use the same types used for integration tests.
+// A real application would use its own types and context instead.
+use malachite_test::codec::proto::ProtobufCodec;
+use malachite_test::{
+    Address, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet,
+};
 
-pub struct TestNode {
+use crate::state::State;
+
+/// Main application struct implementing the consensus node functionality
+#[derive(Clone)]
+pub struct App {
     pub config: Config,
     pub home_dir: PathBuf,
     pub genesis_file: PathBuf,
@@ -20,7 +31,7 @@ pub struct TestNode {
 }
 
 #[async_trait]
-impl Node for TestNode {
+impl Node for App {
     type Context = TestContext;
     type Genesis = Genesis;
     type PrivateKeyFile = PrivateKey;
@@ -80,6 +91,34 @@ impl Node for TestNode {
     }
 
     async fn run(self) -> eyre::Result<()> {
-        unimplemented!()
+        let span = tracing::error_span!("node", moniker = %self.config.moniker);
+        let _enter = span.enter();
+
+        let private_key_file = self.load_private_key_file(&self.private_key_file)?;
+        let private_key = self.load_private_key(private_key_file);
+        let public_key = self.get_public_key(&private_key);
+        let address = self.get_address(&public_key);
+        let ctx = TestContext::new(private_key);
+
+        let genesis = self.load_genesis(self.genesis_file.clone())?;
+        let initial_validator_set = genesis.validator_set.clone();
+        let start_height = self.start_height.map(Height::new);
+
+        let codec = ProtobufCodec;
+
+        let mut channels = malachite_app_channel::run(
+            ctx,
+            codec,
+            self.clone(),
+            self.config.clone(),
+            self.private_key_file.clone(),
+            start_height,
+            initial_validator_set,
+        )
+        .await?;
+
+        let mut state = State::new(address, start_height.unwrap_or_default());
+
+        crate::app::run(genesis, &mut state, &mut channels).await
     }
 }

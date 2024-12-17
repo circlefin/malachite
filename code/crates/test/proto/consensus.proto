@@ -2,12 +2,6 @@ syntax = "proto3";
 
 package test;
 
-import "google/protobuf/any.proto";
-
-message Height {
-    uint64 value = 1;
-}
-
 message Address {
     bytes value = 1;
 }
@@ -27,29 +21,40 @@ enum VoteType {
 
 message Vote {
     VoteType vote_type = 1;
-    Height height = 2;
+    uint64 height = 2;
     uint32 round = 3;
     ValueId value = 4;
     Address validator_address = 5;
 }
 
+message SignedMessage {
+    oneof message {
+        Proposal proposal = 1;
+        Vote vote = 2;
+    }
+    Signature signature = 3;
+}
+
 message Proposal {
-    Height height = 1;
+    uint64 height = 1;
     uint32 round = 2;
     Value value = 3;
     optional uint32 pol_round = 4;
     Address validator_address = 5;
 }
 
+message Signature {
+    bytes bytes = 1;
+}
+
 message ProposalPart {
-    Height height = 1;
+    uint64 height = 1;
     uint32 round = 2;
     uint64 sequence = 3;
     Address validator_address = 4;
-    google.protobuf.Any content = 5;
+    Content content = 5;
     bool fin = 6;
 }
-
 
 message BlockMetadata {
     bytes proof = 1;
@@ -60,3 +65,18 @@ message Content {
     BlockMetadata metadata = 91;
 }
 
+message Extension {
+    bytes data = 1;
+    Signature signature = 2;
+}
+
+message StreamMessage {
+    uint64 stream_id = 1;
+    uint64 sequence = 2;
+    oneof content {
+        // Serialized content.
+        bytes data = 3;
+        // Fin must be set to true.
+        bool fin = 4;
+    }
+}

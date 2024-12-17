@@ -113,7 +113,7 @@ impl Node for StarknetNode {
         Genesis { validator_set }
     }
 
-    async fn run(&self) -> eyre::Result<()> {
+    async fn run(self) -> eyre::Result<()> {
         let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _enter = span.enter();
 

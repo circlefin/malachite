@@ -6,3 +6,7 @@ pub mod logging;
 pub mod metrics;
 pub mod new;
 pub mod runtime;
+
+pub mod config {
+    pub use malachite_config::*;
+}

@@ -204,10 +204,10 @@ where
     }
 
     async fn get_history_min_height(&self) -> Result<Ctx::Height, ActorProcessingErr> {
-        ractor::call!(self.host, |reply_to| HostMsg::GetEarliestBlockHeight {
+        ractor::call!(self.host, |reply_to| HostMsg::GetHistoryMinHeight {
             reply_to
         })
-        .map_err(|e| eyre!("Failed to get earliest block height: {e:?}").into())
+        .map_err(|e| eyre!("Failed to get earliest history height: {e:?}").into())
     }
 
     async fn handle_effect(

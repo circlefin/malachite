@@ -1,17 +1,31 @@
 use bytes::Bytes;
 use malachite_codec::Codec;
 
-use crate::codec::types::{
-    RawRequest, RawResponse, RawSignedConsensusMsg, RawStatus, RawStreamMessage,
-};
-use crate::{ProposalPart, TestContext};
 use malachite_consensus::SignedConsensusMsg;
 use malachite_engine::util::streaming::StreamMessage;
 use malachite_sync::{Request, Response, Status};
 
-pub struct TestCodec;
+mod raw;
+use raw::{RawRequest, RawResponse, RawSignedConsensusMsg, RawStatus, RawStreamMessage};
 
-impl Codec<ProposalPart> for TestCodec {
+use crate::{ProposalPart, TestContext, Value};
+
+#[derive(Copy, Clone, Debug)]
+pub struct JsonCodec;
+
+impl Codec<Value> for JsonCodec {
+    type Error = serde_json::Error;
+
+    fn decode(&self, bytes: Bytes) -> Result<Value, Self::Error> {
+        serde_json::from_slice(&bytes)
+    }
+
+    fn encode(&self, msg: &Value) -> Result<Bytes, Self::Error> {
+        serde_json::to_vec(&msg).map(Bytes::from)
+    }
+}
+
+impl Codec<ProposalPart> for JsonCodec {
     type Error = serde_json::Error;
 
     fn decode(&self, bytes: Bytes) -> Result<ProposalPart, Self::Error> {
@@ -23,7 +37,7 @@ impl Codec<ProposalPart> for TestCodec {
     }
 }
 
-impl Codec<SignedConsensusMsg<TestContext>> for TestCodec {
+impl Codec<SignedConsensusMsg<TestContext>> for JsonCodec {
     type Error = serde_json::Error;
 
     fn decode(&self, bytes: Bytes) -> Result<SignedConsensusMsg<TestContext>, Self::Error> {
@@ -35,7 +49,7 @@ impl Codec<SignedConsensusMsg<TestContext>> for TestCodec {
     }
 }
 
-impl Codec<StreamMessage<ProposalPart>> for TestCodec {
+impl Codec<StreamMessage<ProposalPart>> for JsonCodec {
     type Error = serde_json::Error;
 
     fn decode(&self, bytes: Bytes) -> Result<StreamMessage<ProposalPart>, Self::Error> {
@@ -47,7 +61,7 @@ impl Codec<StreamMessage<ProposalPart>> for TestCodec {
     }
 }
 
-impl Codec<Status<TestContext>> for TestCodec {
+impl Codec<Status<TestContext>> for JsonCodec {
     type Error = serde_json::Error;
 
     fn decode(&self, bytes: Bytes) -> Result<Status<TestContext>, Self::Error> {
@@ -59,7 +73,7 @@ impl Codec<Status<TestContext>> for TestCodec {
     }
 }
 
-impl Codec<Request<TestContext>> for TestCodec {
+impl Codec<Request<TestContext>> for JsonCodec {
     type Error = serde_json::Error;
 
     fn decode(&self, bytes: Bytes) -> Result<Request<TestContext>, Self::Error> {
@@ -71,7 +85,7 @@ impl Codec<Request<TestContext>> for TestCodec {
     }
 }
 
-impl Codec<Response<TestContext>> for TestCodec {
+impl Codec<Response<TestContext>> for JsonCodec {
     type Error = serde_json::Error;
 
     fn decode(&self, bytes: Bytes) -> Result<Response<TestContext>, Self::Error> {

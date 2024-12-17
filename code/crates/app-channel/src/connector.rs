@@ -53,11 +53,9 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             HostMsg::ConsensusReady(consensus_ref) => {
-                let (tx, rx) = oneshot::channel();
+                let (reply, rx) = oneshot::channel();
 
-                self.sender
-                    .send(AppMsg::ConsensusReady { reply_to: tx })
-                    .await?;
+                self.sender.send(AppMsg::ConsensusReady { reply }).await?;
 
                 consensus_ref.cast(rx.await?.into())?;
             }
@@ -79,19 +77,17 @@ where
             HostMsg::GetValue {
                 height,
                 round,
-                timeout: timeout_duration,
-                address,
+                timeout,
                 reply_to,
             } => {
-                let (tx, rx) = oneshot::channel();
+                let (reply, rx) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::GetValue {
                         height,
                         round,
-                        timeout_duration,
-                        address,
-                        reply_to: tx,
+                        timeout,
+                        reply,
                     })
                     .await?;
 
@@ -116,11 +112,11 @@ where
                     .await?
             }
 
-            HostMsg::GetEarliestBlockHeight { reply_to } => {
-                let (tx, rx) = oneshot::channel();
+            HostMsg::GetHistoryMinHeight { reply_to } => {
+                let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::GetEarliestBlockHeight { reply_to: tx })
+                    .send(AppMsg::GetHistoryMinHeight { reply })
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -131,27 +127,20 @@ where
                 part,
                 reply_to,
             } => {
-                let (tx, rx) = oneshot::channel();
+                let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::ReceivedProposalPart {
-                        from,
-                        part,
-                        reply_to: tx,
-                    })
+                    .send(AppMsg::ReceivedProposalPart { from, part, reply })
                     .await?;
 
                 reply_to.send(rx.await?)?;
             }
 
             HostMsg::GetValidatorSet { height, reply_to } => {
-                let (tx, rx) = oneshot::channel();
+                let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::GetValidatorSet {
-                        height,
-                        reply_to: tx,
-                    })
+                    .send(AppMsg::GetValidatorSet { height, reply })
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -161,26 +150,20 @@ where
                 certificate,
                 consensus: consensus_ref,
             } => {
-                let (tx, rx) = oneshot::channel();
+                let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::Decided {
-                        certificate,
-                        reply_to: tx,
-                    })
+                    .send(AppMsg::Decided { certificate, reply })
                     .await?;
 
                 consensus_ref.cast(rx.await?.into())?;
             }
 
             HostMsg::GetDecidedValue { height, reply_to } => {
-                let (tx, rx) = oneshot::channel();
+                let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::GetDecidedBlock {
-                        height,
-                        reply_to: tx,
-                    })
+                    .send(AppMsg::GetDecidedValue { height, reply })
                     .await?;
 
                 reply_to.send(rx.await?)?;
@@ -193,7 +176,7 @@ where
                 value_bytes,
                 reply_to,
             } => {
-                let (tx, rx) = oneshot::channel();
+                let (reply, rx) = oneshot::channel();
 
                 self.sender
                     .send(AppMsg::ProcessSyncedValue {
@@ -201,7 +184,7 @@ where
                         round,
                         validator_address,
                         value_bytes,
-                        reply_to: tx,
+                        reply,
                     })
                     .await?;
 

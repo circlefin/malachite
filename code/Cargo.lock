@@ -2778,6 +2778,7 @@ dependencies = [
  "derive-where",
  "eyre",
  "malachite-app",
+ "malachite-config",
  "malachite-engine",
  "malachite-test",
  "ractor",
@@ -2927,6 +2928,23 @@ dependencies = [
  "ractor",
  "rand",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "malachite-example-channel"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "color-eyre",
+ "eyre",
+ "libp2p-identity",
+ "malachite-app-channel",
+ "malachite-test",
+ "malachite-test-cli",
+ "rand",
+ "serde_json",
  "tracing",
 ]
 

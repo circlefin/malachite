@@ -1,31 +1,30 @@
 //! Run Malachite consensus with the given configuration and context.
 //! Provides the application with a channel for receiving messages from consensus.
 
-use eyre::Result;
-use tokio::sync::mpsc;
+use std::path::PathBuf;
 
-use crate::app;
+use eyre::Result;
+
 use crate::app::types::codec::{ConsensusCodec, SyncCodec, WalCodec};
 use crate::app::types::config::Config as NodeConfig;
 use crate::app::types::core::Context;
 use crate::app::types::metrics::{Metrics, SharedRegistry};
-use crate::channel::AppMsg;
-use crate::spawn::spawn_host_actor;
+use crate::spawn::{spawn_host_actor, spawn_network_actor};
+use crate::{app, Channels};
 
-use malachite_app::{
-    spawn_consensus_actor, spawn_network_actor, spawn_sync_actor, spawn_wal_actor,
-};
+use malachite_app::{spawn_consensus_actor, spawn_sync_actor, spawn_wal_actor};
 use malachite_engine::util::events::TxEvent;
 
 #[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
 pub async fn run<Node, Ctx, Codec>(
-    cfg: NodeConfig,
-    start_height: Option<Ctx::Height>,
     ctx: Ctx,
     codec: Codec,
     node: Node,
+    cfg: NodeConfig,
+    private_key_file: PathBuf,
+    start_height: Option<Ctx::Height>,
     initial_validator_set: Ctx::ValidatorSet,
-) -> Result<mpsc::Receiver<AppMsg<Ctx>>>
+) -> Result<Channels<Ctx>>
 where
     Ctx: Context,
     Node: app::Node<Context = Ctx>,
@@ -38,20 +37,20 @@ where
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
     let metrics = Metrics::register(&registry);
 
-    // TODO: Simplify this?
-    let private_key_file = node.load_private_key_file(node.get_home_dir())?;
+    let private_key_file = node.load_private_key_file(private_key_file)?;
     let private_key = node.load_private_key(private_key_file);
     let public_key = node.get_public_key(&private_key);
     let address = node.get_address(&public_key);
     let keypair = node.get_keypair(private_key);
 
     // Spawn consensus gossip
-    let network = spawn_network_actor(&cfg, keypair, &registry, codec.clone()).await?;
+    let (network, network_tx) =
+        spawn_network_actor(&cfg, keypair, &registry, codec.clone()).await?;
 
     let wal = spawn_wal_actor(&ctx, codec, &node.get_home_dir(), &registry).await?;
 
     // Spawn the host actor
-    let (connector, rx) = spawn_host_actor(metrics.clone()).await?;
+    let (connector, consensus_rx) = spawn_host_actor(metrics.clone()).await?;
 
     let sync = spawn_sync_actor(
         ctx.clone(),
@@ -78,5 +77,8 @@ where
     )
     .await?;
 
-    Ok(rx)
+    Ok(Channels {
+        consensus: consensus_rx,
+        network: network_tx,
+    })
 }

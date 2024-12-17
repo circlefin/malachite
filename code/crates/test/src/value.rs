@@ -39,7 +39,7 @@ impl Protobuf for ValueId {
             .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("value"))?;
 
         let len = bytes.len();
-        let bytes = <[u8; 8]>::try_from(bytes).map_err(|_| {
+        let bytes = <[u8; 8]>::try_from(bytes.as_ref()).map_err(|_| {
             ProtoError::Other(format!(
                 "Invalid value length, got {len} bytes expected {}",
                 u64::BITS / 8
@@ -52,7 +52,7 @@ impl Protobuf for ValueId {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(proto::ValueId {
-            value: Some(self.0.to_be_bytes().to_vec()),
+            value: Some(self.0.to_be_bytes().to_vec().into()),
         })
     }
 }
@@ -97,7 +97,7 @@ impl Protobuf for Value {
             .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("value"))?;
 
         let len = bytes.len();
-        let bytes = <[u8; 8]>::try_from(bytes).map_err(|_| {
+        let bytes = <[u8; 8]>::try_from(bytes.as_ref()).map_err(|_| {
             ProtoError::Other(format!(
                 "Invalid value length, got {len} bytes expected {}",
                 u64::BITS / 8
@@ -110,7 +110,7 @@ impl Protobuf for Value {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(proto::Value {
-            value: Some(self.0.to_be_bytes().to_vec()),
+            value: Some(self.0.to_be_bytes().to_vec().into()),
         })
     }
 }

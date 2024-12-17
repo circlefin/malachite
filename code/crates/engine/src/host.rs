@@ -62,7 +62,6 @@ pub enum HostMsg<Ctx: Context> {
         height: Ctx::Height,
         round: Round,
         timeout: Duration,
-        address: Ctx::Address,
         reply_to: RpcReplyPort<LocallyProposedValue<Ctx>>,
     },
 
@@ -76,7 +75,7 @@ pub enum HostMsg<Ctx: Context> {
     },
 
     /// Request the earliest block height in the block store
-    GetEarliestBlockHeight { reply_to: RpcReplyPort<Ctx::Height> },
+    GetHistoryMinHeight { reply_to: RpcReplyPort<Ctx::Height> },
 
     /// ProposalPart received <-- consensus <-- gossip
     ReceivedProposalPart {

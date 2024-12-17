@@ -1,20 +1,19 @@
-use std::sync::Arc;
-
 use bytes::Bytes;
+use serde::{Deserialize, Serialize};
+
 use malachite_core_types::Round;
 use malachite_proto::{Error as ProtoError, Protobuf};
-use serde::{Deserialize, Serialize};
 
 use crate::{Address, Height, TestContext, Value};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BlockMetadata {
-    proof: Vec<u8>,
+    proof: Bytes,
     value: Value,
 }
 
 impl BlockMetadata {
-    pub fn new(proof: Vec<u8>, value: Value) -> Self {
+    pub fn new(proof: Bytes, value: Value) -> Self {
         Self { proof, value }
     }
 
@@ -57,12 +56,18 @@ impl Protobuf for BlockMetadata {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Content {
-    metadata: BlockMetadata,
+    pub metadata: BlockMetadata,
 }
 
 impl Content {
     pub fn size_bytes(&self) -> usize {
         self.metadata.size_bytes()
+    }
+
+    pub fn new(block_metadata: &BlockMetadata) -> Self {
+        Self {
+            metadata: block_metadata.clone(),
+        }
     }
 }
 
@@ -105,7 +110,7 @@ pub struct ProposalPart {
     #[serde(with = "RoundDef")]
     pub round: Round,
     pub sequence: u64,
-    pub content: Arc<Content>,
+    pub content: Content,
     pub validator_address: Address,
     pub fin: bool,
 }
@@ -123,7 +128,7 @@ impl ProposalPart {
             height,
             round,
             sequence,
-            content: Arc::new(content),
+            content,
             validator_address,
             fin,
         }
@@ -158,18 +163,14 @@ impl Protobuf for ProposalPart {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
-            height: Height::from_proto(
-                proto
-                    .height
-                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("height"))?,
-            )?,
+            height: Height::from_proto(proto.height)?,
             round: Round::new(proto.round),
             sequence: proto.sequence,
-            content: Arc::new(Content::from_any(
-                &proto
+            content: Content::from_proto(
+                proto
                     .content
                     .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("content"))?,
-            )?),
+            )?,
             validator_address: Address::from_proto(
                 proto
                     .validator_address
@@ -182,10 +183,10 @@ impl Protobuf for ProposalPart {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(crate::proto::ProposalPart {
-            height: Some(self.height.to_proto()?),
+            height: self.height.to_proto()?,
             round: self.round.as_u32().expect("round should not be nil"),
             sequence: self.sequence,
-            content: Some(self.content.to_any()?),
+            content: Some(self.content.to_proto()?),
             validator_address: Some(self.validator_address.to_proto()?),
             fin: self.fin,
         })

@@ -17,6 +17,7 @@ tracing.workspace = true
 
 malachite-app.workspace = true
 malachite-engine.workspace = true
+malachite-config.workspace = true
 
 [lints]
 workspace = true
