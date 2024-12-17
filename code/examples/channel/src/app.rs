@@ -64,7 +64,7 @@ pub async fn run(
                     error!("Failed to send GetValue reply");
                 }
 
-                let stream_message = state.create_broadcast_message(value);
+                let stream_message = state.create_stream_message(value);
 
                 // Broadcast it to others. Old messages need not be broadcast.
                 channels

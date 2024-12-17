@@ -56,13 +56,8 @@ message ProposalPart {
     bool fin = 6;
 }
 
-message BlockMetadata {
-    bytes proof = 1;
-    Value value = 2;
-}
-
 message Content {
-    BlockMetadata metadata = 91;
+    Value value = 1;
 }
 
 message Extension {
