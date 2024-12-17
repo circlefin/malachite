@@ -52,7 +52,7 @@ pub enum AppMsg<Ctx: Context> {
     },
 
     /// Request the earliest block height in the block store
-    GetEarliestBlockHeight { reply: Reply<Ctx::Height> },
+    GetHistoryMinHeight { reply: Reply<Ctx::Height> },
 
     /// ProposalPart received <-- consensus <-- gossip
     ReceivedProposalPart {

@@ -112,11 +112,11 @@ where
                     .await?
             }
 
-            HostMsg::GetEarliestBlockHeight { reply_to } => {
+            HostMsg::GetHistoryMinHeight { reply_to } => {
                 let (reply, rx) = oneshot::channel();
 
                 self.sender
-                    .send(AppMsg::GetEarliestBlockHeight { reply })
+                    .send(AppMsg::GetHistoryMinHeight { reply })
                     .await?;
 
                 reply_to.send(rx.await?)?;

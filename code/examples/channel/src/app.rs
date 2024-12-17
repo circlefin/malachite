@@ -73,9 +73,9 @@ pub async fn run(
                     .await?;
             }
 
-            AppMsg::GetEarliestBlockHeight { reply } => {
+            AppMsg::GetHistoryMinHeight { reply } => {
                 if reply.send(state.get_earliest_height()).is_err() {
-                    error!("Failed to send GetEarliestBlockHeight reply");
+                    error!("Failed to send GetHistoryMinHeight reply");
                 }
             }
 

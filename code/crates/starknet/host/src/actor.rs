@@ -126,9 +126,7 @@ impl Host {
                 proposer,
             } => on_started_round(state, height, round, proposer).await,
 
-            HostMsg::GetEarliestBlockHeight { reply_to } => {
-                on_get_history_min_height(state, reply_to)
-            }
+            HostMsg::GetHistoryMinHeight { reply_to } => on_get_history_min_height(state, reply_to),
 
             HostMsg::GetValue {
                 height,
