@@ -1,7 +1,8 @@
+use std::time::Duration;
+
 use eyre::eyre;
 use tracing::{error, info};
 
-use malachite_app_channel::app::host::LocallyProposedValue;
 use malachite_app_channel::app::types::core::{Round, Validity};
 use malachite_app_channel::app::types::ProposedValue;
 use malachite_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
@@ -18,6 +19,8 @@ pub async fn run(
         match msg {
             AppMsg::ConsensusReady { reply } => {
                 info!("Consensus is ready");
+
+                tokio::time::sleep(Duration::from_secs(1)).await;
 
                 if reply
                     .send(ConsensusMsg::StartHeight(
@@ -48,29 +51,37 @@ pub async fn run(
                 timeout: _,
                 reply,
             } => {
+                // NOTE: We can ignore the timeout as we are building the value right away.
+                // If we were let's say reaping as many txes from a mempool and executing them,
+                // then we would need to respect the timeout and stop at a certain point.
+
                 info!(%height, %round, "Get value");
 
-                let proposal = state.propose_value(&height);
+                // Check if we have a previously built value for that height and round
+                if let Some(proposal) = state.get_previously_built_value(height, round) {
+                    if reply.send(proposal).is_err() {
+                        error!("Failed to send GetValue reply");
+                    }
 
-                let value = LocallyProposedValue::new(
-                    proposal.height,
-                    proposal.round,
-                    proposal.value,
-                    proposal.extension,
-                );
+                    return Ok(());
+                }
+
+                // Otherwise, propose a new value
+                let proposal = state.propose_value(height, round);
 
                 // Send it to consensus
-                if reply.send(value.clone()).is_err() {
+                if reply.send(proposal.clone()).is_err() {
                     error!("Failed to send GetValue reply");
                 }
 
-                let stream_message = state.create_stream_message(value);
-
-                // Broadcast it to others. Old messages need not be broadcast.
-                channels
-                    .network
-                    .send(NetworkMsg::PublishProposalPart(stream_message))
-                    .await?;
+                // Decompose the proposal into proposal parts and stream them over the network
+                for stream_message in state.stream_proposal(proposal) {
+                    info!(%height, %round, "Streaming proposal part: {stream_message:?}");
+                    channels
+                        .network
+                        .send(NetworkMsg::PublishProposalPart(stream_message))
+                        .await?;
+                }
             }
 
             AppMsg::GetHistoryMinHeight { reply } => {
@@ -79,15 +90,11 @@ pub async fn run(
                 }
             }
 
-            AppMsg::ReceivedProposalPart {
-                from: _,
-                part,
-                reply,
-            } => {
-                if let Some(proposed_value) = state.add_proposal(part) {
-                    if reply.send(proposed_value).is_err() {
-                        error!("Failed to send ReceivedProposalPart reply");
-                    }
+            AppMsg::ReceivedProposalPart { from, part, reply } => {
+                let proposed_value = state.received_proposal_part(from, part);
+
+                if reply.send(proposed_value).is_err() {
+                    error!("Failed to send ReceivedProposalPart reply");
                 }
             }
 

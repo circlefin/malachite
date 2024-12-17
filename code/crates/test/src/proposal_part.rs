@@ -1,105 +1,99 @@
 use bytes::Bytes;
+use malachite_signing_ed25519::Signature;
 use serde::{Deserialize, Serialize};
 
 use malachite_core_types::Round;
-use malachite_proto::{Error as ProtoError, Protobuf};
+use malachite_proto::{self as proto, Error as ProtoError, Protobuf};
 
-use crate::{Address, Height, TestContext, Value};
+use crate::codec::proto::{decode_signature, encode_signature};
+use crate::{Address, Height, TestContext};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Content {
-    pub value: Value,
+pub struct ProposalData {
+    pub factor: u64,
 }
 
-impl Content {
-    pub fn new(value: Value) -> Self {
-        Self { value }
+impl ProposalData {
+    pub fn new(factor: u64) -> Self {
+        Self { factor }
     }
 
     pub fn size_bytes(&self) -> usize {
-        self.value.size_bytes()
-    }
-}
-
-impl Protobuf for Content {
-    type Proto = crate::proto::Content;
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
-        Ok(Self {
-            value: Value::from_proto(
-                proto
-                    .value
-                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("value"))?,
-            )?,
-        })
-    }
-
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
-        Ok(Self::Proto {
-            value: Some(self.value.to_proto()?),
-        })
+        std::mem::size_of::<u64>()
     }
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "Round")]
-pub enum RoundDef {
-    /// No round, ie. `-1`
+enum RoundDef {
     Nil,
-
-    /// Some round `r` where `r >= 0`
     Some(u32),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProposalPart {
+    Init(ProposalInit),
+    Data(ProposalData),
+    Fin(ProposalFin),
+}
+
+impl ProposalPart {
+    pub fn as_init(&self) -> Option<&ProposalInit> {
+        match self {
+            Self::Init(init) => Some(init),
+            _ => None,
+        }
+    }
+
+    pub fn as_data(&self) -> Option<&ProposalData> {
+        match self {
+            Self::Data(data) => Some(data),
+            _ => None,
+        }
+    }
+
+    pub fn to_sign_bytes(&self) -> Bytes {
+        proto::Protobuf::to_bytes(self).unwrap() // FIXME: unwrap
+    }
 }
 
 /// A part of a value for a height, round. Identified in this scope by the sequence.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProposalPart {
+pub struct ProposalInit {
     pub height: Height,
     #[serde(with = "RoundDef")]
     pub round: Round,
-    pub sequence: u64,
-    pub content: Content,
     pub proposer: Address,
-    pub fin: bool,
 }
 
-impl ProposalPart {
-    pub fn new(
-        height: Height,
-        round: Round,
-        sequence: u64,
-        proposer: Address,
-        content: Content,
-        fin: bool,
-    ) -> Self {
+impl ProposalInit {
+    pub fn new(height: Height, round: Round, proposer: Address) -> Self {
         Self {
             height,
             round,
-            sequence,
-            content,
             proposer,
-            fin,
         }
     }
+}
 
-    pub fn to_bytes(&self) -> Bytes {
-        Protobuf::to_bytes(self).unwrap()
-    }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProposalFin {
+    pub signature: Signature,
+}
 
-    pub fn size_bytes(&self) -> usize {
-        self.content.size_bytes()
+impl ProposalFin {
+    pub fn new(signature: Signature) -> Self {
+        Self { signature }
     }
 }
 
 impl malachite_core_types::ProposalPart<TestContext> for ProposalPart {
     fn is_first(&self) -> bool {
-        self.sequence == 0
+        matches!(self, Self::Init(_))
     }
 
     fn is_last(&self) -> bool {
-        self.fin
+        matches!(self, Self::Fin(_))
     }
 }
 
@@ -108,33 +102,54 @@ impl Protobuf for ProposalPart {
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
-        Ok(Self {
-            height: Height::from_proto(proto.height)?,
-            round: Round::new(proto.round),
-            sequence: proto.sequence,
-            content: Content::from_proto(
-                proto
-                    .content
-                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("content"))?,
-            )?,
-            proposer: Address::from_proto(
-                proto
-                    .validator_address
-                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("validator_address"))?,
-            )?,
-            fin: proto.fin,
-        })
+        use crate::proto::proposal_part::Part;
+
+        let part = proto
+            .part
+            .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("part"))?;
+
+        match part {
+            Part::Init(init) => Ok(Self::Init(ProposalInit {
+                height: Height::new(init.height),
+                round: Round::new(init.round),
+                proposer: init
+                    .proposer
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("proposer"))
+                    .and_then(Address::from_proto)?,
+            })),
+            Part::Data(data) => Ok(Self::Data(ProposalData::new(data.factor))),
+            Part::Fin(fin) => Ok(Self::Fin(ProposalFin {
+                signature: fin
+                    .signature
+                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("signature"))
+                    .and_then(decode_signature)?,
+            })),
+        }
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
-        Ok(crate::proto::ProposalPart {
-            height: self.height.to_proto()?,
-            round: self.round.as_u32().expect("round should not be nil"),
-            sequence: self.sequence,
-            content: Some(self.content.to_proto()?),
-            validator_address: Some(self.proposer.to_proto()?),
-            fin: self.fin,
-        })
+        use crate::proto;
+        use crate::proto::proposal_part::Part;
+
+        match self {
+            Self::Init(init) => Ok(Self::Proto {
+                part: Some(Part::Init(proto::ProposalInit {
+                    height: init.height.as_u64(),
+                    round: init.round.as_u32().unwrap(),
+                    proposer: Some(init.proposer.to_proto()?),
+                })),
+            }),
+            Self::Data(data) => Ok(Self::Proto {
+                part: Some(Part::Data(proto::ProposalData {
+                    factor: data.factor,
+                })),
+            }),
+            Self::Fin(fin) => Ok(Self::Proto {
+                part: Some(Part::Fin(proto::ProposalFin {
+                    signature: Some(encode_signature(&fin.signature)),
+                })),
+            }),
+        }
     }
 }

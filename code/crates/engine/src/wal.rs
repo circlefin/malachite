@@ -229,6 +229,8 @@ where
         _: WalRef<Ctx>,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
+        info!("Shutting down WAL");
+
         let _ = state.wal_sender.send(self::thread::WalMsg::Shutdown).await;
 
         Ok(())

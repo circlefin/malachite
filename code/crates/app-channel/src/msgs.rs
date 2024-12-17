@@ -92,8 +92,8 @@ pub enum AppMsg<Ctx: Context> {
         from: PeerId,
         /// Received proposal part, together with its stream metadata
         part: StreamMessage<Ctx::ProposalPart>,
-        /// Channel for returning the complete value if proposal is now complete
-        reply: Reply<ProposedValue<Ctx>>,
+        /// Channel for returning the complete value if the proposal is now complete
+        reply: Reply<Option<ProposedValue<Ctx>>>,
     },
 
     /// Requests the validator set for a specific height

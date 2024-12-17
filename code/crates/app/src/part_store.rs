@@ -7,10 +7,9 @@ use malachite_core_types::{Context, Round, ValueId};
 
 // This is a temporary store implementation for proposal parts
 //
-// TODO:
-// - [ ] add Address to key
-//       note: not sure if this is required as consensus should verify that only the parts signed by the proposer for
-//             the height and round should be forwarded here (see the TODOs in consensus)
+// TODO: Add Address to key
+// NOTE: Not sure if this is required as consensus should verify that only the parts signed by the proposer for
+//       the height and round should be forwarded here (see the TODOs in consensus)
 
 type Key<Height> = (Height, Round);
 

@@ -107,7 +107,7 @@ impl Node for App {
         let codec = ProtobufCodec;
 
         let mut channels = malachite_app_channel::run(
-            ctx,
+            ctx.clone(),
             codec,
             self.clone(),
             self.config.clone(),
@@ -117,7 +117,7 @@ impl Node for App {
         )
         .await?;
 
-        let mut state = State::new(address, start_height.unwrap_or_default());
+        let mut state = State::new(ctx, address, start_height.unwrap_or_default());
 
         crate::app::run(genesis, &mut state, &mut channels).await
     }

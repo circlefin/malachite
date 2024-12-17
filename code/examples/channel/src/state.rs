@@ -1,10 +1,11 @@
 //! Internal state of the application. This is a simplified abstract to keep it simple.
 //! A regular application would have mempool implemented, a proper database and input methods like RPC.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use bytes::Bytes;
-use tracing::error;
+use sha3::Digest;
+use tracing::{debug, info};
 
 use malachite_app_channel::app::consensus::ProposedValue;
 use malachite_app_channel::app::host::LocallyProposedValue;
@@ -12,40 +13,36 @@ use malachite_app_channel::app::streaming::{StreamContent, StreamMessage};
 use malachite_app_channel::app::types::codec::Codec;
 use malachite_app_channel::app::types::core::{CommitCertificate, Round, Validity};
 use malachite_app_channel::app::types::sync::DecidedValue;
+use malachite_app_channel::app::types::PeerId;
 use malachite_test::codec::proto::ProtobufCodec;
-use malachite_test::{Address, Content, Height, ProposalPart, TestContext, Value};
+use malachite_test::{
+    Address, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, TestContext, Value,
+};
 
-/// Decodes a Value from its byte representation using ProtobufCodec
-pub fn decode_value(bytes: Bytes) -> Value {
-    ProtobufCodec.decode(bytes).unwrap()
-}
-
-/// Encodes a Value into its byte representation using ProtobufCodec
-pub fn encode_value(value: &Value) -> Bytes {
-    ProtobufCodec.encode(value).unwrap()
-}
+use crate::streaming::{PartStreamsMap, ProposalParts};
 
 /// Represents the internal state of the application node
 /// Contains information about current height, round, proposals and blocks
 pub struct State {
+    ctx: TestContext,
+
     pub current_height: Height,
     pub current_round: Round,
     pub current_proposer: Option<Address>,
 
-    earliest_height: Height,
     address: Address,
     stream_id: u64,
-    undecided_proposals: HashMap<Height, ProposedValue<TestContext>>,
+    undecided_proposals: HashMap<(Height, Round), ProposedValue<TestContext>>,
     decided_proposals: HashMap<Height, ProposedValue<TestContext>>,
-    blocks: HashMap<Height, DecidedValue<TestContext>>,
-    current_proposal: Option<StreamMessage<ProposalPart>>,
+    decided_values: BTreeMap<Height, DecidedValue<TestContext>>,
+    streams_map: PartStreamsMap,
 }
 
 impl State {
     /// Creates a new State instance with the given validator address and starting height
-    pub fn new(address: Address, height: Height) -> Self {
+    pub fn new(ctx: TestContext, address: Address, height: Height) -> Self {
         Self {
-            earliest_height: height,
+            ctx,
             current_height: height,
             current_round: Round::new(0),
             current_proposer: None,
@@ -53,64 +50,67 @@ impl State {
             stream_id: 0,
             undecided_proposals: HashMap::new(),
             decided_proposals: HashMap::new(),
-            blocks: HashMap::new(),
-            current_proposal: None,
+            decided_values: BTreeMap::new(),
+            streams_map: PartStreamsMap::new(),
         }
     }
 
     /// Returns the earliest height available in the state
     pub fn get_earliest_height(&self) -> Height {
-        self.earliest_height
+        self.decided_values
+            .keys()
+            .next()
+            .copied()
+            .unwrap_or_default()
     }
 
     /// Processes and adds a new proposal to the state if it's valid
     /// Returns Some(ProposedValue) if the proposal was accepted, None otherwise
-    pub fn add_proposal(
+    pub fn received_proposal_part(
         &mut self,
-        stream_message: StreamMessage<ProposalPart>,
+        from: PeerId,
+        part: StreamMessage<ProposalPart>,
     ) -> Option<ProposedValue<TestContext>> {
-        let StreamContent::Data(proposal_part) = stream_message.content else {
-            error!("Invalid proposal: {:?}", stream_message.content);
+        info!(sequence = %part.sequence, "Received proposal part: {part:?}");
+
+        let sequence = part.sequence;
+
+        // Check if we have a full proposal
+        let parts = self.streams_map.insert(from, part)?;
+
+        // Check if the proposal is outdated
+        if parts.height < self.current_height {
+            debug!(
+                height = %self.current_height,
+                round = %self.current_round,
+                part.height = %parts.height,
+                part.round = %parts.round,
+                part.sequence = %sequence,
+                "Received outdated proposal part, ignoring"
+            );
+
             return None;
-        };
-
-        if proposal_part.height > self.current_height
-            || proposal_part.height == self.current_height
-                && proposal_part.round >= self.current_round
-        {
-            assert!(proposal_part.fin); // we only implemented 1 part === 1 proposal
-
-            let value = proposal_part.content.value;
-
-            let proposal = ProposedValue {
-                height: proposal_part.height,
-                round: proposal_part.round,
-                valid_round: Round::Nil,
-                proposer: proposal_part.proposer,
-                value,
-                validity: Validity::Valid,
-                extension: None,
-            };
-
-            self.undecided_proposals
-                .insert(proposal_part.height, proposal.clone());
-
-            Some(proposal)
-        } else {
-            None
         }
+
+        // Re-assemble the proposal from its parts
+        let value = assemble_value_from_parts(parts);
+
+        self.undecided_proposals
+            .insert((value.height, value.round), value.clone());
+
+        Some(value)
     }
 
     /// Retrieves a decided block at the given height
     pub fn get_decided_value(&self, height: &Height) -> Option<&DecidedValue<TestContext>> {
-        self.blocks.get(height)
+        self.decided_values.get(height)
     }
 
     /// Commits a value with the given certificate, updating internal state
     /// and moving to the next height
     pub fn commit(&mut self, certificate: CommitCertificate<TestContext>) {
         // Sort out proposals
-        for (height, value) in self.undecided_proposals.clone() {
+        for ((height, round), value) in self.undecided_proposals.clone() {
             if height > self.current_height {
                 continue;
             }
@@ -119,13 +119,13 @@ impl State {
                 self.decided_proposals.insert(height, value);
             }
 
-            self.undecided_proposals.remove(&height);
+            self.undecided_proposals.remove(&(height, round));
         }
 
         let value = self.decided_proposals.get(&certificate.height).unwrap();
         let value_bytes = encode_value(&value.value);
 
-        self.blocks.insert(
+        self.decided_values.insert(
             self.current_height,
             DecidedValue::new(value_bytes, certificate),
         );
@@ -138,65 +138,190 @@ impl State {
     /// Retrieves a previously built proposal value for the given height
     pub fn get_previously_built_value(
         &self,
-        height: &Height,
-    ) -> Option<&ProposedValue<TestContext>> {
-        self.undecided_proposals.get(height)
+        height: Height,
+        round: Round,
+    ) -> Option<LocallyProposedValue<TestContext>> {
+        let proposal = self.undecided_proposals.get(&(height, round))?;
+
+        Some(LocallyProposedValue::new(
+            proposal.height,
+            proposal.round,
+            proposal.value,
+            proposal.extension.clone(),
+        ))
     }
 
     /// Creates a new proposal value for the given height
     /// Returns either a previously built proposal or creates a new one
-    pub fn propose_value(&mut self, height: &Height) -> ProposedValue<TestContext> {
-        if let Some(proposal) = self.get_previously_built_value(height) {
-            proposal.clone()
-        } else {
-            assert_eq!(height.as_u64(), self.current_height.as_u64());
+    fn create_proposal(&mut self, height: Height, round: Round) -> ProposedValue<TestContext> {
+        assert_eq!(height, self.current_height);
+        assert_eq!(round, self.current_round);
 
-            // We create a new value.
-            let value = Value::new(42); // TODO: get value
+        // We create a new value.
+        let value = Value::new(42); // TODO: make up random value
 
-            let proposal = ProposedValue {
-                height: *height,
-                round: self.current_round,
-                valid_round: Round::Nil,
-                proposer: self.address,
-                value,
-                validity: Validity::Valid,
-                extension: None,
-            };
+        let proposal = ProposedValue {
+            height,
+            round,
+            valid_round: Round::Nil,
+            proposer: self.address, // We are the proposer
+            value,
+            validity: Validity::Valid, // Our proposals are de facto valid
+            extension: None,           // Vote extension can be added here
+        };
 
-            // Insert the new proposal into the undecided proposals.
-            self.undecided_proposals.insert(*height, proposal.clone());
+        // Insert the new proposal into the undecided proposals.
+        self.undecided_proposals
+            .insert((height, round), proposal.clone());
 
-            proposal
-        }
+        proposal
+    }
+
+    /// Creates a new proposal value for the given height
+    /// Returns either a previously built proposal or creates a new one
+    pub fn propose_value(
+        &mut self,
+        height: Height,
+        round: Round,
+    ) -> LocallyProposedValue<TestContext> {
+        assert_eq!(height, self.current_height);
+        assert_eq!(round, self.current_round);
+
+        let proposal = self.create_proposal(height, round);
+
+        LocallyProposedValue::new(
+            proposal.height,
+            proposal.round,
+            proposal.value,
+            proposal.extension,
+        )
     }
 
     /// Creates a stream message containing a proposal part.
     /// Updates internal sequence number and current proposal.
-    pub fn create_stream_message(
+    pub fn stream_proposal(
         &mut self,
         value: LocallyProposedValue<TestContext>,
-    ) -> StreamMessage<ProposalPart> {
-        // Only a single proposal part
-        let sequence = 0;
+    ) -> impl Iterator<Item = StreamMessage<ProposalPart>> {
+        let parts = self.value_to_parts(value);
 
-        let content = Content::new(value.value);
-
-        let proposal_part = ProposalPart::new(
-            self.current_height,
-            self.current_round,
-            sequence,
-            self.address,
-            content,
-            true, // full proposal is emitted as a single proposal part
-        );
-
-        let stream_content = StreamContent::Data(proposal_part);
-        let msg = StreamMessage::new(self.stream_id, sequence, stream_content);
-
+        let stream_id = self.stream_id;
         self.stream_id += 1;
-        self.current_proposal = Some(msg.clone());
 
-        msg
+        let mut msgs = Vec::with_capacity(parts.len() + 1);
+        let mut sequence = 0;
+
+        for part in parts {
+            let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(part));
+            sequence += 1;
+            msgs.push(msg);
+        }
+
+        msgs.push(StreamMessage::new(
+            stream_id,
+            sequence,
+            StreamContent::Fin(true),
+        ));
+
+        msgs.into_iter()
     }
+
+    fn value_to_parts(&self, value: LocallyProposedValue<TestContext>) -> Vec<ProposalPart> {
+        let mut hasher = sha3::Keccak256::new();
+        let mut parts = Vec::new();
+
+        // Init
+        // Include metadata about the proposal
+        {
+            parts.push(ProposalPart::Init(ProposalInit::new(
+                value.height,
+                value.round,
+                self.address,
+            )));
+
+            hasher.update(value.height.as_u64().to_be_bytes().as_slice());
+            hasher.update(value.round.as_i64().to_be_bytes().as_slice());
+
+            if let Some(ext) = &value.extension {
+                hasher.update(ext.data.as_ref());
+            }
+        }
+
+        // Data
+        // Include each prime factor of the value as a separate proposal part
+        {
+            for factor in factor_value(value.value) {
+                parts.push(ProposalPart::Data(ProposalData::new(factor)));
+
+                hasher.update(factor.to_be_bytes().as_slice());
+            }
+        }
+
+        // Fin
+        // Sign the hash of the proposal parts
+        {
+            let hash = hasher.finalize().to_vec();
+            let signature = self.ctx.signing_provider.sign(&hash);
+            parts.push(ProposalPart::Fin(ProposalFin::new(signature)));
+        }
+
+        parts
+    }
+}
+
+/// Re-assemble a [`ProposedValue`] from its [`ProposalParts`].
+///
+/// This is done by multiplying all the factors in the parts.
+fn assemble_value_from_parts(parts: ProposalParts) -> ProposedValue<TestContext> {
+    let value = parts
+        .parts
+        .iter()
+        .filter_map(|part| part.as_data())
+        .fold(1, |acc, data| acc * data.factor);
+
+    ProposedValue {
+        height: parts.height,
+        round: parts.round,
+        valid_round: Round::Nil,
+        proposer: parts.proposer,
+        value: Value::new(value),
+        validity: Validity::Valid, // TODO: Check signature in Fin part
+        extension: None,
+    }
+}
+
+/// Decodes a Value from its byte representation using ProtobufCodec
+pub fn decode_value(bytes: Bytes) -> Value {
+    ProtobufCodec.decode(bytes).unwrap()
+}
+
+/// Encodes a Value into its byte representation using ProtobufCodec
+pub fn encode_value(value: &Value) -> Bytes {
+    ProtobufCodec.encode(value).unwrap()
+}
+
+/// Returns the list of prime factors of the given value
+///
+/// In a real application, this would typically split transactions
+/// into chunks ino order to reduce bandwidth requirements due
+/// to duplication of gossip messages.
+fn factor_value(value: Value) -> Vec<u64> {
+    let mut factors = Vec::new();
+    let mut n = value.as_u64();
+
+    let mut i = 2;
+    while i * i <= n {
+        if n % i == 0 {
+            factors.push(i);
+            n /= i;
+        } else {
+            i += 1;
+        }
+    }
+
+    if n > 1 {
+        factors.push(n);
+    }
+
+    factors
 }

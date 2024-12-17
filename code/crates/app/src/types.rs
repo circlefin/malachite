@@ -19,7 +19,7 @@ pub mod metrics {
 pub use libp2p_identity::Keypair;
 
 pub mod streaming {
-    pub use malachite_engine::util::streaming::StreamMessage;
+    pub use malachite_engine::util::streaming::{Sequence, StreamId, StreamMessage};
 }
 
 pub mod sync {

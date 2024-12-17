@@ -137,7 +137,9 @@ where
                     .send(AppMsg::ReceivedProposalPart { from, part, reply })
                     .await?;
 
-                reply_to.send(rx.await?)?;
+                if let Some(value) = rx.await? {
+                    reply_to.send(value)?;
+                }
             }
 
             HostMsg::GetValidatorSet { height, reply_to } => {

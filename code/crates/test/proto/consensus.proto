@@ -48,16 +48,25 @@ message Signature {
 }
 
 message ProposalPart {
-    uint64 height = 1;
-    uint32 round = 2;
-    uint64 sequence = 3;
-    Address validator_address = 4;
-    Content content = 5;
-    bool fin = 6;
+    oneof part {
+        ProposalInit init = 1;
+        ProposalData data = 2;
+        ProposalFin fin = 3;
+    }
 }
 
-message Content {
-    Value value = 1;
+message ProposalInit {
+    uint64 height = 1;
+    uint32 round = 2;
+    Address proposer = 4;
+}
+
+message ProposalData {
+    uint64 factor = 1;
+}
+
+message ProposalFin {
+    Signature signature = 1;
 }
 
 message Extension {
