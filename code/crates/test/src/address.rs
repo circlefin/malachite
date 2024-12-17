@@ -75,7 +75,7 @@ impl Protobuf for Address {
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(proto::Address {
-            value: self.0.to_vec(),
+            value: self.0.to_vec().into(),
         })
     }
 }

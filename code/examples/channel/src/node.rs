@@ -14,7 +14,7 @@ use malachite_app_channel::app::types::core::{Round, Validity, VotingPower};
 use malachite_app_channel::app::types::LocallyProposedValue;
 use malachite_app_channel::app::Node;
 use malachite_app_channel::{run, AppMsg, ConsensusGossipMsg, ConsensusMsg};
-use malachite_test::codec::json::JsonCodec;
+use malachite_test::codec::proto::ProtobufCodec;
 use malachite_test::{
     Address, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet,
 };
@@ -104,7 +104,7 @@ impl Node for App {
 
         let start_height = self.start_height.map(Height::new);
 
-        let codec = JsonCodec;
+        let codec = ProtobufCodec;
 
         let mut channels = run(
             self.config.clone(),

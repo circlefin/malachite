@@ -2,8 +2,6 @@ use core::fmt;
 use malachite_proto::{Error as ProtoError, Protobuf};
 use serde::{Deserialize, Serialize};
 
-use crate::proto;
-
 /// A blockchain height
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Height(u64);
@@ -59,13 +57,13 @@ impl malachite_core_types::Height for Height {
 }
 
 impl Protobuf for Height {
-    type Proto = proto::Height;
+    type Proto = u64;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
-        Ok(Self(proto.value))
+        Ok(Self(proto))
     }
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
-        Ok(proto::Height { value: self.0 })
+        Ok(self.0)
     }
 }

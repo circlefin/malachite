@@ -10,7 +10,7 @@ use raw::{RawRequest, RawResponse, RawSignedConsensusMsg, RawStatus, RawStreamMe
 
 use crate::{ProposalPart, TestContext, Value};
 
-#[derive(Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct JsonCodec;
 
 impl Codec<Value> for JsonCodec {

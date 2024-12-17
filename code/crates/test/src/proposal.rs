@@ -68,7 +68,7 @@ impl Protobuf for Proposal {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(Self::Proto {
-            height: Some(self.height.to_proto()?),
+            height: self.height.to_proto()?,
             round: self.round.as_u32().expect("round should not be nil"),
             value: Some(self.value.to_proto()?),
             pol_round: self.pol_round.as_u32(),
@@ -79,11 +79,7 @@ impl Protobuf for Proposal {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
-            height: Height::from_proto(
-                proto
-                    .height
-                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("height"))?,
-            )?,
+            height: Height::from_proto(proto.height)?,
             round: Round::new(proto.round),
             value: Value::from_proto(
                 proto

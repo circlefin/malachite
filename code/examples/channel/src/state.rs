@@ -12,15 +12,15 @@ use malachite_app_channel::app::streaming::{StreamContent, StreamMessage};
 use malachite_app_channel::app::types::codec::Codec;
 use malachite_app_channel::app::types::core::{CommitCertificate, Round, Validity};
 use malachite_app_channel::app::types::sync::DecidedValue;
-use malachite_test::codec::json::JsonCodec;
+use malachite_test::codec::proto::ProtobufCodec;
 use malachite_test::{Address, BlockMetadata, Content, Height, ProposalPart, TestContext, Value};
 
 pub fn decode_value(bytes: Bytes) -> Value {
-    JsonCodec.decode(bytes).unwrap()
+    ProtobufCodec.decode(bytes).unwrap()
 }
 
 pub fn encode_value(value: &Value) -> Bytes {
-    JsonCodec.encode(value).unwrap()
+    ProtobufCodec.encode(value).unwrap()
 }
 
 pub struct State {
@@ -172,7 +172,7 @@ impl State {
         ]
         .concat();
 
-        let content = Content::new(&BlockMetadata::new(fake_proof, value.value));
+        let content = Content::new(&BlockMetadata::new(fake_proof.into(), value.value));
 
         let proposal_part = ProposalPart::new(
             self.current_height,
