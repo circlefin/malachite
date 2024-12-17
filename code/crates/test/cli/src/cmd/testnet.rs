@@ -97,9 +97,9 @@ pub struct TestnetCmd {
 
     /// The transport protocol to use for P2P communication
     /// Possible values:
-    /// - "quic": QUIC (default)
-    /// - "tcp": TCP + Noise
-    #[clap(short, long, default_value = "quic", verbatim_doc_comment)]
+    /// - "tcp": TCP + Noise (default)
+    /// - "quic": QUIC
+    #[clap(short, long, default_value = "tcp", verbatim_doc_comment)]
     pub transport: TransportProtocol,
 }
 
