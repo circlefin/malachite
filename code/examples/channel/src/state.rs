@@ -12,16 +12,15 @@ use malachite_app_channel::app::streaming::{StreamContent, StreamMessage};
 use malachite_app_channel::app::types::codec::Codec;
 use malachite_app_channel::app::types::core::{CommitCertificate, Round, Validity};
 use malachite_app_channel::app::types::sync::DecidedValue;
-use malachite_test::{
-    Address, BlockMetadata, Content, Height, ProposalPart, TestCodec, TestContext, Value,
-};
+use malachite_test::codec::json::JsonCodec;
+use malachite_test::{Address, BlockMetadata, Content, Height, ProposalPart, TestContext, Value};
 
 pub fn decode_value(bytes: Bytes) -> Value {
-    TestCodec.decode(bytes).unwrap()
+    JsonCodec.decode(bytes).unwrap()
 }
 
 pub fn encode_value(value: &Value) -> Bytes {
-    TestCodec.encode(value).unwrap()
+    JsonCodec.encode(value).unwrap()
 }
 
 pub struct State {
