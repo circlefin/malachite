@@ -3,8 +3,8 @@
 </h1>
 
 <h4 align="center">
-    BFT Consensus Library in Rust<br/>
-    Bundled with state-of-the-art Tendermint in Rust implementation
+    Flexible BFT Consensus Engine in Rust<br/>
+    Includes state-of-the-art library implementing the Tendermint consensus algorithm
 </h4>
 
 ---
@@ -20,14 +20,17 @@
 
 [![Telegram Chat][tg-badge]][tg-url]
 
-
-
 ## About
 
 Malachite is a Byzantine-fault tolerant (BFT) consensus library implemented in Rust. 
 The goal is to enable developers to decentralize whatever the future may bring—sequencers, social networks, Layer 1s, etc. 
 
 Bundled with Malachite comes a state-of-the-art implementation of Tendermint consensus algorithm.
+
+> [!IMPORTANT]
+> Malachite is pre-alpha software and still under heavy development.
+> At this stage, it is not meant for use in production.
+> The software is provided "as is" and has not been externally audited, use at your own risk.
 
 ## Repository Overview
 
