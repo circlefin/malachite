@@ -10,8 +10,14 @@ use malachite_test_cli::{logging, runtime};
 use node::App;
 use tracing::{error, info, trace};
 
-/// main function parses the command-line arguments, loads configuration, initializes logging
-/// and runs the application object.
+/// Main entry point for the application
+/// 
+/// This function:
+/// - Parses command-line arguments
+/// - Loads configuration from file
+/// - Initializes logging system
+/// - Sets up error handling
+/// - Creates and runs the application node
 fn main() -> color_eyre::Result<()> {
     color_eyre::install().expect("Failed to install global error handler");
 

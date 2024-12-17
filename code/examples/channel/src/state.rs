@@ -15,14 +15,18 @@ use malachite_app_channel::app::types::sync::DecidedValue;
 use malachite_test::codec::proto::ProtobufCodec;
 use malachite_test::{Address, BlockMetadata, Content, Height, ProposalPart, TestContext, Value};
 
+/// Decodes a Value from its byte representation using ProtobufCodec
 pub fn decode_value(bytes: Bytes) -> Value {
     ProtobufCodec.decode(bytes).unwrap()
 }
 
+/// Encodes a Value into its byte representation using ProtobufCodec
 pub fn encode_value(value: &Value) -> Bytes {
     ProtobufCodec.encode(value).unwrap()
 }
 
+/// Represents the internal state of the application node
+/// Contains information about current height, round, proposals and blocks
 pub struct State {
     pub current_height: Height,
     pub current_round: Round,
@@ -37,6 +41,7 @@ pub struct State {
 }
 
 impl State {
+    /// Creates a new State instance with the given validator address and starting height
     pub fn new(address: Address, height: Height) -> Self {
         Self {
             earliest_height: height,
@@ -52,10 +57,13 @@ impl State {
         }
     }
 
+    /// Returns the earliest height available in the state
     pub fn get_earliest_height(&self) -> Height {
         self.earliest_height
     }
 
+    /// Processes and adds a new proposal to the state if it's valid
+    /// Returns Some(ProposedValue) if the proposal was accepted, None otherwise
     pub fn add_proposal(
         &mut self,
         stream_message: StreamMessage<ProposalPart>,
@@ -92,10 +100,13 @@ impl State {
         }
     }
 
+    /// Retrieves a decided block at the given height
     pub fn get_block(&self, height: &Height) -> Option<&DecidedValue<TestContext>> {
         self.blocks.get(height)
     }
 
+    /// Commits a block with the given certificate, updating internal state
+    /// and moving to the next height
     pub fn commit_block(&mut self, certificate: CommitCertificate<TestContext>) {
         // Sort out proposals
         for (height, value) in self.undecided_proposals.clone() {
@@ -128,6 +139,7 @@ impl State {
         self.current_round = Round::new(0);
     }
 
+    /// Retrieves a previously built proposal value for the given height
     pub fn get_previously_built_value(
         &self,
         height: &Height,
@@ -135,6 +147,8 @@ impl State {
         self.undecided_proposals.get(height)
     }
 
+    /// Creates a new proposal value for the given height
+    /// Returns either a previously built proposal or creates a new one
     pub fn propose_value(&mut self, height: &Height) -> ProposedValue<TestContext> {
         if let Some(proposal) = self.get_previously_built_value(height) {
             proposal.clone()
@@ -161,6 +175,8 @@ impl State {
         }
     }
 
+    /// Creates a broadcast message containing a proposal part
+    /// Updates internal sequence number and current proposal
     pub fn create_broadcast_message(
         &mut self,
         value: LocallyProposedValue<TestContext>,

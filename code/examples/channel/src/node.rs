@@ -22,6 +22,7 @@ use malachite_test_cli::config::Config;
 
 use crate::state::{decode_value, State};
 
+/// Main application struct implementing the consensus node functionality
 #[derive(Clone)]
 pub struct App {
     pub config: Config,
