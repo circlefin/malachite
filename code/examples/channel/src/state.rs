@@ -106,7 +106,7 @@ impl State {
         self.blocks.get(height)
     }
 
-    /// Commits a block with the given certificate, updating internal state
+    /// Commits a value with the given certificate, updating internal state
     /// and moving to the next height
     pub fn commit(&mut self, certificate: CommitCertificate<TestContext>) {
         // Sort out proposals
@@ -122,17 +122,12 @@ impl State {
             self.undecided_proposals.remove(&height);
         }
 
-        // Commit block transactions to "database"
-        // TODO: retrieve all transactions from block parts
         let value = self.decided_proposals.get(&certificate.height).unwrap();
         let value_bytes = encode_value(&value.value);
 
         self.blocks.insert(
             self.current_height,
-            DecidedValue {
-                value_bytes,
-                certificate,
-            },
+            DecidedValue::new(value_bytes, certificate),
         );
 
         // Move to next height
