@@ -15,8 +15,8 @@ const RANDOM_SEED: u64 = 0x42;
 
 #[test]
 fn test_itf() {
-    let temp_dir =
-        tempfile::TempDir::with_prefix("malachite-votekeeper-").expect("Failed to create temp dir");
+    let temp_dir = tempfile::TempDir::with_prefix("malachite-core-votekeeperkeeper-")
+        .expect("Failed to create temp dir");
     let temp_path = temp_dir.path().to_owned();
 
     if std::env::var("KEEP_TEMP").is_ok() {
@@ -33,7 +33,7 @@ fn test_itf() {
         .expect("invalid random seed for quint");
 
     generate_test_traces(
-        "tests/votekeeper/votekeeperTest.qnt",
+        "votekeeper/votekeeperTest.qnt",
         &temp_path.to_string_lossy(),
         quint_seed,
     );

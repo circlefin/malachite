@@ -3,10 +3,10 @@ use std::time::Duration;
 use eyre::bail;
 use tracing::info;
 
-use malachite_actors::util::events::Event;
-use malachite_common::SignedVote;
 use malachite_config::ValuePayload;
 use malachite_consensus::ValueToPropose;
+use malachite_core_types::SignedVote;
+use malachite_engine::util::events::Event;
 use malachite_starknet_host::types::MockContext;
 use malachite_starknet_test::{init_logging, HandlerResult, TestBuilder, TestParams};
 
@@ -95,7 +95,7 @@ async fn proposer_crashes_after_proposing(params: TestParams) {
         .run_with_custom_config(
             Duration::from_secs(60),
             TestParams {
-                enable_blocksync: false,
+                enable_sync: false,
                 ..params
             },
         )
@@ -185,7 +185,7 @@ async fn non_proposer_crashes_after_voting(params: TestParams) {
         .run_with_custom_config(
             Duration::from_secs(60),
             TestParams {
-                enable_blocksync: false,
+                enable_sync: false,
                 ..params
             },
         )

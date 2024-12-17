@@ -1,13 +1,16 @@
 use std::path::{Path, PathBuf};
 
-use malachite_actors::util::events::TxEvent;
+use libp2p_identity::ecdsa;
+use ractor::async_trait;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use tracing::{info, Instrument};
 
-use malachite_common::VotingPower;
+use malachite_app::types::Keypair;
+use malachite_app::Node;
 use malachite_config::Config;
-use malachite_node::Node;
+use malachite_core_types::VotingPower;
+use malachite_engine::util::events::TxEvent;
 
 use crate::spawn::spawn_node_actor;
 use crate::types::Height;
@@ -47,10 +50,11 @@ pub struct StarknetNode {
     pub start_height: Option<u64>,
 }
 
+#[async_trait]
 impl Node for StarknetNode {
     type Context = MockContext;
-    type PrivateKeyFile = PrivateKeyFile;
     type Genesis = Genesis;
+    type PrivateKeyFile = PrivateKeyFile;
 
     fn get_home_dir(&self) -> PathBuf {
         self.home_dir.to_owned()
@@ -63,8 +67,23 @@ impl Node for StarknetNode {
         PrivateKey::generate(rng)
     }
 
-    fn generate_public_key(&self, pk: PrivateKey) -> PublicKey {
+    fn get_address(&self, pk: &PublicKey) -> Address {
+        Address::from_public_key(*pk)
+    }
+
+    fn get_public_key(&self, pk: &PrivateKey) -> PublicKey {
         pk.public_key()
+    }
+
+    fn get_keypair(&self, pk: PrivateKey) -> Keypair {
+        let pk_bytes = pk.inner().to_bytes_be();
+        let secret_key = ecdsa::SecretKey::try_from_bytes(pk_bytes).unwrap();
+        let ecdsa_keypair = ecdsa::Keypair::from(secret_key);
+        Keypair::from(ecdsa_keypair)
+    }
+
+    fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey {
+        file.private_key
     }
 
     fn load_private_key_file(
@@ -73,10 +92,6 @@ impl Node for StarknetNode {
     ) -> std::io::Result<Self::PrivateKeyFile> {
         let private_key = std::fs::read_to_string(path)?;
         serde_json::from_str(&private_key).map_err(|e| e.into())
-    }
-
-    fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey {
-        file.private_key
     }
 
     fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
@@ -98,17 +113,15 @@ impl Node for StarknetNode {
         Genesis { validator_set }
     }
 
-    async fn run(&self) {
+    async fn run(self) -> eyre::Result<()> {
         let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _enter = span.enter();
 
-        let priv_key_file = self
-            .load_private_key_file(self.private_key_file.clone())
-            .unwrap();
+        let priv_key_file = self.load_private_key_file(self.private_key_file.clone())?;
 
         let private_key = self.load_private_key(priv_key_file);
 
-        let genesis = self.load_genesis(self.genesis_file.clone()).unwrap();
+        let genesis = self.load_genesis(self.genesis_file.clone())?;
 
         let start_height = self.start_height.map(|height| Height::new(height, 1));
 
@@ -135,7 +148,9 @@ impl Node for StarknetNode {
             .instrument(span.clone())
         });
 
-        handle.await.unwrap();
+        handle.await?;
+
+        Ok(())
     }
 }
 
@@ -164,14 +179,10 @@ fn test_starknet_node() {
     };
 
     // Create configuration files
-    use malachite_cli::*;
+    use malachite_test_cli::*;
 
     let priv_keys = new::generate_private_keys(&node, 1, true);
-    let pub_keys = priv_keys
-        .iter()
-        .map(|pk| node.generate_public_key(*pk))
-        .collect();
-
+    let pub_keys = priv_keys.iter().map(|pk| node.get_public_key(pk)).collect();
     let genesis = new::generate_genesis(&node, pub_keys, true);
 
     file::save_priv_validator_key(
@@ -186,7 +197,7 @@ fn test_starknet_node() {
     // Run the node for a few seconds
     const TIMEOUT: u64 = 3;
     use tokio::time::{timeout, Duration};
-    let rt = malachite_cli::runtime::build_runtime(node.config.runtime).unwrap();
+    let rt = malachite_test_cli::runtime::build_runtime(node.config.runtime).unwrap();
     let result = rt.block_on(async { timeout(Duration::from_secs(TIMEOUT), node.run()).await });
 
     // Check that the node did not quit before the timeout.

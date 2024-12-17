@@ -1,18 +1,30 @@
 use std::fs::OpenOptions;
 use std::io::{self, Seek, SeekFrom, Write};
+use std::sync::LazyLock;
 
 use malachite_wal::{Log, Version};
-use testdir::testdir;
+use testdir::{NumberedDir, NumberedDirBuilder};
 
 #[allow(dead_code)]
 #[path = "../src/ext.rs"]
 mod ext;
-
 use ext::*;
+
+static TESTDIR: LazyLock<NumberedDir> =
+    LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());
+
+macro_rules! testwal {
+    () => {{
+        let module_path = ::std::module_path!();
+        let test_name = ::testdir::private::extract_test_name(&module_path);
+        let subdir_path = ::std::path::Path::new(&module_path.replace("::", "/")).join(&test_name);
+        TESTDIR.create_subdir(subdir_path).unwrap().join("wal.log")
+    }};
+}
 
 #[test]
 fn corrupted_crc() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     // Write initial entries
     {
@@ -59,7 +71,7 @@ fn corrupted_crc() -> io::Result<()> {
 
 #[test]
 fn incomplete_entries() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     // Write initial entries
     {
@@ -101,7 +113,7 @@ fn incomplete_entries() -> io::Result<()> {
 
 #[test]
 fn invalid_version() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     // Create WAL file with invalid version
     {
@@ -131,7 +143,7 @@ fn invalid_version() -> io::Result<()> {
 
 #[test]
 fn invalid_sequence() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     // Create WAL with valid version but corrupted sequence
     {
@@ -160,7 +172,7 @@ fn invalid_sequence() -> io::Result<()> {
 
 #[test]
 fn multiple_corruptions() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     // Create initial WAL with entries
     {
@@ -205,7 +217,7 @@ fn multiple_corruptions() -> io::Result<()> {
 
 #[test]
 fn zero_length_entries() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     // Create WAL with zero-length entry
     {
@@ -231,7 +243,7 @@ fn zero_length_entries() -> io::Result<()> {
 #[test]
 #[ignore]
 fn max_entry_size() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     let mut wal = Log::open(&path)?;
 

@@ -54,7 +54,7 @@ impl fmt::Debug for Address {
     }
 }
 
-impl malachite_common::Address for Address {}
+impl malachite_core_types::Address for Address {}
 
 impl Protobuf for Address {
     type Proto = proto::Address;
@@ -75,7 +75,7 @@ impl Protobuf for Address {
 
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(proto::Address {
-            value: self.0.to_vec(),
+            value: self.0.to_vec().into(),
         })
     }
 }

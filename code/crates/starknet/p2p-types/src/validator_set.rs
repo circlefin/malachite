@@ -1,4 +1,4 @@
-use malachite_common::VotingPower;
+use malachite_core_types::VotingPower;
 use serde::{Deserialize, Serialize};
 
 use crate::{Address, PublicKey, Validator};

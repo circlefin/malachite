@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
-pub struct FibonacciBackoff {
+struct FibonacciBackoff {
     current: u64,
     next: u64,
 }
@@ -25,5 +25,35 @@ impl Iterator for FibonacciBackoff {
         self.next = new_next;
 
         Some(Duration::from_millis(self.current))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Retry {
+    count: usize,
+    backoff: FibonacciBackoff,
+}
+
+impl Retry {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self {
+            count: 0,
+            backoff: FibonacciBackoff::new(),
+        }
+    }
+
+    pub fn count(&self) -> usize {
+        self.count
+    }
+
+    pub fn inc_count(&mut self) {
+        self.count += 1;
+    }
+
+    pub fn next_delay(&mut self) -> Duration {
+        self.backoff
+            .next()
+            .expect("FibonacciBackoff is an infinite iterator")
     }
 }

@@ -318,7 +318,7 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_urlencoded",
- "sync_wrapper 1.0.2",
+ "sync_wrapper",
  "tokio",
  "tower",
  "tower-layer",
@@ -341,7 +341,7 @@ dependencies = [
  "mime",
  "pin-project-lite",
  "rustversion",
- "sync_wrapper 1.0.2",
+ "sync_wrapper",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -547,9 +547,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.2"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f34d93e62b03caf570cccc334cbc6c2fceca82f39211051345108adcba3eebdc"
+checksum = "27f657647bcff5394bf56c7317665bbf790a137a50eaaa5c6bfbb9e27a518f2d"
 dependencies = [
  "shlex",
 ]
@@ -592,9 +592,9 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.38"
+version = "0.4.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
+checksum = "7e36cc9d416881d2e24f9a963be5fb1cd90966419ac844274161d10488b3e825"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -1223,7 +1223,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33d852cb9b869c2a9b3df2f71a3074817f01e1844f839a144f5fcef059a4eb5d"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1259,9 +1259,9 @@ dependencies = [
 
 [[package]]
 name = "fastrand"
-version = "2.2.0"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "486f806e73c5707928240ddc295403b1b93c96a02038563881c4a2fd84b81ac4"
+checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "ff"
@@ -1613,9 +1613,9 @@ checksum = "b07f60793ff0a4d9cef0f18e63b5357e06209987153a64648c972c1e5aff336f"
 
 [[package]]
 name = "hickory-proto"
-version = "0.24.1"
+version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07698b8420e2f0d6447a436ba999ec85d8fbf2a398bbd737b82cac4a2e96e512"
+checksum = "447afdcdb8afb9d0a852af6dc65d9b285ce720ed7a59e42a8bf2e931c67bc1b5"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -1624,7 +1624,7 @@ dependencies = [
  "futures-channel",
  "futures-io",
  "futures-util",
- "idna 0.4.0",
+ "idna",
  "ipnet",
  "once_cell",
  "rand",
@@ -1638,9 +1638,9 @@ dependencies = [
 
 [[package]]
 name = "hickory-resolver"
-version = "0.24.1"
+version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28757f23aa75c98f254cf0405e6d8c25b831b32921b050a66692427679b1f243"
+checksum = "0a2e2aba9c389ce5267d31cf1e4dace82390ae276b0b364ea55630b1fa1b44b4"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -1978,16 +1978,6 @@ checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
 name = "idna"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d20d6b07bfbc108882d88ed8e37d39636dcc260e15e30c45e6ba089610b917c"
-dependencies = [
- "unicode-bidi",
- "unicode-normalization",
-]
-
-[[package]]
-name = "idna"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "686f825264d630750a544639377bae737628043f20d38bbc029e8f29ea968a7e"
@@ -2179,9 +2169,9 @@ checksum = "d75a2a4b1b190afb6f5425f10f6a8f959d2ea0b9c2b1d79553551850539e4674"
 
 [[package]]
 name = "js-sys"
-version = "0.3.74"
+version = "0.3.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a865e038f7f6ed956f788f0d7d60c541fff74c7bd74272c5d4cf15c63743e705"
+checksum = "6717b6b5b077764fb5966237269cb3c64edddde4b14ce42647430a78ced9e7b7"
 dependencies = [
  "once_cell",
  "wasm-bindgen",
@@ -2226,9 +2216,9 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "libc"
-version = "0.2.167"
+version = "0.2.168"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09d6582e104315a817dff97f75133544b2e094ee22447d2acf4a74e189ba06fc"
+checksum = "5aaeb2981e0606ca11d79718f8bb01164f1d6ed75080182d3abf017e6d244b6d"
 
 [[package]]
 name = "libp2p"
@@ -2472,6 +2462,7 @@ dependencies = [
  "libp2p-gossipsub",
  "libp2p-identify",
  "libp2p-identity",
+ "libp2p-kad",
  "libp2p-ping",
  "libp2p-swarm",
  "pin-project",
@@ -2759,27 +2750,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-actors"
+name = "malachite-app"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "byteorder",
- "bytes",
- "derive-where",
  "eyre",
- "libp2p",
- "malachite-blocksync",
+ "libp2p-identity",
  "malachite-codec",
- "malachite-common",
  "malachite-config",
  "malachite-consensus",
- "malachite-gossip-consensus",
+ "malachite-core-types",
+ "malachite-engine",
  "malachite-metrics",
- "malachite-test-mempool",
- "malachite-wal",
- "ractor",
+ "malachite-network",
+ "malachite-peer",
+ "malachite-sync",
  "rand",
- "tokio",
+ "serde",
  "tracing",
 ]
 
@@ -2789,66 +2776,15 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "derive-where",
- "libp2p-identity",
- "malachite-actors",
- "malachite-blocksync",
- "malachite-codec",
- "malachite-common",
+ "eyre",
+ "malachite-app",
  "malachite-config",
- "malachite-consensus",
- "malachite-gossip-consensus",
- "malachite-metrics",
- "malachite-node",
- "malachite-peer",
+ "malachite-engine",
  "malachite-test",
  "ractor",
  "rand",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "malachite-blocksync"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bytes",
- "dashmap",
- "derive-where",
- "displaydoc",
- "genawaiter",
- "libp2p",
- "malachite-common",
- "malachite-metrics",
- "malachite-peer",
- "rand",
- "serde",
- "thiserror 2.0.6",
- "tracing",
-]
-
-[[package]]
-name = "malachite-cli"
-version = "0.1.0"
-dependencies = [
- "axum",
- "bytesize",
- "clap",
- "color-eyre",
- "directories",
- "itertools 0.13.0",
- "malachite-common",
- "malachite-config",
- "malachite-metrics",
- "malachite-node",
- "rand",
- "serde_json",
- "thiserror 2.0.6",
- "tokio",
- "toml",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -2859,22 +2795,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-common"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "derive-where",
- "thiserror 2.0.6",
-]
-
-[[package]]
 name = "malachite-config"
 version = "0.1.0"
 dependencies = [
  "bytesize",
  "config",
  "humantime-serde",
- "malachite-common",
+ "malachite-core-types",
  "multiaddr",
  "serde",
  "toml",
@@ -2887,8 +2814,8 @@ dependencies = [
  "async-recursion",
  "derive-where",
  "genawaiter",
- "malachite-common",
- "malachite-driver",
+ "malachite-core-driver",
+ "malachite-core-types",
  "malachite-metrics",
  "malachite-peer",
  "malachite-test",
@@ -2898,11 +2825,66 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-core-driver"
+version = "0.1.0"
+dependencies = [
+ "derive-where",
+ "malachite-core-driver-test-utils",
+ "malachite-core-state-machine",
+ "malachite-core-types",
+ "malachite-core-votekeeper",
+ "malachite-test",
+ "thiserror 2.0.6",
+]
+
+[[package]]
+name = "malachite-core-driver-test-utils"
+version = "0.1.0"
+dependencies = [
+ "malachite-core-driver",
+ "malachite-core-state-machine",
+ "malachite-core-types",
+ "malachite-core-votekeeper",
+ "malachite-test",
+]
+
+[[package]]
+name = "malachite-core-state-machine"
+version = "0.1.0"
+dependencies = [
+ "derive-where",
+ "displaydoc",
+ "malachite-core-types",
+ "time",
+]
+
+[[package]]
+name = "malachite-core-types"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "derive-where",
+ "thiserror 2.0.6",
+]
+
+[[package]]
+name = "malachite-core-votekeeper"
+version = "0.1.0"
+dependencies = [
+ "derive-where",
+ "malachite-core-types",
+ "malachite-test",
+ "thiserror 2.0.6",
+]
+
+[[package]]
 name = "malachite-discovery"
 version = "0.1.0"
 dependencies = [
+ "either",
  "libp2p",
  "malachite-metrics",
+ "rand",
  "serde",
  "tokio",
  "tracing",
@@ -2915,8 +2897,8 @@ dependencies = [
  "futures",
  "libp2p-identity",
  "malachite-config",
- "malachite-gossip-consensus",
  "malachite-metrics",
+ "malachite-network",
  "malachite-starknet-host",
  "rand",
  "tokio",
@@ -2925,31 +2907,57 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-driver"
+name = "malachite-engine"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "byteorder",
+ "bytes",
  "derive-where",
- "malachite-common",
- "malachite-driver-test-utils",
- "malachite-round",
- "malachite-test",
- "malachite-vote",
- "thiserror 2.0.6",
+ "eyre",
+ "libp2p",
+ "malachite-codec",
+ "malachite-config",
+ "malachite-consensus",
+ "malachite-core-types",
+ "malachite-metrics",
+ "malachite-network",
+ "malachite-sync",
+ "malachite-test-mempool",
+ "malachite-wal",
+ "ractor",
+ "rand",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
-name = "malachite-driver-test-utils"
+name = "malachite-example-channel"
 version = "0.1.0"
 dependencies = [
- "malachite-common",
- "malachite-driver",
- "malachite-round",
+ "async-trait",
+ "bytes",
+ "color-eyre",
+ "eyre",
+ "libp2p-identity",
+ "malachite-app-channel",
  "malachite-test",
- "malachite-vote",
+ "malachite-test-cli",
+ "rand",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]
-name = "malachite-gossip-consensus"
+name = "malachite-metrics"
+version = "0.1.0"
+dependencies = [
+ "malachite-core-state-machine",
+ "prometheus-client",
+]
+
+[[package]]
+name = "malachite-network"
 version = "0.1.0"
 dependencies = [
  "bytes",
@@ -2958,10 +2966,10 @@ dependencies = [
  "futures",
  "libp2p",
  "libp2p-scatter",
- "malachite-blocksync",
  "malachite-discovery",
  "malachite-metrics",
  "malachite-peer",
+ "malachite-sync",
  "seahash",
  "serde",
  "tokio",
@@ -2969,21 +2977,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-metrics"
-version = "0.1.0"
-dependencies = [
- "malachite-round",
- "prometheus-client",
-]
-
-[[package]]
 name = "malachite-node"
 version = "0.1.0"
-dependencies = [
- "malachite-common",
- "rand",
- "serde",
-]
 
 [[package]]
 name = "malachite-peer"
@@ -3006,22 +3001,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-round"
-version = "0.1.0"
-dependencies = [
- "derive-where",
- "displaydoc",
- "malachite-common",
- "time",
-]
-
-[[package]]
 name = "malachite-signing-ed25519"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "ed25519-consensus",
- "malachite-common",
+ "malachite-core-types",
  "rand",
  "serde",
  "signature",
@@ -3033,9 +3018,9 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "color-eyre",
- "malachite-cli",
  "malachite-config",
  "malachite-starknet-host",
+ "malachite-test-cli",
  "tempfile",
  "tikv-jemallocator",
  "tracing",
@@ -3052,19 +3037,20 @@ dependencies = [
  "eyre",
  "itertools 0.13.0",
  "libp2p-identity",
- "malachite-actors",
- "malachite-blocksync",
- "malachite-cli",
+ "malachite-app",
  "malachite-codec",
- "malachite-common",
  "malachite-config",
  "malachite-consensus",
- "malachite-gossip-consensus",
+ "malachite-core-types",
+ "malachite-engine",
  "malachite-metrics",
+ "malachite-network",
  "malachite-node",
  "malachite-proto",
  "malachite-starknet-p2p-proto",
  "malachite-starknet-p2p-types",
+ "malachite-sync",
+ "malachite-test-cli",
  "malachite-test-mempool",
  "prost",
  "ractor",
@@ -3092,7 +3078,7 @@ name = "malachite-starknet-p2p-types"
 version = "0.1.0"
 dependencies = [
  "bytes",
- "malachite-common",
+ "malachite-core-types",
  "malachite-proto",
  "malachite-starknet-p2p-proto",
  "rand",
@@ -3109,10 +3095,10 @@ dependencies = [
  "axum",
  "bytesize",
  "eyre",
- "malachite-actors",
- "malachite-common",
  "malachite-config",
  "malachite-consensus",
+ "malachite-core-types",
+ "malachite-engine",
  "malachite-metrics",
  "malachite-starknet-host",
  "ractor",
@@ -3124,20 +3110,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-sync"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "dashmap",
+ "derive-where",
+ "displaydoc",
+ "genawaiter",
+ "libp2p",
+ "malachite-core-types",
+ "malachite-metrics",
+ "malachite-peer",
+ "rand",
+ "serde",
+ "thiserror 2.0.6",
+ "tracing",
+]
+
+[[package]]
 name = "malachite-test"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "base64 0.22.1",
  "bytes",
  "ed25519-consensus",
+ "eyre",
  "hex",
- "malachite-actors",
- "malachite-blocksync",
+ "malachite-app",
  "malachite-codec",
- "malachite-common",
+ "malachite-config",
  "malachite-consensus",
+ "malachite-core-types",
+ "malachite-engine",
  "malachite-proto",
  "malachite-signing-ed25519",
+ "malachite-sync",
  "prost",
  "prost-build",
  "prost-types",
@@ -3149,15 +3159,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-test-cli"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "bytesize",
+ "clap",
+ "color-eyre",
+ "directories",
+ "itertools 0.13.0",
+ "malachite-app",
+ "malachite-config",
+ "malachite-core-types",
+ "malachite-metrics",
+ "rand",
+ "serde_json",
+ "thiserror 2.0.6",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "malachite-test-mbt"
 version = "0.1.0"
 dependencies = [
  "glob",
  "itf",
- "malachite-common",
- "malachite-round",
+ "malachite-core-state-machine",
+ "malachite-core-types",
+ "malachite-core-votekeeper",
  "malachite-test",
- "malachite-vote",
  "num-bigint",
  "num-traits",
  "pretty_assertions",
@@ -3182,16 +3216,6 @@ dependencies = [
  "seahash",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "malachite-vote"
-version = "0.1.0"
-dependencies = [
- "derive-where",
- "malachite-common",
- "malachite-test",
- "thiserror 2.0.6",
 ]
 
 [[package]]
@@ -3393,9 +3417,9 @@ dependencies = [
 
 [[package]]
 name = "netlink-sys"
-version = "0.8.6"
+version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "416060d346fbaf1f23f9512963e3e878f1a78e707cb699ba9215761754244307"
+checksum = "16c903aa70590cb93691bf97a767c8d1d6122d2cc9070433deb3bbf36ce8bd23"
 dependencies = [
  "bytes",
  "futures",
@@ -3845,13 +3869,12 @@ dependencies = [
 
 [[package]]
 name = "prost-build"
-version = "0.13.3"
+version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c1318b19085f08681016926435853bbf7858f9c082d0999b80550ff5d9abe15"
+checksum = "d0f3e5beed80eb580c68e2c600937ac2c4eedabdfd5ef1e5b7ea4f3fba84497b"
 dependencies = [
- "bytes",
  "heck",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "log",
  "multimap",
  "once_cell",
@@ -3871,7 +3894,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "157c5a9d7ea5c2ed2d9fb8f495b64759f7816c7eaea54ba3978f0d63000162e3"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.90",
@@ -3879,9 +3902,9 @@ dependencies = [
 
 [[package]]
 name = "prost-types"
-version = "0.13.3"
+version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4759aa0d3a6232fb8dbdb97b61de2c20047c68aca932c7ed76da9d788508d670"
+checksum = "cc2f1e56baa61e93533aebc21af4d2134b70f66275e0fcdf3cbe43d77ff7e8fc"
 dependencies = [
  "prost",
 ]
@@ -3955,16 +3978,16 @@ dependencies = [
 
 [[package]]
 name = "quinn-udp"
-version = "0.5.7"
+version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d5a626c6807713b15cac82a6acaccd6043c9a5408c24baae07611fec3f243da"
+checksum = "52cd4b1eff68bf27940dd39811292c49e007f4d0b4c357358dc9b0197be6b527"
 dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3978,9 +4001,9 @@ dependencies = [
 
 [[package]]
 name = "ractor"
-version = "0.13.4"
+version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c4ae37fcb0f6037609e8722df14afac91cebb44209c1debd8ac473def992586"
+checksum = "8cbebed288497a3e7567eba6e1496e89d6b9850f03fb27876e1451fd85b07cf4"
 dependencies = [
  "async-trait",
  "bon",
@@ -4056,18 +4079,18 @@ dependencies = [
 
 [[package]]
 name = "redb"
-version = "2.2.0"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84b1de48a7cf7ba193e81e078d17ee2b786236eed1d3f7c60f8a09545efc4925"
+checksum = "a7c2a94325f9c5826b17c42af11067230f503747f870117a28180e85696e21ba"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "redox_syscall"
-version = "0.5.7"
+version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b6dfecf2c74bce2466cabf93f6664d6998a69eb21e39f4207930065b27b771f"
+checksum = "03a862b389f93e68874fbf580b9de08dd02facb9a788ebadaf4a3fd33cf58834"
 dependencies = [
  "bitflags 2.6.0",
 ]
@@ -4227,22 +4250,22 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.41"
+version = "0.38.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7f649912bc1495e167a6edee79151c84b1bad49748cb4f1f1167f459f6224f6"
+checksum = "f93dc38ecbab2eb790ff964bb77fa94faf256fd3e73285fd7ba0903b76bedb85"
 dependencies = [
  "bitflags 2.6.0",
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
 name = "rustls"
-version = "0.23.19"
+version = "0.23.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "934b404430bb06b3fae2cba809eb45a1ab1aecd64491213d7c3301b88393f8d1"
+checksum = "5065c3f250cbd332cd894be57c40fa52387247659b14a2d6041d121547903b1b"
 dependencies = [
  "once_cell",
  "ring 0.17.8",
@@ -4351,18 +4374,18 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.215"
+version = "1.0.216"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6513c1ad0b11a9376da888e3e0baa0077f1aed55c17f50e7b2397136129fb88f"
+checksum = "0b9781016e935a97e8beecf0c933758c97a5520d32930e460142b4cd80c6338e"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.215"
+version = "1.0.216"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad1e866f866923f252f05c889987993144fb74e722403468a4ebd70c3cd756c0"
+checksum = "46f859dbbf73865c6627ed570e78961cd3ac92407a2d117204c49232485da55e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4749,12 +4772,6 @@ dependencies = [
 
 [[package]]
 name = "sync_wrapper"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
-
-[[package]]
-name = "sync_wrapper"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
@@ -4815,7 +4832,7 @@ dependencies = [
  "fastrand",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5048,14 +5065,14 @@ dependencies = [
 
 [[package]]
 name = "tower"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2873938d487c3cfb9aed7546dc9f2711d867c9f90c46b889989a2cb84eba6b4f"
+checksum = "d039ad9159c98b70ecfd540b2573b97f7f52c3e8d9f8ad57a24b916a536975f9"
 dependencies = [
  "futures-core",
  "futures-util",
  "pin-project-lite",
- "sync_wrapper 0.1.2",
+ "sync_wrapper",
  "tokio",
  "tower-layer",
  "tower-service",
@@ -5206,25 +5223,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "unicode-bidi"
-version = "0.3.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ab17db44d7388991a428b2ee655ce0c212e862eff1768a455c58f9aad6e7893"
-
-[[package]]
 name = "unicode-ident"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adb9e6ca4f869e1180728b7950e35922a7fc6397f7b641499e8f3ef06e50dc83"
-
-[[package]]
-name = "unicode-normalization"
-version = "0.1.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5033c97c4262335cded6d6fc3e5c18ab755e1a3dc96376350f3d8e9f009ad956"
-dependencies = [
- "tinyvec",
-]
 
 [[package]]
 name = "universal-hash"
@@ -5267,7 +5269,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32f8b686cadd1473f4bd0117a5d28d36b1ade384ea9b5069a1c40aefed7fda60"
 dependencies = [
  "form_urlencoded",
- "idna 1.0.3",
+ "idna",
  "percent-encoding",
 ]
 
@@ -5340,9 +5342,9 @@ checksum = "b8dad83b4f25e74f184f64c43b150b91efe7647395b42289f38e50566d82855b"
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.97"
+version = "0.2.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d15e63b4482863c109d70a7b8706c1e364eb6ea449b201a76c5b89cedcec2d5c"
+checksum = "a474f6281d1d70c17ae7aa6a613c87fce69a127e2624002df63dcb39d6cf6396"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -5351,13 +5353,12 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.97"
+version = "0.2.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d36ef12e3aaca16ddd3f67922bc63e48e953f126de60bd33ccc0101ef9998cd"
+checksum = "5f89bb38646b4f81674e8f5c3fb81b562be1fd936d84320f3264486418519c79"
 dependencies = [
  "bumpalo",
  "log",
- "once_cell",
  "proc-macro2",
  "quote",
  "syn 2.0.90",
@@ -5366,9 +5367,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.97"
+version = "0.2.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "705440e08b42d3e4b36de7d66c944be628d579796b8090bfa3471478a2260051"
+checksum = "2cc6181fd9a7492eef6fef1f33961e3695e4579b9872a6f7c83aee556666d4fe"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -5376,9 +5377,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.97"
+version = "0.2.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98c9ae5a76e46f4deecd0f0255cc223cfa18dc9b261213b8aa0c7b36f61b3f1d"
+checksum = "30d7a95b763d3c45903ed6c81f156801839e5ee968bb07e534c44df0fcd330c2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5389,15 +5390,15 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.97"
+version = "0.2.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ee99da9c5ba11bd675621338ef6fa52296b76b83305e9b6e5c77d4c286d6d49"
+checksum = "943aab3fdaaa029a6e0271b35ea10b72b943135afe9bffca82384098ad0e06a6"
 
 [[package]]
 name = "web-sys"
-version = "0.3.74"
+version = "0.3.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a98bc3c33f0fe7e59ad7cd041b89034fa82a7c2d4365ca538dda6cdaf513863c"
+checksum = "04dd7223427d52553d3702c004d3b2fe07c148165faa56313cb00211e31c12bc"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -5452,7 +5453,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

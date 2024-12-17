@@ -13,20 +13,29 @@ where
         height = %state.driver.height(), round = %state.driver.round(),
         "Consensus is halted in {:?} step, start vote synchronization", state.driver.step());
 
-    perform!(co, Effect::GetVoteSet(state.driver.height(), round));
+    perform!(
+        co,
+        Effect::GetVoteSet(state.driver.height(), round, Default::default())
+    );
     metrics.step_timeouts.inc();
 
     if state.driver.step_is_prevote() {
         perform!(
             co,
-            Effect::ScheduleTimeout(Timeout::prevote_time_limit(state.driver.round()))
+            Effect::ScheduleTimeout(
+                Timeout::prevote_time_limit(state.driver.round()),
+                Default::default()
+            )
         );
     }
 
     if state.driver.step_is_precommit() {
         perform!(
             co,
-            Effect::ScheduleTimeout(Timeout::precommit_time_limit(state.driver.round()))
+            Effect::ScheduleTimeout(
+                Timeout::precommit_time_limit(state.driver.round()),
+                Default::default()
+            )
         );
     }
 

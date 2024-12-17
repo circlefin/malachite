@@ -1,6 +1,6 @@
 use core::fmt;
 
-use malachite_common::{Context, NilOrVal, Proposal, Value};
+use malachite_core_types::{Context, NilOrVal, Proposal, Value};
 
 pub struct PrettyVal<'a, T>(pub NilOrVal<&'a T>);
 
@@ -23,7 +23,7 @@ where
     Ctx: Context,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use malachite_common::Vote;
+        use malachite_core_types::Vote;
 
         write!(
             f,

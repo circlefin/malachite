@@ -1,4 +1,6 @@
-use malachite_common::{self as common, NilOrVal, Round, SignedExtension, VoteType, VotingPower};
+use malachite_core_types::{
+    self as common, NilOrVal, Round, SignedExtension, VoteType, VotingPower,
+};
 
 use crate::{
     Address, BlockHash, Height, MockContext, PartType, Proposal, ProposalPart, PublicKey,

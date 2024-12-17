@@ -1,6 +1,6 @@
 use derive_where::derive_where;
 
-use malachite_common::{
+use malachite_core_types::{
     Context, Proposal, Round, Signature, SignedExtension, SignedProposal, SignedVote, Validity,
     Vote,
 };

@@ -3,17 +3,35 @@ use std::io::{self, Read, Seek, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::thread;
 use std::time::Duration;
 
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
-use testdir::testdir;
+use testdir::{NumberedDir, NumberedDirBuilder};
 
 use malachite_wal::log::Log;
 use malachite_wal::Log as FileLog;
 use malachite_wal::*;
+
+static TESTDIR: LazyLock<NumberedDir> =
+    LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());
+
+macro_rules! testdir {
+    () => {{
+        let module_path = ::std::module_path!();
+        let test_name = ::testdir::private::extract_test_name(&module_path);
+        let subdir_path = ::std::path::Path::new(&module_path.replace("::", "/")).join(&test_name);
+        TESTDIR.create_subdir(subdir_path).unwrap()
+    }};
+}
+
+macro_rules! testwal {
+    () => {{
+        testdir!().join("wal.log")
+    }};
+}
 
 /// Helper struct to simulate failures during writes
 #[derive(Debug)]
@@ -200,7 +218,7 @@ type FailingSyncLog = Log<FailingSync>;
 
 #[test]
 fn power_failure_simulation() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
 
     // Create an empty normal WAL
     FileLog::open(&path)?;
@@ -225,7 +243,7 @@ fn power_failure_simulation() -> io::Result<()> {
 
 #[test]
 fn process_termination() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
     let path_str = path.to_str().unwrap();
 
     // Create a separate process that will be terminated
@@ -274,7 +292,7 @@ fn wal_write_test() {
 
 #[test]
 fn concurrent_crash_recovery() -> io::Result<()> {
-    let path = testdir!().join("test.wal");
+    let path = testwal!();
     let path_clone = path.clone();
 
     let running = Arc::new(AtomicBool::new(true));

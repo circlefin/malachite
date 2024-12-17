@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use bytesize::ByteSize;
 use config as config_rs;
-use malachite_common::TimeoutKind;
+use malachite_core_types::TimeoutKind;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 
@@ -29,8 +29,8 @@ pub struct Config {
     /// Mempool configuration options
     pub mempool: MempoolConfig,
 
-    /// BlockSync configuration options
-    pub blocksync: BlockSyncConfig,
+    /// Sync configuration options
+    pub sync: SyncConfig,
 
     /// Metrics configuration options
     pub metrics: MetricsConfig,
@@ -100,6 +100,88 @@ pub struct DiscoveryConfig {
     /// Enable peer discovery
     #[serde(default)]
     pub enabled: bool,
+
+    /// Bootstrap protocol
+    #[serde(default)]
+    pub bootstrap_protocol: BootstrapProtocol,
+
+    /// Selector
+    #[serde(default)]
+    pub selector: Selector,
+
+    /// Number of outbound peers
+    #[serde(default)]
+    pub num_outbound_peers: usize,
+
+    /// Number of inbound peers
+    #[serde(default)]
+    pub num_inbound_peers: usize,
+
+    /// Ephemeral connection timeout
+    #[serde(default)]
+    pub ephemeral_connection_timeout: Duration,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BootstrapProtocol {
+    #[default]
+    Kademlia,
+    Full,
+}
+
+impl BootstrapProtocol {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Kademlia => "kademlia",
+            Self::Full => "full",
+        }
+    }
+}
+
+impl FromStr for BootstrapProtocol {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "kademlia" => Ok(Self::Kademlia),
+            "full" => Ok(Self::Full),
+            e => Err(format!(
+                "unknown bootstrap protocol: {e}, available: kademlia, full"
+            )),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Selector {
+    #[default]
+    Kademlia,
+    Random,
+}
+
+impl Selector {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Kademlia => "kademlia",
+            Self::Random => "random",
+        }
+    }
+}
+
+impl FromStr for Selector {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "kademlia" => Ok(Self::Kademlia),
+            "random" => Ok(Self::Random),
+            e => Err(format!(
+                "unknown selector: {e}, available: kademlia, random"
+            )),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -274,8 +356,8 @@ pub struct MempoolConfig {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct BlockSyncConfig {
-    /// Enable BlockSync
+pub struct SyncConfig {
+    /// Enable Sync
     pub enabled: bool,
 
     /// Interval at which to update other peers of our status
@@ -287,7 +369,7 @@ pub struct BlockSyncConfig {
     pub request_timeout: Duration,
 }
 
-impl Default for BlockSyncConfig {
+impl Default for SyncConfig {
     fn default() -> Self {
         Self {
             enabled: true,
@@ -559,9 +641,14 @@ mod tests {
         assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
         assert_eq!(config.test, TestConfig::default());
 
-        let config = load_config(Path::new("../../config.toml"), None).unwrap();
+        let tmp_file = std::env::temp_dir().join("malachite-config.toml");
+        std::fs::write(&tmp_file, file).unwrap();
+
+        let config = load_config(&tmp_file, None).unwrap();
         assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
         assert_eq!(config.test, TestConfig::default());
+
+        std::fs::remove_file(tmp_file).unwrap();
     }
 
     #[test]

@@ -13,8 +13,8 @@ pub async fn reset_and_start_height<Ctx>(
 where
     Ctx: Context,
 {
-    perform!(co, Effect::CancelAllTimeouts);
-    perform!(co, Effect::ResetTimeouts);
+    perform!(co, Effect::CancelAllTimeouts(Default::default()));
+    perform!(co, Effect::ResetTimeouts(Default::default()));
 
     metrics.step_end(state.driver.step());
 

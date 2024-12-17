@@ -23,6 +23,7 @@ use timeout::on_timeout_elapsed;
 use vote::on_vote;
 use vote_set::{on_vote_set_request, on_vote_set_response};
 
+#[allow(private_interfaces)]
 pub async fn handle<Ctx>(
     co: Co<Ctx>,
     state: &mut State<Ctx>,

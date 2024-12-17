@@ -1,11 +1,11 @@
 use bytes::Bytes;
-use malachite_common::{NilOrVal, Round, SignedExtension, VoteType};
+use malachite_core_types::{NilOrVal, Round, SignedExtension, VoteType};
 use malachite_proto::{Error as ProtoError, Protobuf};
 
 use crate::proto;
 use crate::{Address, Height, TestContext, ValueId};
 
-pub use malachite_common::Extension;
+pub use malachite_core_types::Extension;
 
 /// A vote for a value in a round
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -56,7 +56,7 @@ impl Vote {
     }
 }
 
-impl malachite_common::Vote<TestContext> for Vote {
+impl malachite_core_types::Vote<TestContext> for Vote {
     fn height(&self) -> Height {
         self.height
     }
@@ -100,11 +100,7 @@ impl Protobuf for Vote {
     fn from_proto(proto: Self::Proto) -> Result<Self, ProtoError> {
         Ok(Self {
             typ: decode_votetype(proto.vote_type()),
-            height: Height::from_proto(
-                proto
-                    .height
-                    .ok_or_else(|| ProtoError::missing_field::<Self::Proto>("height"))?,
-            )?,
+            height: Height::from_proto(proto.height)?,
             round: Round::new(proto.round),
             value: match proto.value {
                 Some(value) => NilOrVal::Val(ValueId::from_proto(value)?),
@@ -123,7 +119,7 @@ impl Protobuf for Vote {
     fn to_proto(&self) -> Result<Self::Proto, ProtoError> {
         Ok(Self::Proto {
             vote_type: encode_votetype(self.typ).into(),
-            height: Some(self.height.to_proto()?),
+            height: self.height.to_proto()?,
             round: self.round.as_u32().expect("round should not be nil"),
             value: match &self.value {
                 NilOrVal::Nil => None,

@@ -1,15 +1,12 @@
-use std::time::Duration;
+use libp2p::{swarm::dial_opts::DialOpts, Multiaddr, PeerId};
 
-use libp2p::{core::ConnectedPoint, swarm::dial_opts::DialOpts, Multiaddr, PeerId};
-
-use crate::util::FibonacciBackoff;
+use crate::util::Retry;
 
 #[derive(Debug, Clone)]
 pub struct ConnectionData {
     peer_id: Option<PeerId>,
     multiaddr: Multiaddr,
-    retries: usize,
-    backoff: FibonacciBackoff,
+    pub retry: Retry,
 }
 
 impl ConnectionData {
@@ -17,8 +14,7 @@ impl ConnectionData {
         Self {
             peer_id,
             multiaddr,
-            retries: 0,
-            backoff: FibonacciBackoff::new(),
+            retry: Retry::new(),
         }
     }
 
@@ -34,20 +30,6 @@ impl ConnectionData {
         self.multiaddr.clone()
     }
 
-    pub fn retries(&self) -> usize {
-        self.retries
-    }
-
-    pub fn inc_retries(&mut self) {
-        self.retries += 1;
-    }
-
-    pub fn next_delay(&mut self) -> Duration {
-        self.backoff
-            .next()
-            .expect("FibonacciBackoff is an infinite iterator")
-    }
-
     pub fn build_dial_opts(&self) -> DialOpts {
         if let Some(peer_id) = self.peer_id {
             DialOpts::peer_id(peer_id)
@@ -59,21 +41,6 @@ impl ConnectionData {
                 .address(self.multiaddr.clone())
                 .allocate_new_port()
                 .build()
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum ConnectionType {
-    Dial,   // The node initiated the connection
-    Listen, // The node received the connection
-}
-
-impl From<ConnectedPoint> for ConnectionType {
-    fn from(connected_point: ConnectedPoint) -> Self {
-        match connected_point {
-            ConnectedPoint::Dialer { .. } => ConnectionType::Dial,
-            ConnectedPoint::Listener { .. } => ConnectionType::Listen,
         }
     }
 }

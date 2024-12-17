@@ -1,10 +1,24 @@
 use rand::{thread_rng, Rng};
 use std::fs;
 use std::io;
+use std::sync::LazyLock;
 use std::time::Instant;
-use testdir::testdir;
+use testdir::NumberedDir;
+use testdir::NumberedDirBuilder;
 
 use malachite_wal::*;
+
+static TESTDIR: LazyLock<NumberedDir> =
+    LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());
+
+macro_rules! testwal {
+    () => {{
+        let module_path = ::std::module_path!();
+        let test_name = ::testdir::private::extract_test_name(&module_path);
+        let subdir_path = ::std::path::Path::new(&module_path.replace("::", "/")).join(&test_name);
+        TESTDIR.create_subdir(subdir_path).unwrap().join("wal.log")
+    }};
+}
 
 const KB: usize = 1024;
 const MB: usize = 1024 * KB;
@@ -17,8 +31,7 @@ struct StressTestConfig {
 
 #[test]
 fn large_number_of_entries() -> io::Result<()> {
-    let dir = testdir!();
-    let path = dir.join("large_entries.wal");
+    let path = testwal!();
 
     let config = StressTestConfig {
         num_entries: 1_000_000, // 1 million entries
@@ -84,8 +97,7 @@ fn large_number_of_entries() -> io::Result<()> {
 #[test]
 #[ignore]
 fn entry_sizes() -> io::Result<()> {
-    let dir = testdir!();
-    let path = dir.join("large_sizes.wal");
+    let path = testwal!();
 
     #[allow(clippy::identity_op)]
     let entry_sizes = vec![

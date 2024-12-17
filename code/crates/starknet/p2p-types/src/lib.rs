@@ -45,8 +45,4 @@ mod streaming;
 pub use streaming::{StreamContent, StreamMessage};
 
 mod signing;
-
-pub type SigningScheme = signing::Ecdsa;
-pub type Signature = signing::Signature;
-pub type PublicKey = signing::PublicKey;
-pub type PrivateKey = signing::PrivateKey;
+pub use signing::{Ecdsa, EcdsaProvider, PrivateKey, PublicKey, Signature};

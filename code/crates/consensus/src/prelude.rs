@@ -1,8 +1,8 @@
 pub use async_recursion::async_recursion;
 pub use tracing::{debug, info, warn};
 
-pub use malachite_common::*;
-pub use malachite_driver::Input as DriverInput;
+pub use malachite_core_driver::Input as DriverInput;
+pub use malachite_core_types::*;
 pub use malachite_metrics::Metrics;
 
 pub use crate::effect::{Effect, Resume};

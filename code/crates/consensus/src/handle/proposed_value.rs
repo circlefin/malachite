@@ -3,6 +3,8 @@ use crate::prelude::*;
 use crate::handle::driver::apply_driver_input;
 use crate::types::ProposedValue;
 
+use super::signature::sign_proposal;
+
 #[tracing::instrument(
     skip_all,
     fields(
@@ -42,8 +44,8 @@ where
 
     // There are two cases where we need to generate an internal Proposal message for consensus to process the full proposal:
     // a) In parts-only mode, where we do not get a Proposal message but only the proposal parts
-    // b) In any mode if the proposed value was provided by BlockSync, where we do net get a Proposal message but only the full value and the certificate
-    if state.params.value_payload.parts_only() || origin == ValueOrigin::BlockSync {
+    // b) In any mode if the proposed value was provided by Sync, where we do net get a Proposal message but only the full value and the certificate
+    if state.params.value_payload.parts_only() || origin == ValueOrigin::Sync {
         let proposal = Ctx::new_proposal(
             proposed_value.height,
             proposed_value.round,
@@ -52,9 +54,10 @@ where
             proposed_value.validator_address.clone(),
         );
 
-        // TODO - keep unsigned proposals in keeper. For now we keep all happy
-        // by signing all "implicit" proposals with this node's key
-        let signed_proposal = Ctx::sign_proposal(&state.ctx, proposal);
+        // TODO: Keep unsigned proposals in keeper.
+        // For now we keep all happy by signing all "implicit" proposals with this node's key
+        let signed_proposal = sign_proposal(co, proposal).await?;
+
         state.store_proposal(signed_proposal);
     }
 

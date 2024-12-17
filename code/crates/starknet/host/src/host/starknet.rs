@@ -7,9 +7,9 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{debug, Instrument};
 
-use malachite_common::{CommitCertificate, Extension, Round, SignedExtension, SignedVote};
 use malachite_config::VoteExtensionsConfig;
 use malachite_consensus::ValuePayload;
+use malachite_core_types::{CommitCertificate, Extension, Round, SignedExtension, SignedVote};
 
 use crate::host::Host;
 use crate::mempool::MempoolRef;
@@ -111,7 +111,7 @@ impl Host for StarknetHost {
             build_proposal_task(
                 height,
                 round,
-                self.address.clone(),
+                self.address,
                 self.private_key,
                 self.params,
                 deadline,

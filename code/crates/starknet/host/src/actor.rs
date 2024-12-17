@@ -10,16 +10,14 @@ use rand::SeedableRng;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
-use malachite_actors::consensus::{ConsensusMsg, ConsensusRef};
-use malachite_actors::gossip_consensus::{
-    GossipConsensusMsg as GossipMsg, GossipConsensusRef as GossipRef,
-};
-use malachite_actors::host::{LocallyProposedValue, ProposedValue};
-use malachite_actors::util::streaming::{StreamContent, StreamMessage};
-use malachite_blocksync::SyncedBlock;
-use malachite_common::{CommitCertificate, Round, Validity};
 use malachite_consensus::PeerId;
+use malachite_core_types::{CommitCertificate, Round, Validity, ValueOrigin};
+use malachite_engine::consensus::{ConsensusMsg, ConsensusRef};
+use malachite_engine::host::{LocallyProposedValue, ProposedValue};
+use malachite_engine::network::{NetworkMsg, NetworkRef};
+use malachite_engine::util::streaming::{StreamContent, StreamMessage};
 use malachite_metrics::Metrics;
+use malachite_sync::DecidedValue;
 
 use crate::host::proposal::compute_proposal_signature;
 use crate::host::state::HostState;
@@ -30,20 +28,20 @@ use crate::types::*;
 
 pub struct Host {
     mempool: MempoolRef,
-    gossip: GossipRef<MockContext>,
+    network: NetworkRef<MockContext>,
     metrics: Metrics,
     span: tracing::Span,
 }
 
-pub type HostRef = malachite_actors::host::HostRef<MockContext>;
-pub type HostMsg = malachite_actors::host::HostMsg<MockContext>;
+pub type HostRef = malachite_engine::host::HostRef<MockContext>;
+pub type HostMsg = malachite_engine::host::HostMsg<MockContext>;
 
 impl Host {
     pub async fn spawn(
         home_dir: PathBuf,
         host: StarknetHost,
         mempool: MempoolRef,
-        gossip: GossipRef<MockContext>,
+        network: NetworkRef<MockContext>,
         metrics: Metrics,
         span: tracing::Span,
     ) -> Result<HostRef, SpawnErr> {
@@ -53,7 +51,7 @@ impl Host {
 
         let (actor_ref, _) = Actor::spawn(
             None,
-            Self::new(mempool, gossip, metrics, span),
+            Self::new(mempool, network, metrics, span),
             HostState::new(host, db_path, &mut StdRng::from_entropy()),
         )
         .await?;
@@ -63,13 +61,13 @@ impl Host {
 
     pub fn new(
         mempool: MempoolRef,
-        gossip: GossipRef<MockContext>,
+        network: NetworkRef<MockContext>,
         metrics: Metrics,
         span: tracing::Span,
     ) -> Self {
         Self {
             mempool,
-            gossip,
+            network,
             metrics,
             span,
         }
@@ -107,7 +105,12 @@ impl Actor for Host {
 }
 
 impl Host {
-    #[tracing::instrument(name = "host", parent = &self.span, skip_all)]
+    #[tracing::instrument(
+        name = "host",
+        parent = &self.span,
+        skip_all,
+        fields(height = %state.height, round = %state.round),
+    )]
     async fn handle_msg(
         &self,
         _myself: HostRef,
@@ -121,19 +124,16 @@ impl Host {
                 height,
                 round,
                 proposer,
-            } => on_started_round(state, height, round, proposer),
+            } => on_started_round(state, height, round, proposer).await,
 
-            HostMsg::GetEarliestBlockHeight { reply_to } => {
-                on_get_earliest_block_height(state, reply_to)
-            }
+            HostMsg::GetHistoryMinHeight { reply_to } => on_get_history_min_height(state, reply_to),
 
             HostMsg::GetValue {
                 height,
                 round,
                 timeout,
-                address: _,
                 reply_to,
-            } => on_get_value(state, &self.gossip, height, round, timeout, reply_to).await,
+            } => on_get_value(state, &self.network, height, round, timeout, reply_to).await,
 
             HostMsg::RestreamValue {
                 height,
@@ -144,7 +144,7 @@ impl Host {
             } => {
                 on_restream_value(
                     state,
-                    &self.gossip,
+                    &self.network,
                     height,
                     round,
                     value_id,
@@ -169,17 +169,17 @@ impl Host {
                 consensus,
             } => on_decided(state, &consensus, &self.mempool, certificate, &self.metrics).await,
 
-            HostMsg::GetDecidedBlock { height, reply_to } => {
+            HostMsg::GetDecidedValue { height, reply_to } => {
                 on_get_decided_block(height, state, reply_to).await
             }
 
-            HostMsg::ProcessSyncedBlock {
+            HostMsg::ProcessSyncedValue {
                 height,
                 round,
                 validator_address,
-                block_bytes,
+                value_bytes,
                 reply_to,
-            } => on_process_synced_block(block_bytes, height, round, validator_address, reply_to),
+            } => on_process_synced_value(value_bytes, height, round, validator_address, reply_to),
         }
     }
 }
@@ -191,6 +191,8 @@ fn on_consensus_ready(
     let latest_block_height = state.block_store.last_height().unwrap_or_default();
     let start_height = latest_block_height.increment();
 
+    state.consensus = Some(consensus.clone());
+
     consensus.cast(ConsensusMsg::StartHeight(
         start_height,
         state.host.validator_set.clone(),
@@ -199,7 +201,31 @@ fn on_consensus_ready(
     Ok(())
 }
 
-fn on_started_round(
+async fn replay_undecided_values(
+    state: &mut HostState,
+    height: Height,
+    round: Round,
+) -> Result<(), ActorProcessingErr> {
+    let undecided_values = state
+        .block_store
+        .get_undecided_values(height, round)
+        .await?;
+
+    let consensus = state.consensus.as_ref().unwrap();
+
+    for value in undecided_values {
+        info!(%height, %round, hash = %value.value, "Replaying already known proposed value");
+
+        consensus.cast(ConsensusMsg::ReceivedProposedValue(
+            value,
+            ValueOrigin::Consensus,
+        ))?;
+    }
+
+    Ok(())
+}
+
+async fn on_started_round(
     state: &mut HostState,
     height: Height,
     round: Round,
@@ -209,15 +235,19 @@ fn on_started_round(
     state.round = round;
     state.proposer = Some(proposer);
 
+    // If we have already built or seen one or more values for this height and round,
+    // feed them back to consensus. This may happen when we are restarting after a crash.
+    replay_undecided_values(state, height, round).await?;
+
     Ok(())
 }
 
-fn on_get_earliest_block_height(
+fn on_get_history_min_height(
     state: &mut HostState,
     reply_to: RpcReplyPort<Height>,
 ) -> Result<(), ActorProcessingErr> {
-    let earliest_block_height = state.block_store.first_height().unwrap_or_default();
-    reply_to.send(earliest_block_height)?;
+    let history_min_height = state.block_store.first_height().unwrap_or_default();
+    reply_to.send(history_min_height)?;
 
     Ok(())
 }
@@ -237,19 +267,21 @@ async fn on_get_validator_set(
 
 async fn on_get_value(
     state: &mut HostState,
-    gossip: &GossipRef<MockContext>,
+    network: &NetworkRef<MockContext>,
     height: Height,
     round: Round,
     timeout: Duration,
     reply_to: RpcReplyPort<LocallyProposedValue<MockContext>>,
 ) -> Result<(), ActorProcessingErr> {
-    // If we have already built a block for this height and round, return it
-    // This may happen when we are restarting after a crash and replaying the WAL.
-    if let Some(block) = state.block_store.get_undecided_block(height, round).await? {
-        info!(%height, %round, hash = %block.block_hash, "Returning previously built block");
+    if let Some(value) = find_previously_built_value(state, height, round).await? {
+        info!(%height, %round, hash = %value.value, "Returning previously built value");
 
-        let value = LocallyProposedValue::new(height, round, block.block_hash, None);
-        reply_to.send(value)?;
+        reply_to.send(LocallyProposedValue::new(
+            value.height,
+            value.round,
+            value.value,
+            value.extension,
+        ))?;
 
         return Ok(());
     }
@@ -271,7 +303,7 @@ async fn on_get_value(
             debug!(%stream_id, %sequence, "Broadcasting proposal part");
 
             let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(part.clone()));
-            gossip.cast(GossipMsg::PublishProposalPart(msg))?;
+            network.cast(NetworkMsg::PublishProposalPart(msg))?;
         }
 
         sequence += 1;
@@ -279,7 +311,7 @@ async fn on_get_value(
 
     if state.host.params.value_payload.include_parts() {
         let msg = StreamMessage::new(stream_id, sequence, StreamContent::Fin(true));
-        gossip.cast(GossipMsg::PublishProposalPart(msg))?;
+        network.cast(NetworkMsg::PublishProposalPart(msg))?;
     }
 
     let block_hash = rx_hash.await?;
@@ -292,17 +324,14 @@ async fn on_get_value(
 
     let parts = state.host.part_store.all_parts(height, round);
 
-    let Some((value, block)) = state.build_block_from_parts(&parts, height, round).await else {
+    let Some(value) = state.build_value_from_parts(&parts, height, round).await else {
         error!(%height, %round, "Failed to build block from parts");
         return Ok(());
     };
 
-    if let Err(e) = state
-        .block_store
-        .store_undecided_block(value.height, value.round, block)
-        .await
-    {
-        error!(%e, %height, %round, "Failed to store the proposed block");
+    debug!(%height, %round, %block_hash, "Storing proposed value from assembled block");
+    if let Err(e) = state.block_store.store_undecided_value(value.clone()).await {
+        error!(%e, %height, %round, "Failed to store the proposed value");
     }
 
     reply_to.send(LocallyProposedValue::new(
@@ -315,9 +344,28 @@ async fn on_get_value(
     Ok(())
 }
 
+/// If we have already built a block for this height and round, return it to consensus
+/// This may happen when we are restarting after a crash and replaying the WAL.
+async fn find_previously_built_value(
+    state: &mut HostState,
+    height: Height,
+    round: Round,
+) -> Result<Option<ProposedValue<MockContext>>, ActorProcessingErr> {
+    let values = state
+        .block_store
+        .get_undecided_values(height, round)
+        .await?;
+
+    let proposed_value = values
+        .into_iter()
+        .find(|v| v.validator_address == state.host.address);
+
+    Ok(proposed_value)
+}
+
 async fn on_restream_value(
     state: &mut HostState,
-    gossip: &GossipRef<MockContext>,
+    network: &NetworkRef<MockContext>,
     height: Height,
     round: Round,
     value_id: Hash,
@@ -334,7 +382,7 @@ async fn on_restream_value(
         height,
         proposal_round: round,
         valid_round,
-        proposer: address.clone(),
+        proposer: address,
     };
 
     let signature = compute_proposal_signature(&init, &value_id, &state.host.private_key);
@@ -360,7 +408,7 @@ async fn on_restream_value(
 
             let msg = StreamMessage::new(stream_id, sequence, StreamContent::Data(new_part));
 
-            gossip.cast(GossipMsg::PublishProposalPart(msg))?;
+            network.cast(NetworkMsg::PublishProposalPart(msg))?;
 
             sequence += 1;
         }
@@ -369,14 +417,14 @@ async fn on_restream_value(
     Ok(())
 }
 
-fn on_process_synced_block(
-    block_bytes: Bytes,
+fn on_process_synced_value(
+    value_bytes: Bytes,
     height: Height,
     round: Round,
     validator_address: Address,
     reply_to: RpcReplyPort<ProposedValue<MockContext>>,
 ) -> Result<(), ActorProcessingErr> {
-    let maybe_block = Block::from_bytes(block_bytes.as_ref());
+    let maybe_block = Block::from_bytes(value_bytes.as_ref());
     if let Ok(block) = maybe_block {
         let proposed_value = ProposedValue {
             height,
@@ -397,7 +445,7 @@ fn on_process_synced_block(
 async fn on_get_decided_block(
     height: Height,
     state: &mut HostState,
-    reply_to: RpcReplyPort<Option<SyncedBlock<MockContext>>>,
+    reply_to: RpcReplyPort<Option<DecidedValue<MockContext>>>,
 ) -> Result<(), ActorProcessingErr> {
     debug!(%height, "Received request for block");
 
@@ -412,8 +460,8 @@ async fn on_get_decided_block(
         }
 
         Ok(Some(block)) => {
-            let block = SyncedBlock {
-                block_bytes: block.block.to_bytes().unwrap(),
+            let block = DecidedValue {
+                value_bytes: block.block.to_bytes().unwrap(),
                 certificate: block.certificate,
             };
 
@@ -468,6 +516,18 @@ async fn on_received_proposal_part(
             .build_value_from_part(parts.height, parts.round, part)
             .await
         {
+            debug!(
+                height = %value.height, round = %value.round, block_hash = %value.value,
+                "Storing proposed value assembled from proposal parts"
+            );
+
+            if let Err(e) = state.block_store.store_undecided_value(value.clone()).await {
+                error!(
+                    %e, height = %value.height, round = %value.round, block_hash = %value.value,
+                    "Failed to store the proposed value"
+                );
+            }
+
             reply_to.send(value)?;
             break;
         }

@@ -1,10 +1,12 @@
 use crate::handle::on_proposal;
+use crate::handle::signature::sign_proposal;
+use crate::handle::signature::sign_vote;
 use crate::handle::vote::on_vote;
 use crate::prelude::*;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
-use malachite_driver::Input as DriverInput;
-use malachite_driver::Output as DriverOutput;
+use malachite_core_driver::Input as DriverInput;
+use malachite_core_driver::Output as DriverOutput;
 
 #[async_recursion]
 pub async fn apply_driver_input<Ctx>(
@@ -21,12 +23,18 @@ where
             metrics.round.set(round.as_i64());
 
             info!(%height, %round, %proposer, "Starting new round");
-            perform!(co, Effect::CancelAllTimeouts);
-            perform!(co, Effect::StartRound(*height, *round, proposer.clone()));
+            perform!(co, Effect::CancelAllTimeouts(Default::default()));
+            perform!(
+                co,
+                Effect::StartRound(*height, *round, proposer.clone(), Default::default())
+            );
         }
 
         DriverInput::ProposeValue(round, _) => {
-            perform!(co, Effect::CancelTimeout(Timeout::propose(*round)));
+            perform!(
+                co,
+                Effect::CancelTimeout(Timeout::propose(*round), Default::default())
+            );
         }
 
         DriverInput::Proposal(proposal, _validity) => {
@@ -42,7 +50,7 @@ where
 
             perform!(
                 co,
-                Effect::CancelTimeout(Timeout::propose(proposal.round()))
+                Effect::CancelTimeout(Timeout::propose(proposal.round()), Default::default())
             );
         }
 
@@ -103,23 +111,35 @@ where
         if state.driver.step_is_prevote() {
             perform!(
                 co,
-                Effect::ScheduleTimeout(Timeout::prevote_time_limit(state.driver.round()))
+                Effect::ScheduleTimeout(
+                    Timeout::prevote_time_limit(state.driver.round()),
+                    Default::default()
+                )
             );
         }
         if state.driver.step_is_precommit() {
             perform!(
                 co,
-                Effect::CancelTimeout(Timeout::prevote_time_limit(state.driver.round()))
+                Effect::CancelTimeout(
+                    Timeout::prevote_time_limit(state.driver.round()),
+                    Default::default()
+                )
             );
             perform!(
                 co,
-                Effect::ScheduleTimeout(Timeout::precommit_time_limit(state.driver.round()))
+                Effect::ScheduleTimeout(
+                    Timeout::precommit_time_limit(state.driver.round()),
+                    Default::default()
+                )
             );
         }
         if state.driver.step_is_commit() {
             perform!(
                 co,
-                Effect::CancelTimeout(Timeout::precommit_time_limit(state.driver.round()))
+                Effect::CancelTimeout(
+                    Timeout::precommit_time_limit(state.driver.round()),
+                    Default::default()
+                )
             );
         }
     }
@@ -174,17 +194,18 @@ where
                 "Proposing value"
             );
 
-            let signed_proposal = state.ctx.sign_proposal(proposal.clone());
+            let signed_proposal = sign_proposal(co, proposal).await?;
 
             if signed_proposal.pol_round().is_defined() {
                 perform!(
                     co,
                     Effect::RestreamValue(
-                        proposal.height(),
-                        proposal.round(),
-                        proposal.pol_round(),
-                        proposal.validator_address().clone(),
-                        proposal.value().id(),
+                        signed_proposal.height(),
+                        signed_proposal.round(),
+                        signed_proposal.pol_round(),
+                        signed_proposal.validator_address().clone(),
+                        signed_proposal.value().id(),
+                        Default::default()
                     )
                 );
             }
@@ -196,7 +217,10 @@ where
             if state.params.value_payload.include_proposal() {
                 perform!(
                     co,
-                    Effect::Broadcast(SignedConsensusMsg::Proposal(signed_proposal))
+                    Effect::Broadcast(
+                        SignedConsensusMsg::Proposal(signed_proposal),
+                        Default::default()
+                    )
                 );
             };
 
@@ -212,10 +236,15 @@ where
             );
 
             let extended_vote = extend_vote(vote, state);
-            let signed_vote = state.ctx.sign_vote(extended_vote);
+            let signed_vote = sign_vote(co, extended_vote).await?;
+
             on_vote(co, state, metrics, signed_vote.clone()).await?;
 
-            perform!(co, Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote)));
+            perform!(
+                co,
+                Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote), Default::default())
+            );
+
             Ok(())
         }
 
@@ -232,7 +261,7 @@ where
 
             perform!(
                 co,
-                Effect::ScheduleTimeout(Timeout::commit(consensus_round))
+                Effect::ScheduleTimeout(Timeout::commit(consensus_round), Default::default())
             );
 
             Ok(())
@@ -241,7 +270,7 @@ where
         DriverOutput::ScheduleTimeout(timeout) => {
             info!(round = %timeout.round, step = ?timeout.kind, "Scheduling timeout");
 
-            perform!(co, Effect::ScheduleTimeout(timeout));
+            perform!(co, Effect::ScheduleTimeout(timeout, Default::default()));
 
             Ok(())
         }
@@ -249,7 +278,10 @@ where
         DriverOutput::GetValue(height, round, timeout) => {
             info!(%height, %round, "Requesting value");
 
-            perform!(co, Effect::GetValue(height, round, timeout));
+            perform!(
+                co,
+                Effect::GetValue(height, round, timeout, Default::default())
+            );
 
             Ok(())
         }

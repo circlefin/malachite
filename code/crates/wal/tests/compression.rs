@@ -1,9 +1,22 @@
 #![cfg(all(feature = "compression", not(feature = "force-compression")))]
 
 use std::io;
+use std::sync::LazyLock;
 
 use malachite_wal::Log;
-use testdir::testdir;
+use testdir::{NumberedDir, NumberedDirBuilder};
+
+static TESTDIR: LazyLock<NumberedDir> =
+    LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());
+
+macro_rules! testwal {
+    () => {{
+        let module_path = ::std::module_path!();
+        let test_name = ::testdir::private::extract_test_name(&module_path);
+        let subdir_path = ::std::path::Path::new(&module_path.replace("::", "/")).join(&test_name);
+        TESTDIR.create_subdir(subdir_path).unwrap().join("wal.log")
+    }};
+}
 
 const ENTRIES: &[&[u8]] = &[
     &[0; 1000],
@@ -20,7 +33,7 @@ const ENTRIES: &[&[u8]] = &[
 
 #[test]
 fn large_entries() -> io::Result<()> {
-    let temp = testdir!();
+    let temp = testwal!();
 
     let mut no_compression = Log::open(temp.join("no-compression.wal"))?;
     for entry in ENTRIES {

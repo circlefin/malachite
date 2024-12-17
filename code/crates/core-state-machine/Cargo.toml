@@ -1,0 +1,21 @@
+[package]
+name        = "malachite-core-state-machine"
+description = "Core state-machine for the Malachite consensus engine"
+
+version.workspace      = true
+edition.workspace      = true
+repository.workspace   = true
+license.workspace      = true
+publish.workspace      = true
+rust-version.workspace = true
+
+[dependencies]
+malachite-core-types = { workspace = true }
+
+derive-where = { workspace = true }
+displaydoc   = { workspace = true }
+time         = { workspace = true, optional = true }
+
+[features]
+std = []
+debug = ["std", "dep:time"]

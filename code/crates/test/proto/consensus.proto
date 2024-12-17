@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package test;
+
+message Address {
+    bytes value = 1;
+}
+
+message Value {
+    optional bytes value = 1;
+}
+
+message ValueId {
+    optional bytes value = 1;
+}
+
+enum VoteType {
+   PREVOTE = 0;
+   PRECOMMIT = 1;
+}
+
+message Vote {
+    VoteType vote_type = 1;
+    uint64 height = 2;
+    uint32 round = 3;
+    ValueId value = 4;
+    Address validator_address = 5;
+}
+
+message SignedMessage {
+    oneof message {
+        Proposal proposal = 1;
+        Vote vote = 2;
+    }
+    Signature signature = 3;
+}
+
+message Proposal {
+    uint64 height = 1;
+    uint32 round = 2;
+    Value value = 3;
+    optional uint32 pol_round = 4;
+    Address validator_address = 5;
+}
+
+message Signature {
+    bytes bytes = 1;
+}
+
+message ProposalPart {
+    uint64 height = 1;
+    uint32 round = 2;
+    uint64 sequence = 3;
+    Address validator_address = 4;
+    Content content = 5;
+    bool fin = 6;
+}
+
+message BlockMetadata {
+    bytes proof = 1;
+    Value value = 2;
+}
+
+message Content {
+    BlockMetadata metadata = 91;
+}
+
+message Extension {
+    bytes data = 1;
+    Signature signature = 2;
+}
+
+message StreamMessage {
+    uint64 stream_id = 1;
+    uint64 sequence = 2;
+    oneof content {
+        // Serialized content.
+        bytes data = 3;
+        // Fin must be set to true.
+        bool fin = 4;
+    }
+}
