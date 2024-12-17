@@ -91,7 +91,7 @@ persistent_peers = []
 # - "tcp": TCP + Noise
 # - "quic": QUIC
 # Override with MALACHITE__CONSENSUS__P2P__TRANSPORT env variable
-transport = "quic"
+transport = "tcp"
 
 # Enable the discovery protocol to find more peers
 # Override with MALACHITE__CONSENSUS__P2P__DISCOVERY__ENABLED env variable
@@ -160,7 +160,7 @@ persistent_peers = []
 # Valid values:
 # - "tcp": TCP + Noise
 # - "quic": QUIC
-transport = "quic"
+transport = "tcp"
 
 # These have no effects on the mempool yet
 pubsub_max_size = "4 MiB"
