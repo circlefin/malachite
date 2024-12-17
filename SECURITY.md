@@ -3,7 +3,7 @@
 Please **DO NOT** file a public issue in this repository to report a security
 vulnerability.
 
-If you believe you have found a security vulnerability in the Malachite,
+If you believe you have found a security vulnerability in Malachite,
 you can report it via our primary vulnerability disclosure channel, the
 email address `security@informal.systems`. Please enclose with your 
 report the issue details, reproduction, impact, and other
