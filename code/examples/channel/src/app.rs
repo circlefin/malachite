@@ -122,7 +122,7 @@ pub async fn run(
             AppMsg::ProcessSyncedValue {
                 height,
                 round,
-                validator_address,
+                proposer: validator_address,
                 value_bytes,
                 reply,
             } => {
@@ -144,7 +144,7 @@ pub async fn run(
                 }
             }
 
-            AppMsg::RestreamValue { .. } => {
+            AppMsg::RestreamProposal { .. } => {
                 unimplemented!("RestreamValue");
             }
         }

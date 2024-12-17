@@ -1,4 +1,4 @@
-//! Implementation of a host actor acting as a bridge between consensus and the application.
+//! Implementation of a host actor for bridiging consensus and the application via a set of channels.
 
 use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, SpawnErr};
 use tokio::sync::mpsc;
@@ -8,8 +8,12 @@ use malachite_engine::host::HostMsg;
 
 use crate::app::types::core::Context;
 use crate::app::types::metrics::Metrics;
-use crate::channel::AppMsg;
+use crate::msgs::AppMsg;
 
+/// Actor for bridging consensus and the application via a set of channels.
+///
+/// This actor is responsible for forwarding messages from the
+/// consensus actor to the application over a channel, and vice-versa.
 pub struct Connector<Ctx>
 where
     Ctx: Context,
@@ -102,7 +106,7 @@ where
                 value_id,
             } => {
                 self.sender
-                    .send(AppMsg::RestreamValue {
+                    .send(AppMsg::RestreamProposal {
                         height,
                         round,
                         valid_round,
@@ -182,7 +186,7 @@ where
                     .send(AppMsg::ProcessSyncedValue {
                         height,
                         round,
-                        validator_address,
+                        proposer: validator_address,
                         value_bytes,
                         reply,
                     })

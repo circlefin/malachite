@@ -1,3 +1,5 @@
+//! Channel-based interface for Malachite applications.
+
 // TODO: Enforce proper documentation
 // #![warn(
 //     missing_docs,
@@ -10,11 +12,11 @@
 
 pub use malachite_app as app;
 
-pub mod connector;
-pub mod spawn;
+mod connector;
+mod spawn;
 
-mod channel;
-pub use channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg, Reply};
+mod msgs;
+pub use msgs::{AppMsg, Channels, ConsensusMsg, NetworkMsg, Reply};
 
 mod run;
 pub use run::run;
