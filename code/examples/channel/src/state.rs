@@ -102,7 +102,7 @@ impl State {
     }
 
     /// Retrieves a decided block at the given height
-    pub fn get_block(&self, height: &Height) -> Option<&DecidedValue<TestContext>> {
+    pub fn get_decided_value(&self, height: &Height) -> Option<&DecidedValue<TestContext>> {
         self.blocks.get(height)
     }
 

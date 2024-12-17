@@ -1,5 +1,5 @@
 use eyre::eyre;
-use tracing::{debug, error};
+use tracing::{error, info};
 
 use malachite_app_channel::app::host::LocallyProposedValue;
 use malachite_app_channel::app::types::core::{Round, Validity};
@@ -16,10 +16,10 @@ pub async fn run(
 ) -> eyre::Result<()> {
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
-            AppMsg::ConsensusReady { reply_to } => {
-                debug!("Consensus is ready");
+            AppMsg::ConsensusReady { reply } => {
+                info!("Consensus is ready");
 
-                if reply_to
+                if reply
                     .send(ConsensusMsg::StartHeight(
                         state.current_height,
                         genesis.validator_set.clone(),
@@ -35,6 +35,8 @@ pub async fn run(
                 round,
                 proposer,
             } => {
+                info!(%height, %round, %proposer, "Started round");
+
                 state.current_height = height;
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
@@ -42,11 +44,12 @@ pub async fn run(
 
             AppMsg::GetValue {
                 height,
-                round: _,
-                timeout_duration: _,
-                address: _,
-                reply_to,
+                round,
+                timeout: _,
+                reply,
             } => {
+                info!(%height, %round, "Get value");
+
                 let proposal = state.propose_value(&height);
 
                 let value = LocallyProposedValue::new(
@@ -57,7 +60,7 @@ pub async fn run(
                 );
 
                 // Send it to consensus
-                if reply_to.send(value.clone()).is_err() {
+                if reply.send(value.clone()).is_err() {
                     error!("Failed to send GetValue reply");
                 }
 
@@ -70,8 +73,8 @@ pub async fn run(
                     .await?;
             }
 
-            AppMsg::GetEarliestBlockHeight { reply_to } => {
-                if reply_to.send(state.get_earliest_height()).is_err() {
+            AppMsg::GetEarliestBlockHeight { reply } => {
+                if reply.send(state.get_earliest_height()).is_err() {
                     error!("Failed to send GetEarliestBlockHeight reply");
                 }
             }
@@ -79,30 +82,25 @@ pub async fn run(
             AppMsg::ReceivedProposalPart {
                 from: _,
                 part,
-                reply_to,
+                reply,
             } => {
                 if let Some(proposed_value) = state.add_proposal(part) {
-                    if reply_to.send(proposed_value).is_err() {
+                    if reply.send(proposed_value).is_err() {
                         error!("Failed to send ReceivedProposalPart reply");
                     }
                 }
             }
 
-            AppMsg::GetValidatorSet {
-                height: _,
-                reply_to,
-            } => {
-                if reply_to.send(genesis.validator_set.clone()).is_err() {
+            AppMsg::GetValidatorSet { height: _, reply } => {
+                if reply.send(genesis.validator_set.clone()).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
 
-            AppMsg::Decided {
-                certificate,
-                reply_to,
-            } => {
+            AppMsg::Decided { certificate, reply } => {
                 state.commit_block(certificate);
-                if reply_to
+
+                if reply
                     .send(ConsensusMsg::StartHeight(
                         state.current_height,
                         genesis.validator_set.clone(),
@@ -113,9 +111,10 @@ pub async fn run(
                 }
             }
 
-            AppMsg::GetDecidedBlock { height, reply_to } => {
-                let block = state.get_block(&height).cloned();
-                if reply_to.send(block).is_err() {
+            AppMsg::GetDecidedValue { height, reply } => {
+                let decided_value = state.get_decided_value(&height).cloned();
+
+                if reply.send(decided_value).is_err() {
                     error!("Failed to send GetDecidedBlock reply");
                 }
             }
@@ -125,11 +124,11 @@ pub async fn run(
                 round,
                 validator_address,
                 value_bytes,
-                reply_to,
+                reply,
             } => {
                 let value = decode_value(value_bytes);
 
-                if reply_to
+                if reply
                     .send(ProposedValue {
                         height,
                         round,

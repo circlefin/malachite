@@ -13,6 +13,8 @@ use crate::app::types::streaming::StreamMessage;
 use crate::app::types::sync::DecidedValue;
 use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
 
+pub type Reply<T> = oneshot::Sender<T>;
+
 /// Channels created for application consumption
 pub struct Channels<Ctx: Context> {
     pub consensus: mpsc::Receiver<AppMsg<Ctx>>,
@@ -23,9 +25,7 @@ pub struct Channels<Ctx: Context> {
 #[derive_where(Debug)]
 pub enum AppMsg<Ctx: Context> {
     /// Consensus is ready
-    ConsensusReady {
-        reply_to: oneshot::Sender<ConsensusMsg<Ctx>>,
-    },
+    ConsensusReady { reply: Reply<ConsensusMsg<Ctx>> },
 
     /// Consensus has started a new round.
     StartedRound {
@@ -38,9 +38,8 @@ pub enum AppMsg<Ctx: Context> {
     GetValue {
         height: Ctx::Height,
         round: Round,
-        timeout_duration: Duration,
-        address: Ctx::Address,
-        reply_to: oneshot::Sender<LocallyProposedValue<Ctx>>,
+        timeout: Duration,
+        reply: Reply<LocallyProposedValue<Ctx>>,
     },
 
     /// Request to restream an existing block/value from Driver
@@ -53,33 +52,31 @@ pub enum AppMsg<Ctx: Context> {
     },
 
     /// Request the earliest block height in the block store
-    GetEarliestBlockHeight {
-        reply_to: oneshot::Sender<Ctx::Height>,
-    },
+    GetEarliestBlockHeight { reply: Reply<Ctx::Height> },
 
     /// ProposalPart received <-- consensus <-- gossip
     ReceivedProposalPart {
         from: PeerId,
         part: StreamMessage<Ctx::ProposalPart>,
-        reply_to: oneshot::Sender<ProposedValue<Ctx>>,
+        reply: Reply<ProposedValue<Ctx>>,
     },
 
     /// Get the validator set at a given height
     GetValidatorSet {
         height: Ctx::Height,
-        reply_to: oneshot::Sender<Ctx::ValidatorSet>,
+        reply: Reply<Ctx::ValidatorSet>,
     },
 
     // Consensus has decided on a value
     Decided {
         certificate: CommitCertificate<Ctx>,
-        reply_to: oneshot::Sender<ConsensusMsg<Ctx>>,
+        reply: Reply<ConsensusMsg<Ctx>>,
     },
 
     // Retrieve decided block from the block store
-    GetDecidedBlock {
+    GetDecidedValue {
         height: Ctx::Height,
-        reply_to: oneshot::Sender<Option<DecidedValue<Ctx>>>,
+        reply: Reply<Option<DecidedValue<Ctx>>>,
     },
 
     // Synced block
@@ -88,7 +85,7 @@ pub enum AppMsg<Ctx: Context> {
         round: Round,
         validator_address: Ctx::Address,
         value_bytes: Bytes,
-        reply_to: oneshot::Sender<ProposedValue<Ctx>>,
+        reply: Reply<ProposedValue<Ctx>>,
     },
 }
 
