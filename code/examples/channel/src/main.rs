@@ -1,5 +1,6 @@
 //! Example application using channels
 
+mod app;
 mod node;
 mod state;
 
@@ -11,7 +12,7 @@ use node::App;
 use tracing::{error, info, trace};
 
 /// Main entry point for the application
-/// 
+///
 /// This function:
 /// - Parses command-line arguments
 /// - Loads configuration from file

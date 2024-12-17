@@ -31,6 +31,7 @@ pub struct State {
     pub current_height: Height,
     pub current_round: Round,
     pub current_proposer: Option<Address>,
+
     earliest_height: Height,
     address: Address,
     sequence: u64,
