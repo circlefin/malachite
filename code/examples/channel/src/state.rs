@@ -86,7 +86,7 @@ impl State {
                 height: proposal_part.height,
                 round: proposal_part.round,
                 valid_round: Round::Nil,
-                validator_address: proposal_part.validator_address,
+                proposer: proposal_part.validator_address,
                 value,
                 validity: Validity::Valid,
                 extension: None,
@@ -108,7 +108,7 @@ impl State {
 
     /// Commits a block with the given certificate, updating internal state
     /// and moving to the next height
-    pub fn commit_block(&mut self, certificate: CommitCertificate<TestContext>) {
+    pub fn commit(&mut self, certificate: CommitCertificate<TestContext>) {
         // Sort out proposals
         for (height, value) in self.undecided_proposals.clone() {
             if height > self.current_height {
@@ -163,7 +163,7 @@ impl State {
                 height: *height,
                 round: self.current_round,
                 valid_round: Round::Nil,
-                validator_address: self.address,
+                proposer: self.address,
                 value,
                 validity: Validity::Valid,
                 extension: None,

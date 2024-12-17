@@ -86,7 +86,7 @@ where
             height: signed_proposal.height(),
             round: signed_proposal.round(),
             valid_round: signed_proposal.pol_round(),
-            validator_address: signed_proposal.validator_address().clone(),
+            proposer: signed_proposal.validator_address().clone(),
             value: signed_proposal.value().clone(),
             validity: Validity::Valid,
             extension: Default::default(),

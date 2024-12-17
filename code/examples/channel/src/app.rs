@@ -98,7 +98,7 @@ pub async fn run(
             }
 
             AppMsg::Decided { certificate, reply } => {
-                state.commit_block(certificate);
+                state.commit(certificate);
 
                 if reply
                     .send(ConsensusMsg::StartHeight(
@@ -115,14 +115,14 @@ pub async fn run(
                 let decided_value = state.get_decided_value(&height).cloned();
 
                 if reply.send(decided_value).is_err() {
-                    error!("Failed to send GetDecidedBlock reply");
+                    error!("Failed to send GetDecidedValue reply");
                 }
             }
 
             AppMsg::ProcessSyncedValue {
                 height,
                 round,
-                proposer: validator_address,
+                proposer,
                 value_bytes,
                 reply,
             } => {
@@ -133,14 +133,14 @@ pub async fn run(
                         height,
                         round,
                         valid_round: Round::Nil,
-                        validator_address,
+                        proposer,
                         value,
                         validity: Validity::Valid,
                         extension: None,
                     })
                     .is_err()
                 {
-                    error!("Failed to send ProcessSyncedBlock reply");
+                    error!("Failed to send ProcessSyncedValue reply");
                 }
             }
 

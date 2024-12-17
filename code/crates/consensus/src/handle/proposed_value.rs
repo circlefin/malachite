@@ -51,7 +51,7 @@ where
             proposed_value.round,
             proposed_value.value.clone(),
             proposed_value.valid_round,
-            proposed_value.validator_address.clone(),
+            proposed_value.proposer.clone(),
         );
 
         // TODO: Keep unsigned proposals in keeper.

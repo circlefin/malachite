@@ -59,12 +59,12 @@ impl HostState {
         height: Height,
         round: Round,
     ) -> Option<ProposedValue<MockContext>> {
-        let (valid_round, value, validator_address, validity, extension) = self
+        let (valid_round, value, proposer, validity, extension) = self
             .build_proposal_content_from_parts(parts, height, round)
             .await?;
 
         Some(ProposedValue {
-            validator_address,
+            proposer,
             height,
             round,
             valid_round,

@@ -46,7 +46,7 @@ fn prop_msg(
 }
 
 fn value(
-    validator_address: Address,
+    proposer: Address,
     round: u32,
     value: u64,
     validity: Validity,
@@ -55,19 +55,14 @@ fn value(
         height: Height::new(1),
         round: Round::new(round),
         valid_round: Round::Nil,
-        validator_address,
+        proposer,
         value: Value::new(value),
         validity,
         extension: Default::default(),
     }
 }
 
-fn val_msg(
-    validator_address: Address,
-    round: u32,
-    value: u64,
-    validity: Validity,
-) -> Input<TestContext> {
+fn val_msg(proposer: Address, round: u32, value: u64, validity: Validity) -> Input<TestContext> {
     Input::ProposedValue(
         ProposedValue {
             height: Height::new(1),
@@ -75,7 +70,7 @@ fn val_msg(
             valid_round: Round::Nil,
             value: Value::new(value),
             validity,
-            validator_address,
+            proposer,
             extension: Default::default(),
         },
         ValueOrigin::Consensus,
