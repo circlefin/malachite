@@ -141,7 +141,7 @@ jobs:
         with:
           tool: cargo-msrv
       - name: Check MSRV
-        run: cargo msrv verify --manifest-path crates/consensus/Cargo.toml --output-format minimal -- cargo check --all-features
+        run: cargo msrv verify --manifest-path crates/engine/Cargo.toml --output-format minimal -- cargo check --all-features
 
   standalone:
     name: Standalone
