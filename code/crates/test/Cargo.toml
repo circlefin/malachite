@@ -15,7 +15,7 @@ malachite-app = { workspace = true }
 malachite-codec = { workspace = true }
 malachite-core-types = { workspace = true }
 malachite-config = { workspace = true }
-malachite-consensus = { workspace = true }
+malachite-core-consensus = { workspace = true }
 malachite-proto = { workspace = true }
 malachite-signing-ed25519 = { workspace = true, features = ["rand", "serde"] }
 malachite-sync = { workspace = true }

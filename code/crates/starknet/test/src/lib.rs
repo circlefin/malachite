@@ -17,7 +17,7 @@ use malachite_config::{
     Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol, SyncConfig,
     TestConfig, TransportProtocol,
 };
-use malachite_consensus::{SignedConsensusMsg, ValueToPropose};
+use malachite_core_consensus::{SignedConsensusMsg, ValueToPropose};
 use malachite_core_types::{SignedVote, VotingPower};
 use malachite_engine::util::events::{Event, RxEvent, TxEvent};
 use malachite_starknet_host::spawn::spawn_node_actor;

@@ -1,5 +1,5 @@
 [package]
-name                   = "malachite-consensus"
+name                   = "malachite-core-consensus"
 version.workspace      = true
 edition.workspace      = true
 repository.workspace   = true

@@ -135,7 +135,7 @@ impl Metrics {
     pub fn register(registry: &SharedRegistry) -> Self {
         let metrics = Self::new();
 
-        registry.with_prefix("malachite_consensus", |registry| {
+        registry.with_prefix("malachite_core_consensus", |registry| {
             registry.register(
                 "finalized_blocks",
                 "Number of blocks finalized",

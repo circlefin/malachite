@@ -12,7 +12,7 @@ malachite-engine = { workspace = true }
 malachite-app = { workspace = true }
 malachite-codec = { workspace = true }
 malachite-config = { workspace = true }
-malachite-consensus = { workspace = true, features = ["debug"] }
+malachite-core-consensus = { workspace = true, features = ["debug"] }
 malachite-core-types = { workspace = true }
 malachite-network = { workspace = true }
 malachite-metrics = { workspace = true }

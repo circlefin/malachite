@@ -16,8 +16,8 @@ const RANDOM_SEED: u64 = 0x42;
 
 #[test]
 fn test_itf() {
-    let temp_dir =
-        tempfile::TempDir::with_prefix("malachite-consensus-").expect("Failed to create temp dir");
+    let temp_dir = tempfile::TempDir::with_prefix("malachite-core-consensus-")
+        .expect("Failed to create temp dir");
     let temp_path = temp_dir.path().to_owned();
 
     if std::env::var("KEEP_TEMP").is_ok() {

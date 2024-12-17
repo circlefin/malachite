@@ -3,7 +3,7 @@ use core::fmt;
 use derive_where::derive_where;
 use tokio::sync::broadcast;
 
-use malachite_consensus::{ProposedValue, SignedConsensusMsg, ValueToPropose};
+use malachite_core_consensus::{ProposedValue, SignedConsensusMsg, ValueToPropose};
 use malachite_core_types::{CommitCertificate, Context, Round, Timeout, ValueOrigin};
 
 pub type RxEvent<Ctx> = broadcast::Receiver<Event<Ctx>>;

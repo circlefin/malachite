@@ -1,7 +1,7 @@
 use crate::{Address, Height, Proposal, ProposalPart, RoundDef, TestContext, ValueId, Vote};
 use bytes::Bytes;
 use ed25519_consensus::Signature;
-use malachite_consensus::SignedConsensusMsg;
+use malachite_core_consensus::SignedConsensusMsg;
 use malachite_core_types::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
     SignedProposal, SignedVote, VoteSet,

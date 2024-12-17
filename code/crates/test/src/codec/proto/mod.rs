@@ -3,7 +3,7 @@ use prost::Message;
 
 use malachite_app::streaming::{StreamContent, StreamMessage};
 use malachite_codec::Codec;
-use malachite_consensus::SignedConsensusMsg;
+use malachite_core_consensus::SignedConsensusMsg;
 use malachite_core_types::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
     SignedProposal, SignedVote, VoteSet,

@@ -9,7 +9,7 @@ use malachite_core_types::{
 use malachite_engine::util::streaming::{StreamContent, StreamMessage};
 use malachite_sync::{self as sync, ValueRequest, ValueResponse, VoteSetRequest, VoteSetResponse};
 
-use malachite_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
+use malachite_core_consensus::{PeerId, ProposedValue, SignedConsensusMsg};
 use malachite_starknet_p2p_proto::ConsensusMessage;
 
 use crate::proto::consensus_message::Messages;

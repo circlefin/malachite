@@ -11,7 +11,7 @@ publish = false
 malachite-engine.workspace = true
 malachite-core-types.workspace = true
 malachite-config.workspace = true
-malachite-consensus.workspace = true
+malachite-core-consensus.workspace = true
 malachite-metrics.workspace = true
 malachite-starknet-host.workspace = true
 

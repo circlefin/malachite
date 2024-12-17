@@ -27,7 +27,7 @@ pub mod host {
 }
 
 pub mod consensus {
-    pub use malachite_consensus::*;
+    pub use malachite_core_consensus::*;
 }
 
 pub mod metrics {

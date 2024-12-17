@@ -1,4 +1,4 @@
-use malachite_consensus::{FullProposal, FullProposalKeeper, Input, ProposedValue};
+use malachite_core_consensus::{FullProposal, FullProposalKeeper, Input, ProposedValue};
 use malachite_core_types::{
     Context, Round, SignedProposal, SigningProvider, Validity, ValueOrigin,
 };

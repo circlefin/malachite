@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 use malachite_config::{
     self as config, Config as NodeConfig, MempoolConfig, SyncConfig, TestConfig, TransportProtocol,
 };
-use malachite_consensus::ValuePayload;
+use malachite_core_consensus::ValuePayload;
 use malachite_engine::consensus::{Consensus, ConsensusParams, ConsensusRef};
 use malachite_engine::host::HostRef;
 use malachite_engine::network::{Network, NetworkRef};

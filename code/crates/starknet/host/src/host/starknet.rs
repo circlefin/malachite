@@ -8,7 +8,7 @@ use tokio::time::Instant;
 use tracing::{debug, Instrument};
 
 use malachite_config::VoteExtensionsConfig;
-use malachite_consensus::ValuePayload;
+use malachite_core_consensus::ValuePayload;
 use malachite_core_types::{CommitCertificate, Extension, Round, SignedExtension, SignedVote};
 
 use crate::host::Host;

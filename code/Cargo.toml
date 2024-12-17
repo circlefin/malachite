@@ -6,7 +6,7 @@ members = [
   "crates/app-channel",
   "crates/codec",
   "crates/config",
-  "crates/consensus",
+  "crates/core-consensus",
   "crates/core-driver",
   "crates/core-state-machine",
   "crates/core-types",
@@ -68,7 +68,7 @@ malachite-app-channel        = { version = "0.1.0", path = "crates/app-channel" 
 malachite-test-cli           = { version = "0.1.0", path = "crates/test/cli" }
 malachite-codec              = { version = "0.1.0", path = "crates/codec" }
 malachite-config             = { version = "0.1.0", path = "crates/config" }
-malachite-consensus          = { version = "0.1.0", path = "crates/consensus" }
+malachite-core-consensus     = { version = "0.1.0", path = "crates/core-consensus" }
 malachite-core-driver        = { version = "0.1.0", path = "crates/core-driver" }
 malachite-core-state-machine = { version = "0.1.0", path = "crates/core-state-machine" }
 malachite-core-types         = { version = "0.1.0", path = "crates/core-types" }

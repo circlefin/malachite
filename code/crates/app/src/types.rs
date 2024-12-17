@@ -1,6 +1,6 @@
 //! Re-export of all types required to build a Malachite application.
 
-pub use malachite_consensus::{ConsensusMsg, ProposedValue, SignedConsensusMsg, ValuePayload};
+pub use malachite_core_consensus::{ConsensusMsg, ProposedValue, SignedConsensusMsg, ValuePayload};
 pub use malachite_engine::host::LocallyProposedValue;
 pub use malachite_peer::PeerId;
 

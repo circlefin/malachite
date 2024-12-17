@@ -2759,7 +2759,7 @@ dependencies = [
  "libp2p-identity",
  "malachite-codec",
  "malachite-config",
- "malachite-consensus",
+ "malachite-core-consensus",
  "malachite-core-types",
  "malachite-engine",
  "malachite-metrics",
@@ -2809,7 +2809,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "malachite-consensus"
+name = "malachite-core-consensus"
 version = "0.1.0"
 dependencies = [
  "async-recursion",
@@ -2919,7 +2919,7 @@ dependencies = [
  "libp2p",
  "malachite-codec",
  "malachite-config",
- "malachite-consensus",
+ "malachite-core-consensus",
  "malachite-core-types",
  "malachite-metrics",
  "malachite-network",
@@ -3044,7 +3044,7 @@ dependencies = [
  "malachite-app",
  "malachite-codec",
  "malachite-config",
- "malachite-consensus",
+ "malachite-core-consensus",
  "malachite-core-types",
  "malachite-engine",
  "malachite-metrics",
@@ -3100,7 +3100,7 @@ dependencies = [
  "bytesize",
  "eyre",
  "malachite-config",
- "malachite-consensus",
+ "malachite-core-consensus",
  "malachite-core-types",
  "malachite-engine",
  "malachite-metrics",
@@ -3146,7 +3146,7 @@ dependencies = [
  "malachite-app",
  "malachite-codec",
  "malachite-config",
- "malachite-consensus",
+ "malachite-core-consensus",
  "malachite-core-types",
  "malachite-engine",
  "malachite-proto",

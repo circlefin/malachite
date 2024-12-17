@@ -9,7 +9,9 @@ use tracing::{debug, error, info, warn};
 
 use malachite_codec as codec;
 use malachite_config::TimeoutConfig;
-use malachite_consensus::{Effect, PeerId, Resumable, Resume, SignedConsensusMsg, ValueToPropose};
+use malachite_core_consensus::{
+    Effect, PeerId, Resumable, Resume, SignedConsensusMsg, ValueToPropose,
+};
 use malachite_core_types::{
     Context, Round, SignedExtension, SigningProvider, SigningProviderExt, Timeout, TimeoutKind,
     ValidatorSet, ValueOrigin,
@@ -28,9 +30,9 @@ use crate::util::streaming::StreamMessage;
 use crate::util::timers::{TimeoutElapsed, TimerScheduler};
 use crate::wal::{Msg as WalMsg, WalEntry, WalRef};
 
-pub use malachite_consensus::Error as ConsensusError;
-pub use malachite_consensus::Params as ConsensusParams;
-pub use malachite_consensus::State as ConsensusState;
+pub use malachite_core_consensus::Error as ConsensusError;
+pub use malachite_core_consensus::Params as ConsensusParams;
+pub use malachite_core_consensus::State as ConsensusState;
 
 /// Codec for consensus messages.
 ///
@@ -102,7 +104,7 @@ impl<Ctx: Context> From<NetworkEvent<Ctx>> for Msg<Ctx> {
     }
 }
 
-type ConsensusInput<Ctx> = malachite_consensus::Input<Ctx>;
+type ConsensusInput<Ctx> = malachite_core_consensus::Input<Ctx>;
 
 impl<Ctx: Context> From<TimeoutElapsed<Timeout>> for Msg<Ctx> {
     fn from(msg: TimeoutElapsed<Timeout>) -> Self {
@@ -224,7 +226,7 @@ where
     ) -> Result<(), ConsensusError<Ctx>> {
         let height = state.height();
 
-        malachite_consensus::process!(
+        malachite_core_consensus::process!(
             input: input,
             state: &mut state.consensus,
             metrics: &self.metrics,
@@ -834,7 +836,7 @@ where
             }
 
             Effect::VerifySignature(msg, pk, r) => {
-                use malachite_consensus::ConsensusMsg as Msg;
+                use malachite_core_consensus::ConsensusMsg as Msg;
 
                 let start = Instant::now();
 

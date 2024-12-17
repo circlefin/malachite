@@ -12,7 +12,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 
 use malachite_codec as codec;
-use malachite_consensus::PeerId;
+use malachite_core_consensus::PeerId;
 use malachite_core_types::{CertificateError, CommitCertificate, Context, Height, Round};
 use malachite_sync::{self as sync, InboundRequestId, OutboundRequestId, Response};
 use malachite_sync::{DecidedValue, Request};
