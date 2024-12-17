@@ -2,16 +2,16 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
-use malachite_engine::network;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
+
+use malachite_engine::consensus::Msg as ConsensusActorMsg;
+use malachite_engine::network::Msg as NetworkActorMsg;
 
 use crate::app::types::core::{CommitCertificate, Context, Round, ValueId};
 use crate::app::types::streaming::StreamMessage;
 use crate::app::types::sync::DecidedValue;
 use crate::app::types::{LocallyProposedValue, PeerId, ProposedValue};
-
-use malachite_engine::consensus::Msg as ConsensusActorMsg;
 
 /// Channels created for application consumption
 pub struct Channels<Ctx: Context> {
@@ -114,10 +114,10 @@ pub enum NetworkMsg<Ctx: Context> {
     PublishProposalPart(StreamMessage<Ctx::ProposalPart>),
 }
 
-impl<Ctx: Context> From<NetworkMsg<Ctx>> for network::NetworkMsg<Ctx> {
-    fn from(msg: NetworkMsg<Ctx>) -> network::NetworkMsg<Ctx> {
+impl<Ctx: Context> From<NetworkMsg<Ctx>> for NetworkActorMsg<Ctx> {
+    fn from(msg: NetworkMsg<Ctx>) -> NetworkActorMsg<Ctx> {
         match msg {
-            NetworkMsg::PublishProposalPart(part) => network::NetworkMsg::PublishProposalPart(part),
+            NetworkMsg::PublishProposalPart(part) => NetworkActorMsg::PublishProposalPart(part),
         }
     }
 }

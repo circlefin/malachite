@@ -3,7 +3,8 @@
 use eyre::Result;
 use tokio::sync::mpsc;
 
-use malachite_app::types::{metrics::SharedRegistry, Keypair};
+use malachite_app::types::metrics::SharedRegistry;
+use malachite_app::types::Keypair;
 use malachite_config::Config as NodeConfig;
 use malachite_engine::consensus::ConsensusCodec;
 use malachite_engine::host::HostRef;
