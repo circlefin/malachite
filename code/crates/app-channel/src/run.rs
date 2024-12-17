@@ -1,6 +1,8 @@
 //! Run Malachite consensus with the given configuration and context.
 //! Provides the application with a channel for receiving messages from consensus.
 
+use std::path::PathBuf;
+
 use eyre::Result;
 
 use crate::app::types::codec::{ConsensusCodec, SyncCodec, WalCodec};
@@ -15,11 +17,12 @@ use malachite_engine::util::events::TxEvent;
 
 #[tracing::instrument("node", skip_all, fields(moniker = %cfg.moniker))]
 pub async fn run<Node, Ctx, Codec>(
-    cfg: NodeConfig,
-    start_height: Option<Ctx::Height>,
     ctx: Ctx,
     codec: Codec,
     node: Node,
+    cfg: NodeConfig,
+    private_key_file: PathBuf,
+    start_height: Option<Ctx::Height>,
     initial_validator_set: Ctx::ValidatorSet,
 ) -> Result<Channels<Ctx>>
 where
@@ -34,11 +37,7 @@ where
     let registry = SharedRegistry::global().with_moniker(cfg.moniker.as_str());
     let metrics = Metrics::register(&registry);
 
-    // TODO: Simplify this?
-    let mut config_file = node.get_home_dir().clone();
-    config_file.push("config");
-    config_file.push("priv_validator_key.json");
-    let private_key_file = node.load_private_key_file(config_file)?;
+    let private_key_file = node.load_private_key_file(private_key_file)?;
     let private_key = node.load_private_key(private_key_file);
     let public_key = node.get_public_key(&private_key);
     let address = node.get_address(&public_key);

@@ -22,6 +22,7 @@ fn main() -> color_eyre::Result<()> {
     let opt_config_file_path = args
         .get_config_file_path()
         .map_err(|error| eyre!("Failed to get configuration file path: {:?}", error));
+
     let opt_config = opt_config_file_path.and_then(|path| {
         load_config(&path, None)
             .map_err(|error| eyre!("Failed to load configuration file: {:?}", error))
@@ -43,7 +44,7 @@ fn main() -> color_eyre::Result<()> {
     trace!("Command-line parameters: {args:?}");
 
     // Create the application object.
-    let node = &App {
+    let mut node = App {
         home_dir: args.get_home_dir()?,
         config: Default::default(), // placeholder, because `init` and `testnet` has no valid configuration file.
         genesis_file: args.get_genesis_file_path()?,
@@ -58,28 +59,22 @@ fn main() -> color_eyre::Result<()> {
             let mut config = opt_config
                 .map_err(|error| error!(%error, "Failed to load configuration."))
                 .unwrap();
+
             config.logging = logging;
+
             let runtime = config.runtime;
-            let metrics = if config.metrics.enabled {
-                Some(config.metrics.clone())
-            } else {
-                None
-            };
+
+            let metrics = config.metrics.enabled.then(|| config.metrics.clone());
 
             info!(
                 file = %args.get_config_file_path().unwrap_or_default().display(),
                 "Loaded configuration",
             );
+
             trace!(?config, "Configuration");
 
-            // Redefine the node with the valid configuration.
-            let node = &App {
-                home_dir: args.get_home_dir()?,
-                config,
-                genesis_file: args.get_genesis_file_path()?,
-                private_key_file: args.get_priv_validator_key_file_path()?,
-                start_height: cmd.start_height,
-            };
+            // Set the config
+            node.config = config;
 
             // Define the runtime. If you are not interested in a custom runtime configuration,
             // you can use the #[async_trait] attribute on the main function.
@@ -87,20 +82,23 @@ fn main() -> color_eyre::Result<()> {
             rt.block_on(cmd.run(node, metrics))
                 .map_err(|error| eyre!("Failed to run start command {:?}", error))
         }
+
         Commands::Init(cmd) => cmd
             .run(
-                node,
+                &node,
                 &args.get_config_file_path()?,
                 &args.get_genesis_file_path()?,
                 &args.get_priv_validator_key_file_path()?,
                 logging,
             )
             .map_err(|error| eyre!("Failed to run init command {:?}", error)),
+
         Commands::Testnet(cmd) => cmd
-            .run(node, &args.get_home_dir()?, logging)
+            .run(&node, &args.get_home_dir()?, logging)
             .map_err(|error| eyre!("Failed to run testnet command {:?}", error)),
+
         Commands::DistributedTestnet(cmd) => cmd
-            .run(node, &args.get_home_dir()?, logging)
+            .run(&node, &args.get_home_dir()?, logging)
             .map_err(|error| eyre!("Failed to run distributed testnet command {:?}", error)),
     }
 }

@@ -14,10 +14,7 @@ pub struct StartCmd {
 }
 
 impl StartCmd {
-    pub async fn run<N>(&self, node: &N, metrics: Option<MetricsConfig>) -> eyre::Result<()>
-    where
-        N: Node,
-    {
+    pub async fn run(&self, node: impl Node, metrics: Option<MetricsConfig>) -> eyre::Result<()> {
         info!("Node is starting...");
 
         start(node, metrics).await?;
@@ -29,10 +26,7 @@ impl StartCmd {
 }
 
 /// start command to run a node.
-pub async fn start<N>(node: &N, metrics: Option<MetricsConfig>) -> eyre::Result<()>
-where
-    N: Node,
-{
+pub async fn start(node: impl Node, metrics: Option<MetricsConfig>) -> eyre::Result<()> {
     // Enable Prometheus
     if let Some(metrics) = metrics {
         tokio::spawn(metrics::serve(metrics.clone()));

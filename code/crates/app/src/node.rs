@@ -41,5 +41,5 @@ pub trait Node {
         validators: Vec<(PublicKey<Self::Context>, VotingPower)>,
     ) -> Self::Genesis;
 
-    async fn run(&self) -> eyre::Result<()>;
+    async fn run(self) -> eyre::Result<()>;
 }

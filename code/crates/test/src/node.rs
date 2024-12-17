@@ -79,7 +79,7 @@ impl Node for TestNode {
         Genesis { validator_set }
     }
 
-    async fn run(&self) -> eyre::Result<()> {
+    async fn run(self) -> eyre::Result<()> {
         unimplemented!()
     }
 }

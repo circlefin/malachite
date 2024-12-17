@@ -13,7 +13,7 @@ use malachite_app_channel::app::consensus::ProposedValue;
 use malachite_app_channel::app::types::core::{Round, Validity, VotingPower};
 use malachite_app_channel::app::types::LocallyProposedValue;
 use malachite_app_channel::app::Node;
-use malachite_app_channel::{run, AppMsg, ConsensusGossipMsg, ConsensusMsg};
+use malachite_app_channel::{AppMsg, ConsensusGossipMsg, ConsensusMsg};
 use malachite_test::codec::proto::ProtobufCodec;
 use malachite_test::{
     Address, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet,
@@ -91,28 +91,30 @@ impl Node for App {
         Genesis { validator_set }
     }
 
-    async fn run(&self) -> eyre::Result<()> {
+    async fn run(self) -> eyre::Result<()> {
         let span = tracing::error_span!("node", moniker = %self.config.moniker);
         let _enter = span.enter();
 
-        let priv_key_file = self.load_private_key_file(self.private_key_file.clone())?;
-        let private_key = self.load_private_key(priv_key_file);
-        let address = self.get_address(&self.get_public_key(&private_key));
+        let private_key_file = self.load_private_key_file(&self.private_key_file)?;
+        let private_key = self.load_private_key(private_key_file);
+        let public_key = self.get_public_key(&private_key);
+        let address = self.get_address(&public_key);
         let ctx = TestContext::new(private_key);
 
         let genesis = self.load_genesis(self.genesis_file.clone())?;
-
+        let initial_validator_set = genesis.validator_set.clone();
         let start_height = self.start_height.map(Height::new);
 
         let codec = ProtobufCodec;
 
-        let mut channels = run(
-            self.config.clone(),
-            start_height,
+        let mut channels = malachite_app_channel::run(
             ctx,
             codec,
             self.clone(),
-            genesis.validator_set.clone(),
+            self.config.clone(),
+            self.private_key_file.clone(),
+            start_height,
+            initial_validator_set,
         )
         .await?;
 
