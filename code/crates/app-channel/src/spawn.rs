@@ -3,17 +3,17 @@
 use eyre::Result;
 use tokio::sync::mpsc;
 
-use crate::app::types::core::Context;
-use crate::app::types::metrics::Metrics;
-use crate::connector::Connector;
-use crate::{AppMsg, ConsensusGossipMsg};
-
 use malachite_app::types::{metrics::SharedRegistry, Keypair};
 use malachite_config::Config as NodeConfig;
 use malachite_engine::consensus::ConsensusCodec;
 use malachite_engine::host::HostRef;
-use malachite_engine::network::{NetworkMsg, NetworkRef};
+use malachite_engine::network::NetworkRef;
 use malachite_engine::sync::SyncCodec;
+
+use crate::app::types::core::Context;
+use crate::app::types::metrics::Metrics;
+use crate::connector::Connector;
+use crate::{AppMsg, NetworkMsg};
 
 pub async fn spawn_host_actor<Ctx>(
     metrics: Metrics,
@@ -31,26 +31,26 @@ pub async fn spawn_network_actor<Ctx, Codec>(
     keypair: Keypair,
     registry: &SharedRegistry,
     codec: Codec,
-) -> Result<(NetworkRef<Ctx>, mpsc::Sender<ConsensusGossipMsg<Ctx>>)>
+) -> Result<(NetworkRef<Ctx>, mpsc::Sender<NetworkMsg<Ctx>>)>
 where
     Ctx: Context,
     Codec: ConsensusCodec<Ctx>,
     Codec: SyncCodec<Ctx>,
 {
-    let (tx, mut rx) = mpsc::channel(1);
+    let (tx, mut rx) = mpsc::channel::<NetworkMsg<Ctx>>(1);
 
     let actor_ref = malachite_app::spawn_network_actor(cfg, keypair, registry, codec).await?;
-    let actor_ref_return = actor_ref.clone();
 
-    tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            match msg {
-                ConsensusGossipMsg::PublishProposalPart(ppp) => actor_ref
-                    .cast(NetworkMsg::PublishProposalPart(ppp))
-                    .unwrap(),
+    tokio::spawn({
+        let actor_ref = actor_ref.clone();
+        async move {
+            while let Some(msg) = rx.recv().await {
+                if let Err(e) = actor_ref.cast(msg.into()) {
+                    tracing::error!("Failed to send message to network actor: {e}");
+                }
             }
         }
     });
 
-    Ok((actor_ref_return, tx))
+    Ok((actor_ref, tx))
 }

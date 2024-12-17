@@ -13,7 +13,7 @@ use malachite_app_channel::app::consensus::ProposedValue;
 use malachite_app_channel::app::types::core::{Round, Validity, VotingPower};
 use malachite_app_channel::app::types::LocallyProposedValue;
 use malachite_app_channel::app::Node;
-use malachite_app_channel::{AppMsg, ConsensusGossipMsg, ConsensusMsg};
+use malachite_app_channel::{AppMsg, ConsensusMsg, NetworkMsg};
 use malachite_test::codec::proto::ProtobufCodec;
 use malachite_test::{
     Address, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet,
@@ -170,8 +170,8 @@ impl Node for App {
 
                     // Broadcast it to others. Old messages need not be broadcast.
                     channels
-                        .consensus_gossip
-                        .send(ConsensusGossipMsg::PublishProposalPart(stream_message))
+                        .network
+                        .send(NetworkMsg::PublishProposalPart(stream_message))
                         .await?;
                 }
 

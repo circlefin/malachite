@@ -44,13 +44,13 @@ where
     let keypair = node.get_keypair(private_key);
 
     // Spawn consensus gossip
-    let (network, network_msg_tx) =
+    let (network, network_tx) =
         spawn_network_actor(&cfg, keypair, &registry, codec.clone()).await?;
 
     let wal = spawn_wal_actor(&ctx, codec, &node.get_home_dir(), &registry).await?;
 
     // Spawn the host actor
-    let (connector, appmsg_rx) = spawn_host_actor(metrics.clone()).await?;
+    let (connector, consensus_rx) = spawn_host_actor(metrics.clone()).await?;
 
     let sync = spawn_sync_actor(
         ctx.clone(),
@@ -78,7 +78,7 @@ where
     .await?;
 
     Ok(Channels {
-        consensus: appmsg_rx,
-        consensus_gossip: network_msg_tx,
+        consensus: consensus_rx,
+        network: network_tx,
     })
 }

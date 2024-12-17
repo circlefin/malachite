@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
+use malachite_engine::network;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
@@ -15,7 +16,7 @@ use malachite_engine::consensus::Msg as ConsensusActorMsg;
 /// Channels created for application consumption
 pub struct Channels<Ctx: Context> {
     pub consensus: mpsc::Receiver<AppMsg<Ctx>>,
-    pub consensus_gossip: mpsc::Sender<ConsensusGossipMsg<Ctx>>,
+    pub network: mpsc::Sender<NetworkMsg<Ctx>>,
 }
 
 /// Messages sent from consensus to the application.
@@ -109,6 +110,14 @@ impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {
 
 /// Messages sent from the application to consensus gossip.
 #[derive_where(Debug)]
-pub enum ConsensusGossipMsg<Ctx: Context> {
+pub enum NetworkMsg<Ctx: Context> {
     PublishProposalPart(StreamMessage<Ctx::ProposalPart>),
+}
+
+impl<Ctx: Context> From<NetworkMsg<Ctx>> for network::NetworkMsg<Ctx> {
+    fn from(msg: NetworkMsg<Ctx>) -> network::NetworkMsg<Ctx> {
+        match msg {
+            NetworkMsg::PublishProposalPart(part) => network::NetworkMsg::PublishProposalPart(part),
+        }
+    }
 }
