@@ -38,6 +38,14 @@ pub enum ProposalPart {
 }
 
 impl ProposalPart {
+    pub fn get_type(&self) -> &'static str {
+        match self {
+            Self::Init(_) => "init",
+            Self::Data(_) => "data",
+            Self::Fin(_) => "fin",
+        }
+    }
+
     pub fn as_init(&self) -> Option<&ProposalInit> {
         match self {
             Self::Init(init) => Some(init),

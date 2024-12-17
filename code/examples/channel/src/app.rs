@@ -3,6 +3,7 @@ use std::time::Duration;
 use eyre::eyre;
 use tracing::{error, info};
 
+use malachite_app_channel::app::streaming::StreamContent;
 use malachite_app_channel::app::types::core::{Round, Validity};
 use malachite_app_channel::app::types::ProposedValue;
 use malachite_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
@@ -55,10 +56,12 @@ pub async fn run(
                 // If we were let's say reaping as many txes from a mempool and executing them,
                 // then we would need to respect the timeout and stop at a certain point.
 
-                info!(%height, %round, "Get value");
+                info!(%height, %round, "Consensus is requesting a value to propose");
 
                 // Check if we have a previously built value for that height and round
                 if let Some(proposal) = state.get_previously_built_value(height, round) {
+                    info!(value = %proposal.value.id(), "Re-using previously built value");
+
                     if reply.send(proposal).is_err() {
                         error!("Failed to send GetValue reply");
                     }
@@ -91,6 +94,13 @@ pub async fn run(
             }
 
             AppMsg::ReceivedProposalPart { from, part, reply } => {
+                let part_type = match &part.content {
+                    StreamContent::Data(part) => part.get_type(),
+                    StreamContent::Fin(_) => "end of stream",
+                };
+
+                info!(%from, %part.sequence, part.type = %part_type, "Received proposal part");
+
                 let proposed_value = state.received_proposal_part(from, part);
 
                 if reply.send(proposed_value).is_err() {
@@ -105,6 +115,12 @@ pub async fn run(
             }
 
             AppMsg::Decided { certificate, reply } => {
+                info!(
+                    height = %certificate.height, round = %certificate.round,
+                    value = %certificate.value_id,
+                    "Consensus has decided on value"
+                );
+
                 state.commit(certificate);
 
                 if reply
@@ -133,6 +149,8 @@ pub async fn run(
                 value_bytes,
                 reply,
             } => {
+                info!(%height, %round, "Processing synced value");
+
                 let value = decode_value(value_bytes);
 
                 if reply
@@ -152,7 +170,7 @@ pub async fn run(
             }
 
             AppMsg::RestreamProposal { .. } => {
-                unimplemented!("RestreamValue");
+                error!("RestreamProposal not implemented");
             }
         }
     }

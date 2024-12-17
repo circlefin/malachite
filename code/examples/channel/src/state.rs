@@ -4,8 +4,10 @@
 use std::collections::{BTreeMap, HashMap};
 
 use bytes::Bytes;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use sha3::Digest;
-use tracing::{debug, info};
+use tracing::debug;
 
 use malachite_app_channel::app::consensus::ProposedValue;
 use malachite_app_channel::app::host::LocallyProposedValue;
@@ -36,6 +38,19 @@ pub struct State {
     decided_proposals: HashMap<Height, ProposedValue<TestContext>>,
     decided_values: BTreeMap<Height, DecidedValue<TestContext>>,
     streams_map: PartStreamsMap,
+    rng: StdRng,
+}
+
+// Make up a seed for the rng based on our address in
+// order for each node to likely propose different values at
+// each round.
+fn seed_from_address(address: &Address) -> u64 {
+    address.into_inner().chunks(8).fold(0u64, |acc, chunk| {
+        let term = chunk.iter().fold(0u64, |acc, &x| {
+            acc.wrapping_shl(8).wrapping_add(u64::from(x))
+        });
+        acc.wrapping_add(term)
+    })
 }
 
 impl State {
@@ -52,6 +67,7 @@ impl State {
             decided_proposals: HashMap::new(),
             decided_values: BTreeMap::new(),
             streams_map: PartStreamsMap::new(),
+            rng: StdRng::seed_from_u64(seed_from_address(&address)),
         }
     }
 
@@ -71,8 +87,6 @@ impl State {
         from: PeerId,
         part: StreamMessage<ProposalPart>,
     ) -> Option<ProposedValue<TestContext>> {
-        info!(sequence = %part.sequence, "Received proposal part: {part:?}");
-
         let sequence = part.sequence;
 
         // Check if we have a full proposal
@@ -158,7 +172,7 @@ impl State {
         assert_eq!(round, self.current_round);
 
         // We create a new value.
-        let value = Value::new(42); // TODO: make up random value
+        let value = self.make_value();
 
         let proposal = ProposedValue {
             height,
@@ -175,6 +189,15 @@ impl State {
             .insert((height, round), proposal.clone());
 
         proposal
+    }
+
+    /// Make up a new value to propose
+    /// A real application would have a more complex logic here,
+    /// typically reaping transactions from a mempool and executing them against its state,
+    /// before computing the merkle root of the new app state.
+    fn make_value(&mut self) -> Value {
+        let value = self.rng.gen_range(100..=100000);
+        Value::new(value)
     }
 
     /// Creates a new proposal value for the given height
