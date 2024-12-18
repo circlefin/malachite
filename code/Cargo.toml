@@ -59,7 +59,7 @@ inherits = "release"
 debug = true
 
 [workspace.lints.rust]
-# None for now
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
 
 [workspace.dependencies]
 malachite-engine             = { version = "0.1.0", path = "crates/engine" }
