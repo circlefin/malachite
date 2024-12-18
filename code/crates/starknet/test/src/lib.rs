@@ -641,9 +641,9 @@ pub fn init_logging(test_module: &str) {
         .any(|(k, v)| std::env::var(k).as_deref() == Ok(v));
 
     let directive = if enable_debug {
-        format!("{test_module}=debug,malachite=debug,malachitebft_starknet_test=debug,ractor=error")
+        format!("{test_module}=debug,ractor=error,debug")
     } else {
-        format!("{test_module}=debug,malachite=error,malachitebft_starknet_test=debug,ractor=error")
+        format!("{test_module}=debug,ractor=error,warn")
     };
 
     let filter = EnvFilter::builder().parse(directive).unwrap();
