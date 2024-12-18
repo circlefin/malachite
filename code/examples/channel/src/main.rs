@@ -3,15 +3,15 @@
 mod app;
 
 use eyre::{eyre, Result};
+use tracing::{info, trace};
+
 use malachitebft_app_channel::app::Node;
+use malachitebft_test::Height;
+use malachitebft_test_cli::args::{Args, Commands};
 use malachitebft_test_cli::cmd::init::InitCmd;
 use malachitebft_test_cli::cmd::start::StartCmd;
 use malachitebft_test_cli::cmd::testnet::TestnetCmd;
-use tracing::{info, trace};
-
-use malachitebft_test::Height;
-use malachitebft_test_cli::args::{Args, Commands};
-use malachitebft_test_cli::{config, logging};
+use malachitebft_test_cli::{config, logging, runtime};
 
 mod node;
 mod state;
@@ -27,8 +27,7 @@ use node::App;
 /// - Initializes logging system
 /// - Sets up error handling
 /// - Creates and runs the application node
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     color_eyre::install()?;
 
     // Load command-line arguments and possible configuration file.
@@ -51,14 +50,14 @@ async fn main() -> Result<()> {
 
     // Parse the input command.
     match &args.command {
-        Commands::Start(cmd) => start(&args, cmd, logging).await,
-        Commands::Init(cmd) => init(&args, cmd, logging).await,
-        Commands::Testnet(cmd) => testnet(&args, cmd, logging).await,
+        Commands::Start(cmd) => start(&args, cmd, logging),
+        Commands::Init(cmd) => init(&args, cmd, logging),
+        Commands::Testnet(cmd) => testnet(&args, cmd, logging),
         _ => unimplemented!(),
     }
 }
 
-async fn start(args: &Args, cmd: &StartCmd, logging: config::LoggingConfig) -> Result<()> {
+fn start(args: &Args, cmd: &StartCmd, logging: config::LoggingConfig) -> Result<()> {
     // Load configuration file if it exists. Some commands do not require a configuration file.
     let config_file = args
         .get_config_file_path()
@@ -68,6 +67,8 @@ async fn start(args: &Args, cmd: &StartCmd, logging: config::LoggingConfig) -> R
         .map_err(|error| eyre!("Failed to load configuration file: {error}"))?;
 
     config.logging = logging;
+
+    let rt = runtime::build_runtime(config.runtime)?;
 
     info!(
         file = %args.get_config_file_path().unwrap_or_default().display(),
@@ -86,12 +87,11 @@ async fn start(args: &Args, cmd: &StartCmd, logging: config::LoggingConfig) -> R
     };
 
     // Start the node
-    app.run()
-        .await
+    rt.block_on(app.run())
         .map_err(|error| eyre!("Failed to run the application node: {error}"))
 }
 
-async fn init(args: &Args, cmd: &InitCmd, logging: config::LoggingConfig) -> Result<()> {
+fn init(args: &Args, cmd: &InitCmd, logging: config::LoggingConfig) -> Result<()> {
     // Setup the application
     let app = App {
         config: Default::default(), // There is not existing configuration yet
@@ -111,7 +111,7 @@ async fn init(args: &Args, cmd: &InitCmd, logging: config::LoggingConfig) -> Res
     .map_err(|error| eyre!("Failed to run init command {error:?}"))
 }
 
-async fn testnet(args: &Args, cmd: &TestnetCmd, logging: config::LoggingConfig) -> Result<()> {
+fn testnet(args: &Args, cmd: &TestnetCmd, logging: config::LoggingConfig) -> Result<()> {
     // Setup the application
     let app = App {
         config: Default::default(), // There is not existing configuration yet
