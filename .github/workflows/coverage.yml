@@ -51,7 +51,7 @@ jobs:
         run: |
           cargo llvm-cov nextest \
             --workspace \
-            --exclude malachite-test-mbt \
+            --exclude informalsystems-malachitebft-test-mbt \
             --ignore-filename-regex crates/cli \
             --all-features \
             --no-capture \
@@ -110,7 +110,7 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov nextest -p malachite-test-mbt --all-features --lcov --output-path lcov.info
+        run: cargo llvm-cov nextest -p informalsystems-malachitebft-test-mbt --all-features --lcov --output-path lcov.info
       - name: Generate text report
         run: cargo llvm-cov report
       - name: Upload coverage to Codecov

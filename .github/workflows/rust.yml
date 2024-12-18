@@ -49,7 +49,14 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
       - name: Run tests
-        run: cargo nextest run --workspace --all-features --no-fail-fast --failure-output final --exclude malachite-starknet-test --exclude malachite-discovery-test
+        run: |
+          cargo nextest run \
+            --workspace \
+            --all-features \
+            --no-fail-fast \
+            --failure-output final \
+            --exclude informalsystems-malachitebft-starknet-test \
+            --exclude informalsystems-malachitebft-discovery-test
 
   integration:
     name: Integration Tests
@@ -81,7 +88,10 @@ jobs:
       - name: Disable apparmor container restrictions
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Run integration tests
-        run: cargo maelstrom --slots 16 -i 'package.match(malachite-starknet-test) || package.match(malachite-discovery-test)'
+        run: |
+          cargo maelstrom \
+            --slots 16 \
+            --include 'package.match(informalsystems-malachitebft-starknet-test) || package.match(informalsystems-malachitebft-discovery-test)'
 
   clippy:
     name: Clippy
