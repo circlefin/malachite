@@ -1,10 +1,14 @@
-# Application using tokio channels
+# Write an in-process Malachite application
+
+> [!WARNING]
+> This tutorial is a work in progress and is currently incomplete.
+> For a complete example see the example application in the [`examples/channel`](/code/examples/channel) directory.
 
 ## Table of contents
 1. [Introduction](#introduction)
 2. [Prerequisites](#prerequisites)
 3. [Concepts](#concepts)
-   * [The `malachite_app_channel` crate](#the-malachite_app_channel-crate)
+   * [The `malachitebft_app_channel` crate](#the-malachitebft_app_channel-crate)
    * [Consensus types](#consensus-types)
    * [The `Context` trait](#the-context-trait)
    * [The `Codec` trait](#the-codec-trait)
@@ -14,32 +18,136 @@
 
 ## Introduction
 In this tutorial we will build an example validator application using the Malachite libraries. The focus is
-integration with the Malachite consensus engine using tokio channels.
+integration with the Malachite consensus engine using [Tokio](https://tokio.rs) channels.
 
+## Naming
+While Malachite is comprised of several crates whose name start `informalsystems-malachitebft-`,
+in this document we will use a shortened prefix `malachitebft-`, thanks to Cargo's ability
+to expose a dependency under a different name than the one derived from its crate name.
+More about this in the [Putting it all together](#putting-it-all-together) section.
 
 ## Prerequisites
-The tutorial assumes basic knowledge of asynchronous programming in Rust using the tokio library. The beginner
-Rust knowledge is essential, the asynchronous programming knowledge is recommended.
+The tutorial assumes basic knowledge of asynchronous programming in Rust using the Tokio library.
+The beginner Rust knowledge is essential, the asynchronous programming knowledge is recommended.
 
-The tutorial assumes basic distributed systems knowledge, for example: what is a validator, what is a Proof-of-Stake
-consensus engine.
+The tutorial assumes basic distributed systems knowledge, for example: what is a validator, what is a Proof-of-Stake consensus engine.
 
 Knowledge of [CometBFT](https://cometbft.com) or other Byzantine-fault tolerant consensus engines may help with
 understanding the consensus engine concepts, however it is not required.
 
-
 ## Concepts
-First, we will get familiar with the concepts (usually Rust traits) used in Malachite.
+Before going any further, the reader might want to go over the [`ARCHITECTURE.md`](/ARCHITECTURE.md) document
+for background information on Malachite and the ideas behind its architecture.
 
-### The `malachite_app_channel` crate
-An example application will require only a few of the Malachite crates. The `malachite_app_channel` crate has all the
-necessary components to interact with the consensus engine using tokio channels. The crate also re-exports the necessary
-types and traits from the `malachite_app` crate under `malachite_app_channel::app::types` for easier consumption.
+We can now get familiar with the concepts pertaining to building an application for Malachite.
 
+### The `malachitebft-app-channel` crate
+An example application will require only a few of the Malachite crates. The `malachitebft-app-channel` crate has all the
+necessary components for building an application that interacts with the consensus engine through Tokio channels.
+The crate also re-exports the necessary types and traits from the `malachitebft-app` crate under
+`malachitebft_app_channel::app` for easier consumption.
+
+### The `Context` trait
+
+Because Malachite is a generic implementation of BFT consensus engine, it endeavours to make as few assumptions
+as possible about the concrete data structures it uses, and leaves their implementation up to the application.
+
+In order to do that, the `Context` trait provides an abstraction over the various data types used in the engine.
+It is defined in `malachitebft_app_channel::app::types::Context` and an example implementation can be seen at
+`malachitebft_test::Context`.
+
+```rust
+pub trait Context
+where
+    Self: Sized + Clone + Send + Sync + 'static,
+{
+    /// The type of address of a validator.
+    type Address: Address;
+
+    /// The type of the height of a block.
+    type Height: Height;
+
+    /// The type of proposal part
+    type ProposalPart: ProposalPart<Self>;
+
+    /// The interface provided by the proposal type.
+    type Proposal: Proposal<Self>;
+
+    /// The interface provided by the validator type.
+    type Validator: Validator<Self>;
+
+    /// The interface provided by the validator set type.
+    type ValidatorSet: ValidatorSet<Self>;
+
+    /// The type of values that can be proposed.
+    type Value: Value;
+
+    /// The type of votes that can be cast.
+    type Vote: Vote<Self>;
+
+    /// The signing scheme used to sign consensus messages.
+    type SigningScheme: SigningScheme;
+
+    /// The signing provider used to sign and verify consensus messages.
+    type SigningProvider: SigningProvider<Self>;
+
+    // ...
+}
+```
+
+The application is expected to instantiate this `Context` trait with concrete types for the abstract type definitions above.
+Each of these concrete will need to implement the corresponding trait, which can be found on the right-hand side of the
+type definition.
+
+The `Context` also defines a few abstract methods which need to be implemented:
+
+```
+pub trait Context {
+    // ...
+
+    /// Select a proposer in the validator set for the given height and round.
+    fn select_proposer<'a>(
+        &self,
+        validator_set: &'a Self::ValidatorSet,
+        height: Self::Height,
+        round: Round,
+    ) -> &'a Self::Validator;
+
+    /// Get the singing provider.
+    fn signing_provider(&self) -> &Self::SigningProvider;
+
+    /// Build a new proposal for the given value at the given height, round and POL round.
+    fn new_proposal(
+        height: Self::Height,
+        round: Round,
+        value: Self::Value,
+        pol_round: Round,
+        address: Self::Address,
+    ) -> Self::Proposal;
+
+    /// Build a new prevote vote by the validator with the given address,
+    /// for the value identified by the given value id, at the given round.
+    fn new_prevote(
+        height: Self::Height,
+        round: Round,
+        value_id: NilOrVal<ValueId<Self>>,
+        address: Self::Address,
+    ) -> Self::Vote;
+
+    /// Build a new precommit vote by the validator with the given address,
+    /// for the value identified by the given value id, at the given round.
+    fn new_precommit(
+        height: Self::Height,
+        round: Round,
+        value_id: NilOrVal<ValueId<Self>>,
+        address: Self::Address,
+    ) -> Self::Vote;
+}
+```
 
 ### Consensus types
-The basic consensus types, like `Height` of a network, `Address` of a wallet, description of a `Validator` or list of
-validators (`ValidatorSet`) are defined as traits in `malachite_app_channel::app::types`.
+The basic consensus types, like the `Height` of a network, the `Address` of a wallet, the description of a `Validator`, or a set of
+validators (`ValidatorSet`) are defined as traits in `malachitebft_app_channel::app::types`.
 
 For example, the `Height` trait requires these three methods to be implemented:
 * `increment_by`
@@ -54,7 +162,7 @@ Example implementation of the `Height` trait:
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Height(u64);
 
-impl malachite_app_channel::app::types::Height for Height {
+impl malachitebft_app_channel::app::types::Height for Height {
     fn increment_by(&self, n: u64) -> Self {
         Self(self.0 + n)
     }
@@ -68,31 +176,17 @@ impl malachite_app_channel::app::types::Height for Height {
     }
 }
 ```
-This implementation is an excerpt from a struct implemented in the `malachite_test` crate.
+This implementation is an excerpt from a struct implemented in the `malachitebft_test` crate.
 
-For the sake of simplicity we will use these pre-defined types instead of defining our own Context types. In a more
-complex case, these are the types that we will need to implement or borrowed from `malachite_test`:
+In this tutorial, for the sake of simplicity, we will use these pre-defined types from the `malachitebft_test` crate
+instead of defining our own.
 
-* `SigningProvider`
-* `Address`
-* `Height`
-* `NilOrVal`
-* `Proposal`
-* `ProposalPart`
-* `Round`
-* `SigningScheme`
-* `Validator`
-* `ValidatorSet`
-* `Value`
-* `ValueId`
-* `Vote`
-
-Note the `malachite_test::Vote` implementation:
+Note the `malachitebft_test::Value` implementation:
 ```rust
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Value(u64);
 
-impl malachite_app_channel::app::types::Value for Value {
+impl malachitebft_app_channel::app::types::Value for Value {
     type Id = ValueId;
 
     fn id(&self) -> ValueId {
@@ -100,285 +194,134 @@ impl malachite_app_channel::app::types::Value for Value {
     }
 }
 ```
-The test implementation is only capable of shipping a single value in a transaction. We will use this for now, but in
-subsequent examples we will need to implement a more complex `Value` type.
 
-### The `Context` trait
-The Malachite Consensus Context trait defines abstractions over the various data types used in the consensus engine.
-It is defined in `malachite_app_channel::app::types::Context` and an example implementation can be seen at
-`malachite_test::Context`. The types defined so far will be added to the `Context` implementation so the consensus
-engine understands what it will work with.
+The test implementation defines a very simple type of values for consensus to decide on.
+We will use this for now, but a real application would likely use something more akin
+to a [*block*](https://github.com/tendermint/spec/blob/8dd2ed4c6fe12459edeb9b783bdaaaeb590ec15c/spec/core/data_structures.md#block),
+with a proper header and a list of transactions included in that block, etc.
 
 
 ### The `Codec` trait
 Nodes on the network need to communicate with each other. Implementing the `encode` and `decode` methods of the
-`malachite_code::Codec` trait defines how the types sent over the wire. Typically, protobuf is a very common choice
-for encoding/decoding messages but to keep modularity flexible, there is no default implementation. The
-`malachite_test::codec::proto::ProtobufCodec` implementation can be used as an example, and for testing.
+`malachitebft_code::Codec` trait defines how messages are encoded and decoded when sent over the wire.
+Typically, Protobuf is a very common choice for encoding/decoding messages but to keep modularity flexible, there is no default implementation.
+The `malachitebft_test::codec::proto::ProtobufCodec` implementation can be used as an example, and for testing.
 
-At least the following types need to have a `Codec` implementation:
-* `Value`
-* `ProposalPart`
+The following types defined by the `Context`, need to have a `Codec` implementation,
+where `Ctx` is the type of the concrete `Context` used by the application.
+* `Ctx::ProposalPart`
 
-The following types are also sent over the wire and need a Codec implementation:
-* `malachite_app_channel::app::types::SignedConsensusMsg<Context>`
-* `malachite_app_channel::app::types::streaming::StreamMessage<ProposalPart>`
+The following types are also sent over the wire and need a `Codec` implementation,
+where `Ctx` is the type of the concrete `Context` used by the application.
+* `malachitebft_app_channel::app::types::SignedConsensusMsg<Ctx>`
+* `malachitebft_app_channel::app::types::streaming::StreamMessage<Ctx::ProposalPart>`
 
-The `malachite_sync` crate provides structs that are used during synchronization among different nodes. These messages
-also need to be encoded and decoded when sent over the wire:
-* `malachite_sync::Status`
-* `malachite_sync::Request`
-* `malachite_sync::Response`
-<!-- Todo: re-export malachite_sync in malachite_app -->
+Moreover, some messages are used during synchronization among different nodes.
+These messages also need to be encoded and decoded when sent over the wire:
+* `malachitebft_app_channel::app::types::sync::Status`
+* `malachitebft_app_channel::app::types::sync::Request`
+* `malachitebft_app_channel::app::types::sync::Response`
 
 ### The `Node` trait
-The `Node` trait is the interface between the application configuration and Malachite.
+The `malachitebft_app_channel::app::Node` trait allows the application to define how to load its configuration, genesis file and private key
+from the filesystem or some other medium.
 
-The `malachite_app_channel::app::Node` trait defines the encryption algorithm used for generating the private signing key,
-loading it from a file system, and calculating the public key or the wallet address from it. It is also responsible for
-loading the Genesis file from the file system or generating one for testing purposes.
+In order to generate a configuration file with the `init` command, the `Node` trait also defines
+how to generate a signing key, encode and decode it from the underlying storage medium, and extracting a public key and
+a wallet address from it. It is also responsible for loading the genesis file from the storage or generating one for testing purposes.
 
 The `Node::run()` method is the entry point for the application where the initial configuration is loaded and parsed and
 the Malachite actors (consensus engine, network, etc.) are started.
 
 
-### Consensus engine messages
-The consensus engine will send messages to the application, describing the current state of the engine. In cases when a
-`reply_to` field is present, the application will need to send a response back to the consensus engine. In any case,
-the message received can be used to change the internal state of the application: save data onto a database, send a
-message to a node, etc.
+### Messages from consensus to the application
+While running, the consensus engine will send messages to the application, describing steps taken by consensus,
+or requesting an action to be performed by the application.
+In cases when a `reply_to` field is present, the application will need to send a response back to the engine.
+In any case, the message received can be used to change the internal state of the application:
+assemble a value to propose, break down a proposal into parts and broadcast them over the network, etc.
 
-The application can send messages through the network. A tokio channel is provided for this purpose that
-connects to the peer-to-peer layer.
+**Note:**
+While the internal implementation of Malachite is based on the actor model, the `malachitebft_app_channel`
+crate provides a layer over it that uses Tokio channels instead of actors for communicating with the engine,
+so that the application does not have to buy into the actor model.
 
-The internal implementation of Malachite is based on the Actor model. The `malachite_app_channel` crate provides the
-necessary tokio channel implementations that hook into this model so the application does not have to implement the Actor
-model.
+The messages that can be received and have to be handled by the application are defined by `malachitebft_app_channel::AppMsg` type.
+A brief description of each message can be found below:
 
-```mermaid
-flowchart
-    ConsensusAlgorithm[Consensus Algorithm: Sends ConsensusMsg]
-    Consensus[Consensus Actor: Receives ConsensusMsg]
-    GossipConsensus[P2P Gossip Actor: Receives GossipConsensusMsg]
-    Host[Host Actor: Receives HostMsg]
-    Application[Application: Receives AppMsg]
-
-    ConsensusAlgorithm --> Consensus
-    subgraph Actors
-        Consensus --> GossipConsensus & Host
-        Host --> GossipConsensus
-    end
-    Host ===>|channel| Application
-    Application ===>|channel| GossipConsensus
-```
-[Chart: malachite-app-channel](https://mermaid.live/view#pako:eNp1kr1uwjAURl_lykMHBB06RgIVtVK7IKHSqaTDxb7EVuMf2Q5VBbx7nQRIGmiGKPl0jmV_vnvGrSCWsW1pv7lEH3MD6XmyJpAJVZiXhfUqSr2-RHDJMhityIjQ4YtQjD4HS_RNHq1P1htxUju6Lb7YEJTr9OXD8pRd-wO2t8qrDXFdv66lOu2Rc-dKxTEqa9a9776R4pNwPpvWZOLjHoJERxlsPHIKYyhxQ2UGOVtZTaApBCySL3FHgOApuHqr4NCjpkj-Ht4lpQA9gbERBDnFI4n7nB3_uwmYTGZd3FKh2hQenWwPewr_6I01qAvumi46uunrBtgS6aq7bmE6nc4OaWSMofLQL_Gq1QE6WJuNmSavUYk0hvtazlmUpClndZEC_VfOcnNMHFbRrn4MZ1n0FY2Zt1UhWbbFMqS_ygmM9KwwNaHPiEPzYa2-QCRUKmjRDn0z-8dfj68LYA)
-
-The following `malachite_app_channel::AppMsg` messages can be received and have to be implemented for the application
-to interact with the consensus engine:
-
-| Message              | Description                                                                                                                                                                                                                                                                                                                                                                                                                                |
-|----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ConsensusReady       | Notifies the application that consensus is ready. The application MAY reply with a message to instruct consensus to start at a given height.                                                                                                                                                                                                                                                                                               |
-| StartedRound         | Notifies the application that a new consensus round has begun.                                                                                                                                                                                                                                                                                                                                                                             |
-| GetValue             | Requests the application to build a value for consensus to run on. The application MUST reply to this message with the requested value within the specified timeout duration.                                                                                                                                                                                                                                                              |
-| RestreamProposal     | Requests the application to re-stream a proposal that it has already seen. The application MUST re-publish again all the proposal parts pertaining to that value by sending `NetworkMsg::PublishProposalPart` messages through the `Channels::network` channel.                                                                                                                                                                            |
-| GetHistoryMinHeight  | Requests the earliest height available in the history maintained by the application. The application MUST respond with its earliest available height.                                                                                                                                                                                                                                                                                      |
-| ReceivedProposalPart | Notifies the application that consensus has received a proposal part over the network. If this part completes the full proposal, the application MUST respond with the complete proposed value. Otherwise, it MUST respond with `None`.                                                                                                                                                                                                    |                                                                                                                                                                                                                    |
-| GetValidatorSet      | Requests the validator set for a specific height.                                                                                                                                                                                                                                                                                                                                                                                          |
-| Decided              | Notifies the application that consensus has decided on a value. This message includes a commit certificate containing the ID of the value that was decided on, the height and round at which it was decided, and the aggregated signatures of the validators that committed to it. In response to this message, the application MAY send a `ConsensusMsg::StartHeight` message back to consensus, instructing it to start the next height. |
-| GetDecidedValue      | Requests a previously decided value from the application's storage. The application MUST respond with that value if available, or `None` otherwise.                                                                                                                                                                                                                                                                                        |
-| ProcessSyncedValue   | Notifies the application that a value has been synced from the network. This may happen when the node is catching up with the network. If a value can be decoded from the bytes provided, then the application MUST reply to this message with the decoded value.                                                                                                                                                                          |
-<!-- Todo: Is RestreamProposal obsolete? -->
+| Message                | Description                                                                                                                                                                                                                                                                                                                                                                                                                                |
+|------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ConsensusReady`       | Notifies the application that consensus is ready. The application MAY reply with a message to instruct consensus to start at a given height.                                                                                                                                                                                                                                                                                               |
+| `StartedRound`         | Notifies the application that a new consensus round has begun.                                                                                                                                                                                                                                                                                                                                                                             |
+| `GetValue`             | Requests the application to build a value for consensus to run on. The application MUST reply to this message with the requested value within the specified timeout duration.                                                                                                                                                                                                                                                              |
+| `GetHistoryMinHeight`  | Requests the earliest height available in the history maintained by the application. The application MUST respond with its earliest available height.                                                                                                                                                                                                                                                                                      |
+| `GetValidatorSet`      | Requests the validator set for a specific height.                                                                                                                                                                                                                                                                                                                                                                                          |
+| `ReceivedProposalPart` | Notifies the application that consensus has received a proposal part over the network. If this part completes the full proposal, the application MUST respond with the complete proposed value. Otherwise, it MUST respond with `None`.                                                                                                                                                                                                    |                                                                                                                                                                                                                    |
+| `Decided`              | Notifies the application that consensus has decided on a value. This message includes a commit certificate containing the ID of the value that was decided on, the height and round at which it was decided, and the aggregated signatures of the validators that committed to it. In response to this message, the application MAY send a `ConsensusMsg::StartHeight` message back to consensus, instructing it to start the next height. |
+| `GetDecidedValue`      | Requests a previously decided value from the application's storage. The application MUST respond with that value if available, or `None` otherwise.                                                                                                                                                                                                                                                                                        |
+| `ProcessSyncedValue`   | Notifies the application that a value has been synced from the network. This may happen when the node is catching up with the network. If a value can be decoded from the bytes provided, then the application MUST reply to this message with the decoded value.                                                                                                                                                                          |
+| `RestreamProposal`     | Requests the application to re-stream a proposal that it has already seen. The application MUST re-publish again all the proposal parts pertaining to that value by sending `NetworkMsg::PublishProposalPart` messages through the `Channels::network` channel.                                                                                                                                                                            |
 
 ### Application state
 The application needs to maintain its internal state so it can react to the messages received from consensus.
-Usually, this means implementing mempool, storing the data in a database, running an RPC server for queries or
-interacting with other parties off-the-network.
+Usually, this means implementing mempool, storing the data in a database, running an RPC server for queries and
+submitting transaction or interacting with other parties off-the-network.
+
+This is out of scope for this tutorial, and we will instead store data in memory and make up random values to propose and decide on.
 
 ## Putting it all together
 Now that we have all the context necessary to interact with the Malachite consensus engine, we can start building our
 application.
 
-### Input parameters
-Users are used to providing input parameters to the application. This is outside the scope of Malachite, but for testing
-purposes there is one implementation that we can use without creating our own.
+### Create a new Rust project
 
-```rust
-use malachite_test_cli::args::Args;
-
-fn main() {
-   // Load command-line arguments and possible configuration file.
-   let args = Args::new();
-}
+Let's crate a new empty Rust project with a executable target:
 
 ```
-
-The `malachite_test_cli` crate uses the `clap` library to parse the command-line and provide input parameters like
-`--home` as well as commands like `init`, `start` or `testnet`.
-
-These work similarly to CometBFT: `init` creates initial configuration in `$HOME/.malachite`, `testnet` does the same but
-it creates multiple configuration (make sure `--nodes` is set) with a valid genesis file, and `start` runs the node.
-
-
-
-### Logging
-It is up to the application integrator to implement logging. However, to simplify debugging the internals of Malachite,
-the `tracing` library is used for logging internally. It can also be used for the applications purposes, so we will just
-do that.
-
-```rust
-fn main() {
-   // Load configuration file if it exists. Some commands do not require a configuration file.
-   let opt_config_file_path = args
-           .get_config_file_path()
-           .map_err(|error| eyre!("Failed to get configuration file path: {:?}", error));
-
-   let opt_config = opt_config_file_path.and_then(|path| {
-      load_config(&path, None)
-              .map_err(|error| eyre!("Failed to load configuration file: {:?}", error))
-   });
-
-   // Override logging configuration (if exists) with optional command-line parameters.
-   let mut logging = opt_config.as_ref().map(|c| c.logging).unwrap_or_default();
-   if let Some(log_level) = args.log_level {
-      logging.log_level = log_level;
-   }
-   if let Some(log_format) = args.log_format {
-      logging.log_format = log_format;
-   }
-
-   // This is a drop guard responsible for flushing any remaining logs when the program terminates.
-   // It must be assigned to a binding that is not _, as _ will result in the guard being dropped immediately.
-   let _guard = logging::init(logging.log_level, logging.log_format);
-
-}
-```
-Note that we extract any logging configuration from the configuration file if it exists and override them with the input
-parameters provided on the command-line. There are cases (for example when the `init` command is called) when it is not
-guaranteed that a logging file exists.
-
-By the time the `start` command is run, the configuration should be in place.
-
-```rust
-fn main() {
-   let mut config = opt_config
-           .map_err(|error| error!(%error, "Failed to load configuration."))
-           .unwrap();
-
-   config.logging = logging;
-}
-```
-### Create the application object
-Now we are getting to the meat of it. The configuration loaded, we have to load the private key used for signing and
-start the application. This is where the `Node::run` method comes in.
-
-```rust
-use async_trait::async_trait;
-use libp2p_identity::Keypair;
-use malachite_app_channel::app::Node;
-
-// Normally you implement your own types, as discussed above. We use the types defined for testing so we can focus on
-// the integration instead.
-use malachite_test::codec::proto::ProtobufCodec;
-use malachite_test::{
-   Address, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet,
-};
-
-/// Main application struct implementing the consensus node functionality
-#[derive(Clone)]
-pub struct App {
-   // ... data to store the folders and configuration
-}
-
-#[async_trait]
-impl Node for App {
-    type Context = TestContext;
-    type Genesis = Genesis;
-    type PrivateKeyFile = PrivateKey;
-
-    fn get_home_dir(&self) -> PathBuf {/*...*/}
-    fn generate_private_key<R>(&self, rng: R) -> PrivateKey where R: RngCore + CryptoRng, {/*...*/}
-    fn get_address(&self, pk: &PublicKey) -> Address {/*...*/}
-    fn get_public_key(&self, pk: &PrivateKey) -> PublicKey {/*...*/}
-    fn get_keypair(&self, pk: PrivateKey) -> Keypair {/*...*/}
-    fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey {/*...*/}
-    fn load_private_key_file(&self, path: impl AsRef<Path>) -> std::io::Result<Self::PrivateKeyFile> {/*...*/}
-    fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {/*...*/}
-    fn load_genesis(&self, path: impl AsRef<Path>) -> std::io::Result<Self::Genesis> {/*...*/}
-    fn make_genesis(&self, validators: Vec<(PublicKey, VotingPower)>) -> Self::Genesis {/*...*/}
-
-    async fn run(self) -> eyre::Result<()> {
-        let span = tracing::error_span!("node", moniker = %self.config.moniker);
-        let _enter = span.enter();
-
-        let private_key_file = self.load_private_key_file(&self.private_key_file)?;
-        let private_key = self.load_private_key(private_key_file);
-        let public_key = self.get_public_key(&private_key);
-        let address = self.get_address(&public_key);
-        let ctx = TestContext::new(private_key);
-
-        let genesis = self.load_genesis(self.genesis_file.clone())?;
-        let initial_validator_set = genesis.validator_set.clone();
-        let start_height = self.start_height.map(Height::new);
-
-        let codec = ProtobufCodec;
-
-        let mut channels = malachite_app_channel::run(
-            ctx.clone(),
-            codec,
-            self.clone(),
-            self.config.clone(),
-            self.private_key_file.clone(),
-            start_height,
-            initial_validator_set,
-        )
-        .await?;
-
-        let mut state = State::new(ctx, address, start_height.unwrap_or_default());
-
-        crate::app::run(genesis, &mut state, &mut channels).await
-    }
-}
-
-fn main() {
-   // Create the application object.
-   let mut node = App {
-      home_dir: args.get_home_dir()?,
-      config,
-      genesis_file: args.get_genesis_file_path()?,
-      private_key_file: args.get_priv_validator_key_file_path()?,
-      start_height: Default::default(), // placeholder, because start_height is only valid in StartCmd.
-   };
-
-    let runtime = config.runtime;
-
-    let metrics = config.metrics.enabled.then(|| config.metrics.clone());
-
-    // Define the runtime. If you are not interested in a custom runtime configuration,
-    // you can use the #[async_trait] attribute on the main function.
-    let rt = runtime::build_runtime(runtime)?;
-    rt.block_on(cmd.run(node, metrics))
-        .map_err(|error| eyre!("Failed to run start command {:?}", error));
-}
+$ cargo new --bin tutorial
+$ cd tutorial
 ```
 
-Continuing the main function's steps, we create the `App` object that defines our application and run its `run()` method.
+Let's add the dependencies we will eventually need in `Cargo.toml`:
 
-The above App implementation ignores the implementation of the configuration storage in the `App` struct and file load
-functionality. These are trivial to implement, and an example is implemented in the `malachite_test` crate.
+```toml
+[package]
+name = "tutorial"
+version = "1.0.0"
+edition = "2021"
+publish = false
 
-In the `run()` method, the private key is loaded, the public key and address is calculated and then the Consensus Context
-is created. In our example application we will use the `malachite_test::TestContext` but as it was discussed above, a
-custom `Context` should be implemented for more complex applications.
+[dependencies]
+# General dependencies
+async-trait = "0.1"
+bytes = "1.9"
+color-eyre = "0.6"
+derive-where = "1.2"
+eyre = "0.6"
+libp2p-identity = "0.2"
+rand = "0.8"
+serde_json = "1.0"
+sha3 = "0.10"
+tracing = "0.1"
+tokio = "1.42"
 
-After loading the Genesis file and creating the validator set, the network `Codec` is also instantiated. (See above for
-implementation details.)
+[dependencies.malachitebft-app-channel]
+version = "0.1.0"
+git = "https://github.com/informalsystems/malachite"
+# This adds the `informalsystems-malachitebft-app-channel` as a dependency, but exposes it
+# under `malachitebft_app_channel` instead of its full package name.
+package = "informalsystems-malachitebft-app-channel"
 
-With everything ready, we can call `malachite_app_channel::run()` to start the Actor framework (consensus engine and
-peer-to-peer network) and receive the communication channels in a `Channels` struct.
+[dependencies.malachitebft-test-cli]
+version = "0.1.0",
+git = "https://github.com/informalsystems/malachite"
+package = "informalsystems-malachitebft-test-cli"
+```
 
-### State
+### Application state
+
 A minimal (in-memory) state can be created to maintain knowledge of the height, round and data transmitted.
+We will define it in a new `state` module:
 
 ```rust
 /// Represents the internal state of the application node
@@ -400,9 +343,201 @@ pub struct State {
 }
 ```
 
-This will be useful when the application responds back to the consensus engine.
+See the example app for [the full code of the `State` struct](/code/examples/channel/src/state.rs).
 
-## The consensus dialog
+**TODO:** Go over the implementation of `State`
+
+### Handle consensus messages
+
+We now need a way to process messages sent to the application by consensus, and act on those accordingly.
+Let's define a `run` function in a new `app` module, which will wait for messages from consensus
+and handle those by updating its state and sending back the appropriate responses.
+
+```
+use std::time::Duration;
+
+use eyre::eyre;
+use tracing::{error, info};
+
+use malachitebft_app_channel::app::streaming::StreamContent;
+use malachitebft_app_channel::app::types::core::{Round, Validity};
+use malachitebft_app_channel::app::types::ProposedValue;
+use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
+use malachitebft_test::{Genesis, TestContext};
+
+use crate::state::{decode_value, State};
+
+pub async fn run(
+    genesis: Genesis,
+    state: &mut State,
+    channels: &mut Channels<TestContext>,
+) -> eyre::Result<()> {
+    while let Some(msg) = channels.consensus.recv().await {
+        match msg {
+            AppMsg::ConsensusReady { reply } => {
+                info!("Consensus is ready");
+
+                tokio::time::sleep(Duration::from_secs(1)).await;
+
+                if reply
+                    .send(ConsensusMsg::StartHeight(
+                        state.current_height,
+                        genesis.validator_set.clone(),
+                    ))
+                    .is_err()
+                {
+                    error!("Failed to send ConsensusReady reply");
+                }
+            }
+
+            AppMsg::StartedRound {
+                height,
+                round,
+                proposer,
+            } => {
+                info!(%height, %round, %proposer, "Started round");
+
+                state.current_height = height;
+                state.current_round = round;
+                state.current_proposer = Some(proposer);
+            }
+
+            AppMsg::GetValue {
+                height,
+                round,
+                timeout: _,
+                reply,
+            } => {
+                // NOTE: We can ignore the timeout as we are building the value right away.
+                // If we were let's say reaping as many txes from a mempool and executing them,
+                // then we would need to respect the timeout and stop at a certain point.
+
+                info!(%height, %round, "Consensus is requesting a value to propose");
+
+                // Check if we have a previously built value for that height and round
+                if let Some(proposal) = state.get_previously_built_value(height, round) {
+                    info!(value = %proposal.value.id(), "Re-using previously built value");
+
+                    if reply.send(proposal).is_err() {
+                        error!("Failed to send GetValue reply");
+                    }
+
+                    return Ok(());
+                }
+
+                // Otherwise, propose a new value
+                let proposal = state.propose_value(height, round);
+
+                // Send it to consensus
+                if reply.send(proposal.clone()).is_err() {
+                    error!("Failed to send GetValue reply");
+                }
+
+                // Decompose the proposal into proposal parts and stream them over the network
+                for stream_message in state.stream_proposal(proposal) {
+                    info!(%height, %round, "Streaming proposal part: {stream_message:?}");
+                    channels
+                        .network
+                        .send(NetworkMsg::PublishProposalPart(stream_message))
+                        .await?;
+                }
+            }
+
+            AppMsg::GetHistoryMinHeight { reply } => {
+                if reply.send(state.get_earliest_height()).is_err() {
+                    error!("Failed to send GetHistoryMinHeight reply");
+                }
+            }
+
+            AppMsg::ReceivedProposalPart { from, part, reply } => {
+                let part_type = match &part.content {
+                    StreamContent::Data(part) => part.get_type(),
+                    StreamContent::Fin(_) => "end of stream",
+                };
+
+                info!(%from, %part.sequence, part.type = %part_type, "Received proposal part");
+
+                let proposed_value = state.received_proposal_part(from, part);
+
+                if reply.send(proposed_value).is_err() {
+                    error!("Failed to send ReceivedProposalPart reply");
+                }
+            }
+
+            AppMsg::GetValidatorSet { height: _, reply } => {
+                if reply.send(genesis.validator_set.clone()).is_err() {
+                    error!("Failed to send GetValidatorSet reply");
+                }
+            }
+
+            AppMsg::Decided { certificate, reply } => {
+                info!(
+                    height = %certificate.height, round = %certificate.round,
+                    value = %certificate.value_id,
+                    "Consensus has decided on value"
+                );
+
+                state.commit(certificate);
+
+                if reply
+                    .send(ConsensusMsg::StartHeight(
+                        state.current_height,
+                        genesis.validator_set.clone(),
+                    ))
+                    .is_err()
+                {
+                    error!("Failed to send Decided reply");
+                }
+            }
+
+            AppMsg::GetDecidedValue { height, reply } => {
+                let decided_value = state.get_decided_value(&height).cloned();
+
+                if reply.send(decided_value).is_err() {
+                    error!("Failed to send GetDecidedValue reply");
+                }
+            }
+
+            AppMsg::ProcessSyncedValue {
+                height,
+                round,
+                proposer,
+                value_bytes,
+                reply,
+            } => {
+                info!(%height, %round, "Processing synced value");
+
+                let value = decode_value(value_bytes);
+
+                if reply
+                    .send(ProposedValue {
+                        height,
+                        round,
+                        valid_round: Round::Nil,
+                        proposer,
+                        value,
+                        validity: Validity::Valid,
+                        extension: None,
+                    })
+                    .is_err()
+                {
+                    error!("Failed to send ProcessSyncedValue reply");
+                }
+            }
+
+            AppMsg::RestreamProposal { .. } => {
+                error!("RestreamProposal not implemented");
+            }
+        }
+    }
+
+    Err(eyre!("Consensus channel closed unexpectedly"))
+}
+```
+
+**TODO:** Break down this section and provide detailed explanations per-message.
+
+### The consensus dialog
 Most Consensus messages have a `reply_to` field that the application should use to respond to the message. To understand
 better how to implement responses to these messages, let's look at the dialog between the consensus engine and the application.
 
@@ -474,3 +609,263 @@ sequenceDiagram
 ```
 <!-- Todo: talk about the minimal amount of conversation needed to run the engine. List the known caveats that would
 make consensus start new rounds but not finalize any heights. Like mismatched values. -->
+
+### Command-line interface
+Most applications will expect to receive arguments over the command-line, eg. to point it at a configuration file.
+This is outside the scope of Malachite, but for the purpose of this tutorial we can use Malachite's test CLI instead of creating our own.
+
+In our `main.rs` file, we can add the following:
+
+```rust
+use eyre::Result;
+
+use malachitebft_test_cli::args::Args;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Install a global error handler
+    color_eyre::install()?;
+
+   // Load command-line arguments and possible configuration file.
+   let args = Args::new();
+
+   // More to come
+}
+
+```
+
+The `malachite-test-cli` crate uses the `clap` library to parse the command-line and provide input parameters like
+`--home` as well as commands like `init`, `start` or `testnet`.
+
+These work similarly to CometBFT: `init` creates initial configuration in `$HOME/.malachite`, `testnet` does the same but
+it creates multiple configurations (make sure `--nodes` is set) for running a local testnet, and `start` runs the node.
+
+### Logging
+It is up to the application integrator to implement logging. However, given that Malachite uses the the `tracing` library
+for logging internally, it is natural to use it as well for the application, so we will just do that by using
+the `logging` module from the `malachitebft_test_cli` crate.
+
+```rust
+use eyre::eyre; // ADDED
+
+use malachitebft_test_cli::config::load_config; // ADDED
+
+#[tokio::main]
+async fn main() {
+    // Same as before
+
+    let mut logging = LoggingConfig::default();
+
+    // Override logging configuration with optional command-line parameters.
+    if let Some(log_level) = args.log_level {
+        logging.log_level = log_level;
+    }
+    if let Some(log_format) = args.log_format {
+        logging.log_format = log_format;
+    }
+
+    // This is a drop guard responsible for flushing any remaining logs when the program terminates.
+    // It must be assigned to a binding that is not _, as _ will result in the guard being dropped immediately.
+    let _guard = logging::init(logging.log_level, logging.log_format);
+
+    // More to come
+}
+```
+
+Note that we override the default logging configuration with the input parameters provided on the command-line.
+
+### Creating an instance of the `Node` trait
+Now we are getting to the meat of it. The configuration loaded, we have to load the private key used for signing and
+start the application. This is where the `Node::run` method comes in.
+
+```rust
+use std::path::{Path, PathBuf};
+
+use async_trait::async_trait;
+use rand::{CryptoRng, RngCore};
+
+use malachitebft_app_channel::app::types::config::Config;
+use malachitebft_app_channel::app::types::core::VotingPower;
+use malachitebft_app_channel::app::types::Keypair;
+use malachitebft_app_channel::app::Node;
+
+// Use the same types used for integration tests.
+// A real application would use its own types and context instead.
+use malachitebft_test::codec::proto::ProtobufCodec;
+use malachitebft_test::{
+    Address, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet,
+};
+
+use crate::state::State;
+
+/// Main application struct implementing the consensus node functionality
+#[derive(Clone)]
+pub struct App {
+    pub config: Config,
+    pub home_dir: PathBuf,
+    pub genesis_file: PathBuf,
+    pub private_key_file: PathBuf,
+    pub start_height: Option<Height>,
+}
+
+#[async_trait]
+impl Node for App {
+    type Context = TestContext;
+    type Genesis = Genesis;
+    type PrivateKeyFile = PrivateKey;
+
+    fn get_home_dir(&self) -> PathBuf {
+        self.home_dir.to_owned()
+    }
+
+    fn generate_private_key<R>(&self, rng: R) -> PrivateKey
+    where
+        R: RngCore + CryptoRng,
+    {
+        PrivateKey::generate(rng)
+    }
+
+    fn get_address(&self, pk: &PublicKey) -> Address {
+        Address::from_public_key(pk)
+    }
+
+    fn get_public_key(&self, pk: &PrivateKey) -> PublicKey {
+        pk.public_key()
+    }
+
+    fn get_keypair(&self, pk: PrivateKey) -> Keypair {
+        Keypair::ed25519_from_bytes(pk.inner().to_bytes()).unwrap()
+    }
+
+    fn load_private_key(&self, file: Self::PrivateKeyFile) -> PrivateKey {
+        file
+    }
+
+    fn load_private_key_file(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> std::io::Result<Self::PrivateKeyFile> {
+        let private_key = std::fs::read_to_string(path)?;
+        serde_json::from_str(&private_key).map_err(|e| e.into())
+    }
+
+    fn make_private_key_file(&self, private_key: PrivateKey) -> Self::PrivateKeyFile {
+        private_key
+    }
+
+    fn load_genesis(&self, path: impl AsRef<Path>) -> std::io::Result<Self::Genesis> {
+        let genesis = std::fs::read_to_string(path)?;
+        serde_json::from_str(&genesis).map_err(|e| e.into())
+    }
+
+    fn make_genesis(&self, validators: Vec<(PublicKey, VotingPower)>) -> Self::Genesis {
+        let validators = validators
+            .into_iter()
+            .map(|(pk, vp)| Validator::new(pk, vp));
+
+        let validator_set = ValidatorSet::new(validators);
+
+        Genesis { validator_set }
+    }
+
+    async fn run(self) -> eyre::Result<()> {
+        let span = tracing::error_span!("node", moniker = %self.config.moniker);
+        let _enter = span.enter();
+
+        let private_key_file = self.load_private_key_file(&self.private_key_file)?;
+        let private_key = self.load_private_key(private_key_file);
+        let public_key = self.get_public_key(&private_key);
+        let address = self.get_address(&public_key);
+        let ctx = TestContext::new(private_key);
+
+        let genesis = self.load_genesis(self.genesis_file.clone())?;
+        let initial_validator_set = genesis.validator_set.clone();
+
+        // Use Protobuf for encoding messages on the wire
+        let codec = ProtobufCodec;
+
+        // Start Malachite
+        let mut channels = malachitebft_app_channel::run(
+            ctx.clone(),
+            codec,
+            self.clone(),
+            self.config.clone(),
+            self.private_key_file.clone(),
+            self.start_height,
+            initial_validator_set,
+        )
+        .await?;
+
+        // Initialize the application state
+        let mut state = State::new(ctx, address, self.start_height.unwrap_or_default());
+
+        // Start our application
+        crate::app::run(genesis, &mut state, &mut channels).await
+    }
+}
+```
+
+Continuing the main function's steps, we create the `App` object that defines our application and run its `run()` method.
+
+In the `run()` method, the private key is loaded, the public key and address is calculated and then the Consensus Context
+is created. In our example application we will use the `malachitebft_test::TestContext` but as it was discussed above, a
+custom `Context` should be implemented for more complex applications.
+
+After loading the genesis file and creating the validator set, the network `Codec` is also instantiated.
+
+With everything ready, we can call `malachitebft_app_channel::run()` to start the consensus engine and
+get back the communication channels for interacting with the engine.
+
+After that all is left is to start our application.
+
+### Starting our application from `main`
+
+We can now call the `App::run` method from `main`, when the `start` command is invoked:
+
+```
+async fn main() -> Result<()> {
+    // Same as before
+
+    // Parse the input command.
+    match &args.command {
+        Commands::Start(cmd) => start(&args, cmd, logging).await,
+        _ => unimplemented!(),
+    }
+}
+
+async fn start(args: &Args, cmd: &StartCmd, logging: config::LoggingConfig) -> Result<()> {
+    // Load configuration file if it exists. Some commands do not require a configuration file.
+    let config_file = args
+        .get_config_file_path()
+        .map_err(|error| eyre!("Failed to get configuration file path: {error}"))?;
+
+    let mut config = config::load_config(&config_file, None)
+        .map_err(|error| eyre!("Failed to load configuration file: {error}"))?;
+
+    config.logging = logging;
+
+    info!(
+        file = %args.get_config_file_path().unwrap_or_default().display(),
+        "Loaded configuration",
+    );
+
+    trace!(?config, "Configuration");
+
+    // Setup the application
+    let app = App {
+        config,
+        home_dir: args.get_home_dir()?,
+        genesis_file: args.get_genesis_file_path()?,
+        private_key_file: args.get_priv_validator_key_file_path()?,
+        start_height: cmd.start_height.map(Height::new),
+    };
+
+    // Start the node
+    app.run()
+        .await
+        .map_err(|error| eyre!("Failed to run the application node: {error}"))
+}
+```
+
+Et voila, we can now start our application from the CLI!
+
