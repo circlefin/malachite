@@ -1,11 +1,11 @@
 // -*- mode: Bluespec; -*-
 //
-// Test unit for blocksync client-side protocol.
+// Test unit for valuesync client-side protocol.
 
-module blocksyncClientTest {
+module valuesyncClientTest {
 
-  import blocksyncClient.* from "./blocksyncClient"
-  import blocksync.* from "./blocksync"
+  import valuesyncClient.* from "./valuesyncClient"
+  import valuesync.* from "./valuesync"
 
   val nodes = Set("v1", "v2", "v3")
   val chain = List(
@@ -17,11 +17,11 @@ module blocksyncClientTest {
     }
   )
 
-  var outputs: List[BsyncClientOutput]
+  var outputs: List[VsyncClientOutput]
 
   action init = all {
     initClient(nodes),
-    initBsync(nodes),
+    initVsync(nodes),
     outputs' = List(),
   }
 
@@ -52,23 +52,23 @@ module blocksyncClientTest {
     // Nothing happens until the height is set
     .then(clientLogic("v1", addOutput, false))
     .expect(length(outputs) == 0)
-    .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
     .expect(requestsBuffer.keys().forall(x => requestsBuffer.get(x).size() == 0))
     .then(all {
       newHeightClient("v1", 1),
       outputs' = outputs,
-      unchangedBsync,
+      unchangedVsync,
     })
     // We don't react to new height immediately
     .expect(length(outputs) == 0)
     .expect(requestsBuffer.keys().forall(x => requestsBuffer.get(x).size() == 0))
-    .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
 
     // Nothing happens until status are received
     .then(clientLogic("v1", addOutput, false))
     .expect(length(outputs) == 0)
     .expect(requestsBuffer.keys().forall(x => requestsBuffer.get(x).size() == 0))
-    .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
 
     // We receive a status report from v3, but nothing for us
     .then(produceStatus({ peer: "v3", base: 0, top: 0,}))
@@ -80,7 +80,7 @@ module blocksyncClientTest {
     .then(clientLogic("v1", addOutput, false))
     .expect(length(outputs) == 0)
     .expect(requestsBuffer.keys().forall(x => requestsBuffer.get(x).size() == 0))
-    .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
 
     // We receive a status report from v2
     .then(produceStatus({ peer: "v2", base: 0, top: 1,}))
@@ -100,7 +100,7 @@ module blocksyncClientTest {
       rtype: SyncCertificate,
       height: 1,
      }))
-    .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
 
     // The server replies with a certificate
     .then(produceResponse({
@@ -128,7 +128,7 @@ module blocksyncClientTest {
       rtype: SyncBlock,
       height: 1,
      }))
-    .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
 
     // The server replies with a block
     .then(produceResponse({
@@ -145,7 +145,7 @@ module blocksyncClientTest {
     .then(clientLogic("v1", addOutput, false))
     .expect(length(outputs) == 2)
     .expect(outputs[1] == SOBlock(chain[0].decision))
-    .expect(bsyncClients.get("v1").lastSyncedHeight == 1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == 1)
 
   // Test clientLogic with "full == true"
   run bsClientBasicFastTest =
@@ -158,9 +158,9 @@ module blocksyncClientTest {
     .then(all {
       newHeightClient("v1", 1),
       outputs' = outputs,
-      unchangedBsync,
+      unchangedVsync,
     })
-    .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
     // We don't react to new height immediately
     .expect(length(outputs) == 0)
     .expect(requestsBuffer.keys().forall(x => requestsBuffer.get(x).size() == 0))
@@ -169,7 +169,7 @@ module blocksyncClientTest {
     .then(clientLogic("v1", addOutput, true))
     .expect(length(outputs) == 0)
     .expect(requestsBuffer.keys().forall(x => requestsBuffer.get(x).size() == 0))
-    .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
 
     // We receive a status report from v3, but nothing for us
     .then(produceStatus({ peer: "v3", base: 0, top: 0,}))
@@ -181,7 +181,7 @@ module blocksyncClientTest {
     .then(clientLogic("v1", addOutput, true))
     .expect(length(outputs) == 0)
     .expect(requestsBuffer.keys().forall(x => requestsBuffer.get(x).size() == 0))
-    .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
 
     // We receive a status report from v2
     .then(produceStatus({ peer: "v2", base: 0, top: 1,}))
@@ -192,7 +192,7 @@ module blocksyncClientTest {
     // Then we send a certificate request to v2
     .then(clientLogic("v1", addOutput, true))
     .expect(length(outputs) == 0)
-    .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
     .expect(requestsBuffer.keys().forall(x =>
       if (x != "v2") requestsBuffer.get(x).size() == 0
       else requestsBuffer.get(x).size() == 1))
@@ -214,7 +214,7 @@ module blocksyncClientTest {
       deliverResponse("v1"),
       outputs' = outputs,
     })
-    .expect(bsyncClients.get("v1").lastSyncedHeight == -1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
 
     // Then we produce two outputs and no message
     .then(clientLogic("v1", addOutput, true))
@@ -223,6 +223,6 @@ module blocksyncClientTest {
     .expect(requestsBuffer.keys().forall(x =>
       if (x != "v2") requestsBuffer.get(x).size() == 0
       else requestsBuffer.get(x).size() == 1))
-    .expect(bsyncClients.get("v1").lastSyncedHeight == 1)
+    .expect(vsyncClients.get("v1").lastSyncedHeight == 1)
 
 }

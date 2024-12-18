@@ -1,14 +1,14 @@
 // -*- mode: Bluespec; -*-
 //
-// Blocksync protocol: client side that requests and downloads decisions.
+// ValueSync protocol: client side that requests and downloads decisions.
 //
 
-module blocksyncClient {
+module valuesyncClient {
 
-  import blocksync.* from "./blocksync"
+  import valuesync.* from "./valuesync"
 
   /// The state of the synchronizer
-  type BsyncClient = {
+  type VsyncClient = {
     id: Address,
 
     peerStatus: Address -> BlockRange,
@@ -22,18 +22,18 @@ module blocksyncClient {
     responseMsgs: Set[ResponseMsg],
   }
 
-  type BsyncClientOutput =
+  type VsyncClientOutput =
     | SOCertificate(Set[Vote])
     | SOBlock(Proposal)
     | SOBlockStoreEntry(BlockStoreEntry)
     | SONoOutput
 
   //
-  // BsyncClient functions
+  // VsyncClient functions
   //
 
   /// Initialize the synchronizer
-  pure def initBsyncClient(id: Address, peers: Set[Address]) : BsyncClient =
+  pure def initVsyncClient(id: Address, peers: Set[Address]) : VsyncClient =
     {
       id: id,
       peerStatus: peers.mapBy(x => {base:-1, top:-1}),
@@ -54,7 +54,7 @@ module blocksyncClient {
     )
 
   /// inform the synchronizer that consensus has entered height h
-  pure def syncNewHeight (s: BsyncClient, h: Height) : BsyncClient =
+  pure def syncNewHeight (s: VsyncClient, h: Height) : VsyncClient =
     if (h <= s.height)
       s
     else
@@ -64,14 +64,14 @@ module blocksyncClient {
   /// returned by the synchronizer: sync is the new state, so is the output towards
   /// the consensus driver, req are messages sent towards peers/servers
   type ClientResult = {
-    sync: BsyncClient,
-    so: BsyncClientOutput,
+    sync: VsyncClient,
+    so: VsyncClientOutput,
     req: Option[RequestMsg]
   }
 
   /// We have received a certificate. now we need to issue the
   /// corresponding block request and generate a certificate output.
-  pure def syncHandleCertificate (s: BsyncClient, cert: Set[Vote], peer: str ) : ClientResult =
+  pure def syncHandleCertificate (s: VsyncClient, cert: Set[Vote], peer: str ) : ClientResult =
     val blockReq = {client: s.id,
                     server: peer,
                     rtype: SyncBlock,
@@ -81,7 +81,7 @@ module blocksyncClient {
       req: Some(blockReq)}
 
   /// we have received a block. now we need to generate a block output
-  pure def syncHandleBlock (s: BsyncClient, p: Proposal) : ClientResult =
+  pure def syncHandleBlock (s: VsyncClient, p: Proposal) : ClientResult =
     { sync: {...s, openRequests: Set(), // If we have parallelization we need to remove one element,
               lastSyncedHeight: s.height }, // blockheight,
       so: SOBlock(p),
@@ -89,7 +89,7 @@ module blocksyncClient {
 
   /// we have received a blockstore entry (block and certificate).
   /// now we need to generate a block output
-  pure def syncHandleBlockStoreEntry (s: BsyncClient, b: BlockStoreEntry) : ClientResult =
+  pure def syncHandleBlockStoreEntry (s: VsyncClient, b: BlockStoreEntry) : ClientResult =
     { sync: {...s, openRequests: Set(), // If we have parallelization we need to remove one element,
                lastSyncedHeight: s.height }, // blockheight,
       so: SOBlockStoreEntry(b),
@@ -98,7 +98,7 @@ module blocksyncClient {
   /// step of a client:
   /// 1. update peer statuses, 2. if there is no open request, request something
   /// 3. otherwise check whether we have a response and act accordingly
-  pure def bsyncClientLogic (s: BsyncClient, fullEntries: bool) : ClientResult =
+  pure def vsyncClientLogic (s: VsyncClient, fullEntries: bool) : ClientResult =
       val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
       val newS = { ...s, peerStatus: newPeerStates}
       if (s.lastSyncedHeight >= s.height)
@@ -147,7 +147,7 @@ module blocksyncClient {
 
   /// step of a client upon timeout: We send the same request to a different server
   // FIXME: what to do if goodPeers is empty?
-  pure def bsyncClientTimeout(s: BsyncClient, toMsg: RequestMsg) : ClientResult =
+  pure def vsyncClientTimeout(s: VsyncClient, toMsg: RequestMsg) : ClientResult =
     val newPeerStates = updatePeerStatus(s.peerStatus, s.statusMsgs)
 
     val goodPeers = s.peerStatus.keys().filter(p => newPeerStates.get(p).base <= s.height
@@ -170,31 +170,31 @@ module blocksyncClient {
 
   // State machine
 
-  var bsyncClients: Address -> BsyncClient
+  var vsyncClients: Address -> VsyncClient
   var expiredTimeouts: Address -> Set[RequestMsg] // to check invariants we need to store past requests
 
   action initClient(nodes) = all {
-    bsyncClients' = nodes.mapBy(v => initBsyncClient(v, nodes.exclude(Set(v)))),
+    vsyncClients' = nodes.mapBy(v => initVsyncClient(v, nodes.exclude(Set(v)))),
     expiredTimeouts' = nodes.mapBy(v => Set()),
   }
 
   action unchangedClient = all {
-    bsyncClients' = bsyncClients,
+    vsyncClients' = vsyncClients,
     expiredTimeouts' = expiredTimeouts
   }
 
   action newHeightClient(node, h) = all {
-    bsyncClients' = bsyncClients.put(node, syncNewHeight(bsyncClients.get(node), h)),
+    vsyncClients' = vsyncClients.put(node, syncNewHeight(vsyncClients.get(node), h)),
     expiredTimeouts' = expiredTimeouts,
   }
 
   // deliver a status message, from the statusBuffer, to node
   action deliverStatus(node) = all {
     statusBuffer.get(node).size() > 0,
-    val client = bsyncClients.get(node)
+    val client = vsyncClients.get(node)
     nondet msg = statusBuffer.get(node).oneOf()
     all {
-      bsyncClients' = bsyncClients.put(node, {... client,
+      vsyncClients' = vsyncClients.put(node, {... client,
                                   statusMsgs: client.statusMsgs.union(Set(msg))}),
       statusBuffer' = statusBuffer.put(node, statusBuffer.get(node).exclude(Set(msg))),
       requestsBuffer' = requestsBuffer,
@@ -207,10 +207,10 @@ module blocksyncClient {
   // deliver a response message, from responsesBuffer, to node
   action deliverResponse(node) = all {
     responsesBuffer.get(node).size() > 0,
-    val client = bsyncClients.get(node)
+    val client = vsyncClients.get(node)
     nondet msg = responsesBuffer.get(node).oneOf()
     all {
-      bsyncClients' = bsyncClients.put(node, {... client,
+      vsyncClients' = vsyncClients.put(node, {... client,
                                   responseMsgs: client.responseMsgs.union(Set(msg))}),
       requestsBuffer' = requestsBuffer,
       responsesBuffer' = responsesBuffer.put(node, responsesBuffer.get(node).exclude(Set(msg))),
@@ -220,7 +220,7 @@ module blocksyncClient {
   }
 
   action applyClientUpdate(v, result) = all {
-    bsyncClients' = bsyncClients.put(v, result.sync),
+    vsyncClients' = vsyncClients.put(v, result.sync),
     statusBuffer' = statusBuffer,
     requestsBuffer' = match result.req {
       | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))
@@ -232,7 +232,7 @@ module blocksyncClient {
 
   // Client v takes a step
   action clientLogic(v, outputAction, full) = all {
-    val result = bsyncClientLogic(bsyncClients.get(v), full)
+    val result = vsyncClientLogic(vsyncClients.get(v), full)
     all {
       // updates the client's state
       applyClientUpdate(v, result),
@@ -244,11 +244,11 @@ module blocksyncClient {
 
 
   action clientTimeout(node) = all {
-    bsyncClients.get(node).openRequests.size() > 0,
-    nondet toMsg = bsyncClients.get(node).openRequests.oneOf()
-    val result = bsyncClientTimeout(bsyncClients.get(node), toMsg)
+    vsyncClients.get(node).openRequests.size() > 0,
+    nondet toMsg = vsyncClients.get(node).openRequests.oneOf()
+    val result = vsyncClientTimeout(vsyncClients.get(node), toMsg)
     all {
-      bsyncClients' = bsyncClients.put(node, result.sync),
+      vsyncClients' = vsyncClients.put(node, result.sync),
       expiredTimeouts' = expiredTimeouts.put(node, expiredTimeouts.get(node).union(Set(toMsg))),
       requestsBuffer' = match result.req {
             | Some(m) => requestsBuffer.put(m.server, requestsBuffer.get(m.server).union(Set(m)))

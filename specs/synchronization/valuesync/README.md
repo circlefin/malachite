@@ -128,22 +128,22 @@ The [specification](./quint/README.md) includes:
 
 - Protocol functionality: main complexity in the client, where it maintains statuses,  requests data, and feeds received data into consensus
 - State machine: We have encoded two alternatives
-    - We have put the ValueSync on-top-of the consensus specification (`bsyncWithConsensus`). This allows us to simulate consensus and ValueSync in one model.
-    - We have encoded a state machine that abstracts away consensus (`bsyncWithMockedConsensus`) that allows us to analyze ValueSync in isolation.
+    - We have put the ValueSync on-top-of the consensus specification (`vsyncWithConsensus`). This allows us to simulate consensus and ValueSync in one model.
+    - We have encoded a state machine that abstracts away consensus (`vsyncWithMockedConsensus`) that allows us to analyze ValueSync in isolation.
 - Invariants (that have been preliminarily tested) and temporal formulas (that are just written but have not been investigated further)
 
 ### Protocol functionality
 
 This contains mainly the following functions (and their auxiliary functions):
 
-- `pure def bsyncClientLogic (s: BsyncClient, fullEntries: bool) : ClientResult`
+- `pure def vsyncClientLogic (s: BsyncClient, fullEntries: bool) : ClientResult`
     - this encodes what happens during a step of a client:
         1. update peer statuses,
         2. if there is no open request, request something
         3. otherwise check whether we have a response and act accordingly
         4. `fullEntries` is used to signal whether complete value store entries should be requested (rather than certificate and value separately)
 
-- `pure def bsyncClientTimeout (s: BsyncClient) : ClientResult`
+- `pure def vsyncClientTimeout (s: BsyncClient) : ClientResult`
     - this encodes what happens when a request timeouts:
         1. update peer statuses,
         2. send the request to another suitable peer
@@ -161,8 +161,8 @@ This contains mainly the following functions (and their auxiliary functions):
 The Quint specification works on top of the consensus state machine. We added the following variables
 
 ```bluespec
-var bsyncClients: Address -> BsyncClient
-var bsyncServers: Address -> Server
+var vsyncClients: Address -> BsyncClient
+var vsyncServers: Address -> Server
 
 var statusBuffer : Address -> Set[StatusMsg]
 var requestsBuffer : Address -> Set[RequestMsg]
@@ -205,7 +205,7 @@ I a request is served, the response message is put into the `responsesBuffer` to
 
 ### Invariants and temporal formulas
 
-For details we refer to the [state machine in Quint](./quint/bsyncStatemachine.qnt), and the [analysis documentation](./quint/README.md).
+For details we refer to the [state machine in Quint](./quint/vsyncStatemachine.qnt), and the [analysis documentation](./quint/README.md).
 
 ## Issues
 

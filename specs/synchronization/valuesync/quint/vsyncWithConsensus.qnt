@@ -1,13 +1,13 @@
 // -*- mode: Bluespec; -*-
 //
-// Blocksync executable model running together with the consensus logic.
+// ValueSync executable model running together with the consensus logic.
 // main init action: initAll
-// main step action: stepWithBlockSync
+// main step action: stepWithValueSync
 //
 
-module bsyncWithConsensus {
+module vsyncWithConsensus {
 
-  import bsyncStatemachine.* from "./bsyncStatemachine"
+  import vsyncStatemachine.* from "./vsyncStatemachine"
 
   /// Consensus state machine setup
   import statemachineAsync(
@@ -29,9 +29,9 @@ module bsyncWithConsensus {
   //
   // With the default `init` action, it is unlikely to observe this scenario,
   // even with 200 steps (around 30 minutes) execution:
-  // $ quint run --invariant anyClientOutputWitness bsyncWithConsensus.qnt
+  // $ quint run --invariant anyClientOutputWitness vsyncWithConsensus.qnt
   // Therefore we have a special init action:
-  // $ quint run --invariant anyClientOutputWitness bsyncWithConsensus.qnt --init initSetup --step stepWithBlockSync --maxSteps 60
+  // $ quint run --invariant anyClientOutputWitness vsyncWithConsensus.qnt --init initSetup --step stepWithValueSync --maxSteps 60
   // Use --seed=0x1060f6cddc9cb5 to reproduce.
 
   val anyClientOutputWitness = Correct.forall(p =>
@@ -41,7 +41,7 @@ module bsyncWithConsensus {
   // Actions
   //
 
-  /// initialize consensus and block sync
+  /// initialize consensus and value sync
   action initAll = all {
     init,
     syncInit(validators)
@@ -64,21 +64,21 @@ module bsyncWithConsensus {
     }
   }
 
-  /// Validator step in the consensus protocol, no changes to block sync
+  /// Validator step in the consensus protocol, no changes to value sync
   action syncValStep(v) = all {
     valStep(v),
     syncUnchangedAll
   }
 
   /// Main step function: either a consensus state-machine step or
-  /// a block sync protocol step.
-  action stepWithBlockSync = any {
+  /// a value sync protocol step.
+  action stepWithValueSync = any {
     // consensus takes a step
     all {
       step,
       syncUnchangedAll
     },
-    // block sync takes a step
+    // value sync takes a step
     nondet v = oneOf(Correct)
     any {
       pureSyncStep(v, unchangedAll),

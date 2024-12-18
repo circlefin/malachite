@@ -1,9 +1,9 @@
 // -*- mode: Bluespec; -*-
 
-module blocksyncServerTest {
+module valuesyncServerTest {
 
-  import blocksyncServer.* from "./blocksyncServer"
-  import blocksync.* from "./blocksync"
+  import valuesyncServer.* from "./valuesyncServer"
+  import valuesync.* from "./valuesync"
 
   val s = "v1"
   val c = "v2"
@@ -43,10 +43,10 @@ module blocksyncServerTest {
 
   // A server is created with no state. No responses should be produced.
   // This run can be used as initialization for other tests.
-  run blocksyncServerInitTest =
+  run valuesyncServerInitTest =
     all {
       initServer(Set(s)),
-      initBsync(Set(s, c)),
+      initVsync(Set(s, c)),
     }
 
     .then(broadcastStatus(s))
@@ -62,13 +62,13 @@ module blocksyncServerTest {
     .then(fullDeliverRequest(c, s, SyncCertificate, 0))
     .then(fullDeliverRequest(c, s, SyncBlock, 0))
     .then(fullDeliverRequest(c, s, SyncBlockStoreEntry, 0))
-    .expect(bsyncServers.get(s).requestMsgs.size() == 0)
+    .expect(vsyncServers.get(s).requestMsgs.size() == 0)
     .expect(responsesBuffer.get(c).size() == 0)
 
   // The server knows a chain with 1 element (height 0).
   // It replies to request to height 0, but not for height 1.
-  run blocksyncServerSingleHeightTest =
-    blocksyncServerInitTest
+  run valuesyncServerSingleHeightTest =
+    valuesyncServerInitTest
 
     // Now the server knows height 0
     .then(updateServer(s, chain.slice(0, 1)))
@@ -110,13 +110,13 @@ module blocksyncServerTest {
     .then(fullDeliverRequest(c, s, SyncCertificate, 1))
     .then(fullDeliverRequest(c, s, SyncBlock, 1))
     .then(fullDeliverRequest(c, s, SyncBlockStoreEntry, 1))
-    .expect(bsyncServers.get(s).requestMsgs.size() == 0)
+    .expect(vsyncServers.get(s).requestMsgs.size() == 0)
     .expect(responsesBuffer.get(c).size() == 0)
 
   // The server knows a chain with 2 elements (heights 0 and 1).
   // It replies properly to requests to heights 0 and 1.
-  run blocksyncServerTwoHeightsTest =
-    blocksyncServerInitTest
+  run valuesyncServerTwoHeightsTest =
+    valuesyncServerInitTest
 
     // Now the server knows heights 0 and 1
     .then(updateServer(s, chain.slice(0, 2)))

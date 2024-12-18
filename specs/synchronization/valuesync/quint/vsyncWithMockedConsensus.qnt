@@ -1,11 +1,11 @@
 // -*- mode: Bluespec; -*-
 //
-// Blocksync executable model running with a mocked consensus logic.
+// ValueSync executable model running with a mocked consensus logic.
 //
 
-module bsyncWithMockedConsensus {
+module vsyncWithMockedConsensus {
 
-  import bsyncStatemachine.* from "./bsyncStatemachine"
+  import vsyncStatemachine.* from "./vsyncStatemachine"
 
   val validators = Set("v1", "v2", "v3", "v4")
   val Correct = Set("v2", "v3", "v4")
@@ -15,7 +15,7 @@ module bsyncWithMockedConsensus {
   // State machine
   //
 
-  var outputs: Address -> List[BsyncClientOutput]
+  var outputs: Address -> List[VsyncClientOutput]
   var chains: Address -> List[BlockStoreEntry]
 
   //
@@ -27,10 +27,10 @@ module bsyncWithMockedConsensus {
   /// received a certificate, or a block, or both (a block store entry).
   //
   // Use the `initSetup` initialization to have faster runs:
-  // $ quint run --invariant anyClientOutputWitness bsyncWithMockedConsensus.qnt --init initSetup --seed=0x131cbef6acef78
+  // $ quint run --invariant anyClientOutputWitness vsyncWithMockedConsensus.qnt --init initSetup --seed=0x131cbef6acef78
   //
   // With the default `init` action more steps are required, e.g.:
-  // $ quint run --invariant anyClientOutputWitness bsyncWithMockedConsensus.qnt --max-steps 100 --seed=0x4e9afa1aeb815
+  // $ quint run --invariant anyClientOutputWitness vsyncWithMockedConsensus.qnt --max-steps 100 --seed=0x4e9afa1aeb815
   val anyClientOutputWitness = Correct.forall(p =>
     outputs.get(p).length() > 0 implies
     outputs.get(p).foldl(Set(), (s, x) => s.union(Set(x))).forall(so =>
@@ -61,7 +61,7 @@ module bsyncWithMockedConsensus {
   /// height on top of the chain. Because of this, implicitly all nodes will
   /// decide on the same block.
   action decideMock(v) = all {
-    bsyncClients.get(v).height == chains.get(v).length(),
+    vsyncClients.get(v).height == chains.get(v).length(),
     outputs' = outputs,
     chains' = chains.put(v, chains.get(v).append({
       decision: mkProposal("", chains.get(v).length(), 0, "", -1),
@@ -104,7 +104,7 @@ module bsyncWithMockedConsensus {
   }
 
   /// For simple repl evaluation
-  action bsyncStep (v, act) = all {
+  action vsyncStep (v, act) = all {
     act(v),
     unchangedMock
   }
