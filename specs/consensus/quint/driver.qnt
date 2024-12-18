@@ -141,7 +141,7 @@ module driver {
             )
         )
 
-        // determine additional pendingInputs
+        // determine consensus input, needed as parameter in PendingDInput return value and in pendingInputs
         val resultInput = if (decisionValAndRound._1 != Nil)
             val decisionVal : NonNilValue = getVal(decisionValAndRound._1)
             val decisionRound = decisionValAndRound._2
@@ -174,7 +174,6 @@ module driver {
         // result state new driver and processed votes and certificates removed
         // Note: processed proposals messages are not removed
         val resultNodeState = {...ns2,
-            debug: ns2.debug.append(resultAction), // to be removed
             es: resultDriver,
             incomingVotes: ns2.incomingVotes.exclude(votesForHeight),
             incomingCertificates: ns2.incomingCertificates.exclude(certificatesForHeight) }
@@ -560,7 +559,6 @@ module driver {
         incomingSyncCertificates: Set[Set[Vote]],
         getValueRequests: Set[(Height, Round)],
         nextValueToPropose: Value, 
-        debug: List[DriverInput] // debug field for new height logic, remove when finished
     }
 
     pure def initNode(v: Address, vs: Address -> Weight, height: Height): NodeState = {
@@ -573,7 +571,6 @@ module driver {
         incomingSyncCertificates: Set(),
         getValueRequests: Set(),
         nextValueToPropose: Nil,
-        debug: List() 
     }
 
     pure def existsTimeout(state: NodeState): bool =

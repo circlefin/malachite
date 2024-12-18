@@ -10,31 +10,31 @@ import heightLogicrun (
     slow = "v4"
 ) as SLOW1 from "./heightLogicrun"
 
-run fastProcessesDecidesAtHeight0SlowOneCatchesUp = {
+run fastProcessesDecidesAtHeight0SlowOneCatchesUpTest = {
     SLOW1::fastProcessesDecidesAtHeight0SlowOneCatchesUp
 }
 
-run everyoneIsFastInRound0 = {
+run everyoneIsFastInRound0Test = {
     SLOW1::everyoneIsFastInRound0
 }
 
-run multiHeightRun = {
+run multiHeightRunTest = {
     SLOW1::multiHeightRun
 }
 
-run slowProcessAtHeight1 = {
+run slowProcessAtHeight1Test = {
     SLOW1::slowProcessAtHeight1
 }
 
-run catchUpToHigherRound = {
+run catchUpToHigherRoundTest = {
     SLOW1::catchUpToHigherRound
 }
 
-run catchUpToHigherRoundAfterHeightChange = {
+run catchUpToHigherRoundAfterHeightChangeTest = {
     SLOW1::catchUpToHigherRoundAfterHeightChange
 }
 
-run preloadVotekeeperOnly = {
+run preloadVotekeeperOnlyTest = {
     SLOW1::preloadVotekeeperOnly
 }
 }

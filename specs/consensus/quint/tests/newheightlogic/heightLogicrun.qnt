@@ -128,7 +128,7 @@ run fastProcessesDecidesAtHeight0SlowOneCatchesUp = {
     // now v4 catches up
     .then(valStep(slow))
     .then(valStep(slow))
-    .expect(allProcessesHaveDecided(1))
+    .expect(allProcessesHaveDecided(0))
 }
 
 // catch up at new height (2f+1 precommits)
@@ -161,7 +161,6 @@ run catchUpToHigherRound = {
     .then(valStep(slow))
     .then(valStep(slow))
     .then(valStep(slow))
-    // TODO: consensus does not go to round 1 !
 }
 
 // catch up to higher round (new height)
