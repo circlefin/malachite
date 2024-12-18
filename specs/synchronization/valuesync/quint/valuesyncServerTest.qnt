@@ -60,8 +60,8 @@ module valuesyncServerTest {
 
     // Requests are all rejected
     .then(fullDeliverRequest(c, s, SyncCertificate, 0))
-    .then(fullDeliverRequest(c, s, SyncBlock, 0))
-    .then(fullDeliverRequest(c, s, SyncBlockStoreEntry, 0))
+    .then(fullDeliverRequest(c, s, SyncValue, 0))
+    .then(fullDeliverRequest(c, s, SyncValueStoreEntry, 0))
     .expect(vsyncServers.get(s).requestMsgs.size() == 0)
     .expect(responsesBuffer.get(c).size() == 0)
 
@@ -88,28 +88,28 @@ module valuesyncServerTest {
       response: RespCertificate(chain[0].commit),
     }))
 
-    .then(fullDeliverRequest(c, s, SyncBlock, 0))
+    .then(fullDeliverRequest(c, s, SyncValue, 0))
     .expect(responsesBuffer.get(c).contains({
       client: c,
       server: s,
       height: 0, 
-      response: RespBlock(chain[0].decision),
+      response: RespValue(chain[0].decision),
     }))
 
-    .then(fullDeliverRequest(c, s, SyncBlockStoreEntry, 0))
+    .then(fullDeliverRequest(c, s, SyncValueStoreEntry, 0))
     .expect(responsesBuffer.get(c).contains({
       client: c,
       server: s,
       height: 0, 
-      response: RespBlockStoreEntry(chain[0]),
+      response: RespValueStoreEntry(chain[0]),
     }))
 
     .then(clearResponses(c))
 
     // Requests for height 2 are ignored
     .then(fullDeliverRequest(c, s, SyncCertificate, 1))
-    .then(fullDeliverRequest(c, s, SyncBlock, 1))
-    .then(fullDeliverRequest(c, s, SyncBlockStoreEntry, 1))
+    .then(fullDeliverRequest(c, s, SyncValue, 1))
+    .then(fullDeliverRequest(c, s, SyncValueStoreEntry, 1))
     .expect(vsyncServers.get(s).requestMsgs.size() == 0)
     .expect(responsesBuffer.get(c).size() == 0)
 
@@ -136,19 +136,19 @@ module valuesyncServerTest {
       response: RespCertificate(chain[0].commit),
     }))
 
-    .then(fullDeliverRequest(c, s, SyncBlock, 1))
+    .then(fullDeliverRequest(c, s, SyncValue, 1))
     .expect(responsesBuffer.get(c).contains({
       client: c,
       server: s,
       height: 1, 
-      response: RespBlock(chain[1].decision),
+      response: RespValue(chain[1].decision),
     }))
 
-    .then(fullDeliverRequest(c, s, SyncBlockStoreEntry, 0))
+    .then(fullDeliverRequest(c, s, SyncValueStoreEntry, 0))
     .expect(responsesBuffer.get(c).contains({
       client: c,
       server: s,
       height: 0, 
-      response: RespBlockStoreEntry(chain[0]),
+      response: RespValueStoreEntry(chain[0]),
     }))
 }

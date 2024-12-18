@@ -16,7 +16,7 @@ module vsyncWithMockedConsensus {
   //
 
   var outputs: Address -> List[VsyncClientOutput]
-  var chains: Address -> List[BlockStoreEntry]
+  var chains: Address -> List[ValueStoreEntry]
 
   //
   // Properties

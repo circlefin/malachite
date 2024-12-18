@@ -266,10 +266,10 @@ action putSyncOutputIntoNode(v, syncOut) = all{
             | SOCertificate(cert) => system.put(v, {... system.get(v), 
                     incomingSyncCertificates: 
                         system.get(v).incomingSyncCertificates.union(Set(cert))})
-            | SOBlock(prop) => system.put(v, {... system.get(v), 
+            | SOValue(prop) => system.put(v, {... system.get(v), 
                     incomingSyncProposals: 
                         system.get(v).incomingSyncProposals.union(Set(prop))})
-            | SOBlockStoreEntry(b) => system.put(v, {... system.get(v), 
+            | SOValueStoreEntry(b) => system.put(v, {... system.get(v), 
                     incomingSyncProposals: 
                         system.get(v).incomingSyncProposals.union(Set(b.decision)),
                     incomingSyncCertificates: 

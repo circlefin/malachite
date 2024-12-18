@@ -19,15 +19,15 @@ module valuesync {
     top: Height
   }
 
-  type BlockRange = {
+  type ValueRange = {
     base: Height,
     top: Height
   }
 
   type ReqType =
     | SyncCertificate
-    | SyncBlock
-    | SyncBlockStoreEntry
+    | SyncValue
+    | SyncValueStoreEntry
 
   type RequestMsg = {
     client: Address,
@@ -44,9 +44,9 @@ module valuesync {
   }
 
   type Response =
-    | RespBlock(Proposal)
+    | RespValue(Proposal)
     | RespCertificate(Set[Vote])
-    | RespBlockStoreEntry(BlockStoreEntry)
+    | RespValueStoreEntry(ValueStoreEntry)
 
   type ResponseMsg = {
     client: Address,
@@ -67,7 +67,7 @@ module valuesync {
     client: "",
     server: "",
     height: -1,
-    response: RespBlock(emptyProposal),
+    response: RespValue(emptyProposal),
   }
 
   // *************

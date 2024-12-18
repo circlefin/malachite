@@ -71,8 +71,8 @@ A client asks a specific peer either for a certificate or for a value at a given
 ```bluespec
 type ReqType =
     | SyncCertificate
-    | SyncBlock
-    | SyncBlockStoreEntry
+    | SyncValue
+    | SyncValueStoreEntry
 
 type RequestMsg = {
     client: Address,
@@ -88,9 +88,9 @@ A server provides the required information to a client:
 
 ```bluespec
 type Response =
-    | RespBlock(Proposal)
+    | RespValue(Proposal)
     | RespCertificate(Set[Vote])
-    | RespBlockStoreEntry(BlockStoreEntry)
+    | RespValueStoreEntry(ValueStoreEntry)
 
 type ResponseMsg = {
     client: Address,

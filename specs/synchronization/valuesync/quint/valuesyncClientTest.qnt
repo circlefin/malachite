@@ -125,7 +125,7 @@ module valuesyncClientTest {
     .expect(requestsBuffer.get("v2").contains({
       client: "v1",
       server: "v2",
-      rtype: SyncBlock,
+      rtype: SyncValue,
       height: 1,
      }))
     .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
@@ -135,7 +135,7 @@ module valuesyncClientTest {
       client: "v1",
       server: "v2",
       height: 1,
-      response: RespBlock(chain[0].decision),
+      response: RespValue(chain[0].decision),
     }))
     .then(all {
       deliverResponse("v1"),
@@ -144,7 +144,7 @@ module valuesyncClientTest {
 
     .then(clientLogic("v1", addOutput, false))
     .expect(length(outputs) == 2)
-    .expect(outputs[1] == SOBlock(chain[0].decision))
+    .expect(outputs[1] == SOValue(chain[0].decision))
     .expect(vsyncClients.get("v1").lastSyncedHeight == 1)
 
   // Test clientLogic with "full == true"
@@ -199,7 +199,7 @@ module valuesyncClientTest {
     .expect(requestsBuffer.get("v2").contains({
       client: "v1",
       server: "v2",
-      rtype: SyncBlockStoreEntry,
+      rtype: SyncValueStoreEntry,
       height: 1,
      }))
 
@@ -208,7 +208,7 @@ module valuesyncClientTest {
       client: "v1",
       server: "v2",
       height: 1,
-      response: RespBlockStoreEntry(chain[0]),
+      response: RespValueStoreEntry(chain[0]),
     }))
     .then(all {
       deliverResponse("v1"),
@@ -219,7 +219,7 @@ module valuesyncClientTest {
     // Then we produce two outputs and no message
     .then(clientLogic("v1", addOutput, true))
     .expect(length(outputs) == 1)
-    .expect(outputs[0] == SOBlockStoreEntry(chain[0]))
+    .expect(outputs[0] == SOValueStoreEntry(chain[0]))
     .expect(requestsBuffer.keys().forall(x =>
       if (x != "v2") requestsBuffer.get(x).size() == 0
       else requestsBuffer.get(x).size() == 1))

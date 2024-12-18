@@ -10,7 +10,7 @@ module valuesyncServer {
   type Server = {
     id: Address,
 
-    chain: List[BlockStoreEntry],
+    chain: List[ValueStoreEntry],
 
     // Incoming requests
     requestMsgs: Set[RequestMsg]
@@ -46,17 +46,17 @@ module valuesyncServer {
                                       height: m.height,
                                       response: RespCertificate(s.chain[m.height].commit)}
                           Some(cm)
-                  | SyncBlock  =>
+                  | SyncValue  =>
                           val bl = {  client: m.client,
                                       server: s.id,
                                       height: m.height,
-                                      response: RespBlock(s.chain[m.height].decision)}
+                                      response: RespValue(s.chain[m.height].decision)}
                           Some(bl)
-                  | SyncBlockStoreEntry =>
+                  | SyncValueStoreEntry =>
 	                  val bs = {  client: m.client,
 	                              server: s.id,
 	                              height: m.height,
-	                              response: RespBlockStoreEntry(s.chain[m.height])}
+	                              response: RespValueStoreEntry(s.chain[m.height])}
                           Some(bs)
               }
           else None

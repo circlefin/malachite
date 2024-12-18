@@ -11,7 +11,7 @@ module valuesyncClient {
   type VsyncClient = {
     id: Address,
 
-    peerStatus: Address -> BlockRange,
+    peerStatus: Address -> ValueRange,
     openRequests: Set[RequestMsg],
 
     height: Height,
@@ -24,8 +24,8 @@ module valuesyncClient {
 
   type VsyncClientOutput =
     | SOCertificate(Set[Vote])
-    | SOBlock(Proposal)
-    | SOBlockStoreEntry(BlockStoreEntry)
+    | SOValue(Proposal)
+    | SOValueStoreEntry(ValueStoreEntry)
     | SONoOutput
 
   //
@@ -45,7 +45,7 @@ module valuesyncClient {
     }
 
   /// Auxiliary function to iterate over the received status messages
-  pure def updatePeerStatus (ps: Address -> BlockRange, msgs: Set[StatusMsg]) : Address -> BlockRange =
+  pure def updatePeerStatus (ps: Address -> ValueRange, msgs: Set[StatusMsg]) : Address -> ValueRange =
     msgs.fold(ps, (newStatus , msg) =>
       if (newStatus.get(msg.peer).top < msg.top) // TODO: think about base?
         newStatus.put(msg.peer, {base: msg.base, top: msg.top})
@@ -72,27 +72,27 @@ module valuesyncClient {
   /// We have received a certificate. now we need to issue the
   /// corresponding block request and generate a certificate output.
   pure def syncHandleCertificate (s: VsyncClient, cert: Set[Vote], peer: str ) : ClientResult =
-    val blockReq = {client: s.id,
+    val valueReq = {client: s.id,
                     server: peer,
-                    rtype: SyncBlock,
+                    rtype: SyncValue,
                     height: s.height}
-    { sync: {...s, openRequests: Set(blockReq)}, // If we have parallelization we need to be more precise here
+    { sync: {...s, openRequests: Set(valueReq)}, // If we have parallelization we need to be more precise here
       so: SOCertificate(cert),
-      req: Some(blockReq)}
+      req: Some(valueReq)}
 
   /// we have received a block. now we need to generate a block output
-  pure def syncHandleBlock (s: VsyncClient, p: Proposal) : ClientResult =
+  pure def syncHandleValue (s: VsyncClient, p: Proposal) : ClientResult =
     { sync: {...s, openRequests: Set(), // If we have parallelization we need to remove one element,
               lastSyncedHeight: s.height }, // blockheight,
-      so: SOBlock(p),
+      so: SOValue(p),
       req: None}
 
   /// we have received a blockstore entry (block and certificate).
   /// now we need to generate a block output
-  pure def syncHandleBlockStoreEntry (s: VsyncClient, b: BlockStoreEntry) : ClientResult =
+  pure def syncHandleValueStoreEntry (s: VsyncClient, b: ValueStoreEntry) : ClientResult =
     { sync: {...s, openRequests: Set(), // If we have parallelization we need to remove one element,
                lastSyncedHeight: s.height }, // blockheight,
-      so: SOBlockStoreEntry(b),
+      so: SOValueStoreEntry(b),
       req: None}
 
   /// step of a client:
@@ -115,7 +115,7 @@ module valuesyncClient {
                 val req = { client: s.id,
                             server: goodPeers.fold("", (acc, i) => i), //chooseSome(),
                             rtype:  if (fullEntries)
-                                      SyncBlockStoreEntry
+                                      SyncValueStoreEntry
                                     else
                                       SyncCertificate,
                             height: s.height}
@@ -129,9 +129,9 @@ module valuesyncClient {
                     val resp = s.responseMsgs.fold(emptyResponseMsg, (acc, i) => i) //chooseSome() // in the future there might be parallelization
                     val ns = {... newS, responseMsgs: newS.responseMsgs.exclude(Set(resp))}
                     match resp.response {
-                        | RespBlock(prop) => syncHandleBlock(newS, prop)
+                        | RespValue(prop) => syncHandleValue(newS, prop)
                         | RespCertificate(cert) => syncHandleCertificate(newS, cert, goodPeers.fold("", (s,x) => x))
-                        | RespBlockStoreEntry(b) => syncHandleBlockStoreEntry(ns, b)
+                        | RespValueStoreEntry(b) => syncHandleValueStoreEntry(ns, b)
                    }
                 else
                     // I don't have response
