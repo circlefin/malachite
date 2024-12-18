@@ -10,10 +10,7 @@
 )]
 // no_std compatibility
 #![cfg_attr(not(feature = "std"), no_std)]
-// For coverage on nightly
-#![allow(unexpected_cfgs)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
-#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 extern crate alloc;
 
@@ -29,4 +26,4 @@ pub use error::Error;
 pub use input::Input;
 pub use output::Output;
 
-pub use malachite_core_votekeeper::ThresholdParams;
+pub use malachitebft_core_votekeeper::ThresholdParams;

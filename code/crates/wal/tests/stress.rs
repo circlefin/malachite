@@ -6,7 +6,7 @@ use std::time::Instant;
 use testdir::NumberedDir;
 use testdir::NumberedDirBuilder;
 
-use malachite_wal::*;
+use informalsystems_malachitebft_wal::*;
 
 static TESTDIR: LazyLock<NumberedDir> =
     LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());

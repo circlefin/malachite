@@ -1,6 +1,6 @@
 //! The consensus state machine.
 
-use malachite_core_types::{Context, NilOrVal, Proposal, Round, TimeoutKind, Value};
+use malachitebft_core_types::{Context, NilOrVal, Proposal, Round, TimeoutKind, Value};
 
 use crate::debug_trace;
 use crate::input::Input;

@@ -2,7 +2,7 @@ use std::fs::OpenOptions;
 use std::io::{self, Seek, SeekFrom, Write};
 use std::sync::LazyLock;
 
-use malachite_wal::{Log, Version};
+use informalsystems_malachitebft_wal::{Log, Version};
 use testdir::{NumberedDir, NumberedDirBuilder};
 
 #[allow(dead_code)]

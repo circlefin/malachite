@@ -9,7 +9,7 @@ use crate::transition::Transition;
 #[cfg(feature = "debug")]
 use crate::traces::*;
 
-use malachite_core_types::{Context, Round};
+use malachitebft_core_types::{Context, Round};
 
 /// A value and its associated round
 #[derive(Clone, Debug, PartialEq, Eq)]

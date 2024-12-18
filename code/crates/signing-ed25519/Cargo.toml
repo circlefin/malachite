@@ -1,27 +1,27 @@
 [package]
-name                   = "malachite-signing-ed25519"
-version.workspace      = true
-edition.workspace      = true
-repository.workspace   = true
-license.workspace      = true
-publish.workspace      = true
+name = "informalsystems-malachitebft-signing-ed25519"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 rust-version.workspace = true
+publish = false
 
 [features]
-std   = []
+std = []
 serde = ["dep:serde", "dep:base64"]
-rand  = ["dep:rand"]
+rand = ["dep:rand"]
 
 [dependencies]
-malachite-core-types  = { workspace = true }
+malachitebft-core-types = { workspace = true }
 
-signature         = { workspace = true }
+signature = { workspace = true }
 ed25519-consensus = { workspace = true }
 
 # Optional dependencies
-rand              = { workspace = true, optional = true } # rand
-serde             = { workspace = true, optional = true } # serde
-base64            = { workspace = true, optional = true } # serde
+rand = { workspace = true, optional = true }   # rand
+serde = { workspace = true, optional = true }  # serde
+base64 = { workspace = true, optional = true } # serde
 
 [lints]
 workspace = true

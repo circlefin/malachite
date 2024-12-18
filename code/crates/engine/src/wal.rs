@@ -6,9 +6,9 @@ use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, RpcReplyPort, Spa
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
-use malachite_core_types::Context;
-use malachite_metrics::SharedRegistry;
-use malachite_wal as wal;
+use malachitebft_core_types::Context;
+use malachitebft_metrics::SharedRegistry;
+use malachitebft_wal as wal;
 
 mod entry;
 mod thread;
@@ -229,6 +229,8 @@ where
         _: WalRef<Ctx>,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
+        info!("Shutting down WAL");
+
         let _ = state.wal_sender.send(self::thread::WalMsg::Shutdown).await;
 
         Ok(())

@@ -5,10 +5,10 @@ use rand::RngCore;
 use sha3::Digest;
 use tracing::{debug, error, trace};
 
-use malachite_core_types::{Round, SignedExtension, Validity};
-use malachite_engine::consensus::ConsensusRef;
-use malachite_engine::host::ProposedValue;
-use malachite_engine::util::streaming::StreamId;
+use malachitebft_core_types::{Round, SignedExtension, Validity};
+use malachitebft_engine::consensus::ConsensusRef;
+use malachitebft_engine::host::ProposedValue;
+use malachitebft_engine::util::streaming::StreamId;
 
 use crate::block_store::BlockStore;
 use crate::host::proposal::compute_proposal_hash;
@@ -59,12 +59,12 @@ impl HostState {
         height: Height,
         round: Round,
     ) -> Option<ProposedValue<MockContext>> {
-        let (valid_round, value, validator_address, validity, extension) = self
+        let (valid_round, value, proposer, validity, extension) = self
             .build_proposal_content_from_parts(parts, height, round)
             .await?;
 
         Some(ProposedValue {
-            validator_address,
+            proposer,
             height,
             round,
             valid_round,

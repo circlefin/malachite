@@ -9,9 +9,9 @@ use libp2p_broadcast as broadcast;
 pub use libp2p::identity::Keypair;
 pub use libp2p::{Multiaddr, PeerId};
 
-use malachite_discovery as discovery;
-use malachite_metrics::Registry;
-use malachite_sync as sync;
+use malachitebft_discovery as discovery;
+use malachitebft_metrics::Registry;
+use malachitebft_sync as sync;
 
 use crate::{Config, GossipSubConfig, PROTOCOL};
 

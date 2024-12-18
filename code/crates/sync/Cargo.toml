@@ -1,28 +1,28 @@
 [package]
-name                   = "malachite-sync"
-version.workspace      = true
-edition.workspace      = true
-repository.workspace   = true
-license.workspace      = true
-publish.workspace      = true
+name = "informalsystems-malachitebft-sync"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-core-types  = { workspace = true }
-malachite-metrics = { workspace = true }
-malachite-peer    = { workspace = true }
+malachitebft-core-types = { workspace = true }
+malachitebft-metrics = { workspace = true }
+malachitebft-peer = { workspace = true }
 
-async-trait      = { workspace = true }
-bytes            = { workspace = true, features = ["serde"] }
-dashmap          = { workspace = true }
-derive-where     = { workspace = true }
-displaydoc       = { workspace = true }
-genawaiter       = { workspace = true }
-libp2p           = { workspace = true, features = ["request-response", "cbor"] }
-rand             = { workspace = true }
-serde            = { workspace = true }
-thiserror        = { workspace = true }
-tracing          = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true, features = ["serde"] }
+dashmap = { workspace = true }
+derive-where = { workspace = true }
+displaydoc = { workspace = true }
+genawaiter = { workspace = true }
+libp2p = { workspace = true, features = ["request-response", "cbor"] }
+rand = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [lints]
 workspace = true

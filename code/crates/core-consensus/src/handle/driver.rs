@@ -5,8 +5,8 @@ use crate::handle::vote::on_vote;
 use crate::prelude::*;
 use crate::types::SignedConsensusMsg;
 use crate::util::pretty::PrettyVal;
-use malachite_core_driver::Input as DriverInput;
-use malachite_core_driver::Output as DriverOutput;
+use malachitebft_core_driver::Input as DriverInput;
+use malachitebft_core_driver::Output as DriverOutput;
 
 #[async_recursion]
 pub async fn apply_driver_input<Ctx>(

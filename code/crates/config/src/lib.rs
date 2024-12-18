@@ -1,7 +1,3 @@
-// For coverage on nightly
-#![allow(unexpected_cfgs)]
-#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
-
 use core::fmt;
 use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
@@ -10,7 +6,7 @@ use std::time::Duration;
 
 use bytesize::ByteSize;
 use config as config_rs;
-use malachite_core_types::TimeoutKind;
+use malachitebft_core_types::TimeoutKind;
 use multiaddr::Multiaddr;
 use serde::{Deserialize, Serialize};
 
@@ -636,12 +632,12 @@ mod tests {
 
     #[test]
     fn parse_default_config_file() {
-        let file = include_str!("../../../config.toml");
+        let file = include_str!("../../../examples/channel/config.toml");
         let config = toml::from_str::<Config>(file).unwrap();
         assert_eq!(config.consensus.timeouts, TimeoutConfig::default());
         assert_eq!(config.test, TestConfig::default());
 
-        let tmp_file = std::env::temp_dir().join("malachite-config.toml");
+        let tmp_file = std::env::temp_dir().join("informalsystems-malachitebft-config.toml");
         std::fs::write(&tmp_file, file).unwrap();
 
         let config = load_config(&tmp_file, None).unwrap();

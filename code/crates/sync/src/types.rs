@@ -4,8 +4,8 @@ use displaydoc::Display;
 use libp2p::request_response;
 use serde::{Deserialize, Serialize};
 
-use malachite_core_types::{CommitCertificate, Context, Round, VoteSet};
-pub use malachite_peer::PeerId;
+use malachitebft_core_types::{CommitCertificate, Context, Round, VoteSet};
+pub use malachitebft_peer::PeerId;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
 #[displaydoc("{0}")]

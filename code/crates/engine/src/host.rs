@@ -4,15 +4,15 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachite_consensus::PeerId;
-use malachite_core_types::{CommitCertificate, Context, Round, SignedExtension, ValueId};
-use malachite_sync::DecidedValue;
+use malachitebft_core_consensus::PeerId;
+use malachitebft_core_types::{CommitCertificate, Context, Round, SignedExtension, ValueId};
+use malachitebft_sync::DecidedValue;
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
 
 /// A value to propose that has just been received.
-pub use malachite_consensus::ProposedValue;
+pub use malachitebft_core_consensus::ProposedValue;
 
 /// This is the value that the application constructed
 /// and has finished streaming on gossip.
@@ -46,6 +46,7 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 
 /// Messages that need to be handled by the host actor.
+#[derive_where(Debug)]
 pub enum HostMsg<Ctx: Context> {
     /// Consensus is ready
     ConsensusReady(ConsensusRef<Ctx>),

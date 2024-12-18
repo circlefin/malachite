@@ -1,29 +1,29 @@
 [package]
-name        = "malachite-test-mbt"
+name = "informalsystems-malachitebft-test-mbt"
 description = "Library for model-based testing of the Malachite consensus engine"
+publish = false
 
-version.workspace      = true
-edition.workspace      = true
-repository.workspace   = true
-license.workspace      = true
-publish.workspace      = true
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-core-types = { workspace = true }
-malachite-core-votekeeper   = { workspace = true }
-malachite-core-state-machine  = { workspace = true }
-malachite-test   = { workspace = true }
+malachitebft-core-types = { workspace = true }
+malachitebft-core-votekeeper = { workspace = true }
+malachitebft-core-state-machine = { workspace = true }
+malachitebft-test = { workspace = true }
 
-itf               = { workspace = true }
-rand              = { workspace = true }
-num-bigint        = { workspace = true, features = ["serde"] }
-num-traits        = { workspace = true }
-serde             = { workspace = true, features = ["derive"] }
-serde_json        = { workspace = true }
-serde_with        = { workspace = true }
-glob              = { workspace = true }
+itf = { workspace = true }
+rand = { workspace = true }
+num-bigint = { workspace = true, features = ["serde"] }
+num-traits = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_with = { workspace = true }
+glob = { workspace = true }
 pretty_assertions = { workspace = true }
 
 [dev-dependencies]
-tempfile         = { version = "3.13.0" }
+tempfile = { version = "3.13.0" }

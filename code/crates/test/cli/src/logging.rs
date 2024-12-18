@@ -3,7 +3,7 @@ use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::FmtSubscriber;
 
-use malachite_config::{LogFormat, LogLevel};
+use malachitebft_config::{LogFormat, LogLevel};
 
 /// Initialize logging.
 ///

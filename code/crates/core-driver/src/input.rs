@@ -1,4 +1,4 @@
-use malachite_core_types::{
+use malachitebft_core_types::{
     CommitCertificate, Context, Round, SignedProposal, SignedVote, Timeout, Validity,
 };
 

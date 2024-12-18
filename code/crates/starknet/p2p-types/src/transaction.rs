@@ -1,8 +1,8 @@
 use core::fmt;
 
 use bytes::Bytes;
-use malachite_proto::{self as proto};
-use malachite_starknet_p2p_proto as p2p_proto;
+use malachitebft_proto::{self as proto};
+use malachitebft_starknet_p2p_proto as p2p_proto;
 
 use crate::Hash;
 
@@ -62,7 +62,7 @@ impl proto::Protobuf for Transaction {
     type Proto = p2p_proto::Transaction;
 
     fn from_proto(proto: Self::Proto) -> Result<Self, proto::Error> {
-        use malachite_starknet_p2p_proto::transaction::Txn;
+        use malachitebft_starknet_p2p_proto::transaction::Txn;
 
         let txn = proto
             .txn
@@ -84,7 +84,7 @@ impl proto::Protobuf for Transaction {
     }
 
     fn to_proto(&self) -> Result<Self::Proto, proto::Error> {
-        use malachite_starknet_p2p_proto::transaction::{Dummy, Txn};
+        use malachitebft_starknet_p2p_proto::transaction::{Dummy, Txn};
 
         Ok(Self::Proto {
             transaction_hash: Some(self.hash.to_proto()?),

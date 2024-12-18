@@ -11,9 +11,9 @@ use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use testdir::{NumberedDir, NumberedDirBuilder};
 
-use malachite_wal::log::Log;
-use malachite_wal::Log as FileLog;
-use malachite_wal::*;
+use informalsystems_malachitebft_wal::log::Log;
+use informalsystems_malachitebft_wal::Log as FileLog;
+use informalsystems_malachitebft_wal::*;
 
 static TESTDIR: LazyLock<NumberedDir> =
     LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());

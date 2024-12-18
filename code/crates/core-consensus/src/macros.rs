@@ -6,7 +6,7 @@
 /// # Example
 ///
 /// ```rust,ignore
-/// malachite_consensus::process!(
+/// malachitebft_core_consensus::process!(
 ///     // Input to process
 ///     input: input,
 ///     // Consensus state

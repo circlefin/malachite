@@ -1,15 +1,19 @@
 //! Example application using channels
 
 mod app;
-mod node;
-mod state;
 
 use eyre::eyre;
-use malachite_test_cli::args::{Args, Commands};
-use malachite_test_cli::config::load_config;
-use malachite_test_cli::{logging, runtime};
-use node::App;
 use tracing::{error, info, trace};
+
+use malachitebft_test_cli::args::{Args, Commands};
+use malachitebft_test_cli::config::load_config;
+use malachitebft_test_cli::{logging, runtime};
+
+mod node;
+mod state;
+mod streaming;
+
+use node::App;
 
 /// Main entry point for the application
 ///

@@ -1,31 +1,35 @@
 [package]
-name                 = "malachite-test-cli"
-version.workspace    = true
-edition.workspace    = true
+name = "informalsystems-malachitebft-test-cli"
+version.workspace = true
+edition.workspace = true
 repository.workspace = true
-license.workspace    = true
-publish.workspace    = true
+license.workspace = true
+publish = false
 
 [lints]
 workspace = true
 
 [dependencies]
-malachite-core-types.workspace        = true
-malachite-metrics.workspace       = true
-malachite-config.workspace        = true
-malachite-app.workspace          = true
+malachitebft-core-types.workspace = true
+malachitebft-metrics.workspace = true
+malachitebft-config.workspace = true
+malachitebft-app.workspace = true
 
-axum               = { workspace = true }
-bytesize           = { workspace = true }
-clap               = { workspace = true, features = ["derive", "env"] }
-color-eyre         = { workspace = true }
-directories        = { workspace = true }
-itertools          = { workspace = true }
-tokio              = { workspace = true, features = ["full"] }
-thiserror          = { workspace = true }
-tracing            = { workspace = true }
-tracing-appender   = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "json"] }
-serde_json         = { workspace = true }
-rand               = { workspace = true }
-toml               = { workspace = true }
+axum = { workspace = true }
+bytesize = { workspace = true }
+clap = { workspace = true, features = ["derive", "env"] }
+color-eyre = { workspace = true }
+directories = { workspace = true }
+itertools = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-appender = { workspace = true }
+tracing-subscriber = { workspace = true, features = [
+  "env-filter",
+  "fmt",
+  "json",
+] }
+serde_json = { workspace = true }
+rand = { workspace = true }
+toml = { workspace = true }

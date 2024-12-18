@@ -1,11 +1,11 @@
 [package]
-name                   = "malachite-starknet-p2p-proto"
-version.workspace      = true
-edition.workspace      = true
-repository.workspace   = true
-license.workspace      = true
+name = "informalsystems-malachitebft-starknet-p2p-proto"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 rust-version.workspace = true
-publish                = false
+publish = false
 
 [dependencies]
 prost.workspace = true

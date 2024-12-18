@@ -2,12 +2,12 @@ use core::fmt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use libp2p_identity::{ecdsa, PeerId};
-use malachite_config::TransportProtocol;
-use malachite_metrics::SharedRegistry;
-use malachite_network::{
+use malachitebft_config::TransportProtocol;
+use malachitebft_metrics::SharedRegistry;
+use malachitebft_network::{
     spawn, BootstrapProtocol, Config, DiscoveryConfig, Keypair, PeerIdExt, Selector,
 };
-use malachite_starknet_host::types::PrivateKey;
+use malachitebft_starknet_host::types::PrivateKey;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::time::sleep;
 use tracing::{debug, info};
@@ -164,9 +164,9 @@ impl<const N: usize> Test<N> {
                 ..Default::default()
             },
             idle_connection_timeout: Duration::from_secs(60),
-            transport: malachite_network::TransportProtocol::Quic,
-            gossipsub: malachite_network::GossipSubConfig::default(),
-            pubsub_protocol: malachite_network::PubSubProtocol::default(),
+            transport: malachitebft_network::TransportProtocol::Quic,
+            gossipsub: malachitebft_network::GossipSubConfig::default(),
+            pubsub_protocol: malachitebft_network::PubSubProtocol::default(),
             rpc_max_size: 10 * 1024 * 1024,   // 10 MiB
             pubsub_max_size: 4 * 1024 * 1024, // 4 MiB
         })
@@ -210,12 +210,12 @@ impl<const N: usize> Test<N> {
                     tokio::select! {
                         event = handle.recv() => {
                             match event {
-                                Some(malachite_network::Event::PeerConnected(peer_id)) => {
+                                Some(malachitebft_network::Event::PeerConnected(peer_id)) => {
                                     if !peers.contains(&peer_id.to_libp2p()) {
                                         peers.push(peer_id.to_libp2p());
                                     }
                                 }
-                                Some(malachite_network::Event::PeerDisconnected(peer_id)) => {
+                                Some(malachitebft_network::Event::PeerDisconnected(peer_id)) => {
                                     if let Some(pos) = peers.iter().position(|p| p == &peer_id.to_libp2p()) {
                                         peers.remove(pos);
                                     }

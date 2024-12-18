@@ -1,16 +1,16 @@
 use bytes::Bytes;
 use prost::Message;
 
-use malachite_app::streaming::{StreamContent, StreamMessage};
-use malachite_codec::Codec;
-use malachite_consensus::SignedConsensusMsg;
-use malachite_core_types::{
+use malachitebft_app::streaming::{StreamContent, StreamMessage};
+use malachitebft_codec::Codec;
+use malachitebft_core_consensus::SignedConsensusMsg;
+use malachitebft_core_types::{
     AggregatedSignature, CommitCertificate, CommitSignature, Extension, Round, SignedExtension,
     SignedProposal, SignedVote, VoteSet,
 };
-use malachite_proto::{Error as ProtoError, Protobuf};
-use malachite_signing_ed25519::Signature;
-use malachite_sync::{self as sync, PeerId};
+use malachitebft_proto::{Error as ProtoError, Protobuf};
+use malachitebft_signing_ed25519::Signature;
+use malachitebft_sync::{self as sync, PeerId};
 
 use crate::proto;
 use crate::{Address, Height, Proposal, ProposalPart, TestContext, Value, ValueId, Vote};
@@ -125,7 +125,7 @@ impl Codec<StreamMessage<ProposalPart>> for ProtobufCodec {
             sequence: msg.sequence,
             content: match &msg.content {
                 StreamContent::Data(data) => {
-                    Some(proto::stream_message::Content::Data(data.to_bytes()))
+                    Some(proto::stream_message::Content::Data(data.to_bytes()?))
                 }
                 StreamContent::Fin(end) => Some(proto::stream_message::Content::Fin(*end)),
             },
@@ -451,13 +451,13 @@ fn decode_vote(msg: proto::SignedMessage) -> Option<SignedVote<TestContext>> {
     Some(SignedVote::new(vote, signature))
 }
 
-fn encode_signature(signature: &Signature) -> proto::Signature {
+pub(crate) fn encode_signature(signature: &Signature) -> proto::Signature {
     proto::Signature {
         bytes: Bytes::copy_from_slice(signature.to_bytes().as_ref()),
     }
 }
 
-fn decode_signature(signature: proto::Signature) -> Result<Signature, ProtoError> {
+pub(crate) fn decode_signature(signature: proto::Signature) -> Result<Signature, ProtoError> {
     let bytes = <[u8; 64]>::try_from(signature.bytes.as_ref())
         .map_err(|_| ProtoError::Other("Invalid signature length".to_string()))?;
     Ok(Signature::from_bytes(bytes))

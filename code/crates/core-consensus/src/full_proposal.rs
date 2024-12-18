@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use derive_where::derive_where;
 use tracing::debug;
 
-use malachite_core_types::{
+use malachitebft_core_types::{
     Context, Height, Proposal, Round, SignedExtension, SignedProposal, Validity, Value,
 };
 

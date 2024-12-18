@@ -1,6 +1,6 @@
 use bytes::Bytes;
-use malachite_proto::Error;
-use malachite_starknet_p2p_proto::Felt252;
+use malachitebft_proto::Error;
+use malachitebft_starknet_p2p_proto::Felt252;
 
 pub type Felt = starknet_crypto::Felt;
 

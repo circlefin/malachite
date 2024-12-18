@@ -1,7 +1,7 @@
 use crate::{BlockHash, Height, Transactions};
 
-use malachite_proto::{Error as ProtoError, Protobuf};
-use malachite_starknet_p2p_proto as proto;
+use malachitebft_proto::{Error as ProtoError, Protobuf};
+use malachitebft_starknet_p2p_proto as proto;
 
 #[derive(Clone, Debug)]
 pub struct Block {

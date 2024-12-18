@@ -1,25 +1,25 @@
 [package]
-name        = "malachite-config"
+name = "informalsystems-malachitebft-config"
 description = "Node for running the Malachite consensus engine"
 
-version.workspace      = true
-edition.workspace      = true
-repository.workspace   = true
-license.workspace      = true
-publish.workspace      = true
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
 rust-version.workspace = true
 
 [lints]
 workspace = true
 
 [dependencies]
-malachite-core-types.workspace  = true
+malachitebft-core-types.workspace = true
 
-bytesize          = { workspace = true, features = ["serde"] }
-config            = { workspace = true }
-humantime-serde   = { workspace = true }
-multiaddr         = { workspace = true }
-serde             = { workspace = true, features = ["derive"] }
+bytesize = { workspace = true, features = ["serde"] }
+config = { workspace = true }
+humantime-serde = { workspace = true }
+multiaddr = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 toml.workspace = true

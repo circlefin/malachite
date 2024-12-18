@@ -1,6 +1,6 @@
 use bytes::Bytes;
-use malachite_proto::Protobuf;
-use malachite_starknet_p2p_proto as p2p_proto;
+use malachitebft_proto::Protobuf;
+use malachitebft_starknet_p2p_proto as p2p_proto;
 
 pub struct StreamMessage {
     /// Receivers identify streams by (sender, stream_id).
@@ -26,10 +26,10 @@ impl Protobuf for StreamMessage {
     type Proto = p2p_proto::Stream;
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn from_proto(proto: Self::Proto) -> Result<Self, malachite_proto::Error> {
+    fn from_proto(proto: Self::Proto) -> Result<Self, malachitebft_proto::Error> {
         let content = match proto
             .content
-            .ok_or_else(|| malachite_proto::Error::missing_field::<Self::Proto>("content"))?
+            .ok_or_else(|| malachitebft_proto::Error::missing_field::<Self::Proto>("content"))?
         {
             p2p_proto::stream::Content::Data(data) => StreamContent::Data(data),
             p2p_proto::stream::Content::Fin(fin) => StreamContent::Fin(fin),
@@ -43,7 +43,7 @@ impl Protobuf for StreamMessage {
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn to_proto(&self) -> Result<Self::Proto, malachite_proto::Error> {
+    fn to_proto(&self) -> Result<Self::Proto, malachitebft_proto::Error> {
         Ok(Self::Proto {
             stream_id: self.id,
             sequence_number: self.sequence,
