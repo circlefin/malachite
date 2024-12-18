@@ -227,6 +227,16 @@ do that.
 
 ```rust
 fn main() {
+   // Load configuration file if it exists. Some commands do not require a configuration file.
+   let opt_config_file_path = args
+           .get_config_file_path()
+           .map_err(|error| eyre!("Failed to get configuration file path: {:?}", error));
+
+   let opt_config = opt_config_file_path.and_then(|path| {
+      load_config(&path, None)
+              .map_err(|error| eyre!("Failed to load configuration file: {:?}", error))
+   });
+
    // Override logging configuration (if exists) with optional command-line parameters.
    let mut logging = opt_config.as_ref().map(|c| c.logging).unwrap_or_default();
    if let Some(log_level) = args.log_level {
