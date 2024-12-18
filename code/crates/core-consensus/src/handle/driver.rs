@@ -217,7 +217,7 @@ where
             if state.params.value_payload.include_proposal() {
                 perform!(
                     co,
-                    Effect::Broadcast(
+                    Effect::Publish(
                         SignedConsensusMsg::Proposal(signed_proposal),
                         Default::default()
                     )
@@ -242,7 +242,7 @@ where
 
             perform!(
                 co,
-                Effect::Broadcast(SignedConsensusMsg::Vote(signed_vote), Default::default())
+                Effect::Publish(SignedConsensusMsg::Vote(signed_vote), Default::default())
             );
 
             Ok(())

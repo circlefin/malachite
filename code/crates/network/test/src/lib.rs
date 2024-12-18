@@ -315,7 +315,7 @@ fn init_logging() {
     use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
     let filter = EnvFilter::builder()
-        .parse("info,malachite=debug,ractor=error")
+        .parse("info,informalsystems_malachitebft=debug,ractor=error")
         .unwrap();
 
     pub fn enable_ansi() -> bool {
