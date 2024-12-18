@@ -338,10 +338,18 @@ package = "informalsystems-malachitebft-test-cli"
 ### Handle consensus messages
 
 We now need a way to process messages sent to the application by consensus, and act on those accordingly.
-Let's define a `run` function in a new `app` module, which will wait for messages from consensus
+Let's define a `run` function in a new `app` module in `src/app.rs`, which will wait for messages from consensus
 and handle those by updating its state and sending back the appropriate responses.
 
 ```rust
+// src/main.rs
+
+mod app;
+```
+
+```rust
+// src/app.rs
+
 use std::time::Duration;
 
 use eyre::eyre;
@@ -719,9 +727,17 @@ The astute reader will have noticed that the code above invokes several methods 
 This type implements a minimal (in-memory) state maintaining knowledge of the height, round and data transmitted,
 as well as the various proposals seen so far and the values that have been decided.
 
-Let's define it in a new `state` module:
+Let's define it in a new `state` module in `src/state.rs` and add the following line to `src/main.rs`:
+
+```
+// src/main.rs
+
+mod state;
+```
 
 ```rust
+// src/state.rs
+
 /// Represents the internal state of the application node
 /// Contains information about current height, round, proposals and blocks
 pub struct State {
