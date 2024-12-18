@@ -1352,3 +1352,7 @@ $ ./target/debug/tutorial start --home nodes/NODE
 ```
 
 Et voila, we are now running a 3 nodes local testnet!
+
+If the nodes are not started concurrently, you may see that it takes a little while until they synchronize between themselves and end up on the same round.
+After that, consensus should start running normally and decide on values very quickly.
+
