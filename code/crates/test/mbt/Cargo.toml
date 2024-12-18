@@ -1,12 +1,12 @@
 [package]
 name = "informalsystems-malachitebft-test-mbt"
 description = "Library for model-based testing of the Malachite consensus engine"
+publish = false
 
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
 license.workspace = true
-publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]

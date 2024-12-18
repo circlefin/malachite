@@ -1,11 +1,11 @@
 [package]
-name                   = "informalsystems-malachitebft-starknet-app"
-version.workspace      = true
-edition.workspace      = true
-repository.workspace   = true
-license.workspace      = true
+name = "informalsystems-malachitebft-starknet-app"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 rust-version.workspace = true
-publish                = false
+publish = false
 
 [lints]
 workspace = true
