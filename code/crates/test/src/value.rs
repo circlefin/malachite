@@ -1,5 +1,5 @@
 use core::fmt;
-use malachite_proto::{Error as ProtoError, Protobuf};
+use malachitebft_proto::{Error as ProtoError, Protobuf};
 use serde::{Deserialize, Serialize};
 
 use crate::proto;
@@ -79,7 +79,7 @@ impl Value {
     }
 }
 
-impl malachite_core_types::Value for Value {
+impl malachitebft_core_types::Value for Value {
     type Id = ValueId;
 
     fn id(&self) -> ValueId {

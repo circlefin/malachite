@@ -9,8 +9,8 @@ use color_eyre::eyre::{eyre, Result};
 use itertools::Itertools;
 use tracing::info;
 
-use malachite_app::Node;
-use malachite_config::*;
+use malachitebft_app::Node;
+use malachitebft_config::*;
 
 use crate::args::Args;
 use crate::cmd::testnet::RuntimeFlavour;

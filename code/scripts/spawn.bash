@@ -33,7 +33,7 @@ if [[ -z "$NODES_HOME" ]]; then
 fi
 
 if [[ -z "$APP_BINARY" ]]; then
-    APP_BINARY="malachite-starknet-app"
+    APP_BINARY="informalsystems-malachitebft-starknet-app"
 fi
 
 # Environment variables

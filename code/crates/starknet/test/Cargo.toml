@@ -1,5 +1,5 @@
 [package]
-name = "malachite-starknet-test"
+name = "informalsystems-malachitebft-starknet-test"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -8,12 +8,12 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-malachite-engine.workspace = true
-malachite-core-types.workspace = true
-malachite-config.workspace = true
-malachite-core-consensus.workspace = true
-malachite-metrics.workspace = true
-malachite-starknet-host.workspace = true
+malachitebft-engine.workspace = true
+malachitebft-core-types.workspace = true
+malachitebft-config.workspace = true
+malachitebft-core-consensus.workspace = true
+malachitebft-metrics.workspace = true
+malachitebft-starknet-host.workspace = true
 
 axum.workspace = true
 bytesize.workspace = true

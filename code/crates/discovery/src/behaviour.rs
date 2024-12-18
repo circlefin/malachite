@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use crate::config::BootstrapProtocol;
 use crate::Config;
 
-const DISCOVERY_KAD_PROTOCOL: &str = "/malachite-discovery/kad/v1beta1";
-const DISCOVERY_REQRES_PROTOCOL: &str = "/malachite-discovery/reqres/v1beta1";
+const DISCOVERY_KAD_PROTOCOL: &str = "/malachitebft-discovery/kad/v1beta1";
+const DISCOVERY_REQRES_PROTOCOL: &str = "/malachitebft-discovery/reqres/v1beta1";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Request {

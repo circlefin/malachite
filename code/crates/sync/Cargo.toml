@@ -1,5 +1,5 @@
 [package]
-name                   = "malachite-sync"
+name                   = "informalsystems-malachitebft-sync"
 version.workspace      = true
 edition.workspace      = true
 repository.workspace   = true
@@ -8,9 +8,9 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-core-types  = { workspace = true }
-malachite-metrics = { workspace = true }
-malachite-peer    = { workspace = true }
+malachitebft-core-types  = { workspace = true }
+malachitebft-metrics = { workspace = true }
+malachitebft-peer    = { workspace = true }
 
 async-trait      = { workspace = true }
 bytes            = { workspace = true, features = ["serde"] }

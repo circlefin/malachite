@@ -1,5 +1,5 @@
 [package]
-name        = "malachite-core-types"
+name        = "informalsystems-malachitebft-core-types"
 description = "Common datatypes and interfaces for the Malachite consensus engine"
 
 version.workspace      = true

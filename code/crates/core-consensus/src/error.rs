@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 
-use malachite_core_driver::Error as DriverError;
-use malachite_core_types::{CertificateError, CommitCertificate, Context, Round};
+use malachitebft_core_driver::Error as DriverError;
+use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Round};
 
 use crate::effect::Resume;
 

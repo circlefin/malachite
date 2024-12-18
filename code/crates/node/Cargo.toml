@@ -1,5 +1,5 @@
 [package]
-name = "malachite-node"
+name = "informalsystems-malachitebft-node"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true

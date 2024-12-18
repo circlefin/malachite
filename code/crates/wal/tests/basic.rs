@@ -6,7 +6,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 use std::{fs, io, str};
 
-use malachite_wal::{Log, Version};
+use informalsystems_malachitebft_wal::{Log, Version};
 
 use testdir::{NumberedDir, NumberedDirBuilder};
 

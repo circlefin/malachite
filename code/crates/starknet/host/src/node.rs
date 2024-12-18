@@ -6,11 +6,11 @@ use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use tracing::{info, Instrument};
 
-use malachite_app::types::Keypair;
-use malachite_app::Node;
-use malachite_config::Config;
-use malachite_core_types::VotingPower;
-use malachite_engine::util::events::TxEvent;
+use malachitebft_app::types::Keypair;
+use malachitebft_app::Node;
+use malachitebft_config::Config;
+use malachitebft_core_types::VotingPower;
+use malachitebft_engine::util::events::TxEvent;
 
 use crate::spawn::spawn_node_actor;
 use crate::types::Height;
@@ -157,8 +157,8 @@ impl Node for StarknetNode {
 #[test]
 fn test_starknet_node() {
     // Create temp folder for configuration files
-    let temp_dir =
-        tempfile::TempDir::with_prefix("malachite-node-").expect("Failed to create temp dir");
+    let temp_dir = tempfile::TempDir::with_prefix("informalsystems-malachitebft-node-")
+        .expect("Failed to create temp dir");
 
     let temp_path = temp_dir.path().to_owned();
 
@@ -179,7 +179,7 @@ fn test_starknet_node() {
     };
 
     // Create configuration files
-    use malachite_test_cli::*;
+    use malachitebft_test_cli::*;
 
     let priv_keys = new::generate_private_keys(&node, 1, true);
     let pub_keys = priv_keys.iter().map(|pk| node.get_public_key(pk)).collect();
@@ -197,7 +197,7 @@ fn test_starknet_node() {
     // Run the node for a few seconds
     const TIMEOUT: u64 = 3;
     use tokio::time::{timeout, Duration};
-    let rt = malachite_test_cli::runtime::build_runtime(node.config.runtime).unwrap();
+    let rt = malachitebft_test_cli::runtime::build_runtime(node.config.runtime).unwrap();
     let result = rt.block_on(async { timeout(Duration::from_secs(TIMEOUT), node.run()).await });
 
     // Check that the node did not quit before the timeout.

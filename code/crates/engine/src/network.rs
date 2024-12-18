@@ -11,16 +11,16 @@ use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort, RpcReplyPort};
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
 
-use malachite_sync::{
+use malachitebft_sync::{
     self as sync, InboundRequestId, OutboundRequestId, RawMessage, Request, Response,
 };
 
-use malachite_codec as codec;
-use malachite_core_consensus::SignedConsensusMsg;
-use malachite_core_types::{Context, SignedProposal, SignedVote};
-use malachite_metrics::SharedRegistry;
-use malachite_network::handle::CtrlHandle;
-use malachite_network::{Channel, Config, Event, Multiaddr, PeerId};
+use malachitebft_codec as codec;
+use malachitebft_core_consensus::SignedConsensusMsg;
+use malachitebft_core_types::{Context, SignedProposal, SignedVote};
+use malachitebft_metrics::SharedRegistry;
+use malachitebft_network::handle::CtrlHandle;
+use malachitebft_network::{Channel, Config, Event, Multiaddr, PeerId};
 
 use crate::consensus::ConsensusCodec;
 use crate::sync::SyncCodec;
@@ -167,7 +167,7 @@ where
         myself: ActorRef<Msg<Ctx>>,
         args: Args,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let handle = malachite_network::spawn(args.keypair, args.config, args.metrics).await?;
+        let handle = malachitebft_network::spawn(args.keypair, args.config, args.metrics).await?;
 
         let (mut recv_handle, ctrl_handle) = handle.split();
 

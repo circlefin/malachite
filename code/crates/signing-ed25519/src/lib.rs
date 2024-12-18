@@ -5,7 +5,7 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-use malachite_core_types::SigningScheme;
+use malachitebft_core_types::SigningScheme;
 use signature::{Keypair, Signer, Verifier};
 
 #[cfg(feature = "rand")]

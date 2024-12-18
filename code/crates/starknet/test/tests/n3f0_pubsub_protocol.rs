@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use bytesize::ByteSize;
-use malachite_config::{GossipSubConfig, PubSubProtocol};
-use malachite_starknet_test::{init_logging, TestBuilder, TestParams};
+use informalsystems_malachitebft_starknet_test::{init_logging, TestBuilder, TestParams};
+use malachitebft_config::{GossipSubConfig, PubSubProtocol};
 
 async fn run_test(params: TestParams) {
     init_logging(module_path!());

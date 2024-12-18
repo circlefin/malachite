@@ -3,13 +3,13 @@
 use eyre::Result;
 use tokio::sync::mpsc;
 
-use malachite_app::types::metrics::SharedRegistry;
-use malachite_app::types::Keypair;
-use malachite_config::Config as NodeConfig;
-use malachite_engine::consensus::ConsensusCodec;
-use malachite_engine::host::HostRef;
-use malachite_engine::network::NetworkRef;
-use malachite_engine::sync::SyncCodec;
+use malachitebft_app::types::metrics::SharedRegistry;
+use malachitebft_app::types::Keypair;
+use malachitebft_config::Config as NodeConfig;
+use malachitebft_engine::consensus::ConsensusCodec;
+use malachitebft_engine::host::HostRef;
+use malachitebft_engine::network::NetworkRef;
+use malachitebft_engine::sync::SyncCodec;
 
 use crate::app::types::core::Context;
 use crate::app::types::metrics::Metrics;
@@ -40,7 +40,7 @@ where
 {
     let (tx, mut rx) = mpsc::channel::<NetworkMsg<Ctx>>(1);
 
-    let actor_ref = malachite_app::spawn_network_actor(cfg, keypair, registry, codec).await?;
+    let actor_ref = malachitebft_app::spawn_network_actor(cfg, keypair, registry, codec).await?;
 
     tokio::spawn({
         let actor_ref = actor_ref.clone();

@@ -4,7 +4,7 @@ use ractor::{async_trait, Actor, ActorProcessingErr, ActorRef, SpawnErr};
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use malachite_engine::host::HostMsg;
+use malachitebft_engine::host::HostMsg;
 
 use crate::app::types::core::Context;
 use crate::app::types::metrics::Metrics;

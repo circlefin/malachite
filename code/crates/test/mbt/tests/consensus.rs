@@ -7,8 +7,8 @@ use glob::glob;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use malachite_test_mbt::consensus::State;
-use malachite_test_mbt::utils::{generate_test_traces, quint_seed};
+use informalsystems_malachitebft_test_mbt::consensus::State;
+use informalsystems_malachitebft_test_mbt::utils::{generate_test_traces, quint_seed};
 
 use runner::ConsensusRunner;
 
@@ -16,7 +16,7 @@ const RANDOM_SEED: u64 = 0x42;
 
 #[test]
 fn test_itf() {
-    let temp_dir = tempfile::TempDir::with_prefix("malachite-core-consensus-")
+    let temp_dir = tempfile::TempDir::with_prefix("informalsystems-malachitebft-core-consensus-")
         .expect("Failed to create temp dir");
     let temp_path = temp_dir.path().to_owned();
 

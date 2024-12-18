@@ -1,9 +1,9 @@
 use bytes::Bytes;
-use malachite_codec::Codec;
+use malachitebft_codec::Codec;
 
-use malachite_core_consensus::SignedConsensusMsg;
-use malachite_engine::util::streaming::StreamMessage;
-use malachite_sync::{Request, Response, Status};
+use malachitebft_core_consensus::SignedConsensusMsg;
+use malachitebft_engine::util::streaming::StreamMessage;
+use malachitebft_sync::{Request, Response, Status};
 
 mod raw;
 use raw::{RawRequest, RawResponse, RawSignedConsensusMsg, RawStatus, RawStreamMessage};

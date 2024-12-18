@@ -5,7 +5,7 @@ use alloc::{vec, vec::Vec};
 
 use derive_where::derive_where;
 
-use malachite_core_types::{Context, SignedVote, Vote};
+use malachitebft_core_types::{Context, SignedVote, Vote};
 
 /// Keeps track of evidence of equivocation.
 #[derive_where(Clone, Debug, Default)]

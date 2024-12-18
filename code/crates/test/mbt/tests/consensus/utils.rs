@@ -1,9 +1,12 @@
 use std::collections::BTreeMap;
 
-use malachite_test::{Address, PrivateKey, Value, ValueId};
-use malachite_test_mbt::consensus::State;
-use malachite_test_mbt::types::{NonNilValue, Value as ModelValue};
 use rand::rngs::StdRng;
+
+use malachitebft_test::{Address, PrivateKey, Value, ValueId};
+
+use informalsystems_malachitebft_test_mbt as test;
+use test::consensus::State;
+use test::types::{NonNilValue, Value as ModelValue};
 
 pub const OTHER_PROCESS: &str = "Other";
 

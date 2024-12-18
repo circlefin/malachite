@@ -9,15 +9,15 @@ use rand::{Rng, SeedableRng};
 use sha3::Digest;
 use tracing::debug;
 
-use malachite_app_channel::app::consensus::ProposedValue;
-use malachite_app_channel::app::host::LocallyProposedValue;
-use malachite_app_channel::app::streaming::{StreamContent, StreamMessage};
-use malachite_app_channel::app::types::codec::Codec;
-use malachite_app_channel::app::types::core::{CommitCertificate, Round, Validity};
-use malachite_app_channel::app::types::sync::DecidedValue;
-use malachite_app_channel::app::types::PeerId;
-use malachite_test::codec::proto::ProtobufCodec;
-use malachite_test::{
+use malachitebft_app_channel::app::consensus::ProposedValue;
+use malachitebft_app_channel::app::host::LocallyProposedValue;
+use malachitebft_app_channel::app::streaming::{StreamContent, StreamMessage};
+use malachitebft_app_channel::app::types::codec::Codec;
+use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
+use malachitebft_app_channel::app::types::sync::DecidedValue;
+use malachitebft_app_channel::app::types::PeerId;
+use malachitebft_test::codec::proto::ProtobufCodec;
+use malachitebft_test::{
     Address, Height, ProposalData, ProposalFin, ProposalInit, ProposalPart, TestContext, Value,
 };
 

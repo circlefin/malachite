@@ -485,7 +485,7 @@ where
     /// # Safety
     /// This is a dangerous function that should not be used directly.
     /// It bypasses important initialization and validation checks.
-    /// Instead, use `malachite_wal::file::Log::open` which properly initializes the WAL.
+    /// Instead, use `malachitebft_wal::file::Log::open` which properly initializes the WAL.
     ///
     /// This function exists primarily for internal use and testing purposes.
     pub fn from_raw_parts(

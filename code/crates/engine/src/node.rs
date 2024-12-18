@@ -3,7 +3,7 @@ use ractor::{Actor, ActorCell, ActorProcessingErr, ActorRef, SupervisionEvent};
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
-use malachite_core_types::Context;
+use malachitebft_core_types::Context;
 
 use crate::consensus::ConsensusRef;
 use crate::host::HostRef;

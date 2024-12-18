@@ -3,7 +3,7 @@
 use std::io;
 use std::sync::LazyLock;
 
-use malachite_wal::Log;
+use informalsystems_malachitebft_wal::Log;
 use testdir::{NumberedDir, NumberedDirBuilder};
 
 static TESTDIR: LazyLock<NumberedDir> =

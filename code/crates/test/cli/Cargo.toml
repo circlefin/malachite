@@ -1,5 +1,5 @@
 [package]
-name                 = "malachite-test-cli"
+name                 = "informalsystems-malachitebft-test-cli"
 version.workspace    = true
 edition.workspace    = true
 repository.workspace = true
@@ -10,10 +10,10 @@ publish.workspace    = true
 workspace = true
 
 [dependencies]
-malachite-core-types.workspace        = true
-malachite-metrics.workspace       = true
-malachite-config.workspace        = true
-malachite-app.workspace          = true
+malachitebft-core-types.workspace        = true
+malachitebft-metrics.workspace       = true
+malachitebft-config.workspace        = true
+malachitebft-app.workspace          = true
 
 axum               = { workspace = true }
 bytesize           = { workspace = true }

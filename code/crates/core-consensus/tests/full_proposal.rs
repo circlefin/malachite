@@ -1,10 +1,13 @@
-use malachite_core_consensus::{FullProposal, FullProposalKeeper, Input, ProposedValue};
-use malachite_core_types::{
+use malachitebft_core_types::{
     Context, Round, SignedProposal, SigningProvider, Validity, ValueOrigin,
 };
-use malachite_test::utils::validators::make_validators;
-use malachite_test::{Address, Proposal, Value};
-use malachite_test::{Height, TestContext};
+use malachitebft_test::utils::validators::make_validators;
+use malachitebft_test::{Address, Proposal, Value};
+use malachitebft_test::{Height, TestContext};
+
+use informalsystems_malachitebft_core_consensus::{
+    FullProposal, FullProposalKeeper, Input, ProposedValue,
+};
 
 fn signed_proposal_pol(
     ctx: &TestContext,

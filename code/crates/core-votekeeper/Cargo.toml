@@ -1,5 +1,5 @@
 [package]
-name        = "malachite-core-votekeeper"
+name        = "informalsystems-malachitebft-core-votekeeper"
 description = "Voting system for the Malachite consensus engine"
 
 version.workspace      = true
@@ -10,10 +10,10 @@ publish.workspace      = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-core-types = { workspace = true }
+malachitebft-core-types = { workspace = true }
 
 derive-where = { workspace = true }
 thiserror    = { workspace = true, default-features = false }
 
 [dev-dependencies]
-malachite-test = { workspace = true }
+malachitebft-test = { workspace = true }

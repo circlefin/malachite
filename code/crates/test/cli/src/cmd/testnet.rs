@@ -7,8 +7,8 @@ use clap::Parser;
 use color_eyre::eyre::{eyre, Result};
 use tracing::info;
 
-use malachite_app::Node;
-use malachite_config::*;
+use malachitebft_app::Node;
+use malachitebft_config::*;
 
 use crate::args::Args;
 use crate::error::Error;

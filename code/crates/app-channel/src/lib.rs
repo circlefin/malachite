@@ -10,7 +10,7 @@
 //     rustdoc::missing_doc_code_examples
 // )]
 
-pub use malachite_app as app;
+pub use malachitebft_app as app;
 
 mod connector;
 mod spawn;

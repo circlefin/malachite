@@ -5,8 +5,8 @@ use derive_where::derive_where;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use malachite_engine::consensus::Msg as ConsensusActorMsg;
-use malachite_engine::network::Msg as NetworkActorMsg;
+use malachitebft_engine::consensus::Msg as ConsensusActorMsg;
+use malachitebft_engine::network::Msg as NetworkActorMsg;
 
 use crate::app::types::core::{CommitCertificate, Context, Round, ValueId};
 use crate::app::types::streaming::StreamMessage;

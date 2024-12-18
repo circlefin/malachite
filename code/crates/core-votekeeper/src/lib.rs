@@ -22,6 +22,6 @@ pub mod value_weights;
 
 /// Represents the weight of a vote,
 /// ie. the voting power of the validator that cast the vote.
-pub type Weight = malachite_core_types::VotingPower;
+pub type Weight = malachitebft_core_types::VotingPower;
 
-pub use malachite_core_types::{Threshold, ThresholdParam, ThresholdParams};
+pub use malachitebft_core_types::{Threshold, ThresholdParam, ThresholdParams};

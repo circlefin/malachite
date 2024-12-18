@@ -1,5 +1,5 @@
 [package]
-name                   = "malachite-core-consensus"
+name                   = "informalsystems-malachitebft-core-consensus"
 version.workspace      = true
 edition.workspace      = true
 repository.workspace   = true
@@ -9,13 +9,13 @@ rust-version.workspace = true
 
 [features]
 std = []
-debug = ["std", "malachite-core-driver/debug"]
+debug = ["std", "malachitebft-core-driver/debug"]
 
 [dependencies]
-malachite-core-types.workspace  = true
-malachite-core-driver.workspace  = true
-malachite-metrics.workspace = true
-malachite-peer.workspace    = true
+malachitebft-core-types.workspace  = true
+malachitebft-core-driver.workspace  = true
+malachitebft-metrics.workspace = true
+malachitebft-peer.workspace    = true
 
 async-recursion = { workspace = true }
 genawaiter      = { workspace = true }
@@ -28,4 +28,4 @@ tracing         = { workspace = true }
 workspace = true
 
 [dev-dependencies]
-malachite-test = { workspace = true }
+malachitebft-test = { workspace = true }

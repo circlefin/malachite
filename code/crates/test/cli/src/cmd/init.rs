@@ -6,8 +6,8 @@ use crate::error::Error;
 use crate::file::{save_config, save_genesis, save_priv_validator_key};
 use crate::new::{generate_config, generate_genesis, generate_private_keys};
 use clap::Parser;
-use malachite_app::Node;
-use malachite_config::{
+use malachitebft_app::Node;
+use malachitebft_config::{
     BootstrapProtocol, Config, LoggingConfig, RuntimeConfig, Selector, TransportProtocol,
 };
 use tracing::{info, warn};
