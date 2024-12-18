@@ -50,7 +50,7 @@ The repository is split in three areas, each covering one of the important areas
 
 These are all the libraries that are prefixed with `informalsystems-malachitebft-core`.
 
-|                       Crate name                       |                                        Version                                         |                                           Docs                                            |
+|                       Crate name                       |                                         Crate                                          |                                           Docs                                            |
 |:------------------------------------------------------:|:--------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------:|
 |     [*-core-consensus](code/crates/core-consensus)     |       [![core-consensus][core-consensus-crate-image]][core-consensus-crate-link]       |       [![core-consensus Docs][core-consensus-docs-image]][core-consensus-docs-link]       |
 |        [*-core-driver](code/crates/core-driver)        |           [![core-driver][core-driver-crate-image]][core-driver-crate-link]            |           [![core-driver Docs][core-driver-docs-image]][core-driver-docs-link]            |
@@ -58,11 +58,11 @@ These are all the libraries that are prefixed with `informalsystems-malachitebft
 |         [*-core-types](code/crates/core-types)         |             [![core-types][core-types-crate-image]][core-types-crate-link]             |             [![core-types Docs][core-types-docs-image]][core-types-docs-link]             |
 |    [*-core-votekeeper](code/crates/core-votekeeper)    |     [![core-votekeeper][core-votekeeper-crate-image]][core-votekeeper-crate-link]      |     [![core-votekeeper Docs][core-votekeeper-docs-image]][core-votekeeper-docs-link]      |
 
-#### Additional primitives and libraries:
+#### Additional primitives and libraries
 
 These libraries are prefixed with `informalsystems-malachitebft`.
 
-|                 Crate name                 |                              Version                              |                                 Docs                                 |
+|                 Crate name                 |                               Crate                               |                                 Docs                                 |
 |:------------------------------------------:|:-----------------------------------------------------------------:|:--------------------------------------------------------------------:|
 | [*-app-channel](./code/crates/app-channel) | [![app-channel][app-channel-crate-image]][app-channel-crate-link] | [![app-channel Docs][app-channel-docs-image]][app-channel-docs-link] |
 |         [*-app](./code/crates/app)         |             [![app][app-crate-image]][app-crate-link]             |             [![app Docs][app-docs-image]][app-docs-link]             |
