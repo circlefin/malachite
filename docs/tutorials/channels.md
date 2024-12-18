@@ -103,7 +103,7 @@ type definition.
 
 The `Context` also defines a few abstract methods which need to be implemented:
 
-```
+```rust
 pub trait Context {
     // ...
 
