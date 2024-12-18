@@ -188,6 +188,7 @@ to interact with the consensus engine:
 | Decided              | Notifies the application that consensus has decided on a value. This message includes a commit certificate containing the ID of the value that was decided on, the height and round at which it was decided, and the aggregated signatures of the validators that committed to it. In response to this message, the application MAY send a `ConsensusMsg::StartHeight` message back to consensus, instructing it to start the next height. |
 | GetDecidedValue      | Requests a previously decided value from the application's storage. The application MUST respond with that value if available, or `None` otherwise.                                                                                                                                                                                                                                                                                        |
 | ProcessSyncedValue   | Notifies the application that a value has been synced from the network. This may happen when the node is catching up with the network. If a value can be decoded from the bytes provided, then the application MUST reply to this message with the decoded value.                                                                                                                                                                          |
+<!-- Todo: Is RestreamProposal obsolete? -->
 
 ### Application state
 The application needs to maintain its internal state so it can react to the messages received from consensus.
@@ -402,6 +403,82 @@ pub struct State {
 This will be useful when the application responds back to the consensus engine.
 
 ## The Consensus dialog
-Most Consensus messages have a `reply_to` field that the application should use to respond to the message.
+Most Consensus messages have a `reply_to` field that the application should use to respond to the message. To understand
+better how to implement responses to these messages, let's look at the dialog between the consensus engine and the application.
+
+```mermaid
+sequenceDiagram
+
+   rect rgb(50, 50, 50)
+   alt Startup
+   Consensus->>Application: ConsensusReady
+   activate Application
+   note right of Application: Find start height
+   Application-->>Consensus: StartHeight
+   deactivate Application
+   end
+   end
+
+   rect rgb(50, 50, 50)
+   alt Generic updates
+   Consensus->>Application: StartedRound
+   note right of Application: Update internal state
+   else
+   Consensus->>Application: GetHistoryMinHeight
+   activate Application
+   note right of Application: Find earliest height stored
+   Application->>Consensus: Height
+   deactivate Application
+   else
+   Consensus->>Application: GetValidatorSet
+   activate Application
+   note right of Application: Gather validator set
+   Application->>Consensus: ValidatorSet
+   deactivate Application
+   else
+   Consensus->>Application: GetDecidedValue
+   activate Application
+   note right of Application: Find decided value
+   Application->>Consensus: DecidedValue
+   deactivate Application
+   end
+   end
+
+   rect rgb(50, 50, 50)
+   alt Proposer
+   Consensus->>Application: GetValue
+   activate Application
+   note right of Application: Send previously compiled value or create new one
+   Application->>Consensus: LocallyProposedValue
+   deactivate Application
+   activate Application
+   Application-->>Network: PublishProposalPart
+   deactivate Application
+   note right of Application: Publish new value to other nodes on network
+   end
+   end
+
+   rect rgb(50, 50, 50)
+   alt Validator
+   Consensus->>Application: ReceivedProposalPart
+   activate Application
+   note right of Application: try to compile proposal from parts
+   Application->>Consensus: ProposedValue
+   deactivate Application
+   else
+   Consensus->>Application: Decided
+   activate Application
+   note right of Application: Store certificate in state<br>Start next height
+   Application->>Consensus: StartHeight
+   deactivate Application
+   else
+   Consensus->>Application: ProcessSyncedValue
+   activate Application
+   note right of Application: Decode received value
+   Application->>Consensus: ProposedValue
+   deactivate Application
+   end
+   end
+```
 <!-- Todo: talk about the minimal amount of conversation needed to run the engine. List the known caveats that would
 make consensus start new rounds but not finalize any heights. Like mismatched values. -->
