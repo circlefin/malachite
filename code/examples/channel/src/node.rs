@@ -4,11 +4,11 @@
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
-use libp2p_identity::Keypair;
 use rand::{CryptoRng, RngCore};
 
 use malachitebft_app_channel::app::types::config::Config;
 use malachitebft_app_channel::app::types::core::VotingPower;
+use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::app::Node;
 
 // Use the same types used for integration tests.
@@ -27,7 +27,7 @@ pub struct App {
     pub home_dir: PathBuf,
     pub genesis_file: PathBuf,
     pub private_key_file: PathBuf,
-    pub start_height: Option<u64>,
+    pub start_height: Option<Height>,
 }
 
 #[async_trait]
@@ -102,7 +102,6 @@ impl Node for App {
 
         let genesis = self.load_genesis(self.genesis_file.clone())?;
         let initial_validator_set = genesis.validator_set.clone();
-        let start_height = self.start_height.map(Height::new);
 
         let codec = ProtobufCodec;
 
@@ -112,12 +111,12 @@ impl Node for App {
             self.clone(),
             self.config.clone(),
             self.private_key_file.clone(),
-            start_height,
+            self.start_height,
             initial_validator_set,
         )
         .await?;
 
-        let mut state = State::new(ctx, address, start_height.unwrap_or_default());
+        let mut state = State::new(ctx, address, self.start_height.unwrap_or_default());
 
         crate::app::run(genesis, &mut state, &mut channels).await
     }
