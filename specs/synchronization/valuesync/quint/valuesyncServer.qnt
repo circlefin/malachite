@@ -1,16 +1,16 @@
 // -*- mode: Bluespec; -*-
 //
-// Blocksync protocol: server side, replies to client requests.
+// ValueSync protocol: server side, replies to client requests.
 //
 
-module blocksyncServer {
+module valuesyncServer {
 
-  import blocksync.* from "./blocksync"
+  import valuesync.* from "./valuesync"
 
   type Server = {
     id: Address,
 
-    chain: List[BlockStoreEntry],
+    chain: List[ValueStoreEntry],
 
     // Incoming requests
     requestMsgs: Set[RequestMsg]
@@ -46,17 +46,17 @@ module blocksyncServer {
                                       height: m.height,
                                       response: RespCertificate(s.chain[m.height].commit)}
                           Some(cm)
-                  | SyncBlock  =>
+                  | SyncValue  =>
                           val bl = {  client: m.client,
                                       server: s.id,
                                       height: m.height,
-                                      response: RespBlock(s.chain[m.height].decision)}
+                                      response: RespValue(s.chain[m.height].decision)}
                           Some(bl)
-                  | SyncBlockStoreEntry =>
+                  | SyncValueStoreEntry =>
 	                  val bs = {  client: m.client,
 	                              server: s.id,
 	                              height: m.height,
-	                              response: RespBlockStoreEntry(s.chain[m.height])}
+	                              response: RespValueStoreEntry(s.chain[m.height])}
                           Some(bs)
               }
           else None
@@ -70,27 +70,27 @@ module blocksyncServer {
   // State machine
   //
 
-  var bsyncServers: Address -> Server
+  var vsyncServers: Address -> Server
 
   //
   // Actions
   //
 
   action initServer(nodes) = all {
-    bsyncServers' = nodes.mapBy(v => newServer(v)),
+    vsyncServers' = nodes.mapBy(v => newServer(v)),
   }
 
   action unchangedServer = all {
-    bsyncServers' = bsyncServers,
+    vsyncServers' = vsyncServers,
   }
 
   // Deliver a request message, from requestsBuffer, to node
   action deliverRequest(node) = all {
     requestsBuffer.get(node).size() > 0,
-    val server = bsyncServers.get(node)
+    val server = vsyncServers.get(node)
     nondet msg = requestsBuffer.get(node).oneOf()
     all {
-      bsyncServers' = bsyncServers.put(node, {... server,
+      vsyncServers' = vsyncServers.put(node, {... server,
                                   requestMsgs: server.requestMsgs.union(Set(msg))}),
       statusBuffer' = statusBuffer,
       requestsBuffer' = requestsBuffer.put(node, requestsBuffer.get(node).exclude(Set(msg))),
@@ -98,12 +98,12 @@ module blocksyncServer {
     }
   }
 
-  // Server at node broadcasts its blockchain status
+  // Server at node broadcasts its value store status
   action broadcastStatus(node) = all {
-    val server = bsyncServers.get(node)
+    val server = vsyncServers.get(node)
     val msg = server.syncStatus()
     all {
-      bsyncServers' = bsyncServers.put(node, server),
+      vsyncServers' = vsyncServers.put(node, server),
       statusBuffer' = broadcastStatusMsg(statusBuffer, msg),
       requestsBuffer' = requestsBuffer,
       responsesBuffer' = responsesBuffer,
@@ -112,10 +112,10 @@ module blocksyncServer {
 
   // Server at node takes a step (checking for requests and responding)
   action stepServer(node) = all {
-    val server = bsyncServers.get(node)
+    val server = vsyncServers.get(node)
     val result = server.syncServer()
     all {
-      bsyncServers' = bsyncServers.put(node, result.server),
+      vsyncServers' = vsyncServers.put(node, result.server),
       statusBuffer' = statusBuffer,
       requestsBuffer' = requestsBuffer,
       responsesBuffer' = match result.msg {
@@ -125,14 +125,14 @@ module blocksyncServer {
     }
   }
 
-  // Updates the server status, the latest available blockchain content.
+  // Updates the server status, the latest available value store content.
   // This action must be called by the component that knows the chain.
   action updateServer(node, chain) = all {
-    val server = bsyncServers.get(node)
+    val server = vsyncServers.get(node)
     all {
       chain != server.chain,
-      bsyncServers' = bsyncServers.put(node, { ...server, chain: chain }),
-      unchangedBsync,
+      vsyncServers' = vsyncServers.put(node, { ...server, chain: chain }),
+      unchangedVsync,
     }
   }
 

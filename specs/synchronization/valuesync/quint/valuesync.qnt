@@ -1,10 +1,10 @@
 // -*- mode: Bluespec; -*-
 //
-// General definitions for blocksync protocol and state machine for
+// General definitions for valuesync protocol and state machine for
 // the client-server communication, namely, the network.
 //
 
-module blocksync {
+module valuesync {
 
   import types.* from "./consensus/types"
   export types.*
@@ -19,15 +19,15 @@ module blocksync {
     top: Height
   }
 
-  type BlockRange = {
+  type ValueRange = {
     base: Height,
     top: Height
   }
 
   type ReqType =
     | SyncCertificate
-    | SyncBlock
-    | SyncBlockStoreEntry
+    | SyncValue
+    | SyncValueStoreEntry
 
   type RequestMsg = {
     client: Address,
@@ -44,9 +44,9 @@ module blocksync {
   }
 
   type Response =
-    | RespBlock(Proposal)
+    | RespValue(Proposal)
     | RespCertificate(Set[Vote])
-    | RespBlockStoreEntry(BlockStoreEntry)
+    | RespValueStoreEntry(ValueStoreEntry)
 
   type ResponseMsg = {
     client: Address,
@@ -67,7 +67,7 @@ module blocksync {
     client: "",
     server: "",
     height: -1,
-    response: RespBlock(emptyProposal),
+    response: RespValue(emptyProposal),
   }
 
   // *************
@@ -94,13 +94,13 @@ module blocksync {
   pure def sendResponse(buffer: Address -> Set[ResponseMsg], m: ResponseMsg): Address -> Set[ResponseMsg] =
     buffer.put(m.client, { ...buffer.get(m.client).union(Set(m)) })
 
-  action initBsync(nodes) = all {
+  action initVsync(nodes) = all {
     statusBuffer' = nodes.mapBy(v => Set()),
     requestsBuffer' = nodes.mapBy(v => Set()),
     responsesBuffer' = nodes.mapBy (v => Set()),
   }
 
-  action unchangedBsync = all {
+  action unchangedVsync = all {
     statusBuffer' = statusBuffer,
     requestsBuffer' = requestsBuffer,
     responsesBuffer' = responsesBuffer,

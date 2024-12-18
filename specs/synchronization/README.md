@@ -1,3 +1,3 @@
 # Node Synchronization Protocols
 
-- [Blocksync protocol](./blocksync/README.md)
+- [ValueSync](./valuesync/README.md): synchronizes committed/finalized values
