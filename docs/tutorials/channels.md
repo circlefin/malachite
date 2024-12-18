@@ -6,17 +6,34 @@
 
 [wip]: https://i.kym-cdn.com/photos/images/newsfeed/000/572/078/d6d.jpg
 
+
+<!-- TOC start (generated with https://github.com/derlin/bitdowntoc) -->
+
 ## Table of contents
-1. [Introduction](#introduction)
-2. [Prerequisites](#prerequisites)
-3. [Concepts](#concepts)
-   * [The `malachitebft_app_channel` crate](#the-malachitebft_app_channel-crate)
-   * [Consensus types](#consensus-types)
+- [Introduction](#introduction)
+- [Naming](#naming)
+- [Prerequisites](#prerequisites)
+- [Concepts](#concepts)
+   * [The `malachitebft-app-channel` crate](#the-malachitebft-app-channel-crate)
    * [The `Context` trait](#the-context-trait)
+   * [Consensus types](#consensus-types)
    * [The `Codec` trait](#the-codec-trait)
    * [The `Node` trait](#the-node-trait)
-   * [Consensus engine messages](#consensus-engine-messages)
-4. [Putting it all together](#putting-it-all-together)
+   * [Messages from consensus to the application](#messages-from-consensus-to-the-application)
+   * [Application state](#application-state)
+- [Putting it all together](#putting-it-all-together)
+   * [Create a new Rust project](#create-a-new-rust-project)
+   * [Application state](#application-state-1)
+   * [Handle consensus messages](#handle-consensus-messages)
+   * [The consensus dialog](#the-consensus-dialog)
+   * [Command-line interface](#command-line-interface)
+   * [Logging](#logging)
+   * [Creating an instance of the `Node` trait](#creating-an-instance-of-the-node-trait)
+   * [Starting our application from `main`](#starting-our-application-from-main)
+- [Run a local testnet](#run-a-local-testnet)
+
+<!-- TOC end -->
+
 
 ## Introduction
 In this tutorial we will build an example validator application using the Malachite libraries. The focus is
