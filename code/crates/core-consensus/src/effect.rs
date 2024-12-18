@@ -49,24 +49,29 @@ pub enum Effect<Ctx>
 where
     Ctx: Context,
 {
-    /// Reset all timeouts
-    /// Resume with: [`Resume::Continue`]
+    /// Reset all timeouts to their initial values
+    ///
+    /// Resume with: [`resume::Continue`]
     ResetTimeouts(resume::Continue),
 
-    /// Cancel all timeouts
-    /// Resume with: [`Resume::Continue`]
+    /// Cancel all outstanding timeouts
+    ///
+    /// Resume with: [`resume::Continue`]
     CancelAllTimeouts(resume::Continue),
 
     /// Cancel a given timeout
-    /// Resume with: [`Resume::Continue`]
+    ///
+    /// Resume with: [`resume::Continue`]
     CancelTimeout(Timeout, resume::Continue),
 
     /// Schedule a timeout
-    /// Resume with: [`Resume::Continue`]
+    ///
+    /// Resume with: [`resume::Continue`]
     ScheduleTimeout(Timeout, resume::Continue),
 
     /// Consensus is starting a new round with the given proposer
-    /// Resume with: [`Resume::Continue`]
+    ///
+    /// Resume with: [`resume::Continue`]
     StartRound(Ctx::Height, Round, Ctx::Address, resume::Continue),
 
     /// Publish a message to peers
@@ -85,8 +90,12 @@ where
     /// Resume with: [`resume::Continue`]
     GetValue(Ctx::Height, Round, Timeout, resume::Continue),
 
-    /// Restream the value identified by the given information.
-    /// Resume with: [`Resume::Continue`]
+    /// Requests the application to re-stream a proposal that it has already seen.
+    ///
+    /// The application MUST re-publish again to its pwers all
+    /// the proposal parts pertaining to that value.
+    ///
+    /// Resume with: [`resume::Continue`]
     RestreamValue(
         /// Height of the value
         Ctx::Height,
@@ -103,19 +112,27 @@ where
     ),
 
     /// Get the validator set at the given height
-    /// Resume with: [`Resume::ValidatorSet`]
+    ///
+    /// Resume with: [`resume::ValidatorSet`]
     GetValidatorSet(Ctx::Height, resume::ValidatorSet),
 
-    /// Consensus has decided on a value
-    /// Resume with: [`Resume::Continue`]
+    /// Notifies the application that consensus has decided on a value.
+    ///
+    /// This message includes a commit certificate containing the ID of
+    /// the value that was decided on, the height and round at which it was decided,
+    /// and the aggregated signatures of the validators that committed to it.
+    ///
+    /// Resume with: [`resume::Continue`]
     Decide(CommitCertificate<Ctx>, resume::Continue),
 
     /// Consensus has been stuck in Prevote or Precommit step, ask for vote sets from peers
-    /// Resume with: [`Resume::Continue`]
+    ///
+    /// Resume with: [`resume::Continue`]
     GetVoteSet(Ctx::Height, Round, resume::Continue),
 
     /// A peer has required our vote set, send the response
-    /// Resume with: [`Resume::Continue`]`
+    ///
+    /// Resume with: [`resume::Continue`]`
     SendVoteSetResponse(
         RequestId,
         Ctx::Height,
@@ -125,23 +142,28 @@ where
     ),
 
     /// Persist a consensus message in the Write-Ahead Log for crash recovery
-    /// Resume with: [`Resume::Continue`]`
+    ///
+    /// Resume with: [`resume::Continue`]`
     PersistMessage(SignedConsensusMsg<Ctx>, resume::Continue),
 
     /// Persist a timeout in the Write-Ahead Log for crash recovery
-    /// Resume with: [`Resume::Continue`]`
+    ///
+    /// Resume with: [`resume::Continue`]`
     PersistTimeout(Timeout, resume::Continue),
 
     /// Sign a vote with this node's private key
-    /// Resume with: [`Resume::SignedVote`]
+    ///
+    /// Resume with: [`resume::SignedVote`]
     SignVote(Ctx::Vote, resume::SignedVote),
 
     /// Sign a proposal with this node's private key
-    /// Resume with: [`Resume::SignedProposal`]
+    ///
+    /// Resume with: [`resume::SignedProposal`]
     SignProposal(Ctx::Proposal, resume::SignedProposal),
 
     /// Verify a signature
-    /// Resume with: [`Resume::SignatureValidity`]
+    ///
+    /// Resume with: [`resume::SignatureValidity`]
     VerifySignature(
         SignedMessage<Ctx, ConsensusMsg<Ctx>>,
         PublicKey<Ctx>,
@@ -149,6 +171,8 @@ where
     ),
 
     /// Verify a commit certificate
+    ///
+    /// Resume with: [`resume::CertificateValidity`]
     VerifyCertificate(
         CommitCertificate<Ctx>,
         Ctx::ValidatorSet,
