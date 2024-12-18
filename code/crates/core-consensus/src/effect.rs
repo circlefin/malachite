@@ -69,12 +69,20 @@ where
     /// Resume with: [`Resume::Continue`]
     StartRound(Ctx::Height, Round, Ctx::Address, resume::Continue),
 
-    /// Broadcast a message
-    /// Resume with: [`Resume::Continue`]
-    Broadcast(SignedConsensusMsg<Ctx>, resume::Continue),
+    /// Publish a message to peers
+    ///
+    /// Resume with: [`resume::Continue`]
+    Publish(SignedConsensusMsg<Ctx>, resume::Continue),
 
-    /// Get a value to propose at the given height and round, within the given timeout
-    /// Resume with: [`Resume::Continue`]
+    /// Requests the application to build a value for consensus to run on.
+    ///
+    /// Because this operation may be asynchronous, this effect does not expect a resumption
+    /// with a value, rather the application is expected to propose a value within the timeout duration.
+    ///
+    /// The application MUST eventually feed a [`ProposeValue`][crate::input::Input::ProposeValue]
+    /// input to consensus within the specified timeout duration.
+    ///
+    /// Resume with: [`resume::Continue`]
     GetValue(Ctx::Height, Round, Timeout, resume::Continue),
 
     /// Restream the value identified by the given information.
