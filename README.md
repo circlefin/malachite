@@ -22,12 +22,11 @@
 
 ## About
 
-Malachite is a Byzantine-fault tolerant (BFT) consensus library implemented in Rust. 
+Malachite is a Byzantine-fault tolerant (BFT) consensus library implemented in Rust.
 The goal is to enable developers to decentralize whatever the future may bring—sequencers, social networks, Layer 1s, etc.
 
-Bundled with Malachite comes a state-of-the-art library implementing the Tendermint consensus algorithm.
-Tendermint is a BFT consensus algorithm that is [optimistically responsive][responsive] and therefore
-exhibits high-performance.
+Bundled with Malachite comes a state-of-the-art implementation of the Tendermint consensus algorithm.
+Tendermint is a BFT consensus algorithm that is [optimistically responsive][responsive] and therefore exhibits high-performance.
 Additionally, this algorithm found adoption in many decentralized systems through its implementation in Go as part of [CometBFT](https://github.com/cometbft/cometbft/).
 CometBFT has been battle-tested for years, and many of the lessons and experiences of maintaining CometBFT inspired key [design decisions][announcement] that we took in Malachite.
 
@@ -46,36 +45,36 @@ The repository is split in three areas, each covering one of the important areas
 
 ### Crates and Status
 
-#### Core consensus libraries
+> [!NOTE]
+> The actual name of each crate is prefixed with `informalsystems-malachitebft-`.
+> For instance, the crate denoted by `core-consensus` below can be found on crates.io as `informalsystems-malachite-core-consensus`.
 
-These are all the libraries that are prefixed with `informalsystems-malachitebft-core`.
+#### Core consensus algorithm
 
-|                       Crate name                       |                                         Crate                                          |                                           Docs                                            |
-|:------------------------------------------------------:|:--------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------:|
-|     [*-core-consensus](code/crates/core-consensus)     |       [![core-consensus][core-consensus-crate-image]][core-consensus-crate-link]       |       [![core-consensus Docs][core-consensus-docs-image]][core-consensus-docs-link]       |
-|        [*-core-driver](code/crates/core-driver)        |           [![core-driver][core-driver-crate-image]][core-driver-crate-link]            |           [![core-driver Docs][core-driver-docs-image]][core-driver-docs-link]            |
-| [*-core-state-machine](code/crates/core-state-machine) | [![core-state-machine][core-state-machine-crate-image]][core-state-machine-crate-link] | [![core-state-machine Docs][core-state-machine-docs-image]][core-state-machine-docs-link] |
-|         [*-core-types](code/crates/core-types)         |             [![core-types][core-types-crate-image]][core-types-crate-link]             |             [![core-types Docs][core-types-docs-image]][core-types-docs-link]             |
-|    [*-core-votekeeper](code/crates/core-votekeeper)    |     [![core-votekeeper][core-votekeeper-crate-image]][core-votekeeper-crate-link]      |     [![core-votekeeper Docs][core-votekeeper-docs-image]][core-votekeeper-docs-link]      |
+|                       Crate name                      |                                         Crate                                          |                                           Docs                                            |
+|:------------------------------------------------------|:--------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------:|
+|      [core-consensus](code/crates/core-consensus)     | [![core-consensus][core-consensus-crate-image]][core-consensus-crate-link]             | [![core-consensus Docs][core-consensus-docs-image]][core-consensus-docs-link]             |
+|         [core-driver](code/crates/core-driver)        | [![core-driver][core-driver-crate-image]][core-driver-crate-link]                      | [![core-driver Docs][core-driver-docs-image]][core-driver-docs-link]                      |
+|  [core-state-machine](code/crates/core-state-machine) | [![core-state-machine][core-state-machine-crate-image]][core-state-machine-crate-link] | [![core-state-machine Docs][core-state-machine-docs-image]][core-state-machine-docs-link] |
+|          [core-types](code/crates/core-types)         | [![core-types][core-types-crate-image]][core-types-crate-link]                         | [![core-types Docs][core-types-docs-image]][core-types-docs-link]                         |
+|     [core-votekeeper](code/crates/core-votekeeper)    | [![core-votekeeper][core-votekeeper-crate-image]][core-votekeeper-crate-link]          | [![core-votekeeper Docs][core-votekeeper-docs-image]][core-votekeeper-docs-link]          |
 
-#### Additional primitives and libraries
-
-These libraries are prefixed with `informalsystems-malachitebft`.
+#### Consensus engine
 
 |                 Crate name                 |                               Crate                               |                                 Docs                                 |
-|:------------------------------------------:|:-----------------------------------------------------------------:|:--------------------------------------------------------------------:|
-| [*-app-channel](./code/crates/app-channel) | [![app-channel][app-channel-crate-image]][app-channel-crate-link] | [![app-channel Docs][app-channel-docs-image]][app-channel-docs-link] |
-|         [*-app](./code/crates/app)         |             [![app][app-crate-image]][app-crate-link]             |             [![app Docs][app-docs-image]][app-docs-link]             |
-|       [*-codec](./code/crates/codec)       |          [![codec][codec-crate-image]][codec-crate-link]          |          [![codec Docs][codec-docs-image]][codec-docs-link]          |
-|      [*-config](./code/crates/config)      |        [![config][config-crate-image]][config-crate-link]         |        [![config Docs][config-docs-image]][config-docs-link]         |
-|   [*-discovery](./code/crates/discovery)   |    [![discovery][discovery-crate-image]][discovery-crate-link]    |    [![discovery Docs][discovery-docs-image]][discovery-docs-link]    |
-|      [*-engine](./code/crates/engine)      |        [![engine][engine-crate-image]][engine-crate-link]         |        [![engine Docs][engine-docs-image]][engine-docs-link]         |
-|     [*-metrics](./code/crates/metrics)     |       [![metrics][metrics-crate-image]][metrics-crate-link]       |       [![metrics Docs][metrics-docs-image]][metrics-docs-link]       |
-|     [*-network](./code/crates/network)     |       [![network][network-crate-image]][network-crate-link]       |       [![network Docs][network-docs-image]][network-docs-link]       |
-|        [*-peer](./code/crates/peer)        |           [![peer][peer-crate-image]][peer-crate-link]            |           [![peer Docs][peer-docs-image]][peer-docs-link]            |
-|       [*-proto](./code/crates/proto)       |          [![proto][proto-crate-image]][proto-crate-link]          |          [![proto Docs][proto-docs-image]][proto-docs-link]          |
-|        [*-sync](./code/crates/sync)        |           [![sync][sync-crate-image]][sync-crate-link]            |           [![sync Docs][sync-docs-image]][sync-docs-link]            |
-|         [*-wal](./code/crates/wal)         |             [![wal][wal-crate-image]][wal-crate-link]             |             [![wal Docs][wal-docs-image]][wal-docs-link]             |
+|-------------------------------------------:|:-----------------------------------------------------------------:|:--------------------------------------------------------------------:|
+| [app-channel](./code/crates/app-channel)   | [![app-channel][app-channel-crate-image]][app-channel-crate-link] | [![app-channel Docs][app-channel-docs-image]][app-channel-docs-link] |
+|         [app](./code/crates/app)           |             [![app][app-crate-image]][app-crate-link]             |             [![app Docs][app-docs-image]][app-docs-link]             |
+|       [codec](./code/crates/codec)         |          [![codec][codec-crate-image]][codec-crate-link]          |          [![codec Docs][codec-docs-image]][codec-docs-link]          |
+|      [config](./code/crates/config)        |        [![config][config-crate-image]][config-crate-link]         |        [![config Docs][config-docs-image]][config-docs-link]         |
+|   [discovery](./code/crates/discovery)     |    [![discovery][discovery-crate-image]][discovery-crate-link]    |    [![discovery Docs][discovery-docs-image]][discovery-docs-link]    |
+|      [engine](./code/crates/engine)        |        [![engine][engine-crate-image]][engine-crate-link]         |        [![engine Docs][engine-docs-image]][engine-docs-link]         |
+|     [metrics](./code/crates/metrics)       |       [![metrics][metrics-crate-image]][metrics-crate-link]       |       [![metrics Docs][metrics-docs-image]][metrics-docs-link]       |
+|     [network](./code/crates/network)       |       [![network][network-crate-image]][network-crate-link]       |       [![network Docs][network-docs-image]][network-docs-link]       |
+|        [peer](./code/crates/peer)          |           [![peer][peer-crate-image]][peer-crate-link]            |           [![peer Docs][peer-docs-image]][peer-docs-link]            |
+|       [proto](./code/crates/proto)         |          [![proto][proto-crate-image]][proto-crate-link]          |          [![proto Docs][proto-docs-image]][proto-docs-link]          |
+|        [sync](./code/crates/sync)          |           [![sync][sync-crate-image]][sync-crate-link]            |           [![sync Docs][sync-docs-image]][sync-docs-link]            |
+|         [wal](./code/crates/wal)           |             [![wal][wal-crate-image]][wal-crate-link]             |             [![wal Docs][wal-docs-image]][wal-docs-link]             |
 
 
 ## Requirements
