@@ -846,7 +846,7 @@ After that all is left is to start our application.
 
 We can now call the `App::run` method from `main`, when the `start` command is invoked:
 
-```
+```rust
 async fn main() -> Result<()> {
     // Same as before
 
