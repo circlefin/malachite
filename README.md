@@ -4,7 +4,7 @@
 
 <h4 align="center">
     Flexible BFT Consensus Engine in Rust<br/>
-    Includes state-of-the-art library implementing the Tendermint consensus algorithm
+    State-of-the-art implementation of Tendermint
 </h4>
 
 ---
