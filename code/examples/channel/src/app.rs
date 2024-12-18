@@ -105,12 +105,11 @@ pub async fn run(
                 // avoid blowing up the bandwidth requirements by gossiping a single huge message.
             }
 
-            AppMsg::GetHistoryMinHeight { reply } => {
-                if reply.send(state.get_earliest_height()).is_err() {
-                    error!("Failed to send GetHistoryMinHeight reply");
-                }
-            }
-
+            // On the receiving end of these proposal parts (ie. when we are not the proposer),
+            // we need to process these parts and re-assemble the full value.
+            // To this end, we store each part that we receive and assemble the full value once we
+            // have all its constituent parts. Then we send that value back to consensus for it to
+            // consider and vote for or against it (ie. vote `nil`), depending on its validity.
             AppMsg::ReceivedProposalPart { from, part, reply } => {
                 let part_type = match &part.content {
                     StreamContent::Data(part) => part.get_type(),
@@ -126,12 +125,23 @@ pub async fn run(
                 }
             }
 
+            // In some cases, e.g. to verify the signature of a vote received at a higher height
+            // than the one we are at (e.g. because we are lagging behind a little bit),
+            // the engine may ask us for the validator set at that height.
+            //
+            // In our case, our validator set stays constant between heights so we can
+            // send back the validator set found in our genesis state.
             AppMsg::GetValidatorSet { height: _, reply } => {
                 if reply.send(genesis.validator_set.clone()).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
 
+            // After some time, consensus will finally reach a decision on the value
+            // to commit for the current height, and will notify the application,
+            // providing it with a commit certificate which contains the ID of the value
+            // that was decided on as well as the set of commits for that value,
+            // ie. the precommits together with their (aggregated) signatures.
             AppMsg::Decided { certificate, reply } => {
                 info!(
                     height = %certificate.height, round = %certificate.round,
@@ -139,8 +149,10 @@ pub async fn run(
                     "Consensus has decided on value"
                 );
 
+                // When that happens, we store the decided value in our store
                 state.commit(certificate);
 
+                // And then we instruct consensus to start the next height
                 if reply
                     .send(ConsensusMsg::StartHeight(
                         state.current_height,
@@ -152,14 +164,12 @@ pub async fn run(
                 }
             }
 
-            AppMsg::GetDecidedValue { height, reply } => {
-                let decided_value = state.get_decided_value(&height).cloned();
-
-                if reply.send(decided_value).is_err() {
-                    error!("Failed to send GetDecidedValue reply");
-                }
-            }
-
+            // It may happen that our node is lagging behind its peers. In that case,
+            // a synchronization mechanism will automatically kick to try and catch up to
+            // our peers. When that happens, some of these peers will send us decided values
+            // for the heights in between the one we are currently at (included) and the one
+            // that they are at. When the engine receives such a value, it will forward to the application
+            // to decode it from its wire format and send back the decoded value to consensus.
             AppMsg::ProcessSyncedValue {
                 height,
                 round,
@@ -184,6 +194,27 @@ pub async fn run(
                     .is_err()
                 {
                     error!("Failed to send ProcessSyncedValue reply");
+                }
+            }
+
+            // If, on the other hand, we are not lagging behind but are instead asked by one of
+            // our peer to help them catch up because they are the one lagging behind,
+            // then the engine might ask the application to provide with the value
+            // that was decided at some lower height. In that case, we fetch it from our store
+            // and send it to consensus.
+            AppMsg::GetDecidedValue { height, reply } => {
+                let decided_value = state.get_decided_value(&height).cloned();
+
+                if reply.send(decided_value).is_err() {
+                    error!("Failed to send GetDecidedValue reply");
+                }
+            }
+
+            // In order to figure out if we can help a peer that is lagging behind,
+            // the engine may ask us for the height of the earliest available value in our store.
+            AppMsg::GetHistoryMinHeight { reply } => {
+                if reply.send(state.get_earliest_height()).is_err() {
+                    error!("Failed to send GetHistoryMinHeight reply");
                 }
             }
 

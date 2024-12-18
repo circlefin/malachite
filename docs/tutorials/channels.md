@@ -518,13 +518,11 @@ avoid blowing up the bandwidth requirements by gossiping a single huge message.
             }
 ```
 
-```rust
-            AppMsg::GetHistoryMinHeight { reply } => {
-                if reply.send(state.get_earliest_height()).is_err() {
-                    error!("Failed to send GetHistoryMinHeight reply");
-                }
-            }
-```
+On the receiving end of these proposal parts (ie. when we are not the proposer),
+we need to process these parts and re-assemble the full value.
+To this end, we store each part that we receive and assemble the full value once we
+have all its constituent parts. Then we send that value back to consensus for it to
+consider and vote for or against it (ie. vote `nil`), depending on its validity.
 
 ```rust
             AppMsg::ReceivedProposalPart { from, part, reply } => {
@@ -543,6 +541,12 @@ avoid blowing up the bandwidth requirements by gossiping a single huge message.
             }
 ```
 
+In some cases, e.g. to verify the signature of a vote received at a higher height
+than the one we are at (e.g. because we are lagging behind a little bit),
+the engine may ask us for the validator set at that height.
+
+In our case, our validator set stays constant between heights so we can
+send back the validator set found in our genesis state.
 
 ```rust
             AppMsg::GetValidatorSet { height: _, reply } => {
@@ -551,6 +555,15 @@ avoid blowing up the bandwidth requirements by gossiping a single huge message.
                 }
             }
 ```
+
+After some time, consensus will finally reach a decision on the value
+to commit for the current height, and will notify the application,
+providing it with a commit certificate which contains the ID of the value
+that was decided on as well as the set of commits for that value,
+ie. the precommits together with their (aggregated) signatures.
+
+When that happens, we store the decided value in our store,
+and instruct consensus to start the next height.
 
 ```rust
             AppMsg::Decided { certificate, reply } => {
@@ -574,15 +587,12 @@ avoid blowing up the bandwidth requirements by gossiping a single huge message.
             }
 ```
 
-```rust
-            AppMsg::GetDecidedValue { height, reply } => {
-                let decided_value = state.get_decided_value(&height).cloned();
-
-                if reply.send(decided_value).is_err() {
-                    error!("Failed to send GetDecidedValue reply");
-                }
-            }
-```
+It may happen that our node is lagging behind its peers. In that case,
+a synchronization mechanism will automatically kick to try and catch up to
+our peers. When that happens, some of these peers will send us decided values
+for the heights in between the one we are currently at (included) and the one
+that they are at. When the engine receives such a value, it will forward to the application
+to decode it from its wire format and send back the decoded value to consensus.
 
 ```rust
             AppMsg::ProcessSyncedValue {
@@ -612,6 +622,36 @@ avoid blowing up the bandwidth requirements by gossiping a single huge message.
                 }
             }
 ```
+
+If, on the other hand, we are not lagging behind but are instead asked by one of
+our peer to help them catch up because they are the one lagging behind,
+then the engine might ask the application to provide with the value
+that was decided at some lower height. In that case, we fetch it from our store
+and send it to consensus.
+
+```rust
+            AppMsg::GetDecidedValue { height, reply } => {
+                let decided_value = state.get_decided_value(&height).cloned();
+
+                if reply.send(decided_value).is_err() {
+                    error!("Failed to send GetDecidedValue reply");
+                }
+            }
+```
+
+In order to figure out if we can help a peer that is lagging behind,
+the engine may ask us for the height of the earliest available value in our store.
+
+```rust
+            AppMsg::GetHistoryMinHeight { reply } => {
+                if reply.send(state.get_earliest_height()).is_err() {
+                    error!("Failed to send GetHistoryMinHeight reply");
+                }
+            }
+```
+
+
+The last message is left unimplemented for now. To be updated in a later version of this tutorial.
 
 ```rust
             AppMsg::RestreamProposal { .. } => {
