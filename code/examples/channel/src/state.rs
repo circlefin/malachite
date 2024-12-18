@@ -27,17 +27,19 @@ use crate::streaming::{PartStreamsMap, ProposalParts};
 /// Contains information about current height, round, proposals and blocks
 pub struct State {
     ctx: TestContext,
+    address: Address,
 
     pub current_height: Height,
     pub current_round: Round,
     pub current_proposer: Option<Address>,
 
-    address: Address,
-    stream_id: u64,
     undecided_proposals: HashMap<(Height, Round), ProposedValue<TestContext>>,
     decided_proposals: HashMap<Height, ProposedValue<TestContext>>,
     decided_values: BTreeMap<Height, DecidedValue<TestContext>>,
+
+    stream_id: u64,
     streams_map: PartStreamsMap,
+
     rng: StdRng,
 }
 
