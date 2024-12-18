@@ -1,9 +1,11 @@
 codecov:
   require_ci_to_pass: yes
 
-# ignore:
-#   - "code/itf"
-#   - "code/test"
+ignore:
+  - "code/crates/test"
+  - "code/crates/signing-ed25519"
+  - "code/crates/starknet"
+  - "code/crates/proto"
 
 coverage:
   precision: 2

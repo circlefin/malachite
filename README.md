@@ -36,7 +36,9 @@ CometBFT has been battle-tested for years, and many of the lessons and experienc
 > At this stage, it is not meant for use in production.
 > The software is provided "as is" and has not been externally audited, use at your own risk.
 
-## Repository Overview
+## Overview
+
+### Repository
 
 The repository is split in three areas, each covering one of the important areas of this project:
 
@@ -78,6 +80,17 @@ The repository is split in three areas, each covering one of the important areas
 |         [wal](./code/crates/wal)           |             [![wal][wal-crate-image]][wal-crate-link]             |             [![wal Docs][wal-docs-image]][wal-docs-link]             |
 
 
+### Building with Malachite
+
+As a guiding point to understand how to use Malachite, please read [ARCHITECTURE.md](ARCHITECTURE.md).
+
+You can also check out the [examples](./code/examples) for a more in-depth experience.
+
+### Contributing
+
+If you would like to contribute to the Malachite open-source codebase, please see [CONTRIBUTING.md](./CONTRIBUTING.md).
+We invite all contributors.
+
 ## Requirements
 
 - Rust v1.82+ ([rustup.rs](https://rustup.rs))
@@ -109,8 +122,8 @@ Unless required by applicable law or agreed to in writing, software distributed 
 [quint-link]: https://github.com/informalsystems/malachite/actions/workflows/quint.yml
 [mbt-test-image]: https://github.com/informalsystems/malachite/actions/workflows/mbt.yml/badge.svg
 [mbt-test-link]: https://github.com/informalsystems/malachite/actions/workflows/mbt.yml
-[coverage-image]: https://codecov.informal.systems/gh/informalsystems/malachite/graph/badge.svg?token=LO0NSEJ9FC
-[coverage-link]: https://codecov.informal.systems/gh/informalsystems/malachite
+[coverage-image]: https://codecov.io/gh/informalsystems/malachite/graph/badge.svg?token=B9KY7B6DJF
+[coverage-link]: https://codecov.io/gh/informalsystems/malachite
 [license-image]: https://img.shields.io/badge/license-Apache_2.0-blue.svg
 [license-link]: https://github.com/informalsystems/hermes/blob/master/LICENSE
 [rustc-image]: https://img.shields.io/badge/Rust-stable-orange.svg
