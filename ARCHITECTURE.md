@@ -3,7 +3,7 @@
 This document describes the high-level architecture of Malachite.
 If you want to familiarize yourself with the codebase, you are in the right place!
 
-If are already familiar with the architecture of decentralized systems, feel free to skip the Bird's Eye View, and proceed directly to [Malachite APIs and Design](#malachite-apis-and-design).
+If are already familiar with the architecture of decentralized systems, feel free to skip the Bird's Eye View section by proceeding directly to [Malachite APIs and Design](#malachite-design).
 
 ## Bird's Eye View
 
@@ -127,92 +127,39 @@ malachite_consensus::process!(
 )
 ```
 
-The Host implements the `handle_effect` method and we can think of this as the top-level loop — or controller — of the application. Before we dive into this behavior in the Host, we’ll first describe in more detail the Inputs and Effects.
+The Host implements the `handle_effect` method, and we can think of this as the top-level loop — or controller — for the application to use.
 
-### What do Inputs and Effects look like?
+##### Inputs and Effects
 
 We define the set of all the possible Inputs that the Malachite library supports as an `enum`.
-The Inputs are defined in
+The Inputs are defined in `core-consensus/src/input.rs`:
 
 https://github.com/informalsystems/malachite/blob/6f4cfce72fa0362d743320c0e3ea8fa46b4283b0/code/crates/core-consensus/src/input.rs#L13-L44
 
-```rust
-pub enum Input
-{
-    /// Start a new height with the given validator set
-    StartHeight(Height, ValidatorSet),
 
-    /// Process a vote
-    Vote(SignedVote),
+The `enum` that captures all the possible variations of an Effect is more verbose than Inputs, and is defined in `core-consensus/src/effect.rs`:
 
-    /// Process a proposal
-    Proposal(SignedProposal),
+https://github.com/informalsystems/malachite/blob/6f4cfce72fa0362d743320c0e3ea8fa46b4283b0/code/crates/core-consensus/src/effect.rs#L48-L150
 
-    /// Propose a value
-    ProposeValue(Height, Round, Value, Option<Extension>),
+The variants that are most interesting among Effects are these four:
 
-    /// A timeout has elapsed
-    TimeoutElapsed(Timeout),
+1. Broadcast: Malachite instructs the Host to broadcast to other peers in the network a certain consensus message. The type `SignedConsensusMsg` is also an enum of two variants:
 
-    /// The value corresponding to a proposal has been received
-    ReceivedProposedValue(ProposedValue),
-}
-```
+https://github.com/informalsystems/malachite/blob/6f4cfce72fa0362d743320c0e3ea8fa46b4283b0/code/crates/core-consensus/src/types.rs#L13-L16
 
-Based on a simple reading of the above, it is not straightforward to see that Malachite implements the Tendermint consensus algorithm in Rust. We have not applied this interface to other consensus algorithms, so it is too early to say how general this part of the API is.
+2. GetValue: Using this variant, Malachite asks the Host to provide a value to serve as a proposal to the consensus protocol. Put differently, this value is the next block to build.
+3. SignProposal: Malachite asks the Host to sign a value to be proposed.
+4. Decide: With this variant, Malachite communicates to the Host that the network of peers has finalized a new value — e.g., a block — and therefore the application can process it.
 
-Our intuition tells us to follow an unorthodox path to generality, however. Instead of designing this API to cater to different underlying implementations (i.e., different consensus engines), we are validating the API against different expectations from the caller, i.e. the Host. If the API satisfies callers with wildly differing assumptions (Cosmos’ ABCI, Ethereum Reth, a plain KV store) then we validate it as general enough. Put differently, we believe it is the task of the consensus sub-system to mold itself to application requirements, not the other way around.
+Regarding the `SignProposal` variant, something interesting to note is that `Ctx::Proposal` is an associated type. 
+Malachite is unaware of the specific implementation of a Proposal; 
+it only constraints that any implementation satisfies the `Ctx::Proposal` trait. 
+Furthermore, this trait is generic over a type which we call a `Context`. 
+The full definition of `Ctx::Proposal` trait looks like this:
 
-The `enum` that captures all the possible variations of an Effect is more verbose than the inputs:
+https://github.com/informalsystems/malachite/blob/53a9d9e071e773ff959465f2836648d8ad2a5c74/code/crates/core-types/src/proposal.rs#L5-L28
 
-```rust
-pub enum Effect
-{
-    /// Reset all timeouts
-    /// Resume with: [`Resume::Continue`]
-    ResetTimeouts,
-
-    /// Cancel all timeouts
-    /// Resume with: [`Resume::Continue`]
-    CancelAllTimeouts,
-
-    /// Cancel a given timeout
-    /// Resume with: [`Resume::Continue`]
-    CancelTimeout(Timeout),
-
-    /// Schedule a timeout
-    /// Resume with: [`Resume::Continue`]
-    ScheduleTimeout(Timeout),
-
-    /// Consensus is starting a new round with the given proposer
-    /// Resume with: [`Resume::Continue`]
-    StartRound(Height, Round, Address),
-
-    /// Broadcast a message
-    /// Resume with: [`Resume::Continue`]
-    Broadcast(SignedConsensusMsg),
-
-    /// Get a value to propose at the given height and round, within the given timeout
-    /// Resume with: [`Resume::Continue`]
-    GetValue(Height, Round, Timeout),
-
-    /// Get the validator set at the given height
-    /// Resume with: [`Resume::ValidatorSet`]
-    GetValidatorSet(Height),
-
-    /// Verify a signature
-    /// Resume with: [`Resume::SignatureValidity`]
-    VerifySignature(SignedMessage<ConsensusMsg>, PublicKey),
-
-    /// Consensus has decided on a value
-    /// Resume with: [`Resume::Continue`]
-    Decide {
-        proposal: SignedProposal,
-        commits: Vec<SignedMessage<Vote>>,
-    },
-}
-```
-
+Inputs, Effects, and the Context are the three key types that make up the Malachite consensus library.
 
 ## Going further
 
