@@ -1356,3 +1356,10 @@ Et voila, we are now running a 3 nodes local testnet!
 If the nodes are not started concurrently, you may see that it takes a little while until they synchronize between themselves and end up on the same round.
 After that, consensus should start running normally and decide on values very quickly.
 
+Alternatively, you can copy the [`spawn.bash`](/code/examples/channel/spawn.bash) script from the example app at the root of the project and spawn multiple nodes concurrently with:
+
+```
+$ bash spawn.bash --nodes 3 --home nodes --app tutorial
+```
+
+The logs for each node can then be found at `nodes/X/logs/node.log`.
