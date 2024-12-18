@@ -402,14 +402,13 @@ pub struct State {
 
 This will be useful when the application responds back to the consensus engine.
 
-## The Consensus dialog
+## The consensus dialog
 Most Consensus messages have a `reply_to` field that the application should use to respond to the message. To understand
 better how to implement responses to these messages, let's look at the dialog between the consensus engine and the application.
 
 ```mermaid
 sequenceDiagram
 
-   rect rgb(50, 50, 50)
    alt Startup
    Consensus->>Application: ConsensusReady
    activate Application
@@ -417,9 +416,7 @@ sequenceDiagram
    Application-->>Consensus: StartHeight
    deactivate Application
    end
-   end
 
-   rect rgb(50, 50, 50)
    alt Generic updates
    Consensus->>Application: StartedRound
    note right of Application: Update internal state
@@ -442,9 +439,7 @@ sequenceDiagram
    Application->>Consensus: DecidedValue
    deactivate Application
    end
-   end
 
-   rect rgb(50, 50, 50)
    alt Proposer
    Consensus->>Application: GetValue
    activate Application
@@ -456,9 +451,7 @@ sequenceDiagram
    deactivate Application
    note right of Application: Publish new value to other nodes on network
    end
-   end
 
-   rect rgb(50, 50, 50)
    alt Validator
    Consensus->>Application: ReceivedProposalPart
    activate Application
@@ -477,7 +470,6 @@ sequenceDiagram
    note right of Application: Decode received value
    Application->>Consensus: ProposedValue
    deactivate Application
-   end
    end
 ```
 <!-- Todo: talk about the minimal amount of conversation needed to run the engine. List the known caveats that would
