@@ -115,6 +115,7 @@ pub struct DiscoveryConfig {
 
     /// Ephemeral connection timeout
     #[serde(default)]
+    #[serde(with = "humantime_serde")]
     pub ephemeral_connection_timeout: Duration,
 }
 
