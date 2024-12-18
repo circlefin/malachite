@@ -150,7 +150,8 @@ https://github.com/informalsystems/malachite/blob/6f4cfce72fa0362d743320c0e3ea8f
 
 2. GetValue: Using this variant, Malachite asks the Host to provide a value to serve as a proposal to the consensus protocol. Put differently, this value is the next block to build.
 3. SignProposal: Malachite asks the Host to sign a value to be proposed.
-4. Decide: With this variant, Malachite communicates to the Host that the network of peers has finalized a new value — e.g., a block — and therefore the application can process it.
+4. SignVote: Malachite asks the Host to sign a vote that votes on a value received from another peer.
+5. Decide: With this variant, Malachite communicates to the Host that the network of peers has finalized a new value — e.g., a block — and therefore the application can process it.
 
 Regarding the `SignProposal` variant, something interesting to note is that `Ctx::Proposal` is an associated type. 
 Malachite is unaware of the specific implementation of a Proposal; 

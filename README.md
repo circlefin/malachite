@@ -50,7 +50,7 @@ The repository is split in three areas, each covering one of the important areas
 
 As a guiding point to understand how to use Malachite, please read [ARCHITECTURE.md](ARCHITECTURE.md).
 
-.. Examples here
+You can also check out the [examples](./code/examples) for a more in-depth experience.
 
 ### Contributing
 
