@@ -70,7 +70,7 @@ module valuesyncClient {
   }
 
   /// We have received a certificate. now we need to issue the
-  /// corresponding block request and generate a certificate output.
+  /// corresponding value request and generate a certificate output.
   pure def syncHandleCertificate (s: VsyncClient, cert: Set[Vote], peer: str ) : ClientResult =
     val valueReq = {client: s.id,
                     server: peer,
@@ -80,18 +80,18 @@ module valuesyncClient {
       so: SOCertificate(cert),
       req: Some(valueReq)}
 
-  /// we have received a block. now we need to generate a block output
+  /// we have received a value. now we need to generate a value output
   pure def syncHandleValue (s: VsyncClient, p: Proposal) : ClientResult =
     { sync: {...s, openRequests: Set(), // If we have parallelization we need to remove one element,
-              lastSyncedHeight: s.height }, // blockheight,
+              lastSyncedHeight: s.height }, // value height,
       so: SOValue(p),
       req: None}
 
-  /// we have received a blockstore entry (block and certificate).
-  /// now we need to generate a block output
+  /// we have received a value store entry (value and certificate).
+  /// now we need to generate a value output
   pure def syncHandleValueStoreEntry (s: VsyncClient, b: ValueStoreEntry) : ClientResult =
     { sync: {...s, openRequests: Set(), // If we have parallelization we need to remove one element,
-               lastSyncedHeight: s.height }, // blockheight,
+               lastSyncedHeight: s.height }, // value height,
       so: SOValueStoreEntry(b),
       req: None}
 

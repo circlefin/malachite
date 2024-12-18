@@ -9,10 +9,10 @@ module valuesyncClientTest {
 
   val nodes = Set("v1", "v2", "v3")
   val chain = List(
-    { decision: mkProposal("v3", 0, 0, "block1", -1),
+    { decision: mkProposal("v3", 0, 0, "value1", -1),
       commit: Set()
     },
-    { decision: mkProposal("v2", 1, 1, "block2", 0),
+    { decision: mkProposal("v2", 1, 1, "value2", 0),
       commit: Set()
     }
   )
@@ -115,7 +115,7 @@ module valuesyncClientTest {
     })
 
     // Then we: (i) produce a certificate output and
-    // (ii) send a block request to v2.
+    // (ii) send a value request to v2.
     .then(clientLogic("v1", addOutput, false))
     .expect(length(outputs) == 1)
     .expect(outputs[0] == SOCertificate(chain[0].commit))
@@ -130,7 +130,7 @@ module valuesyncClientTest {
      }))
     .expect(vsyncClients.get("v1").lastSyncedHeight == -1)
 
-    // The server replies with a block
+    // The server replies with a value
     .then(produceResponse({
       client: "v1",
       server: "v2",
@@ -203,7 +203,7 @@ module valuesyncClientTest {
       height: 1,
      }))
 
-    // The server replies with a certificate and block
+    // The server replies with a certificate and value
     .then(produceResponse({
       client: "v1",
       server: "v2",

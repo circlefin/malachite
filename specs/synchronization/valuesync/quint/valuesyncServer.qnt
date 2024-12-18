@@ -98,7 +98,7 @@ module valuesyncServer {
     }
   }
 
-  // Server at node broadcasts its blockchain status
+  // Server at node broadcasts its value store status
   action broadcastStatus(node) = all {
     val server = vsyncServers.get(node)
     val msg = server.syncStatus()
@@ -125,7 +125,7 @@ module valuesyncServer {
     }
   }
 
-  // Updates the server status, the latest available blockchain content.
+  // Updates the server status, the latest available value store content.
   // This action must be called by the component that knows the chain.
   action updateServer(node, chain) = all {
     val server = vsyncServers.get(node)

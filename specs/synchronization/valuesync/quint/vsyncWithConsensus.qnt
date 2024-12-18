@@ -25,7 +25,7 @@ module vsyncWithConsensus {
 
   /// Witness for some data being synced. It is triggered if there is a client
   /// that gets a syncing output that is different from None. That is, it has
-  /// received a certificate, or a block, or both (a block store entry).
+  /// received a certificate, or a value, or both (a value store entry).
   //
   // With the default `init` action, it is unlikely to observe this scenario,
   // even with 200 steps (around 30 minutes) execution:
@@ -54,7 +54,7 @@ module vsyncWithConsensus {
     newHeightAction(v, valset, h),
   }
 
-  /// Update server v from the consensus' blockchain
+  /// Update server v from the consensus' value store
   action syncUpdateServer(v) = all {
     val chain = system.get(v).es.chain
     all {
@@ -82,7 +82,7 @@ module vsyncWithConsensus {
     nondet v = oneOf(Correct)
     any {
       pureSyncStep(v, unchangedAll),
-      // Block sync client check if there are responses to apply to consensus
+      // Value sync client check if there are responses to apply to consensus
       syncStepClient(v, putSyncOutputIntoNode, false),
       syncStepClient(v, putSyncOutputIntoNode, true),
       syncUpdateServer(v),
@@ -149,7 +149,7 @@ module vsyncWithConsensus {
     .then(all{unchangedAll, syncDeliverReq("v2")})
     .then(all{unchangedAll, syncStepServer("v2")})
     .then(all{unchangedAll, syncDeliverResp("v4")})
-    .then(syncStepClient("v4", putSyncOutputIntoNode, false)) // ask for block and give certificate to node
+    .then(syncStepClient("v4", putSyncOutputIntoNode, false)) // ask for value and give certificate to node
     .expect(system.get("v4").incomingSyncCertificates.size() > 0)
     .expect(not(anyClientOutputWitness))
     .then(all{unchangedAll, syncDeliverReq("v2")})

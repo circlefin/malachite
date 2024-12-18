@@ -9,10 +9,10 @@ module valuesyncServerTest {
   val c = "v2"
 
   val chain = List(
-    { decision: mkProposal("v3", 0, 0, "block1", -1),
+    { decision: mkProposal("v3", 0, 0, "value1", -1),
       commit: Set()
     },
-    { decision: mkProposal("v2", 1, 1, "block2", 0),
+    { decision: mkProposal("v2", 1, 1, "value2", 0),
       commit: Set()
     }
   )
@@ -51,7 +51,7 @@ module valuesyncServerTest {
 
     .then(broadcastStatus(s))
     // FIXME: I don't think there is a point on broadcast a status message
-    // here, since the blockchain is empty.
+    // here, since the value store is empty.
     .expect(statusBuffer.get(c).contains({
       peer: s,
       base: 0,
