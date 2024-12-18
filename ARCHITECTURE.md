@@ -7,7 +7,7 @@ If are already familiar with the architecture of decentralized systems, feel fre
 
 ## Bird's Eye View
 
-At the highest level, Malachite is a BFT consensus engine.
+At the highest level, Malachite is a Byzantine-fault tolerant consensus engine.
 It enables developers to build decentralized, fault-tolerant applications.
 
 To facilitate the building of decentralized applications, developers use Malachite as a collection of primitives, libraries, and recipes that they integrate into their application.
@@ -33,29 +33,29 @@ As mentioned already, Malachite libraries, primitives, and recipes function as b
 For example, the application might be a decentralized sequencer.
 In this case, each peer of the application should produce the same sequence of blocks.
 Alternatively, the application might be a decentralized social network.
-The application state in such a case would require that all peers agree on which user accounts (i.e., social accounts) exist and what is the timeline of each account; to achieve this, the application would produce a totally ordered list of accounts and timelines, intuitively.  
+The application state in such a case would require that all peers agree on which user accounts (i.e., social accounts) exist and what is the timeline of each account; to achieve this, the application would produce, intuitively, a totally ordered list of accounts and timelines.
 
 The building blocks that Malachite offers take care of concerns such as follows:
 
-- Ensure that all peers produce the same sequence of actions, e.g., sequencer blocks or user accounts
-- In case a peer crashes, it can restart operating safely, resuming executing from a prior state
-- In case a minority of peers are faulty, the network may still operate
-- Ensure that no correct peer will never revert or alter a block that is finalized
+- Ensure that all peers produce the same sequence of outputs, e.g., sequencer blocks or user accounts
+- In case a peer crashes, it is able to resume executing in a safe way, from a prior state
+- In case a minority of peers are faulty, the network should still operate properly
+- Ensure that no correct peer will ever revert or alter an output that was committed
 
 #### Application concerns
 
 As described above, by instantiating Malachite building blocks in their application, developers do not need to focus on concerns related to replication and fault-tolerance.
 Instead, they focus on the strictly necessary, core part of what they are building.
-Namely, that is the application logic, which typically entails problems such as:
+Namely, the application logic, which typically entails problems such as:
 
-- What to do with a new decision that the network of peers produced?
-- What should a block consist of?
+- What to do with a new output that the network of peers produced?
+- What should a decided value consist of?
 - Should the application execute actions before, during, or after the peers reach a decision?
 
 The application developer may also be concerned about more advanced topics.
 Malachite is flexible and amenable to an extensive range of customizations, for example:
 
-- What kind of networking layer may be most appropriate for the application?
+- What kind of networking layer may be most appropriate for the nodes running the application?
 - Should the application handle the dissemination of user transactions using a mempool?
 - What kind of signature schemes should be used?
 - Should peers catch up with one another using an advanced protocol, or re-use the one that Malachite provides?
@@ -79,11 +79,12 @@ Malachite comes initially bundled with the following components.
 
 The core of Malachite is marked in green background and comprises three basic modules:
 
-1. a Vote Keeper (for aggregating votes from peers and keeping track of quorums),
-2. a Round State Machine (implementing the Tendermint algorithm logic within a round), and
-3. a Driver (which operates the state machine across multiple rounds).
+1. Vote Keeper: for aggregating votes from peers and keeping track of quorums,
+2. Round State Machine: implements the Tendermint consensus algorithm logic within a round,
+3. and Driver: operates the state machine across multiple consensus rounds.
 
-This consensus library makes no assumptions about the environment in which it runs or what kind of applications are built with it. It represents the most flexible consensus API in the world to the best of our knowledge.
+This consensus library makes no assumptions about the environment in which it runs or what kind of applications are built with it. 
+It represents, to the best of our knowledge, the most flexible consensus API in the world.
 
 Besides this core library, applications can use various other primitives that Malachite exports.
 These include synchronization support enabling peers to catch up in terms of Votes or Values; a Write-Ahead-Log (WAL) to enable safe recovery from crashes; or a peer-to-peer networking layer based on libp2p, or a mempool subsystem.
