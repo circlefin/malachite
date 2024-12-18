@@ -398,10 +398,21 @@ pub async fn run(
 ) -> eyre::Result<()> {
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
+            // We will handle each message here
+        }
+    }
+}
+```
+
+The first message to handle is the `ConsensusReady` message, signaling to the app
+that Malachite is ready to start consensus.
+
+We can simply respond by telling the engine to start consensus at the current height,
+which is initially one.
+
+```rust
             AppMsg::ConsensusReady { reply } => {
                 info!("Consensus is ready");
-
-                tokio::time::sleep(Duration::from_secs(1)).await;
 
                 if reply
                     .send(ConsensusMsg::StartHeight(
@@ -413,7 +424,14 @@ pub async fn run(
                     error!("Failed to send ConsensusReady reply");
                 }
             }
+```
 
+The next message to handle is the `StartRound` message, signaling to the app
+that consensus has entered a new round (including the initial round 0).
+
+We can use that opportunity to update our internal state:
+
+```rust
             AppMsg::StartedRound {
                 height,
                 round,
@@ -425,19 +443,33 @@ pub async fn run(
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
             }
+```
 
+At some point, we may end up being the proposer for that round, and the engine
+will then ask us for a value to propose to the other validators.
+
+```rust
             AppMsg::GetValue {
                 height,
                 round,
                 timeout: _,
                 reply,
             } => {
-                // NOTE: We can ignore the timeout as we are building the value right away.
-                // If we were let's say reaping as many txes from a mempool and executing them,
-                // then we would need to respect the timeout and stop at a certain point.
-
                 info!(%height, %round, "Consensus is requesting a value to propose");
+```
 
+
+> [!NOTE]
+> We can ignore the timeout as we are building the value right away.
+> If we were let's say reaping as many txes from a mempool and executing them,
+> then we would need to respect the timeout and stop at a certain point.
+
+Here it is important that, if we have previously built a value for this height and round,
+we send back the very same value. We will not go into details here but this has to do
+with crash recovery and is not strictly necessary in this tutorial since all our state
+is kept in-memory and therefore is not crash tolerant at all.
+
+```rust
                 // Check if we have a previously built value for that height and round
                 if let Some(proposal) = state.get_previously_built_value(height, round) {
                     info!(value = %proposal.value.id(), "Re-using previously built value");
@@ -448,7 +480,12 @@ pub async fn run(
 
                     return Ok(());
                 }
+```
 
+If we have not previously built a value for that very same height and round,
+we need to create a new value to propose and send it back to consensus:
+
+```rust
                 // Otherwise, propose a new value
                 let proposal = state.propose_value(height, round);
 
@@ -456,6 +493,19 @@ pub async fn run(
                 if reply.send(proposal.clone()).is_err() {
                     error!("Failed to send GetValue reply");
                 }
+```
+
+Now what's left to do is to break down the value to propose into parts,
+and send those parts over the network to our peers, for them to re-assemble the full value.
+
+> [!NOTE]
+In this tutorial, the value is simply an integer and therefore results in a very small
+message to gossip over the network, but if we were building a real application,
+say building blocks containing thousands of transactions, the proposal would typically only
+carry the block hash and the full block itself would be split into parts in order to
+avoid blowing up the bandwidth requirements by gossiping a single huge message.
+
+```rust
 
                 // Decompose the proposal into proposal parts and stream them over the network
                 for stream_message in state.stream_proposal(proposal) {
@@ -466,13 +516,17 @@ pub async fn run(
                         .await?;
                 }
             }
+```
 
+```rust
             AppMsg::GetHistoryMinHeight { reply } => {
                 if reply.send(state.get_earliest_height()).is_err() {
                     error!("Failed to send GetHistoryMinHeight reply");
                 }
             }
+```
 
+```rust
             AppMsg::ReceivedProposalPart { from, part, reply } => {
                 let part_type = match &part.content {
                     StreamContent::Data(part) => part.get_type(),
@@ -487,13 +541,18 @@ pub async fn run(
                     error!("Failed to send ReceivedProposalPart reply");
                 }
             }
+```
 
+
+```rust
             AppMsg::GetValidatorSet { height: _, reply } => {
                 if reply.send(genesis.validator_set.clone()).is_err() {
                     error!("Failed to send GetValidatorSet reply");
                 }
             }
+```
 
+```rust
             AppMsg::Decided { certificate, reply } => {
                 info!(
                     height = %certificate.height, round = %certificate.round,
@@ -513,7 +572,9 @@ pub async fn run(
                     error!("Failed to send Decided reply");
                 }
             }
+```
 
+```rust
             AppMsg::GetDecidedValue { height, reply } => {
                 let decided_value = state.get_decided_value(&height).cloned();
 
@@ -521,7 +582,9 @@ pub async fn run(
                     error!("Failed to send GetDecidedValue reply");
                 }
             }
+```
 
+```rust
             AppMsg::ProcessSyncedValue {
                 height,
                 round,
@@ -548,18 +611,28 @@ pub async fn run(
                     error!("Failed to send ProcessSyncedValue reply");
                 }
             }
+```
 
+```rust
             AppMsg::RestreamProposal { .. } => {
                 error!("RestreamProposal not implemented");
             }
         }
+
+```
+
+
+
+```rust
+    // End of the match statement
     }
 
+    // If we get there, it can only be because the channel we use to receive message
+    // from consensus has been closed, meaning that the consensus actor has died.
+    // We can do nothing but return an error here.
     Err(eyre!("Consensus channel closed unexpectedly"))
 }
 ```
-
-**TODO:** Break down this section and provide detailed explanations per-message.
 
 ### The consensus dialog
 Most Consensus messages have a `reply_to` field that the application should use to respond to the message. To understand

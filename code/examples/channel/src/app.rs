@@ -18,11 +18,13 @@ pub async fn run(
 ) -> eyre::Result<()> {
     while let Some(msg) = channels.consensus.recv().await {
         match msg {
+            // The first message to handle is the `ConsensusReady` message, signaling to the app
+            // that Malachite is ready to start consensus
             AppMsg::ConsensusReady { reply } => {
                 info!("Consensus is ready");
 
-                tokio::time::sleep(Duration::from_secs(1)).await;
-
+                // We can simply respond by telling the engine to start consensus
+                // at the current height, which is initially 1
                 if reply
                     .send(ConsensusMsg::StartHeight(
                         state.current_height,
@@ -34,6 +36,8 @@ pub async fn run(
                 }
             }
 
+            // The next message to handle is the `StartRound` message, signaling to the app
+            // that consensus has entered a new round (including the initial round 0)
             AppMsg::StartedRound {
                 height,
                 round,
@@ -41,11 +45,14 @@ pub async fn run(
             } => {
                 info!(%height, %round, %proposer, "Started round");
 
+                // We can use that opportunity to update our internal state
                 state.current_height = height;
                 state.current_round = round;
                 state.current_proposer = Some(proposer);
             }
 
+            // At some point, we may end up being the proposer for that round, and the engine
+            // will then ask us for a value to propose to the other validators.
             AppMsg::GetValue {
                 height,
                 round,
@@ -58,7 +65,10 @@ pub async fn run(
 
                 info!(%height, %round, "Consensus is requesting a value to propose");
 
-                // Check if we have a previously built value for that height and round
+                // Here it is important that, if we have previously built a value for this height and round,
+                // we send back the very same value. We will not go into details here but this has to do
+                // with crash recovery and is not strictly necessary in this example app since all our state
+                // is kept in-memory and therefore is not crash tolerant at all.
                 if let Some(proposal) = state.get_previously_built_value(height, round) {
                     info!(value = %proposal.value.id(), "Re-using previously built value");
 
@@ -69,7 +79,8 @@ pub async fn run(
                     return Ok(());
                 }
 
-                // Otherwise, propose a new value
+                // If we have not previously built a value for that very same height and round,
+                // we need to create a new value to propose and send it back to consensus.
                 let proposal = state.propose_value(height, round);
 
                 // Send it to consensus
@@ -77,7 +88,8 @@ pub async fn run(
                     error!("Failed to send GetValue reply");
                 }
 
-                // Decompose the proposal into proposal parts and stream them over the network
+                // Now what's left to do is to break down the value to propose into parts,
+                // and send those parts over the network to our peers, for them to re-assemble the full value.
                 for stream_message in state.stream_proposal(proposal) {
                     info!(%height, %round, "Streaming proposal part: {stream_message:?}");
                     channels
@@ -85,6 +97,12 @@ pub async fn run(
                         .send(NetworkMsg::PublishProposalPart(stream_message))
                         .await?;
                 }
+
+                // NOTE: In this tutorial, the value is simply an integer and therefore results in a very small
+                // message to gossip over the network, but if we were building a real application,
+                // say building blocks containing thousands of transactions, the proposal would typically only
+                // carry the block hash and the full block itself would be split into parts in order to
+                // avoid blowing up the bandwidth requirements by gossiping a single huge message.
             }
 
             AppMsg::GetHistoryMinHeight { reply } => {
@@ -175,5 +193,8 @@ pub async fn run(
         }
     }
 
+    // If we get there, it can only be because the channel we use to receive message
+    // from consensus has been closed, meaning that the consensus actor has died.
+    // We can do nothing but return an error here.
     Err(eyre!("Consensus channel closed unexpectedly"))
 }
