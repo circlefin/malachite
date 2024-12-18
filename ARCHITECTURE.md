@@ -87,7 +87,7 @@ This consensus library makes no assumptions about the environment in which it ru
 It represents, to the best of our knowledge, the most flexible consensus API in the world.
 
 Besides this core library, applications can use various other primitives that Malachite exports.
-These include synchronization support enabling peers to catch up in terms of Votes or Values; a Write-Ahead-Log (WAL) to enable safe recovery from crashes; or a peer-to-peer networking layer based on libp2p, or a mempool subsystem.
+These include synchronization support enabling peers to catch up in terms of Votes or Values, a Write-Ahead-Log (WAL) to enable safe recovery from crashes, a peer-to-peer networking layer based on [libp2p](https://libp2p.io).
 
 ### Consensus Library
 
