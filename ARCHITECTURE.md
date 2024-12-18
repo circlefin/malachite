@@ -103,7 +103,7 @@ The Malachite consensus library is pure, i.e., it does not perform any input/out
 The library is also stateless, i.e., it expects the caller to provide any state relevant as input to any call. 
 This allows a high level of portability, enabling Malachite to be flexible to deployment in a very wide variety of environments or applications.
 Given this design, the consensus library requires a Host, i.e., an environment in which it executes.
-The term "Host" is interchangeable with "Application."
+At the moment the term "Host" is interchangeable with "Application" since the former is very minimal and only serves as a bridge between the engine and the application. In the future, we intend to provide a more capable host that will relieve the application of some of its current duties.
 
 #### Consensus Library Architecture
 
