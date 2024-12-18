@@ -144,7 +144,7 @@ https://github.com/informalsystems/malachite/blob/6f4cfce72fa0362d743320c0e3ea8f
 
 The variants that are most interesting among Effects are these four:
 
-1. Broadcast: Malachite instructs the Host to broadcast to other peers in the network a certain consensus message. The type `SignedConsensusMsg` is also an enum of two variants:
+1. Publish: Malachite instructs the Host to broadcast to other peers in the network a certain consensus message. The type `SignedConsensusMsg` is also an enum of two variants:
 
 https://github.com/informalsystems/malachite/blob/6f4cfce72fa0362d743320c0e3ea8fa46b4283b0/code/crates/core-consensus/src/types.rs#L13-L16
 
