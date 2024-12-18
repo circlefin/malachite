@@ -14,7 +14,6 @@ members = [
   "crates/engine",
   "crates/metrics",
   "crates/network",
-  "crates/node",
   "crates/peer",
   "crates/proto",
   "crates/sync",
@@ -76,7 +75,6 @@ malachitebft-core-votekeeper    = { version = "0.1.0", package = "informalsystem
 malachitebft-discovery          = { version = "0.1.0", package = "informalsystems-malachitebft-discovery", path = "crates/discovery" }
 malachitebft-network            = { version = "0.1.0", package = "informalsystems-malachitebft-network", path = "crates/network" }
 malachitebft-metrics            = { version = "0.1.0", package = "informalsystems-malachitebft-metrics", path = "crates/metrics" }
-malachitebft-node               = { version = "0.1.0", package = "informalsystems-malachitebft-node", path = "crates/node" }
 malachitebft-peer               = { version = "0.1.0", package = "informalsystems-malachitebft-peer", path = "crates/peer" }
 malachitebft-proto              = { version = "0.1.0", package = "informalsystems-malachitebft-proto", path = "crates/proto" }
 malachitebft-signing-ed25519    = { version = "0.1.0", package = "informalsystems-malachitebft-signing-ed25519", path = "crates/signing-ed25519" }

@@ -16,7 +16,6 @@ malachitebft-core-consensus = { workspace = true, features = ["debug"] }
 malachitebft-core-types = { workspace = true }
 malachitebft-network = { workspace = true }
 malachitebft-metrics = { workspace = true }
-malachitebft-node = { workspace = true }
 malachitebft-proto = { workspace = true }
 malachitebft-starknet-p2p-proto = { workspace = true }
 malachitebft-starknet-p2p-types = { workspace = true }

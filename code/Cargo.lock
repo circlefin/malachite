@@ -2310,10 +2310,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "informalsystems-malachitebft-node"
-version = "0.1.0"
-
-[[package]]
 name = "informalsystems-malachitebft-peer"
 version = "0.1.0"
 dependencies = [
@@ -2376,7 +2372,6 @@ dependencies = [
  "informalsystems-malachitebft-engine",
  "informalsystems-malachitebft-metrics",
  "informalsystems-malachitebft-network",
- "informalsystems-malachitebft-node",
  "informalsystems-malachitebft-proto",
  "informalsystems-malachitebft-starknet-p2p-proto",
  "informalsystems-malachitebft-starknet-p2p-types",
