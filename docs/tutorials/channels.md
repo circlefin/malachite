@@ -377,7 +377,7 @@ We now need a way to process messages sent to the application by consensus, and 
 Let's define a `run` function in a new `app` module, which will wait for messages from consensus
 and handle those by updating its state and sending back the appropriate responses.
 
-```
+```rust
 use std::time::Duration;
 
 use eyre::eyre;
