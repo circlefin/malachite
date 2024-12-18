@@ -9,10 +9,7 @@
     rustdoc::private_intra_doc_links,
     variant_size_differences
 )]
-// For coverage on nightly
-#![allow(unexpected_cfgs)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
-#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 extern crate alloc;
 

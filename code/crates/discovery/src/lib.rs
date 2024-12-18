@@ -1,7 +1,3 @@
-// For coverage on nightly
-#![allow(unexpected_cfgs)]
-#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
-
 use std::collections::HashMap;
 
 use tracing::{debug, error, info, warn};
