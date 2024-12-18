@@ -69,7 +69,7 @@ For example, each value can be seen as a new block.
 A _vote_ is one of the intermediary steps that peers take to reach a decision on a certain value.
 
 These terms are inspired by the [article describing Tendermint consensus algorithm][tendermint-article].
-Malachite is more general than Tendermint, however, and we aim to bundle additional consensus algorithms beyond this one.
+Malachite is more general than Tendermint, however, and we aim to eventually bundle additional consensus algorithms beyond this one.
 
 ### Components
 
