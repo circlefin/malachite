@@ -1,8 +1,10 @@
 # Write an in-process Malachite application
 
 > [!WARNING]
-> This tutorial is a work in progress and is currently incomplete.
+> This tutorial is a [work in progress][wip] and is currently incomplete.
 > For a complete example see the example application in the [`examples/channel`](/code/examples/channel) directory.
+
+[wip]: https://i.kym-cdn.com/photos/images/newsfeed/000/572/078/d6d.jpg
 
 ## Table of contents
 1. [Introduction](#introduction)
@@ -867,5 +869,27 @@ async fn start(args: &Args, cmd: &StartCmd, logging: config::LoggingConfig) -> R
 }
 ```
 
-Et voila, we can now start our application from the CLI!
+See the example app for the implementation of the `init` and `testnet` commands.
 
+## Run a local testnet
+
+Once provided with an implementation of the `init` and `testnet` commands, you will be able to run a local testnet.
+
+For this, let's build the application and run the `testnet` command:
+
+```
+$ cargo build
+$ ./target/debug/tutorial testnet --nodes 3 --home nodes
+```
+
+This will create the configuration for 3 nodes in the `nodes` folder.
+Feel free to inspect this folder and look at the generated files.
+
+Now, in 3 different terminals, start each node with the following command.
+Replace `NODE` with `1`, `2` and `3`.
+
+```
+$ ./target/debug/tutorial start --home nodes/NODE
+```
+
+Et voila, we are now running a 3 nodes local testnet!
