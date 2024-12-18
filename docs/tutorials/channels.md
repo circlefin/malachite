@@ -72,7 +72,7 @@ Because Malachite is a generic implementation of BFT consensus engine, it endeav
 as possible about the concrete data structures it uses, and leaves their implementation up to the application.
 
 In order to do that, the `Context` trait provides an abstraction over the various data types used in the engine.
-It is defined in `malachitebft_app_channel::app::types::Context` and an example implementation can be seen at
+It is defined in `malachitebft_app_channel::app::types::core::Context` and an example implementation can be seen at
 `malachitebft_test::Context`.
 
 ```rust
@@ -181,7 +181,7 @@ Example implementation of the `Height` trait:
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Height(u64);
 
-impl malachitebft_app_channel::app::types::Height for Height {
+impl malachitebft_app_channel::app::types::core::Height for Height {
     fn increment_by(&self, n: u64) -> Self {
         Self(self.0 + n)
     }
@@ -205,7 +205,7 @@ Note the `malachitebft_test::Value` implementation:
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Value(u64);
 
-impl malachitebft_app_channel::app::types::Value for Value {
+impl malachitebft_app_channel::app::types::core::Value for Value {
     type Id = ValueId;
 
     fn id(&self) -> ValueId {
@@ -222,7 +222,7 @@ with a proper header and a list of transactions included in that block, etc.
 
 ### The `Codec` trait
 Nodes on the network need to communicate with each other. Implementing the `encode` and `decode` methods of the
-`malachitebft_code::Codec` trait defines how messages are encoded and decoded when sent over the wire.
+`malachitebft_codec::Codec` trait defines how messages are encoded and decoded when sent over the wire.
 Typically, Protobuf is a very common choice for encoding/decoding messages but to keep modularity flexible, there is no default implementation.
 The `malachitebft_test::codec::proto::ProtobufCodec` implementation can be used as an example, and for testing.
 
