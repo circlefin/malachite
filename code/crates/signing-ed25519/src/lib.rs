@@ -1,8 +1,5 @@
 // no_std compatibility
 #![cfg_attr(not(feature = "std"), no_std)]
-// For coverage on nightly
-#![allow(unexpected_cfgs)]
-#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 extern crate alloc;
 
