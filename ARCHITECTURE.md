@@ -12,7 +12,7 @@ It enables developers to build decentralized, fault-tolerant applications.
 
 To facilitate the building of decentralized applications, developers use Malachite as a collection of primitives, libraries, and recipes that they integrate into their application.
 Besides Malachite, the application likely imports and integrates other libraries.
-The following image sketches the mental model for understanding the abstract relationship between Malachite and the application. 
+The following image sketches the mental model for understanding the abstract relationship between Malachite and the application.
 
 ![Applications integrate primitives and libraries from Malachite](assets/arch-1.png)
 
@@ -83,24 +83,47 @@ The core of Malachite is marked in green background and comprises three basic mo
 2. Round State Machine: Implements the Tendermint consensus algorithm logic within a round
 3. Driver: Operates the state machine across multiple consensus rounds
 
-This consensus library makes no assumptions about the environment in which it runs or what kind of applications are built with it. 
+This consensus library makes no assumptions about the environment in which it runs or what kind of applications are built with it.
 It represents, to the best of our knowledge, the most flexible consensus API in the world.
 
 Besides this core library, applications can use various other primitives that Malachite exports.
 These include synchronization support enabling peers to catch up in terms of Votes or Values, a Write-Ahead-Log (WAL) to enable safe recovery from crashes, a peer-to-peer networking layer based on [libp2p](https://libp2p.io).
 
-### Consensus Library
+### Building an application
+
+There are currently three ways to decentralize an application using Malachite:
+
+#### Channel-based interface
+The first one is to make us of the high-level channel-based interface to the consensus engine that is provided by the `malachite-app-channel` crate.
+Using the high-level interface will provide the application with all the features built into Malachite, such as synchronization, crash recovery and networking. The downside is that the application cannot choose a different networking layer or define its own synchronization protocol.
+
+[See the corresponding tutorial](/docs/tutorials/channels.md) for a detailed walkthrough.
+
+#### Actor-based interface
+The other way is to make use of the slightly lower level actor-based interface, which allows application developers to switch one actor implementation for another, in order to for instance use a different networking layer than the libp2p-based one.
+It will then be up to the application to spawn and wire the actors together, which is more complex than using the channel-based interface, but allows for more flexibility.
+
+There is not tutorial for doing this at the moment.
+Please [open a discussion](https://github.com/informalsystems/malachite/discussions) on GitHub if you want to discuss this approach or get help for swapping parts of the engine in and out.
+
+#### Low-level interface
+If none of these approaches are flexible enough for your application, another way to leverage Malachite is to use its low-level core consensus library, which is fully agnostic with regard to all aspects outside of core consensus.
+It therefore allows an application to define its own networking layer, synchronization protocol, execution environment (eg. in a browser when compiled to WASM or using system threads for concurrency instead of actors or Tokio).
+
+Keep on reading for more information about this library provided by Malachite.
+
+### Core Consensus Library
 
 ### Building with the consensus library directly
 
-By default, application developers may not want to build on top of the consensus library directly, and instead use higher-level primitives. 
+By default, application developers may not want to build on top of the consensus library directly, and instead use higher-level primitives.
 We provide in [docs/tutorials](./docs/tutorials) and in [examples](./code/examples) ways to do so.
 If you are still interested in understanding the core library, then please read on.
 
 ### Overview
 
-The Malachite consensus library is pure, i.e., it does not perform any input/output nor result in side effects. 
-The library is also stateless, i.e., it expects the caller to provide any state relevant as input to any call. 
+The Malachite consensus library is pure, i.e., it does not perform any input/output nor result in side effects.
+The library is also stateless, i.e., it expects the caller to provide any state relevant as input to any call.
 This allows a high level of portability, enabling Malachite to be flexible to deployment in a very wide variety of environments or applications.
 Given this design, the consensus library requires a Host, i.e., an environment in which it executes.
 At the moment the term "Host" is interchangeable with "Application" since the former is very minimal and only serves as a bridge between the engine and the application. In the future, we intend to provide a more capable host that will relieve the application of some of its current duties.
@@ -153,10 +176,10 @@ https://github.com/informalsystems/malachite/blob/6f4cfce72fa0362d743320c0e3ea8f
 4. SignVote: Malachite asks the Host to sign a vote that votes on a value received from another peer.
 5. Decide: With this variant, Malachite communicates to the Host that the network of peers has finalized a new value — e.g., a block — and therefore the application can process it.
 
-Regarding the `SignProposal` variant, something interesting to note is that `Ctx::Proposal` is an associated type. 
-Malachite is unaware of the specific implementation of a Proposal; 
-it only constraints that any implementation satisfies the `Ctx::Proposal` trait. 
-Furthermore, this trait is generic over a type which we call a `Context`. 
+Regarding the `SignProposal` variant, something interesting to note is that `Ctx::Proposal` is an associated type.
+Malachite is unaware of the specific implementation of a Proposal;
+it only constraints that any implementation satisfies the `Ctx::Proposal` trait.
+Furthermore, this trait is generic over a type which we call a `Context`.
 The full definition of `Ctx::Proposal` trait looks like this:
 
 https://github.com/informalsystems/malachite/blob/53a9d9e071e773ff959465f2836648d8ad2a5c74/code/crates/core-types/src/proposal.rs#L5-L28
