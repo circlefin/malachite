@@ -123,7 +123,7 @@ Unless required by applicable law or agreed to in writing, software distributed 
 [announcement]: https://informal.systems/blog/malachite-decentralize-whatever
 
 [//]: # (crates.io and docs.rs: links and badges)
-[core-consensus-crate-image]: https://img.shields.io/crates/informalsystems-malachitebft-core-consensus
+[core-consensus-crate-image]: https://img.shields.io/crates/informalsystems-malachitebft-core-consensus.svg
 [core-consensus-crate-link]: https://crates.io/crates/informalsystems-malachitebft-core-consensus
 [core-driver-crate-image]: https://img.shields.io/crates/informalsystems-malachitebft-core-driver
 [core-driver-crate-link]: https://crates.io/crates/informalsystems-malachitebft-core-driver
