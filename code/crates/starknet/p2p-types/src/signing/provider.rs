@@ -1,6 +1,6 @@
 use starknet_core::utils::starknet_keccak;
 
-use malachite_core_types::{
+use malachitebft_core_types::{
     CertificateError, CommitCertificate, CommitSignature, NilOrVal, SignedProposal,
     SignedProposalPart, SignedVote, SigningProvider, VotingPower,
 };
@@ -75,7 +75,7 @@ impl SigningProvider<MockContext> for EcdsaProvider {
         commit_sig: &CommitSignature<MockContext>,
         validator: &Validator,
     ) -> Result<VotingPower, CertificateError<MockContext>> {
-        use malachite_core_types::Validator;
+        use malachitebft_core_types::Validator;
 
         // Reconstruct the vote that was signed
         let vote = Vote::new_precommit(

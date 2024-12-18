@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use rand::seq::IteratorRandom;
 
-use malachite_core_types::{Context, Height, Round};
-use malachite_peer::PeerId;
+use malachitebft_core_types::{Context, Height, Round};
+use malachitebft_peer::PeerId;
 use tracing::warn;
 
 use crate::Status;

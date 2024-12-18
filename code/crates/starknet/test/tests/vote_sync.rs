@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use malachite_config::ValuePayload;
-use malachite_starknet_test::{init_logging, TestBuilder, TestParams};
+use informalsystems_malachitebft_starknet_test::{init_logging, TestBuilder, TestParams};
+use malachitebft_config::ValuePayload;
 
 // NOTE: These tests are very similar to the Sync tests, with the difference that
 //       all nodes have the same voting power and therefore get stuck when one of them dies.

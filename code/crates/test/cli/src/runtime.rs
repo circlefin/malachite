@@ -1,6 +1,6 @@
 //! Multithreaded runtime builder.
 
-use malachite_config::RuntimeConfig;
+use malachitebft_config::RuntimeConfig;
 use std::io::Result;
 use tokio::runtime::{Builder as RtBuilder, Runtime};
 

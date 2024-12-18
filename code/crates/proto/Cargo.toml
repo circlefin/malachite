@@ -1,5 +1,5 @@
 [package]
-name = "malachite-proto"
+name = "informalsystems-malachitebft-proto"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -7,6 +7,6 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-prost.workspace       = true
+prost.workspace = true
 prost-types.workspace = true
-thiserror.workspace   = true
+thiserror.workspace = true

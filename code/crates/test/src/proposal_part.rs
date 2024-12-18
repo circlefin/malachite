@@ -1,9 +1,9 @@
 use bytes::Bytes;
-use malachite_signing_ed25519::Signature;
+use malachitebft_signing_ed25519::Signature;
 use serde::{Deserialize, Serialize};
 
-use malachite_core_types::Round;
-use malachite_proto::{self as proto, Error as ProtoError, Protobuf};
+use malachitebft_core_types::Round;
+use malachitebft_proto::{self as proto, Error as ProtoError, Protobuf};
 
 use crate::codec::proto::{decode_signature, encode_signature};
 use crate::{Address, Height, TestContext};
@@ -95,7 +95,7 @@ impl ProposalFin {
     }
 }
 
-impl malachite_core_types::ProposalPart<TestContext> for ProposalPart {
+impl malachitebft_core_types::ProposalPart<TestContext> for ProposalPart {
     fn is_first(&self) -> bool {
         matches!(self, Self::Init(_))
     }

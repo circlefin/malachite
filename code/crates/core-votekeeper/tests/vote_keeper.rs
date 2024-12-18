@@ -1,7 +1,8 @@
-use malachite_core_types::{NilOrVal, Round, SignedVote};
-use malachite_core_votekeeper::keeper::{Output, VoteKeeper};
+use malachitebft_core_types::{NilOrVal, Round, SignedVote};
 
-use malachite_test::{
+use informalsystems_malachitebft_core_votekeeper::keeper::{Output, VoteKeeper};
+
+use malachitebft_test::{
     Address, Height, PrivateKey, Signature, TestContext, Validator, ValidatorSet, ValueId, Vote,
 };
 

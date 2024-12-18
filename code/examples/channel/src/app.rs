@@ -3,11 +3,11 @@ use std::time::Duration;
 use eyre::eyre;
 use tracing::{error, info};
 
-use malachite_app_channel::app::streaming::StreamContent;
-use malachite_app_channel::app::types::core::{Round, Validity};
-use malachite_app_channel::app::types::ProposedValue;
-use malachite_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
-use malachite_test::{Genesis, TestContext};
+use malachitebft_app_channel::app::streaming::StreamContent;
+use malachitebft_app_channel::app::types::core::{Round, Validity};
+use malachitebft_app_channel::app::types::ProposedValue;
+use malachitebft_app_channel::{AppMsg, Channels, ConsensusMsg, NetworkMsg};
+use malachitebft_test::{Genesis, TestContext};
 
 use crate::state::{decode_value, State};
 

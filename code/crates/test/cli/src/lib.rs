@@ -8,5 +8,5 @@ pub mod new;
 pub mod runtime;
 
 pub mod config {
-    pub use malachite_config::*;
+    pub use malachitebft_config::*;
 }

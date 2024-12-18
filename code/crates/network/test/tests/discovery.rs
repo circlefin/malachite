@@ -1,6 +1,6 @@
 use std::{time::Duration, vec};
 
-use malachite_discovery_test::{Expected, Test, TestNode};
+use informalsystems_malachitebft_discovery_test::{Expected, Test, TestNode};
 
 // Testing the following circular bootstrap sets graph:
 //     0 <--- 1 <--- 2 <--- 3 <--- 4

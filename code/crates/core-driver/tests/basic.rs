@@ -2,16 +2,17 @@
 
 use std::sync::Arc;
 
-use malachite_core_driver::{Driver, Error, Input, Output};
-use malachite_core_state_machine::state::{RoundValue, State, Step};
-use malachite_core_types::{
+use malachitebft_core_state_machine::state::{RoundValue, State, Step};
+use malachitebft_core_types::{
     NilOrVal, Round, SignedProposal, SignedVote, Timeout, TimeoutKind, Validity,
 };
-use malachite_test::proposer_selector::{FixedProposer, ProposerSelector, RotateProposer};
-use malachite_test::utils::validators::make_validators;
-use malachite_test::{
+use malachitebft_test::proposer_selector::{FixedProposer, ProposerSelector, RotateProposer};
+use malachitebft_test::utils::validators::make_validators;
+use malachitebft_test::{
     Address, Height, Proposal, Signature, TestContext, ValidatorSet, Value, ValueId, Vote,
 };
+
+use informalsystems_malachitebft_core_driver::{Driver, Error, Input, Output};
 
 pub struct TestStep {
     desc: &'static str,

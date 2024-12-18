@@ -1,6 +1,6 @@
 //! A transition taken by the state machine after processing an input.
 
-use malachite_core_types::Context;
+use malachitebft_core_types::Context;
 
 use crate::output::Output;
 use crate::state::State;

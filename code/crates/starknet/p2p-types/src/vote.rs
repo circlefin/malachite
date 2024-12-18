@@ -1,8 +1,8 @@
 use bytes::Bytes;
 
-use malachite_core_types::{Extension, NilOrVal, Round, SignedExtension, VoteType};
-use malachite_proto as proto;
-use malachite_starknet_p2p_proto as p2p_proto;
+use malachitebft_core_types::{Extension, NilOrVal, Round, SignedExtension, VoteType};
+use malachitebft_proto as proto;
+use malachitebft_starknet_p2p_proto as p2p_proto;
 
 use crate::{Address, BlockHash, Height, MockContext, Signature};
 
@@ -67,7 +67,7 @@ impl Vote {
     }
 
     pub fn to_sign_bytes(&self) -> Bytes {
-        malachite_proto::Protobuf::to_bytes(self).unwrap()
+        malachitebft_proto::Protobuf::to_bytes(self).unwrap()
     }
 }
 
@@ -136,7 +136,9 @@ impl proto::Protobuf for Vote {
     }
 }
 
-fn common_to_proto_vote_type(vote_type: VoteType) -> malachite_starknet_p2p_proto::vote::VoteType {
+fn common_to_proto_vote_type(
+    vote_type: VoteType,
+) -> malachitebft_starknet_p2p_proto::vote::VoteType {
     match vote_type {
         VoteType::Prevote => p2p_proto::vote::VoteType::Prevote,
         VoteType::Precommit => p2p_proto::vote::VoteType::Precommit,

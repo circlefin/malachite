@@ -1,7 +1,3 @@
-// For coverage on nightly
-#![allow(unexpected_cfgs)]
-#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
-
 pub mod actor;
 pub mod block_store;
 pub mod codec;
@@ -11,13 +7,13 @@ pub mod node;
 pub mod spawn;
 pub mod streaming;
 
-pub use malachite_app::part_store;
+pub use malachitebft_app::part_store;
 
 pub mod proto {
-    pub use malachite_proto::*;
-    pub use malachite_starknet_p2p_proto::*;
+    pub use malachitebft_proto::*;
+    pub use malachitebft_starknet_p2p_proto::*;
 }
 
 pub mod types {
-    pub use malachite_starknet_p2p_types::*;
+    pub use malachitebft_starknet_p2p_types::*;
 }

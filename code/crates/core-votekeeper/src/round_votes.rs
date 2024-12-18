@@ -2,7 +2,7 @@
 
 use derive_where::derive_where;
 
-use malachite_core_types::{Context, NilOrVal, ValueId, Vote, VoteType};
+use malachitebft_core_types::{Context, NilOrVal, ValueId, Vote, VoteType};
 
 use crate::count::VoteCount;
 use crate::{Threshold, ThresholdParam, Weight};

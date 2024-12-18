@@ -3,7 +3,7 @@ use libp2p::request_response::{InboundRequestId, OutboundRequestId};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
 
-use malachite_peer::PeerId;
+use malachitebft_peer::PeerId;
 
 use crate::{Channel, CtrlMsg, Event};
 

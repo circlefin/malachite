@@ -6,13 +6,13 @@ use std::time::Duration;
 use eyre::Result;
 use tracing::Span;
 
-use malachite_engine::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
-use malachite_engine::host::HostRef;
-use malachite_engine::network::{Network, NetworkRef};
-use malachite_engine::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
-use malachite_engine::util::events::TxEvent;
-use malachite_engine::wal::{Wal, WalCodec, WalRef};
-use malachite_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
+use malachitebft_engine::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
+use malachitebft_engine::host::HostRef;
+use malachitebft_engine::network::{Network, NetworkRef};
+use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
+use malachitebft_engine::util::events::TxEvent;
+use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
+use malachitebft_network::{Config as NetworkConfig, DiscoveryConfig, GossipSubConfig, Keypair};
 
 use crate::types::config::{Config as NodeConfig, PubSubProtocol, SyncConfig, TransportProtocol};
 use crate::types::core::Context;
@@ -142,12 +142,12 @@ fn make_gossip_config(cfg: &NodeConfig) -> NetworkConfig {
         },
         idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: match cfg.consensus.p2p.transport {
-            TransportProtocol::Tcp => malachite_network::TransportProtocol::Tcp,
-            TransportProtocol::Quic => malachite_network::TransportProtocol::Quic,
+            TransportProtocol::Tcp => malachitebft_network::TransportProtocol::Tcp,
+            TransportProtocol::Quic => malachitebft_network::TransportProtocol::Quic,
         },
         pubsub_protocol: match cfg.consensus.p2p.protocol {
-            PubSubProtocol::GossipSub(_) => malachite_network::PubSubProtocol::GossipSub,
-            PubSubProtocol::Broadcast => malachite_network::PubSubProtocol::Broadcast,
+            PubSubProtocol::GossipSub(_) => malachitebft_network::PubSubProtocol::GossipSub,
+            PubSubProtocol::Broadcast => malachitebft_network::PubSubProtocol::Broadcast,
         },
         gossipsub: match cfg.consensus.p2p.protocol {
             PubSubProtocol::GossipSub(config) => GossipSubConfig {

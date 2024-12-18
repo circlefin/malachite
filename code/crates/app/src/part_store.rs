@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use derive_where::derive_where;
 
-use malachite_core_types::{Context, Round, ValueId};
+use malachitebft_core_types::{Context, Round, ValueId};
 
 // This is a temporary store implementation for proposal parts
 //

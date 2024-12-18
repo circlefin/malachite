@@ -3,8 +3,8 @@ use core::{fmt, str};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
-use malachite_proto as proto;
-use malachite_starknet_p2p_proto as p2p_proto;
+use malachitebft_proto as proto;
+use malachitebft_starknet_p2p_proto as p2p_proto;
 use starknet_core::types::Hash256;
 
 use crate::Felt;
@@ -12,7 +12,7 @@ use crate::Felt;
 pub type MessageHash = Hash;
 pub type BlockHash = Hash;
 
-impl malachite_core_types::Value for BlockHash {
+impl malachitebft_core_types::Value for BlockHash {
     type Id = BlockHash;
 
     fn id(&self) -> Self::Id {

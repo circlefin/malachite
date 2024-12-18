@@ -2,8 +2,8 @@ use bytes::Bytes;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
-use malachite_proto::{Error as ProtoError, Protobuf};
-use malachite_starknet_p2p_proto as p2p_proto;
+use malachitebft_proto::{Error as ProtoError, Protobuf};
+use malachitebft_starknet_p2p_proto as p2p_proto;
 
 use crate::PublicKey;
 
@@ -37,7 +37,7 @@ impl fmt::Debug for Address {
     }
 }
 
-impl malachite_core_types::Address for Address {}
+impl malachitebft_core_types::Address for Address {}
 
 impl Protobuf for Address {
     type Proto = p2p_proto::Address;

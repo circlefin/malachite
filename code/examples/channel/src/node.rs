@@ -7,14 +7,14 @@ use async_trait::async_trait;
 use libp2p_identity::Keypair;
 use rand::{CryptoRng, RngCore};
 
-use malachite_app_channel::app::types::config::Config;
-use malachite_app_channel::app::types::core::VotingPower;
-use malachite_app_channel::app::Node;
+use malachitebft_app_channel::app::types::config::Config;
+use malachitebft_app_channel::app::types::core::VotingPower;
+use malachitebft_app_channel::app::Node;
 
 // Use the same types used for integration tests.
 // A real application would use its own types and context instead.
-use malachite_test::codec::proto::ProtobufCodec;
-use malachite_test::{
+use malachitebft_test::codec::proto::ProtobufCodec;
+use malachitebft_test::{
     Address, Genesis, Height, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet,
 };
 
@@ -106,7 +106,7 @@ impl Node for App {
 
         let codec = ProtobufCodec;
 
-        let mut channels = malachite_app_channel::run(
+        let mut channels = malachitebft_app_channel::run(
             ctx.clone(),
             codec,
             self.clone(),

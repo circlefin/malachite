@@ -1,13 +1,13 @@
 use core::fmt;
 
-use malachite_core_types::SigningScheme;
+use malachitebft_core_types::SigningScheme;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use starknet_core::crypto::{ecdsa_sign, ecdsa_verify};
 use starknet_crypto::{get_public_key, Felt};
 
-use malachite_proto::{Error as ProtoError, Protobuf};
-use malachite_starknet_p2p_proto as proto;
+use malachitebft_proto::{Error as ProtoError, Protobuf};
+use malachitebft_starknet_p2p_proto as proto;
 
 mod provider;
 pub use provider::EcdsaProvider;

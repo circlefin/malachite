@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use alloc::collections::{BTreeMap, BTreeSet};
 
-use malachite_core_types::{
+use malachitebft_core_types::{
     Context, NilOrVal, Round, SignedVote, Validator, ValidatorSet, ValueId, Vote, VoteType,
 };
 

@@ -2,7 +2,7 @@
 
 use derive_where::derive_where;
 
-use malachite_core_types::{Context, Round, ValueId};
+use malachitebft_core_types::{Context, Round, ValueId};
 
 /// Input to the round state machine.
 #[derive_where(Clone, Debug, PartialEq, Eq)]

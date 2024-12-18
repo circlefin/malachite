@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use malachite_starknet_test::{init_logging, TestBuilder};
+use informalsystems_malachitebft_starknet_test::{init_logging, TestBuilder};
 
 #[tokio::test]
 pub async fn all_correct_nodes() {

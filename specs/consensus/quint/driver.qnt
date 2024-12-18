@@ -21,11 +21,11 @@ module driver {
         pendingStepChange: Step, // NoStep if last consensus call did not change the step
         started: bool,
         voteKeeperOutput: VoteKeeperOutput,
-        chain: List[BlockStoreEntry],
+        chain: List[ValueStoreEntry],
         certificates: Set[Certificate], // we store Polkas and Commits we have seen
     }
 
-    pure def initDriver(v: Address, vs: ValidatorSet, h: Height, chain: List[BlockStoreEntry]): DriverState = {
+    pure def initDriver(v: Address, vs: ValidatorSet, h: Height, chain: List[ValueStoreEntry]): DriverState = {
         bk: initBookKeeper(h, vs),
         cs: initConsensusState(v, h),
         proposals: Set(),

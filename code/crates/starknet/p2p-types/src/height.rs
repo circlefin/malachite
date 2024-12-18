@@ -44,7 +44,7 @@ impl fmt::Display for Height {
     }
 }
 
-impl malachite_core_types::Height for Height {
+impl malachitebft_core_types::Height for Height {
     fn increment_by(&self, n: u64) -> Self {
         Self {
             block_number: self.block_number + n,

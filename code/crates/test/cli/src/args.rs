@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use directories::BaseDirs;
 
-use malachite_config::{LogFormat, LogLevel};
+use malachitebft_config::{LogFormat, LogLevel};
 
 use crate::cmd::distributed_testnet::DistributedTestnetCmd;
 use crate::cmd::init::InitCmd;
@@ -113,7 +113,7 @@ impl Args {
 
 #[cfg(test)]
 mod tests {
-    use malachite_config::LogLevel;
+    use malachitebft_config::LogLevel;
 
     use super::*;
 

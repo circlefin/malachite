@@ -1,10 +1,10 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BinaryHeap, HashSet};
 
-use malachite_app_channel::app::consensus::PeerId;
-use malachite_app_channel::app::streaming::{Sequence, StreamId, StreamMessage};
-use malachite_app_channel::app::types::core::Round;
-use malachite_test::{Address, Height, ProposalInit, ProposalPart};
+use malachitebft_app_channel::app::consensus::PeerId;
+use malachitebft_app_channel::app::streaming::{Sequence, StreamId, StreamMessage};
+use malachitebft_app_channel::app::types::core::Round;
+use malachitebft_test::{Address, Height, ProposalInit, ProposalPart};
 
 struct MinSeq<T>(StreamMessage<T>);
 

@@ -1,12 +1,8 @@
-// For coverage on nightly
-#![allow(unexpected_cfgs)]
-#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
-
 use std::collections::HashMap;
 
 use tracing::{debug, error, info, warn};
 
-use malachite_metrics::Registry;
+use malachitebft_metrics::Registry;
 
 use libp2p::{identify, kad, request_response, swarm::ConnectionId, Multiaddr, PeerId, Swarm};
 

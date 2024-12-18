@@ -1,5 +1,5 @@
 use core::fmt;
-use malachite_proto::{Error as ProtoError, Protobuf};
+use malachitebft_proto::{Error as ProtoError, Protobuf};
 use serde::{Deserialize, Serialize};
 
 /// A blockchain height
@@ -42,7 +42,7 @@ impl fmt::Debug for Height {
     }
 }
 
-impl malachite_core_types::Height for Height {
+impl malachitebft_core_types::Height for Height {
     fn increment_by(&self, n: u64) -> Self {
         Self(self.0 + n)
     }

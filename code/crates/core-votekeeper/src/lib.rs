@@ -9,10 +9,7 @@
     rustdoc::private_intra_doc_links,
     variant_size_differences
 )]
-// For coverage on nightly
-#![allow(unexpected_cfgs)]
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::panic))]
-#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 extern crate alloc;
 
@@ -25,6 +22,6 @@ pub mod value_weights;
 
 /// Represents the weight of a vote,
 /// ie. the voting power of the validator that cast the vote.
-pub type Weight = malachite_core_types::VotingPower;
+pub type Weight = malachitebft_core_types::VotingPower;
 
-pub use malachite_core_types::{Threshold, ThresholdParam, ThresholdParams};
+pub use malachitebft_core_types::{Threshold, ThresholdParam, ThresholdParams};

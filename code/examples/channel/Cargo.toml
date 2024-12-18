@@ -1,11 +1,11 @@
 [package]
-name = "malachite-example-channel"
+name = "informalsystems-malachitebft-example-channel"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
 license.workspace = true
-publish.workspace = true
 rust-version.workspace = true
+publish = false
 
 [dependencies]
 async-trait.workspace = true
@@ -20,9 +20,9 @@ sha3.workspace = true
 tracing.workspace = true
 tokio.workspace = true
 
-malachite-app-channel.workspace = true
-malachite-test.workspace = true
-malachite-test-cli.workspace = true
+malachitebft-app-channel.workspace = true
+malachitebft-test.workspace = true
+malachitebft-test-cli.workspace = true
 
 [lints]
 workspace = true

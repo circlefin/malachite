@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 
-use malachite_core_types::NilOrVal;
-use malachite_test::{
+use rand::{CryptoRng, RngCore};
+
+use informalsystems_malachitebft_test_mbt as test;
+use malachitebft_core_types::NilOrVal;
+use malachitebft_core_votekeeper as core;
+use malachitebft_test::{
     Address, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet, ValueId,
 };
-use malachite_test_mbt::types::Value;
-use rand::{CryptoRng, RngCore};
+use test::types::Value;
 
 pub const VALIDATORS: [&str; 3] = ["alice", "bob", "john"];
 
@@ -45,8 +48,8 @@ pub fn value_from_model(value: &Value) -> NilOrVal<ValueId> {
 }
 
 pub fn check_votes(
-    expected: &malachite_test_mbt::votekeeper::VoteCount,
-    actual: &malachite_core_votekeeper::count::VoteCount<TestContext>,
+    expected: &test::votekeeper::VoteCount,
+    actual: &core::count::VoteCount<TestContext>,
     address_map: &HashMap<String, Address>,
 ) {
     // expected has `total_weight` which is not present in actual

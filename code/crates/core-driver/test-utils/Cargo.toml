@@ -1,6 +1,6 @@
 [package]
-name        = "malachite-core-driver-test-utils"
-description = "Test utilities for the `malachite-core-driver`"
+name        = "informalsystems-malachitebft-core-driver-test-utils"
+description = "Test utilities for the `malachitebft-core-driver`"
 publish     = false
 
 version.workspace      = true
@@ -11,8 +11,8 @@ rust-version.workspace = true
 
 
 [dependencies]
-malachite-core-driver = { workspace = true }
-malachite-core-state-machine = { workspace = true }
-malachite-core-types = { workspace = true }
-malachite-core-votekeeper = { workspace = true }
-malachite-test = { workspace = true }
+malachitebft-core-driver = { workspace = true }
+malachitebft-core-state-machine = { workspace = true }
+malachitebft-core-types = { workspace = true }
+malachitebft-core-votekeeper = { workspace = true }
+malachitebft-test = { workspace = true }

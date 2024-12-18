@@ -1,16 +1,16 @@
 [package]
-name                   = "malachite-starknet-p2p-types"
-version.workspace      = true
-edition.workspace      = true
-repository.workspace   = true
-license.workspace      = true
+name = "informalsystems-malachitebft-starknet-p2p-types"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 rust-version.workspace = true
-publish                = false
+publish = false
 
 [dependencies]
-malachite-core-types.workspace = true
-malachite-proto.workspace = true
-malachite-starknet-p2p-proto.workspace = true
+malachitebft-core-types.workspace = true
+malachitebft-proto.workspace = true
+malachitebft-starknet-p2p-proto.workspace = true
 
 starknet-core.workspace = true
 starknet-crypto.workspace = true

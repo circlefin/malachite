@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use tempfile::tempdir;
 
-use malachite_wal::Log;
+use informalsystems_malachitebft_wal::Log;
 
 /// Benchmark configuration
 struct BenchConfig {

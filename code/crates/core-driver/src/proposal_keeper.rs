@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 use derive_where::derive_where;
 use thiserror::Error;
 
-use malachite_core_types::{Context, Proposal, Round, SignedProposal, Validity};
+use malachitebft_core_types::{Context, Proposal, Round, SignedProposal, Validity};
 
 /// Errors can that be yielded when recording a proposal.
 #[derive_where(Debug)]

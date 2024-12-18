@@ -2,7 +2,7 @@ use derive_where::derive_where;
 use displaydoc::Display;
 use time::OffsetDateTime;
 
-use malachite_core_types::{Context, Round};
+use malachitebft_core_types::{Context, Round};
 
 use super::Line;
 

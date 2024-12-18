@@ -3,10 +3,10 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use rand::{CryptoRng, RngCore};
 
-use malachite_app::types::Keypair;
-use malachite_app::Node;
-use malachite_config::Config;
-use malachite_core_types::VotingPower;
+use malachitebft_app::types::Keypair;
+use malachitebft_app::Node;
+use malachitebft_config::Config;
+use malachitebft_core_types::VotingPower;
 
 use crate::context::TestContext;
 use crate::{Address, Genesis, PrivateKey, PublicKey, Validator, ValidatorSet};

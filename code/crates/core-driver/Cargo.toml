@@ -1,29 +1,29 @@
 [package]
-name        = "malachite-core-driver"
+name = "informalsystems-malachitebft-core-driver"
 description = "Driver for the state machine of Malachite consensus engine"
 
-version.workspace      = true
-edition.workspace      = true
-repository.workspace   = true
-license.workspace      = true
-publish.workspace      = true
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
 rust-version.workspace = true
 
 [features]
-std = ["malachite-core-state-machine/std"]
-debug = ["std", "malachite-core-state-machine/debug"]
+std = ["malachitebft-core-state-machine/std"]
+debug = ["std", "malachitebft-core-state-machine/debug"]
 
 [lints]
 workspace = true
 
 [dependencies]
-malachite-core-types         = { workspace = true }
-malachite-core-state-machine = { workspace = true }
-malachite-core-votekeeper    = { workspace = true }
+malachitebft-core-types = { workspace = true }
+malachitebft-core-state-machine = { workspace = true }
+malachitebft-core-votekeeper = { workspace = true }
 
 derive-where = { workspace = true }
-thiserror    = { workspace = true, default-features = false }
+thiserror = { workspace = true, default-features = false }
 
 [dev-dependencies]
-malachite-test                   = { workspace = true }
-malachite-core-driver-test-utils = { workspace = true }
+malachitebft-test = { workspace = true }
+malachitebft-core-driver-test-utils = { workspace = true }

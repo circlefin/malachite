@@ -1,14 +1,11 @@
 // no_std compatibility
 #![cfg_attr(not(feature = "std"), no_std)]
-// For coverage on nightly
-#![allow(unexpected_cfgs)]
-#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 extern crate alloc;
 
 use alloc::vec::Vec;
 
-use malachite_core_types::SigningScheme;
+use malachitebft_core_types::SigningScheme;
 use signature::{Keypair, Signer, Verifier};
 
 #[cfg(feature = "rand")]
