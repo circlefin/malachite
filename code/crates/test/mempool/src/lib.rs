@@ -12,7 +12,7 @@ use prost::bytes::Bytes;
 use tokio::sync::mpsc;
 use tracing::{debug, error, error_span, trace, Instrument};
 
-use malachite_metrics::SharedRegistry;
+use malachitebft_metrics::SharedRegistry;
 
 pub use libp2p::gossipsub::MessageId;
 pub use libp2p::identity::Keypair;
@@ -29,7 +29,7 @@ pub use msg::NetworkMsg;
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
 
-const METRICS_PREFIX: &str = "malachite_test_mempool";
+const METRICS_PREFIX: &str = "malachitebft_test_mempool";
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Channel {
@@ -75,7 +75,7 @@ impl fmt::Display for Channel {
     }
 }
 
-const PROTOCOL: &str = "/malachite-test-mempool/v1beta1";
+const PROTOCOL: &str = "/malachitebft-test-mempool/v1beta1";
 
 pub type BoxError = Box<dyn Error + Send + Sync + 'static>;
 

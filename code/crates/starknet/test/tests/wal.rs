@@ -3,12 +3,15 @@ use std::time::Duration;
 use eyre::bail;
 use tracing::info;
 
-use malachite_config::ValuePayload;
-use malachite_core_consensus::ValueToPropose;
-use malachite_core_types::SignedVote;
-use malachite_engine::util::events::Event;
-use malachite_starknet_host::types::MockContext;
-use malachite_starknet_test::{init_logging, HandlerResult, TestBuilder, TestParams};
+use malachitebft_config::ValuePayload;
+use malachitebft_core_consensus::ValueToPropose;
+use malachitebft_core_types::SignedVote;
+use malachitebft_engine::util::events::Event;
+use malachitebft_starknet_host::types::MockContext;
+
+use informalsystems_malachitebft_starknet_test::{
+    init_logging, HandlerResult, TestBuilder, TestParams,
+};
 
 #[tokio::test]
 async fn proposer_crashes_after_proposing_parts_only() {

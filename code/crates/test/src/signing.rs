@@ -1,8 +1,8 @@
-use malachite_core_types::{
+use malachitebft_core_types::{
     CertificateError, CommitCertificate, CommitSignature, NilOrVal, SignedProposal,
     SignedProposalPart, SignedVote, SigningProvider, VotingPower,
 };
-pub use malachite_signing_ed25519::*;
+pub use malachitebft_signing_ed25519::*;
 
 use crate::{Proposal, ProposalPart, TestContext, Validator, Vote};
 
@@ -103,7 +103,7 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         commit_sig: &CommitSignature<TestContext>,
         validator: &Validator,
     ) -> Result<VotingPower, CertificateError<TestContext>> {
-        use malachite_core_types::Validator;
+        use malachitebft_core_types::Validator;
 
         // Reconstruct the vote that was signed
         let vote = Vote::new_precommit(

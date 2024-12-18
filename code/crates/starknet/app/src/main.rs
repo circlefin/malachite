@@ -1,7 +1,7 @@
 use color_eyre::eyre::eyre;
-use malachite_starknet_host::node::StarknetNode;
-use malachite_test_cli::args::{Args, Commands};
-use malachite_test_cli::{logging, runtime};
+use malachitebft_starknet_host::node::StarknetNode;
+use malachitebft_test_cli::args::{Args, Commands};
+use malachitebft_test_cli::{logging, runtime};
 use tracing::{error, info, trace};
 
 // Use jemalloc on Linux
@@ -17,7 +17,7 @@ pub fn main() -> color_eyre::Result<()> {
         .get_config_file_path()
         .map_err(|error| eyre!("Failed to get configuration file path: {:?}", error));
     let opt_config = opt_config_file_path.and_then(|path| {
-        malachite_config::load_config(&path, None)
+        malachitebft_config::load_config(&path, None)
             .map_err(|error| eyre!("Failed to load configuration file: {:?}", error))
     });
 
@@ -103,10 +103,10 @@ mod tests {
     use clap::Parser;
     use color_eyre::eyre;
     use color_eyre::eyre::eyre;
-    use malachite_config::LoggingConfig;
-    use malachite_starknet_host::node::StarknetNode;
-    use malachite_test_cli::args::{Args, Commands};
-    use malachite_test_cli::cmd::init::*;
+    use malachitebft_config::LoggingConfig;
+    use malachitebft_starknet_host::node::StarknetNode;
+    use malachitebft_test_cli::args::{Args, Commands};
+    use malachitebft_test_cli::cmd::init::*;
 
     #[test]
     fn running_init_creates_config_files() -> eyre::Result<()> {

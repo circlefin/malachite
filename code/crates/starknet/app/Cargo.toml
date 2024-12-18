@@ -1,19 +1,19 @@
 [package]
-name                   = "malachite-starknet-app"
-version.workspace      = true
-edition.workspace      = true
-repository.workspace   = true
-license.workspace      = true
+name = "informalsystems-malachitebft-starknet-app"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 rust-version.workspace = true
-publish                = false
+publish = false
 
 [lints]
 workspace = true
 
 [dependencies]
-malachite-test-cli = { workspace = true }
-malachite-config = { workspace = true }
-malachite-starknet-host = { workspace = true }
+malachitebft-test-cli = { workspace = true }
+malachitebft-config = { workspace = true }
+malachitebft-starknet-host = { workspace = true }
 
 color-eyre = { workspace = true }
 tracing = { workspace = true }

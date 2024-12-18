@@ -3,7 +3,7 @@ use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use malachite_core_state_machine::state::Step;
+use malachitebft_core_state_machine::state::Step;
 use prometheus_client::encoding::{EncodeLabelSet, EncodeLabelValue};
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
@@ -135,7 +135,7 @@ impl Metrics {
     pub fn register(registry: &SharedRegistry) -> Self {
         let metrics = Self::new();
 
-        registry.with_prefix("malachite_core_consensus", |registry| {
+        registry.with_prefix("malachitebft_core_consensus", |registry| {
             registry.register(
                 "finalized_blocks",
                 "Number of blocks finalized",

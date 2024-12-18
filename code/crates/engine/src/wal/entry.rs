@@ -3,9 +3,9 @@ use std::io::{self, Read, Write};
 use byteorder::{ReadBytesExt, WriteBytesExt, BE};
 use derive_where::derive_where;
 
-use malachite_codec::Codec;
-use malachite_core_consensus::SignedConsensusMsg;
-use malachite_core_types::{Context, Round, Timeout};
+use malachitebft_codec::Codec;
+use malachitebft_core_consensus::SignedConsensusMsg;
+use malachitebft_core_types::{Context, Round, Timeout};
 
 /// Codec for encoding and decoding WAL entries.
 ///
@@ -125,7 +125,7 @@ where
 }
 
 fn encode_timeout(timeout: &Timeout, mut buf: impl Write) -> io::Result<()> {
-    use malachite_core_types::TimeoutKind;
+    use malachitebft_core_types::TimeoutKind;
 
     let step = match timeout.kind {
         TimeoutKind::Propose => 1,
@@ -146,7 +146,7 @@ fn encode_timeout(timeout: &Timeout, mut buf: impl Write) -> io::Result<()> {
 }
 
 fn decode_timeout(mut buf: impl Read) -> io::Result<Timeout> {
-    use malachite_core_types::TimeoutKind;
+    use malachitebft_core_types::TimeoutKind;
 
     let step = match buf.read_u8()? {
         1 => TimeoutKind::Propose,

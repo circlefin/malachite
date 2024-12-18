@@ -1,11 +1,11 @@
 // -*- mode: Bluespec; -*-
 //
-// Blocksync executable model running with a mocked consensus logic.
+// ValueSync executable model running with a mocked consensus logic.
 //
 
-module bsyncWithMockedConsensus {
+module vsyncWithMockedConsensus {
 
-  import bsyncStatemachine.* from "./bsyncStatemachine"
+  import vsyncStatemachine.* from "./vsyncStatemachine"
 
   val validators = Set("v1", "v2", "v3", "v4")
   val Correct = Set("v2", "v3", "v4")
@@ -15,8 +15,8 @@ module bsyncWithMockedConsensus {
   // State machine
   //
 
-  var outputs: Address -> List[BsyncClientOutput]
-  var chains: Address -> List[BlockStoreEntry]
+  var outputs: Address -> List[VsyncClientOutput]
+  var chains: Address -> List[ValueStoreEntry]
 
   //
   // Properties
@@ -24,13 +24,13 @@ module bsyncWithMockedConsensus {
 
   /// Witness for some data being synced. It is triggered if there is a client
   /// that gets a syncing output that is different from None. That is, it has
-  /// received a certificate, or a block, or both (a block store entry).
+  /// received a certificate, or a value, or both (a value store entry).
   //
   // Use the `initSetup` initialization to have faster runs:
-  // $ quint run --invariant anyClientOutputWitness bsyncWithMockedConsensus.qnt --init initSetup --seed=0x131cbef6acef78
+  // $ quint run --invariant anyClientOutputWitness vsyncWithMockedConsensus.qnt --init initSetup --seed=0x131cbef6acef78
   //
   // With the default `init` action more steps are required, e.g.:
-  // $ quint run --invariant anyClientOutputWitness bsyncWithMockedConsensus.qnt --max-steps 100 --seed=0x4e9afa1aeb815
+  // $ quint run --invariant anyClientOutputWitness vsyncWithMockedConsensus.qnt --max-steps 100 --seed=0x4e9afa1aeb815
   val anyClientOutputWitness = Correct.forall(p =>
     outputs.get(p).length() > 0 implies
     outputs.get(p).foldl(Set(), (s, x) => s.union(Set(x))).forall(so =>
@@ -54,14 +54,14 @@ module bsyncWithMockedConsensus {
   }
 
   /// Consensus mocked logic decides the latest height in node v.
-  /// The blockchain increases in size.
+  /// The value store increases in size.
   /// The server becomes aware of that once `updateServer` is invoked.
   /// The client becomes aware of that once `newHeightAction` is invoked.
-  /// This is an abstract version. We just add a (mocked) block with the right
+  /// This is an abstract version. We just add a (mocked) value with the right
   /// height on top of the chain. Because of this, implicitly all nodes will
-  /// decide on the same block.
+  /// decide on the same value.
   action decideMock(v) = all {
-    bsyncClients.get(v).height == chains.get(v).length(),
+    vsyncClients.get(v).height == chains.get(v).length(),
     outputs' = outputs,
     chains' = chains.put(v, chains.get(v).append({
       decision: mkProposal("", chains.get(v).length(), 0, "", -1),
@@ -78,7 +78,7 @@ module bsyncWithMockedConsensus {
     unchangedMock,
   }
 
-  /// Update server v from the consensus' blockchain
+  /// Update server v from the consensus' value store
   /// This abstracts as pull-based mechanism: the server consults the chain state.
   action syncUpdateServer(v) = all {
     all {
@@ -104,7 +104,7 @@ module bsyncWithMockedConsensus {
   }
 
   /// For simple repl evaluation
-  action bsyncStep (v, act) = all {
+  action vsyncStep (v, act) = all {
     act(v),
     unchangedMock
   }

@@ -4,15 +4,15 @@ use std::time::Duration;
 use derive_where::derive_where;
 use ractor::{ActorRef, RpcReplyPort};
 
-use malachite_core_consensus::PeerId;
-use malachite_core_types::{CommitCertificate, Context, Round, SignedExtension, ValueId};
-use malachite_sync::DecidedValue;
+use malachitebft_core_consensus::PeerId;
+use malachitebft_core_types::{CommitCertificate, Context, Round, SignedExtension, ValueId};
+use malachitebft_sync::DecidedValue;
 
 use crate::consensus::ConsensusRef;
 use crate::util::streaming::StreamMessage;
 
 /// A value to propose that has just been received.
-pub use malachite_core_consensus::ProposedValue;
+pub use malachitebft_core_consensus::ProposedValue;
 
 /// This is the value that the application constructed
 /// and has finished streaming on gossip.

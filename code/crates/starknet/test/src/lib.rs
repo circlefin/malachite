@@ -13,16 +13,16 @@ use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, error_span, info, Instrument, Span};
 
-use malachite_config::{
+use malachitebft_config::{
     Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol, SyncConfig,
     TestConfig, TransportProtocol,
 };
-use malachite_core_consensus::{SignedConsensusMsg, ValueToPropose};
-use malachite_core_types::{SignedVote, VotingPower};
-use malachite_engine::util::events::{Event, RxEvent, TxEvent};
-use malachite_starknet_host::spawn::spawn_node_actor;
-use malachite_starknet_host::types::MockContext;
-use malachite_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
+use malachitebft_core_consensus::{SignedConsensusMsg, ValueToPropose};
+use malachitebft_core_types::{SignedVote, VotingPower};
+use malachitebft_engine::util::events::{Event, RxEvent, TxEvent};
+use malachitebft_starknet_host::spawn::spawn_node_actor;
+use malachitebft_starknet_host::types::MockContext;
+use malachitebft_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Expected {
@@ -392,10 +392,12 @@ where
         {
             let validator_set = self.validator_set.clone();
 
-            let home_dir =
-                tempfile::TempDir::with_prefix(format!("malachite-starknet-test-{}", self.id))
-                    .unwrap()
-                    .into_path();
+            let home_dir = tempfile::TempDir::with_prefix(format!(
+                "informalsystems-malachitebft-starknet-test-{}",
+                self.id
+            ))
+            .unwrap()
+            .into_path();
 
             set.spawn(
                 async move {
@@ -639,9 +641,9 @@ pub fn init_logging(test_module: &str) {
         .any(|(k, v)| std::env::var(k).as_deref() == Ok(v));
 
     let directive = if enable_debug {
-        format!("{test_module}=debug,malachite=debug,malachite_starknet_test=debug,ractor=error")
+        format!("{test_module}=debug,malachite=debug,malachitebft_starknet_test=debug,ractor=error")
     } else {
-        format!("{test_module}=debug,malachite=error,malachite_starknet_test=debug,ractor=error")
+        format!("{test_module}=debug,malachite=error,malachitebft_starknet_test=debug,ractor=error")
     };
 
     let filter = EnvFilter::builder().parse(directive).unwrap();
@@ -668,7 +670,7 @@ pub fn init_logging(test_module: &str) {
 
 use bytesize::ByteSize;
 
-use malachite_config::{
+use malachitebft_config::{
     ConsensusConfig, MempoolConfig, MetricsConfig, P2pConfig, RuntimeConfig, TimeoutConfig,
     ValuePayload,
 };
@@ -764,7 +766,7 @@ async fn serve_metrics(listen_addr: SocketAddr) {
 
     async fn get_metrics() -> String {
         let mut buf = String::new();
-        malachite_metrics::export(&mut buf);
+        malachitebft_metrics::export(&mut buf);
         buf
     }
 

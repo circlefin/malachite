@@ -1,6 +1,6 @@
 use derive_where::derive_where;
 
-use malachite_core_types::*;
+use malachitebft_core_types::*;
 
 use crate::input::RequestId;
 use crate::types::SignedConsensusMsg;

@@ -1,5 +1,5 @@
 [package]
-name = "malachite-starknet-host"
+name = "informalsystems-malachitebft-starknet-host"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -8,20 +8,19 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-malachite-engine = { workspace = true }
-malachite-app = { workspace = true }
-malachite-codec = { workspace = true }
-malachite-config = { workspace = true }
-malachite-core-consensus = { workspace = true, features = ["debug"] }
-malachite-core-types = { workspace = true }
-malachite-network = { workspace = true }
-malachite-metrics = { workspace = true }
-malachite-node = { workspace = true }
-malachite-proto = { workspace = true }
-malachite-starknet-p2p-proto = { workspace = true }
-malachite-starknet-p2p-types = { workspace = true }
-malachite-sync = { workspace = true }
-malachite-test-mempool = { workspace = true }
+malachitebft-engine = { workspace = true }
+malachitebft-app = { workspace = true }
+malachitebft-codec = { workspace = true }
+malachitebft-config = { workspace = true }
+malachitebft-core-consensus = { workspace = true, features = ["debug"] }
+malachitebft-core-types = { workspace = true }
+malachitebft-network = { workspace = true }
+malachitebft-metrics = { workspace = true }
+malachitebft-proto = { workspace = true }
+malachitebft-starknet-p2p-proto = { workspace = true }
+malachitebft-starknet-p2p-types = { workspace = true }
+malachitebft-sync = { workspace = true }
+malachitebft-test-mempool = { workspace = true }
 
 async-trait = { workspace = true }
 bytes = { workspace = true, features = ["serde"] }
@@ -46,4 +45,4 @@ workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-malachite-test-cli.workspace = true
+malachitebft-test-cli.workspace = true

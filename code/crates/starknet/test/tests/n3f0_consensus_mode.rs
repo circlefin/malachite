@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use malachite_config::ValuePayload;
-use malachite_starknet_test::{init_logging, TestBuilder, TestParams};
+use informalsystems_malachitebft_starknet_test::{init_logging, TestBuilder, TestParams};
+use malachitebft_config::ValuePayload;
 
 async fn run_test(params: TestParams) {
     init_logging(module_path!());

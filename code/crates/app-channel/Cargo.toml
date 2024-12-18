@@ -1,5 +1,5 @@
 [package]
-name = "malachite-app-channel"
+name = "informalsystems-malachitebft-app-channel"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -15,13 +15,13 @@ ractor.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 
-malachite-app.workspace = true
-malachite-engine.workspace = true
-malachite-config.workspace = true
+malachitebft-app.workspace = true
+malachitebft-engine.workspace = true
+malachitebft-config.workspace = true
 
 [lints]
 workspace = true
 
 [dev-dependencies]
-malachite-test.workspace = true
+malachitebft-test.workspace = true
 rand.workspace = true

@@ -1,6 +1,6 @@
 use derive_where::derive_where;
 
-use malachite_core_types::{Context, Round, Timeout};
+use malachitebft_core_types::{Context, Round, Timeout};
 
 /// Messages emitted by the [`Driver`](crate::Driver)
 #[derive_where(Clone, Debug, PartialEq, Eq)]

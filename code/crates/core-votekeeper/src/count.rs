@@ -3,7 +3,7 @@
 use alloc::collections::BTreeSet;
 use derive_where::derive_where;
 
-use malachite_core_types::{Context, NilOrVal, ValueId, Vote};
+use malachitebft_core_types::{Context, NilOrVal, ValueId, Vote};
 
 use crate::value_weights::ValuesWeights;
 use crate::{Threshold, ThresholdParam, Weight};

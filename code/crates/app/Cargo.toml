@@ -1,5 +1,5 @@
 [package]
-name = "malachite-app"
+name = "informalsystems-malachitebft-app"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -8,15 +8,15 @@ publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-malachite-engine.workspace = true
-malachite-codec.workspace = true
-malachite-core-types.workspace = true
-malachite-config.workspace = true
-malachite-core-consensus.workspace = true
-malachite-network.workspace = true
-malachite-metrics.workspace = true
-malachite-peer.workspace = true
-malachite-sync.workspace = true
+malachitebft-engine.workspace = true
+malachitebft-codec.workspace = true
+malachitebft-core-types.workspace = true
+malachitebft-config.workspace = true
+malachitebft-core-consensus.workspace = true
+malachitebft-network.workspace = true
+malachitebft-metrics.workspace = true
+malachitebft-peer.workspace = true
+malachitebft-sync.workspace = true
 
 async-trait = { workspace = true }
 derive-where = { workspace = true }

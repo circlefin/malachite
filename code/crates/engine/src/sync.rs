@@ -11,11 +11,11 @@ use rand::SeedableRng;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 
-use malachite_codec as codec;
-use malachite_core_consensus::PeerId;
-use malachite_core_types::{CertificateError, CommitCertificate, Context, Height, Round};
-use malachite_sync::{self as sync, InboundRequestId, OutboundRequestId, Response};
-use malachite_sync::{DecidedValue, Request};
+use malachitebft_codec as codec;
+use malachitebft_core_consensus::PeerId;
+use malachitebft_core_types::{CertificateError, CommitCertificate, Context, Height, Round};
+use malachitebft_sync::{self as sync, InboundRequestId, OutboundRequestId, Response};
+use malachitebft_sync::{DecidedValue, Request};
 
 use crate::host::{HostMsg, HostRef};
 use crate::network::{NetworkEvent, NetworkMsg, NetworkRef, Status};
@@ -193,7 +193,7 @@ where
         state: &mut State<Ctx>,
         input: sync::Input<Ctx>,
     ) -> Result<(), ActorProcessingErr> {
-        malachite_sync::process!(
+        malachitebft_sync::process!(
             input: input,
             state: &mut state.sync,
             metrics: &self.metrics,

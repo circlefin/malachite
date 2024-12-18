@@ -1,8 +1,11 @@
 [package]
-name = "malachite-wal"
-version = "0.1.0"
-edition = "2021"
-rust-version = "1.82.0"
+name = "informalsystems-malachitebft-wal"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

@@ -1,5 +1,5 @@
 [package]
-name = "malachite-engine"
+name = "informalsystems-malachitebft-engine"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -11,15 +11,15 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-malachite-codec.workspace = true
-malachite-config.workspace = true
-malachite-core-consensus.workspace = true
-malachite-core-types.workspace = true
-malachite-network.workspace = true
-malachite-metrics.workspace = true
-malachite-sync.workspace = true
-malachite-test-mempool.workspace = true
-malachite-wal.workspace = true
+malachitebft-codec.workspace = true
+malachitebft-config.workspace = true
+malachitebft-core-consensus.workspace = true
+malachitebft-core-types.workspace = true
+malachitebft-network.workspace = true
+malachitebft-metrics.workspace = true
+malachitebft-sync.workspace = true
+malachitebft-test-mempool.workspace = true
+malachitebft-wal.workspace = true
 
 async-trait = { workspace = true }
 bytes = { workspace = true, features = ["serde"] }

@@ -2,24 +2,24 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use libp2p_identity::ecdsa;
-use malachite_engine::util::events::TxEvent;
-use malachite_engine::wal::{Wal, WalRef};
+use malachitebft_engine::util::events::TxEvent;
+use malachitebft_engine::wal::{Wal, WalRef};
 use tokio::task::JoinHandle;
 
-use malachite_config::{
+use malachitebft_config::{
     self as config, Config as NodeConfig, MempoolConfig, SyncConfig, TestConfig, TransportProtocol,
 };
-use malachite_core_consensus::ValuePayload;
-use malachite_engine::consensus::{Consensus, ConsensusParams, ConsensusRef};
-use malachite_engine::host::HostRef;
-use malachite_engine::network::{Network, NetworkRef};
-use malachite_engine::node::{Node, NodeRef};
-use malachite_engine::sync::{Params as SyncParams, Sync, SyncRef};
-use malachite_metrics::Metrics;
-use malachite_metrics::SharedRegistry;
-use malachite_network::Keypair;
-use malachite_sync as sync;
-use malachite_test_mempool::Config as MempoolNetworkConfig;
+use malachitebft_core_consensus::ValuePayload;
+use malachitebft_engine::consensus::{Consensus, ConsensusParams, ConsensusRef};
+use malachitebft_engine::host::HostRef;
+use malachitebft_engine::network::{Network, NetworkRef};
+use malachitebft_engine::node::{Node, NodeRef};
+use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncRef};
+use malachitebft_metrics::Metrics;
+use malachitebft_metrics::SharedRegistry;
+use malachitebft_network::Keypair;
+use malachitebft_sync as sync;
+use malachitebft_test_mempool::Config as MempoolNetworkConfig;
 
 use crate::actor::Host;
 use crate::codec::ProtobufCodec;
@@ -172,9 +172,9 @@ async fn spawn_consensus_actor(
     span: &tracing::Span,
 ) -> ConsensusRef<MockContext> {
     let value_payload = match cfg.consensus.value_payload {
-        malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
-        malachite_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
-        malachite_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
+        malachitebft_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
+        malachitebft_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
+        malachitebft_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
     };
 
     let consensus_params = ConsensusParams {
@@ -207,7 +207,7 @@ async fn spawn_network_actor(
     registry: &SharedRegistry,
     span: &tracing::Span,
 ) -> NetworkRef<MockContext> {
-    use malachite_network as gossip;
+    use malachitebft_network as gossip;
 
     let bootstrap_protocol = match cfg.consensus.p2p.discovery.bootstrap_protocol {
         config::BootstrapProtocol::Kademlia => gossip::BootstrapProtocol::Kademlia,
@@ -303,8 +303,8 @@ async fn spawn_mempool_network_actor(
         persistent_peers: cfg.mempool.p2p.persistent_peers.clone(),
         idle_connection_timeout: Duration::from_secs(15 * 60),
         transport: match cfg.mempool.p2p.transport {
-            TransportProtocol::Tcp => malachite_test_mempool::TransportProtocol::Tcp,
-            TransportProtocol::Quic => malachite_test_mempool::TransportProtocol::Quic,
+            TransportProtocol::Tcp => malachitebft_test_mempool::TransportProtocol::Tcp,
+            TransportProtocol::Quic => malachitebft_test_mempool::TransportProtocol::Quic,
         },
     };
 
@@ -326,9 +326,9 @@ async fn spawn_host_actor(
     span: &tracing::Span,
 ) -> HostRef<MockContext> {
     let value_payload = match cfg.consensus.value_payload {
-        malachite_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
-        malachite_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
-        malachite_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
+        malachitebft_config::ValuePayload::PartsOnly => ValuePayload::PartsOnly,
+        malachitebft_config::ValuePayload::ProposalOnly => ValuePayload::ProposalOnly,
+        malachitebft_config::ValuePayload::ProposalAndParts => ValuePayload::ProposalAndParts,
     };
 
     let mock_params = StarknetParams {

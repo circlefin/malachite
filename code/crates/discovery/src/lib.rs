@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use tracing::{debug, error, info, warn};
 
-use malachite_metrics::Registry;
+use malachitebft_metrics::Registry;
 
 use libp2p::{identify, kad, request_response, swarm::ConnectionId, Multiaddr, PeerId, Swarm};
 

@@ -26,4 +26,4 @@ pub use error::Error;
 pub use input::Input;
 pub use output::Output;
 
-pub use malachite_core_votekeeper::ThresholdParams;
+pub use malachitebft_core_votekeeper::ThresholdParams;

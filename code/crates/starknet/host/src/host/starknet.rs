@@ -7,9 +7,9 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{debug, Instrument};
 
-use malachite_config::VoteExtensionsConfig;
-use malachite_core_consensus::ValuePayload;
-use malachite_core_types::{CommitCertificate, Extension, Round, SignedExtension, SignedVote};
+use malachitebft_config::VoteExtensionsConfig;
+use malachitebft_core_consensus::ValuePayload;
+use malachitebft_core_types::{CommitCertificate, Extension, Round, SignedExtension, SignedVote};
 
 use crate::host::Host;
 use crate::mempool::MempoolRef;

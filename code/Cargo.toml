@@ -14,7 +14,6 @@ members = [
   "crates/engine",
   "crates/metrics",
   "crates/network",
-  "crates/node",
   "crates/peer",
   "crates/proto",
   "crates/sync",
@@ -62,38 +61,38 @@ debug = true
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
 
 [workspace.dependencies]
-malachite-engine             = { version = "0.1.0", path = "crates/engine" }
-malachite-app                = { version = "0.1.0", path = "crates/app" }
-malachite-app-channel        = { version = "0.1.0", path = "crates/app-channel" }
-malachite-test-cli           = { version = "0.1.0", path = "crates/test/cli" }
-malachite-codec              = { version = "0.1.0", path = "crates/codec" }
-malachite-config             = { version = "0.1.0", path = "crates/config" }
-malachite-core-consensus     = { version = "0.1.0", path = "crates/core-consensus" }
-malachite-core-driver        = { version = "0.1.0", path = "crates/core-driver" }
-malachite-core-state-machine = { version = "0.1.0", path = "crates/core-state-machine" }
-malachite-core-types         = { version = "0.1.0", path = "crates/core-types" }
-malachite-core-votekeeper    = { version = "0.1.0", path = "crates/core-votekeeper" }
-malachite-discovery          = { version = "0.1.0", path = "crates/discovery" }
-malachite-network            = { version = "0.1.0", path = "crates/network" }
-malachite-metrics            = { version = "0.1.0", path = "crates/metrics" }
-malachite-node               = { version = "0.1.0", path = "crates/node" }
-malachite-peer               = { version = "0.1.0", path = "crates/peer" }
-malachite-proto              = { version = "0.1.0", path = "crates/proto" }
-malachite-signing-ed25519    = { version = "0.1.0", path = "crates/signing-ed25519" }
-malachite-sync               = { version = "0.1.0", path = "crates/sync" }
-malachite-wal                = { version = "0.1.0", path = "crates/wal" }
+malachitebft-engine             = { version = "0.1.0", package = "informalsystems-malachitebft-engine", path = "crates/engine" }
+malachitebft-app                = { version = "0.1.0", package = "informalsystems-malachitebft-app", path = "crates/app" }
+malachitebft-app-channel        = { version = "0.1.0", package = "informalsystems-malachitebft-app-channel", path = "crates/app-channel" }
+malachitebft-test-cli           = { version = "0.1.0", package = "informalsystems-malachitebft-test-cli", path = "crates/test/cli" }
+malachitebft-codec              = { version = "0.1.0", package = "informalsystems-malachitebft-codec", path = "crates/codec" }
+malachitebft-config             = { version = "0.1.0", package = "informalsystems-malachitebft-config", path = "crates/config" }
+malachitebft-core-consensus     = { version = "0.1.0", package = "informalsystems-malachitebft-core-consensus", path = "crates/core-consensus" }
+malachitebft-core-driver        = { version = "0.1.0", package = "informalsystems-malachitebft-core-driver", path = "crates/core-driver" }
+malachitebft-core-state-machine = { version = "0.1.0", package = "informalsystems-malachitebft-core-state-machine", path = "crates/core-state-machine" }
+malachitebft-core-types         = { version = "0.1.0", package = "informalsystems-malachitebft-core-types", path = "crates/core-types" }
+malachitebft-core-votekeeper    = { version = "0.1.0", package = "informalsystems-malachitebft-core-votekeeper", path = "crates/core-votekeeper" }
+malachitebft-discovery          = { version = "0.1.0", package = "informalsystems-malachitebft-discovery", path = "crates/discovery" }
+malachitebft-network            = { version = "0.1.0", package = "informalsystems-malachitebft-network", path = "crates/network" }
+malachitebft-metrics            = { version = "0.1.0", package = "informalsystems-malachitebft-metrics", path = "crates/metrics" }
+malachitebft-peer               = { version = "0.1.0", package = "informalsystems-malachitebft-peer", path = "crates/peer" }
+malachitebft-proto              = { version = "0.1.0", package = "informalsystems-malachitebft-proto", path = "crates/proto" }
+malachitebft-signing-ed25519    = { version = "0.1.0", package = "informalsystems-malachitebft-signing-ed25519", path = "crates/signing-ed25519" }
+malachitebft-sync               = { version = "0.1.0", package = "informalsystems-malachitebft-sync", path = "crates/sync" }
+malachitebft-wal                = { version = "0.1.0", package = "informalsystems-malachitebft-wal", path = "crates/wal" }
 
 # Test
-malachite-test                   = { version = "0.1.0", path = "crates/test" }
-malachite-test-mbt               = { version = "0.1.0", path = "crates/test/mbt" }
-malachite-test-mempool           = { version = "0.1.0", path = "crates/test/mempool" }
-malachite-core-driver-test-utils = { version = "0.1.0", path = "crates/core-driver/test-utils" }
+malachitebft-test                   = { version = "0.1.0", package = "informalsystems-malachitebft-test", path = "crates/test" }
+malachitebft-test-mbt               = { version = "0.1.0", package = "informalsystems-malachitebft-test-mbt", path = "crates/test/mbt" }
+malachitebft-test-mempool           = { version = "0.1.0", package = "informalsystems-malachitebft-test-mempool", path = "crates/test/mempool" }
+malachitebft-discovery-test         = { version = "0.1.0", package = "informalsystems-malachitebft-discovery-test", path = "crates/network/test" }
+malachitebft-core-driver-test-utils = { version = "0.1.0", package = "informalsystems-malachitebft-core-driver-test-utils", path = "crates/core-driver/test-utils" }
 
 # Starknet
-malachite-starknet-host      = { version = "0.1.0", path = "crates/starknet/host" }
-malachite-starknet-app       = { version = "0.1.0", path = "crates/starknet/app" }
-malachite-starknet-p2p-proto = { version = "0.1.0", path = "crates/starknet/p2p-proto" }
-malachite-starknet-p2p-types = { version = "0.1.0", path = "crates/starknet/p2p-types" }
+malachitebft-starknet-host      = { version = "0.1.0", package = "informalsystems-malachitebft-starknet-host", path = "crates/starknet/host" }
+malachitebft-starknet-app       = { version = "0.1.0", package = "informalsystems-malachitebft-starknet-app", path = "crates/starknet/app" }
+malachitebft-starknet-p2p-proto = { version = "0.1.0", package = "informalsystems-malachitebft-starknet-p2p-proto", path = "crates/starknet/p2p-proto" }
+malachitebft-starknet-p2p-types = { version = "0.1.0", package = "informalsystems-malachitebft-starknet-p2p-types", path = "crates/starknet/p2p-types" }
 
 # Starknet
 starknet-core   = "0.11.1"

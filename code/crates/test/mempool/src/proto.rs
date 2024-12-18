@@ -2,7 +2,7 @@
 
 #![allow(missing_docs)]
 
-pub use malachite_proto::{Error, Protobuf};
+pub use malachitebft_proto::{Error, Protobuf};
 
 include!(concat!(env!("OUT_DIR"), "/malachite.mempool.rs"));
 

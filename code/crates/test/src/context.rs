@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use malachite_core_types::{Context, NilOrVal, Round, ValidatorSet as _};
+use malachitebft_core_types::{Context, NilOrVal, Round, ValidatorSet as _};
 
 use crate::address::*;
 use crate::height::*;

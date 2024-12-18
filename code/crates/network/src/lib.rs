@@ -12,11 +12,11 @@ use libp2p_broadcast as broadcast;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, error_span, trace, warn, Instrument};
 
-use malachite_discovery::{self as discovery};
-use malachite_metrics::SharedRegistry;
-use malachite_sync::{self as sync};
+use malachitebft_discovery::{self as discovery};
+use malachitebft_metrics::SharedRegistry;
+use malachitebft_sync::{self as sync};
 
-pub use malachite_peer::PeerId;
+pub use malachitebft_peer::PeerId;
 
 pub use bytes::Bytes;
 pub use libp2p::gossipsub::MessageId;
@@ -33,9 +33,9 @@ pub use channel::Channel;
 use behaviour::{Behaviour, NetworkEvent};
 use handle::Handle;
 
-const PROTOCOL: &str = "/malachite-core-consensus/v1beta1";
-const METRICS_PREFIX: &str = "malachite_network";
-const DISCOVERY_METRICS_PREFIX: &str = "malachite_discovery";
+const PROTOCOL: &str = "/malachitebft-core-consensus/v1beta1";
+const METRICS_PREFIX: &str = "malachitebft_network";
+const DISCOVERY_METRICS_PREFIX: &str = "malachitebft_discovery";
 
 #[derive(Copy, Clone, Debug, Default)]
 pub enum PubSubProtocol {

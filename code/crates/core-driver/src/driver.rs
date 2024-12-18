@@ -2,15 +2,15 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
 
-use malachite_core_state_machine::input::Input as RoundInput;
-use malachite_core_state_machine::output::Output as RoundOutput;
-use malachite_core_state_machine::state::{RoundValue, State as RoundState, Step};
-use malachite_core_state_machine::state_machine::Info;
-use malachite_core_types::{
+use malachitebft_core_state_machine::input::Input as RoundInput;
+use malachitebft_core_state_machine::output::Output as RoundOutput;
+use malachitebft_core_state_machine::state::{RoundValue, State as RoundState, Step};
+use malachitebft_core_state_machine::state_machine::Info;
+use malachitebft_core_types::{
     CommitCertificate, Context, Proposal, Round, SignedProposal, SignedVote, Timeout, TimeoutKind,
     Validator, ValidatorSet, Validity, ValueId, Vote,
 };
-use malachite_core_votekeeper::keeper::VoteKeeper;
+use malachitebft_core_votekeeper::keeper::VoteKeeper;
 
 use crate::input::Input;
 use crate::output::Output;
@@ -410,7 +410,7 @@ where
 
     /// Return the traces logged during execution.
     #[cfg(feature = "debug")]
-    pub fn get_traces(&self) -> &[malachite_core_state_machine::traces::Trace<Ctx>] {
+    pub fn get_traces(&self) -> &[malachitebft_core_state_machine::traces::Trace<Ctx>] {
         self.round_state.get_traces()
     }
 }

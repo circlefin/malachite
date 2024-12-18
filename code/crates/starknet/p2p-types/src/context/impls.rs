@@ -1,4 +1,4 @@
-use malachite_core_types::{
+use malachitebft_core_types::{
     self as common, NilOrVal, Round, SignedExtension, VoteType, VotingPower,
 };
 

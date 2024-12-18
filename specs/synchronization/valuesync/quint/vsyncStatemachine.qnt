@@ -1,17 +1,17 @@
 // -*- mode: Bluespec; -*-
 //
-// State machine for the block sync protocol.
+// State machine for the value sync protocol.
 //
 
-module bsyncStatemachine {
+module vsyncStatemachine {
 
-  import blocksync.* from "./blocksync"
-  import blocksyncClient.* from "./blocksyncClient"
-  import blocksyncServer.* from "./blocksyncServer"
+  import valuesync.* from "./valuesync"
+  import valuesyncClient.* from "./valuesyncClient"
+  import valuesyncServer.* from "./valuesyncServer"
 
-  export blocksync.*
-  export blocksyncClient.*
-  export blocksyncServer.*
+  export valuesync.*
+  export valuesyncClient.*
+  export valuesyncServer.*
 
   // ****************************************************************************
   // State machine
@@ -28,25 +28,25 @@ module bsyncStatemachine {
   /// A request should only be sent to a server who has reported, via status
   /// message, having data for the requested height.
   // FIXME: this assume no prunning, namely chain.length() == latestHeight.
-  val validRequestInvariant = bsyncServers.keys().forall(s =>
+  val validRequestInvariant = vsyncServers.keys().forall(s =>
     requestsBuffer.get(s).forall(m =>
-      m.height <= bsyncServers.get(s).chain.length()
+      m.height <= vsyncServers.get(s).chain.length()
     )
   )
 
 
   /// No request for past heights active
-  val noOldRequestsInv = bsyncClients.keys().forall(c =>
-    bsyncClients.get(c).openRequests.forall(req =>
-      req.height >= bsyncClients.get(c).height))
+  val noOldRequestsInv = vsyncClients.keys().forall(c =>
+    vsyncClients.get(c).openRequests.forall(req =>
+      req.height >= vsyncClients.get(c).height))
 
 
 
   /// A server only replies to a request received from a client.
   /// The client request might have timed out.
-  val serverRespondsToRequestingPeersInvariant = bsyncClients.keys().forall(c =>
+  val serverRespondsToRequestingPeersInvariant = vsyncClients.keys().forall(c =>
     responsesBuffer.get(c).forall(m =>
-      bsyncClients.get(c).openRequests.union(expiredTimeouts.get(c))
+      vsyncClients.get(c).openRequests.union(expiredTimeouts.get(c))
       .exists(req => matchingMessages(req, m))
     )
   )
@@ -55,9 +55,9 @@ module bsyncStatemachine {
   /// A server only replies to a request received from a client.
   /// This witness should report a scenario where a request timeouts, the
   /// client submits a new one, and a late response is received.
-  val serverRespondsToRequestingPeersWitness = bsyncClients.keys().forall(c =>
+  val serverRespondsToRequestingPeersWitness = vsyncClients.keys().forall(c =>
     responsesBuffer.get(c).forall(m =>
-      bsyncClients.get(c).openRequests.exists(req =>
+      vsyncClients.get(c).openRequests.exists(req =>
         matchingMessages(req, m))
     )
   )
@@ -65,9 +65,9 @@ module bsyncStatemachine {
   /// Every request will eventually terminate. 
   /// We cannot currently verify it with Apalache.
   temporal terminationRequest = 
-    bsyncClients.keys().forall(c => 
-      always (bsyncClients.get(c).openRequests.forall(req =>
-        eventually (not(bsyncClients.get(c).openRequests.contains(req))))))
+    vsyncClients.keys().forall(c => 
+      always (vsyncClients.get(c).openRequests.forall(req =>
+        eventually (not(vsyncClients.get(c).openRequests.contains(req))))))
 
   //
   // Actions
@@ -77,13 +77,13 @@ module bsyncStatemachine {
   action syncInit(validators) = all {
     initClient(validators),
     initServer(validators),
-    initBsync(validators),
+    initVsync(validators),
   }
 
   action syncUnchangedAll = all {
     unchangedServer,
     unchangedClient,
-    unchangedBsync,
+    unchangedVsync,
   }
 
   //
@@ -94,7 +94,7 @@ module bsyncStatemachine {
   /// initializes client
   action newHeightActionSync(v, valset, h) = all {
     newHeightClient(v, h),
-    unchangedBsync,
+    unchangedVsync,
     unchangedServer,
   }
 
@@ -120,7 +120,7 @@ module bsyncStatemachine {
 
   //
   // Actions for the environment to deliver messages in the sync protocol
-  // Implemented by the blocksync server or client.
+  // Implemented by the valuesync server or client.
   //
 
   /// Deliver a status message to client v
@@ -153,7 +153,7 @@ module bsyncStatemachine {
     unchangedServer,
   }
 
-  /// any blocksync step independent of consensus.
+  /// any valuesync step independent of consensus.
   /// unchange is an action that can be used for composition
   action pureSyncStep (v, unchange) = all {
     any {

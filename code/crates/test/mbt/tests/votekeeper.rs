@@ -4,8 +4,8 @@ pub mod runner;
 pub mod utils;
 
 use glob::glob;
-use malachite_test_mbt::utils::generate_test_traces;
-use malachite_test_mbt::votekeeper::State;
+use informalsystems_malachitebft_test_mbt::utils::generate_test_traces;
+use informalsystems_malachitebft_test_mbt::votekeeper::State;
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -15,8 +15,9 @@ const RANDOM_SEED: u64 = 0x42;
 
 #[test]
 fn test_itf() {
-    let temp_dir = tempfile::TempDir::with_prefix("malachite-core-votekeeperkeeper-")
-        .expect("Failed to create temp dir");
+    let temp_dir =
+        tempfile::TempDir::with_prefix("informalsystems-malachitebft-core-votekeeperkeeper-")
+            .expect("Failed to create temp dir");
     let temp_path = temp_dir.path().to_owned();
 
     if std::env::var("KEEP_TEMP").is_ok() {

@@ -56,7 +56,7 @@ impl Default for Config {
 
 impl Behaviour {
     pub const PROTOCOL: [(StreamProtocol, ProtocolSupport); 1] = [(
-        StreamProtocol::new("/malachite-sync/v1beta1"),
+        StreamProtocol::new("/malachitebft-sync/v1beta1"),
         ProtocolSupport::Full,
     )];
 

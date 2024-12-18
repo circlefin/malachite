@@ -3,9 +3,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use dashmap::DashMap;
-use malachite_metrics::prometheus::metrics::counter::Counter;
-use malachite_metrics::prometheus::metrics::histogram::{exponential_buckets, Histogram};
-use malachite_metrics::SharedRegistry;
+use malachitebft_metrics::prometheus::metrics::counter::Counter;
+use malachitebft_metrics::prometheus::metrics::histogram::{exponential_buckets, Histogram};
+use malachitebft_metrics::SharedRegistry;
 
 pub type DecidedValuesMetrics = Inner;
 pub type VoteSetMetrics = Inner;
@@ -76,7 +76,7 @@ impl Metrics {
     pub fn register(registry: &SharedRegistry) -> Self {
         let metrics = Self::new();
 
-        registry.with_prefix("malachite_sync", |registry| {
+        registry.with_prefix("malachitebft_sync", |registry| {
             // Value sync related metrics
             registry.register(
                 "value_requests_sent",

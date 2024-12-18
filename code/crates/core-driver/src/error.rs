@@ -1,6 +1,6 @@
 use derive_where::derive_where;
 
-use malachite_core_types::{Context, Round};
+use malachitebft_core_types::{Context, Round};
 
 /// The type of errors that can be yielded by the `Driver`.
 #[derive_where(Clone, Debug, PartialEq, Eq)]

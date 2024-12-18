@@ -10,14 +10,14 @@ use rand::SeedableRng;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
 
-use malachite_core_consensus::PeerId;
-use malachite_core_types::{CommitCertificate, Round, Validity, ValueOrigin};
-use malachite_engine::consensus::{ConsensusMsg, ConsensusRef};
-use malachite_engine::host::{LocallyProposedValue, ProposedValue};
-use malachite_engine::network::{NetworkMsg, NetworkRef};
-use malachite_engine::util::streaming::{StreamContent, StreamMessage};
-use malachite_metrics::Metrics;
-use malachite_sync::DecidedValue;
+use malachitebft_core_consensus::PeerId;
+use malachitebft_core_types::{CommitCertificate, Round, Validity, ValueOrigin};
+use malachitebft_engine::consensus::{ConsensusMsg, ConsensusRef};
+use malachitebft_engine::host::{LocallyProposedValue, ProposedValue};
+use malachitebft_engine::network::{NetworkMsg, NetworkRef};
+use malachitebft_engine::util::streaming::{StreamContent, StreamMessage};
+use malachitebft_metrics::Metrics;
+use malachitebft_sync::DecidedValue;
 
 use crate::host::proposal::compute_proposal_signature;
 use crate::host::state::HostState;
@@ -33,8 +33,8 @@ pub struct Host {
     span: tracing::Span,
 }
 
-pub type HostRef = malachite_engine::host::HostRef<MockContext>;
-pub type HostMsg = malachite_engine::host::HostMsg<MockContext>;
+pub type HostRef = malachitebft_engine::host::HostRef<MockContext>;
+pub type HostMsg = malachitebft_engine::host::HostMsg<MockContext>;
 
 impl Host {
     pub async fn spawn(

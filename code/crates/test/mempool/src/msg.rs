@@ -2,7 +2,7 @@ use prost::bytes::Bytes;
 use prost::{Message, Name};
 use prost_types::Any;
 
-use malachite_proto::{Error as ProtoError, Protobuf};
+use malachitebft_proto::{Error as ProtoError, Protobuf};
 
 use crate::types::MempoolTransactionBatch;
 use crate::Channel;

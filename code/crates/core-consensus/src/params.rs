@@ -1,7 +1,7 @@
 use derive_where::derive_where;
-use malachite_core_types::Context;
+use malachitebft_core_types::Context;
 
-pub use malachite_core_driver::ThresholdParams;
+pub use malachitebft_core_driver::ThresholdParams;
 
 use crate::ValuePayload;
 

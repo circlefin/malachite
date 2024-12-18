@@ -1,13 +1,13 @@
 // -*- mode: Bluespec; -*-
 //
-// Blocksync executable model running together with the consensus logic.
+// ValueSync executable model running together with the consensus logic.
 // main init action: initAll
-// main step action: stepWithBlockSync
+// main step action: stepWithValueSync
 //
 
-module bsyncWithConsensus {
+module vsyncWithConsensus {
 
-  import bsyncStatemachine.* from "./bsyncStatemachine"
+  import vsyncStatemachine.* from "./vsyncStatemachine"
 
   /// Consensus state machine setup
   import statemachineAsync(
@@ -25,13 +25,13 @@ module bsyncWithConsensus {
 
   /// Witness for some data being synced. It is triggered if there is a client
   /// that gets a syncing output that is different from None. That is, it has
-  /// received a certificate, or a block, or both (a block store entry).
+  /// received a certificate, or a value, or both (a value store entry).
   //
   // With the default `init` action, it is unlikely to observe this scenario,
   // even with 200 steps (around 30 minutes) execution:
-  // $ quint run --invariant anyClientOutputWitness bsyncWithConsensus.qnt
+  // $ quint run --invariant anyClientOutputWitness vsyncWithConsensus.qnt
   // Therefore we have a special init action:
-  // $ quint run --invariant anyClientOutputWitness bsyncWithConsensus.qnt --init initSetup --step stepWithBlockSync --maxSteps 60
+  // $ quint run --invariant anyClientOutputWitness vsyncWithConsensus.qnt --init initSetup --step stepWithValueSync --maxSteps 60
   // Use --seed=0x1060f6cddc9cb5 to reproduce.
 
   val anyClientOutputWitness = Correct.forall(p =>
@@ -41,7 +41,7 @@ module bsyncWithConsensus {
   // Actions
   //
 
-  /// initialize consensus and block sync
+  /// initialize consensus and value sync
   action initAll = all {
     init,
     syncInit(validators)
@@ -54,7 +54,7 @@ module bsyncWithConsensus {
     newHeightAction(v, valset, h),
   }
 
-  /// Update server v from the consensus' blockchain
+  /// Update server v from the consensus' value store
   action syncUpdateServer(v) = all {
     val chain = system.get(v).es.chain
     all {
@@ -64,25 +64,25 @@ module bsyncWithConsensus {
     }
   }
 
-  /// Validator step in the consensus protocol, no changes to block sync
+  /// Validator step in the consensus protocol, no changes to value sync
   action syncValStep(v) = all {
     valStep(v),
     syncUnchangedAll
   }
 
   /// Main step function: either a consensus state-machine step or
-  /// a block sync protocol step.
-  action stepWithBlockSync = any {
+  /// a value sync protocol step.
+  action stepWithValueSync = any {
     // consensus takes a step
     all {
       step,
       syncUnchangedAll
     },
-    // block sync takes a step
+    // value sync takes a step
     nondet v = oneOf(Correct)
     any {
       pureSyncStep(v, unchangedAll),
-      // Block sync client check if there are responses to apply to consensus
+      // Value sync client check if there are responses to apply to consensus
       syncStepClient(v, putSyncOutputIntoNode, false),
       syncStepClient(v, putSyncOutputIntoNode, true),
       syncUpdateServer(v),
@@ -149,7 +149,7 @@ module bsyncWithConsensus {
     .then(all{unchangedAll, syncDeliverReq("v2")})
     .then(all{unchangedAll, syncStepServer("v2")})
     .then(all{unchangedAll, syncDeliverResp("v4")})
-    .then(syncStepClient("v4", putSyncOutputIntoNode, false)) // ask for block and give certificate to node
+    .then(syncStepClient("v4", putSyncOutputIntoNode, false)) // ask for value and give certificate to node
     .expect(system.get("v4").incomingSyncCertificates.size() > 0)
     .expect(not(anyClientOutputWitness))
     .then(all{unchangedAll, syncDeliverReq("v2")})

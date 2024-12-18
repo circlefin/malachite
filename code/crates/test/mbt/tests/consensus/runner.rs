@@ -2,13 +2,15 @@ use std::collections::BTreeMap;
 
 use pretty_assertions::assert_eq;
 
-use malachite_core_state_machine::input::Input;
-use malachite_core_state_machine::output::Output;
-use malachite_core_state_machine::{state::State as RoundState, state_machine::Info};
-use malachite_core_types::{Context, NilOrVal, Round};
-use malachite_test::{Address, Height, TestContext};
-use malachite_test_mbt::consensus::{Input as ModelInput, Output as ModelOutput, State};
-use malachite_test_mbt::types::Step;
+use malachitebft_core_state_machine::input::Input;
+use malachitebft_core_state_machine::output::Output;
+use malachitebft_core_state_machine::{state::State as RoundState, state_machine::Info};
+use malachitebft_core_types::{Context, NilOrVal, Round};
+use malachitebft_test::{Address, Height, TestContext};
+
+use informalsystems_malachitebft_test_mbt as test;
+use test::consensus::{Input as ModelInput, Output as ModelOutput, State};
+use test::types::Step;
 
 use itf::Runner as ItfRunner;
 
