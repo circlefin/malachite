@@ -46,6 +46,7 @@ impl<Ctx: Context> LocallyProposedValue<Ctx> {
 pub type HostRef<Ctx> = ActorRef<HostMsg<Ctx>>;
 
 /// Messages that need to be handled by the host actor.
+#[derive_where(Debug)]
 pub enum HostMsg<Ctx: Context> {
     /// Consensus is ready
     ConsensusReady(ConsensusRef<Ctx>),

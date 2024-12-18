@@ -110,7 +110,7 @@ pub fn decode_proposed_value(
         round: Round::from(proto.round),
         value: BlockHash::from_bytes(&proto.value)?,
         valid_round: Round::from(proto.valid_round),
-        validator_address: Address::from_proto(proposer)?,
+        proposer: Address::from_proto(proposer)?,
         validity: Validity::from_bool(proto.validity),
         extension: proto.extension.map(decode_extension).transpose()?,
     })
@@ -125,7 +125,7 @@ pub fn encode_proposed_value(
         round: msg.round.as_u32().expect("round should not be nil"),
         valid_round: msg.valid_round.as_u32(),
         value: msg.value.to_bytes()?,
-        proposer: Some(msg.validator_address.to_proto()?),
+        proposer: Some(msg.proposer.to_proto()?),
         validity: match msg.validity {
             Validity::Valid => true,
             Validity::Invalid => false,

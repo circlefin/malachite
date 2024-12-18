@@ -19,9 +19,10 @@ malachite-peer.workspace = true
 malachite-sync.workspace = true
 
 async-trait = { workspace = true }
+derive-where = { workspace = true }
 eyre = { workspace = true }
 libp2p-identity = { workspace = true }
-rand  = { workspace = true }
+rand = { workspace = true }
 serde = { workspace = true }
 tracing = { workspace = true }
 

@@ -358,7 +358,7 @@ async fn find_previously_built_value(
 
     let proposed_value = values
         .into_iter()
-        .find(|v| v.validator_address == state.host.address);
+        .find(|v| v.proposer == state.host.address);
 
     Ok(proposed_value)
 }
@@ -421,7 +421,7 @@ fn on_process_synced_value(
     value_bytes: Bytes,
     height: Height,
     round: Round,
-    validator_address: Address,
+    proposer: Address,
     reply_to: RpcReplyPort<ProposedValue<MockContext>>,
 ) -> Result<(), ActorProcessingErr> {
     let maybe_block = Block::from_bytes(value_bytes.as_ref());
@@ -430,7 +430,7 @@ fn on_process_synced_value(
             height,
             round,
             valid_round: Round::Nil,
-            validator_address,
+            proposer,
             value: block.block_hash,
             validity: Validity::Valid,
             extension: None,

@@ -8,9 +8,10 @@ pub mod codec;
 pub mod host;
 pub mod mempool;
 pub mod node;
-pub mod part_store;
 pub mod spawn;
 pub mod streaming;
+
+pub use malachite_app::part_store;
 
 pub mod proto {
     pub use malachite_proto::*;

@@ -52,6 +52,8 @@ impl SigningScheme for Ed25519 {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct Signature(ed25519_consensus::Signature);
 
 impl Signature {
@@ -128,6 +130,11 @@ impl PrivateKey {
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
+    pub fn sign(&self, msg: &[u8]) -> Signature {
+        Signature(self.0.sign(msg))
+    }
+
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn inner(&self) -> &ed25519_consensus::SigningKey {
         &self.0
     }
@@ -170,6 +177,12 @@ impl PublicKey {
         self.0.as_bytes()
     }
 
+    pub fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
+        self.0
+            .verify(signature.inner(), msg)
+            .map_err(|_| signature::Error::new())
+    }
+
     pub fn inner(&self) -> &ed25519_consensus::VerificationKey {
         &self.0
     }
@@ -177,8 +190,6 @@ impl PublicKey {
 
 impl Verifier<Signature> for PublicKey {
     fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
-        self.0
-            .verify(signature.inner(), msg)
-            .map_err(|_| signature::Error::new())
+        PublicKey::verify(self, msg, signature)
     }
 }

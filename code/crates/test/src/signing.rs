@@ -31,13 +31,24 @@ impl Ed25519Provider {
     pub fn new(private_key: PrivateKey) -> Self {
         Self { private_key }
     }
+
+    pub fn private_key(&self) -> &PrivateKey {
+        &self.private_key
+    }
+
+    pub fn sign(&self, data: &[u8]) -> Signature {
+        self.private_key.sign(data)
+    }
+
+    pub fn verify(&self, data: &[u8], signature: &Signature, public_key: &PublicKey) -> bool {
+        public_key.verify(data, signature).is_ok()
+    }
 }
 
 impl SigningProvider<TestContext> for Ed25519Provider {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn sign_vote(&self, vote: Vote) -> SignedVote<TestContext> {
-        use signature::Signer;
-        let signature = self.private_key.sign(&vote.to_bytes());
+        let signature = self.sign(&vote.to_bytes());
         SignedVote::new(vote, signature)
     }
 
@@ -48,13 +59,11 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         signature: &Signature,
         public_key: &PublicKey,
     ) -> bool {
-        use signature::Verifier;
         public_key.verify(&vote.to_bytes(), signature).is_ok()
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn sign_proposal(&self, proposal: Proposal) -> SignedProposal<TestContext> {
-        use signature::Signer;
         let signature = self.private_key.sign(&proposal.to_bytes());
         SignedProposal::new(proposal, signature)
     }
@@ -66,14 +75,12 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         signature: &Signature,
         public_key: &PublicKey,
     ) -> bool {
-        use signature::Verifier;
         public_key.verify(&proposal.to_bytes(), signature).is_ok()
     }
 
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn sign_proposal_part(&self, proposal_part: ProposalPart) -> SignedProposalPart<TestContext> {
-        use signature::Signer;
-        let signature = self.private_key.sign(&proposal_part.to_bytes());
+        let signature = self.private_key.sign(&proposal_part.to_sign_bytes());
         SignedProposalPart::new(proposal_part, signature)
     }
 
@@ -84,9 +91,8 @@ impl SigningProvider<TestContext> for Ed25519Provider {
         signature: &Signature,
         public_key: &PublicKey,
     ) -> bool {
-        use signature::Verifier;
         public_key
-            .verify(&proposal_part.to_bytes(), signature)
+            .verify(&proposal_part.to_sign_bytes(), signature)
             .is_ok()
     }
 

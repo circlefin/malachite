@@ -44,7 +44,7 @@ where
         height,
         round,
         valid_round,
-        validator_address: state.address().clone(),
+        proposer: state.address().clone(),
         value: value.clone(),
         validity: Validity::Valid,
         extension,

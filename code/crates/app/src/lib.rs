@@ -11,6 +11,7 @@
 mod node;
 pub use node::Node;
 
+pub mod part_store;
 pub mod types;
 
 mod spawn;
@@ -21,6 +22,7 @@ pub mod streaming {
 }
 
 pub mod host {
+    // TODO: Move this under `types`
     pub use malachite_engine::host::LocallyProposedValue;
 }
 

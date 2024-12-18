@@ -11,11 +11,14 @@ rust-version.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
 color-eyre.workspace = true
+derive-where.workspace = true
 eyre.workspace = true
 libp2p-identity.workspace = true
 rand.workspace = true
 serde_json.workspace = true
+sha3.workspace = true
 tracing.workspace = true
+tokio.workspace = true
 
 malachite-app-channel.workspace = true
 malachite-test.workspace = true

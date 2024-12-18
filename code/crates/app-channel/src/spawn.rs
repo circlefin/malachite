@@ -22,7 +22,7 @@ pub async fn spawn_host_actor<Ctx>(
 where
     Ctx: Context,
 {
-    let (tx, rx) = mpsc::channel(1);
+    let (tx, rx) = mpsc::channel(128);
     let actor_ref = Connector::spawn(tx, metrics).await?;
     Ok((actor_ref, rx))
 }
