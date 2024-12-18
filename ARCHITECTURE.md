@@ -79,9 +79,9 @@ Malachite comes initially bundled with the following components.
 
 The core of Malachite is marked in green background and comprises three basic modules:
 
-1. Vote Keeper: for aggregating votes from peers and keeping track of quorums,
-2. Round State Machine: implements the Tendermint consensus algorithm logic within a round,
-3. and Driver: operates the state machine across multiple consensus rounds.
+1. Vote Keeper: For aggregating votes from peers and keeping track of quorums
+2. Round State Machine: Implements the Tendermint consensus algorithm logic within a round
+3. Driver: Operates the state machine across multiple consensus rounds
 
 This consensus library makes no assumptions about the environment in which it runs or what kind of applications are built with it. 
 It represents, to the best of our knowledge, the most flexible consensus API in the world.
