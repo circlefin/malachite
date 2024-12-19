@@ -37,7 +37,7 @@ Therefore, Malachite addresses a particular void in the market: The lack of flex
 
 ### Features
 
-#### Tendermint as a library
+#### Tendermint as a Library
 Bundled with Malachite comes a state-of-the-art implementation of the Tendermint BFT consensus algorithm.
 Tendermint is an [optimistically responsive][responsive] consensus algorithm, and therefore exhibits high-performance, and has found adoption in many decentralized systems through its implementation in Go as part of [CometBFT](https://github.com/cometbft/cometbft/).
 
@@ -55,7 +55,7 @@ Depending on scale, Malachite can clear up to 2.5 blocks per second; or can fina
 Malachite originated as a consensus core for use in the Starknet L2 decentralized sequencer.
 It will serve as the core consensus library in the [Madara][madara] and [Pathfinder][pathfinder] Starknet clients.
 Malachite is also being used for Farcaster’s newest backend layer called [Snapchain](https://github.com/farcasterxyz/snapchain-v0/).
-A numbers of other teams are building and exploring in private.
+Thanks to its flexible design, Malachite is amenable to a broad range of environments, and a number of other teams are building and exploring in private.
 Please reach-out if interested, we would love to speak with more teams.
 
 ## Overview
