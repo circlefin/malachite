@@ -28,7 +28,7 @@ Malachite is a Byzantine-fault tolerant (BFT) consensus engine implemented in Ru
 > [!IMPORTANT]
 > Malachite is pre-alpha software and still under heavy development.
 > At this stage, it is not meant for use in production.
-> The software is provided "as is" and has not been externally audited, use at your own risk.
+> The software is provided "as is" and has not been externally audited; use at your own risk.
 
 ### Goals
 
@@ -42,17 +42,17 @@ Bundled with Malachite comes a state-of-the-art implementation of the Tendermint
 Tendermint is an [optimistically responsive][responsive] consensus algorithm, and therefore exhibits high-performance, and has found adoption in many decentralized systems through its implementation in Go as part of [CometBFT](https://github.com/cometbft/cometbft/).
 
 #### Design
-Key [design decisions][announcement] in Malachite are heavily inspired from lessons and experiences of maintaining CometBFT throughout the years.
+Key [design decisions][announcement] in Malachite are heavily inspired by lessons and experiences of maintaining CometBFT throughout the years.
 Malachite addresses numerous points of technical debt in the design of consensus engines, resulting in a lean, flexible, and reliable solution that performs at the highest level.
 
 #### Reliability and Performance
 Parts of Malachite were co-designed with their formal specification and model checking, notably for the Tendermint algorithm, which improved the confidence and reliability of this core library.
 
-Early experiments with Malachite showed average finalization latency of 780 ms at a scale of 100 validators with 1MB blocks.
+Early experiments with Malachite showed an average finalization latency of 780 ms at a scale of 100 validators with 1MB blocks.
 Depending on scale, Malachite can clear up to 2.5 blocks per second; or can finalize up to 13.5 MB/s -- or around 50,000 transactions per second (TPS).
 
 #### Use-cases
-Malachite originated as a consensus core for use in the Starknet L2 decentralized sequencer.
+Malachite originated as a consensus core for the Starknet L2 decentralized sequencer.
 It will serve as the core consensus library in the [Madara][madara] and [Pathfinder][pathfinder] Starknet clients.
 Malachite is also being used for Farcaster’s newest backend layer called [Snapchain](https://github.com/farcasterxyz/snapchain-v0/).
 Thanks to its flexible design, Malachite is amenable to a broad range of environments, and a number of other teams are building and exploring in private.

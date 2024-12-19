@@ -5,7 +5,7 @@ These libraries come together with an executable specification in [Quint][quint-
 We use model-based testing to make sure that the implementation corresponds to
 the specification.
 
-The specification of the consensus algorithm covers several concerns, and is organized as follows:
+The specification of the consensus algorithm covers several concerns and is organized as follows:
 
 - [**overview.md**](./overview.md): a summary of the operation and components
   of the Tendermint consensus algorithm at the protocol level;

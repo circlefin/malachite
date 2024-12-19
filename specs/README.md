@@ -2,7 +2,7 @@
 
 This directory holds specifications of various Malachite components, as well as external dependencies.
 For example, Malachite comprises a library implementing the [Tendermint consensus algorithm][tendermint-arxiv] in Rust, which is specified below.
-The specifications also cover elements of networking, synchronization, and broader Starknet protocols.
+The specifications also cover networking, synchronization, and broader Starknet protocols.
 
 - [Consensus algorithm and implementation](./consensus/README.md)
 - [Network design and requirements](./network/README.md)
