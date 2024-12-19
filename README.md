@@ -33,7 +33,7 @@ Malachite is a Byzantine-fault tolerant (BFT) consensus engine implemented in Ru
 ### Goals
 
 The goal is for Malachite to enable developers to decentralize whatever the future may bring—sequencers, social networks, Layer 1s, etc.
-Therefore, Malachite addresses a particular void in the market: The lack of flexible and secure distributed systems foundations, such as BFT consensus libraries.
+Therefore, Malachite addresses a particular void in the market: The lack of flexible, reliable, and high-performance distributed systems foundations, such as BFT consensus libraries.
 
 ### Features
 
@@ -43,7 +43,7 @@ Tendermint is an [optimistically responsive][responsive] consensus algorithm, an
 
 #### Design
 Key [design decisions][announcement] in Malachite are heavily inspired from lessons and experiences of maintaining CometBFT throughout the years.
-We addressed in Malachite numerous points of technical debt in the design of consensus engines, to obtain a lean, flexible, and reliable solution.
+Malachite addresses numerous points of technical debt in the design of consensus engines, resulting in a lean, flexible, and reliable solution that performs at the highest level.
 
 #### Reliability and Performance
 Parts of Malachite were co-designed with their formal specification and model checking, notably for the Tendermint algorithm, which improved the confidence and reliability of this core library.
