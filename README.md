@@ -25,6 +25,11 @@
 
 Malachite is a Byzantine-fault tolerant (BFT) consensus engine implemented in Rust.
 
+> [!IMPORTANT]
+> Malachite is pre-alpha software and still under heavy development.
+> At this stage, it is not meant for use in production.
+> The software is provided "as is" and has not been externally audited, use at your own risk.
+
 ### Goals
 
 The goal is for Malachite to enable developers to decentralize whatever the future may bring—sequencers, social networks, Layer 1s, etc.
@@ -32,31 +37,25 @@ Therefore, Malachite addresses a particular void in the market: The lack of flex
 
 ### Features
 
-**Tendermint library.**
+#### Tendermint as a library
 Bundled with Malachite comes a state-of-the-art implementation of the Tendermint BFT consensus algorithm.
 Tendermint is an [optimistically responsive][responsive] consensus algorithm, and therefore exhibits high-performance, and has found adoption in many decentralized systems through its implementation in Go as part of [CometBFT](https://github.com/cometbft/cometbft/).
 
-
-**Design.**
+#### Design
 Key [design decisions][announcement] in Malachite are heavily inspired from lessons and experiences of maintaining CometBFT throughout the years.
 We addressed in Malachite numerous points of technical debt in the design of consensus engines, to obtain a lean, flexible, and reliable solution.
 
-**Reliability and Performance.**
+#### Reliability and Performance
 Parts of Malachite were co-designed with their formal specification and model checking, notably for the Tendermint algorithm, which improved the confidence and reliability of this core library.
 
 Early experiments with Malachite showed average finalization latency of 780 ms at a scale of 100 validators with 1MB blocks.
 Depending on scale, Malachite can clear up to 2.5 blocks per second; or can finalize up to 13.5 MB/s -- or around 50,000 transactions per second (TPS).
 
-**Use-cases.**
+#### Use-cases
 Malachite originated as a consensus core for use in the Starknet L2 decentralized sequencer.
 Malachite is also being used for Farcaster’s newest backend layer called [Snapchain](https://github.com/farcasterxyz/snapchain-v0/).
 A numbers of others are building and exploring in private.
 Please reach-out if interested, we would love to speak with more teams.
-
-> [!IMPORTANT]
-> Malachite is pre-alpha software and still under heavy development.
-> At this stage, it is not meant for use in production.
-> The software is provided "as is" and has not been externally audited, use at your own risk.
 
 ## Overview
 
