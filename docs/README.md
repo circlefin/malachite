@@ -4,16 +4,15 @@
 > Malachite documentation is still in the early stages of development.
 > We welcome contributions!
 > We also invite feedback and input on what would be the most important aspects
-> of documentations to cover, for [example](https://diataxis.fr/), tutorials, 
+> of documentations to cover, for [example](https://diataxis.fr/), tutorials,
 > how-to guides, explanations, references?
 
 ## Building with Malachite
 
-If you are a developer looking to _build_ with Malachite,
-then we suggest as a starting point:
+If you are a developer looking to _build_ with Malachite, then we suggest as a starting point:
 
-1. the main [ARCHITECTURE.MD](../ARCHITECTURE.md)
-2. the [tutorials](tutorials), which currently comprises an example on how to build an application using [Tokio](https://tokio.rs) channels.
+1. The main [ARCHITECTURE.MD](../ARCHITECTURE.md)
+2. The [tutorials](tutorials), which currently comprises an example on how to build a simple application the high-level interface to consensus provided by Malachite.
 
 ## Contributing to Malachite
 
