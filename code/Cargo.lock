@@ -305,7 +305,7 @@ dependencies = [
  "http 1.2.0",
  "http-body 1.0.1",
  "http-body-util",
- "hyper 1.5.1",
+ "hyper 1.5.2",
  "hyper-util",
  "itoa",
  "matchit",
@@ -547,9 +547,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.3"
+version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27f657647bcff5394bf56c7317665bbf790a137a50eaaa5c6bfbb9e27a518f2d"
+checksum = "9157bbaa6b165880c27a4293a474c91cdcf265cc68cc829bf10be0964a391caf"
 dependencies = [
  "shlex",
 ]
@@ -822,18 +822,18 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.13"
+version = "0.5.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33480d6946193aa8033910124896ca395333cae7e2d1113d1fef6c3272217df2"
+checksum = "06ba6d68e24814cb8de6bb986db8222d3a027d15872cabc0d18817bc3c0e4471"
 dependencies = [
  "crossbeam-utils",
 ]
 
 [[package]]
 name = "crossbeam-deque"
-version = "0.8.5"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "613f8cc01fe9cf1a3eb3d7f488fd2fa8388403e97039e2f73692932e291a770d"
+checksum = "9dd111b7b7f7d55b72c0a6ae361660ee5853c9af73f70c3c2ef6858b950e2e51"
 dependencies = [
  "crossbeam-epoch",
  "crossbeam-utils",
@@ -850,9 +850,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-utils"
-version = "0.8.20"
+version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22ec99545bb0ed0ea7bb9b8e1e9122ea386ff8a48c0922e43f36d45ab09e0e80"
+checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "crunchy"
@@ -1292,7 +1292,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c936bfdafb507ebbf50b8074c54fa31c5be9a1e7e5f467dd659697041407d07c"
 dependencies = [
  "crc32fast",
- "miniz_oxide 0.8.0",
+ "miniz_oxide 0.8.2",
 ]
 
 [[package]]
@@ -1772,9 +1772,9 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "0.14.31"
+version = "0.14.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c08302e8fa335b151b788c775ff56e7a03ae64ff85c548ee820fecb70356e85"
+checksum = "41dfc780fdec9373c01bae43289ea34c972e40ee3c9f6b3c8801a35f35586ce7"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1796,9 +1796,9 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "1.5.1"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97818827ef4f364230e16705d4706e2897df2bb60617d6ca15d598025a3c481f"
+checksum = "256fb8d4bd6413123cc9d91832d78325c48ff41677595be797d90f42969beae0"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1823,7 +1823,7 @@ dependencies = [
  "futures-util",
  "http 1.2.0",
  "http-body 1.0.1",
- "hyper 1.5.1",
+ "hyper 1.5.2",
  "pin-project-lite",
  "tokio",
  "tower-service",
@@ -2041,7 +2041,7 @@ dependencies = [
  "bytes",
  "futures",
  "http 0.2.12",
- "hyper 0.14.31",
+ "hyper 0.14.32",
  "log",
  "rand",
  "tokio",
@@ -2079,7 +2079,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-app"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "derive-where",
@@ -2101,7 +2101,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-app-channel"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bytes",
  "derive-where",
@@ -2118,14 +2118,14 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-codec"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bytes",
 ]
 
 [[package]]
 name = "informalsystems-malachitebft-config"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bytesize",
  "config",
@@ -2138,7 +2138,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-core-consensus"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "async-recursion",
  "derive-where",
@@ -2149,13 +2149,13 @@ dependencies = [
  "informalsystems-malachitebft-peer",
  "informalsystems-malachitebft-test",
  "multiaddr",
- "thiserror 2.0.6",
+ "thiserror 2.0.8",
  "tracing",
 ]
 
 [[package]]
 name = "informalsystems-malachitebft-core-driver"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "derive-where",
  "informalsystems-malachitebft-core-driver-test-utils",
@@ -2163,12 +2163,12 @@ dependencies = [
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-core-votekeeper",
  "informalsystems-malachitebft-test",
- "thiserror 2.0.6",
+ "thiserror 2.0.8",
 ]
 
 [[package]]
 name = "informalsystems-malachitebft-core-driver-test-utils"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "informalsystems-malachitebft-core-driver",
  "informalsystems-malachitebft-core-state-machine",
@@ -2179,7 +2179,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-core-state-machine"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "derive-where",
  "displaydoc",
@@ -2189,26 +2189,26 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-core-types"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bytes",
  "derive-where",
- "thiserror 2.0.6",
+ "thiserror 2.0.8",
 ]
 
 [[package]]
 name = "informalsystems-malachitebft-core-votekeeper"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "derive-where",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-test",
- "thiserror 2.0.6",
+ "thiserror 2.0.8",
 ]
 
 [[package]]
 name = "informalsystems-malachitebft-discovery"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "either",
  "informalsystems-malachitebft-metrics",
@@ -2221,7 +2221,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-discovery-test"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "futures",
  "informalsystems-malachitebft-config",
@@ -2238,7 +2238,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-engine"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "byteorder",
@@ -2252,7 +2252,6 @@ dependencies = [
  "informalsystems-malachitebft-metrics",
  "informalsystems-malachitebft-network",
  "informalsystems-malachitebft-sync",
- "informalsystems-malachitebft-test-mempool",
  "informalsystems-malachitebft-wal",
  "libp2p",
  "ractor",
@@ -2263,7 +2262,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-example-channel"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2273,7 +2272,6 @@ dependencies = [
  "informalsystems-malachitebft-app-channel",
  "informalsystems-malachitebft-test",
  "informalsystems-malachitebft-test-cli",
- "libp2p-identity",
  "rand",
  "serde_json",
  "sha3",
@@ -2283,7 +2281,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-metrics"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "informalsystems-malachitebft-core-state-machine",
  "prometheus-client",
@@ -2291,7 +2289,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-network"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bytes",
  "either",
@@ -2311,27 +2309,27 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-peer"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bs58",
  "multihash",
  "rand",
  "serde",
- "thiserror 2.0.6",
+ "thiserror 2.0.8",
 ]
 
 [[package]]
 name = "informalsystems-malachitebft-proto"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "prost",
  "prost-types",
- "thiserror 2.0.6",
+ "thiserror 2.0.8",
 ]
 
 [[package]]
 name = "informalsystems-malachitebft-signing-ed25519"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
  "ed25519-consensus",
@@ -2343,7 +2341,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-app"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "clap",
  "color-eyre",
@@ -2357,7 +2355,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-host"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2388,14 +2386,14 @@ dependencies = [
  "serde_json",
  "sha3",
  "tempfile",
- "thiserror 2.0.6",
+ "thiserror 2.0.8",
  "tokio",
  "tracing",
 ]
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-p2p-proto"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "prost",
  "prost-build",
@@ -2403,7 +2401,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-p2p-types"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bytes",
  "informalsystems-malachitebft-core-types",
@@ -2418,7 +2416,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-starknet-test"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "axum",
  "bytesize",
@@ -2439,7 +2437,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-sync"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2453,13 +2451,13 @@ dependencies = [
  "libp2p",
  "rand",
  "serde",
- "thiserror 2.0.6",
+ "thiserror 2.0.8",
  "tracing",
 ]
 
 [[package]]
 name = "informalsystems-malachitebft-test"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -2488,7 +2486,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-cli"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "axum",
  "bytesize",
@@ -2502,7 +2500,7 @@ dependencies = [
  "itertools 0.13.0",
  "rand",
  "serde_json",
- "thiserror 2.0.6",
+ "thiserror 2.0.8",
  "tokio",
  "toml",
  "tracing",
@@ -2512,7 +2510,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-mbt"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "glob",
  "informalsystems-malachitebft-core-state-machine",
@@ -2532,7 +2530,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-test-mempool"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "futures",
  "informalsystems-malachitebft-metrics",
@@ -2548,7 +2546,7 @@ dependencies = [
 
 [[package]]
 name = "informalsystems-malachitebft-wal"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "advisory-lock",
  "bytes",
@@ -3284,9 +3282,9 @@ dependencies = [
 
 [[package]]
 name = "miniz_oxide"
-version = "0.8.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2d80299ef12ff69b16a84bb182e3b9df68b5a91574d3d4fa6e41b65deec4df1"
+checksum = "4ffbe83022cedc1d264172192511ae958937694cd57ce297164951b8b3568394"
 dependencies = [
  "adler2",
 ]
@@ -3951,7 +3949,7 @@ dependencies = [
  "rustc-hash",
  "rustls",
  "socket2",
- "thiserror 2.0.6",
+ "thiserror 2.0.8",
  "tokio",
  "tracing",
 ]
@@ -3970,7 +3968,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.6",
+ "thiserror 2.0.8",
  "tinyvec",
  "tracing",
  "web-time",
@@ -3978,9 +3976,9 @@ dependencies = [
 
 [[package]]
 name = "quinn-udp"
-version = "0.5.8"
+version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52cd4b1eff68bf27940dd39811292c49e007f4d0b4c357358dc9b0197be6b527"
+checksum = "1c40286217b4ba3a71d644d752e6a0b71f13f1b6a2c5311acfcbe0c2418ed904"
 dependencies = [
  "cfg_aliases",
  "libc",
@@ -4277,9 +4275,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.10.0"
+version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16f1201b3c9a7ee8039bcadc17b7e605e2945b27eee7631788c1bd2b0643674b"
+checksum = "d2bf47e6ff922db3825eb750c4e2ff784c6ff8fb9e13046ef6a1d1c5401b0b37"
 dependencies = [
  "web-time",
 ]
@@ -4365,9 +4363,9 @@ dependencies = [
 
 [[package]]
 name = "semver"
-version = "1.0.23"
+version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61697e0a1c7e512e84a621326239844a24d8207b4669b41bc18b32ea5cbf988b"
+checksum = "3cb6eb87a131f756572d7fb904f6e7b68633f09cca868c5df1c4b8d1a694bbba"
 dependencies = [
  "serde",
 ]
@@ -4861,11 +4859,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.6"
+version = "2.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fec2a1820ebd077e2b90c4df007bebf344cd394098a13c563957d0afc83ea47"
+checksum = "08f5383f3e0071702bf93ab5ee99b52d26936be9dedd9413067cbdcddcb6141a"
 dependencies = [
- "thiserror-impl 2.0.6",
+ "thiserror-impl 2.0.8",
 ]
 
 [[package]]
@@ -4881,9 +4879,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.6"
+version = "2.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d65750cab40f4ff1929fb1ba509e9914eb756131cef4210da8d5d700d26f6312"
+checksum = "f2f357fcec90b3caef6623a099691be676d033b40a058ac95d2a6ade6fa0c943"
 dependencies = [
  "proc-macro2",
  "quote",

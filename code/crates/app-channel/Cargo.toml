@@ -1,11 +1,16 @@
 [package]
 name = "informalsystems-malachitebft-app-channel"
+description = "High-level interface for building channel-based applications on top of the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
 license.workspace = true
 publish.workspace = true
 rust-version.workspace = true
+readme = "../../../README.md"
+
+[package.metadata.docs.rs]
+all-features = true
 
 [dependencies]
 bytes.workspace = true

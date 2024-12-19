@@ -870,7 +870,7 @@ where
                 Ok(r.resume_with(valid))
             }
 
-            Effect::Broadcast(msg, r) => {
+            Effect::Publish(msg, r) => {
                 // Sync the WAL to disk before we broadcast the message
                 // NOTE: The message has already been append to the WAL by the `PersistMessage` effect.
                 self.wal_flush(phase).await?;

@@ -1,10 +1,15 @@
 [package]
 name = "informalsystems-malachitebft-discovery"
+description = "Discovery protocol for the Malachite BFT consensus engine"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
 license.workspace = true
 publish.workspace = true
+readme = "../../../README.md"
+
+[package.metadata.docs.rs]
+all-features = true
 
 [lints]
 workspace = true
