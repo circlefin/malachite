@@ -361,7 +361,7 @@ pub struct SyncConfig {
     #[serde(with = "humantime_serde")]
     pub status_update_interval: Duration,
 
-    /// Timeout duration for block sync requests
+    /// Timeout duration for sync requests
     #[serde(with = "humantime_serde")]
     pub request_timeout: Duration,
 }

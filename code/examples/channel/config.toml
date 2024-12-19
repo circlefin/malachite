@@ -190,7 +190,7 @@ enabled = true
 # Override with MALACHITE__SYNC__STATUS_UPDATE_INTERVAL env variable
 status_update_interval = "10s"
 
-# Timeout duration for block sync requests
+# Timeout duration for sync requests
 # Override with MALACHITE__SYNC__REQUEST_TIMEOUT env variable
 request_timeout = "10s"
 
