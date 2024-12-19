@@ -36,13 +36,26 @@ CometBFT has been battle-tested for years, and many of the lessons and experienc
 > At this stage, it is not meant for use in production.
 > The software is provided "as is" and has not been externally audited, use at your own risk.
 
-## Repository Overview
+## Overview
+
+### Repository
 
 The repository is split in three areas, each covering one of the important areas of this project:
 
 1. [code](./code): Comprises the Rust implementation of the Tendermint consensus algorithm, split across multiple Rust crates.
 2. [docs](./docs): Comprises Architectural Decision Records (ADRs) and other documentation, such as the 2018 paper describing the core consensus algorithm.
 3. [specs](./specs): English and [Quint][quint-repo] specifications.
+
+### Building with Malachite
+
+As a guiding point to understand how to use Malachite, please read [ARCHITECTURE.md](ARCHITECTURE.md).
+
+You can also check out the [examples](./code/examples) for a more in-depth experience.
+
+### Contributing
+
+If you would like to contribute to the Malachite open-source codebase, please see [CONTRIBUTING.md](./CONTRIBUTING.md).
+We invite all contributors.
 
 ## Requirements
 
