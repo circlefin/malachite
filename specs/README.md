@@ -1,6 +1,7 @@
 # Malachite Specifications
 
-This directory holds specifications of various Malachite components, as well as external dependencies.
+This directory holds specifications of various Malachite components or protocols.
+It also covers specifications related to external dependencies, i.e., application-level concerns.
 For example, Malachite comprises a library implementing the [Tendermint consensus algorithm][tendermint-arxiv] in Rust, which is specified below.
 The specifications also cover networking, synchronization, and broader Starknet protocols.
 

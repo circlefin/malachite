@@ -48,8 +48,8 @@ Malachite addresses numerous points of technical debt in the design of consensus
 #### Reliability and Performance
 Parts of Malachite were co-designed with their formal specification and model checking, notably for the Tendermint algorithm, which improved the confidence and reliability of this core library.
 
-Early experiments with Malachite showed an average finalization latency of 780 ms at a scale of 100 validators with 1MB blocks.
-Depending on scale, Malachite can clear up to 2.5 blocks per second; or can finalize up to 13.5 MB/s -- or around 50,000 transactions per second (TPS).
+Early [experiments][announcement] with Malachite show an average finalization latency of 780 ms at a scale of 100 validators with 1MB blocks.
+Depending on the setup, Malachite can clear up to 2.5 blocks per second or finalize up to 13.5 MB/s (around 50,000 transactions per second).
 
 #### Use-cases
 Malachite originated as a consensus core for the Starknet L2 decentralized sequencer.
