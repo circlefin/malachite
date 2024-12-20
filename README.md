@@ -127,6 +127,14 @@ If you'd like to work full-time on challenging problems of distributed systems a
 [we're always looking for talented people to join](https://informal.systems/careers)!
 
 
+## Acknowledgements
+
+Malachite would not have been possible without the kind support of the Starknet ecosystem.
+We are grateful to StarkWare Industries for prompting the initial discussions of building Tendermint in Rust, to Starknet Foundation for funding and fostering a collaborative environment, and to both of these organizations plus numerous others in the ecosystem for their constructive feedback on earlier designs of Malachite.
+
+We are also thankful for the collaboration with Farcaster.
+This led to further refinements and maturing of the Malachite codebase, and their approach to building complex systems and shipping valuable products is an inspiration for us.
+
 ## License
 
 Copyright © 2024 Informal Systems Inc.
