@@ -1,7 +1,7 @@
 //! Internal state of the application. This is a simplified abstract to keep it simple.
 //! A regular application would have mempool implemented, a proper database and input methods like RPC.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use bytes::Bytes;
 use rand::rngs::StdRng;
@@ -41,6 +41,7 @@ pub struct State {
     streams_map: PartStreamsMap,
 
     rng: StdRng,
+    pub peers: HashSet<PeerId>,
 }
 
 // Make up a seed for the rng based on our address in
@@ -70,6 +71,7 @@ impl State {
             decided_values: BTreeMap::new(),
             streams_map: PartStreamsMap::new(),
             rng: StdRng::seed_from_u64(seed_from_address(&address)),
+            peers: HashSet::new(),
         }
     }
 

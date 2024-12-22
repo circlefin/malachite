@@ -146,6 +146,18 @@ pub enum AppMsg<Ctx: Context> {
         /// Channel for sending back the proposed value, if successfully decoded
         reply: Reply<ProposedValue<Ctx>>,
     },
+
+    /// Notifies the application that a peer has joined the network.
+    PeerJoined {
+        /// The ID of the peer that joined
+        peer_id: PeerId,
+    },
+
+    /// Notifies the application that a peer has left the network.
+    PeerLeft {
+        /// The ID of the peer that left
+        peer_id: PeerId,
+    },
 }
 
 /// Messages sent from the application to consensus.

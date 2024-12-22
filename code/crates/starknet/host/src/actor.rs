@@ -180,6 +180,15 @@ impl Host {
                 value_bytes,
                 reply_to,
             } => on_process_synced_value(value_bytes, height, round, validator_address, reply_to),
+            HostMsg::PeerJoined { peer_id } => {
+                debug!(%peer_id, "Peer joined the network");
+                Ok(())
+            }
+
+            HostMsg::PeerLeft { peer_id } => {
+                debug!(%peer_id, "Peer left the network");
+                Ok(())
+            }
         }
     }
 }
