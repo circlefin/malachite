@@ -129,10 +129,31 @@ otherwise, it issues a `PRECOMMIT` message for the special `nil` value.
 
 The remaining of this step consists of collecting the `PRECOMMIT` messages that
 processes have broadcast in the same round step.
-If there is conflicting information on the received messages, after receiving
-them from a super-majority of processes, the process schedules a **timeout**
-(line 48) to limit the amount of time it waits for the round to succeed;
-if this timeout expires before a decision is reached, the round has failed.
+If there is conflicting information on the messages received from a
+super-majority of processes, the process schedules a **timeout** (line 48) to
+limit the amount of time it waits for the round to succeed;
+if this timeout expires before a decision is reached, the round has failed
+(line 67).
+
+### Exit Conditions
+
+A peculiarity of the actions associated to the `precommit` round step is that
+a process `p` does not need to have `step_p = precommit` to perform them.
+This happens because this round step concludes a round, and possibly a height
+when a decision is reached, so that the associated actions can be performed at
+any time when the **exit conditions** are observed:
+
+- If a process `p` is at any round step of round `round_p` and the conditions
+  from line 47 of the pseudo-code are observed, the process will schedule a
+  **timeout** for the `precommit` round step (line 48);
+- If the `timeoutPrecommit(height, round)` expires in a process `p` that still
+  has `round_p = round` and `h_p == height`, the current round `round_p` has
+  failed and the next round is started (line 67);
+- If a process `p` observes the conditions from line 49 of the pseudo-code for
+  **any round** `r` of its current height `h_p`, the decision value `v` is
+  committed and the height `h_r` of consensus is finalized.
+  Notice that `r` can be the current round (`r = round_p`), a previous failed
+  round (`r < round_p`), or even a future round (`r > round_p`).
 
 ## Messages
 
