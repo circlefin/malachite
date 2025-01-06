@@ -66,47 +66,50 @@ process that should be the proposer and lead round `r` of consensus height `h`.
 A round of consensus is organized into a sequence of three round steps:
 `propose`, `prevote`, and `precommit`, as defined in line 4 of the
 [pseudo-code][pseudo-code].
+To each round step is associated a [consensus message](#messages), exchanged by
+processes during that round step.
+
 The current round step of a process `p` is stored in the `step_p` variable.
-In general terms, a process performs one or more **actions** when entering or
-moving into a new round step.
-Plus, the reception a given set of **events** while in a round step, leads the
+In general terms, when entering a round step a process performs one or more
+**actions**.
+And the reception a given set of **events** while in a round step, leads the
 process to move to the successive round step.
 
 ### Propose
 
 The `propose` round step is the first step of each round.
-In fact, a process `p` sets its `step_p` to `propose` as part of the execution
-of the `StartRound(round)` function, where it also increases `round_p` to the
-new round `round`.
+A process `p` sets its `step_p` to `propose` in the `StartRound(round)`
+function, where it also increases `round_p` to the started `round`.
 The `propose` step is the only round step that is asymmetric, meaning that
 different processes perform different actions when starting it.
-More specifically, the round's proposer has a distinguish role in this round step.
+More specifically, the proposer of the round has a distinguish role in this round step.
 
 In the `propose` round step, the **proposer** of the current round selects the
 value to be the proposed in that round and **broadcast**s the proposed value to all
-processes (line 19).
+processes (line 19), in a [`PROPOSAL`](#proposals) message.
 All other processes start a **timeout** (line 21) to limit the amount of time
-they will spend in the `propose` step while waiting for the value send by the
-proposer.
+they wait for the `PROPOSAL` message sent by the proposer.
 
 ### Prevote
 
-The `prevote` round step has the role to validate the value proposed in the
+The `prevote` round step has the role of validating the value proposed in the
 `propose` step.
-The value proposed by round's proposer can be accepted (lines 24 or 30) or
-rejected (lines 26 or 32) by the process.
-A value can be also rejected if not received from the proposer when the timeout
+The value proposed for the round can be accepted (lines 24 or 30) or rejected
+(lines 26 or 32) by the process.
+The proposed value can be also rejected if not received when the timeout
 scheduled in the `propose` step expires (line 59).
 
 The action taken by a process when it moves from the `propose` to the `prevote`
 step is to **broadcast** a message to inform all processes whether it has accepted
 or not the proposed value.
-The remaining of this step consists of collecting the messages that other
+To accept a value `v`, the process issues a `PREVOTE` message for `id(v)`;
+to reject it, it issues a `PREVOTE` message for the special `nil` value.
+
+The remaining of this step consists of collecting the `PREVOTE` messages that
 processes have broadcast in the same round step.
 In the case where there is no agreement on whether the value proposed on the
 current round is acceptable or not, the process schedules a **timeout** (line
-35) to limit the amount of time it waits for an agreement on the validity or
-not of the proposed value.
+35) to limit the amount of time it spends in this round step.
 
 ### Precommit
 
@@ -120,7 +123,11 @@ decision (line 67).
 The action taken by a process when it moves from the `prevote` step to the
 `precommit` step is to **broadcast** a message to inform whether an agreement
 has been observed in the `prevote` round step (lines 40, 45, or 63).
-The remaining of this step consists of collecting the messages that other
+If an agreement was observed around a value `v`, the process issues a
+`PRECOMMIT` message for `id(v)`;
+otherwise, it issues a `PRECOMMIT` message for the special `nil` value.
+
+The remaining of this step consists of collecting the `PRECOMMIT` messages that
 processes have broadcast in the same round step.
 If there is conflicting information on the received messages, the process
 schedules a **timeout** (line 48) to limit the amount of time it waits for the
