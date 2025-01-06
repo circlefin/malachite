@@ -73,15 +73,15 @@ The current round step of a process `p` is stored in the `step_p` variable.
 In general terms, when entering a round step a process performs one or more
 **actions**.
 And the reception a given set of **events** while in a round step, leads the
-process to move to the successive round step.
+process to move to the next round step.
 
 ### Propose
 
 The `propose` round step is the first step of each round.
 A process `p` sets its `step_p` to `propose` in the `StartRound(round)`
-function, where it also increases `round_p` to the started `round`.
-The `propose` step is the only round step that is asymmetric, meaning that
-different processes perform different actions when starting it.
+function, where it also increases `round_p` to the started `round` number.
+The `propose` step is the only round step that is asymmetric: different
+processes perform different actions when starting it.
 More specifically, the proposer of the round has a distinguish role in this round step.
 
 In the `propose` round step, the **proposer** of the current round selects the
@@ -129,29 +129,10 @@ otherwise, it issues a `PRECOMMIT` message for the special `nil` value.
 
 The remaining of this step consists of collecting the `PRECOMMIT` messages that
 processes have broadcast in the same round step.
-If there is conflicting information on the received messages, the process
-schedules a **timeout** (line 48) to limit the amount of time it waits for the
-round to succeed; if this timeout expires, the round has failed.
-
-**Important**: contrarily to what happens in previous round steps, the actions
-that are associated to the `precommit` round step do not require the process to
-actually be in the `precommit` round step. More specifically:
-
-- If a process is at any round step of round `round_p` and the conditions from
-  line 47 of the pseudo-code are observed, the process will schedule a timeout
-  for the `precommit` round step (line 48);
-- If the timeout for the `precommit` round step expires, line 65 of the
-  pseud-code is executed. If the process is still on the same round when it was
-  scheduled, the round fails and a new round is started (line 67);
-- If a process observes the conditions from line 49 of the pseudo-code for
-  **any round** `r` of its current height `h_p`, the decision value is
-  committed and the height of consensus is done.
-  Notice that `r` can be the current round (`r = round_p`), a previous failed
-  round (`r < round_p`), or even a future round (`r > round_p`).
-
-> Those special conditions are currently listed and discussed in the
-> [Exit transitions](../english/consensus/README.md#exit-transitions) section
-> of the Malachite specification.
+If there is conflicting information on the received messages, after receiving
+them from a super-majority of processes, the process schedules a **timeout**
+(line 48) to limit the amount of time it waits for the round to succeed;
+if this timeout expires before a decision is reached, the round has failed.
 
 ## Messages
 
