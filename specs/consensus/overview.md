@@ -157,44 +157,43 @@ any time when the **exit conditions** are observed:
 
 Notice that in the last case, the commit round `r` can be the current round
 (`r = round_p`), a previous round (`r < round_p`) that the process deemed
-failed, or a future round (`r > round_p`).
+failed, or a future round (`r > round_p`) that the process has not yet started.
 
 ## Messages
 
 The Tendermint consensus algorithm defines three message types, each type
 associated to a [round step](#round-steps):
 
-- `⟨PROPOSAL, h, r, v, vr⟩`: broadcast by the process returned by `proposer(h, r)`
-  function when entering the [`propose` step](#propose) of round `h` of height `h`.
+- `⟨PROPOSAL, h, r, v, vr⟩`: broadcast by the process returned by the proposer
+  selection function `proposer(h, r)` function when entering the
+  [`propose`](#propose) step of round `r` of height `h`.
   Carries the proposed value `v` for height `h` of consensus.
   Since only proposed values can be decided, the success of round `r` depends
   on the reception of this message.
 - `⟨PREVOTE, h, r, *⟩` broadcast by all processes when entering the
-  [`prevote` step](#prevote) of round `h` of height `h`.
-  The last field can be either the unique identifier `id(v)` of the value
+  [`prevote`](#prevote) step of round `r` of height `h`.
+  The last field can be either the unique identifier `id(v)` of the value `v`
   carried by a `⟨PROPOSAL, h, r, v, *⟩` message, meaning that it was received
-  and `v` has been accepted, or the special `nil` value otherwise.
+  and `v` has been accepted by the process, or the special `nil` value otherwise.
 - `⟨PRECOMMIT, h, r, *⟩`: broadcast by all processes when entering the
-  [`precommit` step](#precommit) of round `h` of height `h`.
+  [`precommit`](#precommit) step of round `r` of height `h`.
   The last field can be either the unique identifier `id(v)` of a proposed
-  value `v` for which the process has received an enough number of
-  `⟨PREVOTE, h, r, id(v)⟩` messages, or the special `nil` value otherwise.
+  value `v` for which the process has received `⟨PREVOTE, h, r, id(v)⟩`
+  messages from a super-majority of processes, or the special `nil` value otherwise.
 
 Before discussing in detail the role of each message in the protocol, it is
-worth highlighting the main aspects that differentiate the adopted messages.
-The `PROPOSAL` message is assumed to carry the proposed value, which may have
+worth highlighting a main aspect that differentiate the adopted messages.
+The `PROPOSAL` message is assumed to carry a proposed value `v`, which may have
 an arbitrary size; we refer to it as the "full" value `v`.
+The `PREVOTE` and `PRECOMMIT` messages, generally called [votes](#votes), are
+expected to be fixed size and much smaller than `PROPOSAL` messages.
+This is because they do not carry the "full" proposed value `v`, but instead an
+unique identified `id(v)` of a proposed value `v`.
+
 The propagation of large values, included in `PROPOSAL` messages, in practice
 requires specific and efficient data dissemination protocols.
 Implementations typically split the `PROPOSAL` message into multiple parts,
 independently propagated and reconstructed at the receiver side.
-
-The `PREVOTE` and `PRECOMMIT` messages are generally called [votes](#votes).
-They are fixed size and are expected to be much smaller than `PROPOSAL`
-messages.
-The main reason for that is that they do not carry a "full" value `v`, but
-instead an unique identified `id(v)` of a proposed value `v` carried by an
-associated `PROPOSAL` message.
 
 ## Proposals
 
