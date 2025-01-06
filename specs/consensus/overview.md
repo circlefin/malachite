@@ -193,14 +193,15 @@ unique identified `id(v)` of a proposed value `v`.
 The propagation of large values, included in `PROPOSAL` messages, in practice
 requires specific and efficient data dissemination protocols.
 Implementations typically split the `PROPOSAL` message into multiple parts,
-independently propagated and reconstructed at the receiver side.
+independently propagated and reconstructed by processes.
 
 ## Proposals
 
 Proposals are produced and broadcast by the `StartRound(round)` function of the
-[pseudo-code][pseudo-code], by the process selected returned by the
-`proposer(h_p, round)` external function, where `round = round_p` is the
-started round.
+[pseudo-code][pseudo-code], by the process selected as the **proposer** of
+the started round.
+The proposer of the current round is returned to process `p` by the
+`proposer(h_p, round_p)` function.
 
 Every process expects to receive the `⟨PROPOSAL, h, r, v, *⟩` broadcast by
 `proposer(h, r)`, as its reception is a condition for all state transitions
@@ -215,8 +216,8 @@ the values of the two state variables `validValue_p` and `validRound_p`.
 They are initialized to `nil` and `-1` at the beginning of each height, meaning
 that the process is not aware of any proposed value that has became **valid**
 in a previous round.
-A value becomes **valid** when a `PROPOSAL` for it and an enough number of
-`PREVOTE`s accepting it are received during a round.
+A value `v` becomes **valid** at round `r` when a `PROPOSAL` for `v` and an
+enough number of `PREVOTE` messages for `id(v)` are received during round `r`.
 This logic is part of the pseudo-code block from line 36, where `validValue_p`
 and `validRound_p` are updated.
 
@@ -224,73 +225,51 @@ If the proposer `p` of a round `r` of height `h` has `validValue_p != nil`,
 meaning that `p` knows a valid value, it must propose that value again.
 The message it broadcasts when entering the `prevote` step of round `r` is
 thus `⟨PROPOSAL, h, r, validValue_p, validRound_p⟩`.
-Note that, by construction, `r < validRound_p < -1`.
 
 If the proposer `p` of a round `r` of height `h` has `validValue_p = nil`, `p`
 may propose any value it wants.
-The external function `getValue()` is invoked, which returns a new value to be
-proposed.
+The function `getValue()` is invoked and returns a value to be proposed.
 The message it broadcasts when entering the `prevote` step of round `r` is
 thus `⟨PROPOSAL, h, r, getValue(), -1⟩`.
-Observe that this is always the case in the first round `r = 0` of any height
-`h`, and the most common case in ordinary executions.
+Observe that this is always the case in round 0 and the most common case in
+ordinary executions.
 
 ### Byzantine Proposers
 
 A correct process `p` will only broadcast a `⟨PROPOSAL, h, r, v, vr⟩` message
-if `p = proposer(h, r)`, i.e., it is the round's proposer, it will follow the
-value selection algorithm and propose at most one value `v` per round.
+if `p = proposer(h, r)`, i.e., if it is the proposer of the started round `r`.
+It will follow value selection roles and broadcast a single `PROPOSAL` message.
 
 A Byzantine process `q` may not follow any of the above mentioned algorithm
-rules. More precisely:
+rules. More precisely, it can perform the following **attacks**:
 
 1. `q` may broadcast a `⟨PROPOSAL, h, r, v, vr⟩` message while `q !=  proposer(h, r)`;
 2. `q` may broadcast a `⟨PROPOSAL, h, r, v, -1⟩` message while `v != validValue_q != nil`;
 3. `q` may broadcast a `⟨PROPOSAL, h, r, v, vr⟩` message while `-1 < vr != validRound_q`;
 4. `q` may broadcast multiple `⟨PROPOSAL, h, r, *, *⟩` messages, each proposing a different value.
 
-Attack 1. is simple to identify and deal as long as proposals include the
-**digital signature** of their senders, given that the
+Attack 1. is simple to identify and deal, since proposals include the
+**digital signature** of their senders, and the
 [proposers](#proposer-selection) for any given round of a height are assumed to
-be a priori known by all participants.
+be a priori known by all consensus processes.
 
 Attacks 2. and 3. are constitute forms of the **amnesia attack** and are harder
 to identify.
-Notice, however, that a correct process checks whether it can accept a proposed
+Notice, however, that correct processes check whether they can accept a proposed
 value `v` with valid round `vr` based in the content of its state variables
 `lockedValue_p` and `lockedRound_p` (lines 23 and 29) and are likely to reject
 such proposals.
 
 Attack 4. constitutes a double-signing or **equivocation** attack.
-It is virtually impossible to prevent, and the only approach for a correct
-process is to only consider the first `⟨PROPOSAL, h, r, v, *⟩` received in the
-`propose` step, which can be accepted or rejected.
+The most common approach for a correct process is to only consider the first
+`⟨PROPOSAL, h, r, v, *⟩` received in the `propose` step, which can be accepted
+or rejected.
 However, it is possible that a different `⟨PROPOSAL, h, r, v', *⟩` with
-`v' != v` is received and triggers the state transitions from the `prevote` or
+`v' != v` is received and triggers state transitions in the `prevote` or
 `precommit` round steps.
-So, a priori, a correct process must potentially store all the  multiple
-proposals broadcast by a Byzantine proposer.
+So, a priori, a correct process should store all the  multiple proposals
+broadcast by a Byzantine proposer.
 
-> TODO: storing all received proposals, from a Byzantine proposer, constitutes
-> an attack vector.
-> Previous content:
->  - A correct process could in theory only consider the first proposal
->    message received for a round, say it proposes `v`.
->    The problem of this approach is that `2f + 1` processes might accept, or
->    even decide, a different value `v' != v`.
->    By ignoring the equivocating proposal for `v'`, the process will not be
->    able to vote for or decide `v'`, which in Tendermint consensus algorithm
->    may compromise liveness.
->
->    **Note:** in contrast to algorithms from theoretical papers, a node running Tendermint consensus terminates
->    a consensus instance after it has decided; it will no longer react on messages from that instance or send
->    messages for that instance (if it is a process). In contrast, in theoretical algorithms, even after deciding, processes keep on
->    participating and sending messages. In the theoretical setting these processes will help the process that
->    has only considered to first proposal from a faulty proposer, to make progress. In Tendermint consensus, this
->    help is not there. Thus, there is above discussed liveness issue.
->  - Storing multiple proposal messages for the same round is, by itself, an
->    attack vector. Validators must thus restrict the number of proposal
->    messages stored in rounds where multiple proposals are produced.
 
 Notice that while hard to prevent, equivocation attacks are easy to detect,
 once distinct messages for the same height, round, and round step are received
