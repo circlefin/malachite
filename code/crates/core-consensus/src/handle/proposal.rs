@@ -72,7 +72,7 @@ where
     if state.params.value_payload.include_proposal() {
         perform!(
             co,
-            Effect::PersistMessage(
+            Effect::WalAppendMessage(
                 SignedConsensusMsg::Proposal(signed_proposal.clone()),
                 Default::default()
             )

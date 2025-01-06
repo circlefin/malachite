@@ -29,4 +29,3 @@ thiserror = { workspace = true, default-features = false }
 
 [dev-dependencies]
 malachitebft-test = { workspace = true }
-malachitebft-core-driver-test-utils = { workspace = true }

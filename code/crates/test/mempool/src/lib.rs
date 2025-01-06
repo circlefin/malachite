@@ -1,3 +1,5 @@
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+
 use core::fmt;
 use std::collections::HashMap;
 use std::error::Error;

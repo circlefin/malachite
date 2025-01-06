@@ -141,15 +141,15 @@ where
         resume::Continue,
     ),
 
-    /// Persist a consensus message in the Write-Ahead Log for crash recovery
+    /// Append a consensus message to the Write-Ahead Log for crash recovery
     ///
     /// Resume with: [`resume::Continue`]`
-    PersistMessage(SignedConsensusMsg<Ctx>, resume::Continue),
+    WalAppendMessage(SignedConsensusMsg<Ctx>, resume::Continue),
 
-    /// Persist a timeout in the Write-Ahead Log for crash recovery
+    /// Append a timeout to the Write-Ahead Log for crash recovery
     ///
     /// Resume with: [`resume::Continue`]`
-    PersistTimeout(Timeout, resume::Continue),
+    WalAppendTimeout(Timeout, resume::Continue),
 
     /// Sign a vote with this node's private key
     ///

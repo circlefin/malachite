@@ -2,13 +2,10 @@ use std::fs::OpenOptions;
 use std::io::{self, Seek, SeekFrom, Write};
 use std::sync::LazyLock;
 
-use informalsystems_malachitebft_wal::{Log, Version};
 use testdir::{NumberedDir, NumberedDirBuilder};
 
-#[allow(dead_code)]
-#[path = "../src/ext.rs"]
-mod ext;
-use ext::*;
+use informalsystems_malachitebft_wal::ext::*;
+use informalsystems_malachitebft_wal::{Log, Version};
 
 static TESTDIR: LazyLock<NumberedDir> =
     LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());
