@@ -265,15 +265,15 @@ The most common approach for a correct process is to only consider the first
 `⟨PROPOSAL, h, r, v, *⟩` received in the `propose` step, which can be accepted
 or rejected.
 However, it is possible that a different `⟨PROPOSAL, h, r, v', *⟩` with
-`v' != v` is received and triggers state transitions in the `prevote` or
-`precommit` round steps.
-So, a priori, a correct process should store all the  multiple proposals
-broadcast by a Byzantine proposer.
+`v' != v` is accepted by different processes and, as a result, triggers state
+transitions in the `prevote` or `precommit` round steps.
+So, a priori, the algorithm expects a correct process to store all the
+multiple proposals broadcast by a Byzantine proposer.
+Which, by itself, constitutes an attack vector to be considered.
 
-
-Notice that while hard to prevent, equivocation attacks are easy to detect,
-once distinct messages for the same height, round, and round step are received
-and they are signed by the same process.
+While hard to handle, it is easy to prove that a process has performed an
+equivocation attack: it is enough to receive and store distinct messages for
+the same height, round, and round step signed by the same process.
 For a more comprehensive discussion on misbehavior detection, evidence
 production and dissemination refer to this [document](./misbehavior.md).
 
