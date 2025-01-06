@@ -25,8 +25,8 @@ Violations of this Code of Conduct can be reported by contacting the team at abo
 There are three ways you can contribute to Malachite:
 
 1. **By opening an issue:** For example, if you believe that you have uncovered a bug
-   in Malachite, creating a new issue in the issue tracker is the way to report it.
-2. **By adding context:** Providing additional context to existing issues,
+   in Malachite, creating a [new issue][new-issue] in the issue tracker is the way to report it.
+2. **By adding context:** Providing additional context to [existing issues][existing-issues],
    such as screenshots and code snippets to help resolve issues.
 3. **By resolving issues:** Typically this is done in the form of either
    demonstrating that the issue reported is not a problem after all, or more often,
@@ -43,7 +43,10 @@ elsewhere.
 
 ### Getting Help
 
-If you have reviewed existing documentation and still have questions, or you are having problems, you can get help by *opening a discussion*. This repository comes with a discussion board where we welcome everyone to ask and offer help. Click the "Discussions" tab at the top of the repo.
+If you have reviewed existing documentation and still have questions, or you
+are having problems, you can get help by [*opening a discussion*][open-discussion].
+This repository comes with a [discussion board][discussions-board] where we
+welcome everyone to ask and offer help.
 
 
 _Adapted from the CometBFT and Reth contributing guides._
@@ -51,3 +54,7 @@ _Adapted from the CometBFT and Reth contributing guides._
 
 [rust-coc]: https://www.rust-lang.org/en-US/conduct.html
 [tg]: https://t.me/MalachiteEngine
+[new-issue]: https://github.com/informalsystems/malachite/issues/new
+[existing-issues]: https://github.com/informalsystems/malachite/issues
+[open-discussion]: https://github.com/informalsystems/malachite/discussions/new/choose
+[discussions-board]: https://github.com/informalsystems/malachite/discussions
