@@ -18,7 +18,7 @@ If you contribute to this project, your contributions will be made to the projec
 
 The Malachite project adheres to the [Rust Code of Conduct][rust-coc]. This code of conduct describes the minimum behavior expected from all contributors.
 
-Violations of this Code of Conduct can be reported by contacting the team at `conduct@informal.systems`.
+Violations of this Code of Conduct can be reported by contacting the team at above mentioned contact email.
 
 ## Ways to contribute
 
