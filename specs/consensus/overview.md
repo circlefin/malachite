@@ -417,9 +417,9 @@ implemented by the processes running the consensus protocol.
 ### Proposer Selection
 
 The `proposer(h, r)` function receives a height `h >= 0` and a round `r >= 0`
-and returns the process, among the processes running height `h` of consensus,
-selected as the proposer of round `r` of height `h`.
-The role of the proposer are described in the [`propose`](#propose) round step.
+and returns the process, among the processes running height `h`, selected as
+the proposer of round `r` of height `h`.
+The role of the proposer is described in the [`propose`](#propose) round step.
 
 The `proposer(h, r)` function requires the knowledge of the set of processes
 running the height `h` of consensus.
@@ -436,6 +436,21 @@ This means that any two correct processes that invoke `proposer(h, r)` with the
 same inputs, including the implicit input that is the set of processes running
 consensus height `h` and associated voting powers, should receive the exactly
 same output (process).
+
+#### Correctness
+
+From a consensus point of view, the main goal of the `proposer(h, r)` function
+is to eventually select a correct process to coordinate a round of consensus
+and propose a proper value, that can be accepted by correct processes.
+
+A correct implementation of the function must ensure that for every height `h`
+there is a round `r* >= 0` such that for all correct processes
+`proposer(h, r*) = p` and:
+
+1. `p` is a correct process: it does not misbehave and does not crash;
+2. `validRound_p` equals the maximum `validRound_q` among every correct process `q`.
+
+TODO: explain why.
 
 > The formalization of the properties requires for the proposer selection
 > algorithm is a work in progress, see
