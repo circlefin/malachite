@@ -141,12 +141,12 @@ where
         resume::Continue,
     ),
 
-    /// Append a consensus message to a WAL in the Write-Ahead Log for crash recovery
+    /// Append a consensus message to the Write-Ahead Log for crash recovery
     ///
     /// Resume with: [`resume::Continue`]`
     WalAppendMessage(SignedConsensusMsg<Ctx>, resume::Continue),
 
-    /// Append a timeout to a WAL in the Write-Ahead Log for crash recovery
+    /// Append a timeout to the Write-Ahead Log for crash recovery
     ///
     /// Resume with: [`resume::Continue`]`
     WalAppendTimeout(Timeout, resume::Continue),
