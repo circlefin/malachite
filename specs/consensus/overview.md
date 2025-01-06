@@ -1,19 +1,20 @@
 # Tendermint Consensus Algorithm
 
-A consensus algorithm is run by a (previously defined) set of **processes**[^1], some
-of which may fail, that **propose** values and guarantees that eventually all
-correct processes **decide** the same value, among the proposed ones.
+A consensus algorithm is run by a set of **processes**[^1], some of which may
+fail, that **propose** values and guarantees that eventually all correct
+processes **decide** the same value, among the proposed ones.
 
-[Tendermint][tendermint-arxiv] is a Byzantine Fault-Tolerant (BFT) consensus algorithm, which means
-that it is designed to tolerate the most comprehensive set of faulty
-behaviours.
-If fact, a Byzantine process is a faulty process that can operate arbitrarily, in
-particular it can, deliberately or not, disregard the rules imposed by the
+[Tendermint][tendermint-arxiv] is a Byzantine Fault-Tolerant (BFT) consensus
+algorithm, designed to tolerate the most comprehensive set of faulty behaviours.
+A Byzantine process is a faulty process that can operate arbitrarily;
+this means that in addition to the benign failures (crash, omission, etc.),
+it process can, deliberately or not, disregard the rules imposed by the
 algorithm.
 Tendermint can solve consensus as long as **less than one third of the
-processes are Byzantine**, i.e., operate arbitrarily.
+processes are Byzantine**.
 
-Tendermint assumes that all consensus messages contain a **digital signature**.
+Tendermint assumes that processes interact by exchanging messages.
+All consensus messages are assumed to include a **digital signature**.
 This enables a process receiving a message to authenticate its sender and
 content.
 Byzantine nodes are assumed to not to be able to break digital signatures,
@@ -27,17 +28,19 @@ of Tendermint are detailed.
 
 The algorithm presented in the [pseudo-code][pseudo-code] represent the
 operation of an instance of consensus in a process `p`.
+
 Each instance or **height** of the consensus algorithm is identified by an
 integer, represented by the `h_p` variable in the pseudo-code.
-The height `h_p` of consensus is concluded when the process reaches a decision
+The height `h_p` of consensus is finalized when the process reaches a decision
 on a value `v`, represented in the pseudo-code by the action
 `decision_p[h_p] = v` (line 51).
 A this point, the process increases `h_p` (line 52) and starts the next height
 of consensus, in which the same algorithm is executed again.
 
 For the sake of the operation of the consensus algorithm, heights are
-completely independent executions. For this reason, in this specification we
-consider and discuss the execution of a **single height of consensus**.
+completely independent executions.
+For this reason, in the remainder of this document we consider and discuss the
+execution of a **single height of consensus**.
 
 ## Rounds
 
@@ -45,15 +48,16 @@ A height of consensus is organized into rounds, identified by integers and
 always starting from round 0.
 The round at which a process `p` is identified in the
 [pseudo-code][pseudo-code] by the `round_p` variable.
-A successful round of consensus leads the process to decide on the value `v`
-proposed in that round, as in the pseudo-code block from line 49.
-An unsuccessful round of consensus does not decide a value and leads the
-process to move to the next round, as in the pseudo-code block from line 65,
-or to skip to an arbitrary higher round, as in the block from line 55.
+
+A **successful round** leads the process to decide on a value proposed in that
+round, as in the pseudo-code block starting from line 49.
+While in an **unsuccessful round** the process does not decide a value and
+move to the next round, as in the pseudo-code block of line 65,
+or skip to an arbitrary higher round, as in the pseud-code block of line 55.
 
 The execution of each round of consensus is led by a process selected as the
 **proposer** of that round.
-Tendermint assumes the existence of a [`proposer(h, r)` external function](#proposer-selection)
+Tendermint assumes the existence of a [`proposer(h, r)`](#proposer-selection) function
 that implements a deterministic proposer selection algorithm and returns the
 process that should be the proposer and lead round `r` of consensus height `h`.
 
