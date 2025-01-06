@@ -1,10 +1,9 @@
-#![cfg(all(feature = "compression", not(feature = "force-compression")))]
-
 use std::io;
 use std::sync::LazyLock;
 
-use informalsystems_malachitebft_wal::Log;
 use testdir::{NumberedDir, NumberedDirBuilder};
+
+use informalsystems_malachitebft_wal::Log;
 
 static TESTDIR: LazyLock<NumberedDir> =
     LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());

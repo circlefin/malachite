@@ -2158,23 +2158,11 @@ name = "informalsystems-malachitebft-core-driver"
 version = "0.0.1"
 dependencies = [
  "derive-where",
- "informalsystems-malachitebft-core-driver-test-utils",
  "informalsystems-malachitebft-core-state-machine",
  "informalsystems-malachitebft-core-types",
  "informalsystems-malachitebft-core-votekeeper",
  "informalsystems-malachitebft-test",
  "thiserror 2.0.9",
-]
-
-[[package]]
-name = "informalsystems-malachitebft-core-driver-test-utils"
-version = "0.0.1"
-dependencies = [
- "informalsystems-malachitebft-core-driver",
- "informalsystems-malachitebft-core-state-machine",
- "informalsystems-malachitebft-core-types",
- "informalsystems-malachitebft-core-votekeeper",
- "informalsystems-malachitebft-test",
 ]
 
 [[package]]

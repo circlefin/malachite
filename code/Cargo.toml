@@ -28,7 +28,6 @@ members = [
   "crates/test/mbt",
   "crates/test/mempool",
   "crates/network/test",
-  "crates/core-driver/test-utils",
 
   # Starknet
   "crates/starknet/*",
@@ -87,7 +86,6 @@ malachitebft-test                   = { version = "0.0.1", package = "informalsy
 malachitebft-test-mbt               = { version = "0.0.1", package = "informalsystems-malachitebft-test-mbt", path = "crates/test/mbt" }
 malachitebft-test-mempool           = { version = "0.0.1", package = "informalsystems-malachitebft-test-mempool", path = "crates/test/mempool" }
 malachitebft-discovery-test         = { version = "0.0.1", package = "informalsystems-malachitebft-discovery-test", path = "crates/network/test" }
-malachitebft-core-driver-test-utils = { version = "0.0.1", package = "informalsystems-malachitebft-core-driver-test-utils", path = "crates/core-driver/test-utils" }
 
 # Starknet
 malachitebft-starknet-host      = { version = "0.0.1", package = "informalsystems-malachitebft-starknet-host", path = "crates/starknet/host" }

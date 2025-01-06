@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use rand::{CryptoRng, RngCore};
 
-use informalsystems_malachitebft_test_mbt as test;
 use malachitebft_core_types::NilOrVal;
 use malachitebft_core_votekeeper as core;
 use malachitebft_test::{
     Address, PrivateKey, PublicKey, TestContext, Validator, ValidatorSet, ValueId,
 };
-use test::types::Value;
+
+use crate::types::Value;
 
 pub const VALIDATORS: [&str; 3] = ["alice", "bob", "john"];
 
@@ -48,7 +48,7 @@ pub fn value_from_model(value: &Value) -> NilOrVal<ValueId> {
 }
 
 pub fn check_votes(
-    expected: &test::votekeeper::VoteCount,
+    expected: &crate::votekeeper::VoteCount,
     actual: &core::count::VoteCount<TestContext>,
     address_map: &HashMap<String, Address>,
 ) {

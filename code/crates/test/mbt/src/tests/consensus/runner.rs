@@ -8,13 +8,12 @@ use malachitebft_core_state_machine::{state::State as RoundState, state_machine:
 use malachitebft_core_types::{Context, NilOrVal, Round};
 use malachitebft_test::{Address, Height, TestContext};
 
-use informalsystems_malachitebft_test_mbt as test;
-use test::consensus::{Input as ModelInput, Output as ModelOutput, State};
-use test::types::Step;
-
 use itf::Runner as ItfRunner;
 
-use crate::utils::{
+use crate::consensus::{Input as ModelInput, Output as ModelOutput, State};
+use crate::types::Step;
+
+use super::utils::{
     value_from_model, value_from_string, value_id_from_model, value_id_from_string, OTHER_PROCESS,
 };
 
