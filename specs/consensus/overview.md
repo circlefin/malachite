@@ -283,19 +283,20 @@ Vote is the generic name for `⟨PREVOTE, h, r, *⟩` and `⟨PRECOMMIT, h, r, *
 Tendermint includes two voting steps, the `prevote` and the `precommit` round
 steps, where the corresponding votes are exchanged.
 
-Differently from proposals, that are broadcast by the rounds' proposers to all
-processes (1-to-n communication pattern), every process is expected to
-broadcast its votes (n-to-n communication pattern), two votes per round.
+Differently from proposals, that are broadcast by the proposer of a round to
+all processes (1-to-n communication pattern), every process is expected to send
+its votes, two votes per round, to all processes (n-to-n communication
+pattern).
 However, while proposals carry a (full) proposed value `v`, with variable size,
-votes only carry a (fixed-size and small) unique identifier `id(v)` of the
-proposed value, or the special value `nil` (which means "no value").
+votes only carry a (probably fixed-size and small) unique identifier `id(v)` of
+the proposed value, or the special value `nil` (which means "no value").
 
 Moreover, the analysis of the [pseudo-code][pseudo-code] reveals that, while
 the reception of a proposal is considered by itself an event that may trigger a
 state transition, the reception of a _single_ vote message does not by itself
 trigger any state transition.
 The main reason for that is the fact that up to `f` processes are assumed to be
-Byzantine, which by definition can produce arbitrary vote messages.
+Byzantine and can produce arbitrary vote messages.
 As a result, no information produced by a single, or by a set with at most `f`
 processes can be considered legit and should not drive the operation of correct
 processes.
@@ -309,45 +310,40 @@ following failure assumptions:
    arbitrarily;
 2. The algorithm requires that less than one third of the processes are
    Byzantine. So, if `n` is the total number of processes, the algorithm
-   assumes `f < n/3`. In fact, the algorithm considers a set of `n = 3f + 1`
-   processes.
+   assumes that `f < n/3` processes can be Byzantine. It then considers a
+   minimal set of `n = 3f + 1` processes.
 
-These are built from the common assumption that processes are homogeneous, in
-the sense that the vote of any process counts the same: one process, one vote.
+This failure model is built from the common assumption that processes are
+homogeneous, in the sense that the vote of any process counts the same: one
+process, one vote.
 In other words, all processes have the same voting power.
 
-Tendermint was designed to support the operation of blockchains that adopt the
-Proof-of-Stake (PoS) strategy.
-In this strategy, processes are assumed to stake (deposit) some amount to be
+Tendermint was designed to support the operation of Proof-of-Stake (PoS)
+blockchains, where processes are assumed to stake (deposit) some amount to be
 active actors in the blockchain and to have a voting power that is proportional
 to the staked amount.
 In other words, when adopting the PoS framework, processes are assumed to have
 distinct voting powers.
-The failures assumptions are thus updated as follows:
+The failure assumptions are thus updated as follows:
 
 1. Each process `p` owns or has an associated voting power `p.power > 0`;
 2. The system is composed by a set of process whose aggregated or total voting
    power is `n`;
-3. The maximum voting power owned by or associated to Byzantine validators is
+3. The maximum voting power owned by or associated to Byzantine processes is
    assumed to be `f < n/3`.
-
-> The staking is typically managed at the application level and Tendermint
-> is informed or configured about the next validator set.
-> This is how the process works in Cosmos, where Tendermint and application
-> interacts via ABCI (application-blockchain interface), a standard,
-> language-agnostic communication protocol.
 
 This means, in particular, that when `f + 1` is used in the pseudo-code, it
 must be considered a set of processes whose aggregated voting power is strictly
-higher than `f`, namely strictly higher than `1/3` of the processes' total
-voting power `n`.
-This means that, among the considered processes, **at least one process is correct**.
+higher than `f`, i.e., strictly higher than `1/3` of the total voting power `n`
+of all processes.
+The use of this _threshold_ means that, among the considered processes,
+**at least one process is correct**.
 
-Analogously, when `2f + 1` is used in the pseudo-code, this should be interpreted
+Analogously, when `2f + 1` is used in the pseudo-code, it must be interpreted
 as a set of processes in which the aggregated voting power of correct processes
 in the set is strictly higher than the aggregated voting power of (potentially)
 Byzantine processes in the set.
-In other words, **the majority of the processes is correct**.
+The use of this _threshold_ means that **the majority of the considered processes is correct**.
 
 ### Byzantine Voters
 
