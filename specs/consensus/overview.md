@@ -144,16 +144,20 @@ when a decision is reached, so that the associated actions can be performed at
 any time when the **exit conditions** are observed:
 
 - If a process `p` is at any round step of round `round_p` and the conditions
-  from line 47 of the pseudo-code are observed, the process will schedule a
-  **timeout** for the `precommit` round step (line 48);
-- If the `timeoutPrecommit(height, round)` expires in a process `p` that still
-  has `round_p = round` and `h_p == height`, the current round `round_p` has
-  failed and the next round is started (line 67);
-- If a process `p` observes the conditions from line 49 of the pseudo-code for
+  from line 47 of the pseudo-code are observed (i.e., conflicting `PRECOMMIT`
+  messages for round `round_p`), the process schedules a **timeout** for the
+  `precommit` round step (line 48);
+- If the above mentioned scheduled **timeout** for the `precommit` round step
+  expires in a process `p` that still has `round_p = round` and `h_p == height`,
+  the current round `round_p` has failed and the process starts the next round (line 67);
+- If a process `p` observes the conditions from line 49 of the pseudo-code
+  (i.e., agreeing `PRECOMMIT` messages for a proposed value `v`) for
   **any round** `r` of its current height `h_p`, the decision value `v` is
   committed and the height `h_r` of consensus is finalized.
-  Notice that `r` can be the current round (`r = round_p`), a previous failed
-  round (`r < round_p`), or even a future round (`r > round_p`).
+
+Notice that in the last case, the commit round `r` can be the current round
+(`r = round_p`), a previous round (`r < round_p`) that the process deemed
+failed, or a future round (`r > round_p`).
 
 ## Messages
 
