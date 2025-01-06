@@ -417,21 +417,25 @@ implemented by the processes running the consensus protocol.
 ### Proposer Selection
 
 The `proposer(h, r)` function receives a height `h >= 0` and a round `r >= 0`
-and returns the process selected as the proposer of round `r` of height `h`.
+and returns the process, among the processes running height `h` of consensus,
+selected as the proposer of round `r` of height `h`.
 The role of the proposer are described in the [`propose`](#propose) round step.
 
 The `proposer(h, r)` function requires the knowledge of the set of processes
 running the height `h` of consensus.
 The set of processes running a given height of consensus is fixed, it cannot
 vary over rounds.
-But different heights on consensus may be run by distinct set of processes, or
-by the same set of processes but with distinct associated voting powers.
+But different heights on consensus may be run by distinct set of processes and
+the same processes may have distinct associated voting powers in different heights.
+
+#### Determinism
 
 Given a height `h` and the set of processes running height `h` of consensus,
 the `proposer(h, r)` function **must be deterministic**.
 This means that any two correct processes that invoke `proposer(h, r)` with the
 same inputs, including the implicit input that is the set of processes running
-consensus height `h`, should return the exactly same output.
+consensus height `h` and associated voting powers, should receive the exactly
+same output (process).
 
 > The formalization of the properties requires for the proposer selection
 > algorithm is a work in progress, see
