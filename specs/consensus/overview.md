@@ -324,7 +324,7 @@ active actors in the blockchain and to have a voting power that is proportional
 to the staked amount.
 In other words, when adopting the PoS framework, processes are assumed to have
 distinct voting powers.
-The failure assumptions are thus updated as follows:
+The failure assumptions are thus updated as:
 
 1. Each process `p` owns or has an associated voting power `p.power > 0`;
 2. The system is composed by a set of process whose aggregated or total voting
@@ -347,15 +347,14 @@ The use of this _threshold_ means that **the majority of the considered processe
 
 ### Byzantine Voters
 
-A correct process `p` will only broadcast one `⟨PREVOTE, h, r, *⟩` and one
-`⟨PRECOMMIT, h, r, *⟩` messages in round `r` of height `h`.
+A correct process `p` will broadcast at most one `⟨PREVOTE, h, r, *⟩` and at
+most one `⟨PRECOMMIT, h, r, *⟩` messages in round `r` of height `h`.
 The votes `p` broadcasts in each round step will carry either the unique
-identifier `id(v)` of the value `v`, received in a `⟨PROPOSAL, h, r, v, *⟩`
+identifier `id(v)` of the value `v`, that `p` has received in a `⟨PROPOSAL, h, r, v, *⟩`
 message from `proposer(h, r)`, or the special value `nil`.
 
 Byzantine processes, however, can broadcast multiple vote messages for the same
-round step, carrying any value they received or produced, including values that
-were not proposed on any round, and the special `nil` value.
+round step, carrying the identifier of any value or the special `nil` value.
 The main attacks that are worth considering, because of their potential of
 inducing undesirable behaviour, are two:
 
@@ -367,18 +366,16 @@ inducing undesirable behaviour, are two:
    `⟨PRECOMMIT, h, r, *⟩` messages for values that are not in line with the
    expected contents of its `lockedValue_q` and `lockedRound_q` variables.
 
-Since Byzantine processes can always produce **equivocation attacks**, a way
-that a correct process can deal with them is by only considering the first
+Since Byzantine processes can always produce **equivocation attacks**, a
+correct process can deal with them is by only considering the first
 `⟨PREVOTE, h, r, *⟩` or `⟨PRECOMMIT, h, r, *⟩` messages received from a process
 in a round `r` of height `h`.
 Different (equivocating) versions of the same message from the same sender
 should, from a defensive point of view, be disregarded and dropped by the
 consensus logic as they were duplicated messages.
 The reason for which is the fact that a Byzantine process can produce an
-arbitrary number of such messages.
-
-> For a more comprehensive discussion on producing evidences of equivocation
-> refer to this [document](./misbehavior.md).
+arbitrary number of such messages, therefore store all of them may constitute
+an attack vector.
 
 Unfortunately, there are multiple scenarios in which correct processes may
 receive equivocating messages from Byzantine voters in different orders, and
@@ -387,17 +384,8 @@ different state transitions in the consensus protocol.
 While this does not pose a threat to the safety of consensus, this might
 produce liveness issues, as correct processes may be left behind in the
 consensus computation.
-
-> TODO: more details on this [here](somewhere).
-> Previous content:
->  - A correct validator could "in theory" only consider the first vote message
->    received from a sender per round step, say it carries `id(v)`.
->    The problem of this approach is that `2f + 1`  validators might only
->    consider a different vote message from the same sender and round step,
->    carrying `id(v')` with `v' != v`. This may lead other validators to decide `v'`.
->    By ignoring the equivocating voting message carrying `id(v')`, the
->    validator might not be able to decide `v'`, which may compromise
->    liveness of the consensus algorithm.
+See this [discussion](https://github.com/informalsystems/malachite/discussions/380)
+for some examples.
 
 The **amnesia attack** is also virtually impossible to prevent and it is also
 harder to detect than equivocation ones.
@@ -419,7 +407,6 @@ correct behaviour provided that `p` is able to prove the existence of a
 > [Accountable Tendermint][accountable-tendermint], proposes some changes in
 > the algorithm to render it possible to detect and produce evidence for the
 > amnesia attack (see also [#398](https://github.com/informalsystems/malachite/issues/398)).
-
 
 ## Functions
 
