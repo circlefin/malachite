@@ -982,14 +982,14 @@ where
                 Ok(r.resume_with(()))
             }
 
-            Effect::PersistMessage(msg, r) => {
+            Effect::WalAppendMessage(msg, r) => {
                 self.wal_append(height, WalEntry::ConsensusMsg(msg), phase)
                     .await?;
 
                 Ok(r.resume_with(()))
             }
 
-            Effect::PersistTimeout(timeout, r) => {
+            Effect::WalAppendTimeout(timeout, r) => {
                 self.wal_append(height, WalEntry::Timeout(timeout), phase)
                     .await?;
 

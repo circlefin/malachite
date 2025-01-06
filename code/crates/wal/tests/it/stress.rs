@@ -1,8 +1,9 @@
-use rand::{thread_rng, Rng};
 use std::fs;
 use std::io;
 use std::sync::LazyLock;
 use std::time::Instant;
+
+use rand::{thread_rng, Rng};
 use testdir::NumberedDir;
 use testdir::NumberedDirBuilder;
 

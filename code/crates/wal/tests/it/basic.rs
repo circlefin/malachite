@@ -6,9 +6,9 @@ use std::sync::LazyLock;
 use std::time::Duration;
 use std::{fs, io, str};
 
-use informalsystems_malachitebft_wal::{Log, Version};
-
 use testdir::{NumberedDir, NumberedDirBuilder};
+
+use informalsystems_malachitebft_wal::{Log, Version};
 
 static TESTDIR: LazyLock<NumberedDir> =
     LazyLock::new(|| NumberedDirBuilder::new("wal".to_string()).create().unwrap());

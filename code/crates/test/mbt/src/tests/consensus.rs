@@ -1,14 +1,12 @@
-#[path = "consensus/runner.rs"]
-pub mod runner;
-#[path = "consensus/utils.rs"]
-pub mod utils;
-
 use glob::glob;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use informalsystems_malachitebft_test_mbt::consensus::State;
-use informalsystems_malachitebft_test_mbt::utils::{generate_test_traces, quint_seed};
+use crate::consensus::State;
+use crate::utils::{generate_test_traces, quint_seed};
+
+pub mod runner;
+pub mod utils;
 
 use runner::ConsensusRunner;
 

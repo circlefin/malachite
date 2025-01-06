@@ -78,7 +78,7 @@ where
     // Append the vote to the Write-ahead Log
     perform!(
         co,
-        Effect::PersistMessage(
+        Effect::WalAppendMessage(
             SignedConsensusMsg::Vote(signed_vote.clone()),
             Default::default()
         )

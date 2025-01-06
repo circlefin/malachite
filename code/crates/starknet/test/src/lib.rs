@@ -24,6 +24,9 @@ use malachitebft_starknet_host::spawn::spawn_node_actor;
 use malachitebft_starknet_host::types::MockContext;
 use malachitebft_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
 
+#[cfg(test)]
+pub mod tests;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Expected {
     Exactly(usize),

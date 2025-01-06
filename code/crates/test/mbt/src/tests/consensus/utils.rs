@@ -4,9 +4,8 @@ use rand::rngs::StdRng;
 
 use malachitebft_test::{Address, PrivateKey, Value, ValueId};
 
-use informalsystems_malachitebft_test_mbt as test;
-use test::consensus::State;
-use test::types::{NonNilValue, Value as ModelValue};
+use crate::consensus::State;
+use crate::types::{NonNilValue, Value as ModelValue};
 
 pub const OTHER_PROCESS: &str = "Other";
 

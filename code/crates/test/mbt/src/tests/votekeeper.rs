@@ -1,14 +1,14 @@
-#[path = "votekeeper/runner.rs"]
-pub mod runner;
-#[path = "votekeeper/utils.rs"]
-pub mod utils;
-
 use glob::glob;
-use informalsystems_malachitebft_test_mbt::utils::generate_test_traces;
-use informalsystems_malachitebft_test_mbt::votekeeper::State;
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+
+use crate::utils::generate_test_traces;
+use crate::votekeeper::State;
+
+pub mod runner;
+pub mod utils;
+
 use runner::VoteKeeperRunner;
 
 const RANDOM_SEED: u64 = 0x42;

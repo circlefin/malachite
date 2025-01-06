@@ -5,17 +5,14 @@ use malachitebft_core_votekeeper::keeper::{Output, VoteKeeper};
 use malachitebft_core_votekeeper::ThresholdParams;
 use malachitebft_test::{Address, Height, Signature, TestContext, Vote};
 
-use informalsystems_malachitebft_test_mbt as test;
-use test::types::{Value as ModelValue, VoteType};
-use test::votekeeper::VoteKeeperOutput::*;
-use test::votekeeper::{State, WeightedVote};
-
 use itf::Runner as ItfRunner;
 use rand::rngs::StdRng;
 
-use crate::utils::build_address_map;
+use crate::types::{Value as ModelValue, VoteType};
+use crate::votekeeper::VoteKeeperOutput::*;
+use crate::votekeeper::{State, WeightedVote};
 
-use super::utils::{build_validator_set, check_votes, value_from_model};
+use super::utils::{build_address_map, build_validator_set, check_votes, value_from_model};
 
 #[derive(Debug)]
 pub struct VoteKeeperRunner {
