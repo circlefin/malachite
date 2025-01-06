@@ -50,4 +50,4 @@ _Adapted from the CometBFT and Reth contributing guides._
 
 
 [rust-coc]: https://www.rust-lang.org/en-US/conduct.html
-[tg]: https://t.me/MalachiteLibrary
+[tg]: https://t.me/MalachiteEngine
