@@ -27,17 +27,11 @@ macro_rules! process {
         loop {
             match co_result {
                 $crate::gen::CoResult::Yielded($effect) => {
-                    let resume = match $handle {
-                        Ok(resume) => resume,
-                        Err(error) => {
-                            $crate::tracing::error!("Error when processing effect: {error:?}");
-                            $crate::Resume::Continue
-                        }
-                    };
-                    co_result = gen.resume_with(resume)
+                    let resume = $handle?;
+                    co_result = gen.resume_with(resume);
                 }
                 $crate::gen::CoResult::Complete(result) => {
-                    return result.map_err(Into::into);
+                    break result.map_err(Into::into);
                 }
             }
         }

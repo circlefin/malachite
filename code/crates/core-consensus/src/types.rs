@@ -1,8 +1,8 @@
 use derive_where::derive_where;
 
-use malachitebft_core_types::{
-    Context, Proposal, Round, Signature, SignedExtension, SignedProposal, SignedVote, Validity,
-    Vote,
+pub use malachitebft_core_types::{
+    Context, Proposal, Round, Signature, SignedExtension, SignedProposal, SignedVote, Timeout,
+    Validity, Vote,
 };
 
 pub use malachitebft_peer::PeerId;

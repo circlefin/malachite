@@ -124,6 +124,10 @@ impl ValidatorSet {
     pub fn get_keys(&self) -> Vec<PublicKey> {
         self.validators.iter().map(|v| v.public_key).collect()
     }
+
+    pub fn get_by_index(&self, index: usize) -> Option<&Validator> {
+        self.validators.get(index)
+    }
 }
 
 impl malachitebft_core_types::ValidatorSet<TestContext> for ValidatorSet {

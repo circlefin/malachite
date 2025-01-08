@@ -223,7 +223,7 @@ where
         myself: &ActorRef<Msg<Ctx>>,
         state: &mut State<Ctx>,
         input: ConsensusInput<Ctx>,
-    ) -> Result<(), ConsensusError<Ctx>> {
+    ) -> Result<(), ActorProcessingErr> {
         let height = state.height();
 
         malachitebft_core_consensus::process!(
@@ -382,13 +382,17 @@ where
                                 return Ok(());
                             };
 
-                            if let ConsensusError::InvalidCertificate(certificate, e) = e {
-                                sync.cast(SyncMsg::InvalidCertificate(peer, certificate, e))
-                                    .map_err(|e| {
-                                        eyre!(
-                                            "Error when notifying sync of invalid certificate: {e}"
-                                        )
-                                    })?;
+                            if let Some(ConsensusError::InvalidCertificate(certificate, e)) =
+                                e.downcast_ref::<ConsensusError<Ctx>>()
+                            {
+                                sync.cast(SyncMsg::InvalidCertificate(
+                                    peer,
+                                    certificate.clone(),
+                                    e.clone(),
+                                ))
+                                .map_err(|e| {
+                                    eyre!("Error when notifying sync of invalid certificate: {e}")
+                                })?;
                             }
                         }
                     }

@@ -8,14 +8,14 @@ use crate::ValuePayload;
 /// Consensus parameters.
 #[derive_where(Clone, Debug)]
 pub struct Params<Ctx: Context> {
+    /// The address of this validator
+    pub address: Ctx::Address,
+
     /// The initial height
     pub initial_height: Ctx::Height,
 
     /// The initial validator set
     pub initial_validator_set: Ctx::ValidatorSet,
-
-    /// The address of this validator
-    pub address: Ctx::Address,
 
     /// The quorum and honest thresholds
     pub threshold_params: ThresholdParams,

@@ -63,9 +63,9 @@ where
     };
 
     let consensus_params = ConsensusParams {
+        address,
         initial_height,
         initial_validator_set,
-        address,
         threshold_params: Default::default(),
         value_payload,
     };

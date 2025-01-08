@@ -44,7 +44,7 @@ pub trait Resumable<Ctx: Context> {
 ///
 /// [process]: crate::process
 #[must_use]
-#[derive_where(Debug)]
+#[derive_where(Debug, PartialEq, Eq)]
 pub enum Effect<Ctx>
 where
     Ctx: Context,
@@ -184,7 +184,7 @@ where
 /// A value with which the consensus process can be resumed after yielding an [`Effect`].
 #[must_use]
 #[allow(clippy::manual_non_exhaustive)]
-#[derive_where(Debug)]
+#[derive_where(Debug, PartialEq, Eq)]
 pub enum Resume<Ctx>
 where
     Ctx: Context,
@@ -216,7 +216,7 @@ where
 pub mod resume {
     use super::*;
 
-    #[derive(Debug, Default)]
+    #[derive(Debug, Default, PartialEq, Eq)]
     pub struct Continue;
 
     impl<Ctx: Context> Resumable<Ctx> for Continue {
@@ -227,7 +227,7 @@ pub mod resume {
         }
     }
 
-    #[derive(Debug, Default)]
+    #[derive(Debug, Default, PartialEq, Eq)]
     pub struct ValidatorSet;
 
     impl<Ctx: Context> Resumable<Ctx> for ValidatorSet {
@@ -238,7 +238,7 @@ pub mod resume {
         }
     }
 
-    #[derive(Debug, Default)]
+    #[derive(Debug, Default, PartialEq, Eq)]
     pub struct SignatureValidity;
 
     impl<Ctx: Context> Resumable<Ctx> for SignatureValidity {
@@ -249,7 +249,7 @@ pub mod resume {
         }
     }
 
-    #[derive(Debug, Default)]
+    #[derive(Debug, Default, PartialEq, Eq)]
     pub struct SignedVote;
 
     impl<Ctx: Context> Resumable<Ctx> for SignedVote {
@@ -260,7 +260,7 @@ pub mod resume {
         }
     }
 
-    #[derive(Debug, Default)]
+    #[derive(Debug, Default, PartialEq, Eq)]
     pub struct SignedProposal;
 
     impl<Ctx: Context> Resumable<Ctx> for SignedProposal {
@@ -271,7 +271,7 @@ pub mod resume {
         }
     }
 
-    #[derive(Debug, Default)]
+    #[derive(Debug, Default, PartialEq, Eq)]
     pub struct CertificateValidity;
 
     impl<Ctx: Context> Resumable<Ctx> for CertificateValidity {

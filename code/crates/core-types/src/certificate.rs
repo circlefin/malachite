@@ -97,7 +97,7 @@ impl<Ctx: Context> CommitCertificate<Ctx> {
 }
 
 /// Represents an error that can occur when verifying a certificate.
-#[derive_where(Clone, Debug)]
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 #[derive(Error)]
 pub enum CertificateError<Ctx: Context> {
     /// One of the commit signature is invalid.

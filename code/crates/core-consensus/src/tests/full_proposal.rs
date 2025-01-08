@@ -5,9 +5,10 @@ use malachitebft_test::utils::validators::make_validators;
 use malachitebft_test::{Address, Proposal, Value};
 use malachitebft_test::{Height, TestContext};
 
-use informalsystems_malachitebft_core_consensus::{
-    FullProposal, FullProposalKeeper, Input, ProposedValue,
-};
+use crate::full_proposal::{FullProposal, FullProposalKeeper};
+
+use crate::input::Input;
+use crate::types::ProposedValue;
 
 fn signed_proposal_pol(
     ctx: &TestContext,
