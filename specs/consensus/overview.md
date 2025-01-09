@@ -413,7 +413,7 @@ correct behaviour provided that `p` is able to prove the existence of a
 
 The [pseudo-code][pseudo-code] of the consensus algorithm includes calls to
 functions that are not defined in the pseudo-code itself, but are assumed to be
-implemented by the processes running the consensus protocol.
+implemented by the context/application that uses the consensus protocol.
 
 ### Proposer Selection
 
@@ -437,11 +437,41 @@ height of consensus `h_p`.
 
 ### Validation
 
-The external function `valid(v)` is invoked by a process when it receives a
-`⟨PROPOSAL, h, r, v, *⟩` from the proposer of round `r` of height `h`.
-It should return whether the `v` is a valid value according to the semantics of 
-the "client" of the consensus protocol, i.e., the application that uses
-consensus to agree on proposed values.
+The external function `valid` is used to guard any value-specific action in 
+the algorithm. The purpose is to restrict the domain of values that consensus 
+may decide. There is the assumption that if `v` is a value returned
+by the  `getValue()` function of a correct process in the current height, then
+`valid(v)` evaluates to `true`. Under this assumption, as long as the proposer
+is correct, `valid(v)` does not serve any purpose. It only becomes relevant if
+there is a faulty proposer; it limits "how bad" proposed values can be.
+
+In the arXiv paper, the pseudo code uses `valid(v)`, that is, a function that
+maps a value to a boolean. Observe that this should be understood in terms
+of a mathematical (pure) function:
+1. the function must only depend on `v` but not on other data (e.g., an application state at a given point in time, the current local time or temperature)
+2. If invoked several times for the same input, the function always returns the same boolean value (determinism)
+3. If invoked on different processes for the same input, the function always returns the same boolean value 
+
+The correctness of the consensus algorithm depends heavily on these points. 
+Most obviously for termination we require that all correct processes find 
+the value by a correct proposer valid under all circumstances, because we
+need them to all prevote for the value. A deviation in `valid` would 
+result in some processes
+prevoting nil, and consequently, there might never be enough votes for a 
+value to decide.
+
+
+However, in implementations the validity check typically is not pure:
+as mentioned in the arXiv paper "In the context of blockchain systems, 
+for example, a value is not valid if it does not
+contain an appropriate hash of the last value (block) added to the blockchain." That is, rather than `valid(v)` the implementation has something like `valid(v, chain)`, that is, a value that might be valid at blockchain height 5, might be invalid at height 6. Observe that as long as all processes agree on the state of the chain up to height 5 when they start consensus for height 6, this will not harm liveness. (There have been cases of non-determinism in the application level that led to processes disagreeing on the application state and thus consensus being blocked at a given height)
+
+Remark. We have seen (ab)uses of valid, that use external data. Consider he toy example of the proposer proposing the current room temperature, and the processes checking in `valid` whether the temperature is within one degree of their room temperature. It is easy to see that this a priori violates the points 1-3 above. One the one hand, this requires additional assumption on the environment to ensure termination, on the other hand, it is impossible to check validity after the fact (e.g., a late joiner cannot check validity of a value that processes have decided some time ago). So this use is not encouraged, and we ignore it in the remainder.
+
+
+continue here:
+
+
 
 > TODO: relevant observation:
 > - Validation typically depends on `h` as well, in particular on the
