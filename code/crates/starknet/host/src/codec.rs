@@ -564,7 +564,7 @@ impl Codec<CommitCertificate<MockContext>> for ProtobufCodec {
 }
 
 pub fn encode_synced_value(
-    synced_value: &sync::DecidedValue<MockContext>,
+    synced_value: &sync::RawDecidedValue<MockContext>,
 ) -> Result<proto::sync::SyncedValue, ProtoError> {
     Ok(proto::sync::SyncedValue {
         value_bytes: synced_value.value_bytes.clone(),
@@ -574,28 +574,28 @@ pub fn encode_synced_value(
 
 pub fn decode_synced_value(
     proto: proto::sync::SyncedValue,
-) -> Result<sync::DecidedValue<MockContext>, ProtoError> {
+) -> Result<sync::RawDecidedValue<MockContext>, ProtoError> {
     let Some(certificate) = proto.certificate else {
         return Err(ProtoError::missing_field::<proto::sync::SyncedValue>(
             "certificate",
         ));
     };
 
-    Ok(sync::DecidedValue {
+    Ok(sync::RawDecidedValue {
         value_bytes: proto.value_bytes,
         certificate: decode_certificate(certificate)?,
     })
 }
 
-impl Codec<sync::DecidedValue<MockContext>> for ProtobufCodec {
+impl Codec<sync::RawDecidedValue<MockContext>> for ProtobufCodec {
     type Error = ProtoError;
 
-    fn decode(&self, bytes: Bytes) -> Result<sync::DecidedValue<MockContext>, Self::Error> {
+    fn decode(&self, bytes: Bytes) -> Result<sync::RawDecidedValue<MockContext>, Self::Error> {
         let proto = proto::sync::SyncedValue::decode(bytes).map_err(ProtoError::Decode)?;
         decode_synced_value(proto)
     }
 
-    fn encode(&self, msg: &sync::DecidedValue<MockContext>) -> Result<Bytes, Self::Error> {
+    fn encode(&self, msg: &sync::RawDecidedValue<MockContext>) -> Result<Bytes, Self::Error> {
         Ok(Bytes::from(encode_synced_value(msg)?.encode_to_vec()))
     }
 }

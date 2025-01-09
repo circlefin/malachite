@@ -66,7 +66,7 @@ const CERTIFICATES_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> =
 const DECIDED_VALUES_TABLE: redb::TableDefinition<HeightKey, Vec<u8>> =
     redb::TableDefinition::new("decided_values");
 
-const UNDECIDED_VALUES_TABLE: redb::TableDefinition<UndecidedValueKey, Vec<u8>> =
+const UNDECIDED_PROPOSALS_TABLE: redb::TableDefinition<UndecidedValueKey, Vec<u8>> =
     redb::TableDefinition::new("undecided_values");
 
 struct Db {
@@ -118,13 +118,13 @@ impl Db {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_undecided_value(
+    pub fn get_undecided_proposal(
         &self,
         height: Height,
         round: Round,
     ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
         let tx = self.db.begin_read()?;
-        let table = tx.open_table(UNDECIDED_VALUES_TABLE)?;
+        let table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
 
         let value = if let Ok(Some(value)) = table.get(&(height, round)) {
             Some(
@@ -139,12 +139,15 @@ impl Db {
         Ok(value)
     }
 
-    fn insert_undecided_value(&self, value: ProposedValue<TestContext>) -> Result<(), StoreError> {
-        let key = (value.height, value.round);
-        let value = ProtobufCodec.encode(&value)?;
+    fn insert_undecided_proposal(
+        &self,
+        proposal: ProposedValue<TestContext>,
+    ) -> Result<(), StoreError> {
+        let key = (proposal.height, proposal.round);
+        let value = ProtobufCodec.encode(&proposal)?;
         let tx = self.db.begin_write()?;
         {
-            let mut table = tx.open_table(UNDECIDED_VALUES_TABLE)?;
+            let mut table = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
             table.insert(key, value.to_vec())?;
         }
         tx.commit()?;
@@ -166,7 +169,7 @@ impl Db {
             .collect::<Vec<_>>())
     }
 
-    fn undecided_values_range<Table>(
+    fn undecided_proposals_range<Table>(
         &self,
         table: &Table,
         range: impl RangeBounds<(Height, Round)>,
@@ -184,8 +187,8 @@ impl Db {
     fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {
         let tx = self.db.begin_write().unwrap();
         let pruned = {
-            let mut undecided = tx.open_table(UNDECIDED_VALUES_TABLE)?;
-            let keys = self.undecided_values_range(&undecided, ..(retain_height, Round::Nil))?;
+            let mut undecided = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
+            let keys = self.undecided_proposals_range(&undecided, ..(retain_height, Round::Nil))?;
             for key in keys {
                 undecided.remove(key)?;
             }
@@ -205,53 +208,64 @@ impl Db {
         Ok(pruned)
     }
 
-    fn first_key(&self) -> Option<Height> {
+    fn min_decided_value_height(&self) -> Option<Height> {
         let tx = self.db.begin_read().unwrap();
         let table = tx.open_table(DECIDED_VALUES_TABLE).unwrap();
         let (key, _) = table.first().ok()??;
         Some(key.value())
     }
 
-    fn last_key(&self) -> Option<Height> {
-        let tx = self.db.begin_read().unwrap();
-        let table = tx.open_table(DECIDED_VALUES_TABLE).unwrap();
-        let (key, _) = table.last().ok()??;
-        Some(key.value())
-    }
+    // fn max_decided_value_height(&self) -> Option<Height> {
+    //     let tx = self.db.begin_read().unwrap();
+    //     let table = tx.open_table(DECIDED_VALUES_TABLE).unwrap();
+    //     let (key, _) = table.last().ok()??;
+    //     Some(key.value())
+    // }
 
     fn create_tables(&self) -> Result<(), StoreError> {
         let tx = self.db.begin_write()?;
         // Implicitly creates the tables if they do not exist yet
         let _ = tx.open_table(DECIDED_VALUES_TABLE)?;
         let _ = tx.open_table(CERTIFICATES_TABLE)?;
-        let _ = tx.open_table(UNDECIDED_VALUES_TABLE)?;
+        let _ = tx.open_table(UNDECIDED_PROPOSALS_TABLE)?;
         tx.commit()?;
         Ok(())
     }
 }
 
 #[derive(Clone)]
-pub struct ValueStore {
+pub struct Store {
     db: Arc<Db>,
 }
 
-impl ValueStore {
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, StoreError> {
+impl Store {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, StoreError> {
         let db = Db::new(path)?;
         db.create_tables()?;
 
         Ok(Self { db: Arc::new(db) })
     }
 
-    pub fn first_height(&self) -> Option<Height> {
-        self.db.first_key()
+    pub async fn min_decided_value_height(&self) -> Option<Height> {
+        let db = Arc::clone(&self.db);
+        tokio::task::spawn_blocking(move || db.min_decided_value_height())
+            .await
+            .ok()
+            .flatten()
     }
 
-    pub fn last_height(&self) -> Option<Height> {
-        self.db.last_key()
-    }
+    // pub async fn max_decided_value_height(&self) -> Option<Height> {
+    //     let db = Arc::clone(&self.db);
+    //     tokio::task::spawn_blocking(move || db.max_decided_value_height())
+    //         .await
+    //         .ok()
+    //         .flatten()
+    // }
 
-    pub async fn get(&self, height: Height) -> Result<Option<DecidedValue>, StoreError> {
+    pub async fn get_decided_value(
+        &self,
+        height: Height,
+    ) -> Result<Option<DecidedValue>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.get_decided_value(height)).await?
     }
@@ -270,21 +284,21 @@ impl ValueStore {
         tokio::task::spawn_blocking(move || db.insert_decided_value(decided_value)).await?
     }
 
-    pub async fn store_undecided_value(
+    pub async fn store_undecided_proposal(
         &self,
         value: ProposedValue<TestContext>,
     ) -> Result<(), StoreError> {
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.insert_undecided_value(value)).await?
+        tokio::task::spawn_blocking(move || db.insert_undecided_proposal(value)).await?
     }
 
-    pub async fn get_undecided_value(
+    pub async fn get_undecided_proposal(
         &self,
         height: Height,
         round: Round,
     ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
         let db = Arc::clone(&self.db);
-        tokio::task::spawn_blocking(move || db.get_undecided_value(height, round)).await?
+        tokio::task::spawn_blocking(move || db.get_undecided_proposal(height, round)).await?
     }
 
     pub async fn prune(&self, retain_height: Height) -> Result<Vec<Height>, StoreError> {

@@ -342,7 +342,7 @@ pub fn encode_sync_response(
 }
 
 pub fn encode_synced_value(
-    synced_value: &sync::DecidedValue<TestContext>,
+    synced_value: &sync::RawDecidedValue<TestContext>,
 ) -> Result<proto::SyncedValue, ProtoError> {
     Ok(proto::SyncedValue {
         value_bytes: synced_value.value_bytes.clone(),
@@ -352,12 +352,12 @@ pub fn encode_synced_value(
 
 pub fn decode_synced_value(
     proto: proto::SyncedValue,
-) -> Result<sync::DecidedValue<TestContext>, ProtoError> {
+) -> Result<sync::RawDecidedValue<TestContext>, ProtoError> {
     let certificate = proto
         .certificate
         .ok_or_else(|| ProtoError::missing_field::<proto::SyncedValue>("certificate"))?;
 
-    Ok(sync::DecidedValue {
+    Ok(sync::RawDecidedValue {
         value_bytes: proto.value_bytes,
         certificate: decode_certificate(certificate)?,
     })

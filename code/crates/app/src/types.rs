@@ -25,7 +25,7 @@ pub mod streaming {
 }
 
 pub mod sync {
-    pub use malachitebft_sync::{DecidedValue, Metrics, Request, Response, Status};
+    pub use malachitebft_sync::{Metrics, RawDecidedValue, Request, Response, Status};
 }
 
 pub mod codec {
