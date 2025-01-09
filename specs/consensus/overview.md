@@ -455,20 +455,22 @@ different rounds of a height.
 
 #### Fairness
 
-Tendermint is a _rotating coordinator_ consensus algorithm.
+Tendermint is a consensus algorithm that adheres to the _rotating coordinator_
+approach.
 This means that the role of coordinating rounds and proposing values is
 expected to be played by different processes over time, in successive
 heights of consensus.
-(In contrast to the fixed coordinator approach, where the coordinator or
+(In contrast to the _fixed coordinator_ approach, where the coordinator or
 proposer is only replaced when it is suspected to be faulty).
 
-While a correct `proposer(h, r)` implementation eventually selects all
-processes as the proposers of a round, being the proposer of the first round of
-a height is the most relevant role, since most heights of consensus are
-expected to be finalized in round 0.
+While a correct `proposer(h, r)` implementation eventually selects every
+process as the proposer of a round of height `h`, being the proposer of the
+first round of a height is the most relevant role, since most heights of
+consensus are expected to be finalized in round 0.
 A fair proposer selection algorithm should therefore ensure that all processes
-have a similar chance of being selected as `proposer(h, 0)` over a reasonable
-long sequence of heights `h`.
+have, over a reasonable long sequence of heights `h`, a similar chance of being
+selected as `proposer(h, 0)`, thus to propose the value that is most likely to be
+decided on that height.
 
 In the case of Proof-of-Stake (PoS) blockchains, where processes are assumed to
 have distinct voting powers, a fair proposer selection algorithm should ensure
