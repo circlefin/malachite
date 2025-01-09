@@ -443,9 +443,15 @@ same output (process).
 The main goal of the `proposer(h, r)` function is to eventually select a
 correct process to coordinate a round of consensus and to propose an
 appropriate value for it.
-A correct implementation of the function must ensure, that for every height
+A correct implementation of the function must guarantee that, for every height
 `h`, there is a round `r* >= 0` where `proposer(h, r*)` returns a process `p`
 that is a correct process: `p` does not misbehave nor crash.
+
+Fortunately, it is relatively simple to produce a correct implementation of the
+`proposer(h, r)` method: it is enough to ensure that every process running
+consensus height `h` is selected as the proposer for at least one round.
+In other words, it is enough that processes take turns as the proposers of
+different rounds of a height.
 
 ### Proposal value
 
