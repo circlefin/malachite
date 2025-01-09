@@ -1,0 +1,9 @@
+/specs/ @cason @josef-widder
+/code/ @ancazamfir @romac
+/code/examples @ancazamfir @greg-szabo @romac 
+/docs/ @adizere @ancazamfir @greg-szabo @romac
+/scripts/ @ancazamfir @greg-szabo @romac
+/qa/ @greg-szabo
+/*.md @adizere @ancazamfir @greg-szabo @romac
+/*.yml @greg-szabo @romac
+/*.toml @greg-szabo @romac

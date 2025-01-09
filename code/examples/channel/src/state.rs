@@ -1,7 +1,7 @@
 //! Internal state of the application. This is a simplified abstract to keep it simple.
 //! A regular application would have mempool implemented, a proper database and input methods like RPC.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use bytes::Bytes;
 use rand::rngs::StdRng;
@@ -32,6 +32,7 @@ pub struct State {
     pub current_height: Height,
     pub current_round: Round,
     pub current_proposer: Option<Address>,
+    pub peers: HashSet<PeerId>,
 
     undecided_proposals: HashMap<(Height, Round), ProposedValue<TestContext>>,
     decided_proposals: HashMap<Height, ProposedValue<TestContext>>,
@@ -70,6 +71,7 @@ impl State {
             decided_values: BTreeMap::new(),
             streams_map: PartStreamsMap::new(),
             rng: StdRng::seed_from_u64(seed_from_address(&address)),
+            peers: HashSet::new(),
         }
     }
 
