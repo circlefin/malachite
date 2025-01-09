@@ -121,26 +121,34 @@ a small proposal message carrying only the has of the value, and the big proposa
       is run.   
 
 Observe that the way it is typically implemented, `proposer(h, r)` is not a
-"mathematical function" that takes as input the height and the round and
-produces an ID. Rather it is typically implemented as a stateful function that
-is based on priorities. The latter depend on voting powers and who has been
-proposer in previous heights.
+"mathematical function" that takes as input the height, the round, and the set
+of processes running that height and returns a process.
+Rather it is typically implemented as a function that keeps an internal state,
+for instance to represent the process priorities, as in the case of
+the [proposer selection procedure of CometBFT][cometbft-proposer].
+The latter depends on voting powers and who has been proposer in previous
+heights.
 
 Verification is more complex than double vote and double propose:
 
 - In contrast to double vote, where it is still trivial to verify the
   misbehavior evidence a week after it was generated, in order to verify bad
-  proposer we need knowledge on the validator priorities at that time. 
+  proposer we may need knowledge of the internal state of the proposer selection
+  algorithm at that time.
 - multiple layers are involved
     - maintaining and updating voting powers is typically an application level
       concern
-    - the `proposer(h, r)` function is situated at the consensus level
+    - the [`proposer(h, r)` function](./overview.md#proposer-selection) is
+      situated at the consensus level
     - misbehavior detection can only happen at consensus level
     - in order to use the evidence, the application must be able to verify the
       evidence. This this case it means that the application must
-        - be aware of the consensus-level `proposer` function and priorities, namely, be able to reproduce the output of `proposer(h, r)` for any given state
+        - be aware of the consensus-level `proposer(h, r)` function and its
+          internal state, namely, be able to reproduce the output of
+          `proposer(h, r)` for any given height
         - potentially have historical data (the evidence might come a couple of
-          blocks after the fact) on validator sets
+          blocks after the fact) on the set of processes running consensus at
+          multiple heights
 
 ### What cannot be done
 
@@ -202,3 +210,5 @@ The change to Tendermint is just that prevote messages have an additional field
 that carries the content of the `vr` field of the proposal that triggered
 the sending of the prevote. 
 See [Accountable Tendermint](./accountable-tm/README.md) for more details.
+
+[cometbft-proposer]: https://github.com/cometbft/cometbft/blob/main/spec/consensus/proposer-selection.md
