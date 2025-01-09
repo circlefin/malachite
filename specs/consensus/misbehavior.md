@@ -69,19 +69,20 @@ constitute a source of information for social or legal actions after-the-fact.
 CometBFT only record specific misbehavior, namely the [duplicate vote
 evidence](https://github.com/cometbft/cometbft/blob/main/spec/core/data_structures.md#duplicatevoteevidence).
 While attacks are rare, such behavior has been observed as a result of
-misconfiguration. Most companies operating a validator typically implement this
+misconfiguration. Most companies operating a consensus process (also known as a
+_validator_) typically implement this
 node as a fault-tolerant setup itself, having copies of the private key of the
-validator on multiple machines. If such a fault-tolerant setup is implemented
+process on multiple machines. If such a fault-tolerant setup is implemented
 poorly or misconfigured, this may result in duplicate (and sometimes
 conflicting) signatures in a protocol step, although no actual attack was
 intended. Still, such behavior may be used for mild penalties (e.g., not paying
 fees to the validator for some time, taking a small penalty of their stake), as
-part of the incentivization scheme motivating validator operators to fix such
+part of the incentivization scheme motivating operators to fix such
 issues and ensure reliability of their node. 
 
 While a single instance of an unintentional double vote of one process does
 not pose big problems (it cannot bring disagreement), repeated unintentional
-double votes by several validator operators having large voting power might
+double votes by several processes having large voting power might
 eventually lead to disagreement and a chain halt. Therefore it make sense to
 incentivize individual operators to fix their setup while the whole system is
 still operational.
