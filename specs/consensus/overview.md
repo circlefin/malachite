@@ -424,14 +424,14 @@ The role of the proposer is described in the [`propose`](#propose) round step.
 
 The `proposer(h, r)` function requires the knowledge of the set of processes
 running the height `h` of consensus.
-The set of processes running a given height of consensus is fixed, it cannot
-vary over rounds.
+The set of processes running a given height of consensus is fixed:
+it cannot vary over rounds.
 But different heights on consensus may be run by distinct set of processes and
-the same processes may have distinct associated voting powers in different heights.
+processes may have distinct associated [voting powers](#voting-power) in different heights.
 
 #### Determinism
 
-Given a height `h` and the set of processes running height `h` of consensus,
+Given a consensus height `h` and the set of processes running height `h`,
 the `proposer(h, r)` function **must be deterministic**.
 This means that any two correct processes that invoke `proposer(h, r)` with the
 same inputs, including the implicit input that is the set of processes running
@@ -440,22 +440,12 @@ same output (process).
 
 #### Correctness
 
-From a consensus point of view, the main goal of the `proposer(h, r)` function
-is to eventually select a correct process to coordinate a round of consensus
-and propose a proper value, that can be accepted by correct processes.
-
-A correct implementation of the function must ensure that for every height `h`
-there is a round `r* >= 0` such that for all correct processes
-`proposer(h, r*) = p` and:
-
-1. `p` is a correct process: it does not misbehave and does not crash;
-2. `validRound_p` equals the maximum `validRound_q` among every correct process `q`.
-
-TODO: explain why.
-
-> The formalization of the properties requires for the proposer selection
-> algorithm is a work in progress, see
-> https://github.com/informalsystems/malachite/issues/396.
+The main goal of the `proposer(h, r)` function is to eventually select a
+correct process to coordinate a round of consensus and to propose an
+appropriate value for it.
+A correct implementation of the function must ensure, that for every height
+`h`, there is a round `r* >= 0` where `proposer(h, r*)` returns a process `p`
+that is a correct process: `p` does not misbehave nor crash.
 
 ### Proposal value
 
