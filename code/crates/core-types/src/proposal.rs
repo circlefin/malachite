@@ -42,6 +42,12 @@ impl Validity {
         self == Validity::Valid
     }
 
+    /// Converts the validity to a boolean:
+    /// `true` if the proposal is valid, `false` otherwise.
+    pub fn to_bool(self) -> bool {
+        self.is_valid()
+    }
+
     /// Returns `Valid` if given true, `Invalid` if given false.
     pub fn from_bool(valid: bool) -> Self {
         if valid {
