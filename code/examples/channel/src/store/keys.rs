@@ -81,5 +81,3 @@ impl redb::Key for RoundKey {
         <i64 as redb::Key>::compare(data1, data2)
     }
 }
-
-
