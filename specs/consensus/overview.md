@@ -453,6 +453,34 @@ consensus height `h` is selected as the proposer for at least one round.
 In other words, it is enough that processes take turns as the proposers of
 different rounds of a height.
 
+#### Fairness
+
+Tendermint is a _rotating coordinator_ consensus algorithm.
+This means that the role of coordinating rounds and proposing values is
+expected to be played by different processes over time, in successive
+heights of consensus.
+(In contrast to the fixed coordinator approach, where the coordinator or
+proposer is only replaced when it is suspected to be faulty).
+
+While a correct `proposer(h, r)` implementation eventually selects all
+processes as the proposers of a round, being the proposer of the first round of
+a height is the most relevant role, since most heights of consensus are
+expected to be finalized in round 0.
+A fair proposer selection algorithm should therefore ensure that all processes
+have a similar chance of being selected as `proposer(h, 0)` over a reasonable
+long sequence of heights `h`.
+
+In the case of Proof-of-Stake (PoS) blockchains, where processes are assumed to
+have distinct voting powers, a fair proposer selection algorithm should ensure
+that every process is chosen,  over a reasonable long sequence of heights, as
+`proposer(h, 0)` in a number of heights `h` that is proportional to its voting
+power.
+Observe that when the set of processes running consensus varies over heights,
+so as the voting power associated to each process, producing a fair proposer
+selection algorithm becomes more challenging.
+The [proposer selection procedure of CometBFT][cometbft-proposer], a Tendermint
+implementation in Go, is a useful reference of how fairness can be achieved.
+
 ### Proposal value
 
 The external function `getValue()` is invoked by the proposer of a round as
@@ -515,3 +543,4 @@ to the current time plus the duration returned by the corresponding functions
 [pseudo-code]: ./pseudo-code.md
 [tendermint-arxiv]: https://arxiv.org/abs/1807.04938
 [accountable-tendermint]: ./misbehavior.md#misbehavior-detection-and-verification-in-accountable-tendermint
+[cometbft-proposer]: https://github.com/cometbft/cometbft/blob/main/spec/consensus/proposer-selection.md
