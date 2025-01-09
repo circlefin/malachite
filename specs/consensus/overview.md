@@ -71,11 +71,7 @@ To each round step is associated a [consensus message](#messages), exchanged by
 processes during that round step.
 
 The current round step of a process `p` is stored in the `step_p` variable.
-<<<<<<< HEAD
-In general terms, when entering a round step a process performs one or more
-=======
 In general terms, when entering a round step, a process performs one or more
->>>>>>> main
 **actions**.
 And the reception a given set of **events** while in a round step, leads the
 process to move to the next round step.
@@ -108,11 +104,7 @@ The action taken by a process when it moves from the `propose` to the `prevote`
 step is to **broadcast** a message to inform all processes whether it has accepted
 or not the proposed value.
 To accept a value `v`, the process issues a `PREVOTE` message for `id(v)`;
-<<<<<<< HEAD
-to reject it, it issues a `PREVOTE` message for the special `nil` value.
-=======
 in contrast, to reject it, it issues a `PREVOTE` message for the special `nil` value.
->>>>>>> main
 
 The remaining of this step consists of collecting the `PREVOTE` messages that
 processes have broadcast in the same round step.
