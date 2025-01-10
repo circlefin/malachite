@@ -480,8 +480,16 @@ power.
 Observe that when the set of processes running consensus varies over heights,
 so as the voting power associated to each process, producing a fair proposer
 selection algorithm becomes more challenging.
-The [proposer selection procedure of CometBFT][cometbft-proposer], a Tendermint
-implementation in Go, is a useful reference of how fairness can be achieved.
+
+> The [proposer selection procedure of CometBFT][cometbft-proposer], which
+> implements Tendermint in Go, is a useful reference of how a fair proposer
+> selection can be achieved with a dynamic set of processes and voting powers.
+> It is worth noting that this algorithm maintains an internal state, which is
+> updated whenever a new proposer is selected.
+> This means that reproducing the algorithm output for a given height,
+> requires, in addition to the inputs mentioned in the [Determinism
+> section](#determinism), retrieving or recomputing the algorithm's internal
+> state at that point.
 
 ### Proposal value
 
