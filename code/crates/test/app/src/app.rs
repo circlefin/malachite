@@ -181,19 +181,17 @@ pub async fn run(
                 info!(%height, %round, "Processing synced value");
 
                 let value = decode_value(value_bytes);
+                let proposal = ProposedValue {
+                    height,
+                    round,
+                    valid_round: Round::Nil,
+                    proposer,
+                    value,
+                    validity: Validity::Valid,
+                    extension: None,
+                };
 
-                if reply
-                    .send(ProposedValue {
-                        height,
-                        round,
-                        valid_round: Round::Nil,
-                        proposer,
-                        value,
-                        validity: Validity::Valid,
-                        extension: None,
-                    })
-                    .is_err()
-                {
+                if reply.send(proposal).is_err() {
                     error!("Failed to send ProcessSyncedValue reply");
                 }
             }

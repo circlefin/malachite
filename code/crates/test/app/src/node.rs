@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 use tracing::Instrument;
 
 use malachitebft_app_channel::app::events::TxEvent;
-use malachitebft_app_channel::app::types::config::Config;
+use malachitebft_app_channel::app::types::config::Config; // TODO: Move into test app
 use malachitebft_app_channel::app::types::core::VotingPower;
 use malachitebft_app_channel::app::types::Keypair;
 use malachitebft_app_channel::app::Node;
@@ -26,7 +26,7 @@ use crate::state::State;
 use crate::store::Store;
 
 pub struct Handles {
-    pub app: JoinHandle<eyre::Result<()>>,
+    pub app: JoinHandle<()>,
     pub engine: EngineHandle,
     pub tx_event: TxEvent<TestContext>,
 }
@@ -71,15 +71,20 @@ impl App {
 
         drop(_guard);
 
+        let config = self.config.clone();
         let store = Store::open(self.get_home_dir().join("store.db"))?;
         let start_height = self.start_height.unwrap_or_default();
-        let mut state = State::new(ctx, address, start_height, store);
+        let mut state = State::new(ctx, config, address, start_height, store);
 
         let tx_event = channels.events.clone();
 
         let app_handle = tokio::spawn(
-            async move { crate::app::run(genesis, &mut state, &mut channels).await }
-                .instrument(span),
+            async move {
+                if let Err(e) = crate::app::run(genesis, &mut state, &mut channels).await {
+                    tracing::error!("Application has failed with an error: {e}");
+                }
+            }
+            .instrument(span),
         );
 
         Ok(Handles {
@@ -148,6 +153,6 @@ impl Node for App {
 
     async fn run(self) -> eyre::Result<()> {
         let handles = self.start().await?;
-        handles.app.await?
+        handles.app.await.map_err(Into::into)
     }
 }

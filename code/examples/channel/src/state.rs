@@ -4,10 +4,11 @@
 use std::collections::HashSet;
 
 use bytes::Bytes;
+use eyre::eyre;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sha3::Digest;
-use tracing::{debug, error};
+use tracing::debug;
 
 use malachitebft_app_channel::app::consensus::ProposedValue;
 use malachitebft_app_channel::app::host::LocallyProposedValue;
@@ -128,12 +129,12 @@ impl State {
             .get_undecided_proposal(certificate.height, certificate.round)
             .await
         else {
-            error!(
-                height = %certificate.height,
-                "Trying to commit a value that is not decided"
-            );
-
-            return Ok(()); // FIXME
+            return Err(eyre!(
+                "Trying to commit a value at height {} and round {} that is not decided: {}",
+                certificate.height,
+                certificate.round,
+                certificate.value_id
+            ));
         };
 
         self.store

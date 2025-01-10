@@ -4,15 +4,17 @@
 use std::collections::HashSet;
 
 use bytes::Bytes;
+use eyre::eyre;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use sha3::Digest;
-use tracing::{debug, error};
+use tracing::debug;
 
 use malachitebft_app_channel::app::consensus::ProposedValue;
 use malachitebft_app_channel::app::host::LocallyProposedValue;
 use malachitebft_app_channel::app::streaming::{StreamContent, StreamMessage};
 use malachitebft_app_channel::app::types::codec::Codec;
+use malachitebft_app_channel::app::types::config::Config; // TODO: Move into test app
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round, Validity};
 use malachitebft_app_channel::app::types::PeerId;
 use malachitebft_test::codec::proto::ProtobufCodec;
@@ -26,17 +28,17 @@ use crate::streaming::{PartStreamsMap, ProposalParts};
 /// Represents the internal state of the application node
 /// Contains information about current height, round, proposals and blocks
 pub struct State {
-    ctx: TestContext,
-    address: Address,
-    store: Store,
-    stream_id: u64,
-    streams_map: PartStreamsMap,
-    rng: StdRng,
-
+    pub ctx: TestContext,
+    pub config: Config,
+    pub address: Address,
     pub current_height: Height,
     pub current_round: Round,
     pub current_proposer: Option<Address>,
     pub peers: HashSet<PeerId>,
+    store: Store,
+    stream_id: u64,
+    streams_map: PartStreamsMap,
+    rng: StdRng,
 }
 
 // Make up a seed for the rng based on our address in
@@ -53,14 +55,21 @@ fn seed_from_address(address: &Address) -> u64 {
 
 impl State {
     /// Creates a new State instance with the given validator address and starting height
-    pub fn new(ctx: TestContext, address: Address, height: Height, store: Store) -> Self {
+    pub fn new(
+        ctx: TestContext,
+        config: Config,
+        address: Address,
+        height: Height,
+        store: Store,
+    ) -> Self {
         Self {
             ctx,
+            config,
+            address,
+            store,
             current_height: height,
             current_round: Round::new(0),
             current_proposer: None,
-            address,
-            store,
             stream_id: 0,
             streams_map: PartStreamsMap::new(),
             rng: StdRng::seed_from_u64(seed_from_address(&address)),
@@ -128,12 +137,12 @@ impl State {
             .get_undecided_proposal(certificate.height, certificate.round)
             .await
         else {
-            error!(
-                height = %certificate.height,
-                "Trying to commit a value that is not decided"
-            );
-
-            return Ok(()); // FIXME
+            return Err(eyre!(
+                "Trying to commit a value at height {} and round {} that is not decided: {}",
+                certificate.height,
+                certificate.round,
+                certificate.value_id
+            ));
         };
 
         self.store
