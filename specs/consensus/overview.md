@@ -448,37 +448,117 @@ there is a faulty proposer; it limits "how bad" proposed values can be.
 In the arXiv paper, the pseudo code uses `valid(v)`, that is, a function that
 maps a value to a boolean. Observe that this should be understood in terms
 of a mathematical (pure) function:
-1. the function must only depend on `v` but not on other data (e.g., an application state at a given point in time, the current local time or temperature)
-2. If invoked several times for the same input, the function always returns the same boolean value (determinism)
-3. If invoked on different processes for the same input, the function always returns the same boolean value 
+1. the function must only depend on `v` but not on other data 
+(e.g., an application state at a given point in time, the current local time 
+or temperature).
+2. If invoked several times for the same input, the function always returns 
+the same boolean value (determinism).
+3. If invoked on different processes for the same input, the function always 
+returns the same boolean value. 
 
 The correctness of the consensus algorithm depends heavily on these points. 
-Most obviously for termination we require that all correct processes find 
+Most obviously for termination, we require that all correct processes find 
 the value by a correct proposer valid under all circumstances, because we
 need them to all prevote for the value. A deviation in `valid` would 
 result in some processes
 prevoting nil, and consequently, there might never be enough votes for a 
 value to decide.
 
+#### `valid(v)` in implementations
 
-However, in implementations the validity check typically is not pure:
-as mentioned in the arXiv paper "In the context of blockchain systems, 
+In implementations, the validity check typically is not pure:
+as already mentioned in the arXiv paper "In the context of blockchain systems, 
 for example, a value is not valid if it does not
-contain an appropriate hash of the last value (block) added to the blockchain." That is, rather than `valid(v)` the implementation has something like `valid(v, chain)`, that is, a value that might be valid at blockchain height 5, might be invalid at height 6. Observe that as long as all processes agree on the state of the chain up to height 5 when they start consensus for height 6, this will not harm liveness. (There have been cases of non-determinism in the application level that led to processes disagreeing on the application state and thus consensus being blocked at a given height)
+contain an appropriate hash of the last value (block) added to the blockchain." That is, 
+rather than `valid(v)` the implementation looks something like `valid(v, chain, height)`, 
+that is, 
+it depends on the state of the blockchain at a given height and a value. This implies that
+a value that might be valid at blockchain height 5, might be invalid at height 6. Observe 
+that this, strictly speaking, violates Point 1. from above.
+However, as long as all processes agree on 
+the state of the chain up to height 5 when they 
+start consensus for height 6, this still satisfies Points 2 and 3 and it will not harm 
+liveness. (There have been cases of 
+non-determinism in the application level that led to processes disagreeing on the 
+application state and thus consensus being blocked at a given height)
 
-Remark. We have seen (ab)uses of valid, that use external data. Consider he toy example of the proposer proposing the current room temperature, and the processes checking in `valid` whether the temperature is within one degree of their room temperature. It is easy to see that this a priori violates the points 1-3 above. One the one hand, this requires additional assumption on the environment to ensure termination, on the other hand, it is impossible to check validity after the fact (e.g., a late joiner cannot check validity of a value that processes have decided some time ago). So this use is not encouraged, and we ignore it in the remainder.
+**Remark.** We have seen slight (ab)uses of valid, that use external data. Consider he toy 
+example of the proposer proposing the current room temperature, and the processes 
+checking in `valid` whether the temperature is within one degree of their room 
+temperature. It is easy to see that this a priori violates the points 1-3 above. 
+One the one hand, this requires additional assumption on the environment to 
+ensure termination, on the other hand, it is impossible to check validity after 
+the fact (e.g., a late joiner cannot check validity of a value that processes have 
+decided some time ago). So this use is not encouraged, and we ignore it in the 
+remainder.
 
+**Remark.** Point 1 above also forbids that the current consensus round influences
+validity. For instance, one may say to get out of the liveness issue from the previous
+remark, to just find all blocks valid that have been proposed after, say, round 10. 
+Similarly, one might consider more stricter validity requirements for the proposal in
+round 0 (the lucky path), while in unlucky situations one might want to simplify 
+reaching a decision by weakening validity. In general this leads to complexity down
+the road when someone reads the decisions much later, and needs to understand the 
+different semantics of different blocks based on the decision round. We strongly
+suggest to not use round numbers in validation of values for this reason.
 
-continue here:
+#### Backward compatibility of `valid(v)`
 
+**Requirement 1 (Fixing bugs).**
+There might be a bug in `valid`. Then it might be possible that due to a bug,
+`valid` returns `false` 
+for a value `v` proposed by a correct process, and we are stuck at a given height. 
+A way to get out of the 
+situation is to produce a new implementation `valid'` that returns `true` for `v`. So
+to be prepared for such a scenario we need to allow a change in the function.
 
+**Requirement 2 (Future use).**
+So if we allow changes to `valid`, we need to understand all uses of this function: Some
+synchronization protocols may use `valid` for consistency checks, for instance, if a node
+fell behind, it might need to learn several past decisions. In doing so, it typically also
+uses (the current version) of `valid` to check the decided values before accepting them.
+In this scenario, a value decided in the past (potentially using a now old version of 
+`valid`) should be deemed valid with the current version of the function. 
 
-> TODO: relevant observation:
-> - Validation typically depends on `h` as well, in particular on the
->   application state at blockchain height `h`. It should not ordinarily
->   depend on `r`, since the application state should not change over rounds.
-> - Determinism: is `valid(v)` a function?
-> - Needed because of validity property of consensus, defined in the paper
+These two requirements lead us to the following requirement on the implementations:
+we consider a sequence of `valid_i(v)` implementations, with increasing indexes `i`, 
+so that to represent multiple _backwards compatible_ implementations of the validity checks.
+Formally we require that
+
+`valid_i(v) == true` implies `valid_j(v) == true `, for `j > i` and every value `v`
+
+The logical implications allows to be more permissive in later versions (as required to
+fix the bug), while maintaining the need that newer versions allow to check validity
+of previously decided values.
+
+#### Backward compatibility of `valid(v, chain, height)`
+
+As mentioned above, a typical use case is that the validity depends on the 
+state of the blockchain at a given height. In this scenario, the two requirements
+from above can be achieved without the implication:
+The idea is that if `valid` should be changed in that from height 
+`h`on, a function `new_valid` should be used to check validity, while up to height
+`h-1` the function `old_valid` has been used, then we can get something 
+along these lines:
+```
+valid(v, chain, height) = 
+  if (height >= h)
+    new_valid(v, chain, height)
+  else
+    old_valid(v, chain, height)
+```
+
+In this way, we effectively split evaluation of `valid` into different height 
+intervals. Whenever
+a new version is needed, and new interval is added on top. Moreover
+if in
+the future validity of a value is checked with a new version of `valid`, effectively
+the logic that was in place for that height is used by using the proper "if" branch. 
+This addresses Requirement 1 and 2 from above.
+
+TODO: I think in this [remark](https://github.com/informalsystems/malachite/issues/510#issuecomment-2505632410), different use cases (soft upgrades) are mixed.
+I am not sure what should
+be captured in this document.
 
 ## Primitives
 
