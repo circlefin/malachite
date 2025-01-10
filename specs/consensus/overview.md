@@ -486,10 +486,9 @@ selection algorithm becomes more challenging.
 > selection can be achieved with a dynamic set of processes and voting powers.
 > It is worth noting that this algorithm maintains an internal state, which is
 > updated whenever a new proposer is selected.
-> This means that reproducing the algorithm output for a given height,
-> requires, in addition to the inputs mentioned in the [Determinism
-> section](#determinism), retrieving or recomputing the algorithm's internal
-> state at that point.
+> This means that reproducing the algorithm output requires, in addition to the
+> inputs mentioned in the [Determinism section](#determinism), retrieving or
+> recomputing the associated algorithm's internal state.
 
 ### Proposal value
 
