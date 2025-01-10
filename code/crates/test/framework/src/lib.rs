@@ -7,11 +7,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use eyre::bail;
+use malachitebft_test_app::node::App;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
-use tracing::{debug, error, error_span, info, Instrument, Span};
+use tracing::{debug, error, error_span, info, Instrument};
 
 use malachitebft_config::{
     Config as NodeConfig, Config, DiscoveryConfig, LoggingConfig, PubSubProtocol, SyncConfig,
@@ -20,12 +21,7 @@ use malachitebft_config::{
 use malachitebft_core_consensus::{SignedConsensusMsg, ValueToPropose};
 use malachitebft_core_types::{SignedVote, VotingPower};
 use malachitebft_engine::util::events::{Event, RxEvent, TxEvent};
-use malachitebft_starknet_host::spawn::spawn_node_actor;
-use malachitebft_starknet_host::types::MockContext;
-use malachitebft_starknet_host::types::{Height, PrivateKey, Validator, ValidatorSet};
-
-#[cfg(test)]
-pub mod tests;
+use malachitebft_test::{Height, PrivateKey, TestContext, Validator, ValidatorSet};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Expected {
@@ -121,7 +117,7 @@ pub enum HandlerResult {
 }
 
 pub type EventHandler<S> =
-    Box<dyn Fn(Event<MockContext>, &mut S) -> Result<HandlerResult, eyre::Report> + Send + Sync>;
+    Box<dyn Fn(Event<TestContext>, &mut S) -> Result<HandlerResult, eyre::Report> + Send + Sync>;
 
 pub type NodeId = usize;
 
@@ -146,7 +142,7 @@ impl<State> TestNode<State> {
         Self {
             id,
             voting_power: 1,
-            start_height: Height::new(1, 1),
+            start_height: Height::new(1),
             start_delay: Duration::from_secs(0),
             steps: vec![],
             state,
@@ -172,7 +168,7 @@ impl<State> TestNode<State> {
     }
 
     pub fn start_after(&mut self, height: u64, delay: Duration) -> &mut Self {
-        self.start_height.block_number = height;
+        self.start_height = Height::new(height);
         self.start_delay = delay;
         self
     }
@@ -204,7 +200,7 @@ impl<State> TestNode<State> {
 
     pub fn on_event<F>(&mut self, on_event: F) -> &mut Self
     where
-        F: Fn(Event<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
+        F: Fn(Event<TestContext>, &mut State) -> Result<HandlerResult, eyre::Report>
             + Send
             + Sync
             + 'static,
@@ -247,7 +243,7 @@ impl<State> TestNode<State> {
 
     pub fn on_proposed_value<F>(&mut self, f: F) -> &mut Self
     where
-        F: Fn(ValueToPropose<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
+        F: Fn(ValueToPropose<TestContext>, &mut State) -> Result<HandlerResult, eyre::Report>
             + Send
             + Sync
             + 'static,
@@ -263,7 +259,7 @@ impl<State> TestNode<State> {
 
     pub fn on_vote<F>(&mut self, f: F) -> &mut Self
     where
-        F: Fn(SignedVote<MockContext>, &mut State) -> Result<HandlerResult, eyre::Report>
+        F: Fn(SignedVote<TestContext>, &mut State) -> Result<HandlerResult, eyre::Report>
             + Send
             + Sync
             + 'static,
@@ -395,10 +391,12 @@ where
         {
             let validator_set = self.validator_set.clone();
 
-            let home_dir =
-                tempfile::TempDir::with_prefix(format!("malachitebft-starknet-test-{}", self.id))
-                    .unwrap()
-                    .into_path();
+            let home_dir = tempfile::TempDir::with_prefix(format!(
+                "informalsystems-malachitebft-starknet-test-{}",
+                self.id
+            ))
+            .unwrap()
+            .into_path();
 
             set.spawn(
                 async move {
@@ -465,25 +463,23 @@ async fn run_node<S>(
 
     info!("Spawning node with voting power {}", node.voting_power);
 
-    let tx_event = TxEvent::new();
-    let mut rx_event = tx_event.subscribe();
-    let rx_event_bg = tx_event.subscribe();
-
-    let (mut actor_ref, _handle) = spawn_node_actor(
-        config.clone(),
-        home_dir.clone(),
-        validator_set.clone(),
+    let app = App {
+        config,
+        home_dir: home_dir.clone(),
         private_key,
-        Some(node.start_height),
-        tx_event,
-        Span::current(),
-    )
-    .await;
+        validator_set,
+        start_height: Some(node.start_height),
+    };
+
+    let mut handles = app.start().await.unwrap();
+
+    let mut rx_event = handles.tx_event.subscribe();
+    let rx_event_bg = handles.tx_event.subscribe();
 
     let decisions = Arc::new(AtomicUsize::new(0));
     let current_height = Arc::new(AtomicUsize::new(0));
 
-    let spawn_bg = |mut rx: RxEvent<MockContext>| {
+    let spawn_bg = |mut rx: RxEvent<TestContext>| {
         tokio::spawn({
             let decisions = Arc::clone(&decisions);
             let current_height = Arc::clone(&current_height);
@@ -533,8 +529,16 @@ async fn run_node<S>(
                 info!("Node will crash at height {height}");
                 sleep(after).await;
 
-                actor_ref.kill_and_wait(None).await.expect("Node must stop");
+                handles
+                    .engine
+                    .actor
+                    .kill_and_wait(None)
+                    .await
+                    .expect("Node must stop");
+
                 bg.abort();
+                handles.app.abort();
+                handles.engine.handle.abort();
             }
 
             Step::ResetDb => {
@@ -555,23 +559,12 @@ async fn run_node<S>(
                 let new_rx_event_bg = tx_event.subscribe();
 
                 info!("Spawning node");
-
-                let (new_actor_ref, _) = spawn_node_actor(
-                    config.clone(),
-                    home_dir.clone(),
-                    validator_set.clone(),
-                    private_key,
-                    Some(node.start_height),
-                    tx_event,
-                    tracing::Span::current(),
-                )
-                .await;
+                let new_handles = app.start().await.unwrap();
 
                 info!("Spawned");
 
                 bg = spawn_bg(new_rx_event_bg);
-
-                actor_ref = new_actor_ref;
+                handles = new_handles;
                 rx_event = new_rx_event;
             }
 
@@ -585,8 +578,10 @@ async fn run_node<S>(
                             break 'inner;
                         }
                         Err(e) => {
-                            actor_ref.stop(Some("Test failed".to_string()));
                             bg.abort();
+                            handles.engine.actor.stop(Some("Test failed".to_string()));
+                            handles.app.abort();
+                            handles.engine.handle.abort();
 
                             return TestResult::Failure(e.to_string());
                         }
@@ -597,8 +592,10 @@ async fn run_node<S>(
             Step::Expect(expected) => {
                 let actual = decisions.load(Ordering::SeqCst);
 
-                actor_ref.stop(Some("Test is over".to_string()));
                 bg.abort();
+                handles.engine.actor.stop(Some("Test failed".to_string()));
+                handles.app.abort();
+                handles.engine.handle.abort();
 
                 if expected.check(actual) {
                     return TestResult::Success(format!(
@@ -616,8 +613,10 @@ async fn run_node<S>(
             }
 
             Step::Fail(reason) => {
-                actor_ref.stop(Some("Test failed".to_string()));
                 bg.abort();
+                handles.engine.actor.stop(Some("Test failed".to_string()));
+                handles.app.abort();
+                handles.engine.handle.abort();
 
                 return TestResult::Failure(reason);
             }
@@ -637,9 +636,9 @@ pub fn init_logging(test_module: &str) {
         .any(|(k, v)| std::env::var(k).as_deref() == Ok(v));
 
     let directive = if enable_debug {
-        format!("{test_module}=debug,ractor=error,informalsystems_malachitebft=debug")
+        format!("{test_module}=debug,ractor=error,debug")
     } else {
-        format!("{test_module}=debug,ractor=error,informalsystems_malachitefbft=warn")
+        format!("{test_module}=debug,ractor=error,warn")
     };
 
     let filter = EnvFilter::builder().parse(directive).unwrap();

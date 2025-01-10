@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use derive_where::derive_where;
+use malachitebft_engine::util::events::TxEvent;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
@@ -21,6 +22,8 @@ pub struct Channels<Ctx: Context> {
     pub consensus: mpsc::Receiver<AppMsg<Ctx>>,
     /// Channel for sending messages to the networking layer
     pub network: mpsc::Sender<NetworkMsg<Ctx>>,
+    /// Receiver of events, call `subscribe` to receive them
+    pub events: TxEvent<Ctx>,
 }
 
 /// Messages sent from consensus to the application.

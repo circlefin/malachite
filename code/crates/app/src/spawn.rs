@@ -4,11 +4,13 @@ use std::path::Path;
 use std::time::Duration;
 
 use eyre::Result;
+use tokio::task::JoinHandle;
 use tracing::Span;
 
 use malachitebft_engine::consensus::{Consensus, ConsensusCodec, ConsensusParams, ConsensusRef};
 use malachitebft_engine::host::HostRef;
 use malachitebft_engine::network::{Network, NetworkRef};
+use malachitebft_engine::node::{Node, NodeRef};
 use malachitebft_engine::sync::{Params as SyncParams, Sync, SyncCodec, SyncRef};
 use malachitebft_engine::util::events::TxEvent;
 use malachitebft_engine::wal::{Wal, WalCodec, WalRef};
@@ -19,6 +21,32 @@ use crate::types::core::Context;
 use crate::types::metrics::{Metrics, SharedRegistry};
 use crate::types::sync;
 use crate::types::ValuePayload;
+
+pub async fn spawn_node_actor<Ctx>(
+    ctx: Ctx,
+    network: NetworkRef<Ctx>,
+    consensus: ConsensusRef<Ctx>,
+    wal: WalRef<Ctx>,
+    sync: Option<SyncRef<Ctx>>,
+    host: HostRef<Ctx>,
+) -> Result<(NodeRef, JoinHandle<()>)>
+where
+    Ctx: Context,
+{
+    // Spawn the node actor
+    let node = Node::new(
+        ctx,
+        network,
+        consensus,
+        wal,
+        sync,
+        host,
+        tracing::Span::current(),
+    );
+
+    let (actor_ref, handle) = node.spawn().await?;
+    Ok((actor_ref, handle))
+}
 
 pub async fn spawn_network_actor<Ctx, Codec>(
     cfg: &NodeConfig,

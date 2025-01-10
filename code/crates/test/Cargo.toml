@@ -37,6 +37,14 @@ serde_json = { workspace = true }
 sha3 = { workspace = true }
 signature = { workspace = true }
 
+[dev-dependencies]
+malachitebft-test-app.workspace = true
+malachitebft-test-framework.workspace = true
+
+bytesize.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
 [build-dependencies]
 prost-build = { workspace = true }
 

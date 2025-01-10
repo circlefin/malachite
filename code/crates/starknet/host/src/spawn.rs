@@ -98,17 +98,7 @@ pub async fn spawn_node_actor(
     .await;
 
     // Spawn the node actor
-    let node = Node::new(
-        ctx,
-        network,
-        consensus,
-        wal,
-        sync,
-        mempool.get_cell(),
-        host,
-        start_height,
-        span,
-    );
+    let node = Node::new(ctx, network, consensus, wal, sync, host, span);
 
     let (actor_ref, handle) = node.spawn().await.unwrap();
 

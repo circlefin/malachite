@@ -2094,8 +2094,10 @@ dependencies = [
  "informalsystems-malachitebft-peer",
  "informalsystems-malachitebft-sync",
  "libp2p-identity",
+ "ractor",
  "rand",
  "serde",
+ "tokio",
  "tracing",
 ]
 
@@ -2454,6 +2456,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bytes",
+ "bytesize",
  "ed25519-consensus",
  "eyre",
  "hex",
@@ -2466,6 +2469,8 @@ dependencies = [
  "informalsystems-malachitebft-proto",
  "informalsystems-malachitebft-signing-ed25519",
  "informalsystems-malachitebft-sync",
+ "informalsystems-malachitebft-test-app",
+ "informalsystems-malachitebft-test-framework",
  "prost",
  "prost-build",
  "prost-types",
@@ -2474,6 +2479,32 @@ dependencies = [
  "serde_json",
  "sha3",
  "signature",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "informalsystems-malachitebft-test-app"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "color-eyre",
+ "derive-where",
+ "eyre",
+ "informalsystems-malachitebft-app-channel",
+ "informalsystems-malachitebft-proto",
+ "informalsystems-malachitebft-test",
+ "informalsystems-malachitebft-test-cli",
+ "informalsystems-malachitebft-test-framework",
+ "prost",
+ "rand",
+ "redb",
+ "serde_json",
+ "sha3",
+ "thiserror 2.0.9",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2497,6 +2528,29 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "informalsystems-malachitebft-test-framework"
+version = "0.0.1"
+dependencies = [
+ "axum",
+ "bytesize",
+ "eyre",
+ "informalsystems-malachitebft-app-channel",
+ "informalsystems-malachitebft-config",
+ "informalsystems-malachitebft-core-consensus",
+ "informalsystems-malachitebft-core-types",
+ "informalsystems-malachitebft-engine",
+ "informalsystems-malachitebft-metrics",
+ "informalsystems-malachitebft-test",
+ "informalsystems-malachitebft-test-app",
+ "ractor",
+ "rand",
+ "tempfile",
+ "tokio",
+ "tracing",
  "tracing-subscriber",
 ]
 
