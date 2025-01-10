@@ -490,7 +490,13 @@ One the one hand, this requires additional assumption on the environment to
 ensure termination, on the other hand, it is impossible to check validity after 
 the fact (e.g., a late joiner cannot check validity of a value that processes have 
 decided some time ago). So this use is not encouraged, and we ignore it in the 
-remainder.
+remainder. However, for some applications this use case might still be beneficial: in
+this case it is important to understand that one needs to make an argument (which
+also needs to involve
+the environment) why it
+can be ensured that if `v` is a value returned
+by the  `getValue()` function of a correct process in the current height, then
+`valid(v)` evaluates to `true`.
 
 **Remark.** Point 1 above also forbids that the current consensus round influences
 validity. For instance, one may say to get out of the liveness issue from the previous
