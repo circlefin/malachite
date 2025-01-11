@@ -15,6 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     config.bytes(["."]);
     config.enable_type_names();
     config.default_package_filename("p2p");
+    config.disable_comments(["."]); // This will disable doc comments generation
     config.compile_protos(protos, &["./proto"])?;
 
     Ok(())
