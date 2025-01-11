@@ -286,6 +286,11 @@ impl<State> TestNode<State> {
         self.steps.push(Step::Success);
         self
     }
+
+    pub fn full_node(&mut self) -> &mut Self {
+        self.voting_power = 0;
+        self
+    }
 }
 
 fn unique_id() -> usize {
