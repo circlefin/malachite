@@ -75,18 +75,21 @@ where
 
     debug_assert_eq!(consensus_height, vote_height);
 
-    // Append the vote to the Write-ahead Log
-    perform!(
-        co,
-        Effect::WalAppendMessage(
-            SignedConsensusMsg::Vote(signed_vote.clone()),
-            Default::default()
-        )
-    );
+    // Only append to WAL and store precommits if we're in the validator set
+    if state.is_in_validator_set() {
+        // Append the vote to the Write-ahead Log
+        perform!(
+            co,
+            Effect::WalAppendMessage(
+                SignedConsensusMsg::Vote(signed_vote.clone()),
+                Default::default()
+            )
+        );
 
-    // Store the non-nil Precommits.
-    if signed_vote.vote_type() == VoteType::Precommit && signed_vote.value().is_val() {
-        state.store_signed_precommit(signed_vote.clone());
+        // Store the non-nil Precommits.
+        if signed_vote.vote_type() == VoteType::Precommit && signed_vote.value().is_val() {
+            state.store_signed_precommit(signed_vote.clone());
+        }
     }
 
     apply_driver_input(co, state, metrics, DriverInput::Vote(signed_vote)).await?;
