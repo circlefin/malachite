@@ -440,14 +440,14 @@ height of consensus `h_p`.
 The external function `valid` is used to guard any value-specific action in 
 the algorithm. The purpose is to restrict the domain of values that consensus 
 may decide. There is the assumption that if `v` is a value returned
-by the  `getValue()` function of a correct process in the current height, then
+by the  [`getValue()` function](#proposal-value) of a correct process in the current height, then
 `valid(v)` evaluates to `true`. Under this assumption, as long as the proposer
 is correct, `valid(v)` does not serve any purpose. It only becomes relevant if
 there is a faulty proposer; it limits "how bad" proposed values can be.
 
-In the arXiv paper, the pseudo code uses `valid(v)`, that is, a function that
+The [pseudo-code][pseudo-code] uses `valid(v)`, that is, a function that
 maps a value to a boolean. Observe that this should be understood in terms
-of a mathematical (pure) function:
+of a mathematical (pure) function, with the following properties:
 1. the function must only depend on `v` but not on other data 
 (e.g., an application state at a given point in time, the current local time 
 or temperature).
@@ -458,26 +458,25 @@ returns the same boolean value.
 
 The correctness of the consensus algorithm depends heavily on these points. 
 Most obviously for termination, we require that all correct processes find 
-the value by a correct proposer valid under all circumstances, because we
-need them to all prevote for the value. A deviation in `valid` would 
+the value proposed by a correct process valid under all circumstances, because we
+need them to accept the value. A deviation in `valid` would 
 result in some processes
-prevoting nil, and consequently, there might never be enough votes for a 
-value to decide.
+rejecting values proposed by correct processes, and consequently, there might never be enough votes to decide a value.
 
-#### `valid(v)` in implementations
+#### Implementation
 
-In implementations, the validity check typically is not pure:
-as already mentioned in the arXiv paper "In the context of blockchain systems, 
+Implementations of the validity check are typically not pure:
+as already mentioned in the [Tendermint paper][tendermint-arxiv], "In the context of blockchain systems, 
 for example, a value is not valid if it does not
 contain an appropriate hash of the last value (block) added to the blockchain." That is, 
 rather than `valid(v)` the implementation looks something like `valid(v, chain, height)`, 
 that is, 
 it depends on the state of the blockchain at a given height and a value. This implies that
 a value that might be valid at blockchain height 5, might be invalid at height 6. Observe 
-that this, strictly speaking, violates Point 1. from above.
+that this, strictly speaking, the above defined property 1.
 However, as long as all processes agree on 
 the state of the chain up to height 5 when they 
-start consensus for height 6, this still satisfies Points 2 and 3 and it will not harm 
+start consensus for height 6, this still satisfies properties 2 and 3 and it will not harm 
 liveness. (There have been cases of 
 non-determinism in the application level that led to processes disagreeing on the 
 application state and thus consensus being blocked at a given height)
@@ -508,33 +507,32 @@ the road when someone reads the decisions much later, and needs to understand th
 different semantics of different blocks based on the decision round. We strongly
 suggest to not use round numbers in validation of values for this reason.
 
-#### Backward compatibility of `valid(v)`
+#### Backwards compatibility
 
 **Requirement 1 (Fixing bugs).**
-There might be a bug in `valid`. Then it might be possible that due to a bug,
+There might be a bug in the implementation of `valid(v)`. Then it might be possible that due to a bug,
 `valid` returns `false` 
-for a value `v` proposed by a correct process, and we are stuck at a given height. 
+for values proposed by correct processes, and we are stuck at a given height. 
 A way to get out of the 
-situation is to produce a new implementation `valid'` that returns `true` for `v`. So
-to be prepared for such a scenario we need to allow a change in the function.
+situation is to produce a new implementation of `valid(v)` that returns `true` for the values proposed by correct processes.
+To be prepared for such a scenario we need to allow a change in the function.
 
 **Requirement 2 (Future use).**
-So if we allow changes to `valid`, we need to understand all uses of this function: Some
-synchronization protocols may use `valid` for consistency checks, for instance, if a node
+If we allow changes to `valid`, we need to understand all uses of this function. Some
+synchronization protocols may use `valid(v)` for consistency checks, for instance, if a node
 fell behind, it might need to learn several past decisions. In doing so, it typically also
-uses (the current version) of `valid` to check the decided values before accepting them.
+uses (the current version) of `valid(v)` to check the decided values before accepting them.
 In this scenario, a value decided in the past (potentially using a now old version of 
-`valid`) should be deemed valid with the current version of the function. 
+`valid(v)`) should be deemed valid with the current version of the function. 
 
 These two requirements lead us to the following requirement on the implementations:
-we consider a sequence of `valid_i(v)` implementations, with increasing indexes `i`, 
+we consider a sequence of `valid_i(v)` implementations, with increasing versions `i`, 
 so that to represent multiple _backwards compatible_ implementations of the validity checks.
 Formally we require that
+`valid_i(v) == true` implies `valid_j(v) == true `, for `j > i` and every value `v`.
 
-`valid_i(v) == true` implies `valid_j(v) == true `, for `j > i` and every value `v`
-
-The logical implications allows to be more permissive in later versions (as required to
-fix the bug), while maintaining the need that newer versions allow to check validity
+The logical implication allows newer versions of `valid(v)` to be more permissive (as required to
+fix bugs), while ensuring that newer versions allow to check validity
 of previously decided values.
 
 #### Backward compatibility of `valid(v, chain, height)`
