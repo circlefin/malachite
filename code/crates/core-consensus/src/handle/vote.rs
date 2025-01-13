@@ -76,7 +76,7 @@ where
     debug_assert_eq!(consensus_height, vote_height);
 
     // Only append to WAL and store precommits if we're in the validator set
-    if state.is_in_validator_set() {
+    if state.is_validator() {
         // Append the vote to the Write-ahead Log
         perform!(
             co,

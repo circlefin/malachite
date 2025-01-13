@@ -195,7 +195,7 @@ where
             );
 
             // Only sign and publish if we're in the validator set
-            if state.is_in_validator_set() {
+            if state.is_validator() {
                 let signed_proposal = sign_proposal(co, proposal).await?;
 
                 if signed_proposal.pol_round().is_defined() {
@@ -239,7 +239,7 @@ where
             );
 
             // Only sign and publish if we're in the validator set
-            if state.is_in_validator_set() {
+            if state.is_validator() {
                 let extended_vote = extend_vote(vote, state);
                 let signed_vote = sign_vote(co, extended_vote).await?;
 
